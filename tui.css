@@ -127,6 +127,7 @@ VMDetailModal {
 }
 
 .close-button {
+    height: 3vh;
     color: white;
     background: blue;
     border: hidden;
