@@ -1,0 +1,165 @@
+from textual.app import App, ComposeResult
+from textual.widgets import Header, Footer, Select, Button
+from textual.containers import ScrollableContainer, Grid, Horizontal
+from textual.reactive import reactive
+import libvirt
+from vmcard import VMCard, VMStateChanged, VMStartError
+
+class VMManagerTUI(App):
+    """A Textual application to manage VMs."""
+
+    BINDINGS = []
+
+    show_description = reactive(False)
+    show_machine_type = reactive(False)
+    show_firmware = reactive(False)
+
+    DEFAULT_CSS = """
+    #vms-container {
+        height: auto;
+    }"""
+    #grid {
+  #      height: auto;
+  #  }
+  #  """
+
+
+    def compose(self) -> ComposeResult:
+        """Create child widgets for the app."""
+        yield Header()
+        yield Select(
+            [
+                ("Show All", "show_all"),
+                ("Hide All", "hide_all"),
+                ("Toggle Description", "toggle_description"),
+                ("Toggle Machine Type", "toggle_machine_type"),
+                ("Toggle Firmware", "toggle_firmware"),
+            ],
+            id="select",
+            prompt="Display options",
+            allow_blank=True,
+        )
+        with ScrollableContainer(id="vms-container"):
+            yield Grid(id="grid")
+
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Called when the app is mounted."""
+        self.title = "VM Manager"
+        grid = self.query_one("#grid")
+        grid.styles.grid_size_columns = 3
+        grid.styles.grid_gutter_vertical = 2
+        grid.styles.grid_gutter_horizontal = 2
+        self.update_header()
+        self.list_vms()
+
+    async def on_vm_state_changed(self, message: VMStateChanged) -> None:
+        """Called when a VM's state changes."""
+        self.set_timer(2, self.refresh_vm_list)
+
+    async def on_vm_start_error(self, message: VMStartError) -> None:
+        """Called when a VM fails to start."""
+        header = self.query_one(Header)
+        header.sub_title = f"Error starting {message.vm_name}: {message.error_message}"
+        self.set_timer(5, self.update_header) # Revert header after 5 seconds
+
+
+    async def on_select_changed(self, event: Select.Changed) -> None:
+        if event.value == "toggle_description":
+            self.show_description = not self.show_description
+        elif event.value == "toggle_machine_type":
+            self.show_machine_type = not self.show_machine_type
+        elif event.value == "toggle_firmware":
+            self.show_firmware = not self.show_firmware
+        elif event.value == "show_all":
+            self.show_description = True
+            self.show_machine_type = True
+            self.show_firmware = True
+        elif event.value == "hide_all":
+            self.show_description = False
+            self.show_machine_type = False
+            self.show_firmware = False
+        
+        await self.refresh_vm_list()
+
+    async def refresh_vm_list(self) -> None:
+        """Refreshes the list of VMs."""
+        grid = self.query_one("#grid")
+        await grid.remove_children()
+        self.list_vms()
+        self.update_header()
+
+    def update_header(self):
+        header = self.query_one(Header)
+        conn = libvirt.open('qemu:///system')
+        if conn is None:
+            header.sub_title = "Failed to open connection to qemu:///system"
+            return
+
+        running_vms = 0
+        stopped_vms = 0
+        paused_vms = 0
+        domains = conn.listAllDomains(0)
+        if domains is not None:
+            for domain in domains:
+                state = domain.info()[0]
+                if state == libvirt.VIR_DOMAIN_RUNNING:
+                    running_vms += 1
+                elif state == libvirt.VIR_DOMAIN_PAUSED:
+                    paused_vms += 1
+                else:
+                    stopped_vms += 1
+        total_vms = len(domains) if domains is not None else 0
+        header.sub_title = f"Total VMs: {total_vms} | Running: {running_vms} | Paused: {paused_vms} | Stopped: {stopped_vms}"
+        conn.close()
+
+
+    def get_status(self, domain):
+        state = domain.info()[0]
+        if state == libvirt.VIR_DOMAIN_RUNNING:
+            return "Running"
+        elif state == libvirt.VIR_DOMAIN_PAUSED:
+            return "Paused"
+        else:
+            return "Stopped"
+
+    def list_vms(self):
+        grid = self.query_one("#grid")
+        conn = None
+        try:
+            conn = libvirt.open('qemu:///system')
+            if conn is None:
+                return
+
+            domains = conn.listAllDomains(0)
+            if domains is not None:
+                for domain in domains:
+                    info = domain.info()
+                    vm_card = VMCard(
+                        name=domain.name(),
+                        status=self.get_status(domain),
+                        description=self.get_vm_description(domain),
+                        cpu=info[3],
+                        memory=info[1] // 1024,  # Convert KiB to MiB
+                        vm=domain,
+                        color="#323232",
+                        show_description=self.show_description,
+                        show_machine_type=self.show_machine_type,
+                        show_firmware=self.show_firmware,
+                    )
+                    grid.mount(vm_card)
+        finally:
+            if conn is not None:
+                conn.close()
+
+    def get_vm_description(self, domain):
+        try:
+            return domain.metadata(libvirt.VIR_DOMAIN_METADATA_DESCRIPTION, None)
+        except libvirt.libvirtError:
+            return "No description"
+
+
+if __name__ == "__main__":
+    app = VMManagerTUI()
+    app.run()

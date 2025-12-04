@@ -1,0 +1,2 @@
+textual
+libvirt-python
