@@ -67,58 +67,56 @@ class VMCard(Static):
     VMCard {
         width: auto;
         height: auto;
-        min-height: 70;
+        min-height: 60;
         text-align: center;
         padding: 0 0;
+        border: panel green;
     }
     #name {
-        background: black;
-        color: white;
-        padding: 1 0;
+        background: green;
+        color: black;
+        padding: 0 0;
         text-style: bold;
         content-align: center middle;
     }
-    #name.running-name {
-        background: green;
-        color: black;
-    }
-    #name.paused-name {
-        background:yellow;
-        color: black;
-    }
     #status {
-        padding: 0 1;
-        border: solid white;
+        margin: 1 2;
+        padding: 0 0;
+        width: 100%;
+        height: 25%;
+        min-height: 10w;
         content-align: center middle;
     }
     #status.running {
-        border: solid green;
+        background: lightgreen;
+        color: black;
+        border: round lightgreen;
     }
     #status.stopped {
-        border: solid red;
+        color: black;
+        background: red;
+        border: round red;
     }
     #status.paused {
-        border: solid yellow;
+        color: black;
+        background: yellow;
+        border: round yellow;
     }
     Button {
-        width: 80%;
-        height: 1;
         margin: 0 1;
         padding: 0 0;
     }
     #button-container {
+        width: 100%;
+        height: 75%;
+        padding: 0 1;
         margin-top: 1;
     }
     """
 
     def compose(self):
         with Vertical(id="info-container"):
-            if self.status == "Running":
-                classes = "running-name"
-            elif self.status == "Paused":
-                classes = "paused-name"
-            else:
-                classes = ""
+            classes = ""
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
             yield Static(f"Status: {self.status}", id="status", classes=status_class)
@@ -196,9 +194,6 @@ class VMCard(Static):
                     status_widget.update(f"Status: {self.status}")
                     status_widget.remove_class("stopped", "paused")
                     status_widget.add_class("running")
-                    name_widget = self.query_one("#name")
-                    name_widget.remove_class("paused-name")
-                    name_widget.add_class("running-name")
                     self.update_button_layout()
                     self.post_message(VMStateChanged())
 
@@ -206,6 +201,9 @@ class VMCard(Static):
                     self.post_message(
                         VMStartError(vm_name=self.name, error_message=str(e))
                     )
+                    # Ensure header is updated on an error
+                    if hasattr(self, 'app') and self.app:
+                        self.app.update_header()
         elif event.button.id == "stop":
             if self.vm.isActive():
                 self.vm.destroy()
@@ -213,6 +211,9 @@ class VMCard(Static):
                 self.query_one("#status").update(f"Status: {self.status}")
                 self.update_button_layout()
                 self.post_message(VMStateChanged())
+                # Ensure header is updated after VM state change
+                if hasattr(self, 'app') and self.app:
+                    self.app.update_header()
         elif event.button.id == "pause":
             if self.vm.isActive():
                 self.vm.suspend()
@@ -221,9 +222,6 @@ class VMCard(Static):
                 status_widget.update(f"Status: {self.status}")
                 status_widget.remove_class("running", "stopped")
                 status_widget.add_class("paused")
-                name_widget = self.query_one("#name")
-                name_widget.remove_class("running-name")
-                name_widget.add_class("paused-name")
                 self.update_button_layout()
                 self.post_message(VMStateChanged())
         elif event.button.id == "resume":
@@ -233,9 +231,6 @@ class VMCard(Static):
             status_widget.update(f"Status: {self.status}")
             status_widget.remove_class("stopped", "paused")
             status_widget.add_class("running")
-            name_widget = self.query_one("#name")
-            name_widget.remove_class("paused-name")
-            name_widget.add_class("running-name")
             self.update_button_layout()
             self.post_message(VMStateChanged())
         elif event.button.id == "xml":

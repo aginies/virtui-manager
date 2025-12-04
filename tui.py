@@ -6,6 +6,7 @@ from textual.screen import ModalScreen
 import libvirt
 from vmcard import VMCard, VMStateChanged, VMStartError
 
+
 class ConnectionModal(ModalScreen):
     """Modal screen for entering connection URI."""
 
@@ -117,7 +118,7 @@ class VMManagerTUI(App):
 
     async def on_vm_state_changed(self, message: VMStateChanged) -> None:
         """Called when a VM's state changes."""
-        self.set_timer(1, self.update_header)
+        self.update_header()
         self.set_timer(2, self.refresh_vm_list)
 
     async def on_vm_start_error(self, message: VMStartError) -> None:
@@ -161,7 +162,7 @@ class VMManagerTUI(App):
             conn = libvirt.open(uri)
             if conn is None:
                 self.sub_title = f"Failed to connect to {uri}"
-                self.set_timer(5, self.update_header)
+                self.update_header()  # Update immediately to show error
                 return
             conn.close()
 
@@ -171,9 +172,8 @@ class VMManagerTUI(App):
 
         except libvirt.libvirtError as e:
             self.sub_title = f"Connection error: {str(e)}"
-            self.set_timer(5, self.update_header)
+            self.update_header()  # Update immediately to show error
             return
-            conn.close()
 
     def refresh_vm_list(self) -> None:
         """Refreshes the list of VMs."""
