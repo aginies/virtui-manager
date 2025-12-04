@@ -1,10 +1,11 @@
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Select, Button, Input, Label
+from textual.widgets import Header, Footer, Select, Button, Input, Label, Static
 from textual.containers import ScrollableContainer, Grid, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.screen import ModalScreen
+from textual import on
 import libvirt
-from vmcard import VMCard, VMStateChanged, VMStartError
+from vmcard import VMCard, VMStateChanged, VMStartError, VMNameClicked
 
 
 class ConnectionModal(ModalScreen):
@@ -29,14 +30,76 @@ class ConnectionModal(ModalScreen):
             self.dismiss(None)
 
 
+class XMLModalScreen(ModalScreen):
+    """Modal screen to show VM XML configuration."""
+
+    def __init__(self, xml_content: str) -> None:
+        super().__init__()
+        self.xml_content = xml_content
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label("VM XML Configuration:")
+            yield Static(self.xml_content, id="xml-content")
+            yield Button("Close", variant="primary", id="close-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "close-btn":
+            self.dismiss()
+
+
+class VMDetailModal(ModalScreen):
+    """Modal screen to show detailed VM information."""
+
+    def __init__(self, vm_name: str, vm_info: dict) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+        self.vm_info = vm_info
+
+    def compose(self) -> ComposeResult:
+        with Vertical():
+            yield Label(f"Details for VM: {self.vm_name}")
+            # Show basic info
+            yield Label(f"Status: {self.vm_info.get('status', 'N/A')}")
+            yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}")
+            yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB")
+            yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
+
+            if "firmware" in self.vm_info:
+                yield Label(f"Firmware: {self.vm_info['firmware']}")
+
+            if "machine_type" in self.vm_info:
+                yield Label(f"Machine Type: {self.vm_info['machine_type']}")
+
+            if "disks" in self.vm_info:
+                yield Label("Disks:")
+                for disk in self.vm_info["disks"]:
+                    yield Static(f"  {disk}", classes="disk-info")
+
+            if "networks" in self.vm_info:
+                yield Label("Networks:")
+                for network in self.vm_info["networks"]:
+                    yield Static(f"  {network}", classes="network-info")
+
+            # Show XML button
+            yield Button("View XML Config", variant="primary", id="view-xml-btn")
+            yield Button("Close", variant="primary", id="close-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "close-btn":
+            self.dismiss()
+        elif event.button.id == "view-xml-btn":
+            # Show the XML content in a new modal
+            xml_content = self.vm_info.get("xml", "")
+            self.app.push_screen(XMLModalScreen(xml_content))
+
+
 class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = []
 
     show_description = reactive(False)
-    show_machine_type = reactive(False)
-    show_firmware = reactive(False)
     connection_uri = reactive("qemu:///system")
 
     CSS = """
@@ -83,6 +146,11 @@ class VMManagerTUI(App):
         height: 2;
         margin: 0 0;
     }
+    .disk-info {
+        margin: 0 2;
+        padding: 0 0;
+        border-left: round;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -93,8 +161,6 @@ class VMManagerTUI(App):
                 ("Show All", "show_all"),
                 ("Hide All", "hide_all"),
                 ("Toggle Description", "toggle_description"),
-                ("Toggle Machine Type", "toggle_machine_type"),
-                ("Toggle Firmware", "toggle_firmware"),
                 ("Change Connection", "change_connection"),
             ],
             id="select",
@@ -129,23 +195,99 @@ class VMManagerTUI(App):
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.value == "toggle_description":
             self.show_description = not self.show_description
-        elif event.value == "toggle_machine_type":
-            self.show_machine_type = not self.show_machine_type
-        elif event.value == "toggle_firmware":
-            self.show_firmware = not self.show_firmware
         elif event.value == "show_all":
             self.show_description = True
-            self.show_machine_type = True
-            self.show_firmware = True
         elif event.value == "hide_all":
             self.show_description = False
-            self.show_machine_type = False
-            self.show_firmware = False
         elif event.value == "change_connection":
             self.push_screen(ConnectionModal(), self.handle_connection_result)
             return
 
         self.refresh_vm_list()
+
+    @on(VMNameClicked)
+    async def on_vm_name_clicked(self, message: VMNameClicked) -> None:
+        """Called when a VM name is clicked."""
+        # Get VM details and show modal
+        conn = libvirt.open(self.connection_uri)
+        if conn is None:
+            return
+        try:
+            domain = conn.lookupByName(message.vm_name)
+            # Gather detailed information
+            info = domain.info()
+
+            # Get machine type and firmware info
+            xml_content = domain.XMLDesc(0)
+            from xmlutil import get_vm_machine_firmware_info
+
+            firmware_info = get_vm_machine_firmware_info(xml_content)
+
+            # Get disk information
+            disks = []
+            try:
+                from xml.etree import ElementTree as ET
+
+                root = ET.fromstring(xml_content)
+                devices = root.find("devices")
+                if devices is not None:
+                    disk_elements = devices.findall("disk")
+                    for disk in disk_elements:
+                        disk_source = disk.find("source")
+                        if disk_source is not None and "file" in disk_source.attrib:
+                            disks.append(disk_source.attrib["file"])
+                        elif disk_source is not None and "dev" in disk_source.attrib:
+                            disks.append(disk_source.attrib["dev"])
+            except:
+                pass  # Failed to get disks, continue without them
+
+            # Get network information
+            networks = []
+            try:
+                from xml.etree import ElementTree as ET
+
+                root = ET.fromstring(xml_content)
+                devices = root.find("devices")
+                if devices is not None:
+                    interface_elements = devices.findall("interface")
+                    for interface in interface_elements:
+                        # Get interface type
+                        interface_type = interface.get("type", "unknown")
+                        # Get source (bridge, network, etc.)
+                        source = interface.find("source")
+                        if source is not None:
+                            if interface_type == "bridge":
+                                bridge_name = source.get("bridge", "unknown")
+                                networks.append(f"bridge: {bridge_name}")
+                            elif interface_type == "network":
+                                network_name = source.get("network", "unknown")
+                                networks.append(f"network: {network_name}")
+                            elif interface_type == "user":
+                                networks.append("user: network")
+                        else:
+                            networks.append(f"{interface_type}: unknown")
+            except:
+                pass  # Failed to get networks, continue without them
+
+            vm_info = {
+                "name": message.vm_name,
+                "status": self.get_status(domain),
+                "cpu": info[3],
+                "memory": info[1] // 1024,
+                "uuid": domain.UUIDString(),
+                "xml": xml_content,
+                "firmware": firmware_info.get("firmware", "N/A"),
+                "machine_type": firmware_info.get("machine_type", "N/A"),
+                "disks": disks,
+                "networks": networks,
+            }
+
+            self.push_screen(VMDetailModal(message.vm_name, vm_info))
+        except libvirt.libvirtError:
+            pass
+        finally:
+            if conn is not None:
+                conn.close()
 
     def handle_connection_result(self, result: str | None) -> None:
         """Handle the result from the connection modal."""
@@ -240,8 +382,6 @@ class VMManagerTUI(App):
                         vm=domain,
                         color="#323232",
                         show_description=self.show_description,
-                        show_machine_type=self.show_machine_type,
-                        show_firmware=self.show_firmware,
                     )
                     grid.mount(vm_card)
         finally:

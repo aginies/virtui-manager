@@ -5,7 +5,6 @@ from textual.message import Message
 import subprocess
 import tempfile
 import libvirt
-from xmlutil import get_vm_machine_firmware_info
 from textual import on
 
 
@@ -21,6 +20,12 @@ class VMStartError(Message):
         self.vm_name = vm_name
         self.error_message = error_message
 
+class VMNameClicked(Message):
+    """Posted when a VM's name is clicked."""
+
+    def __init__(self, vm_name: str) -> None:
+        super().__init__()
+        self.vm_name = vm_name
 
 class VMCard(Static):
     name = reactive("")
@@ -30,8 +35,6 @@ class VMCard(Static):
     memory = reactive(0)
     vm = reactive(None)
     color = reactive("blue")
-    machine_type = reactive("")
-    firmware = reactive("")
 
     def __init__(
         self,
@@ -43,8 +46,6 @@ class VMCard(Static):
         vm=None,
         color: str = "blue",
         show_description: bool = True,
-        show_machine_type: bool = True,
-        show_firmware: bool = True,
     ) -> None:
         super().__init__()
         self.name = name
@@ -55,13 +56,8 @@ class VMCard(Static):
         self.vm = vm
         self.color = color
         self.show_description = show_description
-        self.show_machine_type = show_machine_type
-        self.show_firmware = show_firmware
         if self.vm:
             xml_content = self.vm.XMLDesc(0)
-            info = get_vm_machine_firmware_info(xml_content)
-            self.machine_type = info.get("machine_type", "N/A")
-            self.firmware = info.get("firmware", "N/A")
 
     DEFAULT_CSS = """
     VMCard {
@@ -71,6 +67,7 @@ class VMCard(Static):
         text-align: center;
         padding: 0 0;
         border: panel green;
+        overflow-y: auto;
     }
     #name {
         background: green;
@@ -126,21 +123,9 @@ class VMCard(Static):
                 and self.description != "No description"
             ):
                 yield Static(f"Description: {self.description}")
-            cpu_mem_widget = Static(f"CPU: {self.cpu} | Memory: {self.memory} MB")
+            cpu_mem_widget = Static(f"VCPU: {self.cpu} | Memory: {self.memory} MB")
             cpu_mem_widget.styles.content_align = ("center", "middle")
             yield cpu_mem_widget
-            if (
-                self.show_machine_type
-                and self.machine_type
-                and self.machine_type != "N/A"
-            ):
-                machine_type_widget = Static(f"{self.machine_type}")
-                machine_type_widget.styles.content_align = ("center", "middle")
-                yield machine_type_widget
-            if self.show_firmware and self.firmware and self.firmware != "N/A":
-                firmware_widget = Static(f"{self.firmware}")
-                firmware_widget.styles.content_align = ("center", "middle")
-                yield firmware_widget
 
             with Horizontal(id="button-container"):
                 with Vertical():
@@ -202,7 +187,7 @@ class VMCard(Static):
                         VMStartError(vm_name=self.name, error_message=str(e))
                     )
                     # Ensure header is updated on an error
-                    if hasattr(self, 'app') and self.app:
+                    if hasattr(self, "app") and self.app:
                         self.app.update_header()
         elif event.button.id == "stop":
             if self.vm.isActive():
@@ -212,7 +197,7 @@ class VMCard(Static):
                 self.update_button_layout()
                 self.post_message(VMStateChanged())
                 # Ensure header is updated after VM state change
-                if hasattr(self, 'app') and self.app:
+                if hasattr(self, "app") and self.app:
                     self.app.update_header()
         elif event.button.id == "pause":
             if self.vm.isActive():
@@ -247,3 +232,7 @@ class VMCard(Static):
                 subprocess.run(
                     ["virt-viewer", "--connect", "qemu:///system", self.name]
                 )
+
+    def on_click(self) -> None:
+        """Handle clicks on the entire VM card."""
+        self.post_message(VMNameClicked(vm_name=self.name))
