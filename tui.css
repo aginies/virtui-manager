@@ -102,7 +102,7 @@ VMDetailModal {
 .info-details {
     height: auto;
     background: $panel;
-    padding: 0 1;
+    padding: 0 0;
     border: round $primary;
     margin-bottom: 1;
 }
@@ -127,8 +127,9 @@ VMDetailModal {
 }
 
 .close-button {
-    height: 3vh;
+    height: 4vh;
     color: white;
     background: blue;
     border: hidden;
+    margin-bottom: 1;
 }
