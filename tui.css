@@ -1,0 +1,116 @@
+/* Styles for VMManagerTUI */
+#vms-container {
+    height: auto;
+}
+ConnectionModal {
+    align: center middle;
+}
+#connection-dialog {
+    width: 60;
+    height: auto;
+    border: thick $background 80%;
+    background: $surface;
+    padding: 1 2;
+}
+#connection-dialog Label {
+    width: 100%;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+#connection-dialog Input {
+    width: 100%;
+    margin-bottom: 1;
+}
+#connection-dialog Horizontal {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+#connection-dialog Button {
+    margin: 0 1;
+}
+Header {
+    background: $primary;
+    color: $text;
+}
+Footer {
+    background: $primary;
+    color: $text;
+}
+Select {
+    width: 30;
+    height: 2;
+    margin: 0 0;
+}
+.disk-info {
+    margin: 0 2;
+    padding: 0 0;
+    border-left: round;
+}
+
+/* Styles for VMDetailModal */
+VMDetailModal {
+    align: center middle;
+}
+
+#vm-detail-container {
+    width: 80;
+    height: auto;
+    max-height: 90%;
+    background: $surface;
+    border: thick $primary-lighten-2;
+    padding: 1;
+    overflow: auto;
+}
+
+#title {
+    content-align: center middle;
+    width: 100%;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+#vm-info-grid {
+    grid-size-columns: 2;
+    grid-gutter: 1;
+    margin-bottom: 1;
+}
+
+#vm-info-grid Label:odd {
+    text-style: bold;
+    text-align: right;
+}
+
+.section-title {
+    text-style: bold;
+    background: $primary;
+    color: $text;
+    width: 100%;
+    margin-top: 1;
+}
+
+.info-section {
+    height: auto;
+    max-height: 10;
+    background: $panel;
+    padding: 0 1;
+    border: round $primary;
+    margin-bottom: 1;
+}
+
+#status-running {
+    color: green;
+}
+#status-stopped, #status-shut-off {
+    color: red;
+}
+#status-paused {
+    color: yellow;
+}
+
+#detail-button-container {
+    width: 100%;
+    height: auto;
+    align: center middle;
+    padding-top: 1;
+}

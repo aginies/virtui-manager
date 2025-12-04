@@ -52,47 +52,64 @@ class XMLModalScreen(ModalScreen):
 class VMDetailModal(ModalScreen):
     """Modal screen to show detailed VM information."""
 
+    CSS_PATH = "tui.css"
+
     def __init__(self, vm_name: str, vm_info: dict) -> None:
         super().__init__()
         self.vm_name = vm_name
         self.vm_info = vm_info
 
     def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label(f"Details for VM: {self.vm_name}")
-            # Show basic info
-            yield Label(f"Status: {self.vm_info.get('status', 'N/A')}")
-            yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}")
-            yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB")
-            yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
+        with Vertical(id="vm-detail-container"):
+            yield Label(f"VM Details: {self.vm_name}", id="title")
 
-            if "firmware" in self.vm_info:
-                yield Label(f"Firmware: {self.vm_info['firmware']}")
+            with Grid(id="vm-info-grid"):
+                status = self.vm_info.get("status", "N/A")
+                yield Label("Status:")
+                yield Label(
+                    f"{status}", id=f"status-{status.lower().replace(' ', '-')}"
+                )
 
-            if "machine_type" in self.vm_info:
-                yield Label(f"Machine Type: {self.vm_info['machine_type']}")
+                yield Label("CPU:")
+                yield Label(f"{self.vm_info.get('cpu', 'N/A')}")
 
-            if "disks" in self.vm_info:
-                yield Label("Disks:")
-                for disk in self.vm_info["disks"]:
-                    yield Static(f"  {disk}", classes="disk-info")
+                yield Label("Memory:")
+                yield Label(f"{self.vm_info.get('memory', 'N/A')} MB")
 
-            if "networks" in self.vm_info:
-                yield Label("Networks:")
-                for network in self.vm_info["networks"]:
-                    yield Static(f"  {network}", classes="network-info")
+                yield Label("UUID:")
+                yield Label(f"{self.vm_info.get('uuid', 'N/A')}")
 
-            # Show XML button
-            yield Button("View XML Config", variant="primary", id="view-xml-btn")
-            yield Button("Close", variant="primary", id="close-btn")
+                if "firmware" in self.vm_info:
+                    yield Label("Firmware:")
+                    yield Label(f"{self.vm_info['firmware']}")
+
+                if "machine_type" in self.vm_info:
+                    yield Label("Machine Type:")
+                    yield Label(f"{self.vm_info['machine_type']}")
+
+            if self.vm_info.get("disks"):
+                yield Label("Disks", classes="section-title")
+                with ScrollableContainer(classes="info-section"):
+                    for disk in self.vm_info["disks"]:
+                        yield Static(f"• {disk}")
+
+            if self.vm_info.get("networks"):
+                yield Label("Networks", classes="section-title")
+                with ScrollableContainer(classes="info-section"):
+                    for network in self.vm_info["networks"]:
+                        yield Static(f"• {network}")
+
+            with Horizontal(id="detail-button-container"):
+                yield Button("View XML", variant="primary", id="view-xml-btn")
+                yield Button("Close", variant="default", id="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
             self.dismiss()
         elif event.button.id == "view-xml-btn":
-            # Show the XML content in a new modal
             xml_content = self.vm_info.get("xml", "")
-            self.app.push_screen(XMLModalScreen(xml_content))
+            if xml_content:
+                self.app.push_screen(XMLModalScreen(xml_content))
 
 
 class VMManagerTUI(App):
@@ -103,56 +120,7 @@ class VMManagerTUI(App):
     show_description = reactive(False)
     connection_uri = reactive("qemu:///system")
 
-    CSS = """
-    #vms-container {
-        height: auto;
-    }
-    ConnectionModal {
-        align: center middle;
-    }
-    #connection-dialog {
-        width: 60;
-        height: auto;
-        border: thick $background 80%;
-        background: $surface;
-        padding: 1 2;
-    }
-    #connection-dialog Label {
-        width: 100%;
-        content-align: center middle;
-        margin-bottom: 1;
-    }
-    #connection-dialog Input {
-        width: 100%;
-        margin-bottom: 1;
-    }
-    #connection-dialog Horizontal {
-        width: 100%;
-        height: auto;
-        align: center middle;
-    }
-    #connection-dialog Button {
-        margin: 0 1;
-    }
-    Header {
-        background: $primary;
-        color: $text;
-    }
-    Footer {
-        background: $primary;
-        color: $text;
-    }
-    Select {
-        width: 30;
-        height: 2;
-        margin: 0 0;
-    }
-    .disk-info {
-        margin: 0 2;
-        padding: 0 0;
-        border-left: round;
-    }
-    """
+    CSS_PATH = "tui.css"
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -215,14 +183,14 @@ class VMManagerTUI(App):
         try:
             vm_info_list = get_vm_info(self.connection_uri)
             for vm_info in vm_info_list:
-                if vm_info['name'] == message.vm_name:
+                if vm_info["name"] == message.vm_name:
                     print(f"Nom: {vm_info['name']}")
                     print(f"UUID: {vm_info['uuid']}")
                     print(f"État: {vm_info['status']}")
                     print(f"Description: {vm_info['description']}")
                     print(f"CPU: {vm_info['cpu']}")
                     print(f"Mémoire: {vm_info['memory']} MiB")
-                    #print(f"Type de machine: {vm_info['machine_type']}")
+                    # print(f"Type de machine: {vm_info['machine_type']}")
                     print(f"Firmware: {vm_info['firmware']}")
                     print(f"Réseaux: {vm_info['networks']}")
                     print(f"Disques: {vm_info['disks']}")
@@ -325,6 +293,7 @@ class VMManagerTUI(App):
         finally:
             if conn is not None:
                 conn.close()
+
 
 if __name__ == "__main__":
     app = VMManagerTUI()
