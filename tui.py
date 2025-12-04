@@ -6,7 +6,7 @@ from textual.screen import ModalScreen
 from textual import on
 import libvirt
 from vmcard import VMCard, VMStateChanged, VMStartError, VMNameClicked
-from vm_info import get_vm_info, get_status, get_vm_description
+from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info
 
 
 class ConnectionModal(ModalScreen):
@@ -143,6 +143,7 @@ class VMManagerTUI(App):
 
     show_description = reactive(False)
     connection_uri = reactive("qemu:///system")
+    conn = None
 
     CSS_PATH = ["tui.css", "vmcard.css"]
     sub_title = reactive("")
@@ -173,8 +174,32 @@ class VMManagerTUI(App):
         grid.styles.grid_size_columns = 3
         grid.styles.grid_gutter_vertical = 1
         grid.styles.grid_gutter_horizontal = 1
+        self.connect_libvirt(self.connection_uri)
         self.update_header()
         self.list_vms()
+
+    def on_unload(self) -> None:
+        """Called when the app is about to be unloaded."""
+        if self.conn:
+            self.conn.close()
+
+    def connect_libvirt(self, uri: str) -> None:
+        """Connects to libvirt."""
+        if self.conn:
+            try:
+                self.conn.close()
+            except libvirt.libvirtError:
+                pass  # Ignore errors when closing old connection
+        
+        try:
+            self.conn = libvirt.open(uri)
+            if self.conn is None:
+                self.sub_title = f"Failed to connect to {uri}"
+            else:
+                self.connection_uri = uri
+        except libvirt.libvirtError as e:
+            self.sub_title = f"Connection error: {e}"
+            self.conn = None
 
     async def on_vm_state_changed(self, message: VMStateChanged) -> None:
         """Called when a VM's state changes."""
@@ -201,33 +226,32 @@ class VMManagerTUI(App):
 
     @on(VMNameClicked)
     async def on_vm_name_clicked(self, message: VMNameClicked) -> None:
-        conn = libvirt.open(self.connection_uri)
-        if conn is None:
+        if not self.conn:
             return
 
         try:
-            vm_info_list = get_vm_info(self.connection_uri)
-            for vm_info in vm_info_list:
-                if vm_info["name"] == message.vm_name:
-                    print(f"Nom: {vm_info['name']}")
-                    print(f"UUID: {vm_info['uuid']}")
-                    print(f"État: {vm_info['status']}")
-                    print(f"Description: {vm_info['description']}")
-                    print(f"CPU: {vm_info['cpu']}")
-                    print(f"Mémoire: {vm_info['memory']} MiB")
-                    # print(f"Type de machine: {vm_info['machine_type']}")
-                    print(f"Firmware: {vm_info['firmware']}")
-                    print(f"Réseaux: {vm_info['networks']}")
-                    print(f"Disques: {vm_info['disks']}")
-                    break
-
+            domain = self.conn.lookupByName(message.vm_name)
+            info = domain.info()
+            xml_content = domain.XMLDesc(0)
+            vm_info = {
+                'name': domain.name(),
+                'uuid': domain.UUIDString(),
+                'status': get_status(domain),
+                'description': get_vm_description(domain),
+                'cpu': info[3],
+                'memory': info[2] // 1024,  # Convert KiB to MiB
+                'machine_type': get_vm_machine_info(xml_content),
+                'firmware': get_vm_firmware_info(xml_content),
+                'networks': get_vm_networks_info(xml_content),
+                'detail_network': get_vm_network_ip(domain),
+                'network_dns_gateway': get_vm_network_dns_gateway_info(domain),
+                'disks': get_vm_disks_info(xml_content),
+                'xml': xml_content,
+            }
             self.push_screen(VMDetailModal(message.vm_name, vm_info))
-
         except libvirt.libvirtError:
             pass
-        finally:
-            if conn is not None:
-                conn.close()
+
 
     def handle_connection_result(self, result: str | None) -> None:
         """Handle the result from the connection modal."""
@@ -239,23 +263,9 @@ class VMManagerTUI(App):
         if not uri or uri.strip() == "":
             return
 
-        # Test the connection first
-        try:
-            conn = libvirt.open(uri)
-            if conn is None:
-                self.sub_title = f"Failed to connect to {uri}"
-                self.update_header()  # Update immediately to show error
-                return
-            conn.close()
+        self.connect_libvirt(uri)
+        self.refresh_vm_list()
 
-            # Connection successful, update URI
-            self.connection_uri = uri
-            self.refresh_vm_list()
-
-        except libvirt.libvirtError as e:
-            self.sub_title = f"Connection error: {str(e)}"
-            self.update_header()  # Update immediately to show error
-            return
 
     def refresh_vm_list(self) -> None:
         """Refreshes the list of VMs."""
@@ -265,42 +275,43 @@ class VMManagerTUI(App):
         self.update_header()
 
     def update_header(self):
-        conn = libvirt.open(self.connection_uri)
-        if conn is None:
+        if not self.conn:
             self.sub_title = f"Failed to open connection to {self.connection_uri}"
             return
 
-        running_vms = 0
-        stopped_vms = 0
-        paused_vms = 0
-        domains = conn.listAllDomains(0)
-        if domains is not None:
-            for domain in domains:
-                state = domain.info()[0]
-                if state == libvirt.VIR_DOMAIN_RUNNING:
-                    running_vms += 1
-                elif state == libvirt.VIR_DOMAIN_PAUSED:
-                    paused_vms += 1
-                else:
-                    stopped_vms += 1
+        try:
+            running_vms = 0
+            stopped_vms = 0
+            paused_vms = 0
+            domains = self.conn.listAllDomains(0)
+            if domains is not None:
+                for domain in domains:
+                    state = domain.info()[0]
+                    if state == libvirt.VIR_DOMAIN_RUNNING:
+                        running_vms += 1
+                    elif state == libvirt.VIR_DOMAIN_PAUSED:
+                        paused_vms += 1
+                    else:
+                        stopped_vms += 1
 
-        total_vms = len(domains) if domains is not None else 0
-        conn_info = ""
-        if self.connection_uri != "qemu:///system":
-            conn_info = f" [{self.connection_uri}] | "
+            total_vms = len(domains) if domains is not None else 0
+            conn_info = ""
+            if self.connection_uri != "qemu:///system":
+                conn_info = f" [{self.connection_uri}] | "
 
-        self.sub_title = f"{conn_info}Total VMs: {total_vms}" # | Running: {running_vms} | Paused: {paused_vms} | Stopped: {stopped_vms}"
-        conn.close()
+            self.sub_title = f"{conn_info}Total VMs: {total_vms}"
+        except libvirt.libvirtError:
+            self.sub_title = "Connection lost"
+            self.conn = None
+
 
     def list_vms(self):
         grid = self.query_one("#grid")
-        conn = None
-        try:
-            conn = libvirt.open(self.connection_uri)
-            if conn is None:
-                return
+        if not self.conn:
+            return
 
-            domains = conn.listAllDomains(0)
+        try:
+            domains = self.conn.listAllDomains(0)
             if domains is not None:
                 for domain in domains:
                     info = domain.info()
@@ -315,9 +326,9 @@ class VMManagerTUI(App):
                         show_description=self.show_description,
                     )
                     grid.mount(vm_card)
-        finally:
-            if conn is not None:
-                conn.close()
+        except libvirt.libvirtError:
+            self.sub_title = "Connection lost"
+            self.conn = None
 
 
 if __name__ == "__main__":

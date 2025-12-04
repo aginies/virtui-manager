@@ -7,13 +7,11 @@ import libvirt
 
 
 
-def get_vm_info(connection_uri):
+def get_vm_info(conn):
     """
     get all VM info
     """
-    conn = libvirt.open(connection_uri)
     if conn is None:
-        print(f"Failed to open connection to {connection_uri}")
         return []
 
     vm_info_list = []
@@ -38,7 +36,6 @@ def get_vm_info(connection_uri):
             }
             vm_info_list.append(vm_info)
 
-    conn.close()
     return vm_info_list
 
 def get_vm_network_dns_gateway_info(domain: str):

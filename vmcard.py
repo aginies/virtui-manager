@@ -174,7 +174,7 @@ class VMCard(Static):
         elif event.button.id == "connect":
             with self.app.suspend():
                 subprocess.run(
-                    ["virt-viewer", "--connect", "qemu:///system", self.name]
+                    ["virt-viewer", "--connect", self.app.connection_uri, self.name]
                 )
 
     def on_click(self) -> None:
