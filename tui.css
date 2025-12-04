@@ -122,3 +122,9 @@ VMDetailModal {
     color: red;
     height: 1;
 }
+
+.close-button {
+    height: auto;
+    color: white;
+    background: blue;
+}

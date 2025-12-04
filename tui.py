@@ -39,24 +39,6 @@ class ConnectionModal(ModalScreen):
             self.dismiss(None)
 
 
-class XMLModalScreen(ModalScreen):
-    """Modal screen to show VM XML configuration."""
-
-    def __init__(self, xml_content: str) -> None:
-        super().__init__()
-        self.xml_content = xml_content
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label("VM XML Configuration:")
-            yield Static(self.xml_content, id="xml-content")
-            yield Button("Close", variant="primary", id="close-btn")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "close-btn":
-            self.dismiss()
-
-
 class VMDetailModal(ModalScreen):
     """Modal screen to show detailed VM information."""
 
@@ -132,7 +114,7 @@ class VMDetailModal(ModalScreen):
                                 yield Static(f"    • {detail_str}")
 
             with Horizontal(id="detail-button-container"):
-                yield Button("Close", variant="default", id="close-btn")
+                yield Button("Close", variant="default", id="close-btn", classes="close-button")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
@@ -141,24 +123,46 @@ class VMDetailModal(ModalScreen):
 class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
-    BINDINGS = []
+    BINDINGS = [
+        ("ctrl+right", "next_page", "Next Page"),
+        ("ctrl+left", "previous_page", "Previous Page"),
+    ]
 
     connection_uri = reactive("qemu:///system")
     conn = None
+    current_page = reactive(0)
+    VMS_PER_PAGE = 4
+    sort_by = reactive("default")
 
     CSS_PATH = ["tui.css", "vmcard.css"]
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         yield Header()
-        yield Select(
-            [
-                ("Change Connection", "change_connection"),
-            ],
-            id="select",
-            prompt="Menu",
-            allow_blank=True,
-        )
+        with Horizontal(classes="top-controls"):
+            yield Button("Connection", id="change_connection_button")
+            with Vertical(classes="filter-group"):
+                yield Select(
+                    [
+                        ("Filter: All", "sort_default"),
+                        ("Filter: Running", "sort_running"),
+                        ("Filter: Paused", "sort_paused"),
+                        ("Filter: Stopped", "sort_stopped"),
+                    ],
+                    id="select",
+                    prompt="Filter by status",
+                    allow_blank=True,
+                )
+
+        with Horizontal(id="pagination-controls") as pc:
+            pc.styles.display = "none"
+            pc.styles.align_horizontal = "center"
+            pc.styles.height = "auto"
+            pc.styles.padding_top = 1
+            yield Button("Previous", id="prev-button", variant="primary")
+            yield Label("", id="page-info")
+            yield Button("Next", id="next-button", variant="primary")
+
         with ScrollableContainer(id="vms-container"):
             yield Grid(id="grid")
 
@@ -239,11 +243,23 @@ class VMManagerTUI(App):
         self.show_error_message(f"Error starting {message.vm_name}: {message.error_message}")
 
     def on_select_changed(self, event: Select.Changed) -> None:
-        if event.value == "change_connection":
-            self.push_screen(ConnectionModal(), self.handle_connection_result)
-            return
+        if event.value is not None:
+            if str(event.value).startswith("sort_"):
+                sort_key = str(event.value).replace("sort_", "")
+                if self.sort_by != sort_key:
+                    self.sort_by = sort_key
+                    self.current_page = 0
+                    self.refresh_vm_list()
+        else:
+            # Selection cleared
+            if self.sort_by != "default":
+                self.sort_by = "default"
+                self.current_page = 0
+                self.refresh_vm_list()
 
-        self.refresh_vm_list()
+    @on(Button.Pressed, "#change_connection_button")
+    def on_change_connection_button_pressed(self, event: Button.Pressed) -> None:
+        self.push_screen(ConnectionModal(), self.handle_connection_result)
 
     @on(VMNameClicked)
     async def on_vm_name_clicked(self, message: VMNameClicked) -> None:
@@ -285,6 +301,7 @@ class VMManagerTUI(App):
         if not uri or uri.strip() == "":
             return
 
+        self.current_page = 0
         self.connect_libvirt(uri)
         self.refresh_vm_list()
 
@@ -335,7 +352,38 @@ class VMManagerTUI(App):
         try:
             domains = self.conn.listAllDomains(0)
             if domains is not None:
-                for domain in domains:
+                if self.sort_by != "default":
+                    if self.sort_by == "running":
+                        domains = [
+                            d
+                            for d in domains
+                            if d.info()[0] == libvirt.VIR_DOMAIN_RUNNING
+                        ]
+                    elif self.sort_by == "paused":
+                        domains = [
+                            d
+                            for d in domains
+                            if d.info()[0] == libvirt.VIR_DOMAIN_PAUSED
+                        ]
+                    elif self.sort_by == "stopped":
+                        domains = [
+                            d
+                            for d in domains
+                            if d.info()[0]
+                            not in [
+                                libvirt.VIR_DOMAIN_RUNNING,
+                                libvirt.VIR_DOMAIN_PAUSED,
+                            ]
+                        ]
+
+                total_vms = len(domains)
+                self.update_pagination_controls(total_vms)
+
+                start_index = self.current_page * self.VMS_PER_PAGE
+                end_index = start_index + self.VMS_PER_PAGE
+                paginated_domains = domains[start_index:end_index]
+
+                for domain in paginated_domains:
                     info = domain.info()
                     vm_card = VMCard(
                         name=domain.name(),
@@ -349,6 +397,35 @@ class VMManagerTUI(App):
         except libvirt.libvirtError:
             self.show_error_message("Connection lost")
             self.conn = None
+
+    def update_pagination_controls(self, total_vms: int):
+        pagination_controls = self.query_one("#pagination-controls")
+        if total_vms <= self.VMS_PER_PAGE:
+            pagination_controls.styles.display = "none"
+            return
+        else:
+            pagination_controls.styles.display = "block"
+
+        num_pages = (total_vms + self.VMS_PER_PAGE - 1) // self.VMS_PER_PAGE
+
+        page_info = self.query_one("#page-info", Label)
+        page_info.update(f" Page {self.current_page + 1}/{num_pages} ")
+
+        prev_button = self.query_one("#prev-button", Button)
+        prev_button.disabled = self.current_page == 0
+
+        next_button = self.query_one("#next-button", Button)
+        next_button.disabled = self.current_page >= num_pages - 1
+
+    @on(Button.Pressed, "#prev-button")
+    def previous_page(self):
+        self.current_page -= 1
+        self.refresh_vm_list()
+
+    @on(Button.Pressed, "#next-button")
+    def next_page(self):
+        self.current_page += 1
+        self.refresh_vm_list()
 
 if __name__ == "__main__":
     app = VMManagerTUI()
