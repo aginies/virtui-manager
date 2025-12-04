@@ -1,16 +1,13 @@
-import libvirt
+"""
+lib to get all VM info
+"""
 import xml.etree.ElementTree as ET
 import os
+import libvirt
 
 def get_vm_info(connection_uri):
     """
-    Récupère les informations sur les VMs à partir d'une URI de connexion.
-
-    Args:
-        connection_uri (str): URI de connexion à libvirt.
-
-    Returns:
-        list: Liste de dictionnaires contenant les informations des VMs.
+    get all VM info
     """
     conn = libvirt.open(connection_uri)
     if conn is None:
@@ -40,16 +37,9 @@ def get_vm_info(connection_uri):
     conn.close()
     return vm_info_list
 
-
 def get_status(domain):
     """
-    Détermine l'état d'une VM.
-
-    Args:
-        domain: Objet domaine libvirt.
-
-    Returns:
-        str: État de la VM.
+    state of a VM
     """
     state = domain.info()[0]
     if state == libvirt.VIR_DOMAIN_RUNNING:
@@ -59,16 +49,9 @@ def get_status(domain):
     else:
         return 'Stopped'
 
-
 def get_vm_description(domain):
     """
-    Récupère la description d'une VM.
-
-    Args:
-        domain: Objet domaine libvirt.
-
-    Returns:
-        str: Description de la VM.
+    desc of the VM
     """
     try:
         return domain.metadata(libvirt.VIR_DOMAIN_METADATA_DESCRIPTION, None)
@@ -78,10 +61,6 @@ def get_vm_description(domain):
 def get_vm_firmware_info(xml_content: str) -> str:
     """
     Extracts firmware (BIOS/UEFI) from a VM's XML definition.
-
-    Args:
-        xml_content (str): The VM's XML definition as a string.
-
     """
     firmware = "BIOS" # Default to BIOS
 
@@ -100,7 +79,7 @@ def get_vm_firmware_info(xml_content: str) -> str:
             else:
                 bootloader_elem = os_elem.find('bootloader')
                 if bootloader_elem is not None:
-                    firmware = "BIOS" # Explicitly BIOS if bootloader is present and no pflash loader
+                    firmware = "BIOS"
 
     except ET.ParseError:
         pass # Return default values if XML parsing fails
@@ -110,10 +89,6 @@ def get_vm_firmware_info(xml_content: str) -> str:
 def get_vm_machine_info(xml_content: str) -> str:
     """
     Extracts machine type from a VM's XML definition.
-
-    Args:
-        xml_content (str): The VM's XML definition as a string.
-
     """
     machine_type = "N/A"
 
@@ -133,6 +108,9 @@ def get_vm_machine_info(xml_content: str) -> str:
     return machine_type
 
 def get_vm_networks_info(xml_content: str) -> str:
+    """
+    Extracts network from a VM's XML definition.
+    """
     networks = []
     try:
         from xml.etree import ElementTree as ET
@@ -161,16 +139,9 @@ def get_vm_networks_info(xml_content: str) -> str:
 
     return networks
 
-
 def get_vm_disks_info(xml_content: str) ->str:
     """
-    Récupère les informations sur les disques d'une VM.
-
-    Args:
-        domain: Objet domaine libvirt.
-
-    Returns:
-        list: Liste des disques de la VM.
+    Extracts disks info from a VM's XML definition.
     """
     disks = []
     try:
