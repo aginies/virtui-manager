@@ -147,7 +147,6 @@ class VMManagerTUI(App):
     conn = None
 
     CSS_PATH = ["tui.css", "vmcard.css"]
-    sub_title = reactive("")
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -350,7 +349,6 @@ class VMManagerTUI(App):
         except libvirt.libvirtError:
             self.show_error_message("Connection lost")
             self.conn = None
-
 
 if __name__ == "__main__":
     app = VMManagerTUI()

@@ -59,10 +59,10 @@ class VMCard(Static):
             classes = ""
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
-            yield Static(f"Status: {self.status}", id="status", classes=status_class)
-            cpu_mem_widget = Static(f"VCPU: {self.cpu} | Memory: {self.memory} MB")
+            cpu_mem_widget = Static(f"{self.cpu} VCPU | {self.memory} MB")
             cpu_mem_widget.styles.content_align = ("center", "middle")
             yield cpu_mem_widget
+            yield Static(f"Status: {self.status}", id="status", classes=status_class)
 
             with Horizontal(id="button-container"):
                 with Vertical():
