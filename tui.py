@@ -28,8 +28,8 @@ class ConnectionModal(ModalScreen):
                 id="uri-input",
             )
             with Horizontal():
-                yield Button("Connect", variant="primary", id="connect-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button("Connect", variant="primary", id="connect-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "connect-btn":
@@ -124,8 +124,8 @@ class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = [
-        ("ctrl+right", "next_page", "Next Page"),
-        ("ctrl+left", "previous_page", "Previous Page"),
+        ("ctrl+p", "next_page", "Next Page"),
+        ("ctrl+n", "previous_page", "Previous Page"),
     ]
 
     connection_uri = reactive("qemu:///system")
@@ -140,7 +140,7 @@ class VMManagerTUI(App):
         """Create child widgets for the app."""
         yield Header()
         with Horizontal(classes="top-controls"):
-            yield Button("Connection", id="change_connection_button")
+            yield Button("Connection", id="change_connection_button", classes="Buttonpage")
             with Vertical(classes="filter-group"):
                 yield Select(
                     [
@@ -151,7 +151,8 @@ class VMManagerTUI(App):
                     ],
                     id="select",
                     prompt="Filter by status",
-                    allow_blank=True,
+                    allow_blank=False,
+                    classes="Button",
                 )
 
         with Horizontal(id="pagination-controls") as pc:
@@ -159,9 +160,9 @@ class VMManagerTUI(App):
             pc.styles.align_horizontal = "center"
             pc.styles.height = "auto"
             pc.styles.padding_top = 1
-            yield Button("Previous", id="prev-button", variant="primary")
+            yield Button("Previous", id="prev-button", variant="primary", classes="Buttonpage")
             yield Label("", id="page-info")
-            yield Button("Next", id="next-button", variant="primary")
+            yield Button("Next", id="next-button", variant="primary", classes="Buttonpage")
 
         with ScrollableContainer(id="vms-container"):
             yield Grid(id="grid")

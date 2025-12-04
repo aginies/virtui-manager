@@ -109,12 +109,15 @@ VMDetailModal {
 
 #status-running {
     color: green;
+    border: round green;
 }
 #status-stopped, #status-shut-off {
     color: red;
+    border: round red;
 }
 #status-paused {
     color: yellow;
+    border: round yellow;
 }
 
 .error-message {
@@ -124,7 +127,7 @@ VMDetailModal {
 }
 
 .close-button {
-    height: auto;
     color: white;
     background: blue;
+    border: hidden;
 }
