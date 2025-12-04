@@ -101,9 +101,21 @@ This file contains the main `VMManagerTUI` class which implements the applicatio
 - VM listing and display in a grid layout
 - State change handling for VMs
 - Error handling for connection and VM operations
-- **Handles snapshot error and success messages, displaying them in a dynamically resizing footer.**
+- Handles snapshot error and success messages, displaying them in a dynamically resizing footer.
 - Display options for showing/hiding VM details
-- **Provides functionality to view the application's error log file.**
+- Provides functionality to view the application's error log file.
+- Errors during connection or VM operations are logged to `vm_manager_error.log` for later review.
+
+### vm_info.py
+
+This module contains utility functions (`get_vm_info`, `get_status`, `get_vm_description`, etc.) responsible for extracting detailed information about virtual machines from `libvirt` domain objects and their XML configurations. It parses various aspects like status, CPU, memory, firmware, machine type, network interfaces, disk information, and other attached devices.
+
+### Styling (CSS Files)
+
+The application uses several CSS files for styling different components:
+- `tui.css`: Provides overall styling for the main application layout and general widgets.
+- `vmcard.css`: Contains specific styles for the `VMCard` widget, defining its appearance.
+- `snapshot.css`: Manages the styling for the `SnapshotNameDialog` and `SelectSnapshotDialog` modal screens.
 
 ## License
 
