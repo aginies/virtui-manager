@@ -124,17 +124,11 @@ class VMDetailModal(ModalScreen):
                                 yield Static(f"    • {detail_str}")
 
             with Horizontal(id="detail-button-container"):
-                yield Button("View XML", variant="primary", id="view-xml-btn")
                 yield Button("Close", variant="default", id="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
             self.dismiss()
-        elif event.button.id == "view-xml-btn":
-            xml_content = self.vm_info.get("xml", "")
-            if xml_content:
-                self.app.push_screen(XMLModalScreen(xml_content))
-
 
 class VMManagerTUI(App):
     """A Textual application to manage VMs."""
@@ -160,7 +154,7 @@ class VMManagerTUI(App):
             ],
             id="select",
             prompt="Display options",
-            allow_blank=True,
+            allow_blank=False, #True,
         )
         with ScrollableContainer(id="vms-container"):
             yield Grid(id="grid")
@@ -190,7 +184,7 @@ class VMManagerTUI(App):
                 self.conn.close()
             except libvirt.libvirtError:
                 pass  # Ignore errors when closing old connection
-        
+
         try:
             self.conn = libvirt.open(uri)
             if self.conn is None:
