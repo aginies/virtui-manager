@@ -144,8 +144,7 @@ class VMManagerTUI(App):
     show_description = reactive(False)
     connection_uri = reactive("qemu:///system")
 
-    CSS_PATH = "tui.css"
-    CSS_PATH = "vmcard.css"
+    CSS_PATH = ["tui.css", "vmcard.css"]
     sub_title = reactive("")
 
     def compose(self) -> ComposeResult:
@@ -172,8 +171,8 @@ class VMManagerTUI(App):
         self.title = "VM Manager"
         grid = self.query_one("#grid")
         grid.styles.grid_size_columns = 3
-        grid.styles.grid_gutter_vertical = 2
-        grid.styles.grid_gutter_horizontal = 2
+        grid.styles.grid_gutter_vertical = 1
+        grid.styles.grid_gutter_horizontal = 1
         self.update_header()
         self.list_vms()
 
