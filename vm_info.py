@@ -123,7 +123,6 @@ def get_vm_networks_info(xml_content: str) -> str:
     """
     networks = []
     try:
-        from xml.etree import ElementTree as ET
         root = ET.fromstring(xml_content)
         devices = root.find("devices")
         if devices is not None:
@@ -187,7 +186,7 @@ def get_vm_disks_info(xml_content: str) ->str:
     """
     disks = []
     try:
-        from xml.etree import ElementTree as ET
+
         root = ET.fromstring(xml_content)
         devices = root.find("devices")
         if devices is not None:
