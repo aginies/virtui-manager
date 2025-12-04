@@ -29,7 +29,6 @@ class VMNameClicked(Message):
 class VMCard(Static):
     name = reactive("")
     status = reactive("")
-    description = reactive("")
     cpu = reactive(0)
     memory = reactive(0)
     vm = reactive(None)
@@ -39,22 +38,18 @@ class VMCard(Static):
         self,
         name: str = "",
         status: str = "",
-        description: str = "",
         cpu: int = 0,
         memory: int = 0,
         vm=None,
         color: str = "blue",
-        show_description: bool = True,
     ) -> None:
         super().__init__()
         self.name = name
         self.status = status
-        self.description = description
         self.cpu = cpu
         self.memory = memory
         self.vm = vm
         self.color = color
-        self.show_description = show_description
         if self.vm:
             xml_content = self.vm.XMLDesc(0)
 
@@ -65,12 +60,6 @@ class VMCard(Static):
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
             yield Static(f"Status: {self.status}", id="status", classes=status_class)
-            if (
-                self.show_description
-                and self.description
-                and self.description != "No description"
-            ):
-                yield Static(f"Description: {self.description}")
             cpu_mem_widget = Static(f"VCPU: {self.cpu} | Memory: {self.memory} MB")
             cpu_mem_widget.styles.content_align = ("center", "middle")
             yield cpu_mem_widget
