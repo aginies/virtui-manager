@@ -32,12 +32,8 @@ This project provides a terminal-based interface to manage virtual machines usin
 # Install Python dependencies
 pip install libvirt-python textual
 
-## Usage
-
-### Running the Application
-
-```bash
-python tui.py
+# Verify virt-viewer is available in PATH
+which virt-viewer
 ```
 
 ### Main Interface

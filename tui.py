@@ -14,7 +14,7 @@ class ConnectionModal(ModalScreen):
             yield Label("Enter QEMU Connection URI:")
             yield Input(
                 placeholder="qemu+ssh://user@host/system or qemu:///system",
-                id="uri-input"
+                id="uri-input",
             )
             with Horizontal():
                 yield Button("Connect", variant="primary", id="connect-btn")
@@ -26,6 +26,7 @@ class ConnectionModal(ModalScreen):
             self.dismiss(uri_input.value)
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
+
 
 class VMManagerTUI(App):
     """A Textual application to manage VMs."""
@@ -41,10 +42,9 @@ class VMManagerTUI(App):
     #vms-container {
         height: auto;
     }
-  ConnectionModal {
+    ConnectionModal {
         align: center middle;
     }
-    
     #connection-dialog {
         width: 60;
         height: auto;
@@ -52,26 +52,30 @@ class VMManagerTUI(App):
         background: $surface;
         padding: 1 2;
     }
-    
     #connection-dialog Label {
         width: 100%;
         content-align: center middle;
         margin-bottom: 1;
     }
-    
     #connection-dialog Input {
         width: 100%;
         margin-bottom: 1;
     }
-    
     #connection-dialog Horizontal {
         width: 100%;
         height: auto;
         align: center middle;
     }
-    
     #connection-dialog Button {
         margin: 0 1;
+    }
+    Header {
+        background: $primary;
+        color: $text;
+    }
+    Footer {
+        background: $primary;
+        color: $text;
     }
     """
 
@@ -108,14 +112,13 @@ class VMManagerTUI(App):
 
     async def on_vm_state_changed(self, message: VMStateChanged) -> None:
         """Called when a VM's state changes."""
+        self.set_timer(1, self.update_header)
         self.set_timer(2, self.refresh_vm_list)
 
     async def on_vm_start_error(self, message: VMStartError) -> None:
         """Called when a VM fails to start."""
-        header = self.query_one(Header)
-        header.sub_title = f"Error starting {message.vm_name}: {message.error_message}"
-        self.set_timer(5, self.update_header) # Revert header after 5 seconds
-
+        self.sub_title = f"Error starting {message.vm_name}: {message.error_message}"
+        self.set_timer(5, self.update_header)  # Revert header after 5 seconds
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.value == "toggle_description":
@@ -135,7 +138,7 @@ class VMManagerTUI(App):
         elif event.value == "change_connection":
             self.push_screen(ConnectionModal(), self.handle_connection_result)
             return
- 
+
         self.refresh_vm_list()
 
     def handle_connection_result(self, result: str | None) -> None:
@@ -152,8 +155,7 @@ class VMManagerTUI(App):
         try:
             conn = libvirt.open(uri)
             if conn is None:
-                header = self.query_one(Header)
-                header.sub_title = f"Failed to connect to {uri}"
+                self.sub_title = f"Failed to connect to {uri}"
                 self.set_timer(5, self.update_header)
                 return
             conn.close()
@@ -163,8 +165,17 @@ class VMManagerTUI(App):
             self.refresh_vm_list()
 
         except libvirt.libvirtError as e:
-            header = self.query_one(Header)
-            header.sub_title = f"Connection error: {str(e)}"
+            self.sub_title = f"Connection error: {str(e)}"
+            self.set_timer(5, self.update_header)
+            return
+            conn.close()
+
+            # Connection successful, update URI
+            self.connection_uri = uri
+            self.refresh_vm_list()
+
+        except libvirt.libvirtError as e:
+            self.sub_title = f"Connection error: {str(e)}"
             self.set_timer(5, self.update_header)
 
     def refresh_vm_list(self) -> None:
@@ -175,10 +186,9 @@ class VMManagerTUI(App):
         self.update_header()
 
     def update_header(self):
-        header = self.query_one(Header)
         conn = libvirt.open(self.connection_uri)
         if conn is None:
-            header.sub_title = f"Failed to open connection to {self.connection_uri}"
+            self.sub_title = f"Failed to open connection to {self.connection_uri}"
             return
 
         running_vms = 0
@@ -200,9 +210,8 @@ class VMManagerTUI(App):
         if self.connection_uri != "qemu:///system":
             conn_info = f" [{self.connection_uri}] | "
 
-        header.sub_title = f"{conn_info}Total VMs: {total_vms} | Running: {running_vms} | Paused: {paused_vms} | Stopped: {stopped_vms}"
+        self.sub_title = f"{conn_info}Total VMs: {total_vms} | Running: {running_vms} | Paused: {paused_vms} | Stopped: {stopped_vms}"
         conn.close()
-
 
     def get_status(self, domain):
         state = domain.info()[0]
