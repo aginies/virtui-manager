@@ -1,11 +1,13 @@
-from textual.widgets import Static, Button
+from textual.widgets import Static, Button, Input, ListView, ListItem, Label
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.message import Message
+from textual.screen import Screen
 import subprocess
 import tempfile
 import libvirt
 from textual import on
+
 
 class VMStateChanged(Message):
     """Posted when a VM's state changes."""
@@ -19,12 +21,32 @@ class VMStartError(Message):
         self.vm_name = vm_name
         self.error_message = error_message
 
+
+class SnapshotError(Message):
+    """Posted when a snapshot operation fails."""
+
+    def __init__(self, vm_name: str, error_message: str) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+        self.error_message = error_message
+
+
+class SnapshotSuccess(Message):
+    """Posted when a snapshot operation succeeds."""
+
+    def __init__(self, vm_name: str, message: str) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+        self.message = message
+
+
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
 
     def __init__(self, vm_name: str) -> None:
         super().__init__()
         self.vm_name = vm_name
+
 
 class VMCard(Static):
     name = reactive("")
@@ -53,7 +75,6 @@ class VMCard(Static):
         if self.vm:
             xml_content = self.vm.XMLDesc(0)
 
-
     def compose(self):
         with Vertical(id="info-container"):
             classes = ""
@@ -71,6 +92,7 @@ class VMCard(Static):
                     elif self.status == "Running":
                         yield Button("Stop", id="stop", variant="error")
                         yield Button("Pause", id="pause", variant="primary")
+                        yield Button("Take Snapshot", id="snapshot_take", variant="primary")
                     elif self.status == "Paused":
                         yield Button("Stop", id="stop", variant="error")
                         yield Button("Resume", id="resume", variant="success")
@@ -78,6 +100,17 @@ class VMCard(Static):
                     yield Button("View XML", id="xml")
                     if self.status == "Running":
                         yield Button("Connect", id="connect", variant="default")
+                    if self.vm and self.vm.snapshotNum(0) > 0:
+                        yield Button(
+                            "Restore Snapshot",
+                            id="snapshot_restore",
+                            variant="primary",
+                        )
+                        yield Button(
+                            "Delete Snapshot",
+                            id="snapshot_delete",
+                            variant="error",
+                        )
 
     def on_mount(self) -> None:
         self.styles.background = self.color
@@ -98,6 +131,7 @@ class VMCard(Static):
         elif self.status == "Running":
             left_vertical.mount(Button("Stop", id="stop", variant="error"))
             left_vertical.mount(Button("Pause", id="pause", variant="primary"))
+            left_vertical.mount(Button("Take Snapshot", id="snapshot_take", variant="primary"))
         elif self.status == "Paused":
             left_vertical.mount(Button("Stop", id="stop", variant="error"))
             left_vertical.mount(Button("Resume", id="resume", variant="success"))
@@ -105,6 +139,13 @@ class VMCard(Static):
         right_vertical.mount(Button("View XML", id="xml"))
         if self.status == "Running":
             right_vertical.mount(Button("Connect", id="connect", variant="default"))
+        if self.vm and self.vm.snapshotNum(0) > 0:
+            right_vertical.mount(
+                Button("Restore Snapshot", id="snapshot_restore", variant="primary")
+            )
+            right_vertical.mount(
+                Button("Delete Snapshot", id="snapshot_delete", variant="error")
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "start":
@@ -165,7 +206,156 @@ class VMCard(Static):
                 subprocess.run(
                     ["virt-viewer", "--connect", self.app.connection_uri, self.name]
                 )
+        elif event.button.id == "snapshot_take":
+
+            def handle_snapshot_name(name: str | None) -> None:
+                if name:
+                    xml = f"<domainsnapshot><name>{name}</name></domainsnapshot>"
+                    try:
+                        self.vm.snapshotCreateXML(xml, 0)
+                        self.post_message(
+                            SnapshotSuccess(
+                                vm_name=self.name,
+                                message=f"Snapshot '{name}' created successfully.",
+                            )
+                        )
+                        self.update_button_layout()
+                    except libvirt.libvirtError as e:
+                        self.post_message(
+                            SnapshotError(vm_name=self.name, error_message=str(e))
+                        )
+
+            self.app.push_screen(SnapshotNameDialog(), handle_snapshot_name)
+
+        elif event.button.id == "snapshot_restore":
+            snapshots = self.vm.listAllSnapshots(0)
+            if not snapshots:
+                self.post_message(
+                    SnapshotError(
+                        vm_name=self.name, error_message="No snapshots to restore."
+                    )
+                )
+                return
+
+            def restore_snapshot(snapshot_name: str | None) -> None:
+                if snapshot_name:
+                    try:
+                        snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
+                        self.vm.revertToSnapshot(snapshot, 0)
+
+                        # Get new state and update card
+                        state, _ = self.vm.state()
+                        if state == libvirt.VIR_DOMAIN_RUNNING:
+                            self.status = "Running"
+                        elif state == libvirt.VIR_DOMAIN_PAUSED:
+                            self.status = "Paused"
+                        else:
+                            self.status = "Stopped"
+
+                        status_widget = self.query_one("#status")
+                        status_widget.update(f"Status: {self.status}")
+                        status_widget.remove_class("running", "stopped", "paused")
+                        status_widget.add_class(self.status.lower())
+                        self.update_button_layout()
+
+                        self.post_message(VMStateChanged())
+                        self.post_message(
+                            SnapshotSuccess(
+                                vm_name=self.name,
+                                message=f"Restored to snapshot '{snapshot_name}'.",
+                            )
+                        )
+                    except libvirt.libvirtError as e:
+                        self.post_message(
+                            SnapshotError(vm_name=self.name, error_message=str(e))
+                        )
+
+            self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to restore:"), restore_snapshot)
+
+        elif event.button.id == "snapshot_delete":
+            snapshots = self.vm.listAllSnapshots(0)
+            if not snapshots:
+                self.post_message(
+                    SnapshotError(
+                        vm_name=self.name, error_message="No snapshots to delete."
+                    )
+                )
+                return
+
+            def delete_snapshot(snapshot_name: str | None) -> None:
+                if snapshot_name:
+                    try:
+                        snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
+                        snapshot.delete(0)
+                        self.post_message(
+                            SnapshotSuccess(
+                                vm_name=self.name,
+                                message=f"Snapshot '{snapshot_name}' deleted successfully.",
+                            )
+                        )
+                        self.update_button_layout()
+                    except libvirt.libvirtError as e:
+                        self.post_message(
+                            SnapshotError(vm_name=self.name, error_message=str(e))
+                        )
+
+            self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to delete:"), delete_snapshot)
 
     def on_click(self) -> None:
         """Handle clicks on the entire VM card."""
         self.post_message(VMNameClicked(vm_name=self.name))
+
+
+class SnapshotNameDialog(Screen):
+    """A dialog to ask for a snapshot name."""
+
+    CSS_PATH = "snapshot.css"
+
+    def compose(self):
+        yield Vertical(
+            Label("Enter snapshot name:", id="question"),
+            Input(placeholder="snapshot_name"),
+            Vertical(
+                Button("Cancel", variant="error", id="cancel"),
+                Button("Create", variant="success", id="create"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "create":
+            input_widget = self.query_one(Input)
+            self.dismiss(input_widget.value)
+        else:
+            self.dismiss(None)
+
+
+class SelectSnapshotDialog(Screen[str]):
+    """A dialog to select a snapshot from a list."""
+
+    CSS_PATH = "snapshot.css"
+
+    def __init__(self, snapshots: list, prompt: str) -> None:
+        super().__init__()
+        self.snapshots = snapshots
+        self.prompt = prompt
+
+    def compose(self):
+        yield Vertical(
+            Label(self.prompt),
+            ListView(
+                *[ListItem(Label(snap.getName())) for snap in self.snapshots],
+                id="snapshot-list",
+            ),
+            Button("Cancel", variant="error", id="cancel"),
+            id="dialog",
+        )
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        snapshot_name = event.item.query_one(Label).renderable
+        self.dismiss(str(snapshot_name))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)

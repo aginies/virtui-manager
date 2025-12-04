@@ -39,7 +39,7 @@ VMCard {
     border: round yellow;
 }
 Button {
-    height: auto; /*3vh; */
+    height: 8vh; /*3vh; */
     width: 100%; /*5vh; */
     margin: 0 1;
     padding: 0 0;
@@ -47,7 +47,7 @@ Button {
 }
 .Buttonpage {
     height: 3vh;
-    width: 10%; /*5vh; */
+    width: 15%; /*5vh; */
     margin: 0 1;
     padding: 0 0;
     overflow-y: auto;
