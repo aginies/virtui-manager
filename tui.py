@@ -6,7 +6,7 @@ from textual.screen import ModalScreen
 from textual import on
 import libvirt
 from vmcard import VMCard, VMStateChanged, VMStartError, VMNameClicked
-from vm_info import get_vm_info
+from vm_info import get_vm_info, get_status, get_vm_description
 
 
 class ConnectionModal(ModalScreen):
@@ -299,15 +299,6 @@ class VMManagerTUI(App):
         self.sub_title = f"{conn_info}Total VMs: {total_vms} | Running: {running_vms} | Paused: {paused_vms} | Stopped: {stopped_vms}"
         conn.close()
 
-    def get_status(self, domain):
-        state = domain.info()[0]
-        if state == libvirt.VIR_DOMAIN_RUNNING:
-            return "Running"
-        elif state == libvirt.VIR_DOMAIN_PAUSED:
-            return "Paused"
-        else:
-            return "Stopped"
-
     def list_vms(self):
         grid = self.query_one("#grid")
         conn = None
@@ -322,8 +313,8 @@ class VMManagerTUI(App):
                     info = domain.info()
                     vm_card = VMCard(
                         name=domain.name(),
-                        status=self.get_status(domain),
-                        description=self.get_vm_description(domain),
+                        status=get_status(domain),
+                        description=get_vm_description(domain),
                         cpu=info[3],
                         memory=info[1] // 1024,  # Convert KiB to MiB
                         vm=domain,
@@ -334,13 +325,6 @@ class VMManagerTUI(App):
         finally:
             if conn is not None:
                 conn.close()
-
-    def get_vm_description(self, domain):
-        try:
-            return domain.metadata(libvirt.VIR_DOMAIN_METADATA_DESCRIPTION, None)
-        except libvirt.libvirtError:
-            return "No description"
-
 
 if __name__ == "__main__":
     app = VMManagerTUI()
