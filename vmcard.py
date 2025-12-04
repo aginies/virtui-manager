@@ -1,21 +1,26 @@
 from textual.widgets import Static, Button
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
-from textual.containers import Vertical
 from textual.message import Message
 import subprocess
 import tempfile
 import libvirt
 from xmlutil import get_vm_machine_firmware_info
+from textual import on
+
 
 class VMStateChanged(Message):
     """Posted when a VM's state changes."""
 
+
 class VMStartError(Message):
     """Posted when a VM fails to start."""
+
     def __init__(self, vm_name: str, error_message: str) -> None:
         super().__init__()
         self.vm_name = vm_name
         self.error_message = error_message
+
 
 class VMCard(Static):
     name = reactive("")
@@ -28,7 +33,19 @@ class VMCard(Static):
     machine_type = reactive("")
     firmware = reactive("")
 
-    def __init__(self, name: str = "", status: str = "", description: str = "", cpu: int = 0, memory: int = 0, vm=None, color: str = "blue", show_description: bool = True, show_machine_type: bool = True, show_firmware: bool = True) -> None:
+    def __init__(
+        self,
+        name: str = "",
+        status: str = "",
+        description: str = "",
+        cpu: int = 0,
+        memory: int = 0,
+        vm=None,
+        color: str = "blue",
+        show_description: bool = True,
+        show_machine_type: bool = True,
+        show_firmware: bool = True,
+    ) -> None:
         super().__init__()
         self.name = name
         self.status = status
@@ -51,17 +68,21 @@ class VMCard(Static):
         width: auto;
         height: auto;
         text-align: center;
-        padding: 1 1;
+        padding: 0 0;
     }
     #name {
         background: black;
         color: white;
-        padding: 1 1;
+        padding: 1 0;
         text-style: bold;
         content-align: center middle;
     }
     #name.running-name {
         background: green;
+        color: black;
+    }
+    #name.pause-name {
+        background:yellow;
         color: black;
     }
     #status {
@@ -89,16 +110,29 @@ class VMCard(Static):
 
     def compose(self):
         with Vertical(id="info-container"):
-            classes = "running-name" if self.status == "Running" else ""
+            if self.status == "Running":
+                classes = "running-name"
+            elif self.status == "Paused":
+                classes = "pause-name"
+            else:
+                classes = ""
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
             yield Static(f"Status: {self.status}", id="status", classes=status_class)
-            if self.show_description and self.description and self.description != "No description":
+            if (
+                self.show_description
+                and self.description
+                and self.description != "No description"
+            ):
                 yield Static(f"Description: {self.description}")
             cpu_mem_widget = Static(f"CPU: {self.cpu} | Memory: {self.memory} MB")
             cpu_mem_widget.styles.content_align = ("center", "middle")
             yield cpu_mem_widget
-            if self.show_machine_type and self.machine_type and self.machine_type != "N/A":
+            if (
+                self.show_machine_type
+                and self.machine_type
+                and self.machine_type != "N/A"
+            ):
                 machine_type_widget = Static(f"{self.machine_type}")
                 machine_type_widget.styles.content_align = ("center", "middle")
                 yield machine_type_widget
@@ -106,7 +140,7 @@ class VMCard(Static):
                 firmware_widget = Static(f"{self.firmware}")
                 firmware_widget.styles.content_align = ("center", "middle")
                 yield firmware_widget
-            with Vertical(id="button-container"):
+            with Horizontal(id="button-container"):
                 if self.status == "Stopped":
                     yield Button("Start", id="start", variant="success")
                 elif self.status == "Running":
@@ -130,7 +164,9 @@ class VMCard(Static):
                     self.query_one("#status").update(f"Status: {self.status}")
                     self.post_message(VMStateChanged())
                 except libvirt.libvirtError as e:
-                    self.post_message(VMStartError(vm_name=self.name, error_message=str(e)))
+                    self.post_message(
+                        VMStartError(vm_name=self.name, error_message=str(e))
+                    )
         elif event.button.id == "stop":
             if self.vm.isActive():
                 self.vm.destroy()
@@ -150,11 +186,15 @@ class VMCard(Static):
             self.post_message(VMStateChanged())
         elif event.button.id == "xml":
             xml_content = self.vm.XMLDesc(0)
-            with tempfile.NamedTemporaryFile(mode="w+", delete=False, suffix=".xml") as tmpfile:
+            with tempfile.NamedTemporaryFile(
+                mode="w+", delete=False, suffix=".xml"
+            ) as tmpfile:
                 tmpfile.write(xml_content)
                 tmpfile.flush()
                 with self.app.suspend():
                     subprocess.run(["view", tmpfile.name])
         elif event.button.id == "connect":
             with self.app.suspend():
-                subprocess.run(["virt-viewer", "--connect", "qemu:///system", self.name])
+                subprocess.run(
+                    ["virt-viewer", "--connect", "qemu:///system", self.name]
+                )
