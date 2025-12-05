@@ -8,6 +8,7 @@ import tempfile
 import libvirt
 import logging
 from textual import on
+from textual.events import Click
 
 
 class VMStateChanged(Message):
@@ -51,6 +52,16 @@ class VMActionError(Message):
         self.error_message = error_message
 
 
+class VMActionSuccess(Message):
+    """Posted when a generic VM action succeeds."""
+
+    def __init__(self, vm_name: str, action: str, message: str) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+        self.action = action
+        self.message = message
+
+
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
 
@@ -91,7 +102,7 @@ class VMCard(Static):
             classes = ""
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
-            cpu_mem_widget = Static(f"{self.cpu} VCPU | {self.memory} MB")
+            cpu_mem_widget = Static(f"{self.cpu} VCPU | {self.memory} MB", id="cpu-mem-info", classes="cpu-mem-clickable")
             cpu_mem_widget.styles.content_align = ("center", "middle")
             yield cpu_mem_widget
             yield Static(f"Status: {self.status}", id="status", classes=status_class)
@@ -124,6 +135,8 @@ class VMCard(Static):
                             id="snapshot_delete",
                             variant="error",
                         )
+                        #yield Static(classes="button-separator")
+                        #yield Button("Delete VM", id="delete_vm", variant="error")
 
     def on_mount(self) -> None:
         self.styles.background = self.color
@@ -161,6 +174,8 @@ class VMCard(Static):
             right_vertical.mount(
                 Button("Delete Snapshot", id="snapshot_delete", variant="error")
             )
+            #right_vertical.mount(Static(classes="button-separator"))
+            #right_vertical.mount(Button("Delete VM", id="delete_vm", variant="error"))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "start":
@@ -176,7 +191,11 @@ class VMCard(Static):
                     self.update_button_layout()
                     self.post_message(VMStateChanged())
                     logging.info(f"Successfully started VM: {self.name}")
-
+                    self.post_message(
+                        VMActionSuccess(
+                            vm_name=self.name, action="start", message=f"VM '{self.name}' started successfully."
+                        )
+                    )
                 except libvirt.libvirtError as e:
                     self.post_message(
                         VMStartError(vm_name=self.name, error_message=str(e))
@@ -192,6 +211,11 @@ class VMCard(Static):
                     self.update_button_layout()
                     self.post_message(VMStateChanged())
                     logging.info(f"Successfully stopped VM: {self.name}")
+                    self.post_message(
+                        VMActionSuccess(
+                            vm_name=self.name, action="stop", message=f"VM '{self.name}' stopped successfully."
+                        )
+                    )
                 except libvirt.libvirtError as e:
                     self.post_message(
                         VMActionError(vm_name=self.name, action="stop", error_message=str(e))
@@ -210,6 +234,11 @@ class VMCard(Static):
                     self.update_button_layout()
                     self.post_message(VMStateChanged())
                     logging.info(f"Successfully paused VM: {self.name}")
+                    self.post_message(
+                        VMActionSuccess(
+                            vm_name=self.name, action="pause", message=f"VM '{self.name}' paused successfully."
+                        )
+                    )
                 except libvirt.libvirtError as e:
                     self.post_message(
                         VMActionError(vm_name=self.name, action="pause", error_message=str(e))
@@ -226,6 +255,11 @@ class VMCard(Static):
                 self.update_button_layout()
                 self.post_message(VMStateChanged())
                 logging.info(f"Successfully resumed VM: {self.name}")
+                self.post_message(
+                    VMActionSuccess(
+                        vm_name=self.name, action="resume", message=f"VM '{self.name}' resumed successfully."
+                    )
+                )
             except libvirt.libvirtError as e:
                 self.post_message(
                     VMActionError(vm_name=self.name, action="resume", error_message=str(e))
@@ -312,15 +346,16 @@ class VMCard(Static):
 
                         self.post_message(VMStateChanged())
                         self.post_message(
-                            SnapshotSuccess(
+                            VMActionSuccess(
                                 vm_name=self.name,
-                                message=f"Restored to snapshot '{snapshot_name}'.",
+                                action="snapshot restore",
+                                message=f"Restored to snapshot '{snapshot_name}' successfully.",
                             )
                         )
                         logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
                     except libvirt.libvirtError as e:
                         self.post_message(
-                            SnapshotError(vm_name=self.name, error_message=str(e))
+                            VMActionError(vm_name=self.name, action="snapshot restore", error_message=str(e))
                         )
 
             self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to restore:"), restore_snapshot)
@@ -330,8 +365,8 @@ class VMCard(Static):
             snapshots = self.vm.listAllSnapshots(0)
             if not snapshots:
                 self.post_message(
-                    SnapshotError(
-                        vm_name=self.name, error_message="No snapshots to delete."
+                    VMActionError(
+                        vm_name=self.name, action="snapshot delete", error_message="No snapshots to delete."
                     )
                 )
                 return
@@ -342,8 +377,9 @@ class VMCard(Static):
                         snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
                         snapshot.delete(0)
                         self.post_message(
-                            SnapshotSuccess(
+                            VMActionSuccess(
                                 vm_name=self.name,
+                                action="snapshot delete",
                                 message=f"Snapshot '{snapshot_name}' deleted successfully.",
                             )
                         )
@@ -351,14 +387,35 @@ class VMCard(Static):
                         logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                     except libvirt.libvirtError as e:
                         self.post_message(
-                            SnapshotError(vm_name=self.name, error_message=str(e))
+                            VMActionError(vm_name=self.name, action="snapshot delete", error_message=str(e))
                         )
 
             self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to delete:"), delete_snapshot)
 
-    def on_click(self) -> None:
-        """Handle clicks on the entire VM card."""
+        elif event.button.id == "delete_vm":
+            logging.info(f"Attempting to delete VM: {self.name}")
+            try:
+                if self.vm.isActive():
+                    self.vm.destroy() # Shut down the VM first if it's active
+                self.vm.undefine() # Undefine the VM
+                self.post_message(
+                    VMActionSuccess(
+                        vm_name=self.name, action="delete VM", message=f"VM '{self.name}' deleted successfully."
+                    )
+                )
+                self.post_message(VMStateChanged()) # Refresh the VM list
+                logging.info(f"Successfully deleted VM: {self.name}")
+            except libvirt.libvirtError as e:
+                self.post_message(
+                    VMActionError(vm_name=self.name, action="delete VM", error_message=str(e))
+                )
+
+    @on(Click, "#cpu-mem-info")
+    def on_click_cpu_mem_info(self) -> None:
+        """Handle clicks on the CPU/Memory info part of the VM card."""
         self.post_message(VMNameClicked(vm_name=self.name))
+
+
 
 
 class SnapshotNameDialog(Screen):
