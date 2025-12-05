@@ -3,6 +3,7 @@ VMCard {
     padding: 0 0;
     border: none;
     margin: 0 0;
+/*    width: 99%;*/
 }
 #name {
     background: $background;
@@ -18,6 +19,7 @@ VMCard {
     padding: 0 0;
     content-align: center middle;
     border: round green;
+    min-width: 80vh;
 }
 #status {
     margin: 0 2;
@@ -27,6 +29,8 @@ VMCard {
     min-height: 3vh; /* 3vh; */
     max-height: 3vh; /* 3vh; */
     content-align: center middle;
+    margin-top: 1;
+    margin-bottom: 1;
 }
 #status.running {
     background: lightgreen;
@@ -50,6 +54,7 @@ Button {
 }
 .Buttonpage {
     height: 3vh;
+    max-height: 3vh; /* 3vh; */
     width: 15%; /*5vh; */
     margin: 0 1;
     padding: 0 0;
@@ -71,32 +76,29 @@ Button {
 #pause {
     background: #FFA500; /* Orange */
     color: white;
-    height: 3vh;
+    max-height: 3vh; /* 3vh; */
     padding: 0 1;
 }
 #snapshot_take {
     background: #00008B; /* Dark blue */
-    max-height: 3vh; /* 3vh; */
+    max-height: 4vh; /* 3vh; */
     color: white;
-    height: 3vh;
-    padding: 0 1;
+    padding: 0 0;
 }
 #snapshot_restore {
     background: #0000FF; /* Blue */
     color: white;
-    max-height: 3vh; /* 3vh; */
-    height: 3vh;
-    padding: 0 1;
+    max-height: 4vh; /* 3vh; */
+    padding: 0 0;
 }
 #connect {
     background: #FF00FF; /* Magenta */
     color: white;
     max-height: 3vh; /* 3vh; */
     height: 3vh;
-    padding: 0 1;
+    padding: 0 0;
 }
 
 .button-separator {
     height: 1;
-    margin-top: 1;
 }

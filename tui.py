@@ -144,8 +144,10 @@ class ServerSelectionModal(ModalScreen):
 class FilterModal(ModalScreen):
     """Modal screen for selecting a filter."""
 
+    CSS_PATH = "tui.css"
+
     def compose(self) -> ComposeResult:
-        with Vertical(id="filter-dialog"):
+        with Vertical(id="filter-dialog", classes="FilterModal"):
             yield Label("Filter by Status")
             yield Button("All", id="sort_default", variant="primary", classes="Buttonpage")
             yield Button("Running", id="sort_running", classes="Buttonpage")
@@ -401,13 +403,13 @@ class VMManagerTUI(App):
         # Define breakpoints for column count
         if width < 64:
             vms_container.styles.grid_size_columns = 1
-        elif width < 96:
+        elif width < 92:
             vms_container.styles.grid_size_columns = 2
-        elif width < 126:
+        elif width < 122:
             vms_container.styles.grid_size_columns = 3
         else:
             vms_container.styles.grid_size_columns = 4
-    
+
     def on_resize(self, event) -> None:
         """Called when the terminal is resized."""
         self._update_vms_container_layout()

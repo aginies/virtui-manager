@@ -104,7 +104,7 @@ class VMCard(Static):
                         yield Button("Stop", id="stop", variant="error")
                         yield Button("Pause", id="pause", variant="primary")
                         yield Static(classes="button-separator")
-                        yield Button("Take Snapshot", id="snapshot_take", variant="primary")
+                        yield Button("Snapshot", id="snapshot_take", variant="primary")
                     elif self.status == "Paused":
                         yield Button("Stop", id="stop", variant="error")
                         yield Button("Resume", id="resume", variant="success")
@@ -376,6 +376,7 @@ class SnapshotNameDialog(Screen):
                 id="dialog-buttons",
             ),
             id="dialog",
+            classes="info-container",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

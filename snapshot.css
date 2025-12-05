@@ -5,9 +5,9 @@ SnapshotNameDialog {
 
 SnapshotNameDialog #dialog {
     width: 60;
-    height: auto;
+    height: 30;
     padding: 1;
-    border: thick $primary;
+    border: round green;
     background: $surface;
 }
 
@@ -35,13 +35,13 @@ SelectSnapshotDialog {
 SelectSnapshotDialog #dialog {
     width: 60;
     padding: 1;
-    border: thick $primary;
+    border: round green;
     background: $surface;
     height: auto;
 }
 
 SelectSnapshotDialog #snapshot-list {
     margin-bottom: 1;
-    border: round $primary;
+    border: round green;
     height: 10;
 }
