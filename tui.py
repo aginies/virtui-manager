@@ -8,7 +8,7 @@ import libvirt
 import logging
 import subprocess
 from datetime import datetime
-from vmcard import VMCard, VMStateChanged, VMStartError, SnapshotError, SnapshotSuccess, VMNameClicked, VMActionError, VMActionSuccess
+from vmcard import VMCard, VMNameClicked
 from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info
 from config import load_config, save_config
 
@@ -466,46 +466,6 @@ class VMManagerTUI(App):
         logging.info(message)
         self.notify(message, timeout=10, title="Info")
 
-    async def on_vm_state_changed(self, message: VMStateChanged) -> None:
-        """Called when a VM's state changes."""
-        self.set_timer(5, self.refresh_vm_list)
-        self.set_timer(2, self.update_header)  # Revert header after 5 seconds
-
-    def show_info_message(self, message: str):
-        logging.info(message)
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_footer = self.query_one("#error-footer", Static)
-        error_footer.update(f"[{timestamp}] {message}")
-        error_footer.styles.height = "auto"
-        error_footer.styles.padding = (0, 1)
-
-        def clear_info():
-            error_footer.update("")
-            error_footer.styles.height = 0
-            error_footer.styles.padding = 0
-
-        self.set_timer(5, clear_info)
-
-    async def on_snapshot_error(self, message: SnapshotError) -> None:
-        """Called when a snapshot operation fails."""
-        self.show_error_message(f"Snapshot error for {message.vm_name}: {message.error_message}")
-
-    async def on_snapshot_success(self, message: SnapshotSuccess) -> None:
-        """Called when a snapshot operation succeeds."""
-        self.show_success_message(f"Snapshot for {message.vm_name}: {message.message}")
-
-    async def on_vm_action_error(self, message: VMActionError) -> None:
-        """Called when a generic VM action fails."""
-        self.show_error_message(f"Error on VM {message.vm_name} during '{message.action}': {message.error_message}")
-
-    async def on_vm_action_success(self, message: VMActionSuccess) -> None:
-        """Called when a generic VM action succeeds."""
-        self.show_success_message(f"VM {message.vm_name} {message.action}: {message.message}")
-
-    async def on_vm_start_error(self, message: VMStartError) -> None:
-        """Called when a VM fails to start."""
-        self.show_error_message(f"Error starting {message.vm_name}: {message.error_message}")
-
     @on(Button.Pressed, "#filter_button")
     def action_filter_view(self) -> None:
         """Filter the VM list."""
@@ -727,14 +687,13 @@ class VMManagerTUI(App):
 
             for domain in paginated_domains:
                 info = domain.info()
-                vm_card = VMCard(
-                    name=domain.name(),
-                    status=get_status(domain),
-                    cpu=info[3],
-                    memory=info[1] // 1024,  # Convert KiB to MiB
-                    vm=domain,
-                    color="#323232",
-                )
+                vm_card = VMCard()
+                vm_card.name = domain.name()
+                vm_card.status = get_status(domain)
+                vm_card.cpu = info[3]
+                vm_card.memory = info[1] // 1024
+                vm_card.vm = domain
+                vm_card.color = "#323232"
                 vms_container.mount(vm_card)
         except libvirt.libvirtError:
             self.show_error_message("Connection lost")
