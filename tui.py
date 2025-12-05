@@ -429,7 +429,7 @@ class VMManagerTUI(App):
             vms_container.styles.grid_size_columns = 1
         elif width < 82:
             vms_container.styles.grid_size_columns = 2
-        elif width < 142:
+        elif width < 122:
             vms_container.styles.grid_size_columns = 3
         else:
             vms_container.styles.grid_size_columns = 4

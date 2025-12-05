@@ -11,7 +11,7 @@ This project provides a terminal-based interface to manage virtual machines usin
 
 ## Media
 
-![Screenshot](https://paste.opensuse.org/pastes/c93a4c1c71a8/raw)
+![Screenshot](https://paste.opensuse.org/pastes/b328399fd3c5/raw)
 [Demo Video](https://www.youtube.com/watch?v=QIyAPAloU-k)
 
 ## Features
