@@ -85,9 +85,6 @@ class EditServerModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-
-
-
 class ServerSelectionModal(ModalScreen):
     """Modal screen for selecting a server."""
 
@@ -430,9 +427,9 @@ class VMManagerTUI(App):
         # Define breakpoints for column count
         if width < 64:
             vms_container.styles.grid_size_columns = 1
-        elif width < 92:
+        elif width < 82:
             vms_container.styles.grid_size_columns = 2
-        elif width < 122:
+        elif width < 142:
             vms_container.styles.grid_size_columns = 3
         else:
             vms_container.styles.grid_size_columns = 4

@@ -1,4 +1,4 @@
-from textual.widgets import Static, Button, Input, ListView, ListItem, Label
+from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Markdown
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.message import Message
@@ -107,34 +107,42 @@ class VMCard(Static):
             yield cpu_mem_widget
             yield Static(f"Status: {self.status}", id="status", classes=status_class)
 
-            with Horizontal(id="button-container"):
-                with Vertical():
-                    if self.status == "Stopped":
-                        yield Button("Start", id="start", variant="success")
-                    elif self.status == "Running":
-                        yield Button("Stop", id="stop", variant="error")
-                        yield Button("Pause", id="pause", variant="primary")
-                        yield Static(classes="button-separator")
-                        yield Button("Snapshot", id="snapshot_take", variant="primary")
-                    elif self.status == "Paused":
-                        yield Button("Stop", id="stop", variant="error")
-                        yield Button("Resume", id="resume", variant="success")
-                with Vertical():
-                    yield Button("View XML", id="xml")
-                    if self.status == "Running":
-                        yield Button("Connect", id="connect", variant="default")
-                    if self.vm and self.vm.snapshotNum(0) > 0:
-                        yield Static(classes="button-separator")
-                        yield Button(
-                            "Restore Snapshot",
-                            id="snapshot_restore",
-                            variant="primary",
-                        )
-                        yield Button(
-                            "Del Snapshot",
-                            id="snapshot_delete",
-                            variant="error",
-                        )
+            with TabbedContent(id="button-container"):
+                with TabPane("Manage", id="manage-tab"):
+                    with Horizontal():
+                        with Vertical():
+                            if self.status == "Stopped":
+                                yield Button("Start", id="start", variant="success")
+                            elif self.status == "Running":
+                                yield Button("Stop", id="stop", variant="error")
+                                yield Static(classes="button-separator")
+                                yield Button("Pause", id="pause", variant="primary")
+                            elif self.status == "Paused":
+                                yield Button("Stop", id="stop", variant="error")
+                                yield Static(classes="button-separator")
+                                yield Button("Resume", id="resume", variant="success")
+                        with Vertical():
+                            yield Button("View XML", id="xml")
+                            yield Static(classes="button-separator")
+                            if self.status == "Running":
+                                yield Button("Connect", id="connect", variant="default")
+                with TabPane("Snapshot", id="snapshot-tab"):
+                    with Horizontal():
+                        with Vertical():
+                            yield Button("Snapshot", id="snapshot_take", variant="primary")
+                        with Vertical():
+                            if self.vm and self.vm.snapshotNum(0) > 0:
+                                yield Button(
+                                    "Restore Snapshot",
+                                    id="snapshot_restore",
+                                    variant="primary",
+                                    )
+                                yield Static(classes="button-separator")
+                                yield Button(
+                                   "Del Snapshot",
+                                   id="snapshot_delete",
+                                   variant="error",
+                                   )
                         #yield Static(classes="button-separator")
                         #yield Button("Delete VM", id="delete_vm", variant="error")
 
