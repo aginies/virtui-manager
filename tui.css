@@ -34,67 +34,8 @@
     margin: 0 1;
 }
 
-ErrorModal {
-    align: center middle;
-}
-#error-dialog {
-    width: 60;
-    height: auto;
-    border: round red 80%;
-    background: $surface;
-    padding: 1 2;
-}
 
-#error-dialog Label {
-    width: 100%;
-    content-align: center middle;
-    margin-bottom: 1;
-    text-style: bold;
-    color: red; /* Error label should be red */
-}
 
-#error-dialog Static {
-    width: 100%;
-    margin-bottom: 1;
-    color: red; /* Error message text should be red */
-}
-
-#error-dialog Button {
-    margin: 0 1;
-    width: auto;
-    align: center middle;
-}
-
-SuccessModal {
-    align: center middle;
-}
-#success-dialog {
-    width: 60;
-    height: auto;
-    border: round green 80%;
-    background: $surface;
-    padding: 1 2;
-}
-
-#success-dialog Label {
-    width: 100%;
-    content-align: center middle;
-    margin-bottom: 1;
-    text-style: bold;
-    color: green; /* Success label should be green */
-}
-
-#success-dialog Static {
-    width: 100%;
-    margin-bottom: 1;
-    color: green; /* Success message text should be green */
-}
-
-#success-dialog Button {
-    margin: 0 1;
-    width: auto;
-    align: center middle;
-}
 #filter-dialog {
     width: 40;
     height: 40vh; 

@@ -86,40 +86,6 @@ class EditServerModal(ModalScreen):
             self.dismiss(None)
 
 
-class ErrorModal(ModalScreen):
-    """A modal screen to display an error message."""
-
-    def __init__(self, error_message: str):
-        super().__init__()
-        self.error_message = error_message
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="error-dialog"):
-            yield Label("Error")
-            yield Static(self.error_message)
-            yield Button("Close", variant="primary", id="error-close-button")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Dismiss the modal when the close button is pressed."""
-        self.dismiss()
-
-
-class SuccessModal(ModalScreen):
-    """A modal screen to display a success message."""
-
-    def __init__(self, success_message: str):
-        super().__init__()
-        self.success_message = success_message
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="success-dialog"):
-            yield Label("Success")
-            yield Static(self.success_message)
-            yield Button("Close", variant="primary", id="success-close-button")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Dismiss the modal when the close button is pressed."""
-        self.dismiss()
 
 
 class ServerSelectionModal(ModalScreen):
@@ -496,12 +462,12 @@ class VMManagerTUI(App):
     def show_error_message(self, message: str):
         # Log the error to file
         logging.error(message)
-        self.push_screen(ErrorModal(message))
+        self.notify(message, severity="error", timeout=10, title="Error!")
 
     def show_success_message(self, message: str):
         # Log the success to file
         logging.info(message)
-        self.push_screen(SuccessModal(message))
+        self.notify(message, timeout=10, title="Info")
 
     async def on_vm_state_changed(self, message: VMStateChanged) -> None:
         """Called when a VM's state changes."""
@@ -591,7 +557,6 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#view_log_button")
     def action_view_log(self) -> None:
         """View the application log file."""
-        logging.info("View log button clicked")
         log_file = "vm_manager.log"
         self.push_screen(LogModal(), self.handle_log_result)
 
