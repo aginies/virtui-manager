@@ -1,5 +1,5 @@
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Select, Button, Input, Label, Static
+from textual.widgets import Header, Footer, Select, Button, Input, Label, Static, DataTable
 from textual.containers import ScrollableContainer, Grid, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.screen import ModalScreen
@@ -10,6 +10,7 @@ import subprocess
 from datetime import datetime
 from vmcard import VMCard, VMStateChanged, VMStartError, SnapshotError, SnapshotSuccess, VMNameClicked, VMActionError
 from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info
+from config import load_config, save_config
 
 # Configure logging
 logging.basicConfig(
@@ -38,6 +39,118 @@ class ConnectionModal(ModalScreen):
             self.dismiss(uri_input.value)
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
+
+class AddServerModal(ModalScreen):
+    """Modal screen for adding a new server."""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-server-dialog"):
+            yield Label("Add New Server")
+            yield Input(placeholder="Server Name", id="server-name-input")
+            yield Input(placeholder="qemu+ssh://user@host/system", id="server-uri-input")
+            with Horizontal():
+                yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            name_input = self.query_one("#server-name-input", Input)
+            uri_input = self.query_one("#server-uri-input", Input)
+            self.dismiss((name_input.value, uri_input.value))
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+class RenameServerModal(ModalScreen):
+    """Modal screen for renaming a server."""
+
+    def __init__(self, old_name: str) -> None:
+        super().__init__()
+        self.old_name = old_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="rename-server-dialog"):
+            yield Label(f"Rename Server: {self.old_name}")
+            yield Input(placeholder="New Server Name", id="new-server-name-input")
+            with Horizontal():
+                yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            name_input = self.query_one("#new-server-name-input", Input)
+            self.dismiss(name_input.value)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+
+
+class ServerManagementModal(ModalScreen):
+    """Modal screen for managing servers."""
+
+    def __init__(self, servers: list) -> None:
+        super().__init__()
+        self.servers = servers
+        self.selected_row = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="server-management-dialog"):
+            yield Label("Server Management")
+            with ScrollableContainer():
+                yield DataTable(id="server-table")
+            with Horizontal():
+                yield Button("Add", id="add-server-btn", classes="Buttonpage")
+                yield Button("Edit", id="rename-server-btn", disabled=True, classes="Buttonpage")
+                yield Button("Delete", id="delete-server-btn", disabled=True, variant="error", classes="Buttonpage")
+            yield Button("Close", id="close-btn", classes="Buttonpage")
+
+    def on_mount(self) -> None:
+        table = self.query_one(DataTable)
+        table.add_column("Name", key="name")
+        table.add_column("URI", key="uri")
+        for server in self.servers:
+            table.add_row(server['name'], server['uri'], key=server['uri'])
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        self.selected_row = event.cursor_row
+        self.query_one("#rename-server-btn").disabled = False
+        self.query_one("#delete-server-btn").disabled = False
+
+    def _reload_table(self):
+        table = self.query_one(DataTable)
+        table.clear()
+        for server in self.servers:
+            table.add_row(server['name'], server['uri'], key=server['uri'])
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "close-btn":
+            self.dismiss(self.servers)
+        elif event.button.id == "add-server-btn":
+            def add_server_callback(result):
+                if result:
+                    name, uri = result
+                    self.servers.append({'name': name, 'uri': uri})
+                    self.app.config['servers'] = self.servers
+                    save_config(self.app.config)
+                    self._reload_table()
+            self.app.push_screen(AddServerModal(), add_server_callback)
+        elif event.button.id == "rename-server-btn" and self.selected_row is not None:
+            old_name = self.servers[self.selected_row]['name']
+            def rename_server_callback(new_name):
+                if new_name:
+                    self.servers[self.selected_row]['name'] = new_name
+                    self.app.config['servers'] = self.servers
+                    save_config(self.app.config)
+                    self._reload_table()
+            self.app.push_screen(RenameServerModal(old_name), rename_server_callback)
+        elif event.button.id == "delete-server-btn" and self.selected_row is not None:
+            del self.servers[self.selected_row]
+            self.app.config['servers'] = self.servers
+            save_config(self.app.config)
+            self._reload_table()
+            self.selected_row = None
+            self.query_one("#rename-server-btn").disabled = True
+            self.query_one("#delete-server-btn").disabled = True
+
 
 
 class VMDetailModal(ModalScreen):
@@ -131,10 +244,12 @@ class VMManagerTUI(App):
         ("q", "quit", "Quit"),
     ]
 
-    connection_uri = reactive("qemu:///system")
+    config = load_config()
+    servers = config.get('servers', [])
+    connection_uri = reactive(servers[0]['uri'] if servers else "qemu:///system")
     conn = None
     current_page = reactive(0)
-    VMS_PER_PAGE = 4
+    VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
     sort_by = reactive("default")
     num_pages = reactive(1)
 
@@ -145,7 +260,18 @@ class VMManagerTUI(App):
         yield Header()
         with Horizontal(classes="top-controls"):
             yield Button("Connection", id="change_connection_button", classes="Buttonpage")
+            yield Button("Manage Servers", id="manage_servers_button", classes="Buttonpage")
             yield Button("View Log", id="view_log_button", classes="Buttonpage")
+            if self.servers:
+                yield Select(
+                    [(server['name'], server['uri']) for server in self.servers],
+                    id="server_select",
+                    prompt="Select Server",
+                    allow_blank=False,
+                    value=self.connection_uri,
+                    classes="Button",
+                )
+
             with Vertical(classes="filter-group"):
                 yield Select(
                     [
@@ -154,7 +280,7 @@ class VMManagerTUI(App):
                         ("Filter: Paused", "sort_paused"),
                         ("Filter: Stopped", "sort_stopped"),
                     ],
-                    id="select",
+                    id="status_filter_select",
                     prompt="Filter by status",
                     allow_blank=False,
                     classes="Button",
@@ -174,6 +300,14 @@ class VMManagerTUI(App):
 
         yield Static(id="error-footer", classes="error-message")
         yield Footer()
+
+    def reload_servers(self, new_servers):
+        self.servers = new_servers
+        self.config['servers'] = new_servers
+        save_config(self.config)
+        server_select = self.query_one("#server_select", Select)
+        server_select.set_options([(s['name'], s['uri']) for s in self.servers])
+
 
     def on_mount(self) -> None:
         """Called when the app is mounted."""
@@ -284,18 +418,26 @@ class VMManagerTUI(App):
 
     def on_select_changed(self, event: Select.Changed) -> None:
         if event.value is not None:
-            if str(event.value).startswith("sort_"):
-                sort_key = str(event.value).replace("sort_", "")
-                if self.sort_by != sort_key:
-                    self.sort_by = sort_key
+            if event.select.id == "server_select":
+                self.change_connection(str(event.value))
+            elif event.select.id == "status_filter_select":
+                if str(event.value).startswith("sort_"):
+                    sort_key = str(event.value).replace("sort_", "")
+                    if self.sort_by != sort_key:
+                        self.sort_by = sort_key
+                        self.current_page = 0
+                        self.refresh_vm_list()
+        else:
+            if event.select.id == "status_filter_select":
+                # Selection cleared
+                if self.sort_by != "default":
+                    self.sort_by = "default"
                     self.current_page = 0
                     self.refresh_vm_list()
-        else:
-            # Selection cleared
-            if self.sort_by != "default":
-                self.sort_by = "default"
-                self.current_page = 0
-                self.refresh_vm_list()
+    
+    @on(Button.Pressed, "#manage_servers_button")
+    def on_manage_servers_button_pressed(self, event: Button.Pressed) -> None:
+        self.push_screen(ServerManagementModal(self.servers), self.reload_servers)
 
     @on(Button.Pressed, "#change_connection_button")
     def on_change_connection_button_pressed(self, event: Button.Pressed) -> None:
@@ -381,11 +523,15 @@ class VMManagerTUI(App):
                         stopped_vms += 1
 
             total_vms = len(domains) if domains is not None else 0
-            conn_info = ""
-            if self.connection_uri != "qemu:///system":
-                conn_info = f" [{self.connection_uri}] | "
-
-            self.sub_title = f"{conn_info}Total VMs: {total_vms}"
+            
+            # Get the server name from the config
+            server_name = "Unknown"
+            for server in self.servers:
+                if server['uri'] == self.connection_uri:
+                    server_name = server['name']
+                    break
+            
+            self.sub_title = f"Server: {server_name} | Total VMs: {total_vms}"
         except libvirt.libvirtError:
             self.show_error_message("Connection lost")
             self.conn = None
