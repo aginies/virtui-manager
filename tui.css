@@ -1,6 +1,10 @@
 /* Styles for VMManagerTUI */
 #vms-container {
     height: auto;
+    overflow-y: scroll;
+    grid-rows: 28vh; /* Approximate height for VMCard */
+    grid-columns: 80vh; /* Approximate height for VMCard */
+    layout: grid;
 }
 ConnectionModal {
     align: center middle;

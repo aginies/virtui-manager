@@ -359,7 +359,7 @@ class VMManagerTUI(App):
             yield Button("Next", id="next-button", variant="primary", classes="Buttonpage")
 
         with ScrollableContainer(id="vms-container"):
-            yield Grid(id="grid")
+            pass # VMCard will be directly mounted here
 
         yield Static(id="error-footer", classes="error-message")
         yield Footer()
@@ -380,10 +380,7 @@ class VMManagerTUI(App):
         error_footer.styles.height = 0
         error_footer.styles.overflow = "hidden"
         error_footer.styles.padding = 0
-        grid = self.query_one("#grid")
-        grid.styles.grid_gutter_vertical = 1
-        grid.styles.grid_gutter_horizontal = 1
-        self._update_grid_layout()
+        self._update_vms_container_layout()
         if not self.servers:
             self.query_one("#select_server_button", Button).display = False
         self.connect_libvirt(self.connection_uri)
@@ -395,22 +392,24 @@ class VMManagerTUI(App):
         if self.conn:
             self.conn.close()
 
-    def _update_grid_layout(self) -> None:
-        """Update the grid layout based on terminal size."""
-        grid = self.query_one("#grid")
+    def _update_vms_container_layout(self) -> None:
+        """Update the VM cards container layout based on terminal size."""
+        vms_container = self.query_one("#vms-container")
         width = self.size.width
         
         # Define breakpoints for column count
-        if width < 80:
-            grid.styles.grid_size_columns = 1
-        elif width < 120:
-            grid.styles.grid_size_columns = 2
+        if width < 64:
+            vms_container.styles.grid_size_columns = 1
+        elif width < 96:
+            vms_container.styles.grid_size_columns = 2
+        elif width < 126:
+            vms_container.styles.grid_size_columns = 4
         else:
-            grid.styles.grid_size_columns = 3
+            vms_container.styles.grid_size_columns = 5
     
     def on_resize(self, event) -> None:
         """Called when the terminal is resized."""
-        self._update_grid_layout()
+        self._update_vms_container_layout()
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
@@ -569,8 +568,8 @@ class VMManagerTUI(App):
 
     def refresh_vm_list(self) -> None:
         """Refreshes the list of VMs."""
-        grid = self.query_one("#grid")
-        grid.remove_children()
+        vms_container = self.query_one("#vms-container")
+        vms_container.remove_children()
         self.list_vms()
         self.update_header()
 
@@ -610,7 +609,7 @@ class VMManagerTUI(App):
 
 
     def list_vms(self):
-        grid = self.query_one("#grid")
+        vms_container = self.query_one("#vms-container")
         if not self.conn:
             return
 
@@ -658,11 +657,10 @@ class VMManagerTUI(App):
                         vm=domain,
                         color="#323232",
                     )
-                    grid.mount(vm_card)
+                    vms_container.mount(vm_card)
         except libvirt.libvirtError:
             self.show_error_message("Connection lost")
             self.conn = None
-
     def update_pagination_controls(self, total_vms: int):
         pagination_controls = self.query_one("#pagination-controls")
         if total_vms <= self.VMS_PER_PAGE:
