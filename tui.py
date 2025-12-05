@@ -2,13 +2,13 @@ from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Select, Button, Input, Label, Static, DataTable
 from textual.containers import ScrollableContainer, Grid, Horizontal, Vertical
 from textual.reactive import reactive
-from textual.screen import ModalScreen
+from textual.screen import ModalScreen, Screen
 from textual import on
 import libvirt
 import logging
 import subprocess
 from datetime import datetime
-from vmcard import VMCard, VMStateChanged, VMStartError, SnapshotError, SnapshotSuccess, VMNameClicked, VMActionError
+from vmcard import VMCard, VMStateChanged, VMStartError, SnapshotError, SnapshotSuccess, VMNameClicked, VMActionError, VMActionSuccess
 from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info
 from config import load_config, save_config
 
@@ -104,6 +104,24 @@ class ErrorModal(ModalScreen):
         self.dismiss()
 
 
+class SuccessModal(ModalScreen):
+    """A modal screen to display a success message."""
+
+    def __init__(self, success_message: str):
+        super().__init__()
+        self.success_message = success_message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="success-dialog"):
+            yield Label("Success")
+            yield Static(self.success_message)
+            yield Button("Close", variant="primary", id="success-close-button")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Dismiss the modal when the close button is pressed."""
+        self.dismiss()
+
+
 class ServerSelectionModal(ModalScreen):
     """Modal screen for selecting a server."""
 
@@ -160,6 +178,32 @@ class FilterModal(ModalScreen):
             self.dismiss(None)
         else:
             self.dismiss(event.button.id)
+
+
+class CreateVMModal(ModalScreen):
+    """Modal screen for creating a new VM."""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="create-vm-dialog"):
+            yield Label("Create New VM")
+            yield Input(placeholder="VM Name", id="vm-name-input", value="new_vm")
+            yield Input(placeholder="Memory (MB, e.g., 2048)", id="vm-memory-input", value="2048")
+            yield Input(placeholder="VCPU (e.g., 2)", id="vm-vcpu-input", value="2")
+            yield Input(placeholder="Disk Image Path (e.g., /var/lib/libvirt/images/myvm.qcow2)", id="vm-disk-input", value="/var/lib/libvirt/images/new_vm.qcow2")
+            # For simplicity, we won't add network details yet.
+            with Horizontal():
+                yield Button("Create", variant="primary", id="create-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "create-btn":
+            name = self.query_one("#vm-name-input", Input).value
+            memory = self.query_one("#vm-memory-input", Input).value
+            vcpu = self.query_one("#vm-vcpu-input", Input).value
+            disk = self.query_one("#vm-disk-input", Input).value
+            self.dismiss({'name': name, 'memory': memory, 'vcpu': vcpu, 'disk': disk})
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
 
 
 class ServerManagementModal(ModalScreen):
@@ -346,6 +390,7 @@ class VMManagerTUI(App):
         with Horizontal(classes="top-controls"):
             yield Button("Connection", id="change_connection_button", classes="Buttonpage")
             yield Button("Manage Servers", id="manage_servers_button", classes="Buttonpage")
+            #yield Button("Create VM", id="create_vm_button", classes="Buttonpage")
             if self.servers:
                 yield Button("Select Server", id="select_server_button", classes="Buttonpage")
             yield Button("Filter", id="filter_button", classes="Buttonpage")
@@ -437,6 +482,11 @@ class VMManagerTUI(App):
         logging.error(message)
         self.push_screen(ErrorModal(message))
 
+    def show_success_message(self, message: str):
+        # Log the success to file
+        logging.info(message)
+        self.push_screen(SuccessModal(message))
+
     async def on_vm_state_changed(self, message: VMStateChanged) -> None:
         """Called when a VM's state changes."""
         self.set_timer(5, self.refresh_vm_list)
@@ -463,11 +513,15 @@ class VMManagerTUI(App):
 
     async def on_snapshot_success(self, message: SnapshotSuccess) -> None:
         """Called when a snapshot operation succeeds."""
-        self.show_info_message(f"Success for {message.vm_name}: {message.message}")
+        self.show_success_message(f"Snapshot for {message.vm_name}: {message.message}")
 
     async def on_vm_action_error(self, message: VMActionError) -> None:
         """Called when a generic VM action fails."""
         self.show_error_message(f"Error on VM {message.vm_name} during '{message.action}': {message.error_message}")
+
+    async def on_vm_action_success(self, message: VMActionSuccess) -> None:
+        """Called when a generic VM action succeeds."""
+        self.show_success_message(f"VM {message.vm_name} {message.action}: {message.message}")
 
     async def on_vm_start_error(self, message: VMStartError) -> None:
         """Called when a VM fails to start."""
@@ -507,6 +561,11 @@ class VMManagerTUI(App):
         """Manage the list of servers."""
         logging.info("Manage servers button clicked")
         self.push_screen(ServerManagementModal(self.servers), self.reload_servers)
+
+    @on(Button.Pressed, "#create_vm_button")
+    def on_create_vm_button_pressed(self, event: Button.Pressed) -> None:
+        logging.info("Create VM button clicked")
+        self.push_screen(CreateVMModal(), self.handle_create_vm_result)
 
     @on(Button.Pressed, "#change_connection_button")
     def on_change_connection_button_pressed(self, event: Button.Pressed) -> None:
@@ -557,6 +616,38 @@ class VMManagerTUI(App):
         if result:
             logging.info(f"Connection URI entered: {result}")
             self.change_connection(result)
+
+    def handle_create_vm_result(self, result: dict | None) -> None:
+        """Handle the result from the CreateVMModal and create the VM."""
+        if result:
+            vm_name = result.get('name')
+            memory = int(result.get('memory', 0))
+            vcpu = int(result.get('vcpu', 0))
+            disk_path = result.get('disk')
+
+            if not all([vm_name, memory, vcpu, disk_path]):
+                self.show_error_message("Missing VM details for creation.")
+                return
+
+            if not self.conn:
+                self.show_error_message("Not connected to libvirt. Cannot create VM.")
+                return
+
+            xml = f"""
+<domain type='kvm'>
+  <name>{vm_name}</name>
+  <memory unit='MiB'>{memory}</memory>
+  <currentMemory unit='MiB'>{memory}</currentMemory>
+  <vcpu placement='static'>{vcpu}</vcpu>
+  etc...
+"""
+            try:
+                self.conn.defineXML(xml)
+                self.show_success_message(f"VM '{vm_name}' created successfully.")
+                self.refresh_vm_list()
+            except libvirt.libvirtError as e:
+                self.show_error_message(f"Error creating VM '{vm_name}': {e}")
+
 
     def change_connection(self, uri: str) -> None:
         """Change the connection URI and refresh the VM list."""
