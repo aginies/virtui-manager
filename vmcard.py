@@ -10,58 +10,6 @@ import logging
 from textual import on
 from textual.events import Click
 
-
-class VMStateChanged(Message):
-    """Posted when a VM's state changes."""
-
-
-class VMStartError(Message):
-    """Posted when a VM fails to start."""
-
-    def __init__(self, vm_name: str, error_message: str) -> None:
-        super().__init__()
-        self.vm_name = vm_name
-        self.error_message = error_message
-
-
-class SnapshotError(Message):
-    """Posted when a snapshot operation fails."""
-
-    def __init__(self, vm_name: str, error_message: str) -> None:
-        super().__init__()
-        self.vm_name = vm_name
-        self.error_message = error_message
-
-
-class SnapshotSuccess(Message):
-    """Posted when a snapshot operation succeeds."""
-
-    def __init__(self, vm_name: str, message: str) -> None:
-        super().__init__()
-        self.vm_name = vm_name
-        self.message = message
-
-
-class VMActionError(Message):
-    """Posted when a generic VM action fails."""
-
-    def __init__(self, vm_name: str, action: str, error_message: str) -> None:
-        super().__init__()
-        self.vm_name = vm_name
-        self.action = action
-        self.error_message = error_message
-
-
-class VMActionSuccess(Message):
-    """Posted when a generic VM action succeeds."""
-
-    def __init__(self, vm_name: str, action: str, message: str) -> None:
-        super().__init__()
-        self.vm_name = vm_name
-        self.action = action
-        self.message = message
-
-
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
 
@@ -78,25 +26,6 @@ class VMCard(Static):
     vm = reactive(None)
     color = reactive("blue")
 
-    def __init__(
-        self,
-        name: str = "",
-        status: str = "",
-        cpu: int = 0,
-        memory: int = 0,
-        vm=None,
-        color: str = "blue",
-    ) -> None:
-        super().__init__()
-        self.name = name
-        self.status = status
-        self.cpu = cpu
-        self.memory = memory
-        self.vm = vm
-        self.color = color
-        if self.vm:
-            xml_content = self.vm.XMLDesc(0)
-
     def compose(self):
         with Vertical(id="info-container"):
             classes = ""
@@ -111,79 +40,64 @@ class VMCard(Static):
                 with TabPane("Manage", id="manage-tab"):
                     with Horizontal():
                         with Vertical():
-                            if self.status == "Stopped":
-                                yield Button("Start", id="start", variant="success")
-                            elif self.status == "Running":
-                                yield Button("Stop", id="stop", variant="error")
-                                yield Static(classes="button-separator")
-                                yield Button("Pause", id="pause", variant="primary")
-                            elif self.status == "Paused":
-                                yield Button("Stop", id="stop", variant="error")
-                                yield Static(classes="button-separator")
-                                yield Button("Resume", id="resume", variant="success")
+                            yield Button("Start", id="start", variant="success")
+                            yield Button("Stop", id="stop", variant="error")
+                            yield Static(classes="button-separator")
+                            yield Button("Pause", id="pause", variant="primary")
+                            yield Button("Resume", id="resume", variant="success")
                         with Vertical():
                             yield Button("View XML", id="xml")
                             yield Static(classes="button-separator")
-                            if self.status == "Running":
-                                yield Button("Connect", id="connect", variant="default")
+                            yield Button("Connect", id="connect", variant="default")
                 with TabPane("Snapshot", id="snapshot-tab"):
                     with Horizontal():
                         with Vertical():
                             yield Button("Snapshot", id="snapshot_take", variant="primary")
                         with Vertical():
-                            if self.vm and self.vm.snapshotNum(0) > 0:
-                                yield Button(
-                                    "Restore Snapshot",
-                                    id="snapshot_restore",
-                                    variant="primary",
-                                    )
-                                yield Static(classes="button-separator")
-                                yield Button(
-                                   "Del Snapshot",
-                                   id="snapshot_delete",
-                                   variant="error",
-                                   )
-                        #yield Static(classes="button-separator")
-                        #yield Button("Delete VM", id="delete_vm", variant="error")
+                            yield Button(
+                                "Restore Snapshot",
+                                id="snapshot_restore",
+                                variant="primary",
+                                )
+                            yield Static(classes="button-separator")
+                            yield Button(
+                               "Del Snapshot",
+                               id="snapshot_delete",
+                               variant="error",
+                               )
 
     def on_mount(self) -> None:
         self.styles.background = self.color
+        self.update_button_layout()
+        self._update_status_styling()
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
-        # Remove existing buttons and recreate them
-        button_container = self.query_one("#button-container")
-        button_container.remove_children()
-        left_vertical = Vertical()
-        right_vertical = Vertical()
+        start_button = self.query_one("#start", Button)
+        stop_button = self.query_one("#stop", Button)
+        pause_button = self.query_one("#pause", Button)
+        resume_button = self.query_one("#resume", Button)
+        connect_button = self.query_one("#connect", Button)
+        restore_button = self.query_one("#snapshot_restore", Button)
+        delete_button = self.query_one("#snapshot_delete", Button)
 
-        button_container.mount(left_vertical)
-        button_container.mount(right_vertical)
+        is_stopped = self.status == "Stopped"
+        is_running = self.status == "Running"
+        is_paused = self.status == "Paused"
+        has_snapshots = self.vm and self.vm.snapshotNum(0) > 0
 
-        if self.status == "Stopped":
-            left_vertical.mount(Button("Start", id="start", variant="success"))
-        elif self.status == "Running":
-            left_vertical.mount(Button("Stop", id="stop", variant="error"))
-            left_vertical.mount(Button("Pause", id="pause", variant="primary"))
-            left_vertical.mount(Static(classes="button-separator"))
-            left_vertical.mount(Button("Take Snapshot", id="snapshot_take", variant="primary"))
-        elif self.status == "Paused":
-            left_vertical.mount(Button("Stop", id="stop", variant="error"))
-            left_vertical.mount(Button("Resume", id="resume", variant="success"))
+        start_button.display = is_stopped
+        stop_button.display = is_running or is_paused
+        pause_button.display = is_running
+        resume_button.display = is_paused
+        connect_button.display = is_running
+        restore_button.display = has_snapshots
+        delete_button.display = has_snapshots
 
-        right_vertical.mount(Button("View XML", id="xml"))
-        if self.status == "Running":
-            right_vertical.mount(Button("Connect", id="connect", variant="default"))
-        if self.vm and self.vm.snapshotNum(0) > 0:
-            right_vertical.mount(Static(classes="button-separator"))
-            right_vertical.mount(
-                Button("Restore Snapshot", id="snapshot_restore", variant="primary")
-            )
-            right_vertical.mount(
-                Button("Delete Snapshot", id="snapshot_delete", variant="error")
-            )
-            #right_vertical.mount(Static(classes="button-separator"))
-            #right_vertical.mount(Button("Delete VM", id="delete_vm", variant="error"))
+    def _update_status_styling(self):
+        status_widget = self.query_one("#status")
+        status_widget.remove_class("stopped", "running", "paused")
+        status_widget.add_class(self.status.lower())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "start":
@@ -194,20 +108,13 @@ class VMCard(Static):
                     self.status = "Running"
                     status_widget = self.query_one("#status")
                     status_widget.update(f"Status: {self.status}")
-                    status_widget.remove_class("stopped", "paused")
-                    status_widget.add_class("running")
+                    self._update_status_styling()
                     self.update_button_layout()
-                    self.post_message(VMStateChanged())
+                    self.app.refresh_vm_list()
                     logging.info(f"Successfully started VM: {self.name}")
-                    self.post_message(
-                        VMActionSuccess(
-                            vm_name=self.name, action="start", message=f"VM '{self.name}' started successfully."
-                        )
-                    )
+                    self.app.show_success_message(f"VM '{self.name}' started successfully.")
                 except libvirt.libvirtError as e:
-                    self.post_message(
-                        VMStartError(vm_name=self.name, error_message=str(e))
-                    )
+                    self.app.show_error_message(f"Error on VM {self.name} during 'start': {e}")
 
         elif event.button.id == "stop":
             logging.info(f"Attempting to stop VM: {self.name}")
@@ -216,18 +123,13 @@ class VMCard(Static):
                     self.vm.destroy()
                     self.status = "Stopped"
                     self.query_one("#status").update(f"Status: {self.status}")
+                    self._update_status_styling()
                     self.update_button_layout()
-                    self.post_message(VMStateChanged())
+                    self.app.refresh_vm_list()
                     logging.info(f"Successfully stopped VM: {self.name}")
-                    self.post_message(
-                        VMActionSuccess(
-                            vm_name=self.name, action="stop", message=f"VM '{self.name}' stopped successfully."
-                        )
-                    )
+                    self.app.show_success_message(f"VM '{self.name}' stopped successfully.")
                 except libvirt.libvirtError as e:
-                    self.post_message(
-                        VMActionError(vm_name=self.name, action="stop", error_message=str(e))
-                    )
+                    self.app.show_error_message(f"Error on VM {self.name} during 'stop': {e}")
 
         elif event.button.id == "pause":
             logging.info(f"Attempting to pause VM: {self.name}")
@@ -237,20 +139,13 @@ class VMCard(Static):
                     self.status = "Paused"
                     status_widget = self.query_one("#status")
                     status_widget.update(f"Status: {self.status}")
-                    status_widget.remove_class("running", "stopped")
-                    status_widget.add_class("paused")
+                    self._update_status_styling()
                     self.update_button_layout()
-                    self.post_message(VMStateChanged())
+                    self.app.refresh_vm_list()
                     logging.info(f"Successfully paused VM: {self.name}")
-                    self.post_message(
-                        VMActionSuccess(
-                            vm_name=self.name, action="pause", message=f"VM '{self.name}' paused successfully."
-                        )
-                    )
+                    self.app.show_success_message(f"VM '{self.name}' paused successfully.")
                 except libvirt.libvirtError as e:
-                    self.post_message(
-                        VMActionError(vm_name=self.name, action="pause", error_message=str(e))
-                    )
+                    self.app.show_error_message(f"Error on VM {self.name} during 'pause': {e}")
         elif event.button.id == "resume":
             logging.info(f"Attempting to resume VM: {self.name}")
             try:
@@ -258,20 +153,12 @@ class VMCard(Static):
                 self.status = "Running"
                 status_widget = self.query_one("#status")
                 status_widget.update(f"Status: {self.status}")
-                status_widget.remove_class("stopped", "paused")
-                status_widget.add_class("running")
-                self.update_button_layout()
-                self.post_message(VMStateChanged())
+                self._update_status_styling()
+                self.app.refresh_vm_list()
                 logging.info(f"Successfully resumed VM: {self.name}")
-                self.post_message(
-                    VMActionSuccess(
-                        vm_name=self.name, action="resume", message=f"VM '{self.name}' resumed successfully."
-                    )
-                )
+                self.app.show_success_message(f"VM '{self.name}' resumed successfully.")
             except libvirt.libvirtError as e:
-                self.post_message(
-                    VMActionError(vm_name=self.name, action="resume", error_message=str(e))
-                )
+                self.app.show_error_message(f"Error on VM {self.name} during 'resume': {e}")
         elif event.button.id == "xml":
             logging.info(f"Attempting to view XML for VM: {self.name}")
             try:
@@ -285,9 +172,7 @@ class VMCard(Static):
                         subprocess.run(["view", tmpfile.name], check=True)
                 logging.info(f"Successfully viewed XML for VM: {self.name}")
             except (libvirt.libvirtError, FileNotFoundError, subprocess.CalledProcessError) as e:
-                self.post_message(
-                    VMActionError(vm_name=self.name, action="view XML", error_message=str(e))
-                )
+                self.app.show_error_message(f"Error on VM {self.name} during 'view XML': {e}")
         elif event.button.id == "connect":
             logging.info(f"Attempting to connect to VM: {self.name}")
             try:
@@ -296,9 +181,7 @@ class VMCard(Static):
                 )
                 logging.info(f"Successfully launched virt-viewer for VM: {self.name}")
             except (FileNotFoundError, subprocess.CalledProcessError) as e:
-                self.post_message(
-                    VMActionError(vm_name=self.name, action="connect", error_message=str(e))
-                )
+                self.app.show_error_message(f"Error on VM {self.name} during 'connect': {e}")
         elif event.button.id == "snapshot_take":
             logging.info(f"Attempting to take snapshot for VM: {self.name}")
             def handle_snapshot_name(name: str | None) -> None:
@@ -306,17 +189,10 @@ class VMCard(Static):
                     xml = f"<domainsnapshot><name>{name}</name></domainsnapshot>"
                     try:
                         self.vm.snapshotCreateXML(xml, 0)
-                        self.post_message(
-                            SnapshotSuccess(
-                                vm_name=self.name,
-                                message=f"Snapshot '{name}' created successfully.",
-                            )
-                        )
+                        self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                         self.update_button_layout()
                     except libvirt.libvirtError as e:
-                        self.post_message(
-                            SnapshotError(vm_name=self.name, error_message=str(e))
-                        )
+                        self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
             self.app.push_screen(SnapshotNameDialog(), handle_snapshot_name)
 
@@ -324,11 +200,7 @@ class VMCard(Static):
             logging.info(f"Attempting to restore snapshot for VM: {self.name}")
             snapshots = self.vm.listAllSnapshots(0)
             if not snapshots:
-                self.post_message(
-                    SnapshotError(
-                        vm_name=self.name, error_message="No snapshots to restore."
-                    )
-                )
+                self.app.show_error_message("No snapshots to restore.")
                 return
 
             def restore_snapshot(snapshot_name: str | None) -> None:
@@ -348,23 +220,14 @@ class VMCard(Static):
 
                         status_widget = self.query_one("#status")
                         status_widget.update(f"Status: {self.status}")
-                        status_widget.remove_class("running", "stopped", "paused")
-                        status_widget.add_class(self.status.lower())
+                        self._update_status_styling()
                         self.update_button_layout()
 
-                        self.post_message(VMStateChanged())
-                        self.post_message(
-                            VMActionSuccess(
-                                vm_name=self.name,
-                                action="snapshot restore",
-                                message=f"Restored to snapshot '{snapshot_name}' successfully.",
-                            )
-                        )
+                        self.app.refresh_vm_list()
+                        self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                         logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
                     except libvirt.libvirtError as e:
-                        self.post_message(
-                            VMActionError(vm_name=self.name, action="snapshot restore", error_message=str(e))
-                        )
+                        self.app.show_error_message(f"Error on VM {self.name} during 'snapshot restore': {e}")
 
             self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to restore:"), restore_snapshot)
 
@@ -372,11 +235,7 @@ class VMCard(Static):
             logging.info(f"Attempting to delete snapshot for VM: {self.name}")
             snapshots = self.vm.listAllSnapshots(0)
             if not snapshots:
-                self.post_message(
-                    VMActionError(
-                        vm_name=self.name, action="snapshot delete", error_message="No snapshots to delete."
-                    )
-                )
+                self.app.show_error_message("No snapshots to delete.")
                 return
 
             def delete_snapshot(snapshot_name: str | None) -> None:
@@ -384,19 +243,11 @@ class VMCard(Static):
                     try:
                         snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
                         snapshot.delete(0)
-                        self.post_message(
-                            VMActionSuccess(
-                                vm_name=self.name,
-                                action="snapshot delete",
-                                message=f"Snapshot '{snapshot_name}' deleted successfully.",
-                            )
-                        )
+                        self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
                         self.update_button_layout()
                         logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                     except libvirt.libvirtError as e:
-                        self.post_message(
-                            VMActionError(vm_name=self.name, action="snapshot delete", error_message=str(e))
-                        )
+                        self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
 
             self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to delete:"), delete_snapshot)
 
@@ -406,17 +257,11 @@ class VMCard(Static):
                 if self.vm.isActive():
                     self.vm.destroy() # Shut down the VM first if it's active
                 self.vm.undefine() # Undefine the VM
-                self.post_message(
-                    VMActionSuccess(
-                        vm_name=self.name, action="delete VM", message=f"VM '{self.name}' deleted successfully."
-                    )
-                )
-                self.post_message(VMStateChanged()) # Refresh the VM list
+                self.app.show_success_message(f"VM '{self.name}' deleted successfully.")
+                self.app.refresh_vm_list()
                 logging.info(f"Successfully deleted VM: {self.name}")
             except libvirt.libvirtError as e:
-                self.post_message(
-                    VMActionError(vm_name=self.name, action="delete VM", error_message=str(e))
-                )
+                self.app.show_error_message(f"Error on VM {self.name} during 'delete VM': {e}")
 
     @on(Click, "#cpu-mem-info")
     def on_click_cpu_mem_info(self) -> None:
