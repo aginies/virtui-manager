@@ -86,6 +86,24 @@ class EditServerModal(ModalScreen):
             self.dismiss(None)
 
 
+class ErrorModal(ModalScreen):
+    """A modal screen to display an error message."""
+
+    def __init__(self, error_message: str):
+        super().__init__()
+        self.error_message = error_message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="error-dialog"):
+            yield Label("Error")
+            yield Static(self.error_message)
+            yield Button("Close", variant="primary", id="error-close-button")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Dismiss the modal when the close button is pressed."""
+        self.dismiss()
+
+
 class ServerSelectionModal(ModalScreen):
     """Modal screen for selecting a server."""
 
@@ -105,10 +123,12 @@ class ServerSelectionModal(ModalScreen):
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
+        table.cursor_type = "row"
         table.add_column("Name", key="name")
         table.add_column("URI", key="uri")
         for server in self.servers:
             table.add_row(server['name'], server['uri'], key=server['uri'])
+        table.focus()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self.selected_uri = event.row_key.value
@@ -411,21 +431,9 @@ class VMManagerTUI(App):
             self.conn = None
 
     def show_error_message(self, message: str):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        error_footer = self.query_one("#error-footer", Static)
-        error_footer.update(f"[{timestamp}] {message}")
-        error_footer.styles.height = "auto"
-        error_footer.styles.padding = (0, 1)
-
         # Log the error to file
         logging.error(message)
-
-        def clear_error():
-            error_footer.update("")
-            error_footer.styles.height = 0
-            error_footer.styles.padding = 0
-
-        self.set_timer(15, clear_error)
+        self.push_screen(ErrorModal(message))
 
     async def on_vm_state_changed(self, message: VMStateChanged) -> None:
         """Called when a VM's state changes."""
@@ -463,7 +471,8 @@ class VMManagerTUI(App):
         self.show_error_message(f"Error starting {message.vm_name}: {message.error_message}")
 
     @on(Button.Pressed, "#filter_button")
-    def on_filter_button_pressed(self, event: Button.Pressed) -> None:
+    def action_filter_view(self) -> None:
+        """Filter the VM list."""
         self.push_screen(FilterModal(), self.handle_filter_result)
 
     def handle_filter_result(self, result: str | None) -> None:
@@ -476,8 +485,10 @@ class VMManagerTUI(App):
                 self.refresh_vm_list()
 
     @on(Button.Pressed, "#select_server_button")
-    def on_select_server_button_pressed(self, event: Button.Pressed) -> None:
-        self.push_screen(ServerSelectionModal(self.servers), self.handle_server_selection_result)
+    def action_select_server(self) -> None:
+        """Select a server to connect to."""
+        if self.servers:
+            self.push_screen(ServerSelectionModal(self.servers), self.handle_server_selection_result)
 
     def handle_server_selection_result(self, uri: str | None) -> None:
         """Handle the result from the server selection modal."""
@@ -485,7 +496,8 @@ class VMManagerTUI(App):
             self.change_connection(uri)
 
     @on(Button.Pressed, "#manage_servers_button")
-    def on_manage_servers_button_pressed(self, event: Button.Pressed) -> None:
+    def action_manage_server(self) -> None:
+        """Manage the list of servers."""
         self.push_screen(ServerManagementModal(self.servers), self.reload_servers)
 
     @on(Button.Pressed, "#change_connection_button")
