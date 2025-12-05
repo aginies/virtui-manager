@@ -102,6 +102,7 @@ class VMCard(Static):
                     elif self.status == "Running":
                         yield Button("Stop", id="stop", variant="error")
                         yield Button("Pause", id="pause", variant="primary")
+                        yield Static(classes="button-separator")
                         yield Button("Take Snapshot", id="snapshot_take", variant="primary")
                     elif self.status == "Paused":
                         yield Button("Stop", id="stop", variant="error")
@@ -111,13 +112,14 @@ class VMCard(Static):
                     if self.status == "Running":
                         yield Button("Connect", id="connect", variant="default")
                     if self.vm and self.vm.snapshotNum(0) > 0:
+                        yield Static(classes="button-separator")
                         yield Button(
                             "Restore Snapshot",
                             id="snapshot_restore",
                             variant="primary",
                         )
                         yield Button(
-                            "Delete Snapshot",
+                            "Del Snapshot",
                             id="snapshot_delete",
                             variant="error",
                         )
@@ -141,6 +143,7 @@ class VMCard(Static):
         elif self.status == "Running":
             left_vertical.mount(Button("Stop", id="stop", variant="error"))
             left_vertical.mount(Button("Pause", id="pause", variant="primary"))
+            left_vertical.mount(Static(classes="button-separator"))
             left_vertical.mount(Button("Take Snapshot", id="snapshot_take", variant="primary"))
         elif self.status == "Paused":
             left_vertical.mount(Button("Stop", id="stop", variant="error"))
@@ -150,6 +153,7 @@ class VMCard(Static):
         if self.status == "Running":
             right_vertical.mount(Button("Connect", id="connect", variant="default"))
         if self.vm and self.vm.snapshotNum(0) > 0:
+            right_vertical.mount(Static(classes="button-separator"))
             right_vertical.mount(
                 Button("Restore Snapshot", id="snapshot_restore", variant="primary")
             )
@@ -352,8 +356,8 @@ class SnapshotNameDialog(Screen):
             Label("Enter snapshot name:", id="question"),
             Input(placeholder="snapshot_name"),
             Vertical(
-                Button("Cancel", variant="error", id="cancel"),
                 Button("Create", variant="success", id="create"),
+                Button("Cancel", variant="error", id="cancel"),
                 id="dialog-buttons",
             ),
             id="dialog",

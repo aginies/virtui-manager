@@ -375,7 +375,7 @@ class VMManagerTUI(App):
 
     def on_mount(self) -> None:
         """Called when the app is mounted."""
-        self.title = "VM Manager"
+        self.title = "Rainbow V Manager"
         error_footer = self.query_one("#error-footer")
         error_footer.styles.height = 0
         error_footer.styles.overflow = "hidden"
