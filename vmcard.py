@@ -97,7 +97,7 @@ class VMCard(Static):
                 with TabPane("Delete", id="delete-tab"):
                     with Horizontal():
                         with Vertical():
-                            yield Button("Delete", id="delete", variant="success")
+                            yield Button("Delete", id="delete", variant="success", classes="delete-button")
                 with TabPane("Snapshot", id="snapshot-tab"):
                     with Horizontal():
                         with Vertical():
