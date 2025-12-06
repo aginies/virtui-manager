@@ -27,7 +27,10 @@
     background: $surface;
     padding: 1 2;
 }
-
+.server-list {
+    padding: 1 1;
+    align: center middle;
+}
 #server-management-dialog, #server-selection-dialog {
     width: 60;
     height: 20;

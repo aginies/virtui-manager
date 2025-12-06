@@ -12,7 +12,7 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual import on
 import libvirt
-from vmcard import VMCard, VMNameClicked
+from vmcard import VMCard, VMNameClicked, ConfirmationDialog
 from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_nat_network, get_host_network_interfaces
 from config import load_config, save_config
 
@@ -146,16 +146,17 @@ class FilterModal(BaseModal[dict | None]):
         self.current_status = current_status
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="filter-dialog", classes="FilterModal"):
-            yield Label("Filter by Name:")
+        with Vertical(id="filter-dialog"): #, classes="FilterModal"):
+            yield Label("Filter by Name")
             yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
             with RadioSet(id="status-radioset"):
                 yield RadioButton("All", id="status_default", value=self.current_status == "default")
                 yield RadioButton("Running", id="status_running", value=self.current_status == "running")
                 yield RadioButton("Paused", id="status_paused", value=self.current_status == "paused")
                 yield RadioButton("Stopped", id="status_stopped", value=self.current_status == "stopped")
-            yield Button("Apply", id="apply-btn", variant="success")
-            yield Button("Cancel", id="cancel-btn")
+            with Horizontal():
+                yield Button("Apply", id="apply-btn", variant="success")
+                yield Button("Cancel", id="cancel-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
@@ -209,7 +210,7 @@ class ServerManagementModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="server-management-dialog"):
-            yield Label("Server List Management")
+            yield Label("Server List Management", classes="server-list")
             with ScrollableContainer():
                 yield DataTable(id="server-table")
             with Horizontal():
@@ -262,13 +263,27 @@ class ServerManagementModal(ModalScreen):
                     self._reload_table()
             self.app.push_screen(EditServerModal(server_to_edit['name'], server_to_edit['uri']), edit_server_callback)
         elif event.button.id == "delete-server-btn" and self.selected_row is not None:
-            del self.servers[self.selected_row]
-            self.app.config['servers'] = self.servers
-            save_config(self.app.config)
-            self._reload_table()
-            self.selected_row = None
-            self.query_one("#edit-server-btn").disabled = True
-            self.query_one("#delete-server-btn").disabled = True
+            server_to_delete = self.servers[self.selected_row]
+            server_name_to_delete = server_to_delete['name']
+
+            def on_confirm(confirmed: bool) -> None:
+                if confirmed:
+                    try:
+                        del self.servers[self.selected_row]
+                        self.app.config['servers'] = self.servers
+                        save_config(self.app.config)
+                        self._reload_table()
+                        self.selected_row = None
+                        self.query_one("#edit-server-btn").disabled = True
+                        self.query_one("#delete-server-btn").disabled = True
+                        self.app.show_success_message(f"Server '{server_name_to_delete}' deleted successfully.")
+                        logging.info(f"Successfully deleted Server '{server_name_to_delete}'")
+                    except Exception as e:
+                        self.app.show_error_message(f"Error deleting server '{server_name_to_delete}': {e}")
+
+            self.app.push_screen(
+                ConfirmationDialog(f"Are you sure you want to delete Server '{server_name_to_delete}' from list?"), on_confirm)
+
 
     def action_close_modal(self) -> None:
         """Close the modal."""
@@ -890,7 +905,14 @@ class VMManagerTUI(App):
 
     config = load_config()
     servers = config.get('servers', [])
-    connection_uri = reactive(servers[0]['uri'] if servers else "qemu:///system")
+
+    @staticmethod
+    def _get_initial_connection_uri(servers_list):
+        if servers_list:
+            return servers_list[0]['uri']
+        return "qemu:///system"
+
+    connection_uri = reactive(_get_initial_connection_uri(servers))
     conn = None
     current_page = reactive(0)
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
@@ -907,8 +929,7 @@ class VMManagerTUI(App):
             yield Button("Server Pref", id="server_preferences_button", classes="Buttonpage")
             yield Button("Servers List", id="manage_servers_button", classes="Buttonpage")
             #yield Button("Create VM", id="create_vm_button", classes="Buttonpage")
-            if self.servers:
-                yield Button("Select Server", id="select_server_button", classes="Buttonpage")
+            yield Button("Select Server", id="select_server_button", classes="Buttonpage")
             yield Button("Filter VM", id="filter_button", classes="Buttonpage")
             #yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button("View Log", id="view_log_button", classes="Buttonpage")
@@ -934,10 +955,6 @@ class VMManagerTUI(App):
         self.servers = new_servers
         self.config['servers'] = new_servers
         save_config(self.config)
-        # Re-compose is complex, for now we assume the app might need a restart
-        # to see the button if servers are added from an empty state.
-        # A better solution would be to dynamically add/remove the button.
-
 
     def on_mount(self) -> None:
         """Called when the app is mounted."""
@@ -947,13 +964,15 @@ class VMManagerTUI(App):
         error_footer.styles.overflow = "hidden"
         error_footer.styles.padding = 0
         vms_container = self.query_one("#vms-container")
-        #self._update_vms_container_layout()
         vms_container.styles.grid_size_columns = 2
+        #self._update_vms_container_layout()
         if not self.servers:
             self.query_one("#select_server_button", Button).display = False
-        self.connect_libvirt(self.connection_uri)
-        self.update_header()
-        self.list_vms()
+            self.show_success_message("No servers configured. Please add one via 'Servers List' or 'Select Server' (Custom URL).")
+        else:
+            self.connect_libvirt(self.connection_uri)
+            self.update_header()
+            self.list_vms()
 
     def _update_vms_container_layout(self) -> None:
         """Update the VM cards container layout based on terminal size."""
@@ -1177,10 +1196,13 @@ class VMManagerTUI(App):
 
             # Get the server name from the config
             server_name = "Unknown"
-            for server in self.servers:
-                if server['uri'] == self.connection_uri:
-                    server_name = server['name']
-                    break
+            if not self.servers:
+                server_name = f"Default: {self.connection_uri}"
+            else:
+                for server in self.servers:
+                    if server['uri'] == self.connection_uri:
+                        server_name = server['name']
+                        break
 
             self.sub_title = f"Server: {server_name} | Total VMs: {total_vms}"
         except libvirt.libvirtError:
