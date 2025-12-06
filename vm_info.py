@@ -585,10 +585,10 @@ def create_nat_network(conn, name, forward_dev, ip_network, dhcp_enabled, dhcp_s
 
 def get_host_network_interfaces():
     """
-    Retrieves a list of network interface names available on the host.
+    Retrieves a list of network interface names and their primary IPv4 addresses available on the host.
+    Returns a list of tuples: (interface_name, ip_address)
     """
     try:
-        # Use 'ip -o link show' to list interfaces and awk to extract names
         result = subprocess.run(
             ['ip', '-o', 'link', 'show'],
             capture_output=True,
@@ -599,10 +599,22 @@ def get_host_network_interfaces():
         for line in result.stdout.splitlines():
             parts = line.split(': ')
             if len(parts) > 1:
-                # The interface name is the second part
-                interface_name = parts[1].split('@')[0]  # Handle interfaces like 'eth0@if10'
-                if interface_name != 'lo':  # Exclude loopback interface
-                    interfaces.append(interface_name)
+                interface_name = parts[1].split('@')[0]
+                if interface_name != 'lo':
+                    ip_address = ""
+                    # Get IPv4 address for the interface
+                    ip_result = subprocess.run(
+                        ['ip', '-o', '-4', 'addr', 'show', interface_name],
+                        capture_output=True,
+                        text=True,
+                        check=False # Do not raise error if interface has no IP
+                    )
+                    if ip_result.returncode == 0:
+                        ip_parts = ip_result.stdout.split()
+                        if len(ip_parts) > 3:
+                            ip_address = ip_parts[3].split('/')[0] # Extract IP before the /
+
+                    interfaces.append((interface_name, ip_address))
         return interfaces
     except subprocess.CalledProcessError as e:
         print(f"Error getting network interfaces: {e}")

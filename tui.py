@@ -447,7 +447,10 @@ class ServerPrefModal(BaseModal[None]):
                     host_interfaces = get_host_network_interfaces()
                     if not host_interfaces:
                         host_interfaces = [("No interfaces found", "")]
-                    interface_options = [(iface, iface) for iface in host_interfaces]
+                    interface_options = []
+                    for name, ip in host_interfaces:
+                        display_text = f"{name} ({ip})" if ip else name
+                        interface_options.append((display_text, name))
 
                     with ScrollableContainer():
                         yield Label("Existing Networks", classes="section-title")

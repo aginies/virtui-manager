@@ -349,5 +349,5 @@ Button {
 
 #existing-networks-table {
     height: 5;
-    border: round $primary;
+    border: hidden;
 }
