@@ -4,10 +4,9 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 
 ## Overview
 
-This project provides a terminal-based interface to manage virtual machines using libvirt. It consists of two main components:
-
-- `tui.py`: The main terminal user interface application
-- `vmcard.py`: A widget component for displaying VM information and controls
+This project provides a terminal-based interface to manage virtual machines using libvirt.
+This project is part of a SUSE **hackweek** project, its not mature, under heavy developement, so
+its **risky** to use it.
 
 ## Media
 
@@ -16,18 +15,24 @@ This project provides a terminal-based interface to manage virtual machines usin
 
 ## Features
 
-- User configuration file in **~/.config/vmanager/config.yaml**
+General capabilities:
 - List and manage QEMU/KVM virtual machines
-- Start, stop, pause, and resume VMs
+- Dynamic error messages
+
+Vm cards:
+- User configuration file for server list in **~/.config/vmanager/config.yaml**
+- Start, stop, pause, resume, delete VMs
+- Snapshot management (take, restore, delete)
 - View VM details (status, CPU, memory, description, machine type, firmware, devices, etc...)
 - Connect to VMs using **virt-viewer**
 - View VM XML configuration
+
+Menu:
 - Connection URI
 - Manage a Server list
-- Filter view 
-- Snapshot management (take, restore, delete)
-- Dynamic error messages
-- View application log file
+- Connect to a server listed
+- Filter view
+- View log (libvirt and app)
 
 ## Requirements
 
@@ -39,25 +44,29 @@ This project provides a terminal-based interface to manage virtual machines usin
 
 ## Installation
 
-Clone this repository:
+### Clone this repository
+
 ```bash
 git clone https://github.com/aginies/vmanager.git
 ```
 
-Install needed python lib:
-```bash
-# Install Python dependencies
-pip install libvirt-python textual pyaml
+### Install Python dependencies
 
-# Verify virt-viewer is available in PATH
+```bash
+pip install libvirt-python textual pyaml
+```
+
+### Verify virt-viewer is available in PATH
+
+```bash
 which virt-viewer
 ```
 
-### Main Interface
+## Main Interface
 
 When you run the application, you'll see:
 
-1. **Header**: Shows connection information and VM statistics:
+1. **Header**: Shows connection information and VM:
    - Total VMs count
    - Current connection URI
 
@@ -69,11 +78,14 @@ When you run the application, you'll see:
    - **Filter menu** to sort VMs by status (All, Running, Paused, Stopped)
 
 3. **VM Cards**: Each VM is displayed in a card with:
-   - VM name (with color-coded status)
-   - Status (Running, Paused, Stopped)
-   - CPU and Memory
-   - Action buttons (Start, Stop, Pause, Resume, Take/Restore/Delete Snapshot, View XML, Connect)
-   - Click on the card give you readable info about the VM configuration
+   - VM name
+   - color-coded Status (Running, Paused, Stopped)
+   - CPU and Memory dedicated to this VM
+   - Action buttons (Start/Stop/Pause/Resume, Delete, Take/Restore/Delete Snapshot, View XML, Connect)
+   - Click on the name of the VM give you readable info about the VM configuration
+   - in the VM details view
+     - you can add/delete disks
+     - you can edit CPU/Mem/Machine type
 
 4. **Footer**: show all shortcuts available
 
@@ -83,6 +95,7 @@ When you run the application, you'll see:
 - **Stop**: Stop a running VM
 - **Pause**: Pause a running VM
 - **Resume**: Resume a paused VM
+- **Delete**: Delete a VM
 - **Take Snapshot**: Create a new snapshot of the VM.
 - **Restore Snapshot**: Revert the VM to a previously taken snapshot.
 - **Delete Snapshot**: Delete an existing snapshot.
