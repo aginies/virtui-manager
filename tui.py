@@ -442,7 +442,7 @@ class ServerPrefModal(BaseModal[None]):
             yield Label("Server Preferences", id="server-pref-title")
             with TabbedContent(id="server-pref-tabs"):
                 with TabPane("Storage", id="tab-storage"):
-                    yield Label("Storage settings will go here.")
+                    yield Label("Storage settings... WIP")
                 with TabPane("Network", id="tab-network"):
                     with ScrollableContainer():
                         yield Label("Existing Networks", classes="section-title")
