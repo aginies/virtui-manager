@@ -351,3 +351,60 @@ Button {
     height: 5;
     border: hidden;
 }
+
+/* Styles for VirshShellScreen */
+VirshShellScreen {
+    align: center middle;
+}
+
+#virsh-shell-container {
+    width: 90%;
+    max-width: 120;
+    height: 100%;
+    max-height: 100%;
+    background: $surface;
+    border: panel $primary;
+    padding: 0;
+    align: center middle;
+}
+
+#virsh-shell-title {
+    content-align: center middle;
+    text-style: bold;
+    margin-bottom: 1;
+    color: $text;
+    background: $primary;
+    padding: 0 1;
+}
+
+.virsh-output-area {
+    width: 1fr;
+    height: 1fr;
+    background: $panel;
+    border: round $primary-lighten-1;
+    padding: 1;
+    margin-bottom: 0;
+    color: $text;
+}
+
+#virsh-input-container {
+    width: 1fr;
+    height: auto;
+    align: center middle;
+    background: $panel;
+    padding: 0 0;
+}
+
+#virsh-input-container Label {
+    width: auto;
+    margin-right: 1;
+    text-style: bold;
+    color: $text;
+}
+
+.virsh-input-field {
+    width: 1fr;
+    height: auto;
+    background: $surface;
+    color: $text;
+}
