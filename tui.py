@@ -143,7 +143,6 @@ class FilterModal(BaseModal[dict | None]):
         with Vertical(id="filter-dialog", classes="FilterModal"):
             yield Label("Filter by Name:")
             yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
-            yield Label("Filter by Status:")
             with RadioSet(id="status-radioset"):
                 yield RadioButton("All", id="status_default", value=self.current_status == "default")
                 yield RadioButton("Running", id="status_running", value=self.current_status == "running")
