@@ -49,6 +49,10 @@ class VMCard(Static):
                             yield Button("View XML", id="xml")
                             yield Static(classes="button-separator")
                             yield Button("Connect", id="connect", variant="default")
+                with TabPane("Delete", id="delete-tab"):
+                    with Horizontal():
+                        with Vertical():
+                            yield Button("Delete", id="delete", variant="success")
                 with TabPane("Snapshot", id="snapshot-tab"):
                     with Horizontal():
                         with Vertical():
@@ -77,6 +81,7 @@ class VMCard(Static):
         stop_button = self.query_one("#stop", Button)
         pause_button = self.query_one("#pause", Button)
         resume_button = self.query_one("#resume", Button)
+        delete_button = self.query_one("#delete", Button)
         connect_button = self.query_one("#connect", Button)
         restore_button = self.query_one("#snapshot_restore", Button)
         delete_button = self.query_one("#snapshot_delete", Button)
@@ -88,6 +93,7 @@ class VMCard(Static):
 
         start_button.display = is_stopped
         stop_button.display = is_running or is_paused
+        delete_button.display = is_running or is_paused or is_stopped
         pause_button.display = is_running
         resume_button.display = is_paused
         connect_button.display = is_running
