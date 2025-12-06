@@ -162,8 +162,8 @@ VMDetailModal {
 }
 
 .info-section {
-    height: 40;
-    max-height: 40;
+    height: 10;
+    max-height: 10;
     background: $panel;
     padding: 0 1;
     border: round $primary;
@@ -285,5 +285,34 @@ Button {
     align: center middle;
 }
 #add-disk-dialog Button {
+    margin: 0 1;
+}
+
+#remove-disk-dialog {
+    width: auto;
+    height: auto;
+    max-width: 60;
+    max-height: 80vh;
+    border: round green;
+    background: $surface;
+    padding: 1 2;
+    align: center middle;
+}
+#remove-disk-dialog Label {
+    width: 100%;
+    content-align: center middle;
+    margin-bottom: 1;
+}
+#remove-disk-dialog Input,
+#remove-disk-dialog Select {
+    width: 100%;
+    margin-bottom: 1;
+}
+#remove-disk-dialog Horizontal {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+#remove-disk-dialog Button {
     margin: 0 1;
 }
