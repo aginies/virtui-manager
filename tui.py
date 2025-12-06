@@ -140,8 +140,6 @@ class ServerSelectionModal(BaseModal[str | None]):
 class FilterModal(BaseModal[dict | None]):
     """Modal screen for selecting a filter."""
 
-    CSS_PATH = "tui.css"
-
     def __init__(self, current_search: str = "", current_status: str = "default") -> None:
         super().__init__()
         self.current_search = current_search
@@ -436,8 +434,6 @@ class SelectMachineTypeModal(BaseModal[str | None]):
 class ServerPrefModal(BaseModal[None]):
     """Modal screen for server preferences."""
 
-    CSS_PATH = "tui.css"
-
     def compose(self) -> ComposeResult:
         with Vertical(id="server-pref-dialog", classes="ServerPrefModal"):
             yield Label("Server Preferences", id="server-pref-title")
@@ -453,23 +449,22 @@ class ServerPrefModal(BaseModal[None]):
 
                     with ScrollableContainer():
                         yield Label("Existing Networks", classes="section-title")
-                        yield ListView(id="existing-networks-list")
+                        yield ListView(id="existing-networks-list", classes="existing-networks-list")
                         yield Label("Create New NAT Network", classes="section-title")
                         with Vertical(id="create-network-form"):
                             yield Input(placeholder="Network Name (e.g., nat_net)", id="net-name-input")
                             yield Select(interface_options, prompt="Select Forward Interface", id="net-forward-input")
                             yield Input(placeholder="IPv4 Network (e.g., 192.168.100.0/24)", id="net-ip-input")
-                            with Horizontal(id="dhcp-checkbox-horizontal"):
-                                yield Checkbox("Enable DHCPv4", id="dhcp-checkbox", value=True)
-                            with Vertical(id="dhcp-options"):
-                                with Horizontal(id="dhcp-inputs-horizontal"):
+                            yield Checkbox("Enable DHCPv4", id="dhcp-checkbox", value=True)
+                            with Vertical(id="dhcp-inputs-horizontal"):
+                                with Horizontal(id="dhcp-options"):
                                     yield Input(placeholder="DHCP Start (e.g., 192.168.100.100)", id="dhcp-start-input", classes="dhcp-input")
                                     yield Input(placeholder="DHCP End (e.g., 192.168.100.254)", id="dhcp-end-input", classes="dhcp-input")
-                            with RadioSet(id="dns-domain-radioset"):
+                            with RadioSet(id="dns-domain-radioset", classes="dns-domain-radioset"):
                                 yield RadioButton("Use Network Name for DNS Domain", id="dns-use-net-name", value=True)
                                 yield RadioButton("Use Custom DNS Domain", id="dns-use-custom")
                             yield Input(placeholder="Custom DNS Domain", id="dns-custom-domain-input", classes="hidden")
-                            yield Button("Create Network", variant="primary", id="create-net-btn")
+                            yield Button("Create Network", variant="primary", id="create-net-btn", classes="create-net-btn")
                 with TabPane("Storage", id="tab-storage"):
                     yield Label("Storage settings... WIP")
 
@@ -496,8 +491,6 @@ class ServerPrefModal(BaseModal[None]):
             self.app.push_screen(NetworkDetailModal(network_name, xml))
         except libvirt.libvirtError as e:
             self.app.show_error_message(f"Error getting network details: {e}")
-
-
 
     @on(Checkbox.Changed, "#dhcp-checkbox")
     def on_dhcp_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -569,7 +562,6 @@ class VMDetailModal(ModalScreen):
     """Modal screen to show detailed VM information."""
 
     BINDINGS = [("escape", "close_modal", "Close")]
-    CSS_PATH = "tui.css"
 
     def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain) -> None:
         super().__init__()
@@ -766,12 +758,11 @@ class NetworkDetailModal(BaseModal[None]):
                 text_area.styles.height = "auto"
                 yield text_area
             with Horizontal():
-                yield Button("Close", variant="default", id="close-btn", classes="Buttonpage")
+                yield Button("Close", variant="default", id="close-btn", classes="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
             self.dismiss(None)
-
 
 class VirshShellScreen(ModalScreen):
     """Screen for an interactive virsh shell."""
@@ -907,7 +898,7 @@ class VMManagerTUI(App):
     search_text = reactive("")
     num_pages = reactive(1)
 
-    CSS_PATH = ["tui.css", "vmcard.css"]
+    CSS_PATH = ["tui.css", "vmcard.css", "snapshot.css"]
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""

@@ -90,7 +90,7 @@
 .close-button {
     height: 4vh;
     color: white;
-    background: blue;
+    background: red;
     border: hidden;
     margin-bottom: 1;
 }
@@ -271,87 +271,6 @@ Button {
     align: center middle;
 }
 
-/* Styles for ServerPrefModal */
-.ServerPrefModal {
-    align: center middle;
-}
-
-#server-pref-dialog {
-    width: 90%;
-    max-width: 100;
-    height: auto;
-    background: $surface;
-    border: panel $primary;
-    padding: 1;
-    align: center middle;
-}
-
-#dhcp-inputs-horizontal Input {
-    width: 1fr;
-}
-
-#server-pref-title {
-    content-align: center middle;
-    text-style: bold;
-    margin-bottom: 1;
-    color: $text;
-}
-
-#server-pref-tabs {
-    height: 1fr;
-    border: round $primary;
-    padding: 0 1;
-}
-
-#server-pref-buttons {
-    width: 100%;
-    height: auto;
-    align: center middle;
-    margin-top: 1;
-}
-
-#tab-storage, #tab-network {
-    align: left top;
-    overflow-y: auto;
-}
-
-#create-network-form {
-    height: auto;
-    max-height: 1fr;
-    max-width: 1fr;
-    background: $panel;
-    border: round $primary;
-    margin-top: 0;
-}
-
-#create-network-form Input {
-    margin-bottom: 0;
-}
-
-#dhcp-checkbox-horizontal {
-    margin-bottom: 0;
-}
-
-#dhcp-options {
-    margin-top: 0;
-    /* Other styles for dhcp-options */
-    border: hidden;
-}
-
-#dns-domain-radioset {
-    margin-top: 0;
-    border: hidden;
-}
-
-.hidden {
-    display: none;
-}
-
-#existing-networks-table {
-    height: 5;
-    border: hidden;
-}
-
 /* Styles for VirshShellScreen */
 VirshShellScreen {
     align: center middle;
@@ -407,4 +326,62 @@ VirshShellScreen {
     height: auto;
     background: $surface;
     color: $text;
+}
+.existing-networks-list {
+    background: $surface;
+    height: 5;
+    border: round $primary;
+}
+.create-network-form {
+    background: $surface;
+    border: round $primary;
+}
+.hidden {
+    display: none;
+}
+.dhcp-input, .dhcp-input {
+    width: 50%;
+}
+.dns-domain-radioset {
+    background: $surface;
+    height: 2;
+    border: none;
+}
+.create-net-btn {
+    border: none;
+    height: 5;
+}
+
+/* Server Preferences Modal Styles */
+/* Main dialog container */
+#server-pref-dialog {
+    width: 90;
+    height: auto;
+    max-height: 40;
+    border: round $primary;
+    background: $surface;
+    padding: 1;
+}
+
+/* ListView item styling */
+ListView > ListItem {
+    padding: 0 1;
+}
+
+ListView > ListItem:hover {
+    background: $primary-darken-2;
+}
+
+/* Input focus styling */
+Input:focus {
+    border: tall $accent;
+}
+
+Select:focus {
+    border: tall $accent;
+}
+
+/* Radio button spacing */
+RadioButton {
+    padding: 0 0 0 1;
 }
