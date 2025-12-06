@@ -14,15 +14,16 @@
 #connection-dialog {
     width: 60;
     height: auto;
-    border: round round;
+    border: panel green;
     background: $surface;
     padding: 1 2;
 }
 
 #filter-dialog {
     width: 40;
-    height: 40vh; 
-    border: round green;
+    height: auto; 
+    border: panel green;
+    align: center middle;
     background: $surface;
     padding: 0 0;
 }
@@ -54,6 +55,7 @@
 #server-selection-dialog Label,
 #edit-server-dialog Label {
     width: 100%;
+    height: auto;
     content-align: center middle;
     margin-bottom: 1;
 }
@@ -78,8 +80,8 @@
 }
 
 #filter-dialog Button {
-    width: 100%;
-    height: 10vh;
+    width: 50%;
+    height: auto;
     margin-bottom: 1;
 }
 
@@ -110,12 +112,13 @@ Select {
 
 /* Styles for VMDetailModal */
 VMDetailModal {
-    height: 60;
+    height: auto;
+    max-height: 90%;
     align: center middle;
 }
 #vm-detail-container {
     width: 80;
-    height: 60;
+    height: auto;
     max-height: 90%;
     background: $surface;
     border: round $primary-lighten-2;
@@ -232,4 +235,26 @@ Button {
 .edit-button,
 .add-button {
     background: green;
+}
+
+#detail_add_disk, #detail_remove_disk {
+    width: 1fr;
+}
+
+.edit-detail-btn {
+    width: auto;
+    height: 1;
+    min-height: 1;
+    margin: 0 0 0 1;
+}
+
+.centered-status-label {
+    content-align: center middle;
+}
+
+.compact-info-row {
+    height: auto;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
 }
