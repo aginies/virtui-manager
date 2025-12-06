@@ -1,7 +1,7 @@
 import os
 import sys
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Select, Button, Input, Label, Static, DataTable, Link, TextArea
+from textual.widgets import Header, Footer, Select, Button, Input, Label, Static, DataTable, Link, TextArea, ListView, ListItem, Checkbox
 from textual.containers import ScrollableContainer, Grid, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.screen import ModalScreen, Screen
@@ -11,7 +11,7 @@ import logging
 import subprocess
 from datetime import datetime
 from vmcard import VMCard, VMNameClicked
-from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info
+from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type
 from config import load_config, save_config
 
 # Configure logging
@@ -306,16 +306,185 @@ class LogModal(ModalScreen):
         """Cancel the modal."""
         self.dismiss(None)
 
+class AddDiskModal(ModalScreen):
+    """Modal screen for adding a new disk."""
+
+    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-disk-dialog"):
+            yield Label("Add New Disk")
+            yield Input(placeholder="Path to disk image or ISO", id="disk-path-input")
+            yield Checkbox("Create new disk image", id="create-disk-checkbox")
+            yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
+            yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True)
+            yield Checkbox("CD-ROM", id="cdrom-checkbox")
+            with Horizontal():
+                yield Button("Add", variant="primary", id="add-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+
+    @on(Checkbox.Changed, "#create-disk-checkbox")
+    def on_create_disk_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        self.query_one("#disk-size-input", Input).disabled = not event.value
+        self.query_one("#disk-format-select", Select).disabled = not event.value
+    
+    @on(Checkbox.Changed, "#cdrom-checkbox")
+    def on_cdrom_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        self.query_one("#create-disk-checkbox").disabled = event.value
+        if event.value:
+            self.query_one("#create-disk-checkbox").value = False
+
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add-btn":
+            import re
+            disk_path = self.query_one("#disk-path-input", Input).value
+            create_disk = self.query_one("#create-disk-checkbox", Checkbox).value
+            disk_size_str = self.query_one("#disk-size-input", Input).value
+            disk_format = self.query_one("#disk-format-select", Select).value
+            is_cdrom = self.query_one("#cdrom-checkbox", Checkbox).value
+            
+            numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
+            disk_size = int(numeric_part) if numeric_part else 10
+
+            result = {
+                "disk_path": disk_path,
+                "create": create_disk,
+                "size_gb": disk_size,
+                "disk_format": disk_format,
+                "device_type": "cdrom" if is_cdrom else "disk",
+            }
+            self.dismiss(result)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+    def action_cancel_modal(self) -> None:
+        self.dismiss(None)
+
+
+class RemoveDiskModal(ModalScreen):
+    """Modal screen for removing a disk."""
+
+    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def __init__(self, disks: list) -> None:
+        super().__init__()
+        self.disks = disks
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="remove-disk-dialog"):
+            yield Label("Select Disk to Remove")
+            yield ListView(
+                *[ListItem(Label(disk)) for disk in self.disks],
+                id="remove-disk-list"
+            )
+            with Horizontal():
+                yield Button("Remove", variant="error", id="remove-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        self.selected_disk = event.item.query_one(Label).renderable
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "remove-btn" and hasattr(self, "selected_disk"):
+            self.dismiss(self.selected_disk)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+    def action_cancel_modal(self) -> None:
+        self.dismiss(None)
+
+
+class EditCpuModal(ModalScreen):
+    """Modal screen for editing VCPU count."""
+
+    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="edit-cpu-dialog"):
+            yield Label("Enter new VCPU count:")
+            yield Input(placeholder="e.g., 2", id="cpu-input", type="integer")
+            with Horizontal():
+                yield Button("Save", variant="primary", id="save-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            cpu_input = self.query_one("#cpu-input", Input)
+            self.dismiss(cpu_input.value)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+    def action_cancel_modal(self) -> None:
+        """Cancel the modal."""
+        self.dismiss(None)
+
+
+class EditMemoryModal(ModalScreen):
+    """Modal screen for editing memory size."""
+
+    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="edit-memory-dialog"):
+            yield Label("Enter new memory size (MB):")
+            yield Input(placeholder="e.g., 2048", id="memory-input", type="integer")
+            with Horizontal():
+                yield Button("Save", variant="primary", id="save-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            memory_input = self.query_one("#memory-input", Input)
+            self.dismiss(memory_input.value)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+    def action_cancel_modal(self) -> None:
+        """Cancel the modal."""
+        self.dismiss(None)
+
+class SelectMachineTypeModal(ModalScreen):
+    """Modal screen for selecting machine type."""
+
+    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def __init__(self, machine_types: list[str]) -> None:
+        super().__init__()
+        self.machine_types = machine_types
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="select-machine-type-dialog"):
+            yield Label("Select Machine Type:")
+            yield ListView(
+                *[ListItem(Label(mt)) for mt in self.machine_types],
+                id="machine-type-list"
+            )
+            with Horizontal():
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        self.dismiss(str(event.item.query_one(Label).renderable))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+    def action_cancel_modal(self) -> None:
+        """Cancel the modal."""
+        self.dismiss(None)
+
 class VMDetailModal(ModalScreen):
     """Modal screen to show detailed VM information."""
 
     BINDINGS = [("escape", "close_modal", "Close")]
     CSS_PATH = "tui.css"
 
-    def __init__(self, vm_name: str, vm_info: dict) -> None:
+    def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain) -> None:
         super().__init__()
         self.vm_name = vm_name
         self.vm_info = vm_info
+        self.domain = domain
 
     def compose(self) -> ComposeResult:
         with Vertical(id="vm-detail-container"):
@@ -325,21 +494,37 @@ class VMDetailModal(ModalScreen):
             yield Label("General information", classes="section-title")
             with ScrollableContainer(classes="info-details"):
                 yield Label(
-                    f"Status: {status}", id=f"status-{status.lower().replace(' ', '-')}"
+                    f"Status: {status}", id=f"status-{status.lower().replace(' ', '-')}", classes="centered-status-label"
                 )
-                yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}")
-                yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB")
+                with Horizontal(classes="compact-info-row"):
+                    yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label")
+                    yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
+                with Horizontal(classes="compact-info-row"):
+                    yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label")
+                    yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
                 yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
                 if "firmware" in self.vm_info:
                     yield Label(f"Firmware: {self.vm_info['firmware']}")
                 if "machine_type" in self.vm_info:
-                    yield Label(f"Machine Type: {self.vm_info['machine_type']}")
+                    with Horizontal():
+                        yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label")
+                        is_stopped = self.vm_info.get("status") == "Stopped"
+                        yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not is_stopped)
 
-            if self.vm_info.get("disks"):
-                yield Label("Disks", classes="section-title")
-                with ScrollableContainer(classes="info-details"):
-                    for disk in self.vm_info["disks"]:
-                        yield Static(f"• {disk}")
+
+            yield Label("Disks", classes="section-title")
+            with ScrollableContainer(classes="info-details"):
+                disks = self.vm_info.get("disks", [])
+                self.disk_list_view = ListView(*[ListItem(Label(disk)) for disk in disks])
+                num_disks = len(disks)
+                self.disk_list_view.styles.height = num_disks if num_disks > 0 else 1
+                if not disks:
+                    self.disk_list_view.append(ListItem(Label("No disks found.")))
+                yield self.disk_list_view
+            with Horizontal():
+                yield Button("Add Disk", id="detail_add_disk")
+                yield Button("Remove Disk", id="detail_remove_disk")
+
 
             if self.vm_info.get("networks"):
                 yield Label("Networks", classes="section-title")
@@ -384,9 +569,93 @@ class VMDetailModal(ModalScreen):
             with Horizontal(id="detail-button-container"):
                 yield Button("Close", variant="default", id="close-btn", classes="close-button")
 
+    def _update_disk_list(self):
+        self.disk_list_view.clear()
+        new_xml = self.domain.XMLDesc(0)
+        disks = get_vm_disks_info(new_xml)
+        if disks:
+            for disk in disks:
+                self.disk_list_view.append(ListItem(Label(disk)))
+        else:
+            self.disk_list_view.append(ListItem(Label("No disks found.")))
+        
+        num_disks = len(disks)
+        self.disk_list_view.styles.height = num_disks if num_disks > 0 else 1
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
             self.dismiss()
+        elif event.button.id == "detail_add_disk":
+            def add_disk_callback(result):
+                if result:
+                    try:
+                        target_dev = add_disk(
+                            self.domain,
+                            result["disk_path"],
+                            device_type=result["device_type"],
+                            create=result["create"],
+                            size_gb=result["size_gb"],
+                            disk_format=result["disk_format"],
+                        )
+                        self.app.show_success_message(f"Disk added as {target_dev}")
+                        self._update_disk_list()
+                    except Exception as e:
+                        self.app.show_error_message(f"Error adding disk: {e}")
+            self.app.push_screen(AddDiskModal(), add_disk_callback)
+        elif event.button.id == "detail_remove_disk":
+            disks = get_vm_disks_info(self.domain.XMLDesc(0))
+            def remove_disk_callback(disk_to_remove):
+                if disk_to_remove:
+                    try:
+                        remove_disk(self.domain, disk_to_remove)
+                        self.app.show_success_message(f"Disk {disk_to_remove} removed.")
+                        self._update_disk_list()
+                    except Exception as e:
+                        self.app.show_error_message(f"Error removing disk: {e}")
+            self.app.push_screen(RemoveDiskModal(disks), remove_disk_callback)
+
+        elif event.button.id == "edit-cpu":
+            def edit_cpu_callback(new_cpu_count):
+                if new_cpu_count is not None and new_cpu_count.isdigit():
+                    try:
+                        set_vcpu(self.domain, int(new_cpu_count))
+                        self.app.show_success_message(f"CPU count set to {new_cpu_count}")
+                        self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
+                    except (libvirt.libvirtError, Exception) as e:
+                        self.app.show_error_message(f"Error setting CPU: {e}")
+            
+            self.app.push_screen(EditCpuModal(), edit_cpu_callback)
+
+        elif event.button.id == "edit-memory":
+            def edit_memory_callback(new_memory_size):
+                if new_memory_size is not None and new_memory_size.isdigit():
+                    try:
+                        set_memory(self.domain, int(new_memory_size))
+                        self.app.show_success_message(f"Memory size set to {new_memory_size} MB")
+                        self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
+                    except (libvirt.libvirtError, Exception) as e:
+                        self.app.show_error_message(f"Error setting memory: {e}")
+
+            self.app.push_screen(EditMemoryModal(), edit_memory_callback)
+        
+        elif event.button.id == "edit-machine-type":
+            machine_types = get_supported_machine_types(self.domain.connect(), self.domain)
+            if not machine_types:
+                self.app.show_error_message("Could not retrieve machine types.")
+                return
+
+            def set_machine_type_callback(new_type):
+                if new_type:
+                    try:
+                        set_machine_type(self.domain, new_type)
+                        self.app.show_success_message(f"Machine type set to {new_type}")
+                        self.query_one("#machine-type-label").update(f"Machine Type: {new_type}")
+                    except (libvirt.libvirtError, Exception) as e:
+                        self.app.show_error_message(f"Error setting machine type: {e}")
+            
+            self.app.push_screen(SelectMachineTypeModal(machine_types), set_machine_type_callback)
+
+
     
     def action_close_modal(self) -> None:
         """Close the modal."""
@@ -595,7 +864,7 @@ class VMManagerTUI(App):
                 'devices': get_vm_devices_info(xml_content),
                 'xml': xml_content,
             }
-            self.push_screen(VMDetailModal(message.vm_name, vm_info))
+            self.push_screen(VMDetailModal(message.vm_name, vm_info, domain))
         except libvirt.libvirtError as e:
             self.show_error_message(f"Error getting details for {message.vm_name}: {e}")
 
