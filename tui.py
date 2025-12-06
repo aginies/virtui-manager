@@ -290,7 +290,6 @@ class LogModal(ModalScreen):
     
     def compose(self) -> ComposeResult:
         with Vertical(id="text-show"):
-            logging.info("View log button clicked")
             yield Label("Log View", id="title")
             log_file = "vm_manager.log"
             text_area = TextArea()
@@ -526,7 +525,6 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#filter_button")
     def action_filter_view(self) -> None:
         """Filter the VM list."""
-        logging.info("Filter button clicked")
         self.push_screen(FilterModal(), self.handle_filter_result)
 
     def handle_filter_result(self, result: str | None) -> None:
@@ -542,7 +540,6 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#select_server_button")
     def action_select_server(self) -> None:
         """Select a server to connect to."""
-        logging.info("Select server button clicked")
         if self.servers:
             self.push_screen(ServerSelectionModal(self.servers), self.handle_server_selection_result)
 
@@ -555,7 +552,6 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#manage_servers_button")
     def action_manage_server(self) -> None:
         """Manage the list of servers."""
-        logging.info("Manage servers button clicked")
         self.push_screen(ServerManagementModal(self.servers), self.reload_servers)
 
     @on(Button.Pressed, "#create_vm_button")
@@ -565,7 +561,6 @@ class VMManagerTUI(App):
 
     @on(Button.Pressed, "#change_connection_button")
     def on_change_connection_button_pressed(self, event: Button.Pressed) -> None:
-        logging.info("Change connection button clicked")
         self.push_screen(ConnectionModal(), self.handle_connection_result)
 
     @on(Button.Pressed, "#view_log_button")
@@ -779,7 +774,6 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#prev-button")
     def action_previous_page(self) -> None:
         """Go to the previous page."""
-        logging.info("Previous page button clicked")
         if self.current_page > 0:
             self.current_page -= 1
             self.refresh_vm_list()
@@ -787,7 +781,6 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#next-button")
     def action_next_page(self) -> None:
         """Go to the next page."""
-        logging.info("Next page button clicked")
         if self.current_page < self.num_pages - 1:
             self.current_page += 1
             self.refresh_vm_list()
