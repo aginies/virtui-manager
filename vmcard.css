@@ -32,16 +32,18 @@ VMCard {
     margin-top: 1;
     margin-bottom: 1;
 }
-#status.running {
-    background: lightgreen;
+#status.running,
+#status.stopped,
+#status.paused {
     color: black;
 }
+#status.running {
+    background: lightgreen;
+}
 #status.stopped {
-    color: black;
     background: red;
 }
 #status.paused {
-    color: black;
     background: yellow;
 }
 Button {
@@ -74,46 +76,43 @@ Button {
     padding: 0 1;
 }
 /* Custom button styles */
-#pause {
-    background: #FFA500; /* Orange */
+#pause,
+#xml,
+#snapshot_take,
+#snapshot_restore,
+#snapshot_delete,
+#connect {
     color: white;
     max-height: 3vh; /* 3vh; */
+}
+#pause, #xml, #connect {
     padding: 0 1;
+}
+#snapshot_take, #snapshot_restore, #snapshot_delete {
+    padding: 0 0;
+}
+
+#pause {
+    background: #FFA500; /* Orange */
 }
 #xml {
     background: grey;
-    color: white;
-    max-height: 3vh; /* 3vh; */
-    padding: 0 1;
 }
 
 #snapshot_take {
     background: #00008B; /* Dark blue */
-    color: white;
-    max-height: 3vh; /* 3vh; */
-    padding: 0 0;
 }
 #snapshot_restore {
     background: #0000FF; /* Blue */
-    max-height: 3vh; /* 3vh; */
-    color: white;
-    padding: 0 0;
 }
 #snapshot_delete {
     background: red; /* Blue */
-    color: white;
-    max-height: 3vh; /* 3vh; */
-    padding: 0 0;
 }
 #connect {
     background: #FF00FF; /* Magenta */
-    color: white;
-    max-height: 3vh; /* 3vh; */
-    padding: 0 0;
 }
-#snapshot-tab {
-    border: hidden;
-}
+
+#snapshot-tab,
 #manage-tab {
     border: hidden;
 }
