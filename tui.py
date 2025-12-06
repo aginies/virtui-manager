@@ -13,6 +13,7 @@ from datetime import datetime
 from vmcard import VMCard, VMNameClicked
 from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type
 from config import load_config, save_config
+from typing import TypeVar
 
 # Configure logging
 logging.basicConfig(
@@ -21,10 +22,16 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-class ConnectionModal(ModalScreen):
-    """Modal screen for entering connection URI."""
+T = TypeVar("T")
 
+class BaseModal(ModalScreen[T]):
     BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def action_cancel_modal(self) -> None:
+        self.dismiss(None)
+
+
+class ConnectionModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connection-dialog"):
@@ -44,14 +51,7 @@ class ConnectionModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
-
-class AddServerModal(ModalScreen):
-    """Modal screen for adding a new server."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+class AddServerModal(BaseModal[tuple[str, str] | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-server-dialog"):
@@ -70,14 +70,7 @@ class AddServerModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
-
-class EditServerModal(ModalScreen):
-    """Modal screen for editing a server."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+class EditServerModal(BaseModal[tuple[str, str] | None]):
 
     def __init__(self, server_name: str, server_uri: str) -> None:
         super().__init__()
@@ -101,14 +94,7 @@ class EditServerModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
-
-class ServerSelectionModal(ModalScreen):
-    """Modal screen for selecting a server."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+class ServerSelectionModal(BaseModal[str | None]):
 
     def __init__(self, servers: list) -> None:
         super().__init__()
@@ -143,15 +129,10 @@ class ServerSelectionModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
-
-class FilterModal(ModalScreen):
+class FilterModal(BaseModal[str | None]):
     """Modal screen for selecting a filter."""
 
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
     CSS_PATH = "tui.css"
 
     def compose(self) -> ComposeResult:
@@ -169,15 +150,9 @@ class FilterModal(ModalScreen):
         else:
             self.dismiss(event.button.id)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
-
-class CreateVMModal(ModalScreen):
+class CreateVMModal(BaseModal[dict | None]):
     """Modal screen for creating a new VM."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="create-vm-dialog"):
@@ -200,10 +175,6 @@ class CreateVMModal(ModalScreen):
             self.dismiss({'name': name, 'memory': memory, 'vcpu': vcpu, 'disk': disk})
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
-
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
 
 class ServerManagementModal(ModalScreen):
@@ -283,10 +254,8 @@ class ServerManagementModal(ModalScreen):
         """Close the modal."""
         self.dismiss(self.servers)
 
-class LogModal(ModalScreen):
+class LogModal(BaseModal[None]):
     """ Modal Screen to show Log"""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
     
     def compose(self) -> ComposeResult:
         with Vertical(id="text-show"):
@@ -301,15 +270,9 @@ class LogModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
             self.dismiss(None)
-    
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
-class AddDiskModal(ModalScreen):
+class AddDiskModal(BaseModal[dict | None]):
     """Modal screen for adding a new disk."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-disk-dialog"):
@@ -358,14 +321,9 @@ class AddDiskModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        self.dismiss(None)
 
-
-class RemoveDiskModal(ModalScreen):
+class RemoveDiskModal(BaseModal[str | None]):
     """Modal screen for removing a disk."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def __init__(self, disks: list) -> None:
         super().__init__()
@@ -391,14 +349,9 @@ class RemoveDiskModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        self.dismiss(None)
 
-
-class EditCpuModal(ModalScreen):
+class EditCpuModal(BaseModal[str | None]):
     """Modal screen for editing VCPU count."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-cpu-dialog"):
@@ -415,15 +368,9 @@ class EditCpuModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
-
-class EditMemoryModal(ModalScreen):
+class EditMemoryModal(BaseModal[str | None]):
     """Modal screen for editing memory size."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-memory-dialog"):
@@ -440,14 +387,8 @@ class EditMemoryModal(ModalScreen):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
-
-class SelectMachineTypeModal(ModalScreen):
+class SelectMachineTypeModal(BaseModal[str | None]):
     """Modal screen for selecting machine type."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def __init__(self, machine_types: list[str]) -> None:
         super().__init__()
@@ -469,10 +410,6 @@ class SelectMachineTypeModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
             self.dismiss(None)
-
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
 class VMDetailModal(ModalScreen):
     """Modal screen to show detailed VM information."""

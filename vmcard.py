@@ -9,6 +9,7 @@ import libvirt
 import logging
 from textual import on
 from textual.events import Click
+from typing import TypeVar
 
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
@@ -18,11 +19,22 @@ class VMNameClicked(Message):
         self.vm_name = vm_name
 
 
-class ConfirmationDialog(Screen):
-    """A dialog to confirm an action."""
+T = TypeVar("T")
+
+
+class BaseDialog(Screen[T]):
+    """A base class for dialogs with a cancel binding."""
 
     BINDINGS = [("escape", "cancel_modal", "Cancel")]
     CSS_PATH = "snapshot.css"
+
+    def action_cancel_modal(self) -> None:
+        """Cancel the modal dialog."""
+        self.dismiss(None)
+
+
+class ConfirmationDialog(BaseDialog[bool]):
+    """A dialog to confirm an action."""
 
     def __init__(self, prompt: str) -> None:
         super().__init__()
@@ -320,11 +332,8 @@ class VMCard(Static):
         """Handle clicks on the CPU/Memory info part of the VM card."""
         self.post_message(VMNameClicked(vm_name=self.name))
 
-class SnapshotNameDialog(Screen):
+class SnapshotNameDialog(BaseDialog[str | None]):
     """A dialog to ask for a snapshot name."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
-    CSS_PATH = "snapshot.css"
 
     def compose(self):
         yield Vertical(
@@ -345,17 +354,10 @@ class SnapshotNameDialog(Screen):
             self.dismiss(input_widget.value)
         else:
             self.dismiss(None)
-    
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
 
 
-class SelectSnapshotDialog(Screen[str]):
+class SelectSnapshotDialog(BaseDialog[str | None]):
     """A dialog to select a snapshot from a list."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
-    CSS_PATH = "snapshot.css"
 
     def __init__(self, snapshots: list, prompt: str) -> None:
         super().__init__()
@@ -380,7 +382,3 @@ class SelectSnapshotDialog(Screen[str]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel":
             self.dismiss(None)
-    
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(None)
