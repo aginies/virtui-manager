@@ -353,7 +353,9 @@ VirshShellScreen {
 }
 .create-net-btn {
     border: none;
-    height: 5;
+    height: 2;
+    margin-top: 1;
+    background: green;
 }
 
 /* Server Preferences Modal Styles */
