@@ -45,12 +45,11 @@ class ConfirmationDialog(BaseDialog[bool]):
         yield Vertical(
             Label(self.prompt, id="question"),
             Vertical(
-                Button("Yes", variant="error", id="yes"),
-                Button("No", variant="primary", id="no"),
+                Button("Yes", variant="error", id="yes", classes="dialog-buttons"),
+                Button("No", variant="primary", id="no", classes="dialog-buttons"),
                 id="dialog-buttons",
             ),
             id="dialog",
-            classes="info-container",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
