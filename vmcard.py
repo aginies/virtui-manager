@@ -1,12 +1,13 @@
-from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Markdown
-from textual.containers import Horizontal, Vertical
-from textual.reactive import reactive
-from textual.message import Message
-from textual.screen import Screen
 import subprocess
 import tempfile
 import libvirt
 import logging
+
+from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane
+from textual.containers import Horizontal, Vertical
+from textual.reactive import reactive
+from textual.message import Message
+from textual.screen import Screen
 from textual import on
 from textual.events import Click
 from typing import TypeVar

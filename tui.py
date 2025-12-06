@@ -1,19 +1,18 @@
 import os
 import sys
+import logging
+from typing import TypeVar
+
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Select, Button, Input, Label, Static, DataTable, Link, TextArea, ListView, ListItem, Checkbox
-from textual.containers import ScrollableContainer, Grid, Horizontal, Vertical
+from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.reactive import reactive
-from textual.screen import ModalScreen, Screen
+from textual.screen import ModalScreen
 from textual import on
 import libvirt
-import logging
-import subprocess
-from datetime import datetime
 from vmcard import VMCard, VMNameClicked
-from vm_info import get_vm_info, get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type
+from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type
 from config import load_config, save_config
-from typing import TypeVar
 
 # Configure logging
 logging.basicConfig(
@@ -249,14 +248,14 @@ class ServerManagementModal(ModalScreen):
             self.selected_row = None
             self.query_one("#edit-server-btn").disabled = True
             self.query_one("#delete-server-btn").disabled = True
-    
+
     def action_close_modal(self) -> None:
         """Close the modal."""
         self.dismiss(self.servers)
 
 class LogModal(BaseModal[None]):
     """ Modal Screen to show Log"""
-    
+
     def compose(self) -> ComposeResult:
         with Vertical(id="text-show"):
             yield Label("Log View", id="title")
@@ -290,7 +289,7 @@ class AddDiskModal(BaseModal[dict | None]):
     def on_create_disk_checkbox_changed(self, event: Checkbox.Changed) -> None:
         self.query_one("#disk-size-input", Input).disabled = not event.value
         self.query_one("#disk-format-select", Select).disabled = not event.value
-    
+
     @on(Checkbox.Changed, "#cdrom-checkbox")
     def on_cdrom_checkbox_changed(self, event: Checkbox.Changed) -> None:
         self.query_one("#create-disk-checkbox").disabled = event.value
@@ -306,7 +305,7 @@ class AddDiskModal(BaseModal[dict | None]):
             disk_size_str = self.query_one("#disk-size-input", Input).value
             disk_format = self.query_one("#disk-format-select", Select).value
             is_cdrom = self.query_one("#cdrom-checkbox", Checkbox).value
-            
+
             numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
             disk_size = int(numeric_part) if numeric_part else 10
 
@@ -515,7 +514,7 @@ class VMDetailModal(ModalScreen):
                 self.disk_list_view.append(ListItem(Label(disk)))
         else:
             self.disk_list_view.append(ListItem(Label("No disks found.")))
-        
+
         num_disks = len(disks)
         self.disk_list_view.styles.height = num_disks if num_disks > 0 else 1
 
@@ -560,7 +559,7 @@ class VMDetailModal(ModalScreen):
                         self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
                     except (libvirt.libvirtError, Exception) as e:
                         self.app.show_error_message(f"Error setting CPU: {e}")
-            
+
             self.app.push_screen(EditCpuModal(), edit_cpu_callback)
 
         elif event.button.id == "edit-memory":
@@ -574,7 +573,7 @@ class VMDetailModal(ModalScreen):
                         self.app.show_error_message(f"Error setting memory: {e}")
 
             self.app.push_screen(EditMemoryModal(), edit_memory_callback)
-        
+
         elif event.button.id == "edit-machine-type":
             machine_types = get_supported_machine_types(self.domain.connect(), self.domain)
             if not machine_types:
@@ -589,11 +588,9 @@ class VMDetailModal(ModalScreen):
                         self.query_one("#machine-type-label").update(f"Machine Type: {new_type}")
                     except (libvirt.libvirtError, Exception) as e:
                         self.app.show_error_message(f"Error setting machine type: {e}")
-            
+
             self.app.push_screen(SelectMachineTypeModal(machine_types), set_machine_type_callback)
 
-
-    
     def action_close_modal(self) -> None:
         """Close the modal."""
         self.dismiss()
@@ -693,12 +690,10 @@ class VMManagerTUI(App):
     #    """Called when the terminal is resized."""
     #    self._update_vms_container_layout()
 
-
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
         if self.conn:
             self.conn.close()
-
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
@@ -888,19 +883,18 @@ class VMManagerTUI(App):
                         stopped_vms += 1
 
             total_vms = len(domains) if domains is not None else 0
-            
+
             # Get the server name from the config
             server_name = "Unknown"
             for server in self.servers:
                 if server['uri'] == self.connection_uri:
                     server_name = server['name']
                     break
-            
+
             self.sub_title = f"Server: {server_name} | Total VMs: {total_vms}"
         except libvirt.libvirtError:
             self.show_error_message("Connection lost")
             self.conn = None
-
 
     def list_vms(self):
         vms_container = self.query_one("#vms-container")
@@ -991,7 +985,7 @@ class VMManagerTUI(App):
             self.current_page += 1
             self.refresh_vm_list()
 
-    def action_quit(self) -> None:
+    async def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
 
