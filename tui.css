@@ -51,7 +51,10 @@
 #server-selection-dialog Label,
 #edit-server-dialog Label,
 #add-disk-dialog Label,
-#remove-disk-dialog Label {
+#remove-disk-dialog Label,
+#edit-cpu-dialog Label,
+#edit-memory-dialog Label,
+#select-machine-type-dialog Label {
     width: 100%;
     height: auto;
     content-align: center middle;
@@ -63,7 +66,9 @@
 #add-disk-dialog Input,
 #add-disk-dialog Select,
 #remove-disk-dialog Input,
-#remove-disk-dialog Select {
+#remove-disk-dialog Select,
+#edit-cpu-dialog Input,
+#edit-memory-dialog Input {
     width: 100%;
     margin-bottom: 1;
 }
@@ -71,7 +76,10 @@
 #connection-dialog Horizontal,
 #edit-server-dialog Horizontal,
 #add-disk-dialog Horizontal,
-#remove-disk-dialog Horizontal {
+#remove-disk-dialog Horizontal,
+#edit-cpu-dialog Horizontal,
+#edit-memory-dialog Horizontal,
+#select-machine-type-dialog Horizontal {
     width: 100%;
     height: auto;
     align: center middle;
@@ -81,7 +89,10 @@
 #server-selection-dialog Button,
 #edit-server-dialog Button,
 #add-disk-dialog Button,
-#remove-disk-dialog Button {
+#remove-disk-dialog Button,
+#edit-cpu-dialog Button,
+#edit-memory-dialog Button,
+#select-machine-type-dialog Button {
     margin: 0 1;
 }
 
@@ -264,15 +275,28 @@ Button {
 }
 
 #add-disk-dialog,
-#remove-disk-dialog {
+#remove-disk-dialog,
+#select-machine-type-dialog {
     width: auto;
     height: auto;
-    max-width: 60;
+    max-width: 90; /* Increased from 60 */
     max-height: 80vh;
     border: round $primary;
     background: $surface;
     padding: 1 2;
     align: center middle;
+}
+
+.existing-networks-list {
+    background: $surface;
+    height: 5; /* Keep fixed for existing networks, as it's not in a scrollable container directly controlling its flexible height */
+    border: round $primary;
+}
+
+#machine-type-list {
+    background: $surface;
+    height: 1fr; /* Make height flexible within ScrollableContainer */
+    border: round $primary;
 }
 
 /* Styles for VirshShellScreen */
