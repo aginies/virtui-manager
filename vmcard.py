@@ -114,6 +114,15 @@ class VMCard(Static):
                                id="snapshot_delete",
                                variant="error",
                                )
+                with TabPane("Info", id="info-tab"):
+                    with Horizontal():
+                        with Vertical():
+                            yield Button(
+                               "Show info",
+                               id="info-button",
+                               variant="primary",
+                               )
+ 
 
     def on_mount(self) -> None:
         self.styles.background = self.color
@@ -130,6 +139,7 @@ class VMCard(Static):
         connect_button = self.query_one("#connect", Button)
         restore_button = self.query_one("#snapshot_restore", Button)
         snapshot_delete_button = self.query_one("#snapshot_delete", Button)
+        info_button = self.query_one("#info-button", Button)
 
         is_stopped = self.status == "Stopped"
         is_running = self.status == "Running"
@@ -144,6 +154,7 @@ class VMCard(Static):
         connect_button.display = is_running
         restore_button.display = has_snapshots
         snapshot_delete_button.display = has_snapshots
+        info_button.display = True # Always show info button
 
     def _update_status_styling(self):
         status_widget = self.query_one("#status")
@@ -326,6 +337,9 @@ class VMCard(Static):
             self.app.push_screen(
                 ConfirmationDialog(f"Are you sure you want to delete VM '{self.name}'?"), on_confirm
             )
+
+        elif event.button.id == "info-button":
+            self.post_message(VMNameClicked(vm_name=self.name))
 
     @on(Click, "#cpu-mem-info")
     def on_click_cpu_mem_info(self) -> None:
