@@ -432,10 +432,11 @@ class SelectMachineTypeModal(BaseModal[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="select-machine-type-dialog"):
             yield Label("Select Machine Type:")
-            yield ListView(
-                *[ListItem(Label(mt)) for mt in self.machine_types],
-                id="machine-type-list"
-            )
+            with ScrollableContainer():
+                yield ListView(
+                    *[ListItem(Label(mt)) for mt in self.machine_types],
+                    id="machine-type-list"
+                )
             with Horizontal():
                 yield Button("Cancel", variant="default", id="cancel-btn")
 
