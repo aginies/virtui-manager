@@ -31,14 +31,18 @@
     padding: 1 1;
     align: center middle;
 }
-#server-management-dialog, #server-selection-dialog {
+/*#server-management-dialog,  {
     width: 60;
     height: 20;
     border: panel $primary;
     background: $background;
     padding: 1 2;
-}
-#edit-server-dialog {
+}*/
+#edit-server-dialog,
+#add-server-dialog,
+#add-disk-dialog,
+#server-selection-dialog,
+#server-management-dialog, {
     width: 60;
     height: auto;
     border: panel $primary;
@@ -49,7 +53,9 @@
 #connection-dialog Label,
 #filter-dialog Label,
 #server-selection-dialog Label,
+#server-management-dialog Label,
 #edit-server-dialog Label,
+#add-server-dialog Label,
 #add-disk-dialog Label,
 #remove-disk-dialog Label,
 #edit-cpu-dialog Label,
@@ -63,6 +69,7 @@
 
 #connection-dialog Input,
 #edit-server-dialog Input,
+#add-server-dialog Input,
 #add-disk-dialog Input,
 #add-disk-dialog Select,
 #remove-disk-dialog Input,
@@ -75,6 +82,8 @@
 
 #connection-dialog Horizontal,
 #edit-server-dialog Horizontal,
+#add-server-dialog Horizontal,
+#server-management-dialog Horizontal,
 #add-disk-dialog Horizontal,
 #remove-disk-dialog Horizontal,
 #edit-cpu-dialog Horizontal,
@@ -88,6 +97,8 @@
 #connection-dialog Button,
 #server-selection-dialog Button,
 #edit-server-dialog Button,
+#add-server-dialog Button,
+#server-management-dialog Button,
 #add-disk-dialog Button,
 #remove-disk-dialog Button,
 #edit-cpu-dialog Button,
@@ -104,10 +115,13 @@
 
 .close-button {
     height: 4vh;
+    width: auto;
     color: white;
     background: red;
     border: hidden;
+    margin: 1 1;
     margin-bottom: 1;
+    align: center middle;
 }
 
 Header, Footer {
@@ -220,6 +234,7 @@ Button {
 }
 .Buttonpage {
     height: auto;
+    width: auto;
     margin: 0 0;
     padding: 1 1;
     color: white;
