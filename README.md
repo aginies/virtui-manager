@@ -13,6 +13,7 @@ its **risky** to use it.
 ![Screenshot](https://paste.opensuse.org/pastes/3e82e8b12deb/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/2b6dd3fb59dd/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/a894f2825956/raw)
+![Screenshot](https://paste.opensuse.org/pastes/4bd350f90c42/raw)
 
 [Demo Video](https://www.youtube.com/watch?v=r49KpUghUI4)
 
