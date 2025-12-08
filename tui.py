@@ -368,7 +368,7 @@ class SelectDiskModal(BaseModal[str | None]):
         self.selected_disk = None
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="select-disk-dialog"):
+        with Vertical(id="select-disk-dialog", classes="select-disk-dialog"):
             yield Label(self.prompt)
             with ScrollableContainer():
                 yield ListView(
@@ -752,24 +752,23 @@ class VMDetailModal(ModalScreen):
 
             status = self.vm_info.get("status", "N/A")
             yield Label("General information", classes="section-title")
-            with ScrollableContainer(classes="info-details"):
-                yield Label(
-                    f"Status: {status}", id=f"status-{status.lower().replace(' ', '-')}", classes="centered-status-label"
-                )
-                with Horizontal(classes="compact-info-row"):
-                    yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label")
-                    yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
-                with Horizontal(classes="compact-info-row"):
-                    yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label")
-                    yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
-                yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
-                if "firmware" in self.vm_info:
-                    yield Label(f"Firmware: {self.vm_info['firmware']}")
-                if "machine_type" in self.vm_info:
-                    with Horizontal():
-                        yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label")
-                        is_stopped = self.vm_info.get("status") == "Stopped"
-                        yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not is_stopped)
+            yield Label(
+               f"Status: {status}", id=f"status-{status.lower().replace(' ', '-')}", classes="centered-status-label"
+           )
+            with Horizontal(classes="compact-info-row"):
+                yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label")
+                yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
+            with Horizontal(classes="compact-info-row"):
+                yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label")
+                yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
+            yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
+            if "firmware" in self.vm_info:
+                yield Label(f"Firmware: {self.vm_info['firmware']}")
+            if "machine_type" in self.vm_info:
+                with Horizontal():
+                    yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label")
+                    is_stopped = self.vm_info.get("status") == "Stopped"
+                    yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not is_stopped)
 
 
             yield Label("Disks", classes="section-title")
@@ -812,7 +811,7 @@ class VMDetailModal(ModalScreen):
 
             if self.vm_info.get("networks"):
                 yield Label("Networks", classes="section-title")
-                with ScrollableContainer(classes="info-details"):
+                with ScrollableContainer():
                     for network in self.vm_info["networks"]:
                         yield Static(f"• {network}")
 
@@ -935,7 +934,7 @@ class VMDetailModal(ModalScreen):
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error disabling disk: {e}")
 
-            self.app.push_screen(SelectDiskModal(enabled_disks, "Select disk to disable:"), disable_disk_callback)
+            self.app.push_screen(SelectDiskModal(enabled_disks, "Select disk to disable"), disable_disk_callback)
         elif event.button.id == "detail_enable_disk":
             disabled_disks = [d['path'] for d in self.vm_info.get("disks", []) if d['status'] == 'disabled']
             if not disabled_disks:
@@ -951,7 +950,7 @@ class VMDetailModal(ModalScreen):
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error enabling disk: {e}")
             
-            self.app.push_screen(SelectDiskModal(disabled_disks, "Select disk to enable:"), enable_disk_callback)
+            self.app.push_screen(SelectDiskModal(disabled_disks, "Select disk to enable"), enable_disk_callback)
 
         elif event.button.id == "edit-cpu":
             def edit_cpu_callback(new_cpu_count):

@@ -41,6 +41,7 @@
 #connection-dialog Label,
 #filter-dialog Label,
 #server-selection-dialog Label,
+#select-disk-dialog Label,
 #edit-server-dialog Label,
 #add-server-dialog Label,
 #add-disk-dialog Label,
@@ -196,7 +197,12 @@ VMDetailModal {
     border: round $primary;
     margin-bottom: 1;
 }
-
+.info-details ListView > ListItem {
+    height: 1;
+}
+.select-disk-dialog ListView > ListItem {
+    height: 1;
+}
 #status-running {
     color: green;
     border: round green;
@@ -270,6 +276,7 @@ Button {
 .edit-detail-btn {
     width: auto;
     height: 1;
+    background: green;
     min-height: 1;
     margin: 0 0 0 1;
 }
