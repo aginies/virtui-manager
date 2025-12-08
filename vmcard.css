@@ -135,7 +135,7 @@ Button {
     background: #0000FF; /* Blue */
 }
 #snapshot_delete {
-    background: red; /* Blue */
+    background: red;
 }
 #connect {
     background: #FF00FF; /* Magenta */
@@ -233,7 +233,7 @@ Button {
     background: #0000FF; /* Blue */
 }
 #snapshot_delete {
-    background: red; /* Blue */
+    background: red;
 }
 #connect {
     background: #FF00FF; /* Magenta */

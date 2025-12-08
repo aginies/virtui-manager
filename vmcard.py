@@ -137,7 +137,9 @@ class VMCard(Static):
                             yield Static(classes="button-separator")
                             yield Button("Clone", id="clone", variant="success", classes="clone-button")
                         with Vertical():
-                            yield Button( "Show info", id="info-button", variant="primary",)
+                            yield Button( "Show info", id="info-button", variant="primary")
+                            yield Static(classes="button-separator")
+                            yield Button( "Rename", id="rename-button", variant="primary", classes="rename-button")
 
     def on_mount(self) -> None:
         self.styles.background = self.color

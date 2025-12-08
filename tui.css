@@ -249,6 +249,9 @@ Button {
 .clone-button {
     background: pink;
 }
+.rename-button {
+    background: green;
+}
 .edit-button,
 .add-button {
     background: green;
