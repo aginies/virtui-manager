@@ -53,6 +53,66 @@ def clone_vm(original_vm, new_vm_name):
     
     return new_vm
 
+def rename_vm(domain, new_name, delete_snapshots=False):
+    """
+    Renames a VM.
+    The VM must be stopped.
+    If delete_snapshots is True, it will delete all snapshots before renaming.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to be renamed.")
+
+    conn = domain.connect()
+
+    if domain.name() == new_name:
+        return  # It's already named this, do nothing.
+
+    # Check for snapshots
+    num_snapshots = domain.snapshotNum(0)
+    if num_snapshots > 0:
+        if delete_snapshots:
+            for snapshot in domain.listAllSnapshots(0):
+                snapshot.delete(0)
+        else:
+            raise libvirt.libvirtError(f"Cannot rename VM with {num_snapshots} snapshot(s).")
+
+    # Check if a VM with the new name already exists
+    try:
+        conn.lookupByName(new_name)
+        # If lookup succeeds, a VM with the new name already exists.
+        raise libvirt.libvirtError(f"A VM with the name '{new_name}' already exists.")
+    except libvirt.libvirtError as e:
+        # "domain not found" is the expected error if the name is available.
+        # We check the error code to be sure, as the error message string
+        # can vary (e.g., due to localization).
+        if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+            raise # Re-raise other libvirt errors.
+
+    xml_desc = domain.XMLDesc(0)
+
+    # Undefine the domain. This is a critical step.
+    domain.undefine()
+
+    try:
+        # Modify XML with new name
+        root = ET.fromstring(xml_desc)
+        name_elem = root.find('name')
+        if name_elem is None:
+            raise Exception("Could not find name element in VM XML.")
+        name_elem.text = new_name
+        new_xml = ET.tostring(root, encoding='unicode')
+
+        # Define the new domain from the modified XML
+        conn.defineXML(new_xml)
+    except Exception as e:
+        # If we fail, try to restore the original domain definition
+        conn.defineXML(xml_desc)
+        # And then re-raise the exception with a more informative message.
+        raise Exception(f"Failed to rename VM, but restored original state. Error: {e}")
+
 def get_vm_info(conn):
     """
     get all VM info

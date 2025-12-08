@@ -108,3 +108,36 @@ CloneNameDialog #dialog-buttons Button {
     width: 50%;
     margin-left: 1;
 }
+
+RenameVMDialog {
+    align: center middle;
+    content-align: center middle;
+}
+
+RenameVMDialog #dialog {
+    width: 60;
+    height: 13;
+    padding: 1;
+    border: round green;
+    background: $surface;
+}
+
+RenameVMDialog #question {
+    align: center middle;
+    margin-bottom: 1;
+}
+
+RenameVMDialog Input {
+    margin-bottom: 1;
+}
+
+RenameVMDialog #dialog-buttons {
+    width: 100%;
+}
+
+RenameVMDialog #dialog-buttons Button {
+    width: 50%;
+    margin-left: 1;
+}
+
+

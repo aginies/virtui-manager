@@ -4,6 +4,7 @@ import libvirt
 import logging
 from datetime import datetime
 import vm_info
+import re
 
 from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Sparkline
 from textual.containers import Horizontal, Vertical
@@ -33,6 +34,18 @@ class BaseDialog(Screen[T]):
     def action_cancel_modal(self) -> None:
         """Cancel the modal dialog."""
         self.dismiss(None)
+
+    @staticmethod
+    def validate_name(name: str) -> str | None:
+        """
+        Validates a name to be alphanumeric with underscores, not hyphens.
+        Returns an error message string if invalid, otherwise None.
+        """
+        if not name:
+            return "Name cannot be empty."
+        if not re.fullmatch(r"^[a-zA-Z0-9_]+$", name):
+            return "Name must be alphanumeric and can contain underscores, but not hyphens."
+        return None
 
 
 class ConfirmationDialog(BaseDialog[bool]):
@@ -197,6 +210,7 @@ class VMCard(Static):
         snapshot_delete_button = self.query_one("#snapshot_delete", Button)
         info_button = self.query_one("#info-button", Button)
         clone_button = self.query_one("#clone", Button)
+        rename_button = self.query_one("#rename-button", Button)
         cpu_sparkline_container = self.query_one("#cpu-sparkline-container")
         mem_sparkline_container = self.query_one("#mem-sparkline-container")
 
@@ -210,6 +224,7 @@ class VMCard(Static):
         stop_button.display = is_running or is_paused
         delete_button.display = is_running or is_paused or is_stopped
         clone_button.display = is_stopped
+        rename_button.display = is_stopped
         pause_button.display = is_running
         resume_button.display = is_paused
         connect_button.display = is_running
@@ -418,6 +433,42 @@ class VMCard(Static):
 
             self.app.push_screen(CloneNameDialog(), handle_clone_name)
 
+        elif event.button.id == "rename-button":
+            logging.info(f"Attempting to rename VM: {self.name}")
+
+            def handle_rename(new_name: str | None) -> None:
+                if not new_name:
+                    return
+
+                def do_rename(delete_snapshots=False):
+                    try:
+                        vm_info.rename_vm(self.vm, new_name, delete_snapshots=delete_snapshots)
+                        msg = f"VM '{self.name}' renamed to '{new_name}' successfully."
+                        if delete_snapshots:
+                            msg = f"Snapshots deleted and VM '{self.name}' renamed to '{new_name}' successfully."
+                        self.app.show_success_message(msg)
+                        self.app.refresh_vm_list()
+                        logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
+                    except Exception as e:
+                        self.app.show_error_message(f"Error renaming VM {self.name}: {e}")
+
+                num_snapshots = self.vm.snapshotNum(0)
+                if num_snapshots > 0:
+                    def on_confirm_delete(confirmed: bool) -> None:
+                        if confirmed:
+                            do_rename(delete_snapshots=True)
+                        else:
+                            self.app.show_success_message("VM rename cancelled.")
+
+                    self.app.push_screen(
+                        ConfirmationDialog(f"VM has {num_snapshots} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"),
+                        on_confirm_delete
+                    )
+                else:
+                    do_rename()
+
+            self.app.push_screen(RenameVMDialog(current_name=self.name), handle_rename)
+
         elif event.button.id == "info-button":
             self.post_message(VMNameClicked(vm_name=self.name))
 
@@ -445,7 +496,14 @@ class SnapshotNameDialog(BaseDialog[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create":
             input_widget = self.query_one(Input)
-            self.dismiss(input_widget.value)
+            snapshot_name = input_widget.value.strip()
+
+            error = self.validate_name(snapshot_name)
+            if error:
+                self.app.show_error_message(error)
+                return
+
+            self.dismiss(snapshot_name)
         else:
             self.dismiss(None)
 
@@ -469,7 +527,50 @@ class CloneNameDialog(BaseDialog[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "clone_vm":
             input_widget = self.query_one(Input)
-            self.dismiss(input_widget.value)
+            new_name = input_widget.value.strip()
+
+            error = self.validate_name(new_name)
+            if error:
+                self.app.show_error_message(error)
+                return
+
+            self.dismiss(new_name)
+        else:
+            self.dismiss(None)
+
+
+class RenameVMDialog(BaseDialog[str | None]):
+    """A dialog to ask for a new VM name when renaming."""
+
+    def __init__(self, current_name: str) -> None:
+        super().__init__()
+        self.current_name = current_name
+
+    def compose(self):
+        yield Vertical(
+            Label(f"Current name: {self.current_name}"),
+            Label("Enter new VM name", id="question"),
+            Input(placeholder="new_vm_name"),
+            Horizontal(
+                Button("Rename", variant="success", id="rename_vm"),
+                Button("Cancel", variant="error", id="cancel"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+            classes="info-container",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "rename_vm":
+            input_widget = self.query_one(Input)
+            new_name = input_widget.value.strip()
+
+            error = self.validate_name(new_name)
+            if error:
+                self.app.show_error_message(error)
+                return
+            
+            self.dismiss(new_name)
         else:
             self.dismiss(None)
 
