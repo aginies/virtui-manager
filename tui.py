@@ -315,7 +315,7 @@ class AddDiskModal(BaseModal[dict | None]):
             yield Input(placeholder="Path to disk image or ISO", id="disk-path-input")
             yield Checkbox("Create new disk image", id="create-disk-checkbox")
             yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
-            yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True)
+            yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2", classes="disk-format-select")
             yield Checkbox("CD-ROM", id="cdrom-checkbox")
             with Horizontal():
                 yield Button("Add", variant="primary", id="add-btn", classes="Buttonpage")
@@ -525,12 +525,14 @@ class ServerPrefModal(BaseModal[None]):
                                 yield RadioButton("Use Network Name for DNS Domain", id="dns-use-net-name", value=True)
                                 yield RadioButton("Use Custom DNS Domain", id="dns-use-custom")
                             yield Input(placeholder="Custom DNS Domain", id="dns-custom-domain-input", classes="hidden")
-                            yield Button("Create Network", variant="primary", id="create-net-btn", classes="create-net-btn")
+                            with Vertical(id="network-create-close-horizontal"):
+                                with Horizontal(id="dhcp-options"):
+                                    yield Button("Create Network", variant="primary", id="create-net-btn", classes="create-net-btn")
+                                    yield Button("Close", variant="default", id="close-btn", classes="close-button")
                 with TabPane("Storage", id="tab-storage"):
                     yield Label("Storage settings... WIP")
 
-            with Horizontal(id="server-pref-buttons"):
-                yield Button("Close", variant="default", id="close-btn", classes="Buttonpage")
+            #with Horizontal(id="server-pref-buttons"):
 
     def on_mount(self) -> None:
         self._load_networks()
@@ -1437,8 +1439,11 @@ class VMManagerTUI(App):
 
 if __name__ == "__main__":
     terminal_size = os.get_terminal_size()
-    if terminal_size.lines < 36:
+    if terminal_size.lines < 34:
         print(f"Terminal height is too small ({terminal_size.lines} lines). Please resize to at least 34 lines.")
+        sys.exit(1)
+    if terminal_size.columns < 92:
+        print(f"Terminal width is too small ({terminal_size.columns} columns). Please resize to at least 92 columns.")
         sys.exit(1)
 
     app = VMManagerTUI()

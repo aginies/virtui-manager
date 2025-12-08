@@ -2,7 +2,7 @@ VMCard {
     text-align: center;
     border: hidden;
     margin: 0 0;
-    width: 42;
+    width: 43;
     height: 14;
 }
 #name {
@@ -18,7 +18,7 @@ VMCard {
     padding: 0 0;
     content-align: center middle;
     border: green;
-    width: 40;
+    width: 41;
     height: 14;
 }
 

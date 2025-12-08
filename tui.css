@@ -1,15 +1,15 @@
 /* Styles for VMManagerTUI */
 #vms-container {
     height: 80;
-    width: 84;
+    width: 85;
     max-height: 90vh;
     /*overflow-y: scroll;
     overflow-x: scroll;*/
     grid-rows: 14;
-    grid-gutter: 1 1;
+    grid-gutter: 0 1;
     layout: grid;
     overflow: auto;
-    padding: 1 1;
+    padding: 0 1;
 }
 #connection-dialog {
     width: 60;
@@ -19,31 +19,17 @@
     padding: 1 2;
 }
 
-#filter-dialog {
-    width: 40;
-    height: auto; 
-    border: panel $primary;
-    align: center middle;
-    background: $surface;
-    padding: 1 2;
-}
 .server-list {
     padding: 1 1;
     align: center middle;
 }
-/*#server-management-dialog,  {
-    width: 60;
-    height: 20;
-    border: panel $primary;
-    background: $background;
-    padding: 1 2;
-}*/
 #edit-server-dialog,
 #add-server-dialog,
 #add-disk-dialog,
 #server-selection-dialog,
+#filter-dialog,
 #server-management-dialog, {
-    width: 60;
+    width: 64;
     height: auto;
     border: panel $primary;
     background: $surface;
@@ -379,7 +365,8 @@ VirshShellScreen {
     height: 5;
     border: round $primary;
 }
-.net-forward-input {
+.net-forward-input,
+.disk-format-select, {
     border: hidden;
     height: 4;
     width: 50%;
@@ -402,7 +389,7 @@ VirshShellScreen {
 }
 .create-net-btn {
     border: none;
-    height: 2;
+    width: 50%;
     margin-top: 1;
     background: green;
 }
