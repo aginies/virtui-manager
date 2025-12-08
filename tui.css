@@ -285,12 +285,17 @@ Button {
     content-align: center middle;
 }
 
-.compact-info-row {
+.network-interface-row {
     height: auto;
-    margin-bottom: 0;
-    padding-top: 0;
-    padding-bottom: 0;
+    align: center middle;
+    padding: 0 1;
 }
+
+.network-mac-label {
+    height: auto;
+    width: 40%;
+}
+
 
 #add-disk-dialog,
 #remove-disk-dialog,

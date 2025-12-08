@@ -3,6 +3,7 @@ import sys
 import logging
 import ipaddress
 import asyncio
+import traceback
 from typing import TypeVar
 
 from textual.app import App, ComposeResult
@@ -13,8 +14,8 @@ from textual.screen import ModalScreen
 from textual.message import Message
 from textual import on
 import libvirt
-from vmcard import VMCard, VMNameClicked, ConfirmationDialog
-from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_network, delete_network, get_vms_using_network, set_network_active, set_network_autostart, get_host_network_interfaces, enable_disk, disable_disk
+from vmcard import VMCard, VMNameClicked, ConfirmationDialog, ChangeNetworkDialog
+from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_network, delete_network, get_vms_using_network, set_network_active, set_network_autostart, get_host_network_interfaces, enable_disk, disable_disk, change_vm_network
 from config import load_config, save_config
 
 # Configure logging
@@ -745,6 +746,46 @@ class VMDetailModal(ModalScreen):
         self.vm_name = vm_name
         self.vm_info = vm_info
         self.domain = domain
+        self.available_networks = []
+
+    def on_mount(self) -> None:
+        try:
+            all_networks_info = list_networks(self.app.conn)
+            self.available_networks = [net['name'] for net in all_networks_info]
+        except (libvirt.libvirtError, Exception) as e:
+            self.app.show_error_message(f"Could not load networks: {e}")
+            self.available_networks = []
+
+    @on(Select.Changed)
+    def on_network_change(self, event: Select.Changed) -> None:
+        if not event.control.id or not event.control.id.startswith("net-select-"):
+            return
+
+        mac_address_flat = event.control.id.replace("net-select-", "")
+        mac_address = ":".join(mac_address_flat[i:i+2] for i in range(0, len(mac_address_flat), 2))
+        new_network = event.value
+        original_network = ""
+
+        for i in self.vm_info["networks"]:
+            if i["mac"] == mac_address:
+                original_network = i["network"]
+                break
+        
+        if original_network == new_network:
+            return
+
+        try:
+            change_vm_network(self.domain, mac_address, new_network)
+            self.app.show_success_message(f"Interface {mac_address} switched to {new_network}")
+            for i in self.vm_info["networks"]:
+                if i["mac"] == mac_address:
+                    i["network"] = new_network
+                    break
+        except (libvirt.libvirtError, ValueError, Exception) as e:
+            self.app.show_error_message(f"Error updating network: {e}")
+            event.control.value = original_network
+
+        self.available_networks = []
 
     def compose(self) -> ComposeResult:
         with Vertical(id="vm-detail-container"):
@@ -811,20 +852,20 @@ class VMDetailModal(ModalScreen):
 
             if self.vm_info.get("networks"):
                 yield Label("Networks", classes="section-title")
-                with ScrollableContainer():
-                    for network in self.vm_info["networks"]:
-                        yield Static(f"• {network}")
+                with ScrollableContainer(classes="info-details"):
+                    for interface in self.vm_info["networks"]:
+                        mac = interface.get('mac')
+                        current_net = interface.get('network')
+                        select_id = f"net-select-{mac.replace(':', '')}" if mac else ""
+                        options = [(net, net) for net in self.available_networks] if self.available_networks else []
 
-                    if self.vm_info.get("detail_network"):
-                        for netdata in self.vm_info["detail_network"]:
-                            with Vertical(classes="info-details"):
-                                yield Static(f"  Interface: {netdata.get('interface', 'N/A')} (MAC: {netdata.get('mac', 'N/A')})")
-                                if netdata.get('ipv4'):
-                                    for ip in netdata['ipv4']:
-                                        yield Static(f"    IPv4: {ip}")
-                                if netdata.get('ipv6'):
-                                    for ip in netdata['ipv6']:
-                                        yield Static(f"    IPv6: {ip}")
+                        with Horizontal(classes="network-interface-row"):
+                            yield Label(f"MAC: {mac}", classes="network-mac-label")
+                            if self.available_networks:
+                                yield Select(options, value=current_net, id=select_id)
+                            else:
+                                yield Label(f"Net: {current_net}")
+                yield Button("Change Network", id="change-network", classes="change-network")
 
             if self.vm_info.get("network_dns_gateway"):
                 yield Label("Network DNS & Gateway", classes="section-title")
@@ -995,6 +1036,36 @@ class VMDetailModal(ModalScreen):
                         self.app.show_error_message(f"Error setting machine type: {e}")
 
             self.app.push_screen(SelectMachineTypeModal(machine_types, current_machine_type=self.vm_info.get('machine_type', '')), set_machine_type_callback)
+
+        elif event.button.id == "change-network":
+            logging.info(f"Attempting to change network for VM: {self.vm_name}")
+            try:
+                available_networks_info = list_networks(self.app.conn)
+                available_networks = [net['name'] for net in available_networks_info]
+
+                vm_xml = self.domain.XMLDesc(0)
+                vm_interfaces = get_vm_networks_info(vm_xml)
+
+                if not vm_interfaces:
+                    self.app.show_error_message(f"No network interfaces found for VM {self.vm_name}.")
+                    return
+
+                def handle_change_network(result: dict | None):
+                    if result:
+                        mac = result['mac_address']
+                        new_net = result['new_network']
+                        try:
+                            change_vm_network(self.domain, mac, new_net)
+                            self.app.show_success_message(f"Network for interface {mac} changed to {new_net}.")
+                            self.dismiss() # Dismiss the current modal to force a refresh on the parent
+                        except Exception as e:
+                            logging.error(traceback.format_exc())
+                            self.app.show_error_message(f"Error changing network: {e}")
+
+                self.app.push_screen(ChangeNetworkDialog(vm_interfaces, available_networks), handle_change_network)
+
+            except Exception as e:
+                self.app.show_error_message(f"Error preparing to change network: {e}")
 
     def action_close_modal(self) -> None:
         """Close the modal."""
@@ -1355,7 +1426,10 @@ class VMManagerTUI(App):
                 'devices': get_vm_devices_info(xml_content),
                 'xml': xml_content,
             }
-            self.push_screen(VMDetailModal(message.vm_name, vm_info, domain))
+            def on_detail_modal_dismissed(result: None): # Result is None for VMDetailModal
+                self.refresh_vm_list()
+
+            self.push_screen(VMDetailModal(message.vm_name, vm_info, domain), on_detail_modal_dismissed)
         except libvirt.libvirtError as e:
             self.show_error_message(f"Error getting details for {message.vm_name}: {e}")
 
