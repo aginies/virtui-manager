@@ -764,6 +764,47 @@ def set_machine_type(domain, new_machine_type):
     conn = domain.connect()
     conn.defineXML(new_xml_desc)
 
+def get_vm_shared_memory_info(xml_content: str) -> bool:
+    """Check if shared memory is enabled for the VM."""
+    try:
+        root = ET.fromstring(xml_content)
+        memory_backing = root.find('memoryBacking')
+        if memory_backing is not None:
+            if memory_backing.find('shared') is not None:
+                return True
+    except (ET.ParseError, AttributeError):
+        pass
+    return False
+
+def set_shared_memory(domain: libvirt.virDomain, enable: bool):
+    """Enable or disable shared memory for a VM."""
+    if domain.isActive():
+        raise ValueError("Cannot change shared memory setting on a running VM.")
+
+    xml_content = domain.XMLDesc(0)
+    root = ET.fromstring(xml_content)
+
+    memory_backing = root.find('memoryBacking')
+
+    if enable:
+        if memory_backing is None:
+            memory_backing = ET.SubElement(root, 'memoryBacking')
+        if memory_backing.find('shared') is None:
+            ET.SubElement(memory_backing, 'shared')
+    else:  # disable
+        if memory_backing is not None:
+            shared = memory_backing.find('shared')
+            if shared is not None:
+                memory_backing.remove(shared)
+            # If memoryBacking is now empty, and has no attributes, remove it.
+            if not list(memory_backing) and not memory_backing.attrib:
+                root.remove(memory_backing)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+
+    conn = domain.connect()
+    conn.defineXML(new_xml)
+
 def list_networks(conn):
     """
     Lists all networks.
