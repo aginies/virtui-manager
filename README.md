@@ -10,7 +10,9 @@ its **risky** to use it.
 
 ## Media
 
-![Screenshot](https://paste.opensuse.org/pastes/50aacc6e8bab/raw)
+![Screenshot](https://paste.opensuse.org/pastes/3e82e8b12deb/raw)
+![Screenshot](https://paste.opensuse.org/pastes/2b6dd3fb59dd/raw)
+![Screenshot](https://paste.opensuse.org/pastes/a894f2825956/raw)
 
 [Demo Video](https://www.youtube.com/watch?v=r49KpUghUI4)
 
@@ -76,7 +78,7 @@ When you run the application, you'll see:
 
 4. **Footer**: show all shortcuts available
 
-### Available Actions Buttons
+### Available Actions Buttons on VM cards
 
 - **Start**: Start a stopped VM
 - **Stop**: Stop a running VM
