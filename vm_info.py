@@ -922,13 +922,23 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
     if enable:
         if memory_backing is None:
             memory_backing = ET.SubElement(root, 'memoryBacking')
-        if memory_backing.find('shared') is None:
-            ET.SubElement(memory_backing, 'shared')
+        
+        # Ensure no conflicting access mode is set
+        access_elem = memory_backing.find('access')
+        if access_elem is not None and access_elem.get('mode') != 'shared':
+            memory_backing.remove(access_elem)
+            access_elem = None # It's gone
+
+        # Add it if it doesn't exist
+        if access_elem is None:
+            ET.SubElement(memory_backing, 'access', mode='shared')
+
     else:  # disable
         if memory_backing is not None:
-            shared = memory_backing.find('shared')
-            if shared is not None:
-                memory_backing.remove(shared)
+            # Remove both possible shared memory indicators
+            shared_elem = memory_backing.find('shared')
+            if shared_elem is not None:
+                memory_backing.remove(shared_elem)
 
             access_elem = memory_backing.find('access')
             if access_elem is not None and access_elem.get('mode') == 'shared':
@@ -1163,49 +1173,7 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
         ET.SubElement(os_elem, 'bootmenu', enable='yes')
 
     new_xml = ET.tostring(root, encoding='unicode')
-    domain.connect().defineXML(new_xml)
 
-
-def get_vm_video_model(xml_content: str) -> str | None:
-    """Extracts the video model from a VM's XML definition."""
-    try:
-        root = ET.fromstring(xml_content)
-        video = root.find('.//devices/video/model')
-        if video is not None:
-            return video.get('type')
-    except ET.ParseError:
-        pass
-    return None
-
-def set_vm_video_model(domain: libvirt.virDomain, model: str):
-    """Sets the video model for a VM."""
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change the video model.")
-
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-    
-    devices = root.find('devices')
-    if devices is None:
-        devices = ET.SubElement(root, 'devices')
-        
-    video = devices.find('video')
-    if video is None:
-        video = ET.SubElement(devices, 'video')
-        
-    model_elem = video.find('model')
-    if model_elem is None:
-        model_elem = ET.SubElement(video, 'model')
-
-    model_elem.set('type', model)
-    # Set some sensible defaults if creating from scratch
-    if model_elem.get('vram') is None:
-        model_elem.set('vram', '16384') # 16MB
-    if model_elem.get('heads') is None:
-        model_elem.set('heads', '1')
-
-    new_xml = ET.tostring(root, encoding='unicode')
-    domain.connect().defineXML(new_xml)
 
 
 
