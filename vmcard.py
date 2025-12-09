@@ -3,8 +3,8 @@ import tempfile
 import libvirt
 import logging
 from datetime import datetime
-import vm_info
 import re
+import vm_info
 
 from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Sparkline, Select
 from textual.containers import Horizontal, Vertical
@@ -13,8 +13,8 @@ from textual.message import Message
 from textual.screen import Screen
 from textual import on
 from textual.events import Click
+from textual.timer import timer
 from typing import TypeVar
-from textual.timer import Timer
 
 T = TypeVar("T")
 
@@ -234,7 +234,7 @@ class VMCard(Static):
 
             except libvirt.libvirtError as e:
                 logging.error(f"Error getting stats for {self.name}: {e}")
-        
+
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
         start_button = self.query_one("#start", Button)
@@ -268,7 +268,7 @@ class VMCard(Static):
         restore_button.display = has_snapshots
         snapshot_delete_button.display = has_snapshots
         info_button.display = True # Always show info button
-        
+
         cpu_sparkline_container.display = not is_stopped
         mem_sparkline_container.display = not is_stopped
 
@@ -606,7 +606,7 @@ class RenameVMDialog(BaseDialog[str | None]):
             if error:
                 self.app.show_error_message(error)
                 return
-            
+
             self.dismiss(new_name)
         else:
             self.dismiss(None)
