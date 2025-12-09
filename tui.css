@@ -153,7 +153,7 @@ VMDetailModal {
 } 
 #vm-detail-container {
     width: 70;
-    height: 35;
+    height: 33;
     border: round $primary-lighten-2;
     padding: 1;
 /*    overflow: auto;*/
@@ -421,7 +421,7 @@ VirshShellScreen {
 /* Main dialog container */
 #server-pref-dialog {
     width: 90;
-    height: 35;
+    height: 33;
     border: round $primary;
     background: $surface;
     padding: 1 0;
