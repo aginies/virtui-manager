@@ -1474,6 +1474,7 @@ class VMManagerTUI(App):
     connection_uri = reactive(_get_initial_connection_uri(servers))
     conn = None
     current_page = reactive(0)
+    # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
     sort_by = reactive("default")
     search_text = reactive("")
