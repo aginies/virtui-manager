@@ -15,7 +15,7 @@ from textual.message import Message
 from textual import on
 import libvirt
 from vmcard import VMCard, VMNameClicked, ConfirmationDialog, ChangeNetworkDialog
-from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_network, delete_network, get_vms_using_network, set_network_active, set_network_autostart, get_host_network_interfaces, enable_disk, disable_disk, change_vm_network, get_vm_shared_memory_info, set_shared_memory, remove_virtiofs, add_virtiofs
+from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_network, delete_network, get_vms_using_network, set_network_active, set_network_autostart, get_host_network_interfaces, enable_disk, disable_disk, change_vm_network, get_vm_shared_memory_info, set_shared_memory, remove_virtiofs, add_virtiofs, get_boot_info, set_boot_info, get_vm_video_model, set_vm_video_model
 from config import load_config, save_config
 
 # Configure logging
@@ -302,7 +302,7 @@ class LogModal(BaseModal[None]):
             text_area.load_text(open(log_file, "r").read())
             yield text_area
         with Horizontal():
-            yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+            yield Button("Close", variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_mount(self) -> None:
         """Called when the modal is mounted."""
@@ -532,6 +532,36 @@ class SelectMachineTypeModal(BaseModal[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
             self.dismiss(None)
+
+
+class SelectVideoModelModal(BaseModal[str | None]):
+    """Modal screen for selecting video model."""
+
+    def __init__(self, video_models: list[str], current_video_model: str = "") -> None:
+        super().__init__()
+        self.video_models = video_models
+        self.current_video_model = current_video_model
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="select-video-model-dialog"):
+            yield Label("Select Video Model:")
+            with RadioSet(id="video-model-radioset"):
+                for model in self.video_models:
+                    yield RadioButton(model, value=model == self.current_video_model)
+            with Horizontal():
+                yield Button("Save", variant="primary", id="save-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-btn":
+            radioset = self.query_one(RadioSet)
+            if radioset.pressed_button:
+                self.dismiss(radioset.pressed_button.label.plain)
+            else:
+                self.dismiss(None) # Nothing selected
+        else:
+            self.dismiss(None)
+
 
 class NetworkListItem(ListItem):
     """A list item that displays network information with interactive toggles."""
@@ -780,6 +810,8 @@ class VMDetailModal(ModalScreen):
 
     BINDINGS = [("escape", "close_modal", "Close")]
 
+    boot_order: reactive(list)
+
     def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain) -> None:
         super().__init__()
         self.vm_name = vm_name
@@ -788,6 +820,7 @@ class VMDetailModal(ModalScreen):
         self.available_networks = []
         self.selected_virtiofs_target = None
         self.selected_virtiofs_info = None # Store full info for editing
+        self.boot_order = self.vm_info.get('boot', {}).get('order', [])
 
 
     def on_mount(self) -> None:
@@ -798,6 +831,28 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message(f"Could not load networks: {e}")
             self.available_networks = []
         self.query_one("#detail2-vm").add_class("hidden")
+
+        # Populate Boot tab
+        self._populate_boot_list()
+        boot_menu_enabled = self.vm_info.get('boot', {}).get('menu_enabled', False)
+        self.query_one("#boot-menu-enable", Checkbox).value = boot_menu_enabled
+
+
+    def _populate_boot_list(self) -> None:
+        """Clears and repopulates the boot order ListView."""
+        boot_list_view = self.query_one("#boot-order-list", ListView)
+        boot_list_view.clear()
+        for device in self.boot_order:
+            boot_list_view.append(ListItem(Label(device)))
+
+    @on(ListView.Selected, "#boot-order-list")
+    def on_boot_list_selected(self, event: ListView.Selected) -> None:
+        is_stopped = self.vm_info.get("status") == "Stopped"
+        if not is_stopped: return
+
+        self.query_one("#boot-move-up").disabled = False
+        self.query_one("#boot-move-down").disabled = False
+        self.query_one("#boot-remove").disabled = False
 
     @on(Select.Changed)
     def on_network_change(self, event: Select.Changed) -> None:
@@ -869,7 +924,18 @@ class VMDetailModal(ModalScreen):
                             yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not is_stopped)
 
                 with TabPane("Boot", id="detail-boot-tab"):
-                    yield Label("TODO", classes="tabd")
+                    is_stopped = self.vm_info.get("status") == "Stopped"
+                    with Vertical(classes="info-details"):
+                        yield Checkbox("Enable boot menu", id="boot-menu-enable", disabled=not is_stopped)
+                        yield Label("Boot Order:", classes="boot_order_label")
+                        yield ListView(id="boot-order-list")
+                        with Horizontal():
+                            yield Button("Move Up", id="boot-move-up", disabled=True)
+                            yield Button("Move Down", id="boot-move-down", disabled=True)
+                        with Horizontal():
+                            yield Button("Add", id="boot-add", disabled=not is_stopped)
+                            yield Button("Remove", id="boot-remove", disabled=True)
+                        yield Button("Apply Boot Settings", id="boot-apply", disabled=not is_stopped)
 
                 with TabPane("Disks", id="detail-disk-tab"):
                     with ScrollableContainer(classes="info-details"):
@@ -978,7 +1044,11 @@ class VMDetailModal(ModalScreen):
                                 yield Button("Delete", variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
 
                 with TabPane("Video", id="detail-video-tab"):
-                    yield Label("Video")
+                    with Vertical(classes="info-details"):
+                        current_model = self.vm_info.get('video_model') or "default"
+                        yield Label(f"Video Model: {current_model}", id="video-model-label")
+                        is_stopped = self.vm_info.get("status") == "Stopped"
+                        yield Button("Change Model", id="change-video-model", disabled=not is_stopped)
 
             with TabbedContent(id="detail2-vm"):
         # TOFIX !
@@ -1077,6 +1147,60 @@ class VMDetailModal(ModalScreen):
         self.selected_virtiofs_info = None
         self.query_one("#delete-virtiofs-btn", Button).disabled = True
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id.startswith("boot-"):
+            boot_list_view = self.query_one("#boot-order-list", ListView)
+            current_index = boot_list_view.index
+
+            if event.button.id == "boot-move-up":
+                if current_index is not None and current_index > 0:
+                    self.boot_order.insert(current_index - 1, self.boot_order.pop(current_index))
+                    self._populate_boot_list()
+                    boot_list_view.index = current_index - 1
+                return
+
+            if event.button.id == "boot-move-down":
+                if current_index is not None and current_index < len(self.boot_order) - 1:
+                    self.boot_order.insert(current_index + 1, self.boot_order.pop(current_index))
+                    self._populate_boot_list()
+                    boot_list_view.index = current_index + 1
+                return
+
+            if event.button.id == "boot-add":
+                def add_boot_device_callback(device_to_add: str | None):
+                    if device_to_add:
+                        self.boot_order.append(device_to_add)
+                        self._populate_boot_list()
+                
+                possible_devices = {'hd', 'cdrom', 'network', 'fd'}
+                available_to_add = sorted(list(possible_devices - set(self.boot_order)))
+                self.app.push_screen(
+                    SelectDiskModal(available_to_add, "Select boot device to add"), 
+                    add_boot_device_callback
+                )
+                return
+
+            if event.button.id == "boot-remove":
+                if current_index is not None:
+                    del self.boot_order[current_index]
+                    self._populate_boot_list()
+                    boot_list_view.index = None
+                    self.query_one("#boot-move-up").disabled = True
+                    self.query_one("#boot-move-down").disabled = True
+                    self.query_one("#boot-remove").disabled = True
+                return
+
+            if event.button.id == "boot-apply":
+                try:
+                    menu_enabled = self.query_one("#boot-menu-enable", Checkbox).value
+                    set_boot_info(self.domain, menu_enabled, self.boot_order)
+                    self.app.show_success_message("Boot settings updated successfully.")
+                    # Update internal state
+                    self.vm_info['boot']['menu_enabled'] = menu_enabled
+                    self.vm_info['boot']['order'] = self.boot_order
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error applying boot settings: {e}")
+                return
+
         if event.button.id == "toggle-detail-button":
             vm = self.query_one("#detail-vm")
             vm2 = self.query_one("#detail2-vm")
@@ -1084,6 +1208,21 @@ class VMDetailModal(ModalScreen):
             vm2.toggle_class("hidden")
         elif event.button.id == "close-btn":
             self.dismiss()
+        elif event.button.id == "change-video-model":
+            video_models = ["virtio", "qxl", "vga"]
+            current_model = self.vm_info.get('video_model')
+
+            def set_video_model_callback(new_model: str | None):
+                if new_model and new_model != current_model:
+                    try:
+                        set_vm_video_model(self.domain, new_model)
+                        self.app.show_success_message(f"Video model set to {new_model}")
+                        self.query_one("#video-model-label").update(f"Video Model: {new_model}")
+                        self.vm_info['video_model'] = new_model
+                    except (libvirt.libvirtError, Exception) as e:
+                        self.app.show_error_message(f"Error setting video model: {e}")
+            
+            self.app.push_screen(SelectVideoModelModal(video_models, current_model), set_video_model_callback)
         elif event.button.id == "add-virtiofs-btn":
             def add_virtiofs_callback(result):
                 if result:
@@ -1671,6 +1810,8 @@ class VMManagerTUI(App):
                 'network_dns_gateway': get_vm_network_dns_gateway_info(domain),
                 'disks': get_vm_disks_info(xml_content),
                 'devices': get_vm_devices_info(xml_content),
+                'boot': get_boot_info(xml_content),
+                'video_model': get_vm_video_model(xml_content),
                 'xml': xml_content,
             }
             def on_detail_modal_dismissed(result: None): # Result is None for VMDetailModal

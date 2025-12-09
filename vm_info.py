@@ -1164,3 +1164,89 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+
+
+def get_vm_video_model(xml_content: str) -> str | None:
+    """Extracts the video model from a VM's XML definition."""
+    try:
+        root = ET.fromstring(xml_content)
+        video = root.find('.//devices/video/model')
+        if video is not None:
+            return video.get('type')
+    except ET.ParseError:
+        pass
+    return None
+
+def set_vm_video_model(domain: libvirt.virDomain, model: str):
+    """Sets the video model for a VM."""
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change the video model.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
+        
+    video = devices.find('video')
+    if video is None:
+        video = ET.SubElement(devices, 'video')
+        
+    model_elem = video.find('model')
+    if model_elem is None:
+        model_elem = ET.SubElement(video, 'model')
+
+    model_elem.set('type', model)
+    # Set some sensible defaults if creating from scratch
+    if model_elem.get('vram') is None:
+        model_elem.set('vram', '16384') # 16MB
+    if model_elem.get('heads') is None:
+        model_elem.set('heads', '1')
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+
+
+def get_vm_video_model(xml_content: str) -> str | None:
+    """Extracts the video model from a VM's XML definition."""
+    try:
+        root = ET.fromstring(xml_content)
+        video = root.find('.//devices/video/model')
+        if video is not None:
+            return video.get('type')
+    except ET.ParseError:
+        pass
+    return None
+
+def set_vm_video_model(domain: libvirt.virDomain, model: str):
+    """Sets the video model for a VM."""
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change the video model.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
+        
+    video = devices.find('video')
+    if video is None:
+        video = ET.SubElement(devices, 'video')
+        
+    model_elem = video.find('model')
+    if model_elem is None:
+        model_elem = ET.SubElement(video, 'model')
+
+    model_elem.set('type', model)
+    # Set some sensible defaults if creating from scratch
+    if model_elem.get('vram') is None:
+        model_elem.set('vram', '16384') # 16MB
+    if model_elem.get('heads') is None:
+        model_elem.set('heads', '1')
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
