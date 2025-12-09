@@ -107,7 +107,7 @@ When you run the application, you'll see:
 - **Delete Snapshot**: Delete an existing snapshot.
 - **View XML**: Display the VM's XML configuration in a temporary file
 - **Connect**: Launch virt-viewer to connect to the VM (launched in a non-blocking external process).
-- **Clone**: Clone the current VM selected
+- **Clone**: Clone the current VM selected (Restricted to root user for now due to permission of /var/lib/libvirt/images
 - **Rename**: Rename the current VM
 - **Show Info**: Get some info about the VM
 
