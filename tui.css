@@ -128,9 +128,12 @@ Header, Footer {
     color: $text;
 }
 
+#cpu-model-select Select,
+#uefi-file-select Select,
 Select {
-    width: 30;
-    height: 2;
+    width: 50;
+    height: 5;
+    border: none;
     margin: 0 0;
 }
 .disk-info {

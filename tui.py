@@ -25,7 +25,7 @@ from vm_info import (
     change_vm_network, get_vm_shared_memory_info, set_shared_memory,
     remove_virtiofs, add_virtiofs, get_boot_info, set_boot_info,
     get_vm_video_model, set_vm_video_model, get_cpu_models, get_vm_cpu_model,
-    set_cpu_model
+    set_cpu_model, get_uefi_files, set_uefi_file
 )
 from config import load_config, save_config
 
@@ -913,6 +913,23 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message(f"Error setting CPU model: {e}")
             event.control.value = original_cpu_model
 
+    @on(Select.Changed, "#uefi-file-select")
+    def on_uefi_file_changed(self, event: Select.Changed) -> None:
+        new_uefi_path = event.value
+        original_uefi_path = self.vm_info['firmware'].get('path')
+
+        if new_uefi_path == original_uefi_path:
+            return
+
+        try:
+            set_uefi_file(self.domain, new_uefi_path)
+            self.app.show_success_message(f"UEFI file set to {os.path.basename(new_uefi_path)}")
+            self.vm_info['firmware']['path'] = new_uefi_path
+            self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
+        except (libvirt.libvirtError, ValueError, Exception) as e:
+            self.app.show_error_message(f"Error setting UEFI file: {e}")
+            event.control.value = original_uefi_path
+
     @on(Checkbox.Changed, "#shared-memory-checkbox")
     def on_shared_memory_changed(self, event: Checkbox.Changed) -> None:
         try:
@@ -960,7 +977,8 @@ class VMDetailModal(ModalScreen):
                             cpu_model_options,
                             value=current_cpu_model,
                             id="cpu-model-select",
-                            disabled=not is_stopped
+                            disabled=not is_stopped,
+                            classes="cpu-model-select"
                         )
                 with TabPane("Mem", id="detail-mem-tab", ):
                     with Vertical(classes="info-details"):
@@ -969,12 +987,32 @@ class VMDetailModal(ModalScreen):
                         is_stopped = self.vm_info.get("status") == "Stopped"
                         yield Checkbox("Shared Memory", value=self.vm_info.get('shared_memory', False), id="shared-memory-checkbox", classes="shared-memory", disabled=not is_stopped)
                 with TabPane("Firmware", id="detail-firmware-tab"):
-                    with Vertical(classes="info-details"): 
-                        if "firmware" in self.vm_info:
-                            yield Label(f"Firmware: {self.vm_info['firmware']}", classes="tabd")
+                    with Vertical(classes="info-details"):
+                        is_stopped = self.vm_info.get("status") == "Stopped"
+                        firmware_info = self.vm_info.get('firmware', {'type': 'BIOS'})
+                        
+                        firmware_type = firmware_info.get('type', 'BIOS')
+                        firmware_path = firmware_info.get('path')
+
+                        yield Label(f"Firmware: {firmware_type}", id="firmware-type-label")
+                        if firmware_path:
+                            yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
+
+                        if firmware_type == 'UEFI':
+                            uefi_files = get_uefi_files()
+                            uefi_options = [(os.path.basename(f), f) for f in uefi_files]
+                            
+                            yield Select(
+                                uefi_options,
+                                value=firmware_path,
+                                id="uefi-file-select",
+                                disabled=not is_stopped,
+                                allow_blank=True,
+                                classes="uefi-file-select",
+                            )
+
                         if "machine_type" in self.vm_info:
                             yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
-                            is_stopped = self.vm_info.get("status") == "Stopped"
                             yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not is_stopped)
 
                 with TabPane("Boot", id="detail-boot-tab"):

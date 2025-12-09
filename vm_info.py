@@ -405,33 +405,33 @@ def get_vm_description(domain):
     except libvirt.libvirtError:
         return "No description available"
 
-def get_vm_firmware_info(xml_content: str) -> str:
+def get_vm_firmware_info(xml_content: str) -> dict:
     """
     Extracts firmware (BIOS/UEFI) from a VM's XML definition.
+    Returns a dictionary with firmware info.
     """
-    firmware = "BIOS" # Default to BIOS
+    firmware_info = {'type': 'BIOS', 'path': None} # Default to BIOS
 
     try:
         root = ET.fromstring(xml_content)
         os_elem = root.find('os')
 
-        # Determine firmware
         if os_elem is not None:
             loader_elem = os_elem.find('loader')
             if loader_elem is not None and loader_elem.get('type') == 'pflash':
                 loader_path = loader_elem.text
                 if loader_path:
-                    firmware_basename = os.path.basename(loader_path)
-                    firmware = f"UEFI {firmware_basename}"
+                    firmware_info['type'] = 'UEFI'
+                    firmware_info['path'] = loader_path
             else:
                 bootloader_elem = os_elem.find('bootloader')
                 if bootloader_elem is not None:
-                    firmware = "BIOS"
+                     firmware_info['type'] = 'BIOS'
 
     except ET.ParseError:
         pass # Return default values if XML parsing fails
 
-    return firmware
+    return firmware_info
 
 def get_vm_machine_info(xml_content: str) -> str:
     """
@@ -1269,7 +1269,60 @@ def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
     if cpu is None:
         cpu = ET.SubElement(root, 'cpu')
 
-    cpu.set('mode', cpu_model)
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+
+def get_uefi_files():
+    """
+    Scans for UEFI firmware files in common directories.
+    """
+    uefi_paths = [
+        "/usr/share/OVMF",
+        "/usr/share/qemu-efi-aarch64",
+        "/usr/share/qemu/"
+        # Add other potential paths here
+    ]
+    uefi_files = []
+    for path in uefi_paths:
+        if os.path.isdir(path):
+            for root, _, files in os.walk(path):
+                for file in files:
+                    if file.endswith((".fd", ".bin")):
+                        uefi_files.append(os.path.join(root, file))
+    return uefi_files
+
+def set_uefi_file(domain: libvirt.virDomain, uefi_path: str):
+    """
+    Sets the UEFI file for a VM.
+    The VM must be stopped.
+    """
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change UEFI firmware.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    os_elem = root.find('os')
+    if os_elem is None:
+        raise ValueError("Could not find <os> element in VM XML.")
+
+    loader_elem = os_elem.find('loader')
+    if loader_elem is None:
+        # If there's no loader, we can't set it. This implies non-UEFI boot.
+        raise ValueError("VM is not configured for UEFI boot (no <loader> element).")
+    
+    if not uefi_path: # Setting to BIOS
+        os_elem.remove(loader_elem)
+        # Also remove nvram if it exists
+        nvram_elem = os_elem.find('nvram')
+        if nvram_elem is not None:
+            os_elem.remove(nvram_elem)
+    else: # Setting to a UEFI file
+        loader_elem.text = uefi_path
+        # You might also need to create or update the <nvram> tag if it's not
+        # correctly templated. For simplicity, we assume it's either correct
+        # or doesn't need to be changed for now.
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
