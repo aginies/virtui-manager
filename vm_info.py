@@ -1123,3 +1123,44 @@ def generate_mac_address():
             secrets.randbelow(0xff),
             secrets.randbelow(0xff) ]
     return ':'.join(map(lambda x: "%02x" % x, mac))
+
+def get_boot_info(xml_content: str) -> dict:
+    """Extracts boot information from the VM's XML."""
+    root = ET.fromstring(xml_content)
+    os_elem = root.find('os')
+    if os_elem is None:
+        return {'menu_enabled': False, 'order': []}
+
+    boot_menu = os_elem.find('bootmenu')
+    menu_enabled = boot_menu is not None and boot_menu.get('enable') == 'yes'
+
+    order = [boot.get('dev') for boot in os_elem.findall('boot')]
+
+    return {'menu_enabled': menu_enabled, 'order': order}
+
+def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str]):
+    """Sets the boot configuration for a VM."""
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change boot settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    os_elem = root.find('os')
+    if os_elem is None:
+        raise ValueError("Could not find <os> element in VM XML.")
+
+    for boot_elem in os_elem.findall('boot'):
+        os_elem.remove(boot_elem)
+ 
+    boot_menu_elem = os_elem.find('bootmenu')
+    if boot_menu_elem is not None:
+        os_elem.remove(boot_menu_elem)
+
+    for dev in order:
+        ET.SubElement(os_elem, 'boot', dev=dev)
+
+    if menu_enabled:
+        ET.SubElement(os_elem, 'bootmenu', enable='yes')
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
