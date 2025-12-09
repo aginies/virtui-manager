@@ -43,6 +43,7 @@ General capabilities:
 
 ## Requirements
 
+- Minimal terminal size: 34x92
 - Python 3.7+
 - libvirt
 - textual
