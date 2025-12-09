@@ -122,11 +122,12 @@ class VMCard(Static):
     vm = reactive(None)
     color = reactive("blue")
 
-    cpu_history = reactive([])
-    mem_history = reactive([])
-
-    last_cpu_time = 0
-    last_cpu_time_ts = 0
+    def __init__(self, cpu_history: list[float] = None, mem_history: list[float] = None) -> None:
+        super().__init__()
+        self.cpu_history = cpu_history if cpu_history is not None else []
+        self.mem_history = mem_history if mem_history is not None else []
+        self.last_cpu_time = 0
+        self.last_cpu_time_ts = 0
 
     def compose(self):
         with Vertical(id="info-container"):
@@ -134,17 +135,14 @@ class VMCard(Static):
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
             yield Static(f"Status: {self.status}", id="status", classes=status_class)
-            #cpu_mem_widget = Static(f"{self.cpu} VCPU | {self.memory} MB", id="cpu-mem-info", classes="cpu-mem-clickable")
-            #cpu_mem_widget.styles.content_align = ("center", "middle")
-            #yield cpu_mem_widget
             with Horizontal(id="cpu-sparkline-container", classes="sparkline-container"):
                 cpu_spark = Static(f"{self.cpu} VCPU", id="cpu-mem-info", classes="sparkline-label")
-                yield cpu_spark #Label(f"{self.cpu} VCPU:", classes="sparkline-label")
+                yield cpu_spark
                 yield Sparkline(self.cpu_history, id="cpu-sparkline")
             with Horizontal(id="mem-sparkline-container", classes="sparkline-container"):
                 mem_gb = round(self.memory / 1024, 1)
                 mem_spark = Static(f"{mem_gb} Gb", id="cpu-mem-info", classes="sparkline-label")
-                yield mem_spark #Label(f"{self.memory}", classes="sparkline-label")
+                yield mem_spark
                 yield Sparkline(self.mem_history, id="mem-sparkline")
 
             with TabbedContent(id="button-container"):
@@ -176,10 +174,6 @@ class VMCard(Static):
                                id="snapshot_delete",
                                variant="error",
                                )
-                #with TabPane("Info", id="info-tab"):
-                    #with Horizontal():
-                    #    with Vertical():
-                    #        yield Button( "Show info", id="info-button", variant="primary",)
                 with TabPane("Special", id="special-tab"):
                     with Horizontal():
                         with Vertical():
@@ -232,6 +226,11 @@ class VMCard(Static):
                     self.mem_history = self.mem_history[-20:] + [mem_percent]
                     self.query_one("#mem-sparkline").data = self.mem_history
 
+                if hasattr(self.app, "sparkline_data"):
+                    uuid = self.vm.UUIDString()
+                    self.app.sparkline_data[uuid]['cpu'] = self.cpu_history
+                    self.app.sparkline_data[uuid]['mem'] = self.mem_history
+
             except libvirt.libvirtError as e:
                 logging.error(f"Error getting stats for {self.name}: {e}")
 
@@ -264,7 +263,7 @@ class VMCard(Static):
         rename_button.display = is_stopped
         pause_button.display = is_running
         resume_button.display = is_paused
-        connect_button.display = is_running
+        connect_button.display = is_running or is_paused
         restore_button.display = has_snapshots
         snapshot_delete_button.display = has_snapshots
         info_button.display = True # Always show info button

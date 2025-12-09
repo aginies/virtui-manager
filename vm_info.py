@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import os
 import secrets
 import subprocess
+import shlex
 import uuid
 import string
 import libvirt
@@ -42,7 +43,10 @@ def clone_vm(original_vm, new_vm_name):
                 new_disk_path = os.path.join(original_path, new_disk_filename)
 
                 try:
-                    subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', original_disk_path, new_disk_path], check=True)
+                    cmd_str = (f"qemu-img create -f qcow2 -F qcow2 -b "
+                               f"{shlex.quote(original_disk_path)} "
+                               f"{shlex.quote(new_disk_path)}")
+                    subprocess.run(cmd_str, shell=True, check=True)
                 except (subprocess.CalledProcessError, FileNotFoundError) as e:
                     raise Exception(f"Failed to clone disk: {e}")
 

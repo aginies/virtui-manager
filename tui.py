@@ -1518,6 +1518,7 @@ class VMManagerTUI(App):
     def on_mount(self) -> None:
         """Called when the app is mounted."""
         self.title = "Rainbow V Manager"
+        self.sparkline_data = {}
         error_footer = self.query_one("#error-footer")
         error_footer.styles.height = 0
         error_footer.styles.overflow = "hidden"
@@ -1819,7 +1820,14 @@ class VMManagerTUI(App):
 
             for domain in paginated_domains:
                 info = domain.info()
-                vm_card = VMCard()
+                uuid = domain.UUIDString()
+                if uuid not in self.sparkline_data:
+                    self.sparkline_data[uuid] = {"cpu": [], "mem": []}
+
+                cpu_hist = self.sparkline_data[uuid]["cpu"]
+                mem_hist = self.sparkline_data[uuid]["mem"]
+
+                vm_card = VMCard(cpu_history=cpu_hist, mem_history=mem_hist)
                 vm_card.name = domain.name()
                 vm_card.status = get_status(domain)
                 vm_card.cpu = info[3]
