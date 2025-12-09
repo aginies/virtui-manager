@@ -3,11 +3,11 @@ lib to get all VM info
 """
 import xml.etree.ElementTree as ET
 import os
-import libvirt
-import string
-import subprocess
 import secrets
+import subprocess
 import uuid
+import string
+import libvirt
 
 def clone_vm(original_vm, new_vm_name):
     """
@@ -37,7 +37,7 @@ def clone_vm(original_vm, new_vm_name):
                 original_disk_path = source_elem.get('file')
 
                 original_path, original_filename = os.path.split(original_disk_path)
-                name, ext = os.path.splitext(original_filename)
+                _, ext = os.path.splitext(original_filename)
                 new_disk_filename = f"{new_vm_name}_{secrets.token_hex(4)}{ext}"
                 new_disk_path = os.path.join(original_path, new_disk_filename)
 
@@ -45,7 +45,7 @@ def clone_vm(original_vm, new_vm_name):
                     subprocess.run(['qemu-img', 'create', '-f', 'qcow2', '-F', 'qcow2', '-b', original_disk_path, new_disk_path], check=True)
                 except (subprocess.CalledProcessError, FileNotFoundError) as e:
                     raise Exception(f"Failed to clone disk: {e}")
-                
+
                 source_elem.set('file', new_disk_path)
 
     new_xml = ET.tostring(root, encoding='unicode')
@@ -180,7 +180,7 @@ def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, di
         if dev not in used_devs:
             target_dev = dev
             break
- 
+
     if not target_dev:
         raise Exception("No available device slots for new disk.")
 
@@ -240,7 +240,7 @@ def remove_disk(domain, disk_dev_path):
         if match:
             disk_to_remove_xml = ET.tostring(disk, encoding="unicode")
             break
-            
+
     if not disk_to_remove_xml:
         raise Exception(f"Disk with device path or name '{disk_dev_path}' not found.")
 
@@ -249,6 +249,77 @@ def remove_disk(domain, disk_dev_path):
         flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
 
     domain.detachDeviceFlags(disk_to_remove_xml, flags)
+
+def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
+    """
+    Removes a virtiofs filesystem from a VM.
+    The VM must be stopped to remove a virtiofs device.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to remove a virtiofs device.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    devices = root.find('devices')
+    if devices is None:
+        raise ValueError("Could not find <devices> in VM XML.")
+
+    virtiofs_to_remove = None
+    for fs_elem in devices.findall("./filesystem[@type='mount']"):
+        driver = fs_elem.find('driver')
+        target = fs_elem.find('target')
+        if driver is not None and driver.get('type') == 'virtiofs' and target is not None:
+            if target.get('dir') == target_dir:
+                virtiofs_to_remove = fs_elem
+                break
+
+    if virtiofs_to_remove is None:
+        raise ValueError(f"VirtIO-FS mount with target directory '{target_dir}' not found.")
+
+    devices.remove(virtiofs_to_remove)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+
+    conn = domain.connect()
+    conn.defineXML(new_xml)
+
+def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, readonly: bool):
+    """
+    Adds a virtiofs filesystem to a VM.
+    The VM must be stopped to add a virtiofs device.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to add a virtiofs device.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
+
+    # Create the new virtiofs XML element
+    fs_elem = ET.SubElement(devices, "filesystem", type="mount", accessmode="passthrough")
+
+    driver_elem = ET.SubElement(fs_elem, "driver", type="virtiofs")
+    source_elem = ET.SubElement(fs_elem, "source", dir=source_path)
+    target_elem = ET.SubElement(fs_elem, "target", dir=target_path)
+
+    if readonly:
+        ET.SubElement(fs_elem, "readonly")
+
+    # Redefine the VM with the updated XML
+    new_xml = ET.tostring(root, encoding='unicode')
+
+    conn = domain.connect()
+    conn.defineXML(new_xml)
 
 
 def get_vm_network_dns_gateway_info(domain: str):
@@ -436,14 +507,18 @@ def get_vm_devices_info(xml_content: str) -> dict:
 
         if devices is not None:
             # virtiofs
-            for fs_elem in devices.findall("./filesystem[@type='mount'][@model='virtiofs']"):
-                source = fs_elem.find('source')
-                target = fs_elem.find('target')
-                if source is not None and target is not None:
-                    devices_info['virtiofs'].append({
-                        'source': source.get('dir'),
-                        'target': target.get('dir')
-                    })
+            for fs_elem in devices.findall("./filesystem[@type='mount']"):
+                driver = fs_elem.find('driver')
+                if driver is not None and driver.get('type') == 'virtiofs':
+                    source = fs_elem.find('source')
+                    target = fs_elem.find('target')
+                    if source is not None and target is not None:
+                        readonly = fs_elem.find('readonly') is not None
+                        devices_info['virtiofs'].append({
+                            'source': source.get('dir'),
+                            'target': target.get('dir'),
+                            'readonly': readonly
+                        })
 
             # virtio-serial and qemu.guest_agent
             for channel_elem in devices.findall('channel'):
@@ -620,7 +695,7 @@ def disable_disk(domain, disk_path):
     conn = domain.connect()
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    
+
     devices = root.find('devices')
     if devices is None:
         raise ValueError("Could not find <devices> in VM XML.")
@@ -659,7 +734,7 @@ def enable_disk(domain, disk_path):
     root = ET.fromstring(xml_desc)
 
     disabled_disks_elem = _get_disabled_disks_elem(root)
- 
+
     disk_to_enable = None
     for disk in disabled_disks_elem.findall('disk'):
         source = disk.find('source')
@@ -692,7 +767,7 @@ def set_vcpu(domain, vcpu_count: int):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
- 
+
     flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
     if domain.isActive():
         flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
@@ -746,21 +821,21 @@ def set_machine_type(domain, new_machine_type):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
- 
+
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change machine type.")
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
- 
+
     type_elem = root.find(".//os/type")
     if type_elem is None:
         raise Exception("Could not find OS type element in VM XML.")
- 
+
     type_elem.set('machine', new_machine_type)
- 
+
     new_xml_desc = ET.tostring(root, encoding='unicode')
- 
+
     conn = domain.connect()
     conn.defineXML(new_xml_desc)
 
@@ -819,7 +894,7 @@ def list_networks(conn):
 
         forward_elem = root.find('forward')
         mode = forward_elem.get('mode') if forward_elem is not None else 'isolated'
- 
+
         networks.append({
             'name': net.name(),
             'mode': mode,
@@ -907,7 +982,7 @@ def get_vms_using_network(conn, network_name):
                 source = iface.find("source")
                 if source is not None and source.get("network") == network_name:
                     vm_names.append(domain.name())
-                    break 
+                    break
     return vm_names
 
 def set_network_active(conn, network_name, active):
