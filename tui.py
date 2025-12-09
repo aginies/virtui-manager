@@ -15,7 +15,7 @@ from textual.message import Message
 from textual import on
 import libvirt
 from vmcard import VMCard, VMNameClicked, ConfirmationDialog, ChangeNetworkDialog
-from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_network, delete_network, get_vms_using_network, set_network_active, set_network_autostart, get_host_network_interfaces, enable_disk, disable_disk, change_vm_network, get_vm_shared_memory_info, set_shared_memory
+from vm_info import get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info, get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info, get_vm_disks_info, get_vm_devices_info, add_disk, remove_disk, set_vcpu, set_memory, get_supported_machine_types, set_machine_type, list_networks, create_network, delete_network, get_vms_using_network, set_network_active, set_network_autostart, get_host_network_interfaces, enable_disk, disable_disk, change_vm_network, get_vm_shared_memory_info, set_shared_memory, remove_virtiofs, add_virtiofs
 from config import load_config, save_config
 
 # Configure logging
@@ -355,6 +355,40 @@ class AddDiskModal(BaseModal[dict | None]):
                 "device_type": "cdrom" if is_cdrom else "disk",
             }
             self.dismiss(result)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+class AddEditVirtIOFSModal(BaseModal[dict | None]):
+    """Modal screen for adding or editing a VirtIO-FS mount."""
+
+    def __init__(self, source_path: str = "", target_path: str = "", readonly: bool = False, is_edit: bool = False) -> None:
+        super().__init__()
+        self.source_path = source_path
+        self.target_path = target_path
+        self.readonly = readonly
+        self.is_edit = is_edit
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-edit-virtiofs-dialog"):
+            yield Label("Edit VirtIO-FS Mount" if self.is_edit else "Add VirtIO-FS Mount")
+            yield Input(placeholder="Source Path (e.g., /mnt/share)", id="virtiofs-source-input", value=self.source_path)
+            yield Input(placeholder="Target Path (e.g., /share)", id="virtiofs-target-input", value=self.target_path)
+            yield Checkbox("Export filesystem as readonly mount", id="virtiofs-readonly-checkbox", value=self.readonly)
+            with Horizontal():
+                yield Button("Save" if self.is_edit else "Add", variant="primary", id="save-add-btn", classes="Buttonpage")
+                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save-add-btn":
+            source_path = self.query_one("#virtiofs-source-input", Input).value
+            target_path = self.query_one("#virtiofs-target-input", Input).value
+            readonly = self.query_one("#virtiofs-readonly-checkbox", Checkbox).value
+
+            if not source_path or not target_path:
+                self.app.show_error_message("Source Path and Target Path cannot be empty.")
+                return
+
+            self.dismiss({'source_path': source_path, 'target_path': target_path, 'readonly': readonly})
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
@@ -747,6 +781,9 @@ class VMDetailModal(ModalScreen):
         self.vm_info = vm_info
         self.domain = domain
         self.available_networks = []
+        self.selected_virtiofs_target = None
+        self.selected_virtiofs_info = None # Store full info for editing
+
 
     def on_mount(self) -> None:
         try:
@@ -807,25 +844,25 @@ class VMDetailModal(ModalScreen):
             with TabbedContent(id="detail-vm"):
                 with TabPane("CPU", id="detail-cpu-tab"):
                     with Vertical(classes="info-details"):
-                        yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label", classes="")
+                        yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label", classes="tabd")
                         yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
                 with TabPane("Mem", id="detail-mem-tab", ):
                     with Vertical(classes="info-details"):
-                        yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label")
+                        yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label", classes="tabd")
                         yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
                         is_stopped = self.vm_info.get("status") == "Stopped"
                         yield Checkbox("Shared Memory", value=self.vm_info.get('shared_memory', False), id="shared-memory-checkbox", classes="shared-memory", disabled=not is_stopped)
                 with TabPane("Firmware", id="detail-firmware-tab"):
                     with Vertical(classes="info-details"): 
                         if "firmware" in self.vm_info:
-                            yield Label(f"Firmware: {self.vm_info['firmware']}")
+                            yield Label(f"Firmware: {self.vm_info['firmware']}", classes="tabd")
                         if "machine_type" in self.vm_info:
-                            yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label")
+                            yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
                             is_stopped = self.vm_info.get("status") == "Stopped"
                             yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not is_stopped)
 
                 with TabPane("Boot", id="detail-boot-tab"):
-                    yield Label("TODO")
+                    yield Label("TODO", classes="tabd")
 
                 with TabPane("Disks", id="detail-disk-tab"):
                     with ScrollableContainer(classes="info-details"):
@@ -875,17 +912,17 @@ class VMDetailModal(ModalScreen):
 
                         if networks_list:
                             for net in networks_list:
-                                yield Label(f"MAC: {net['mac']}")
-                                yield Label(f"Network: {net.get('network', 'N/A')}")
+                                yield Label(f"MAC: {net['mac']}", classes="tabd")
+                                yield Label(f"Network: {net.get('network', 'N/A')}", classes="tabd")
                                 ip_address = mac_to_ip.get(net['mac'], "N/A")
-                                yield Label(f"IP: {ip_address}")
+                                yield Label(f"IP: {ip_address}", classes="tabd")
                                 yield Static(classes="separator")
                         else:
                             yield Label("No network interfaces found.")
                     yield Button("Change Network", id="change-network-button", variant="primary")
 
                     if self.vm_info.get("network_dns_gateway"):
-                        yield Label("Network DNS & Gateway", classes="section-title")
+                        yield Label("Network DNS & Gateway", classes="tabd")
                         with ScrollableContainer(classes="info-section"):
                             for net_detail in self.vm_info["network_dns_gateway"]:
                                 with Vertical(classes="info-details"):
@@ -906,8 +943,29 @@ class VMDetailModal(ModalScreen):
                                     for device in device_list:
                                         detail_str = ", ".join(f"{k}: {v}" for k, v in device.items())
                                         yield Static(f"    • {detail_str}")
-    
-                            yield Button("Close", variant="default", id="close-btn", classes="close-button")
+
+                if self.vm_info.get("devices"):
+                    with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
+                        with ScrollableContainer(classes="info-details"):
+                            virtiofs_table = DataTable(id="virtiofs-table")
+                            virtiofs_table.cursor_type = "row"
+                            virtiofs_table.add_column("Source Path", key="source")
+                            virtiofs_table.add_column("Target Path", key="target")
+                            virtiofs_table.add_column("Readonly", key="readonly")
+                            for fs in self.vm_info["devices"]["virtiofs"]:
+                                virtiofs_table.add_row(
+                                    fs.get('source', 'N/A'),
+                                    fs.get('target', 'N/A'),
+                                    str(fs.get('readonly', False)),
+                                    key=fs.get('target')
+                                )
+                            yield virtiofs_table
+                        with Vertical():
+                            with Horizontal():
+                                yield Button("Add", variant="primary", id="add-virtiofs-btn", classes="detail-disks")
+                                yield Button("Edit", variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")
+                                yield Button("Delete", variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
+                                yield Button("Close", variant="default", id="close-btn", classes="detail-disks")
 
     def _update_disk_list(self):
         self.disk_list_view.clear()
@@ -941,9 +999,138 @@ class VMDetailModal(ModalScreen):
         self.query_one("#detail_disable_disk", Button).display = has_enabled_disks
         self.query_one("#detail_enable_disk", Button).display = has_disabled_disks
 
+        self.query_one("#detail_enable_disk", Button).display = has_disabled_disks
+
+    @on(DataTable.RowSelected, "#virtiofs-table")
+    def on_virtiofs_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        self.selected_virtiofs_target = event.row_key.value
+        # Get the full virtiofs info for editing
+        row_index = event.cursor_row
+        virtiofs_data = self.vm_info["devices"]["virtiofs"]
+        if 0 <= row_index < len(virtiofs_data):
+            self.selected_virtiofs_info = virtiofs_data[row_index]
+        else:
+            self.selected_virtiofs_info = None
+
+        self.query_one("#delete-virtiofs-btn", Button).disabled = False
+        self.query_one("#edit-virtiofs-btn", Button).disabled = False
+
+
+    def _update_virtiofs_table(self) -> None:
+        """Refreshes the virtiofs table."""
+        virtiofs_table = self.query_one("#virtiofs-table", DataTable)
+        virtiofs_table.clear()
+        
+        # Re-fetch VM info to get updated virtiofs list
+        new_xml = self.domain.XMLDesc(0)
+        updated_devices = get_vm_devices_info(new_xml)
+        self.vm_info['devices']['virtiofs'] = updated_devices.get('virtiofs', [])
+
+        for fs in self.vm_info["devices"]["virtiofs"]:
+            virtiofs_table.add_row(
+                fs.get('source', 'N/A'),
+                fs.get('target', 'N/A'),
+                str(fs.get('readonly', False)),
+                key=fs.get('target')
+            )
+        self.selected_virtiofs_target = None
+        self.selected_virtiofs_info = None
+        self.query_one("#delete-virtiofs-btn", Button).disabled = True
+        self.query_one("#edit-virtiofs-btn", Button).disabled = True
+
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
             self.dismiss()
+        elif event.button.id == "add-virtiofs-btn":
+            def add_virtiofs_callback(result):
+                if result:
+                    try:
+                        # VM must be stopped to add virtiofs
+                        if self.domain.isActive():
+                            self.app.show_error_message("VM must be stopped to add VirtIO-FS mount.")
+                            return
+                        add_virtiofs(
+                            self.domain,
+                            result['source_path'],
+                            result['target_path'],
+                            result['readonly']
+                        )
+                        self.app.show_success_message(f"VirtIO-FS mount '{result['target_path']}' added successfully.")
+                        self._update_virtiofs_table()
+                    except libvirt.libvirtError as e:
+                        self.app.show_error_message(f"Error adding VirtIO-FS mount: {e}")
+                    except Exception as e:
+                        self.app.show_error_message(f"An unexpected error occurred: {e}")
+            self.app.push_screen(AddEditVirtIOFSModal(is_edit=False), add_virtiofs_callback)
+
+        elif event.button.id == "edit-virtiofs-btn":
+            if self.selected_virtiofs_info:
+                current_source = self.selected_virtiofs_info.get('source', '')
+                current_target = self.selected_virtiofs_info.get('target', '')
+                current_readonly = self.selected_virtiofs_info.get('readonly', False)
+
+                def edit_virtiofs_callback(result):
+                    if result:
+                        try:
+                            # VM must be stopped to modify virtiofs
+                            if self.domain.isActive():
+                                self.app.show_error_message("VM must be stopped to modify VirtIO-FS mount.")
+                                return
+
+                            # Only proceed if there are actual changes
+                            if (result['source_path'] != current_source or
+                                result['target_path'] != current_target or
+                                result['readonly'] != current_readonly):
+                                
+                                # Remove the old one
+                                remove_virtiofs(self.domain, current_target)
+                                # Add the new one
+                                add_virtiofs(
+                                    self.domain,
+                                    result['source_path'],
+                                    result['target_path'],
+                                    result['readonly']
+                                )
+                                self.app.show_success_message(f"VirtIO-FS mount '{current_target}' updated to '{result['target_path']}'.")
+                                self._update_virtiofs_table()
+                            else:
+                                self.app.show_success_message("No changes detected for VirtIO-FS mount.")
+
+                        except libvirt.libvirtError as e:
+                            self.app.show_error_message(f"Error editing VirtIO-FS mount: {e}")
+                        except Exception as e:
+                            self.app.show_error_message(f"An unexpected error occurred: {e}")
+                
+                self.app.push_screen(AddEditVirtIOFSModal(
+                    source_path=current_source,
+                    target_path=current_target,
+                    readonly=current_readonly,
+                    is_edit=True
+                ), edit_virtiofs_callback)
+            else:
+                self.app.show_error_message("No VirtIO-FS mount selected for editing.")
+
+        elif event.button.id == "delete-virtiofs-btn":
+            if self.selected_virtiofs_target:
+                message = f"Are you sure you want to delete VirtIO-FS mount '{self.selected_virtiofs_target}'?\nVM must be stopped!"
+                def on_confirm(confirmed: bool) -> None:
+                    if confirmed:
+                        try:
+                            # VM must be stopped to delete virtiofs
+                            if self.domain.isActive():
+                                self.app.show_error_message("VM must be stopped to delete VirtIO-FS mount.")
+                                return
+
+                            remove_virtiofs(self.domain, self.selected_virtiofs_target)
+                            self.app.show_success_message(f"VirtIO-FS mount '{self.selected_virtiofs_target}' deleted successfully.")
+                            self._update_virtiofs_table()
+                        except libvirt.libvirtError as e:
+                            self.app.show_error_message(f"Error deleting VirtIO-FS mount: {e}")
+                        except Exception as e:
+                            self.app.show_error_message(f"An unexpected error occurred: {e}")
+                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
         elif event.button.id == "detail_add_disk":
             def add_disk_callback(result):
                 if result:
