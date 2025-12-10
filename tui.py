@@ -7,11 +7,10 @@ import traceback
 from typing import TypeVar
 
 from textual.app import App, ComposeResult
-from textual.widgets import Header, Footer, Select, Button, Input, Label, Static, DataTable, Link, TextArea, ListView, ListItem, Checkbox, RadioButton, RadioSet, TabbedContent, TabPane, Pretty, Tree
+from textual.widgets import DirectoryTree, Header, Footer, Select, Button, Input, Label, Static, DataTable, Link, TextArea, ListView, ListItem, Checkbox, RadioButton, RadioSet, TabbedContent, TabPane, Tree
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.reactive import reactive
 from textual.screen import ModalScreen
-from textual.message import Message
 from textual import on
 import libvirt
 from vmcard import VMCard, VMNameClicked, ConfirmationDialog, ChangeNetworkDialog
@@ -555,15 +554,12 @@ class SelectMachineTypeModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-
-
-
-class CreateNatNetworkModal(BaseModal[None]):
-    """Modal screen for creating a new NAT network."""
+class CreateNetworkModal(BaseModal[None]):
+    """Modal screen for creating a new network."""
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="create-nat-network-dialog"):
-            yield Label("Create New NAT Network", id="create-nat-network-title")
+        with Vertical(id="create-network-dialog"):
+            yield Label("Create New Network", id="create-network-title")
 
             host_interfaces = get_host_network_interfaces()
             if not host_interfaces:
@@ -593,7 +589,7 @@ class CreateNatNetworkModal(BaseModal[None]):
                     with Vertical(id="network-create-close-horizontal"):
                         with Horizontal(id="dhcp-options"):
                             yield Button("Create Network", variant="primary", id="create-net-btn", classes="create-net-btn")
-                            yield Button("Close", variant="default", id="close-btn", classes="close-button")
+            yield Button("Close", variant="default", id="close-btn", classes="close-button")
 
     @on(Checkbox.Changed, "#dhcp-checkbox")
     def on_dhcp_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -668,6 +664,37 @@ class CreateNatNetworkModal(BaseModal[None]):
             except Exception as e:
                 self.app.show_error_message(f"Error creating network: {e}")
 
+class DirectorySelectionModal(BaseModal[str | None]):
+    """A modal screen for selecting a directory."""
+
+    def __init__(self, path: str | None = None) -> None:
+        super().__init__()
+        self.start_path = path if path and os.path.isdir(path) else os.path.expanduser("~")
+        self._selected_path: str | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="directory-selection-dialog"):
+            yield Label("Select a Directory")
+            yield DirectoryTree(self.start_path, id="dir-tree")
+            with Horizontal():
+                yield Button("Select", variant="primary", id="select-btn", disabled=True)
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_mount(self) -> None:
+        self.query_one(DirectoryTree).focus()
+
+    def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
+        self._selected_path = event.path
+        self.query_one("#select-btn").disabled = False
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "select-btn":
+            if self._selected_path:
+                self.dismiss(str(self._selected_path))
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
+
 class AddPoolModal(BaseModal[bool | None]):
     """Modal screen for adding a new storage pool."""
 
@@ -687,23 +714,27 @@ class AddPoolModal(BaseModal[bool | None]):
 
             # Fields for `dir` type
             with Vertical(id="dir-fields"):
-                yield Label("Target Path")
-                yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/<pool_name>")
+                yield Label("Target Path (for volumes)")
+                with Vertical():
+                    yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/<pool_name>")
+                    yield Button("Browse", id="browse-dir-btn")
 
             # Fields for `netfs` type
             with Vertical(id="netfs-fields"):
-                yield Label("Target Path (on this host)")
-                yield Input(placeholder="/mnt/nfs", id="netfs-target-path-input")
-                yield Label("Format")
-                yield Select(
-                    [("auto", "auto"), ("nfs", "nfs"), ("glusterfs", "glusterfs"), ("cifs", "cifs")],
-                    id="netfs-format-select",
-                    value="auto"
-                )
-                yield Label("Source Hostname")
-                yield Input(placeholder="nfs.example.com", id="netfs-host-input")
-                yield Label("Source Path (on remote host)")
-                yield Input(placeholder="host0", id="netfs-source-path-input")
+                with ScrollableContainer():
+                    yield Label("Target Path (on this host)")
+                    with Vertical():
+                        yield Input(placeholder="/mnt/nfs", id="netfs-target-path-input")
+                        yield Button("Browse", id="browse-netfs-btn")
+                    yield Select(
+                        [("auto", "auto"), ("nfs", "nfs"), ("glusterfs", "glusterfs"), ("cifs", "cifs")],
+                        id="netfs-format-select",
+                        value="auto"
+                    )
+                    yield Label("Source Hostname")
+                    yield Input(placeholder="nfs.example.com", id="netfs-host-input")
+                    yield Label("Source Path (on remote host)")
+                    yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
 
             with Horizontal(classes="modal-buttons"):
                 yield Button("Add", variant="primary", id="add-btn")
@@ -720,6 +751,17 @@ class AddPoolModal(BaseModal[bool | None]):
         self.query_one("#netfs-fields").display = not is_dir
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ("browse-dir-btn", "browse-netfs-btn"):
+            input_id = "#dir-target-path-input" if event.button.id == "browse-dir-btn" else "#netfs-target-path-input"
+            input_to_update = self.query_one(input_id, Input)
+
+            def on_directory_selected(path: str | None) -> None:
+                if path:
+                    input_to_update.value = path
+
+            self.app.push_screen(DirectorySelectionModal(path=input_to_update.value), on_directory_selected)
+            return
+
         if event.button.id == "add-btn":
             pool_name = self.query_one("#pool-name-input", Input).value
             pool_type = self.query_one("#pool-type-select", Select).value
@@ -799,7 +841,7 @@ class CreateVolumeModal(BaseModal[dict | None]):
             if not name or not size:
                 self.app.show_error_message("Name and size are required.")
                 return
-            
+
             try:
                 size_gb = int(size)
             except ValueError:
@@ -874,16 +916,16 @@ class ServerPrefModal(BaseModal[None]):
 
     def _load_networks(self):
         table = self.query_one("#networks-table", DataTable)
-        
+
         if not table.columns:
             table.add_column("Name", key="name")
             table.add_column("Mode", key="mode")
             table.add_column("Active", key="active")
             table.add_column("Autostart", key="autostart")
             table.add_column("Used By", key="used_by")
-        
+
         table.clear()
-        
+
         network_usage = vm_queries.get_all_network_usage(self.app.conn)
         self.networks_list = list_networks(self.app.conn)
 
@@ -891,7 +933,7 @@ class ServerPrefModal(BaseModal[None]):
             vms_str = ", ".join(network_usage.get(net['name'], [])) or "Not in use"
             active_str = "✔️" if net['active'] else "❌"
             autostart_str = "✔️" if net['autostart'] else "❌"
-            
+
             table.add_row(
                 net['name'],
                 net['mode'],
@@ -919,10 +961,10 @@ class ServerPrefModal(BaseModal[None]):
                     vol_name = vol_data['name']
                     vol_path = vol_data['volume'].path()
                     capacity_gb = round(vol_data['capacity'] / (1024**3), 2)
-                    
+
                     vm_name = self.file_to_vm_map.get(vol_path)
                     usage_info = f" (in use by {vm_name})" if vm_name else ""
-                    
+
                     label = f"{vol_name} ({capacity_gb} GB){usage_info}"
                     child_node = node.add(label, data=vol_data)
                     child_node.data["type"] = "volume"
@@ -950,7 +992,7 @@ class ServerPrefModal(BaseModal[None]):
         toggle_autostart_btn.display = is_pool
         del_pool_btn.display = is_pool
         add_pool_btn.display = is_pool
-        
+
         self.query_one("#del-vol-btn").display = is_volume
         self.query_one("#add-vol-btn").display = is_volume or is_pool
 
@@ -990,7 +1032,7 @@ class ServerPrefModal(BaseModal[None]):
         node_data = tree.cursor_node.data
         if node_data.get("type") != "pool":
             return
-        
+
         pool = node_data.get('pool')
         has_autostart = node_data.get('autostart', False)
         try:
@@ -1005,13 +1047,13 @@ class ServerPrefModal(BaseModal[None]):
         tree: Tree[dict] = self.query_one("#storage-tree")
         if not tree.cursor_node or not tree.cursor_node.data:
             return
-        
+
         node_data = tree.cursor_node.data
         if node_data.get("type") != "pool":
             return
-            
+
         pool = node_data.get('pool')
-        
+
         def on_create(result: dict | None) -> None:
             if result:
                 try:
@@ -1105,7 +1147,7 @@ class ServerPrefModal(BaseModal[None]):
     def on_network_table_row_selected(self, event: DataTable.RowSelected) -> None:
         self.query_one("#view-net-btn").disabled = False
         self.query_one("#delete-net-btn").disabled = False
-        
+
         toggle_active_btn = self.query_one("#toggle-net-active-btn")
         toggle_autostart_btn = self.query_one("#toggle-net-autostart-btn")
         toggle_active_btn.disabled = False
@@ -1121,11 +1163,11 @@ class ServerPrefModal(BaseModal[None]):
     def on_toggle_net_active_pressed(self, event: Button.Pressed) -> None:
         table = self.query_one("#networks-table", DataTable)
         if not table.cursor_coordinate: return
-        
+
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
         net_name = row_key.value
         net_info = next((net for net in self.networks_list if net['name'] == net_name), None)
-        
+
         if net_info:
             try:
                 set_network_active(self.app.conn, net_name, not net_info['active'])
@@ -1138,11 +1180,11 @@ class ServerPrefModal(BaseModal[None]):
     def on_toggle_net_autostart_pressed(self, event: Button.Pressed) -> None:
         table = self.query_one("#networks-table", DataTable)
         if not table.cursor_coordinate: return
-        
+
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
         net_name = row_key.value
         net_info = next((net for net in self.networks_list if net['name'] == net_name), None)
-        
+
         if net_info:
             try:
                 set_network_autostart(self.app.conn, net_name, not net_info['autostart'])
@@ -1178,7 +1220,7 @@ class ServerPrefModal(BaseModal[None]):
             def on_create(success: bool):
                 if success:
                     self._load_networks()
-            self.app.push_screen(CreateNatNetworkModal(), on_create)
+            self.app.push_screen(CreateNetworkModal(), on_create)
         elif event.button.id == "delete-net-btn":
             table = self.query_one("#networks-table", DataTable)
             if not table.cursor_coordinate:
@@ -1205,7 +1247,6 @@ class ServerPrefModal(BaseModal[None]):
             self.app.push_screen(
                 ConfirmationDialog(confirm_message), on_confirm
             )
-
 
 
 class VMDetailModal(ModalScreen):
@@ -1261,10 +1302,8 @@ class VMDetailModal(ModalScreen):
                     self.query_one("#sev-es-checkbox", Checkbox).display = False
                 except Exception:
                     pass
-            
+
             self._update_uefi_options()
-
-
 
     def _update_uefi_options(self) -> None:
         """Filters and updates the UEFI file selection list."""
@@ -1289,7 +1328,7 @@ class VMDetailModal(ModalScreen):
                 uefi_files_to_show = [f for f in uefi_files_to_show if 'amd-sev' in f.features]
         except Exception: # QueryError
             pass
-            
+
         try:
             sev_es_checkbox = self.query_one("#sev-es-checkbox", Checkbox)
             if sev_es_checkbox.display and sev_es_checkbox.value:
@@ -1299,12 +1338,12 @@ class VMDetailModal(ModalScreen):
 
         current_path = self.vm_info['firmware'].get('path')
         current_basename = os.path.basename(current_path) if current_path else None
-        
+
         self.uefi_path_map = {os.path.basename(f.executable): f.executable for f in uefi_files_to_show if f.executable}
 
         if current_basename and current_basename not in self.uefi_path_map:
             self.uefi_path_map[current_basename] = current_path
-        
+
         uefi_options = [(basename, basename) for basename in sorted(self.uefi_path_map.keys())]
         uefi_select.set_options(uefi_options)
 
@@ -1342,7 +1381,7 @@ class VMDetailModal(ModalScreen):
             if i["mac"] == mac_address:
                 original_network = i["network"]
                 break
-        
+
         if original_network == new_network:
             return
 
@@ -1410,7 +1449,7 @@ class VMDetailModal(ModalScreen):
 
         if new_model == current_model:
             return
-        
+
         try:
             set_vm_video_model(self.domain, new_model if new_model != "default" else None)
             self.app.show_success_message(f"Video model set to {new_model}")
@@ -1440,7 +1479,7 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message(f"Error setting Secure Boot: {e}")
             event.checkbox.value = not event.value # Revert checkbox
             self._update_uefi_options() # Revert options
-    
+
     @on(Checkbox.Changed, "#sev-checkbox, #sev-es-checkbox")
     def on_sev_checkbox_changed(self, event: Checkbox.Changed) -> None:
         self._update_uefi_options()
@@ -1505,7 +1544,7 @@ class VMDetailModal(ModalScreen):
                     with Vertical(classes="info-details"):
                         is_stopped = self.vm_info.get("status") == "Stopped"
                         firmware_info = self.vm_info.get('firmware', {'type': 'BIOS'})
-                        
+
                         firmware_type = firmware_info.get('type', 'BIOS')
                         firmware_path = firmware_info.get('path')
 
@@ -1750,7 +1789,7 @@ class VMDetailModal(ModalScreen):
         """Refreshes the virtiofs table."""
         virtiofs_table = self.query_one("#virtiofs-table", DataTable)
         virtiofs_table.clear()
-        
+
         # Re-fetch VM info to get updated virtiofs list
         new_xml = self.domain.XMLDesc(0)
         updated_devices = get_vm_devices_info(new_xml)
@@ -1790,11 +1829,11 @@ class VMDetailModal(ModalScreen):
                     if device_to_add:
                         self.boot_order.append(device_to_add)
                         self._populate_boot_list()
-                
+
                 possible_devices = {'hd', 'cdrom', 'network', 'fd'}
                 available_to_add = sorted(list(possible_devices - set(self.boot_order)))
                 self.app.push_screen(
-                    SelectDiskModal(available_to_add, "Select boot device to add"), 
+                    SelectDiskModal(available_to_add, "Select boot device to add"),
                     add_boot_device_callback
                 )
                 return
@@ -1869,7 +1908,7 @@ class VMDetailModal(ModalScreen):
                             if (result['source_path'] != current_source or
                                 result['target_path'] != current_target or
                                 result['readonly'] != current_readonly):
-                                
+
                                 # Remove the old one
                                 remove_virtiofs(self.domain, current_target)
                                 # Add the new one
@@ -1888,7 +1927,7 @@ class VMDetailModal(ModalScreen):
                             self.app.show_error_message(f"Error editing VirtIO-FS mount: {e}")
                         except Exception as e:
                             self.app.show_error_message(f"An unexpected error occurred: {e}")
-                
+
                 self.app.push_screen(AddEditVirtIOFSModal(
                     source_path=current_source,
                     target_path=current_target,
@@ -1980,7 +2019,7 @@ class VMDetailModal(ModalScreen):
                         self._update_disk_list()
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error enabling disk: {e}")
-            
+
             self.app.push_screen(SelectDiskModal(disabled_disks, "Select disk to enable"), enable_disk_callback)
 
         elif event.button.id == "edit-cpu":
@@ -2120,7 +2159,7 @@ class VirshShellScreen(ModalScreen):
         try:
             # We need to connect to the current libvirt URI
             uri = self.app.connection_uri if hasattr(self.app, 'connection_uri') else "qemu:///system"
-            
+
             self.virsh_process = await asyncio.create_subprocess_exec(
                 "/usr/bin/virsh", "-c", uri,
                 stdin=asyncio.subprocess.PIPE,
@@ -2187,7 +2226,7 @@ class VirshShellScreen(ModalScreen):
         if self.read_stderr_task:
             self.read_stderr_task.cancel()
             await self.read_stderr_task
-        
+
         if self.virsh_process and self.virsh_process.returncode is None:
             self.virsh_process.terminate()
             await self.virsh_process.wait()
