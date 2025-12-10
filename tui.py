@@ -237,10 +237,10 @@ class ServerManagementModal(ModalScreen):
             with ScrollableContainer():
                 yield DataTable(id="server-table")
             with Horizontal():
-                yield Button("Add", id="add-server-btn", classes="add-button")
+                yield Button("Add", id="add-server-btn", classes="add-button", variant="success")
                 yield Button("Edit", id="edit-server-btn", disabled=True, classes="edit-button")
                 yield Button("Delete", id="delete-server-btn", disabled=True, classes="delete-button")
-            yield Button("Close", id="close-btn", classes="close-button")
+            #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
@@ -305,7 +305,7 @@ class ServerManagementModal(ModalScreen):
                         self.app.show_error_message(f"Error deleting server '{server_name_to_delete}': {e}")
 
             self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to delete Server '{server_name_to_delete}' from list?"), on_confirm)
+                ConfirmationDialog(f"Are you sure you want to delete Server;\n'{server_name_to_delete}'\nfrom list?"), on_confirm)
 
 
     def action_close_modal(self) -> None:
@@ -1142,7 +1142,7 @@ class ServerPrefModal(BaseModal[None]):
                     self.app.show_error_message(str(e))
 
         self.app.push_screen(
-            ConfirmationDialog(f"Are you sure you want to delete storage pool '{pool_name}'? This will delete the pool definition but not the data on it."),
+                ConfirmationDialog(f"Are you sure you want to delete storage pool:\n'{pool_name}'\nThis will delete the pool definition but not the data on it."),
             on_confirm
         )
 
@@ -1174,7 +1174,7 @@ class ServerPrefModal(BaseModal[None]):
                     self.app.show_error_message(str(e))
 
         self.app.push_screen(
-            ConfirmationDialog(f"Are you sure you want to delete volume '{vol_name}'?"),
+                ConfirmationDialog(f"Are you sure you want to delete volume:\n'{vol_name}'"),
             on_confirm
         )
 
@@ -1266,7 +1266,7 @@ class ServerPrefModal(BaseModal[None]):
             network_name = row_key.value
             vms_using_network = get_vms_using_network(self.app.conn, network_name)
 
-            confirm_message = f"Are you sure you want to delete network '{network_name}'?"
+            confirm_message = f"Are you sure you want to delete network:\n'{network_name}'"
             if vms_using_network:
                 vm_list = ", ".join(vms_using_network)
                 confirm_message += f"\nThis network is currently in use by the following VMs:\n{vm_list}."
@@ -1978,7 +1978,7 @@ class VMDetailModal(ModalScreen):
 
         elif event.button.id == "delete-virtiofs-btn":
             if self.selected_virtiofs_target:
-                message = f"Are you sure you want to delete VirtIO-FS mount '{self.selected_virtiofs_target}'?\nVM must be stopped!"
+                message = f"Are you sure you want to delete VirtIO-FS mount:\n'{self.selected_virtiofs_target}'?\nVM must be stopped!"
                 def on_confirm(confirmed: bool) -> None:
                     if confirmed:
                         try:
@@ -2092,7 +2092,7 @@ class VMDetailModal(ModalScreen):
                     except Exception as e:
                         self.app.show_error_message(f"Error removing disk: {e}")
 
-            self.app.push_screen(ConfirmationDialog(f"Are you sure you want to remove disk {disk_path}?"), on_confirm)
+            self.app.push_screen(ConfirmationDialog(f"Are you sure you want to remove disk:\n{disk_path}"), on_confirm)
 
         elif event.button.id == "detail_disable_disk":
             highlighted_index = self.disk_list_view.index
@@ -2150,7 +2150,7 @@ class VMDetailModal(ModalScreen):
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error enabling disk: {e}")
             
-            self.app.push_screen(ConfirmationDialog(f"Are you sure you want to enable disk {disk_path}?"), on_confirm)
+            self.app.push_screen(ConfirmationDialog(f"Are you sure you want to enable disk:\n{disk_path}?"), on_confirm)
 
 
         elif event.button.id == "edit-cpu":
