@@ -4,10 +4,10 @@ import libvirt
 import logging
 from datetime import datetime
 import re
-from vm_queries import get_status
+from vm_queries import get_status, get_vm_disks_info
 from vm_actions import clone_vm, rename_vm
 
-from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Sparkline, Select
+from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Sparkline, Select, Checkbox
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.message import Message
@@ -76,6 +76,37 @@ class ConfirmationDialog(BaseDialog[bool]):
     def action_cancel_modal(self) -> None:
         """Cancel the modal."""
         self.dismiss(False)
+
+
+class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
+    """A dialog to confirm VM deletion with an option to delete storage."""
+
+    def __init__(self, vm_name: str) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+
+    def compose(self):
+        yield Vertical(
+            Label(f"Are you sure you want to delete VM '{self.vm_name}'?", id="question"),
+            Checkbox("Delete storage volumes", id="delete-storage-checkbox"),
+            Horizontal(
+                Button("Yes", variant="error", id="yes", classes="dialog-buttons"),
+                Button("No", variant="primary", id="no", classes="dialog-buttons"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "yes":
+            delete_storage = self.query_one("#delete-storage-checkbox", Checkbox).value
+            self.dismiss((True, delete_storage))
+        else:
+            self.dismiss((False, False))
+
+    def action_cancel_modal(self) -> None:
+        """Cancel the modal."""
+        self.dismiss((False, False))
 
 
 class ChangeNetworkDialog(BaseDialog[dict | None]):
@@ -439,20 +470,46 @@ class VMCard(Static):
         elif event.button.id == "delete":
             logging.info(f"Attempting to delete VM: {self.name}")
 
-            def on_confirm(confirmed: bool) -> None:
-                if confirmed:
-                    try:
-                        if self.vm.isActive():
-                            self.vm.destroy() # Shut down the VM first if it's active
-                        self.vm.undefine() # Undefine the VM
-                        self.app.show_success_message(f"VM '{self.name}' deleted successfully.")
-                        self.app.refresh_vm_list()
-                        logging.info(f"Successfully deleted VM: {self.name}")
-                    except libvirt.libvirtError as e:
-                        self.app.show_error_message(f"Error on VM {self.name} during 'delete VM': {e}")
+            def on_confirm(result: tuple[bool, bool]) -> None:
+                confirmed, delete_storage = result
+                if not confirmed:
+                    return
+
+                try:
+                    disk_paths = []
+                    if delete_storage:
+                        xml_desc = self.vm.XMLDesc(0)
+                        disks = get_vm_disks_info(xml_desc)
+                        disk_paths = [disk['path'] for disk in disks if disk.get('path')]
+
+                    if self.vm.isActive():
+                        self.vm.destroy()
+                    self.vm.undefine()
+
+                    if delete_storage:
+                        for path in disk_paths:
+                            try:
+                                if path and os.path.exists(path):
+                                    os.remove(path)
+                                    logging.info(f"Successfully deleted storage file: {path}")
+                                    self.app.show_success_message(f"Storage '{path}' deleted.")
+                                else:
+                                    logging.warning(f"Storage file not found, skipping: {path}")
+                            except OSError as e:
+                                logging.error(f"Error deleting storage file {path}: {e}")
+                                self.app.show_error_message(f"Error deleting storage '{path}': {e}")
+
+                    self.app.show_success_message(f"VM '{self.name}' deleted successfully.")
+                    self.app.refresh_vm_list()
+                    logging.info(f"Successfully deleted VM: {self.name}")
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error on VM {self.name} during 'delete VM': {e}")
+                except Exception as e:
+                    logging.error(f"An unexpected error occurred during VM deletion: {e}")
+                    self.app.show_error_message(f"An unexpected error occurred: {e}")
 
             self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to delete VM '{self.name}'?"), on_confirm
+                DeleteVMConfirmationDialog(self.name), on_confirm
             )
 
         elif event.button.id == "clone":
