@@ -4,7 +4,8 @@ import libvirt
 import logging
 from datetime import datetime
 import re
-import vm_info
+from vm_queries import get_status
+from vm_actions import clone_vm, rename_vm
 
 from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Sparkline, Select
 from textual.containers import Horizontal, Vertical
@@ -460,7 +461,7 @@ class VMCard(Static):
             def handle_clone_name(new_name: str | None) -> None:
                 if new_name:
                     try:
-                        vm_info.clone_vm(self.vm, new_name)
+                        clone_vm(self.vm, new_name)
                         self.app.show_success_message(f"VM '{self.name}' cloned as '{new_name}' successfully.")
                         self.app.refresh_vm_list()
                         logging.info(f"Successfully cloned VM '{self.name}' to '{new_name}'")
@@ -478,7 +479,7 @@ class VMCard(Static):
 
                 def do_rename(delete_snapshots=False):
                     try:
-                        vm_info.rename_vm(self.vm, new_name, delete_snapshots=delete_snapshots)
+                        rename_vm(self.vm, new_name, delete_snapshots=delete_snapshots)
                         msg = f"VM '{self.name}' renamed to '{new_name}' successfully."
                         if delete_snapshots:
                             msg = f"Snapshots deleted and VM '{self.name}' renamed to '{new_name}' successfully."
