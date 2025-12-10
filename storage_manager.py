@@ -136,3 +136,17 @@ def delete_volume(vol: libvirt.virStorageVol):
     except libvirt.libvirtError as e:
         # Re-raise with a more informative message
         raise Exception(f"Error deleting volume '{vol.name()}': {e}") from e
+
+def delete_storage_pool(pool: libvirt.virStoragePool):
+    """
+    Deletes a storage pool.
+    The pool must be inactive first.
+    """
+    try:
+        # If pool is active, destroy it first (make it inactive)
+        if pool.isActive():
+            pool.destroy()
+        # Undefine the pool (delete it)
+        pool.undefine()
+    except libvirt.libvirtError as e:
+        raise Exception(f"Error deleting storage pool '{pool.name()}': {e}") from e
