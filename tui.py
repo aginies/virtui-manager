@@ -25,7 +25,7 @@ from vm_info import (
     change_vm_network, get_vm_shared_memory_info, set_shared_memory,
     remove_virtiofs, add_virtiofs, get_boot_info, set_boot_info,
     get_vm_video_model, set_vm_video_model, get_cpu_models, get_vm_cpu_model,
-    set_cpu_model, get_uefi_files, set_uefi_file
+    set_cpu_model, get_uefi_files, set_uefi_file, get_host_sev_capabilities
 )
 from config import load_config, save_config
 
@@ -524,7 +524,8 @@ class SelectMachineTypeModal(BaseModal[str | None]):
             with ScrollableContainer():
                 yield ListView(
                     *[ListItem(Label(mt)) for mt in self.machine_types],
-                    id="machine-type-list"
+                    id="machine-type-list",
+                    classes="machine-type-list"
                 )
             with Horizontal():
                 yield Button("Cancel", variant="default", id="cancel-btn")
@@ -562,7 +563,7 @@ class SelectVideoModelModal(BaseModal[str | None]):
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
-    
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
             radioset = self.query_one(RadioSet)
@@ -795,7 +796,7 @@ class ServerPrefModal(BaseModal[None]):
             selected_item = list_view.children[list_view.index]
             network_name = selected_item.network_name
             vms_using_network = get_vms_using_network(self.app.conn, network_name)
-            
+
             confirm_message = f"Are you sure you want to delete network '{network_name}'?"
             if vms_using_network:
                 vm_list = ", ".join(vms_using_network)
@@ -879,7 +880,7 @@ class VMDetailModal(ModalScreen):
             if i["mac"] == mac_address:
                 original_network = i["network"]
                 break
-        
+
         if original_network == new_network:
             return
 
@@ -917,18 +918,60 @@ class VMDetailModal(ModalScreen):
     def on_uefi_file_changed(self, event: Select.Changed) -> None:
         new_uefi_path = event.value
         original_uefi_path = self.vm_info['firmware'].get('path')
+        current_secure_boot = self.query_one("#secure-boot-checkbox", Checkbox).value
+        current_amdseves = self.query_one("#amdseves-boot-checkbox", Checkbox).value
 
         if new_uefi_path == original_uefi_path:
             return
 
         try:
-            set_uefi_file(self.domain, new_uefi_path)
-            self.app.show_success_message(f"UEFI file set to {os.path.basename(new_uefi_path)}")
+            set_uefi_file(self.domain, new_uefi_path, current_secure_boot)
+            if new_uefi_path:
+                self.app.show_success_message(f"UEFI file set to {os.path.basename(new_uefi_path)}")
+                self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
+            else:
+                self.app.show_success_message("Firmware set to BIOS.")
+                self.query_one("#firmware-path-label").update("File: ")
             self.vm_info['firmware']['path'] = new_uefi_path
-            self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
         except (libvirt.libvirtError, ValueError, Exception) as e:
             self.app.show_error_message(f"Error setting UEFI file: {e}")
             event.control.value = original_uefi_path
+
+    @on(Checkbox.Changed, "#secure-boot-checkbox")
+    def on_secure_boot_checkbox_changed(self, event: Checkbox.Changed) -> None:
+        # Update the available UEFI files based on the new secure boot setting
+        all_uefi_files = get_uefi_files()
+        uefi_select = self.query_one("#uefi-file-select", Select)
+
+        if event.value: # Secure Boot is ON
+            uefi_files_to_show = [f for f in all_uefi_files if 'secure-boot' in f.features]
+        else: # Secure Boot is OFF
+            uefi_files_to_show = all_uefi_files
+
+        new_options = [(os.path.basename(f.executable), f.executable) for f in uefi_files_to_show if f.executable]
+        uefi_select.set_options(new_options)
+
+        # Now, try to apply the secure boot change to the domain
+        current_uefi_path = self.vm_info['firmware'].get('path')
+        if not current_uefi_path:
+            self.app.show_error_message("Cannot set secure boot without a UEFI file selected.")
+            event.checkbox.value = not event.value # Revert checkbox
+            return
+
+        try:
+            set_uefi_file(self.domain, current_uefi_path, event.value)
+            self.app.show_success_message(f"Secure Boot {'enabled' if event.value else 'disabled'}.")
+            self.vm_info['firmware']['secure_boot'] = event.value
+        except (libvirt.libvirtError, ValueError, Exception) as e:
+            self.app.show_error_message(f"Error setting Secure Boot: {e}")
+            event.checkbox.value = not event.value # Revert checkbox
+            # Revert options if it failed
+            if not event.value:
+                uefi_files_to_show = [f for f in all_uefi_files if 'secure-boot' in f.features]
+            else:
+                uefi_files_to_show = all_uefi_files
+            reverted_options = [(os.path.basename(f.executable), f.executable) for f in uefi_files_to_show if f.executable]
+            uefi_select.set_options(reverted_options)
 
     @on(Checkbox.Changed, "#shared-memory-checkbox")
     def on_shared_memory_changed(self, event: Checkbox.Changed) -> None:
@@ -954,7 +997,7 @@ class VMDetailModal(ModalScreen):
                     with Vertical(classes="info-details"):
                         yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label", classes="tabd")
                         yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
-                        
+
                         # CPU Model Selection
                         current_cpu_model = self.vm_info.get('cpu_model', 'default')
                         yield Label(f"CPU Model: {current_cpu_model}", id="cpu-model-label", classes="tabd")
@@ -963,16 +1006,16 @@ class VMDetailModal(ModalScreen):
                         xml_root = ET.fromstring(self.vm_info['xml'])
                         arch_elem = xml_root.find(".//os/type")
                         arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64'
-                        
+
                         cpu_models = get_cpu_models(self.domain.connect(), arch)
                         # Ensure 'host-passthrough' and 'default' are in the list
                         if 'host-passthrough' not in cpu_models:
                             cpu_models.append('host-passthrough')
                         if 'default' not in cpu_models:
                             cpu_models.append('default')
-                        
+
                         cpu_model_options = [(model, model) for model in sorted(cpu_models)]
-                        
+
                         yield Select(
                             cpu_model_options,
                             value=current_cpu_model,
@@ -999,16 +1042,36 @@ class VMDetailModal(ModalScreen):
                             yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
 
                         if firmware_type == 'UEFI':
-                            uefi_files = get_uefi_files()
-                            uefi_options = [(os.path.basename(f), f) for f in uefi_files]
-                            
+                            yield Checkbox(
+                                "Secure Boot",
+                                value=firmware_info.get('secure_boot', False),
+                                id="secure-boot-checkbox",
+                                disabled=not is_stopped,
+                            )
+                            #yield Checkbox(
+                            #    "AMD-SEV-ES",
+                            #    value=firmware_info.get('secure_boot', False),
+                            #    id="amdseves-boot-checkbox",
+                            #    disabled=not is_stopped,
+                            #)
+
+                            all_uefi_files = get_uefi_files()
+
+                            # Filter files based on secure boot status
+                            is_secure_boot_enabled = firmware_info.get('secure_boot', False)
+                            if is_secure_boot_enabled:
+                                uefi_files_to_show = [f for f in all_uefi_files if 'secure-boot' in f.features]
+                            else:
+                                uefi_files_to_show = all_uefi_files
+
+                            uefi_options = [(os.path.basename(f.executable), f.executable) for f in uefi_files_to_show if f.executable]
+
                             yield Select(
                                 uefi_options,
                                 value=firmware_path,
                                 id="uefi-file-select",
                                 disabled=not is_stopped,
                                 allow_blank=True,
-                                classes="uefi-file-select",
                             )
 
                         if "machine_type" in self.vm_info:
