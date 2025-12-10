@@ -1697,18 +1697,6 @@ class VMDetailModal(ModalScreen):
                                             yield Static(f"      • {dns_server}")
 
                 if self.vm_info.get("devices"):
-                    with TabPane("Devices", id="detail-devices-tab"):
-                        with ScrollableContainer(classes="info-details"):
-                            for device_type, device_list in self.vm_info["devices"].items():
-                                if device_type == "virtiofs":
-                                    pass
-                                else:
-                                    yield Static(f"  {device_type.replace('_', ' ').title()}:")
-                                    for device in device_list:
-                                        detail_str = ", ".join(f"{k}: {v}" for k, v in device.items())
-                                        yield Static(f"    • {detail_str}")
-
-                if self.vm_info.get("devices"):
                     with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
                         if self.vm_info.get('shared_memory') == False:
                             yield Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", classes="tabd-warning")
@@ -1748,6 +1736,9 @@ class VMDetailModal(ModalScreen):
                             allow_blank=False,
                         )
 
+                with TabPane("Graphics", id="detail-graphics-tab"):
+                    yield Label("Graphics")
+ 
             with TabbedContent(id="detail2-vm"):
         # TOFIX !
                 with TabPane("Serial", id="detail-serial-tab"):
