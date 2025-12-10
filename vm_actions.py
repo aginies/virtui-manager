@@ -8,6 +8,7 @@ import string
 import uuid
 import copy
 import libvirt
+import logging
 import xml.etree.ElementTree as ET
 from libvirt_utils import _find_vol_by_path, _get_disabled_disks_elem
 from utils import log_function_call
@@ -295,28 +296,47 @@ def remove_disk(domain, disk_dev_path):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-
+    logging.debug(f"remove_disk: Attempting to remove disk: {disk_dev_path}")
+    logging.debug(f"remove_disk: VM XML description:\n{xml_desc}")
+    
     disk_to_remove_xml = None
-    for disk in root.findall(".//disk[@device='disk'] | .//disk[@device='cdrom']"):
+
+    # Try two separate findall calls and combine
+    disks_type_disk = root.findall(".//disk[@device='disk']")
+    disks_type_cdrom = root.findall(".//disk[@device='cdrom']")
+    all_matching_disks = disks_type_disk + disks_type_cdrom
+
+    for disk in all_matching_disks:
         source = disk.find("source")
         target = disk.find("target")
+        
+        current_disk_path = ""
+        current_target_dev = ""
+
+        if source is not None:
+            if "file" in source.attrib:
+                current_disk_path = source.get("file")
+            elif "pool" in source.attrib and "volume" in source.attrib:
+                pool_name = source.get("pool")
+                vol_name = source.get("volume")
+                try:
+                    pool = domain.connect().storagePoolLookupByName(pool_name)
+                    vol = pool.storageVolLookupByName(vol_name)
+                    current_disk_path = vol.path()
+                except libvirt.libvirtError as e:
+                    current_disk_path = f"ERROR: Could not resolve volume path for {vol_name} in {pool_name}"
+            
+        if target is not None:
+            current_target_dev = target.get("dev")
 
         match = False
-        if source is not None:
-            if source.get("file") == disk_dev_path:
-                match = True
-            elif source.get("pool") and source.get("volume"):
-                # This is a volume. We need to resolve its path.
-                try:
-                    pool = domain.connect().storagePoolLookupByName(source.get("pool"))
-                    vol = pool.storageVolLookupByName(source.get("volume"))
-                    if vol.path() == disk_dev_path:
-                        match = True
-                except libvirt.libvirtError:
-                    pass # Volume not found, path doesn't match
-        
-        if not match and target is not None and target.get("dev") == disk_dev_path:
+        logging.debug(f"remove_disk: Comparing disk_dev_path={repr(disk_dev_path)} with current_disk_path={repr(current_disk_path)} and current_target_dev={repr(current_target_dev)}")
+        if current_disk_path == disk_dev_path:
             match = True
+        elif current_target_dev == disk_dev_path: # This is for matching by "vda", "vdb" etc.
+            match = True
+        else:
+            logging.debug(f"remove_disk: No exact match found for this disk element.")
 
         if match:
             disk_to_remove_xml = ET.tostring(disk, encoding="unicode")
@@ -330,6 +350,7 @@ def remove_disk(domain, disk_dev_path):
         flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
 
     domain.detachDeviceFlags(disk_to_remove_xml, flags)
+
 
 @log_function_call
 def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
