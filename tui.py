@@ -28,7 +28,8 @@ from vm_actions import (
 )
 from network_manager import (
     list_networks, create_network, delete_network, get_vms_using_network,
-    set_network_active, set_network_autostart, get_host_network_interfaces
+    set_network_active, set_network_autostart, get_host_network_interfaces,
+    get_existing_subnets
 )
 from firmware_manager import (
     get_uefi_files, get_host_sev_capabilities
@@ -636,6 +637,13 @@ class CreateNetworkModal(BaseModal[None]):
             try:
                 # Validate network address
                 ip_network = ipaddress.ip_network(ip, strict=False)
+
+                # Check for subnet overlap
+                existing_subnets = get_existing_subnets(self.app.conn)
+                for existing_subnet in existing_subnets:
+                    if ip_network.overlaps(existing_subnet):
+                        self.app.show_error_message(f"Subnet {ip_network} overlaps with existing network's subnet {existing_subnet}.")
+                        return
 
                 if dhcp:
                     # Validate DHCP start and end IPs

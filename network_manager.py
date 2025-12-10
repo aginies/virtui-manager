@@ -188,3 +188,37 @@ def generate_mac_address():
             secrets.randbelow(0xff),
             secrets.randbelow(0xff) ]
     return ':'.join(map(lambda x: "%02x" % x, mac))
+
+def get_existing_subnets(conn: libvirt.virConnect) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """
+    Returns a list of all IP subnets currently configured for libvirt networks.
+    """
+    subnets = []
+    for net in conn.listAllNetworks():
+        try:
+            xml_desc = net.XMLDesc(0)
+            root = ET.fromstring(xml_desc)
+            ip_elements = root.findall(".//ip")
+            for ip_elem in ip_elements:
+                ip_addr = ip_elem.get("address")
+                netmask = ip_elem.get("netmask")
+                prefix = ip_elem.get("prefix")
+                if ip_addr:
+                    if netmask:
+                        subnet_str = f"{ip_addr}/{netmask}"
+                        try:
+                            # ipaddress can handle netmask just fine
+                            subnet = ipaddress.ip_network(subnet_str, strict=False)
+                            subnets.append(subnet)
+                        except ValueError:
+                            pass # Ignore invalid configurations
+                    elif prefix:
+                        subnet_str = f"{ip_addr}/{prefix}"
+                        try:
+                            subnet = ipaddress.ip_network(subnet_str, strict=False)
+                            subnets.append(subnet)
+                        except ValueError:
+                            pass # Ignore invalid configurations
+        except libvirt.libvirtError:
+            continue # Ignore networks we can't get XML for
+    return subnets
