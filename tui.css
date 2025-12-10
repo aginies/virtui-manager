@@ -34,7 +34,7 @@
 #network-detail-dialog,
 #add-edit-virtiofs-dialog,
 #create-vm-dialog,
-#create-nat-network-dialog,
+#create-network-dialog,
 #edit-cpu-dialog,
 #create-volume-dialog,
 #edit-memory-dialog,
@@ -63,7 +63,7 @@
 #edit-server-dialog Label,
 #add-server-dialog Label,
 #add-disk-dialog Label,
-#create-nat-network-dialog Label,
+#create-network-dialog Label,
 #remove-disk-dialog Label,
 #edit-cpu-dialog Label,
 #edit-memory-dialog Label,
@@ -106,7 +106,7 @@
 #network-detail-dialog Horizontal,
 #edit-cpu-dialog Horizontal,
 #create-vm-dialog Horizontal,
-#create-nat-network-dialog Horizontal,
+#create-network-dialog Horizontal,
 #add-edit-virtiofs-dialog Horizontal,
 #add-pool-dialog Horizontal,
 #add-disk-dialog Horizontal,
@@ -138,6 +138,9 @@
     margin: 0 1;
 }
 
+.dir-target-path-input {
+    width: 50%;
+}
 #filter-dialog Button {
     width: 50%;
     height: auto;
