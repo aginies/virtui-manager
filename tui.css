@@ -276,6 +276,8 @@ Button {
     background: red;
 }
 .clone-button {
+    height: 4vh;
+    color: black;
     background: pink;
 }
 .rename-button {
