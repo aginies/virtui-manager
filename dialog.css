@@ -168,4 +168,43 @@ ChangeNetworkDialog #dialog-buttons Button {
     margin-left: 1;
 }
 
+#tab-storage {
+    layout: vertical;
+}
 
+#storage-tree {
+    height: 1fr; /* Take up remaining space */
+    border: round $primary;
+    margin-bottom: 1;
+}
+
+#storage-actions {
+    height: auto;
+}
+
+.storage-action-label {
+    margin-top: 1;
+    text-style: bold;
+}
+
+.storage-buttons {
+    align: center middle;
+    height: auto;
+    margin-top: 1;
+}
+
+.storage-buttons Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
+.net-name,
+.net-active-check,
+.net-autostart-check,
+.net-usage {
+    width: 2fr;
+    margin-right: 2;
+}
+.net-mode {
+    width: 1fr;
+}
