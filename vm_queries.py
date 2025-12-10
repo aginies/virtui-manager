@@ -383,6 +383,35 @@ def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, str]:
             
     return disk_to_vm_map
 
+def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, str]:
+    """
+    Scans all VMs and returns a mapping of NVRAM file path to VM name.
+    """
+    nvram_to_vm_map = {}
+    if not conn:
+        return nvram_to_vm_map
+
+    try:
+        domains = conn.listAllDomains(0)
+    except libvirt.libvirtError:
+        return nvram_to_vm_map
+
+    for domain in domains:
+        try:
+            xml_desc = domain.XMLDesc(0)
+            root = ET.fromstring(xml_desc)
+            nvram_elem = root.find('.//os/nvram')
+            if nvram_elem is not None:
+                nvram_path = nvram_elem.text
+                if nvram_path:
+                    vm_name = domain.name()
+                    nvram_to_vm_map[nvram_path] = vm_name
+        except (libvirt.libvirtError, ET.ParseError):
+            continue
+    return nvram_to_vm_map
+
+
+
 def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of network name to a list of VM names using it.
