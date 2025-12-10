@@ -292,7 +292,9 @@ Button {
 #detail_add_disk, #detail_remove_disk, #detail_disable_disk, #detail_enable_disk {
     width: 1fr;
 }
-
+.networks-table {
+    height: 20;
+}
 .edit-detail-btn {
     width: auto;
     height: 1;
