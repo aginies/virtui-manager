@@ -650,3 +650,37 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str, secure_boot: bool):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+
+def set_vm_sound_model(domain, model):
+    """
+    Sets the sound model for a VM.
+    The VM must be stopped.
+    """
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change the sound model.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    devices = root.find("devices")
+    if devices is None:
+        devices = ET.SubElement(root, "devices")
+
+    sound = devices.find("sound")
+    if sound is None:
+        sound = ET.SubElement(devices, "sound")
+
+    model_elem = sound.find("model")
+
+    if model is None:
+        if model_elem is not None:
+            sound.remove(model_elem)
+    else:
+        if model_elem is None:
+            model_elem = ET.SubElement(sound, "model")
+
+        model_elem.set("type", model)
+
+    new_xml = ET.tostring(root, encoding="unicode")
+    domain.connect().defineXML(new_xml)
+
