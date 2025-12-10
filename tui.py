@@ -553,33 +553,7 @@ class SelectMachineTypeModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class SelectVideoModelModal(BaseModal[str | None]):
-    """Modal screen for selecting video model."""
 
-    def __init__(self, video_models: list[str], current_video_model: str = "") -> None:
-        super().__init__()
-        self.video_models = video_models
-        self.current_video_model = current_video_model
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="select-video-model-dialog"):
-            yield Label("Select Video Model:")
-            with RadioSet(id="video-model-radioset"):
-                for model in self.video_models:
-                    yield RadioButton(model, value=model == self.current_video_model)
-            with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "save-btn":
-            radioset = self.query_one(RadioSet)
-            if radioset.pressed_button:
-                self.dismiss(radioset.pressed_button.label.plain)
-            else:
-                self.dismiss(None) # Nothing selected
-        else:
-            self.dismiss(None)
 
 
 class NetworkListItem(ListItem):
@@ -841,6 +815,7 @@ class VMDetailModal(ModalScreen):
         self.selected_virtiofs_info = None # Store full info for editing
         self.boot_order = self.vm_info.get('boot', {}).get('order', [])
         self.sev_caps = {'sev': False, 'sev-es': False}
+        self.uefi_path_map = {}
 
 
     def on_mount(self) -> None:
@@ -912,12 +887,19 @@ class VMDetailModal(ModalScreen):
         except Exception: # QueryError
             pass
 
-        current_value = uefi_select.value
-        uefi_options = [(os.path.basename(f.executable), f.executable) for f in uefi_files_to_show if f.executable]
+        current_path = self.vm_info['firmware'].get('path')
+        current_basename = os.path.basename(current_path) if current_path else None
+        
+        self.uefi_path_map = {os.path.basename(f.executable): f.executable for f in uefi_files_to_show if f.executable}
+
+        if current_basename and current_basename not in self.uefi_path_map:
+            self.uefi_path_map[current_basename] = current_path
+        
+        uefi_options = [(basename, basename) for basename in sorted(self.uefi_path_map.keys())]
         uefi_select.set_options(uefi_options)
 
-        if any(opt[1] == current_value for opt in uefi_options):
-            uefi_select.value = current_value
+        if current_basename and any(opt[1] == current_basename for opt in uefi_options):
+            uefi_select.value = current_basename
 
 
     def _populate_boot_list(self) -> None:
@@ -986,7 +968,8 @@ class VMDetailModal(ModalScreen):
 
     @on(Select.Changed, "#uefi-file-select")
     def on_uefi_file_changed(self, event: Select.Changed) -> None:
-        new_uefi_path = event.value
+        new_uefi_basename = event.value
+        new_uefi_path = self.uefi_path_map.get(new_uefi_basename)
         original_uefi_path = self.vm_info['firmware'].get('path')
         current_secure_boot = self.query_one("#secure-boot-checkbox", Checkbox).value
 
@@ -1004,10 +987,29 @@ class VMDetailModal(ModalScreen):
             self.vm_info['firmware']['path'] = new_uefi_path
         except (libvirt.libvirtError, ValueError, Exception) as e:
             self.app.show_error_message(f"Error setting UEFI file: {e}")
-            if original_uefi_path is None:
-                event.control.clear()
+            original_basename = os.path.basename(original_uefi_path) if original_uefi_path else None
+            if original_basename and original_basename in self.uefi_path_map:
+                event.control.value = original_basename
             else:
-                event.control.value = original_uefi_path
+                event.control.clear()
+
+    @on(Select.Changed, "#video-model-select")
+    def on_video_model_changed(self, event: Select.Changed) -> None:
+        new_model = event.value
+        current_model = self.vm_info.get('video_model') or "default"
+
+        if new_model == current_model:
+            return
+        
+        try:
+            set_vm_video_model(self.domain, new_model if new_model != "default" else None)
+            self.app.show_success_message(f"Video model set to {new_model}")
+            self.query_one("#video-model-label").update(f"Video Model: {new_model}")
+            self.vm_info['video_model'] = new_model if new_model != "default" else None
+        except (libvirt.libvirtError, Exception) as e:
+            self.app.show_error_message(f"Error setting video model: {e}")
+            # Revert selection
+            event.control.value = current_model
 
     @on(Checkbox.Changed, "#secure-boot-checkbox")
     def on_secure_boot_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -1050,7 +1052,7 @@ class VMDetailModal(ModalScreen):
             yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
             status = self.vm_info.get("status", "N/A")
             yield Label(f"Status: {status}", id=f"status-{status.lower().replace(' ', '-')}", classes="centered-status-label")
-            yield Button("Toggle Tab Content", id="toggle-detail-button")
+            yield Button("Toggle Tab Content", id="toggle-detail-button", classes="toggle-detail-button")
             with TabbedContent(id="detail-vm"):
                 with TabPane("CPU", id="detail-cpu-tab"):
                     is_stopped = self.vm_info.get("status") == "Stopped"
@@ -1113,7 +1115,6 @@ class VMDetailModal(ModalScreen):
 
                             yield Select(
                                 [], # Will be populated in on_mount
-                                value=firmware_path,
                                 id="uefi-file-select",
                                 disabled=not is_stopped,
                                 allow_blank=True,
@@ -1246,9 +1247,18 @@ class VMDetailModal(ModalScreen):
                 with TabPane("Video", id="detail-video-tab"):
                     with Vertical(classes="info-details"):
                         current_model = self.vm_info.get('video_model') or "default"
-                        yield Label(f"Video Model: {current_model}", id="video-model-label")
                         is_stopped = self.vm_info.get("status") == "Stopped"
-                        yield Button("Change Model", id="change-video-model", disabled=not is_stopped)
+                        video_models = ["default", "virtio", "qxl", "vga", "cirrus", "bochs", "ramfb", "none"]
+                        video_model_options = [(model, model) for model in video_models]
+
+                        yield Label(f"Video Model: {current_model}", id="video-model-label")
+                        yield Select(
+                            video_model_options,
+                            value=current_model if current_model in video_models else "default",
+                            id="video-model-select",
+                            disabled=not is_stopped,
+                            allow_blank=False,
+                        )
 
             with TabbedContent(id="detail2-vm"):
         # TOFIX !
@@ -1408,21 +1418,7 @@ class VMDetailModal(ModalScreen):
             vm2.toggle_class("hidden")
         elif event.button.id == "close-btn":
             self.dismiss()
-        elif event.button.id == "change-video-model":
-            video_models = ["virtio", "qxl", "vga"]
-            current_model = self.vm_info.get('video_model')
 
-            def set_video_model_callback(new_model: str | None):
-                if new_model and new_model != current_model:
-                    try:
-                        set_vm_video_model(self.domain, new_model)
-                        self.app.show_success_message(f"Video model set to {new_model}")
-                        self.query_one("#video-model-label").update(f"Video Model: {new_model}")
-                        self.vm_info['video_model'] = new_model
-                    except (libvirt.libvirtError, Exception) as e:
-                        self.app.show_error_message(f"Error setting video model: {e}")
-            
-            self.app.push_screen(SelectVideoModelModal(video_models, current_model), set_video_model_callback)
         elif event.button.id == "add-virtiofs-btn":
             def add_virtiofs_callback(result):
                 if result:
