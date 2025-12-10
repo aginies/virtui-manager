@@ -103,6 +103,30 @@ def set_pool_autostart(pool: libvirt.virStoragePool, autostart: bool):
     except libvirt.libvirtError as e:
         raise Exception(f"Error setting autostart for pool '{pool.name()}': {e}") from e
 
+def create_storage_pool(conn, name, pool_type, target, source_host=None, source_path=None, source_format=None):
+    """
+    Creates and starts a new storage pool.
+    """
+    xml = f"<pool type='{pool_type}'>"
+    xml += f"<name>{name}</name>"
+    if pool_type == 'dir':
+        xml += f"<target><path>{target}</path></target>"
+    elif pool_type == 'netfs':
+        xml += f"<source>"
+        if source_host:
+            xml += f"<host name='{source_host}'/>"
+        if source_path:
+            xml += f"<dir path='{source_path}'/>"
+        if source_format:
+            xml += f"<format type='{source_format}'/>"
+        xml += f"</source>"
+        xml += f"<target><path>{target}</path></target>"
+    xml += f"</pool>"
+    pool = conn.storagePoolDefineXML(xml, 0)
+    pool.create(0)
+    pool.setAutostart(1)
+    return pool
+
 def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_format: str):
     """
     Creates a new storage volume in a pool.
