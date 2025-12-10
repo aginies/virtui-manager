@@ -78,11 +78,17 @@ ConfirmationDialog #dialog-buttons Button {
     margin-right: 1;
 }
 
+SelectDiskModal,
+SelectPoolModal,
+DeleteVMConfirmationDialog,
 CloneNameDialog {
     align: center middle;
     content-align: center middle;
 }
 
+SelectDiskModal #dialog,
+SelectPoolModal #dialog,
+DeleteVMConfirmationDialog #dialog,
 CloneNameDialog #dialog {
     width: 60;
     height: 13;
@@ -91,6 +97,9 @@ CloneNameDialog #dialog {
     background: $surface;
 }
 
+SelectDiskModal #question,
+SelectPoolModal #question,
+DeleteVMConfirmationDialog #question,
 CloneNameDialog #question {
     align: center middle;
     margin-bottom: 1;
@@ -100,10 +109,16 @@ CloneNameDialog Input {
     margin-bottom: 1;
 }
 
+SelectDiskModal #dialog-buttons,
+SelectPoolModal #dialog-buttons,
+DeleteVMConfirmationDialog #dialog-buttons,
 CloneNameDialog #dialog-buttons {
     width: 100%;
 }
 
+SelectDiskModal #dialog-buttons Button,
+SelectPoolModal #dialog-buttons Button,
+DeleteVMConfirmationDialog #dialog-buttons Button,
 CloneNameDialog #dialog-buttons Button {
     width: 50%;
     margin-left: 1;
