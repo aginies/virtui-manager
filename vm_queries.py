@@ -589,3 +589,56 @@ def get_vm_sound_model(xml_content: str) -> str | None:
     except ET.ParseError:
         pass
     return None
+
+@log_function_call
+def get_vm_graphics_info(xml_content: str) -> dict:
+    """
+    Extracts graphics information (VNC/Spice) from a VM's XML definition.
+    Returns a dictionary with graphics details.
+    """
+    graphics_info = {
+        'type': None,
+        'listen_type': 'none',  # 'none' or 'address'
+        'address': '0.0.0.0', # Default to all interfaces
+        'port': None,
+        'autoport': True,
+        'password_enabled': False,
+        'password': None,
+    }
+
+    try:
+        root = ET.fromstring(xml_content)
+        devices = root.find('devices')
+        if devices is None:
+            return graphics_info
+
+        graphics_elem = devices.find('graphics')
+        if graphics_elem is None:
+            return graphics_info
+
+        graphics_type = graphics_elem.get('type')
+        if graphics_type not in ['vnc', 'spice']:
+            return graphics_info
+
+        graphics_info['type'] = graphics_type
+        graphics_info['port'] = graphics_elem.get('port')
+        graphics_info['autoport'] = graphics_elem.get('autoport') != 'no'
+
+        listen_elem = graphics_elem.find('listen')
+        if listen_elem is not None:
+            listen_type = listen_elem.get('type')
+            if listen_type in ['address', 'network']: # 'network' is deprecated but might be found
+                graphics_info['listen_type'] = 'address'
+                graphics_info['address'] = listen_elem.get('address', '0.0.0.0')
+            else: # 'none' (default), 'socket' (not exposed in UI)
+                graphics_info['listen_type'] = 'none'
+                graphics_info['address'] = '' # Clear address if listen type is none
+
+        if graphics_elem.get('passwd'):
+            graphics_info['password_enabled'] = True
+            graphics_info['password'] = graphics_elem.get('passwd') # Note: libvirt XML may not store password
+
+    except ET.ParseError:
+        pass
+
+    return graphics_info
