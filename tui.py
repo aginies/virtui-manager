@@ -912,7 +912,7 @@ class ServerPrefModal(BaseModal[None]):
                 with TabPane("Storage", id="tab-storage"):
                     with ScrollableContainer(classes="storage-pool-details"):
                         yield Tree("Storage Pools", id="storage-tree")
-                    with Vertical(id="storage-actions", classes="small"):
+                    with Vertical(id="storage-actions", classes="button-details"):
                         with Horizontal():
                             yield Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button")
                             yield Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button")
@@ -1832,17 +1832,17 @@ class VMDetailModal(ModalScreen):
                         num_disks = len(disks_info)
                         self.disk_list_view.styles.height = num_disks if num_disks > 0 else 1
                         yield self.disk_list_view
-                    with Horizontal():
-                        has_enabled_disks = any(d['status'] == 'enabled' for d in disks_info)
-                        has_disabled_disks = any(d['status'] == 'disabled' for d in disks_info)
-                        remove_button = Button("Remove Disk", id="detail_remove_disk", classes="detail-disks")
-                        disable_button = Button("Disable Disk", id="detail_disable_disk", classes="detail-disks")
-                        enable_button = Button("Enable Disk", id="detail_enable_disk", classes="detail-disks")
-                        remove_button.display = has_enabled_disks
-                        disable_button.display = has_enabled_disks
-                        enable_button.display = has_disabled_disks
 
-                        #with Vertical():
+                    has_enabled_disks = any(d['status'] == 'enabled' for d in disks_info)
+                    has_disabled_disks = any(d['status'] == 'disabled' for d in disks_info)
+                    remove_button = Button("Remove Disk", id="detail_remove_disk", classes="detail-disks")
+                    disable_button = Button("Disable Disk", id="detail_disable_disk", classes="detail-disks")
+                    enable_button = Button("Enable Disk", id="detail_enable_disk", classes="detail-disks")
+                    remove_button.display = has_enabled_disks
+                    disable_button.display = has_enabled_disks
+                    enable_button.display = has_disabled_disks
+
+                    with Vertical(classes="button-details"):
                         with Horizontal():
                             yield Button("Add Disk", id="detail_add_disk", classes="detail-disks")
                             yield Button("Attach Existing Disk", id="detail_attach_disk", classes="detail-disks")
@@ -1904,7 +1904,7 @@ class VMDetailModal(ModalScreen):
                                     key=fs.get('target')
                                 )
                             yield virtiofs_table
-                        with Vertical():
+                        with Vertical(classes="button-details"):
                             with Horizontal():
                                 yield Button("Add", variant="primary", id="add-virtiofs-btn", classes="detail-disks")
                                 yield Button("Edit", variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")

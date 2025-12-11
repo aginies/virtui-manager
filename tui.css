@@ -187,7 +187,7 @@ Select {
 .detail-disks {
     width: 20%;
     background: $primary;
-    height: 3vh;
+    /*height: 3vh;*/
 }
 .tabd {
     margin: 0 1;
@@ -260,6 +260,11 @@ VMDetailModal {
 }
 .info-details ListView > ListItem {
     height: 1;
+}
+.button-details {
+    height: 3vh;
+    padding: 0 0;
+    padding: 0 0;
 }
 .select-pool-dialog ListView > ListItem {
     height: 1;
