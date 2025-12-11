@@ -541,15 +541,37 @@ def enable_disk(domain, disk_path):
 def set_vcpu(domain, vcpu_count: int):
     """
     Sets the number of virtual CPUs for a VM.
+    Handles both simple and complex (with attributes) vCPU definitions.
     """
     if not domain:
         raise ValueError("Invalid domain object.")
 
-    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
-    if domain.isActive():
-        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+    conn = domain.connect()
 
-    domain.setVcpusFlags(vcpu_count, flags)
+    xml_flags = libvirt.VIR_DOMAIN_XML_INACTIVE if domain.isPersistent() else 0
+    xml_desc = domain.XMLDesc(xml_flags)
+    root = ET.fromstring(xml_desc)
+
+    vcpu_elem = root.find('vcpu')
+    if vcpu_elem is None:
+        vcpu_elem = ET.SubElement(root, 'vcpu')
+
+    vcpu_elem.text = str(vcpu_count)
+    new_xml = ET.tostring(root, encoding='unicode')
+
+    conn.defineXML(new_xml)
+
+    # For a running VM, the only way to change vCPU count is setVcpusFlags.
+    if domain.isActive():
+        try:
+            # Attempt a live update.
+            domain.setVcpusFlags(vcpu_count, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+        except libvirt.libvirtError as e:
+            # If live update fails, we inform the user. The persistent config is still updated.
+            raise libvirt.libvirtError(
+                f"Live vCPU update failed: {e}. "
+                "The configuration has been saved and will apply on the next reboot."
+            )
 
 @log_function_call
 def set_memory(domain, memory_mb: int):
