@@ -188,7 +188,7 @@ class VMCard(Static):
                             yield Button("Pause", id="pause", variant="primary")
                             yield Button("Resume", id="resume", variant="success")
                         with Vertical():
-                            yield Button("View XML", id="xml")
+                            yield Button( "Configure", id="configure-button", variant="primary")
                             yield Static(classes="button-separator")
                             yield Button("Connect", id="connect", variant="default")
                 with TabPane("Snapshot", id="snapshot-tab"):
@@ -214,7 +214,7 @@ class VMCard(Static):
                             yield Static(classes="button-separator")
                             yield Button("Clone", id="clone", classes="clone-button")
                         with Vertical():
-                            yield Button( "Show info", id="info-button", variant="primary")
+                            yield Button("View XML", id="xml")
                             yield Static(classes="button-separator")
                             yield Button( "Rename", id="rename-button", variant="primary", classes="rename-button")
 
@@ -277,7 +277,7 @@ class VMCard(Static):
         connect_button = self.query_one("#connect", Button)
         restore_button = self.query_one("#snapshot_restore", Button)
         snapshot_delete_button = self.query_one("#snapshot_delete", Button)
-        info_button = self.query_one("#info-button", Button)
+        info_button = self.query_one("#configure-button", Button)
         clone_button = self.query_one("#clone", Button)
         rename_button = self.query_one("#rename-button", Button)
         cpu_sparkline_container = self.query_one("#cpu-sparkline-container")
@@ -565,7 +565,7 @@ class VMCard(Static):
 
             self.app.push_screen(RenameVMDialog(current_name=self.name), handle_rename)
 
-        elif event.button.id == "info-button":
+        elif event.button.id == "configure-button":
             self.post_message(VMNameClicked(vm_name=self.name))
 
     @on(Click, "#cpu-mem-info")
