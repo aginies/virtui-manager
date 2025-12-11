@@ -1,10 +1,8 @@
 import os
 import sys
 import logging
-import ipaddress
 import asyncio
 import traceback
-from typing import TypeVar
 from collections import namedtuple
 
 from libvirt_error_handler import register_error_handler
@@ -43,6 +41,7 @@ from config import load_config, save_config
 from modals.base_modal import BaseModal
 from modals.connection_modals import ConnectionModal, ServerSelectionModal, AddServerModal, EditServerModal
 from modals.network_modals import CreateNetworkModal, NetworkXMLModal
+from modals.log_modal import LogModal
 
 # Configure logging
 logging.basicConfig(
@@ -203,28 +202,6 @@ class ServerManagementModal(ModalScreen):
     def action_close_modal(self) -> None:
         """Close the modal."""
         self.dismiss(self.servers)
-
-class LogModal(BaseModal[None]):
-    """ Modal Screen to show Log"""
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="text-show"):
-            yield Label("Log View", id="title")
-            log_file = "vm_manager.log"
-            text_area = TextArea()
-            text_area.load_text(open(log_file, "r").read())
-            yield text_area
-        with Horizontal():
-            yield Button("Close", variant="default", id="cancel-btn", classes="Buttonpage")
-
-    def on_mount(self) -> None:
-        """Called when the modal is mounted."""
-        text_area = self.query_one(TextArea)
-        text_area.scroll_end()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "cancel-btn":
-            self.dismiss(None)
 
 class AddDiskModal(BaseModal[dict | None]):
     """Modal screen for adding a new disk."""
