@@ -802,6 +802,78 @@ def set_vm_sound_model(domain, model):
     domain.connect().defineXML(new_xml)
 
 
+    conn.defineXML(new_xml)
+
+
+@log_function_call
+def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen_type: str, address: str, port: int | None, autoport: bool, password_enabled: bool, password: str | None):
+    """
+    Sets the graphics configuration (VNC/Spice) for a VM.
+    The VM must be stopped.
+    """
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change graphics settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
+
+    # Remove existing graphics elements of other types or if no graphics type is specified
+    existing_graphics_elements = devices.findall('graphics')
+    for elem in existing_graphics_elements:
+        if graphics_type is None or elem.get('type') != graphics_type:
+            devices.remove(elem)
+
+    graphics_elem = devices.find(f"graphics[@type='{graphics_type}']")
+
+    if graphics_type is None:
+        # If no graphics type is specified, ensure all graphics elements are removed
+        for elem in existing_graphics_elements:
+            devices.remove(elem)
+    else:
+        if graphics_elem is None:
+            graphics_elem = ET.SubElement(devices, 'graphics', type=graphics_type)
+
+        # Set port and autoport
+        if autoport:
+            graphics_elem.set('autoport', 'yes')
+            if 'port' in graphics_elem.attrib:
+                del graphics_elem.attrib['port']
+        else:
+            if 'autoport' in graphics_elem.attrib:
+                del graphics_elem.attrib['autoport']
+            if port is not None:
+                graphics_elem.set('port', str(port))
+            elif 'port' in graphics_elem.attrib:
+                del graphics_elem.attrib['port'] # If autoport is off and no port provided, remove it
+
+
+        # Set listen address
+        listen_elem = graphics_elem.find('listen')
+        if listen_type == 'address':
+            if listen_elem is None:
+                listen_elem = ET.SubElement(graphics_elem, 'listen', type='address')
+            else:
+                listen_elem.set('type', 'address')
+            listen_elem.set('address', address)
+        else:  # listen_type == 'none'
+            if listen_elem is not None:
+                graphics_elem.remove(listen_elem)
+        
+        # Set password
+        if password_enabled and password:
+            graphics_elem.set('passwd', password)
+        elif 'passwd' in graphics_elem.attrib:
+            del graphics_elem.attrib['passwd']
+
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+
 @log_function_call
 def start_vm(domain):
     """
