@@ -381,7 +381,7 @@ class ServerPrefModal(BaseModal[None]):
         add_pool_btn.display = is_pool
 
         self.query_one("#del-vol-btn").display = is_volume
-        self.query_one("#add-vol-btn").display = is_volume or is_pool
+        self.query_one("#add-vol-btn").display = is_pool
 
         if is_pool:
             is_active = node_data.get('status') == 'active'
