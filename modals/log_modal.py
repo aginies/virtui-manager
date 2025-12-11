@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Button, Label, TextArea
 from textual.containers import Vertical, Horizontal
 
-from modals.base_modal import BaseModal
+from modals.base_modals import BaseModal
 
 class LogModal(BaseModal[None]):
     """ Modal Screen to show Log"""
