@@ -52,7 +52,7 @@ from modals.log_modal import LogModal
 from modals.server_modals import ServerManagementModal
 from modals.disk_pool_modals import (
         SelectPoolModal, AddDiskModal,AddPoolModal,
-        CreateVolumeModal
+        CreateVolumeModal, SelectDiskModal
         )
 
 # Configure logging
