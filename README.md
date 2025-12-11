@@ -57,6 +57,10 @@ General capabilities:
 git clone https://github.com/aginies/vmanager.git
 ```
 
+```bash
+python3 vmanager.py
+```
+
 ### Install Python dependencies
 
 ```bash
