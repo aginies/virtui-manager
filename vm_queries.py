@@ -444,40 +444,6 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, str]:
     return nvram_to_vm_map
 
 
-
-@log_function_call
-def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
-    """
-    Scans all VMs and returns a mapping of network name to a list of VM names using it.
-    """
-    network_to_vms = {}
-    if not conn:
-        return network_to_vms
-    
-    try:
-        domains = conn.listAllDomains(0)
-    except libvirt.libvirtError:
-        return network_to_vms
-
-    for domain in domains:
-        try:
-            xml_desc = domain.XMLDesc(0)
-            vm_name = domain.name()
-            # get_vm_networks_info is already in vm_queries.py
-            networks = get_vm_networks_info(xml_desc)
-            for net in networks:
-                net_name = net.get('network')
-                if net_name:
-                    if net_name not in network_to_vms:
-                        network_to_vms[net_name] = []
-                    if vm_name not in network_to_vms[net_name]:
-                        network_to_vms[net_name].append(vm_name)
-        except libvirt.libvirtError:
-            continue
-            
-    return network_to_vms
-
-
 @log_function_call
 def get_supported_machine_types(conn, domain):
     """
@@ -503,6 +469,7 @@ def get_supported_machine_types(conn, domain):
     except (libvirt.libvirtError, ET.ParseError) as e:
         print(f"Error getting machine types: {e}")
         return []
+
 
 @log_function_call
 def get_vm_shared_memory_info(xml_content: str) -> bool:
@@ -547,21 +514,6 @@ def get_vm_video_model(xml_content: str) -> str | None:
     except ET.ParseError:
         pass
     return None
-
-@log_function_call
-def get_cpu_models(conn, arch):
-    """
-    Get a list of CPU models for a given architecture.
-    """
-    if not conn:
-        return []
-    try:
-        # Returns a list of supported CPU model names
-        models = conn.getCPUModelNames(arch)
-        return models
-    except libvirt.libvirtError as e:
-        print(f"Error getting CPU models for arch {arch}: {e}")
-        return []
 
 @log_function_call
 def get_vm_cpu_model(xml_content: str) -> str | None:
