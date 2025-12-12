@@ -10,7 +10,7 @@ from textual.widgets import (
 from textual.app import ComposeResult
 from textual import on
 from storage_manager import create_storage_pool
-from modals.base_modal import BaseModal
+from modals.base_modals import BaseModal
 from modals.utils_modals import DirectorySelectionModal
 
 class SelectPoolModal(BaseModal[str | None]):
