@@ -4,6 +4,7 @@ Main Interface
 import subprocess
 import logging
 import tempfile
+import traceback
 from datetime import datetime
 import os
 from pathlib import Path
@@ -248,7 +249,7 @@ class VMCard(Static):
         if hasattr(self.app, 'websockify_processes') and self.vm:
             uuid = self.vm.UUIDString()
             if uuid in self.app.websockify_processes:
-                proc, _, _ = self.app.websockify_processes[uuid]
+                proc, _, _, _ = self.app.websockify_processes[uuid]
                 if proc.poll() is None: # Check if the process is still running
                     if self.webc_status_indicator != " (WebC On)":
                         self.webc_status_indicator = " (WebC On)"
@@ -510,8 +511,23 @@ class VMCard(Static):
                 if result == "stop":
                     uuid = self.vm.UUIDString()
                     if uuid in self.app.websockify_processes:
-                        proc, _, _ = self.app.websockify_processes[uuid]
-                        proc.terminate()
+                        websockify_proc, _, _, ssh_info = self.app.websockify_processes[uuid]
+                        websockify_proc.terminate() # Stop websockify
+
+                        if ssh_info and ssh_info.get("control_socket"):
+                            control_socket = ssh_info["control_socket"]
+                            try:
+                                stop_cmd = ["ssh", "-S", control_socket, "-O", "exit", "dummy-host"]
+                                subprocess.run(stop_cmd, check=True, timeout=5, capture_output=True)
+                                logging.info(f"SSH tunnel stopped for VM {self.name} using socket {control_socket}")
+                            except FileNotFoundError:
+                                self.app.show_error_message("'ssh' command not found.")
+                            except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                                logging.warning(f"Could not stop SSH tunnel cleanly for VM {self.name}: {e.stderr.decode() if e.stderr else e}")
+                            finally:
+                                if os.path.exists(control_socket):
+                                    os.remove(control_socket)
+
                         del self.app.websockify_processes[uuid]
                         self.app.show_success_message("Web console stopped.")
                         self._update_webc_status() # Update status after stopping
@@ -521,14 +537,13 @@ class VMCard(Static):
 
             uuid = self.vm.UUIDString()
             if uuid in self.app.websockify_processes:
-                proc, _, url = self.app.websockify_processes[uuid]
+                proc, _, url, _ = self.app.websockify_processes[uuid]
                 if proc.poll() is None:
                     self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
                     return
-                else:
-                    # Process has terminated, remove it
+                else: # Process has terminated, remove it
                     del self.app.websockify_processes[uuid]
-                    self._update_webc_status() # Update status if process terminated
+                    self._update_webc_status()
 
             try:
                 xml_content = self.vm.XMLDesc(0)
@@ -538,83 +553,97 @@ class VMCard(Static):
                     self.app.show_error_message("Web console only supports VNC graphics.")
                     return
 
-                if not graphics_info.get('password_enabled'):
-                    self.app.show_error_message("Warning: VNC password not set. Connection may not be secure.")
-
                 vnc_port = graphics_info.get('port')
                 if not vnc_port or vnc_port == '-1':
                     self.app.show_error_message("Could not determine VNC port for the VM.")
                     return
 
-                if check_is_firewalld_running():
-                    self.app.show_error_message(f"Warning: Firewalld is running, check that {self.app.WC_PORT_RANGE_START}-{self.app.WC_PORT_RANGE_END} are open")
-                
-                vnc_target_host = graphics_info.get('address', '127.0.0.1')
-                if vnc_target_host in ['0.0.0.0', '::']:
-                    parsed_uri = urlparse(self.app.connection_uri)
-                    vnc_target_host = parsed_uri.hostname or '127.0.0.1'
+                # --- SSH Tunnel Logic ---
+                ssh_info = {}
+                parsed_uri = urlparse(self.app.connection_uri)
+                is_remote_ssh = parsed_uri.hostname not in (None, 'localhost', '127.0.0.1') and parsed_uri.scheme == 'qemu+ssh'
 
-                web_port = find_free_port(int(self.app.WC_PORT_RANGE_START),
-                                          int(self.app.WC_PORT_RANGE_END)
-                                          )
+                vnc_target_host = graphics_info.get('address', '127.0.0.1')
+                vnc_target_port = vnc_port
+
+                if is_remote_ssh:
+                    self.app.show_success_message(f"Remote connection detected. Setting up SSH tunnel...")
+                    user = parsed_uri.username
+                    host = parsed_uri.hostname
+                    remote_user_host = f"{user}@{host}" if user else host
+
+                    # Create a temporary socket for ssh control
+                    # We use a temp directory to store the socket
+                    temp_dir = tempfile.gettempdir()
+                    socket_name = f"vmanager_ssh_{uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
+                    control_socket = os.path.join(temp_dir, socket_name)
+
+                    tunnel_port = find_free_port(int(self.app.WC_PORT_RANGE_START),
+                                                 int(self.app.WC_PORT_RANGE_END)
+                                                 )
+
+                    ssh_cmd = [
+                        "ssh",
+                        "-M", "-S", control_socket,
+                        "-f", "-N",
+                        "-L", f"{tunnel_port}:127.0.0.1:{vnc_port}",
+                        remote_user_host
+                    ]
+
+                    try:
+                        subprocess.run(ssh_cmd, check=True, timeout=10)
+                        logging.info(f"SSH tunnel created for VM {self.name} via {control_socket}")
+                        ssh_info = {"control_socket": control_socket}
+
+                        # Websockify now connects to the local end of the tunnel
+                        vnc_target_host = '127.0.0.1'
+                        vnc_target_port = tunnel_port
+
+                    except FileNotFoundError:
+                        self.app.show_error_message("SSH command not found. Cannot create tunnel.")
+                        return
+                    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+                        self.app.show_error_message(f"Failed to create SSH tunnel: {e}")
+                        logging.error(f"SSH tunnel command failed: {' '.join(ssh_cmd)}")
+                        return
+
+                elif vnc_target_host in ['0.0.0.0', '::']:
+                    vnc_target_host = '127.0.0.1'
+
+                web_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
                 
-                # Use absolute path to websockify found earlier
                 websockify_path = "/usr/bin/websockify"
                 novnc_path = "/usr/share/novnc/"
 
                 websockify_cmd = [
-                    websockify_path,
-                    "--run-once",
-                    str(web_port),
-                    f"{vnc_target_host}:{vnc_port}",
-                    "--web",
-                    novnc_path
+                    websockify_path, "--run-once", str(web_port),
+                    f"{vnc_target_host}:{vnc_target_port}", "--web", novnc_path
                 ]
 
-                # Check for cert and key for secure connection
                 config_dir = Path.home() / '.config' / 'vmanager'
                 cert_file = config_dir / 'cert.pem'
                 key_file = config_dir / 'key.pem'
                 url_scheme = "http"
 
-                # Open the log file for stderr redirection
-                log_file_path = "vm_manager.log" # Assuming it's in the current working directory
-                log_file_handle = None
-                try:
-                    log_file_handle = open(log_file_path, 'a')
-
+                log_file_path = "vm_manager.log"
+                with open(log_file_path, 'a') as log_file_handle:
                     if cert_file.exists() and key_file.exists():
                         websockify_cmd.extend(["--cert", str(cert_file), "--key", str(key_file)])
                         url_scheme = "https"
                         self.app.show_success_message("Found cert/key, using secure wss connection.")
-                        self.app.show_success_message("You can only connect once to the VM, if you quit the connection you need to restart a Web Console")
 
                     proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
                     
-                    # The browser connects to the machine running vmanager, which we assume is localhost.
                     url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
-                    self.app.websockify_processes[uuid] = (proc, web_port, url)
+                    self.app.websockify_processes[uuid] = (proc, web_port, url, ssh_info)
                     
                     self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
-                    self._update_webc_status() # Update status after starting
+                    self._update_webc_status()
 
-                except libvirt.libvirtError as e:
-                    self.app.show_error_message(f"Error getting VM graphics info: {e}")
-                except FileNotFoundError:
-                    self.app.show_error_message("websockify or novnc not found. Please install novnc.")
-                except Exception as e:
-                    self.app.show_error_message(f"Failed to start web console: {e}")
-                finally:
-                    # Ensure the log file handle is closed
-                    if log_file_handle and not log_file_handle.closed:
-                        log_file_handle.close()
-
-            except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error getting VM graphics info: {e}")
-            except FileNotFoundError:
-                self.app.show_error_message("websockify or novnc not found. Please install novnc.")
-            except Exception as e:
+            except (libvirt.libvirtError, FileNotFoundError, Exception) as e:
                 self.app.show_error_message(f"Failed to start web console: {e}")
+                logging.error(f"Error during web console startup for VM {self.name}: {traceback.format_exc()}")
+
 
         elif event.button.id == "snapshot_take":
             logging.info(f"Attempting to take snapshot for VM: {self.name}")
