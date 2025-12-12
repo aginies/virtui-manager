@@ -409,6 +409,7 @@ class VMCard(Static):
         rename_button = self.query_one("#rename-button", Button)
         cpu_sparkline_container = self.query_one("#cpu-sparkline-container")
         mem_sparkline_container = self.query_one("#mem-sparkline-container")
+        xml_button = self.query_one("#xml", Button)
 
 
         is_stopped = self.status == "Stopped"
@@ -432,6 +433,11 @@ class VMCard(Static):
 
         cpu_sparkline_container.display = not is_stopped
         mem_sparkline_container.display = not is_stopped
+
+        if is_stopped:
+            xml_button.label = "Edit XML"
+        else:
+            xml_button.label = "View XML"
 
 
     def _update_status_styling(self):
@@ -519,19 +525,73 @@ class VMCard(Static):
             except libvirt.libvirtError as e:
                 self.app.show_error_message(f"Error on VM {self.name} during 'resume': {e}")
         elif event.button.id == "xml":
-            logging.info(f"Attempting to view XML for VM: {self.name}")
-            try:
-                xml_content = self.vm.XMLDesc(0)
-                with tempfile.NamedTemporaryFile(
-                    mode="w+", delete=False, suffix=".xml"
-                ) as tmpfile:
-                    tmpfile.write(xml_content)
-                    tmpfile.flush()
+            if self.status == "Stopped":
+                # EDIT LOGIC
+                logging.info(f"Attempting to edit XML for VM: {self.name}")
+                original_xml = self.vm.XMLDesc(0)
+                tmp_file_path = None
+                try:
+                    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".xml", encoding="utf-8") as f:
+                        tmp_file_path = f.name
+                        f.write(original_xml)
+
+                    editor = os.environ.get('EDITOR', 'vim')
+
                     with self.app.suspend():
-                        subprocess.run(["view", tmpfile.name], check=True)
-                logging.info(f"Successfully viewed XML for VM: {self.name}")
-            except (libvirt.libvirtError, FileNotFoundError, subprocess.CalledProcessError) as e:
-                self.app.show_error_message(f"Error on VM {self.name} during 'view XML': {e}")
+                        subprocess.run([editor, tmp_file_path], check=True)
+
+                    with open(tmp_file_path, 'r', encoding="utf-8") as f:
+                        modified_xml = f.read()
+
+                    if original_xml.strip() != modified_xml.strip():
+                        try:
+                            conn = self.vm.connect()
+                            conn.defineXML(modified_xml)
+                            self.app.show_success_message(f"VM '{self.name}' configuration updated successfully.")
+                            logging.info(f"Successfully updated XML for VM: {self.name}")
+                            self.app.refresh_vm_list()
+                        except libvirt.libvirtError as e:
+                            error_msg = f"Invalid XML for '{self.name}': {e}. Your changes have been discarded."
+                            self.app.show_error_message(error_msg)
+                            logging.error(error_msg)
+                    else:
+                        self.app.show_success_message("No changes made to the XML configuration.")
+
+                except FileNotFoundError:
+                    self.app.show_error_message(f"Editor '{os.environ.get('EDITOR', 'vim')}' not found. Please set your $EDITOR environment variable.")
+                except subprocess.CalledProcessError:
+                    self.app.show_error_message("Editor closed with an error. No changes were applied.")
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error processing XML for VM {self.name}: {e}")
+                except Exception as e:
+                    self.app.show_error_message(f"An unexpected error occurred: {e}")
+                    logging.error(f"Unexpected error editing XML: {traceback.format_exc()}")
+                finally:
+                    if tmp_file_path and os.path.exists(tmp_file_path):
+                        os.remove(tmp_file_path)
+            else:
+                # VIEW LOGIC
+                logging.info(f"Attempting to view XML for VM: {self.name}")
+                tmp_file_path = None
+                try:
+                    xml_content = self.vm.XMLDesc(0)
+                    with tempfile.NamedTemporaryFile(
+                        mode="w", delete=False, suffix=".xml", encoding="utf-8"
+                    ) as tmpfile:
+                        tmp_file_path = tmpfile.name
+                        tmpfile.write(xml_content)
+
+                    viewer = "view"
+                    with self.app.suspend():
+                        subprocess.run([viewer, tmp_file_path], check=True)
+                    logging.info(f"Successfully viewed XML for VM: {self.name}")
+                except FileNotFoundError:
+                     self.app.show_error_message(f"Viewer '{viewer}' not found.")
+                except (libvirt.libvirtError, subprocess.CalledProcessError) as e:
+                    self.app.show_error_message(f"Error on VM {self.name} during 'View XML': {e}")
+                finally:
+                    if tmp_file_path and os.path.exists(tmp_file_path):
+                        os.remove(tmp_file_path)
         elif event.button.id == "connect":
             logging.info(f"Attempting to connect to VM: {self.name}")
             try:
