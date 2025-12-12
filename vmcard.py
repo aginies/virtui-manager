@@ -6,7 +6,6 @@ import logging
 import tempfile
 from datetime import datetime
 import os
-from typing import TypeVar
 from pathlib import Path
 import libvirt
 
@@ -25,9 +24,7 @@ from vm_actions import clone_vm, rename_vm, start_vm
 
 from modals.base_modals import BaseDialog
 from modals.utils_modals import ConfirmationDialog, LoadingModal
-from utils import find_free_port
-
-T = TypeVar("T")
+from utils import find_free_port, check_is_firewalld_running
 
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
@@ -547,12 +544,17 @@ class VMCard(Static):
                 if not vnc_port or vnc_port == '-1':
                     self.app.show_error_message("Could not determine VNC port for the VM.")
                     return
+
+                if check_is_firewalld_running():
+                    self.app.show_error_message(f"Warning: Firewalld is running, check that {self.app.WC_PORT_RANGE_START}-{self.app.WC_PORT_RANGE_END} are open")
                 
                 vnc_host = graphics_info.get('address', '127.0.0.1')
                 if vnc_host in ['0.0.0.0', '::']:
                     vnc_host = '127.0.0.1'
 
-                web_port = find_free_port()
+                web_port = find_free_port(int(self.app.WC_PORT_RANGE_START),
+                                          int(self.app.WC_PORT_RANGE_END)
+                                          )
                 
                 # Use absolute path to websockify found earlier
                 websockify_path = "/usr/bin/websockify"

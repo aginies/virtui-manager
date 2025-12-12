@@ -1904,6 +1904,8 @@ class VMManagerTUI(App):
     websockify_processes = {}
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
+    WC_PORT_RANGE_START = config.get('WC_PORT_RANGE_START')
+    WC_PORT_RANGE_END = config.get('WC_PORT_RANGE_END')
     sort_by = reactive("default")
     search_text = reactive("")
     num_pages = reactive(1)

@@ -4,17 +4,21 @@ Utils functions
 import logging
 from functools import wraps
 import socket
-from contextlib import closing
 import subprocess
 from pathlib import Path
 import shutil
 import os
 
-def find_free_port():
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(('', 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
+
+def find_free_port(start, end):
+    for port in range(start, end + 1):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(('', port))
+                return port
+        except OSError:
+            continue
+    raise IOError(f"Could not find a free port in the range {start}-{end}")
 
 def log_function_call(func):
     """
@@ -62,16 +66,36 @@ def generate_webconsole_keys_if_needed():
             except FileNotFoundError:
                 messages.append(('error', "openssl command not found. Please install openssl."))
 
-        return messages
+    return messages
 
 def check_virt_viewer():
     """Checks if virt-viewer is installed."""
     return shutil.which("virt-viewer") is not None
 
-def check_websockify():
-    """Checks if websockify is installed."""
-    return shutil.which("websockify") is not None
+def check_firewalld():
+    """Checks if firewalld is installed."""
+    return shutil.which("firewalld") is not None
 
 def check_novnc_path():
     """ Check novnc is available"""
-    return os.path.exists("/usr/share/novnc") is not None
+    return os.path.exists("/usr/share/novnc")
+
+def check_websockify():
+      """Checks if websockify is installed."""
+      return shutil.which("websockify") is not None
+
+def check_is_firewalld_running():
+    """
+    Check firewalld running
+    """
+    if check_firewalld():
+        try:
+            result = subprocess.run(
+                ["systemctl", "is-active", "firewalld"],
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return False
