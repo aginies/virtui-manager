@@ -16,6 +16,7 @@ This project is part of a SUSE **hackweek** project, its not mature, under heavy
 
 ## Media
 
+![Screenshot](https://paste.opensuse.org/pastes/706a2fe96295/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/197e5bd23cfe/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/54611f2dc75a/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/dfb48c4390b5/raw)
