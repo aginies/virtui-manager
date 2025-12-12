@@ -10,7 +10,7 @@ from collections import namedtuple
 
 from textual.app import App, ComposeResult
 from textual.widgets import (
-        DirectoryTree, Header, Footer, Select, Button, Input, Label, Static,
+        Header, Footer, Select, Button, Input, Label, Static,
         DataTable, Link, TextArea, ListView, ListItem, Checkbox, RadioButton,
         RadioSet, TabbedContent, TabPane, Tree
         )
@@ -26,8 +26,8 @@ from vm_queries import (
     get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
     get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
     get_supported_machine_types, get_boot_info, get_vm_video_model,
-    get_cpu_models, get_vm_cpu_model, get_vm_sound_model, get_vm_graphics_info,
-    get_all_vm_nvram_usage, get_all_vm_disk_usage, get_all_network_usage
+    get_vm_cpu_model, get_vm_sound_model, get_vm_graphics_info,
+    get_all_vm_nvram_usage, get_all_vm_disk_usage,
 )
 from vm_actions import (
     add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -44,8 +44,12 @@ from firmware_manager import (
 )
 import storage_manager
 from config import load_config, save_config
-
-from modals.base_modal import BaseModal
+from libvirt_utils import get_cpu_models, get_all_network_usage, check_for_spice_vms
+from utils import (
+        generate_webconsole_keys_if_needed, check_virt_viewer,
+        check_websockify, check_novnc_path
+)
+from modals.base_modals import BaseModal
 from modals.connection_modals import ServerSelectionModal
 from modals.network_modals import CreateNetworkModal, NetworkXMLModal
 from modals.log_modal import LogModal
@@ -661,7 +665,6 @@ class VMDetailModal(ModalScreen):
         self.sev_caps = {'sev': False, 'sev-es': False}
         self.uefi_path_map = {}
         self.graphics_info = get_vm_graphics_info(self.domain.XMLDesc(0)) # Initialize here
-
 
     def on_mount(self) -> None:
         try:
@@ -1800,7 +1803,7 @@ class VirshShellScreen(ModalScreen):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            self.output_textarea.text += f"Connected to: {uri}\n"
+            self.output_textarea.write(f"Connected to: {uri}\n")
 
             self.read_stdout_task = asyncio.create_task(self._read_stream(self.virsh_process.stdout))
             self.read_stderr_task = asyncio.create_task(self._read_stream(self.virsh_process.stderr))
@@ -1822,7 +1825,7 @@ class VirshShellScreen(ModalScreen):
                 line = await stream.readline()
                 if not line:
                     break
-                self.output_textarea.text += line.decode().strip() + "\n"
+                self.output_textarea.write(line.decode())
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -1837,7 +1840,7 @@ class VirshShellScreen(ModalScreen):
         if not command:
             return
 
-        self.output_textarea.text += f"virsh> {command}\n"
+        self.output_textarea.write(f"virsh> {command}\n")
 
         if self.virsh_process and self.virsh_process.stdin:
             try:
@@ -1882,6 +1885,9 @@ class VMManagerTUI(App):
 
     config = load_config()
     servers = config.get('servers', [])
+    virt_viewer_available = reactive(True)
+    websockify_available = reactive(True)
+    novnc_available = reactive(True)
 
     @staticmethod
     def _get_initial_connection_uri(servers_list):
@@ -1892,6 +1898,7 @@ class VMManagerTUI(App):
     connection_uri = reactive(_get_initial_connection_uri(servers))
     conn = None
     current_page = reactive(0)
+    websockify_processes = {}
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
     sort_by = reactive("default")
@@ -1928,6 +1935,7 @@ class VMManagerTUI(App):
 
         yield Static(id="error-footer", classes="error-message")
         yield Footer()
+        self.show_success_message("In some Terminal use 'Shift' key while selecting text with the mouse to copy it.")
 
     def reload_servers(self, new_servers):
         self.servers = new_servers
@@ -1938,6 +1946,26 @@ class VMManagerTUI(App):
         """Called when the app is mounted."""
         register_error_handler()
         self.title = "Rainbow V Manager"
+
+        if not check_virt_viewer():
+            self.show_error_message("'virt-viewer' is not installed. 'Connect' button will be disabled.")
+            self.virt_viewer_available = False
+
+        if not check_websockify():
+            self.show_error_message("'websockify' is not installed. 'Web Console' button will be disabled.")
+            self.websockify_available = False
+
+        if not check_novnc_path():
+            self.show_error_message("'novnc' is not installed. It is required for 'Web Console'.")
+            self.novnc_available = False
+
+        messages = generate_webconsole_keys_if_needed()
+        for level, message in messages:
+            if level == 'info':
+                self.show_success_message(message)
+            else:
+                self.show_error_message(message)
+
         self.sparkline_data = {}
         error_footer = self.query_one("#error-footer")
         error_footer.styles.height = 0
@@ -1975,6 +2003,8 @@ class VMManagerTUI(App):
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
+        for proc, _ in self.websockify_processes.values():
+            proc.terminate()
         if self.conn:
             self.conn.close()
 
@@ -1992,6 +2022,9 @@ class VMManagerTUI(App):
                 self.show_error_message(f"Failed to connect to {uri}")
             else:
                 self.connection_uri = uri
+                spice_message = check_for_spice_vms(self.conn)
+                if spice_message:
+                    self.show_success_message(spice_message)
         except libvirt.libvirtError as e:
             self.show_error_message(f"Connection error: {e}")
             self.conn = None
@@ -2256,6 +2289,9 @@ class VMManagerTUI(App):
                 vm_card.cpu = info[3]
                 vm_card.memory = info[1] // 1024
                 vm_card.vm = domain
+                xml_content = domain.XMLDesc(0)
+                graphics_info = get_vm_graphics_info(xml_content)
+                vm_card.graphics_type = graphics_info.get("type", "vnc")
                 vm_card.color = "#323232"
                 vms_container.mount(vm_card)
         except libvirt.libvirtError:

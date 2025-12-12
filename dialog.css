@@ -78,6 +78,7 @@ ConfirmationDialog #dialog-buttons Button {
     margin-right: 1;
 }
 
+WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
 DeleteVMConfirmationDialog,
@@ -86,6 +87,7 @@ CloneNameDialog {
     content-align: center middle;
 }
 
+WebConsoleDialog #dialog,
 SelectDiskModal #dialog,
 SelectPoolModal #dialog,
 DeleteVMConfirmationDialog #dialog,
@@ -109,6 +111,7 @@ CloneNameDialog Input {
     margin-bottom: 1;
 }
 
+WebConsoleDialog #dialog-buttons,
 SelectDiskModal #dialog-buttons,
 SelectPoolModal #dialog-buttons,
 DeleteVMConfirmationDialog #dialog-buttons,
@@ -116,6 +119,7 @@ CloneNameDialog #dialog-buttons {
     width: 100%;
 }
 
+WebConsoleDialog #dialog-buttons Button,
 SelectDiskModal #dialog-buttons Button,
 SelectPoolModal #dialog-buttons Button,
 DeleteVMConfirmationDialog #dialog-buttons Button,

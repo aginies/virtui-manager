@@ -1,22 +1,30 @@
+"""
+Main Interface
+"""
 import subprocess
-import tempfile
-import libvirt
 import logging
+import tempfile
 from datetime import datetime
-import re
 import os
-from vm_queries import get_status, get_vm_disks_info
-from vm_actions import clone_vm, rename_vm, start_vm
+from typing import TypeVar
+from pathlib import Path
+import libvirt
 
-from textual.widgets import Static, Button, Input, ListView, ListItem, Label, TabbedContent, TabPane, Sparkline, Select, Checkbox
+from textual.widgets import (
+        Static, Button, Input, ListView, ListItem, Label, TabbedContent,
+        TabPane, Sparkline, Select, Checkbox, Link
+        )
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.message import Message
-from textual.screen import Screen
 from textual import on
 from textual.events import Click
-from textual.timer import Timer
-from typing import TypeVar
+from textual.css.query import NoMatches
+from vm_queries import get_vm_disks_info, get_vm_graphics_info
+from vm_actions import clone_vm, rename_vm, start_vm
+
+from modals.base_modals import BaseDialog
+from utils import find_free_port
 
 T = TypeVar("T")
 
@@ -26,29 +34,6 @@ class VMNameClicked(Message):
     def __init__(self, vm_name: str) -> None:
         super().__init__()
         self.vm_name = vm_name
-
-
-class BaseDialog(Screen[T]):
-    """A base class for dialogs with a cancel binding."""
-
-    BINDINGS = [("escape", "cancel_modal", "Cancel")]
-
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal dialog."""
-        self.dismiss(None)
-
-    @staticmethod
-    def validate_name(name: str) -> str | None:
-        """
-        Validates a name to be alphanumeric with underscores, not hyphens.
-        Returns an error message string if invalid, otherwise None.
-        """
-        if not name:
-            return "Name cannot be empty."
-        if not re.fullmatch(r"^[a-zA-Z0-9_]+$", name):
-            return "Name must be alphanumeric and can contain underscores, but not hyphens."
-        return None
-
 
 class ConfirmationDialog(BaseDialog[bool]):
     """A dialog to confirm an action."""
@@ -147,6 +132,35 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
             self.dismiss(None)
 
 
+class WebConsoleDialog(BaseDialog[str | None]):
+    """A dialog to show the web console URL."""
+
+    def __init__(self, url: str) -> None:
+        super().__init__()
+        self.url = url
+
+    def compose(self):
+        yield Vertical(
+            Label("Web Console is running at"),
+            Input(value=self.url, disabled=True),
+            Link("Open Browser", url=self.url),
+            Label(""),
+            Horizontal(
+                Button("Stop", variant="error", id="stop"),
+                Button("Close", variant="primary", id="close"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+            classes="info-container",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "stop":
+            self.dismiss("stop")
+        else:
+            self.dismiss(None)
+
+
 class VMCard(Static):
     name = reactive("")
     status = reactive("")
@@ -154,6 +168,8 @@ class VMCard(Static):
     memory = reactive(0)
     vm = reactive(None)
     color = reactive("blue")
+    webc_status_indicator = reactive("")
+    graphics_type = reactive("vnc")
 
     def __init__(self, cpu_history: list[float] = None, mem_history: list[float] = None) -> None:
         super().__init__()
@@ -162,12 +178,35 @@ class VMCard(Static):
         self.last_cpu_time = 0
         self.last_cpu_time_ts = 0
 
+    def _update_webc_status(self) -> None:
+        """Updates the web console status indicator."""
+        if hasattr(self.app, 'websockify_processes') and self.vm:
+            uuid = self.vm.UUIDString()
+            if uuid in self.app.websockify_processes:
+                proc, _, _ = self.app.websockify_processes[uuid]
+                if proc.poll() is None: # Check if the process is still running
+                    if self.webc_status_indicator != " (WebConsole On)":
+                        self.webc_status_indicator = " (WebC On)"
+                    return
+        if self.webc_status_indicator != "":
+            self.webc_status_indicator = ""
+
+    def watch_webc_status_indicator(self, old_value: str, new_value: str) -> None:
+        """Called when webc_status_indicator changes."""
+        try:
+            status_widget = self.query_one("#status")
+            status_text = f"Status: {self.status}{new_value}"
+            status_widget.update(status_text)
+        except NoMatches:
+            # The widget hasn't been composed yet, ignore.
+            pass
+
     def compose(self):
         with Vertical(id="info-container"):
             classes = ""
             yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
-            yield Static(f"Status: {self.status}", id="status", classes=status_class)
+            yield Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=status_class)
             with Horizontal(id="cpu-sparkline-container", classes="sparkline-container"):
                 cpu_spark = Static(f"{self.cpu} VCPU", id="cpu-mem-info", classes="sparkline-label")
                 yield cpu_spark
@@ -189,7 +228,7 @@ class VMCard(Static):
                             yield Button("Resume", id="resume", variant="success")
                         with Vertical():
                             yield Button( "Configure", id="configure-button", variant="primary")
-                            yield Static(classes="button-separator")
+                            yield Button("Web Console", id="web_console", variant="default")
                             yield Button("Connect", id="connect", variant="default")
                 with TabPane("Snapshot", id="snapshot-tab"):
                     with Horizontal():
@@ -222,6 +261,7 @@ class VMCard(Static):
         self.styles.background = self.color
         self.update_button_layout()
         self._update_status_styling()
+        self._update_webc_status() # Call on mount
         self.update_stats()  # Initial update
         self.timer = self.set_interval(5, self.update_stats)
 
@@ -231,6 +271,7 @@ class VMCard(Static):
 
     def update_stats(self) -> None:
         """Update CPU and memory statistics."""
+        self._update_webc_status() # Call on mount
         if self.vm and self.vm.isActive():
             try:
                 # CPU Usage
@@ -275,6 +316,7 @@ class VMCard(Static):
         resume_button = self.query_one("#resume", Button)
         delete_button = self.query_one("#delete", Button)
         connect_button = self.query_one("#connect", Button)
+        web_console_button = self.query_one("#web_console", Button)
         restore_button = self.query_one("#snapshot_restore", Button)
         snapshot_delete_button = self.query_one("#snapshot_delete", Button)
         info_button = self.query_one("#configure-button", Button)
@@ -296,7 +338,8 @@ class VMCard(Static):
         rename_button.display = is_stopped
         pause_button.display = is_running
         resume_button.display = is_paused
-        connect_button.display = is_running or is_paused
+        connect_button.display = (is_running or is_paused) and self.app.virt_viewer_available
+        web_console_button.display = (is_running or is_paused) and self.graphics_type == "vnc"
         restore_button.display = has_snapshots
         snapshot_delete_button.display = has_snapshots
         info_button.display = True # Always show info button
@@ -319,7 +362,7 @@ class VMCard(Static):
                     #self.vm.create()
                     self.status = "Running"
                     status_widget = self.query_one("#status")
-                    status_widget.update(f"Status: {self.status}")
+                    status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
                     self._update_status_styling()
                     self.update_button_layout()
                     self.app.refresh_vm_list()
@@ -350,7 +393,7 @@ class VMCard(Static):
                     self.vm.suspend()
                     self.status = "Paused"
                     status_widget = self.query_one("#status")
-                    status_widget.update(f"Status: {self.status}")
+                    status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
                     self._update_status_styling()
                     self.update_button_layout()
                     self.app.refresh_vm_list()
@@ -364,7 +407,8 @@ class VMCard(Static):
                 self.vm.resume()
                 self.status = "Running"
                 status_widget = self.query_one("#status")
-                status_widget.update(f"Status: {self.status}")
+                status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
+                self._update_webc_status()
                 self._update_status_styling()
                 self.app.refresh_vm_list()
                 logging.info(f"Successfully resumed VM: {self.name}")
@@ -394,6 +438,112 @@ class VMCard(Static):
                 logging.info(f"Successfully launched virt-viewer for VM: {self.name}")
             except (FileNotFoundError, subprocess.CalledProcessError) as e:
                 self.app.show_error_message(f"Error on VM {self.name} during 'connect': {e}")
+        elif event.button.id == "web_console":
+            logging.info(f"Web console requested for VM: {self.name}")
+
+            def handle_web_console_dialog(result: str | None):
+                if result == "stop":
+                    uuid = self.vm.UUIDString()
+                    if uuid in self.app.websockify_processes:
+                        proc, _, _ = self.app.websockify_processes[uuid]
+                        proc.terminate()
+                        del self.app.websockify_processes[uuid]
+                        self.app.show_success_message("Web console stopped.")
+                        self._update_webc_status() # Update status after stopping
+
+            if not hasattr(self.app, 'websockify_processes'):
+                self.app.websockify_processes = {}
+
+            uuid = self.vm.UUIDString()
+            if uuid in self.app.websockify_processes:
+                proc, _, url = self.app.websockify_processes[uuid]
+                if proc.poll() is None:
+                    self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
+                    return
+                else:
+                    # Process has terminated, remove it
+                    del self.app.websockify_processes[uuid]
+                    self._update_webc_status() # Update status if process terminated
+
+            try:
+                xml_content = self.vm.XMLDesc(0)
+                graphics_info = get_vm_graphics_info(xml_content)
+
+                if graphics_info['type'] != 'vnc':
+                    self.app.show_error_message("Web console only supports VNC graphics.")
+                    return
+
+                if not graphics_info.get('password_enabled'):
+                    self.app.show_error_message("Warning: VNC password not set. Connection may not be secure.")
+
+                vnc_port = graphics_info.get('port')
+                if not vnc_port or vnc_port == '-1':
+                    self.app.show_error_message("Could not determine VNC port for the VM.")
+                    return
+                
+                vnc_host = graphics_info.get('address', '127.0.0.1')
+                if vnc_host in ['0.0.0.0', '::']:
+                    vnc_host = '127.0.0.1'
+
+                web_port = find_free_port()
+                
+                # Use absolute path to websockify found earlier
+                websockify_path = "/usr/bin/websockify"
+                novnc_path = "/usr/share/novnc/"
+
+                websockify_cmd = [
+                    websockify_path,
+                    "--run-once",
+                    str(web_port),
+                    f"{vnc_host}:{vnc_port}",
+                    "--web",
+                    novnc_path
+                ]
+
+                # Check for cert and key for secure connection
+                config_dir = Path.home() / '.config' / 'vmanager'
+                cert_file = config_dir / 'cert.pem'
+                key_file = config_dir / 'key.pem'
+                url_scheme = "http"
+
+                # Open the log file for stderr redirection
+                log_file_path = "vm_manager.log" # Assuming it's in the current working directory
+                log_file_handle = None
+                try:
+                    log_file_handle = open(log_file_path, 'a')
+
+                    if cert_file.exists() and key_file.exists():
+                        websockify_cmd.extend(["--cert", str(cert_file), "--key", str(key_file)])
+                        url_scheme = "https"
+                        self.app.show_success_message("Found cert/key, using secure wss connection.")
+                        self.app.show_success_message("You can only connect once to the VM, if you quit the connection you need to restart a Web Console")
+
+                    proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
+                    
+                    url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
+                    self.app.websockify_processes[uuid] = (proc, web_port, url)
+                    
+                    self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
+                    self._update_webc_status() # Update status after starting
+
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error getting VM graphics info: {e}")
+                except FileNotFoundError:
+                    self.app.show_error_message("websockify or novnc not found. Please install novnc.")
+                except Exception as e:
+                    self.app.show_error_message(f"Failed to start web console: {e}")
+                finally:
+                    # Ensure the log file handle is closed
+                    if log_file_handle and not log_file_handle.closed:
+                        log_file_handle.close()
+
+            except libvirt.libvirtError as e:
+                self.app.show_error_message(f"Error getting VM graphics info: {e}")
+            except FileNotFoundError:
+                self.app.show_error_message("websockify or novnc not found. Please install novnc.")
+            except Exception as e:
+                self.app.show_error_message(f"Failed to start web console: {e}")
+
         elif event.button.id == "snapshot_take":
             logging.info(f"Attempting to take snapshot for VM: {self.name}")
             def handle_snapshot_name(name: str | None) -> None:
@@ -431,7 +581,7 @@ class VMCard(Static):
                             self.status = "Stopped"
 
                         status_widget = self.query_one("#status")
-                        status_widget.update(f"Status: {self.status}")
+                        status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
                         self._update_status_styling()
                         self.update_button_layout()
 
