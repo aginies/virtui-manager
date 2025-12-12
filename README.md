@@ -45,6 +45,7 @@ General capabilities:
 ## Requirements
 
 - Minimal terminal size: 34x92
+- Remote connection to libvirt server ssh needs an SSH key copy to server! (ssh-copy-id with no password)
 - Python 3.7+
 - libvirt
 - textual
