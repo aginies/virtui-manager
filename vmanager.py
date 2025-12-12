@@ -20,7 +20,7 @@ from textual.screen import ModalScreen
 from textual import on
 import libvirt
 from libvirt_error_handler import register_error_handler
-from vmcard import VMCard, VMNameClicked, ConfirmationDialog, ChangeNetworkDialog
+from vmcard import VMCard, VMNameClicked, ChangeNetworkDialog
 from vm_queries import (
     get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
     get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
@@ -51,6 +51,7 @@ from utils import (
         check_websockify, check_novnc_path
 )
 from modals.base_modals import BaseModal
+from modals.utils_modals import ConfirmationDialog
 from modals.connection_modals import ServerSelectionModal
 from modals.network_modals import CreateNetworkModal, NetworkXMLModal
 from modals.log_modal import LogModal

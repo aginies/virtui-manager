@@ -24,6 +24,7 @@ from vm_queries import get_vm_disks_info, get_vm_graphics_info
 from vm_actions import clone_vm, rename_vm, start_vm
 
 from modals.base_modals import BaseDialog
+from modals.utils_modals import ConfirmationDialog
 from utils import find_free_port
 
 T = TypeVar("T")
@@ -34,35 +35,6 @@ class VMNameClicked(Message):
     def __init__(self, vm_name: str) -> None:
         super().__init__()
         self.vm_name = vm_name
-
-class ConfirmationDialog(BaseDialog[bool]):
-    """A dialog to confirm an action."""
-
-    def __init__(self, prompt: str) -> None:
-        super().__init__()
-        self.prompt = prompt
-
-    def compose(self):
-        yield Vertical(
-            Label(self.prompt, id="question"),
-            Horizontal(
-                Button("Yes", variant="error", id="yes", classes="dialog-buttons"),
-                Button("No", variant="primary", id="no", classes="dialog-buttons"),
-                id="dialog-buttons",
-            ),
-            id="dialog",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "yes":
-            self.dismiss(True)
-        else:
-            self.dismiss(False)
-
-    def action_cancel_modal(self) -> None:
-        """Cancel the modal."""
-        self.dismiss(False)
-
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     """A dialog to confirm VM deletion with an option to delete storage."""
@@ -161,6 +133,101 @@ class WebConsoleDialog(BaseDialog[str | None]):
             self.dismiss(None)
 
 
+class CloneNameDialog(BaseDialog[str | None]):
+    """A dialog to ask for a new VM name when cloning."""
+
+    def compose(self):
+        yield Vertical(
+            Label("Enter new VM name", id="question"),
+            Input(placeholder="new_vm_name"),
+            Horizontal(
+                Button("Clone", variant="success", id="clone_vm"),
+                Button("Cancel", variant="error", id="cancel"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+            classes="info-container",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "clone_vm":
+            input_widget = self.query_one(Input)
+            new_name = input_widget.value.strip()
+
+            error = self.validate_name(new_name)
+            if error:
+                self.app.show_error_message(error)
+                return
+
+            self.dismiss(new_name)
+        else:
+            self.dismiss(None)
+
+
+class RenameVMDialog(BaseDialog[str | None]):
+    """A dialog to ask for a new VM name when renaming."""
+
+    def __init__(self, current_name: str) -> None:
+        super().__init__()
+        self.current_name = current_name
+
+    def compose(self):
+        yield Vertical(
+            Label(f"Current name: {self.current_name}"),
+            Label("Enter new VM name", id="question"),
+            Input(placeholder="new_vm_name"),
+            Horizontal(
+                Button("Rename", variant="success", id="rename_vm"),
+                Button("Cancel", variant="error", id="cancel"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+            classes="info-container",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "rename_vm":
+            input_widget = self.query_one(Input)
+            new_name = input_widget.value.strip()
+
+            error = self.validate_name(new_name)
+            if error:
+                self.app.show_error_message(error)
+                return
+
+            self.dismiss(new_name)
+        else:
+            self.dismiss(None)
+
+
+class SelectSnapshotDialog(BaseDialog[str | None]):
+    """A dialog to select a snapshot from a list."""
+
+    def __init__(self, snapshots: list, prompt: str) -> None:
+        super().__init__()
+        self.snapshots = snapshots
+        self.prompt = prompt
+
+    def compose(self):
+        yield Vertical(
+            Label(self.prompt),
+            ListView(
+                *[ListItem(Label(snap.getName())) for snap in self.snapshots],
+                id="snapshot-list",
+            ),
+            Button("Cancel", variant="error", id="cancel"),
+            id="dialog",
+        )
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        snapshot_name = event.item.query_one(Label).renderable
+        self.dismiss(str(snapshot_name))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel":
+            self.dismiss(None)
+
+
 class VMCard(Static):
     name = reactive("")
     status = reactive("")
@@ -185,7 +252,7 @@ class VMCard(Static):
             if uuid in self.app.websockify_processes:
                 proc, _, _ = self.app.websockify_processes[uuid]
                 if proc.poll() is None: # Check if the process is still running
-                    if self.webc_status_indicator != " (WebConsole On)":
+                    if self.webc_status_indicator != " (WebC On)":
                         self.webc_status_indicator = " (WebC On)"
                     return
         if self.webc_status_indicator != "":
@@ -754,96 +821,3 @@ class SnapshotNameDialog(BaseDialog[str | None]):
             self.dismiss(None)
 
 
-class CloneNameDialog(BaseDialog[str | None]):
-    """A dialog to ask for a new VM name when cloning."""
-
-    def compose(self):
-        yield Vertical(
-            Label("Enter new VM name", id="question"),
-            Input(placeholder="new_vm_name"),
-            Horizontal(
-                Button("Clone", variant="success", id="clone_vm"),
-                Button("Cancel", variant="error", id="cancel"),
-                id="dialog-buttons",
-            ),
-            id="dialog",
-            classes="info-container",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "clone_vm":
-            input_widget = self.query_one(Input)
-            new_name = input_widget.value.strip()
-
-            error = self.validate_name(new_name)
-            if error:
-                self.app.show_error_message(error)
-                return
-
-            self.dismiss(new_name)
-        else:
-            self.dismiss(None)
-
-
-class RenameVMDialog(BaseDialog[str | None]):
-    """A dialog to ask for a new VM name when renaming."""
-
-    def __init__(self, current_name: str) -> None:
-        super().__init__()
-        self.current_name = current_name
-
-    def compose(self):
-        yield Vertical(
-            Label(f"Current name: {self.current_name}"),
-            Label("Enter new VM name", id="question"),
-            Input(placeholder="new_vm_name"),
-            Horizontal(
-                Button("Rename", variant="success", id="rename_vm"),
-                Button("Cancel", variant="error", id="cancel"),
-                id="dialog-buttons",
-            ),
-            id="dialog",
-            classes="info-container",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "rename_vm":
-            input_widget = self.query_one(Input)
-            new_name = input_widget.value.strip()
-
-            error = self.validate_name(new_name)
-            if error:
-                self.app.show_error_message(error)
-                return
-
-            self.dismiss(new_name)
-        else:
-            self.dismiss(None)
-
-
-class SelectSnapshotDialog(BaseDialog[str | None]):
-    """A dialog to select a snapshot from a list."""
-
-    def __init__(self, snapshots: list, prompt: str) -> None:
-        super().__init__()
-        self.snapshots = snapshots
-        self.prompt = prompt
-
-    def compose(self):
-        yield Vertical(
-            Label(self.prompt),
-            ListView(
-                *[ListItem(Label(snap.getName())) for snap in self.snapshots],
-                id="snapshot-list",
-            ),
-            Button("Cancel", variant="error", id="cancel"),
-            id="dialog",
-        )
-
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        snapshot_name = event.item.query_one(Label).renderable
-        self.dismiss(str(snapshot_name))
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "cancel":
-            self.dismiss(None)

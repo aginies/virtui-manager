@@ -3,10 +3,7 @@ Module for retrieving information about virtual machines.
 """
 import xml.etree.ElementTree as ET
 import libvirt
-import shlex
-import subprocess
-import os
-from libvirt_utils import _get_vmanager_metadata, _get_disabled_disks_elem, VMANAGER_NS
+from libvirt_utils import _get_disabled_disks_elem, VMANAGER_NS
 from utils import log_function_call
 
 
@@ -34,6 +31,7 @@ def get_vm_info(conn):
                 'machine_type': get_vm_machine_info(xml_content),
                 'firmware': get_vm_firmware_info(xml_content),
                 'networks': get_vm_networks_info(xml_content),
+                'graphics': get_vm_graphics_info(xml_content),
                 'detail_network': get_vm_network_ip(domain),
                 'network_dns_gateway': get_vm_network_dns_gateway_info(domain),
                 'disks': get_vm_disks_info(conn, xml_content),
@@ -73,7 +71,6 @@ def get_vm_description(domain):
     except libvirt.libvirtError:
         return "No description available"
 
-@log_function_call
 def get_vm_firmware_info(xml_content: str) -> dict:
     """
     Extracts firmware (BIOS/UEFI) from a VM's XML definition.
@@ -126,7 +123,6 @@ def get_vm_machine_info(xml_content: str) -> str:
 
     return machine_type
 
-@log_function_call
 def get_vm_networks_info(xml_content: str) -> list[dict]:
     """Extracts network interface information from a VM's XML definition."""
     root = ET.fromstring(xml_content)
@@ -542,7 +538,6 @@ def get_vm_sound_model(xml_content: str) -> str | None:
         pass
     return None
 
-@log_function_call
 def get_vm_graphics_info(xml_content: str) -> dict:
     """
     Extracts graphics information (VNC/Spice) from a VM's XML definition.
@@ -614,7 +609,6 @@ def check_for_spice_vms(conn):
         pass
     return None
 
-@log_function_call
 def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of network name to a list of VM names using it.
