@@ -27,7 +27,8 @@ from vm_queries import (
     get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
     get_supported_machine_types, get_boot_info, get_vm_video_model,
     get_vm_cpu_model, get_vm_sound_model, get_vm_graphics_info,
-    get_all_vm_nvram_usage, get_all_vm_disk_usage,
+    get_all_vm_nvram_usage, get_all_vm_disk_usage, check_for_spice_vms,
+    get_all_network_usage
 )
 from vm_actions import (
     add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -44,7 +45,7 @@ from firmware_manager import (
 )
 import storage_manager
 from config import load_config, save_config
-from libvirt_utils import get_cpu_models, get_all_network_usage, check_for_spice_vms
+from libvirt_utils import get_cpu_models
 from utils import (
         generate_webconsole_keys_if_needed, check_virt_viewer,
         check_websockify, check_novnc_path

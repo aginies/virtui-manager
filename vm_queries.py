@@ -594,3 +594,54 @@ def get_vm_graphics_info(xml_content: str) -> dict:
         pass
 
     return graphics_info
+
+@log_function_call
+def check_for_spice_vms(conn):
+    """
+    Checks if any VM uses Spice graphics.
+    Returns a message if a Spice VM is found, otherwise None.
+    """
+    if not conn:
+        return None
+    try:
+        all_domains = conn.listAllDomains(0) or []
+        for domain in all_domains:
+            xml_content = domain.XMLDesc(0)
+            graphics_info = get_vm_graphics_info(xml_content)
+            if graphics_info.get("type") == "spice":
+                return "Some VMs use Spice graphics. 'Web Console' is only available for VNC."
+    except libvirt.libvirtError:
+        pass
+    return None
+
+@log_function_call
+def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
+    """
+    Scans all VMs and returns a mapping of network name to a list of VM names using it.
+    """
+    network_to_vms = {}
+    if not conn:
+        return network_to_vms
+
+    try:
+        domains = conn.listAllDomains(0)
+    except libvirt.libvirtError:
+        return network_to_vms
+
+    for domain in domains:
+        try:
+            xml_desc = domain.XMLDesc(0)
+            vm_name = domain.name()
+            # get_vm_networks_info is already in vm_queries.py
+            networks = get_vm_networks_info(xml_desc)
+            for net in networks:
+                net_name = net.get('network')
+                if net_name:
+                    if net_name not in network_to_vms:
+                        network_to_vms[net_name] = []
+                    if vm_name not in network_to_vms[net_name]:
+                        network_to_vms[net_name].append(vm_name)
+        except libvirt.libvirtError:
+            continue
+
+    return network_to_vms
