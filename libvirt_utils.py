@@ -66,3 +66,16 @@ def get_cpu_models(conn, arch):
     except libvirt.libvirtError as e:
         print(f"Error getting CPU models for arch {arch}: {e}")
         return []
+
+def find_all_vm(conn):
+    """
+    Find all VM from the current Hypervisor
+    """
+    allvm_list = []
+    # Store all VM from the hypervisor
+    domains = conn.listAllDomains(0)
+    for domain in domains:
+        if domain.name():
+            vmdomain = domain.name()
+            allvm_list.append(vmdomain)
+    return allvm_list
