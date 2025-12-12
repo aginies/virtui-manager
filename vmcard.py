@@ -403,7 +403,7 @@ class VMCard(Static):
         pause_button.display = is_running
         resume_button.display = is_paused
         connect_button.display = (is_running or is_paused) and self.app.virt_viewer_available
-        web_console_button.display = (is_running or is_paused) and self.graphics_type == "vnc"
+        web_console_button.display = (is_running or is_paused) and self.graphics_type == "vnc" and self.app.websockify_available and self.app.novnc_available
         restore_button.display = has_snapshots
         snapshot_delete_button.display = has_snapshots
         info_button.display = True # Always show info button

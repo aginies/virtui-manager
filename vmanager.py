@@ -1961,7 +1961,7 @@ class VMManagerTUI(App):
             self.websockify_available = False
 
         if not check_novnc_path():
-            self.show_error_message("'novnc' is not installed. It is required for 'Web Console'.")
+            self.show_error_message("'novnc' is not installed. 'Web Console' button will be disabled.")
             self.novnc_available = False
 
         messages = generate_webconsole_keys_if_needed()
@@ -2027,9 +2027,10 @@ class VMManagerTUI(App):
                 self.show_error_message(f"Failed to connect to {uri}")
             else:
                 self.connection_uri = uri
-                spice_message = check_for_spice_vms(self.conn)
-                if spice_message:
-                    self.show_success_message(spice_message)
+                if self.websockify_available and self.novnc_available:
+                    spice_message = check_for_spice_vms(self.conn)
+                    if spice_message:
+                        self.show_success_message(spice_message)
         except libvirt.libvirtError as e:
             self.show_error_message(f"Connection error: {e}")
             self.conn = None
