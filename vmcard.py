@@ -549,10 +549,10 @@ class VMCard(Static):
                 if check_is_firewalld_running():
                     self.app.show_error_message(f"Warning: Firewalld is running, check that {self.app.WC_PORT_RANGE_START}-{self.app.WC_PORT_RANGE_END} are open")
                 
-                vnc_host = graphics_info.get('address', '127.0.0.1')
-                if vnc_host in ['0.0.0.0', '::']:
+                vnc_target_host = graphics_info.get('address', '127.0.0.1')
+                if vnc_target_host in ['0.0.0.0', '::']:
                     parsed_uri = urlparse(self.app.connection_uri)
-                    vnc_host = parsed_uri.hostname or '127.0.0.1'
+                    vnc_target_host = parsed_uri.hostname or '127.0.0.1'
 
                 web_port = find_free_port(int(self.app.WC_PORT_RANGE_START),
                                           int(self.app.WC_PORT_RANGE_END)
@@ -566,7 +566,7 @@ class VMCard(Static):
                     websockify_path,
                     "--run-once",
                     str(web_port),
-                    f"{vnc_host}:{vnc_port}",
+                    f"{vnc_target_host}:{vnc_port}",
                     "--web",
                     novnc_path
                 ]
@@ -591,7 +591,8 @@ class VMCard(Static):
 
                     proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
                     
-                    url = f"{url_scheme}://{vnc_host}:{web_port}/vnc.html?path=websockify"
+                    # The browser connects to the machine running vmanager, which we assume is localhost.
+                    url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
                     self.app.websockify_processes[uuid] = (proc, web_port, url)
                     
                     self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
