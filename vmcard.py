@@ -38,9 +38,10 @@ _config = load_config()
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
 
-    def __init__(self, vm_name: str) -> None:
+    def __init__(self, vm_name: str, vm_uuid: str) -> None:
         super().__init__()
         self.vm_name = vm_name
+        self.vm_uuid = vm_uuid
 
 class VMCard(Static):
     """
@@ -51,6 +52,7 @@ class VMCard(Static):
     cpu = reactive(0)
     memory = reactive(0)
     vm = reactive(None)
+    conn = reactive(None)
     color = reactive("blue")
     webc_status_indicator = reactive("")
     graphics_type = reactive("vnc")
@@ -101,8 +103,8 @@ class VMCard(Static):
         with Vertical(id="info-container"):
             classes = ""
             # Show VM name with server name
-            if hasattr(self.app, 'connection_uri'):
-                server_display = extract_server_name_from_uri(self.app.connection_uri)
+            if hasattr(self, 'conn') and self.conn:
+                server_display = extract_server_name_from_uri(self.conn.getURI())
                 yield Static(f"{self.name} ({server_display})", id="name", classes=classes)
             else:
                 yield Static(self.name, id="name", classes=classes)
@@ -467,9 +469,13 @@ class VMCard(Static):
     def _handle_connect_button(self, event: Button.Pressed) -> None:
         """Handles the connect button press."""
         logging.info(f"Attempting to connect to VM: {self.name}")
+        if not hasattr(self, 'conn') or not self.conn:
+            self.app.show_error_message("Connection info not available for this VM.")
+            return
         try:
+            uri = self.conn.getURI()
             subprocess.Popen(
-                ["virt-viewer", "--connect", self.app.connection_uri, self.name],
+                ["virt-viewer", "--connect", uri, self.name],
             )
             logging.info(f"Successfully launched virt-viewer for VM: {self.name}")
         except (FileNotFoundError, subprocess.CalledProcessError) as e:
@@ -532,7 +538,7 @@ class VMCard(Static):
 
             # --- SSH Tunnel Logic ---
             ssh_info = {}
-            parsed_uri = urlparse(self.app.connection_uri)
+            parsed_uri = urlparse(self.conn.getURI())
             is_remote_ssh = parsed_uri.hostname not in (None, 'localhost', '127.0.0.1') and parsed_uri.scheme == 'qemu+ssh'
 
             vnc_target_host = graphics_info.get('address', '127.0.0.1')
@@ -809,9 +815,9 @@ class VMCard(Static):
 
     def _handle_configure_button(self, event: Button.Pressed) -> None:
         """Handles the configure button press."""
-        self.post_message(VMNameClicked(vm_name=self.name))
+        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
 
     @on(Click, "#cpu-mem-info")
     def on_click_cpu_mem_info(self) -> None:
         """Handle clicks on the CPU/Memory info part of the VM card."""
-        self.post_message(VMNameClicked(vm_name=self.name))
+        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
