@@ -6,6 +6,8 @@ DEFAULT_CONFIG = {
     'VMS_PER_PAGE': 4,
     'WC_PORT_RANGE_START': 40000,
     'WC_PORT_RANGE_END': 40050,
+    'websockify_path': '/usr/bin/websockify',
+    'novnc_path': '/usr/share/novnc/',
     'servers': [
         {'name': 'Localhost', 'uri': 'qemu:///system'},
     ]
@@ -54,4 +56,3 @@ def save_config(config):
     os.makedirs(config_path.parent, exist_ok=True)
     with open(config_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
-

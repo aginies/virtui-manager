@@ -30,6 +30,10 @@ from vmcard_dialog import (
         CloneNameDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
         )
 from utils import find_free_port
+from config import load_config
+
+# Load configuration once at module level
+_config = load_config()
 
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
@@ -541,8 +545,8 @@ class VMCard(Static):
 
                 web_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
                 
-                websockify_path = "/usr/bin/websockify"
-                novnc_path = "/usr/share/novnc/"
+                websockify_path = _config.get('websockify_path', '/usr/bin/websockify')
+                novnc_path = _config.get("novnc_path", "/usr/share/novnc/")
 
                 websockify_cmd = [
                     websockify_path, "--run-once", str(web_port),
