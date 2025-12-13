@@ -26,10 +26,10 @@ from vm_actions import clone_vm, rename_vm, start_vm
 
 from modals.utils_modals import ConfirmationDialog, LoadingModal
 from vmcard_dialog import (
-        DeleteVMConfirmationDialog, WebConsoleDialog, ChangeNetworkDialog,
+        DeleteVMConfirmationDialog, WebConsoleDialog,
         CloneNameDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
         )
-from utils import find_free_port
+from utils import find_free_port, extract_server_name_from_uri
 from config import load_config
 
 # Load configuration once at module level
@@ -100,7 +100,12 @@ class VMCard(Static):
     def compose(self):
         with Vertical(id="info-container"):
             classes = ""
-            yield Static(self.name, id="name", classes=classes)
+            # Show VM name with server name
+            if hasattr(self.app, 'connection_uri'):
+                server_display = extract_server_name_from_uri(self.app.connection_uri)
+                yield Static(f"{self.name} ({server_display})", id="name", classes=classes)
+            else:
+                yield Static(self.name, id="name", classes=classes)
             status_class = self.status.lower()
             yield Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=status_class)
             with Horizontal(id="cpu-sparkline-container", classes="sparkline-container"):
@@ -478,7 +483,7 @@ class VMCard(Static):
             if result == "stop":
                 uuid = self.vm.UUIDString()
                 if uuid in self.app.websockify_processes:
-                    websockify_proc, _, _, ssh_info = self.app.websockify_processes[uuid]
+                    websockify_proc, _, _, _ = self.app.websockify_processes[uuid]
                     websockify_proc.terminate() # Stop websockify
 
                     if ssh_info and ssh_info.get("control_socket"):
