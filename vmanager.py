@@ -39,6 +39,7 @@ from modals.vmanager_modals import (
 from modals.server_prefs_modals import ServerPrefModal
 from modals.vmanager_vmdetails_modals import VMDetailModal
 from modals.vmanager_virsh_modals import VirshShellScreen
+from connection_manager import ConnectionManager
 
 # Configure logging
 logging.basicConfig(
@@ -84,6 +85,10 @@ class VMManagerTUI(App):
     num_pages = reactive(1)
 
     CSS_PATH = ["vmanager.css", "vmcard.css", "dialog.css"]
+
+    def __init__(self):
+        super().__init__()
+        self.connection_manager = ConnectionManager()
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -182,19 +187,22 @@ class VMManagerTUI(App):
         """Called when the app is about to be unloaded."""
         for proc, _ in self.websockify_processes.values():
             proc.terminate()
-        if self.conn:
-            self.conn.close()
+        # Close all connections using the connection manager
+        self.connection_manager.disconnect_all()
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
+        # Close existing connection if needed
         if self.conn:
             try:
-                self.conn.close()
+                # Use connection manager to close the connection
+                self.connection_manager.disconnect(uri)
             except libvirt.libvirtError:
                 pass  # Ignore errors when closing old connection
 
         try:
-            self.conn = libvirt.open(uri)
+            # Use connection manager to get or create connection
+            self.conn = self.connection_manager.connect(uri)
             if self.conn is None:
                 self.show_error_message(f"Failed to connect to {uri}")
             else:
