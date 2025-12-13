@@ -17,7 +17,7 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual import on
 import libvirt
-from vmcard import ChangeNetworkDialog
+from vmcard_dialog import ChangeNetworkDialog
 from vm_queries import (
     get_vm_networks_info,
     get_vm_disks_info, get_vm_devices_info,
