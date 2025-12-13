@@ -7,6 +7,7 @@ import libvirt
 from config import load_config
 from libvirt_utils import find_all_vm
 from vm_actions import start_vm
+from connection_manager import ConnectionManager
 
 class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""
@@ -20,6 +21,7 @@ class VManagerCMD(cmd.Cmd):
         self.servers = self.config.get('servers', [])
         self.server_names = [s['name'] for s in self.servers]
         self.selected_vms = []
+        self.connection_manager = ConnectionManager()
 
     def _update_prompt(self):
         if self.conn:
@@ -61,7 +63,8 @@ Usage: connect <server_name>"""
 
         try:
             print(f"Connecting to {server_name} at {server_info['uri']}...")
-            self.conn = libvirt.open(server_info['uri'])
+            # Use ConnectionManager to handle connection
+            self.conn = self.connection_manager.connect(server_info['uri'])
             if self.conn is None:
                 print(f"Failed to connect to {server_name}")
                 return
@@ -84,7 +87,9 @@ Usage: connect <server_name>"""
         """Disconnects from the libvirt server."""
         if self.conn:
             try:
-                self.conn.close()
+                # Use ConnectionManager to handle disconnection
+                uri = self.conn.getURI()
+                self.connection_manager.disconnect(uri)
                 print("Disconnected.")
                 self.conn = None
                 self.selected_vms = ""
@@ -325,12 +330,16 @@ If no VM names are provided, it will resume the selected VMs."""
         """Exit the vmanager shell."""
         if self.conn:
             self.do_disconnect(None)
+        # Disconnect all connections when quitting
+        self.connection_manager.disconnect_all()
         return True
 
     def do_exit(self, arg):
         """Exit the vmanager shell."""
         if self.conn:
             self.do_disconnect(None)
+        # Disconnect all connections when quitting
+        self.connection_manager.disconnect_all()
         return True
 
 if __name__ == '__main__':
