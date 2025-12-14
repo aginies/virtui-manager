@@ -39,7 +39,6 @@ from modals.vmanager_modals import (
 from modals.server_prefs_modals import ServerPrefModal
 from modals.vmanager_vmdetails_modals import VMDetailModal
 from modals.vmanager_virsh_modals import VirshShellScreen
-from connection_manager import ConnectionManager
 from modals.base_modals import BaseModal
 
 
@@ -51,6 +50,7 @@ logging.basicConfig(
 )
 
 from connection_manager import ConnectionManager
+from webconsole_manager import WebConsoleManager
 from modals.utils_modals import LoadingModal
 
 
@@ -186,7 +186,6 @@ class VMManagerTUI(App):
 
     active_uris = reactive(_get_initial_active_uris(servers))
     current_page = reactive(0)
-    websockify_processes = {}
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
     WC_PORT_RANGE_START = config.get('WC_PORT_RANGE_START')
@@ -200,6 +199,7 @@ class VMManagerTUI(App):
     def __init__(self):
         super().__init__()
         self.connection_manager = ConnectionManager()
+        self.webconsole_manager = WebConsoleManager(self)
         #self.resize_timer = ""
 
     def compose(self) -> ComposeResult:
@@ -315,8 +315,7 @@ class VMManagerTUI(App):
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
-        for proc, _ in self.websockify_processes.values():
-            proc.terminate()
+        self.webconsole_manager.terminate_all()
         self.connection_manager.disconnect_all()
 
     def connect_libvirt(self, uri: str) -> None:
