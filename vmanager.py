@@ -297,22 +297,33 @@ class VMManagerTUI(App):
         """Update the layout based on the terminal size."""
         vms_container = self.query_one("#vms-container")
         width = self.size.width
-        if width > 127 and width < 169:
-            vms_container.styles.grid_size_columns = 3
-            self.VMS_PER_PAGE = 9
-            vms_container.styles.width = 129
-        elif width > 168:
-            vms_container.styles.grid_size_columns = 4
-            self.VMS_PER_PAGE = 12
-            vms_container.styles.width = 170
-        else:  # width <= 127
-            vms_container.styles.grid_size_columns = 2
-            if width > 85:
-                self.VMS_PER_PAGE = 6
-                vms_container.styles.width = 86
-            else:
-                self.VMS_PER_PAGE = self.config.get('VMS_PER_PAGE', 4)
-                vms_container.styles.width = 84
+        height = self.size.height
+        cols = 2
+        container_width = 86
+
+        if width >= 169:
+            cols = 4
+            container_width = 170
+        elif width >= 128:
+            cols = 3
+            container_width = 129
+        elif width >= 86:
+            cols = 2
+            container_width = 86
+        else: # width < 86
+            cols = 2
+            container_width = 84
+
+        rows = 2 # Default to 2 rows
+        if height > 42:
+            rows = 3
+
+        vms_container.styles.grid_size_columns = cols
+        vms_container.styles.width = container_width
+        self.VMS_PER_PAGE = cols * rows
+
+        if width < 86:
+            self.VMS_PER_PAGE = self.config.get('VMS_PER_PAGE', 4)
 
         self.refresh_vm_list()
 
