@@ -211,3 +211,33 @@ ChangeNetworkDialog #dialog-buttons Button {
 .net-mode {
     width: 1fr;
 }
+XMLDisplayModal {
+    align: center middle;
+    content-align: center middle;
+    background: rgba(0, 0, 0, 0.5);
+}
+
+XMLDisplayModal #xml-display-dialog {
+    width: 80%;
+    height: 80%;
+    padding: 1;
+    border: round green;
+    background: $surface;
+}
+
+XMLDisplayModal #xml-textarea {
+    height: 1fr;
+    border: round $primary;
+    margin-bottom: 1;
+}
+
+XMLDisplayModal #dialog-buttons {
+    height: auto;
+    align: center middle;
+}
+
+XMLDisplayModal #dialog-buttons Button {
+    width: 50%;
+    margin: 0 1;
+}
+
