@@ -46,7 +46,7 @@ class WebConsoleManager:
                 lambda result: self.stop_console(uuid, vm.name()) if result == "stop" else None
             )
             return
-        
+
         try:
             xml_content = vm.XMLDesc(0)
             graphics_info = get_vm_graphics_info(xml_content)
@@ -59,7 +59,7 @@ class WebConsoleManager:
             if not vnc_port or vnc_port == '-1':
                 self.app.show_error_message("Could not determine VNC port for the VM.")
                 return
-            
+
             vnc_target_host, vnc_target_port, ssh_info = self._setup_ssh_tunnel(
                 uuid, conn, vm.name(), int(vnc_port), graphics_info
             )
@@ -133,7 +133,7 @@ class WebConsoleManager:
     def _launch_websockify(self, uuid: str, vm_name: str, host: str, port: int, ssh_info: dict):
         """Launches the websockify process and shows the console dialog."""
         web_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
-        
+
         websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
         novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
 
@@ -155,10 +155,10 @@ class WebConsoleManager:
                 self.app.show_success_message("Found cert/key, using secure wss connection.")
 
             proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
-            
+
             url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
             self.processes[uuid] = (proc, web_port, url, ssh_info, vm_name) 
-            
+
             self.app.push_screen(
                 WebConsoleDialog(url),
                 lambda result: self.stop_console(uuid, vm_name) if result == "stop" else None
@@ -180,4 +180,3 @@ class WebConsoleManager:
         finally:
             if os.path.exists(control_socket):
                 os.remove(control_socket)
-
