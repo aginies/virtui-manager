@@ -2,8 +2,8 @@ import os
 import yaml
 from pathlib import Path
 
+#    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
-    'VMS_PER_PAGE': 4,
     'WC_PORT_RANGE_START': 40000,
     'WC_PORT_RANGE_END': 40050,
     'websockify_path': '/usr/bin/websockify',
