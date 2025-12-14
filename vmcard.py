@@ -632,6 +632,7 @@ class VMCard(Static):
                     self.vm.snapshotCreateXML(xml, 0)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                     self.update_button_layout()
+                    self.app.refresh_vm_list()
                 except libvirt.libvirtError as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
@@ -690,6 +691,7 @@ class VMCard(Static):
                             snapshot.delete(0)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
                             self.update_button_layout()
+                            self.app.refresh_vm_list()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except libvirt.libvirtError as e:
                             self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
