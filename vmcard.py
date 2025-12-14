@@ -79,14 +79,12 @@ class VMCard(Static):
 
     def _update_webc_status(self) -> None:
         """Updates the web console status indicator."""
-        if hasattr(self.app, 'websockify_processes') and self.vm:
+        if hasattr(self.app, 'webconsole_manager') and self.vm:
             uuid = self.vm.UUIDString()
-            if uuid in self.app.websockify_processes:
-                proc, _, _, _ = self.app.websockify_processes[uuid]
-                if proc.poll() is None: # Check if the process is still running
-                    if self.webc_status_indicator != " (WebC On)":
-                        self.webc_status_indicator = " (WebC On)"
-                    return
+            if self.app.webconsole_manager.is_running(uuid):
+                if self.webc_status_indicator != " (WebC On)":
+                    self.webc_status_indicator = " (WebC On)"
+                return
         if self.webc_status_indicator != "":
             self.webc_status_indicator = ""
 
@@ -321,11 +319,6 @@ class VMCard(Static):
             try:
                 start_vm(self.vm)
                 #self.vm.create()
-                self.status = "Running"
-                status_widget = self.query_one("#status")
-                status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
-                self._update_status_styling()
-                self.update_button_layout()
                 self.app.refresh_vm_list()
                 logging.info(f"Successfully started VM: {self.name}")
                 self.app.show_success_message(f"VM '{self.name}' started successfully.")
@@ -353,10 +346,6 @@ class VMCard(Static):
             if self.vm.isActive():
                 try:
                     self.vm.destroy()
-                    self.status = "Stopped"
-                    self.query_one("#status").update(f"Status: {self.status}")
-                    self._update_status_styling()
-                    self.update_button_layout()
                     self.app.refresh_vm_list()
                     logging.info(f"Successfully stopped VM: {self.name}")
                     self.app.show_success_message(f"VM '{self.name}' stopped successfully.")
@@ -372,11 +361,6 @@ class VMCard(Static):
         if self.vm.isActive():
             try:
                 self.vm.suspend()
-                self.status = "Paused"
-                status_widget = self.query_one("#status")
-                status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
-                self._update_status_styling()
-                self.update_button_layout()
                 self.app.refresh_vm_list()
                 logging.info(f"Successfully paused VM: {self.name}")
                 self.app.show_success_message(f"VM '{self.name}' paused successfully.")
@@ -388,11 +372,6 @@ class VMCard(Static):
         logging.info(f"Attempting to resume VM: {self.name}")
         try:
             self.vm.resume()
-            self.status = "Running"
-            status_widget = self.query_one("#status")
-            status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
-            self._update_webc_status()
-            self._update_status_styling()
             self.app.refresh_vm_list()
             logging.info(f"Successfully resumed VM: {self.name}")
             self.app.show_success_message(f"VM '{self.name}' resumed successfully.")
@@ -447,145 +426,8 @@ class VMCard(Static):
             self.app.show_error_message(f"Error on VM {self.name} during 'connect': {e}")
 
     def _handle_web_console_button(self, event: Button.Pressed) -> None:
-        """Handles the web console button press."""
-        logging.info(f"Web console requested for VM: {self.name}")
-
-        def handle_web_console_dialog(result: str | None):
-            if result == "stop":
-                uuid = self.vm.UUIDString()
-                if uuid in self.app.websockify_processes:
-                    websockify_proc, _, _, _ = self.app.websockify_processes[uuid]
-                    websockify_proc.terminate() # Stop websockify
-
-                    if ssh_info and ssh_info.get("control_socket"):
-                        control_socket = ssh_info["control_socket"]
-                        try:
-                            stop_cmd = ["ssh", "-S", control_socket, "-O", "exit", "dummy-host"]
-                            subprocess.run(stop_cmd, check=True, timeout=5, capture_output=True)
-                            logging.info(f"SSH tunnel stopped for VM {self.name} using socket {control_socket}")
-                        except FileNotFoundError:
-                            self.app.show_error_message("'ssh' command not found.")
-                        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                            logging.warning(f"Could not stop SSH tunnel cleanly for VM {self.name}: {e.stderr.decode() if e.stderr else e}")
-                        finally:
-                            if os.path.exists(control_socket):
-                                os.remove(control_socket)
-
-                    del self.app.websockify_processes[uuid]
-                    self.app.show_success_message("Web console stopped.")
-                    self._update_webc_status() # Update status after stopping
-
-        if not hasattr(self.app, 'websockify_processes'):
-            self.app.websockify_processes = {}
-
-        uuid = self.vm.UUIDString()
-        if uuid in self.app.websockify_processes:
-            proc, _, url, _ = self.app.websockify_processes[uuid]
-            if proc.poll() is None:
-                self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
-                return
-            else: # Process has terminated, remove it
-                del self.app.websockify_processes[uuid]
-                self._update_webc_status()
-
-        try:
-            xml_content = self.vm.XMLDesc(0)
-            graphics_info = get_vm_graphics_info(xml_content)
-
-            if graphics_info['type'] != 'vnc':
-                self.app.show_error_message("Web console only supports VNC graphics.")
-                return
-
-            vnc_port = graphics_info.get('port')
-            if not vnc_port or vnc_port == '-1':
-                self.app.show_error_message("Could not determine VNC port for the VM.")
-                return
-
-            # --- SSH Tunnel Logic ---
-            ssh_info = {}
-            parsed_uri = urlparse(self.conn.getURI())
-            is_remote_ssh = parsed_uri.hostname not in (None, 'localhost', '127.0.0.1') and parsed_uri.scheme == 'qemu+ssh'
-
-            vnc_target_host = graphics_info.get('address', '127.0.0.1')
-            vnc_target_port = vnc_port
-
-            if is_remote_ssh:
-                self.app.show_success_message(f"Remote connection detected. Setting up SSH tunnel...")
-                user = parsed_uri.username
-                host = parsed_uri.hostname
-                remote_user_host = f"{user}@{host}" if user else host
-
-                # Create a temporary socket for ssh control
-                # We use a temp directory to store the socket
-                temp_dir = tempfile.gettempdir()
-                socket_name = f"vmanager_ssh_{uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
-                control_socket = os.path.join(temp_dir, socket_name)
-
-                tunnel_port = find_free_port(int(self.app.WC_PORT_RANGE_START),
-                                             int(self.app.WC_PORT_RANGE_END)
-                                             )
-
-                ssh_cmd = [
-                    "ssh",
-                    "-M", "-S", control_socket,
-                    "-f", "-N",
-                    "-L", f"{tunnel_port}:127.0.0.1:{vnc_port}",
-                    remote_user_host
-                ]
-
-                try:
-                    subprocess.run(ssh_cmd, check=True, timeout=10)
-                    logging.info(f"SSH tunnel created for VM {self.name} via {control_socket}")
-                    ssh_info = {"control_socket": control_socket}
-
-                    # Websockify now connects to the local end of the tunnel
-                    vnc_target_host = '127.0.0.1'
-                    vnc_target_port = tunnel_port
-
-                except FileNotFoundError:
-                    self.app.show_error_message("SSH command not found. Cannot create tunnel.")
-                    return
-                except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-                    self.app.show_error_message(f"Failed to create SSH tunnel: {e}")
-                    logging.error(f"SSH tunnel command failed: {' '.join(ssh_cmd)}")
-                    return
-
-            elif vnc_target_host in ['0.0.0.0', '::']:
-                vnc_target_host = '127.0.0.1'
-
-            web_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
-            
-            websockify_path = _config.get('websockify_path', '/usr/bin/websockify')
-            novnc_path = _config.get("novnc_path", "/usr/share/novnc/")
-
-            websockify_cmd = [
-                websockify_path, "--run-once", str(web_port),
-                f"{vnc_target_host}:{vnc_target_port}", "--web", novnc_path
-            ]
-
-            config_dir = Path.home() / '.config' / 'vmanager'
-            cert_file = config_dir / 'cert.pem'
-            key_file = config_dir / 'key.pem'
-            url_scheme = "http"
-
-            log_file_path = "vm_manager.log"
-            with open(log_file_path, 'a') as log_file_handle:
-                if cert_file.exists() and key_file.exists():
-                    websockify_cmd.extend(["--cert", str(cert_file), "--key", str(key_file)])
-                    url_scheme = "https"
-                    self.app.show_success_message("Found cert/key, using secure wss connection.")
-
-                proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
-                
-                url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
-                self.app.websockify_processes[uuid] = (proc, web_port, url, ssh_info)
-                
-                self.app.push_screen(WebConsoleDialog(url), handle_web_console_dialog)
-                self._update_webc_status()
-
-        except (libvirt.libvirtError, FileNotFoundError, Exception) as e:
-            self.app.show_error_message(f"Failed to start web console: {e}")
-            logging.error(f"Error during web console startup for VM {self.name}: {traceback.format_exc()}")
+        """Handles the web console button press by delegating to the WebConsoleManager."""
+        self.app.webconsole_manager.start_console(self.vm, self.conn)
 
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot take button press."""
@@ -596,7 +438,6 @@ class VMCard(Static):
                 try:
                     self.vm.snapshotCreateXML(xml, 0)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
-                    self.update_button_layout()
                     self.app.refresh_vm_list()
                 except libvirt.libvirtError as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
@@ -616,21 +457,6 @@ class VMCard(Static):
                 try:
                     snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
                     self.vm.revertToSnapshot(snapshot, 0)
-
-                    # Get new state and update card
-                    state, _ = self.vm.state()
-                    if state == libvirt.VIR_DOMAIN_RUNNING:
-                        self.status = "Running"
-                    elif state == libvirt.VIR_DOMAIN_PAUSED:
-                        self.status = "Paused"
-                    else:
-                        self.status = "Stopped"
-
-                    status_widget = self.query_one("#status")
-                    status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
-                    self._update_status_styling()
-                    self.update_button_layout()
-
                     self.app.refresh_vm_list()
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
@@ -655,7 +481,6 @@ class VMCard(Static):
                             snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
                             snapshot.delete(0)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
-                            self.update_button_layout()
                             self.app.refresh_vm_list()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except libvirt.libvirtError as e:
