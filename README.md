@@ -34,14 +34,14 @@ General capabilities:
 - Dynamic error/info messages
 - virsh command console possible
 - User configuration file for server list in **~/.config/vmanager/config.yaml**
+- transhypervisor view, connected to multiple server
+- vmanager command console with CMD, launch command on "pattern" selected VM
 
 ## TODO
 
 - Disks: choose the cache mode for disk
-- vmanager command console with CMD, launch command on "pattern" selected VM
 - Add all missing features on Adding/Removing stuff to VM
 - Being able to create VM based on scenario usage: API is ready, just need to call it (https://github.com/aginies/virt-scenario)
-- transhypervisor view, connected to multiple server
 
 ## Requirements
 
