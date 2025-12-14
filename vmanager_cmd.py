@@ -92,7 +92,7 @@ Usage: connect <server_name>"""
                 self.connection_manager.disconnect(uri)
                 print("Disconnected.")
                 self.conn = None
-                self.selected_vms = ""
+                self.selected_vms = []
                 self.prompt = '(vmanager) '
             except libvirt.libvirtError as e:
                 print(f"Error during disconnection: {e}")
@@ -100,16 +100,32 @@ Usage: connect <server_name>"""
             print("Not connected.")
 
     def do_list_vms(self, arg):
-        """List all VMs on the connected server."""
+        """List all VMs on the connected server with their status."""
         if not self.conn:
             print("Not connected to any server. Use 'connect <server_name>'.")
             return
         try:
-            vms = find_all_vm(self.conn)
-            if vms:
-                print("Available VMs:")
-                for vm in vms:
-                    print(f"  - {vm}")
+            domains = self.conn.listAllDomains(0)
+            if domains:
+                print(f"{'VM Name':<30} {'Status':<15}")
+                print(f"{'-'*30} {'-'*15}")
+
+                status_map = {
+                    libvirt.VIR_DOMAIN_NOSTATE: 'No State',
+                    libvirt.VIR_DOMAIN_RUNNING: 'Running',
+                    libvirt.VIR_DOMAIN_BLOCKED: 'Blocked',
+                    libvirt.VIR_DOMAIN_PAUSED: 'Paused',
+                    libvirt.VIR_DOMAIN_SHUTDOWN: 'Shutting Down',
+                    libvirt.VIR_DOMAIN_SHUTOFF: 'Stopped',
+                    libvirt.VIR_DOMAIN_CRASHED: 'Crashed',
+                    libvirt.VIR_DOMAIN_PMSUSPENDED: 'Suspended',
+                }
+
+                sorted_domains = sorted(domains, key=lambda d: d.name())
+                for domain in sorted_domains:
+                    status_code = domain.info()[0]
+                    status_str = status_map.get(status_code, 'Unknown')
+                    print(f"{domain.name():<30} {status_str:<15}")
             else:
                 print("No VMs found.")
         except libvirt.libvirtError as e:
@@ -178,6 +194,48 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
         except libvirt.libvirtError:
             return []
 
+    def do_status(self, args):
+        """Shows the status of one or more VMs.
+Usage: status [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will show the status of selected VMs."""
+        if not self.conn:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_check = self._get_vms_to_operate(args)
+        if not vms_to_check:
+            return
+
+        status_map = {
+            libvirt.VIR_DOMAIN_NOSTATE: 'No State',
+            libvirt.VIR_DOMAIN_RUNNING: 'Running',
+            libvirt.VIR_DOMAIN_BLOCKED: 'Blocked',
+            libvirt.VIR_DOMAIN_PAUSED: 'Paused',
+            libvirt.VIR_DOMAIN_SHUTDOWN: 'Shutting Down',
+            libvirt.VIR_DOMAIN_SHUTOFF: 'Stopped',
+            libvirt.VIR_DOMAIN_CRASHED: 'Crashed',
+            libvirt.VIR_DOMAIN_PMSUSPENDED: 'Suspended',
+        }
+
+        print(f"{'VM Name':<30} {'Status':<15} {'vCPUs':<7} {'Memory (MiB)':<15}")
+        print(f"{'-'*30} {'-'*15} {'-'*7} {'-'*15}")
+
+        for vm_name in vms_to_check:
+            try:
+                domain = self.conn.lookupByName(vm_name)
+                info = domain.info()
+                state_code = info[0]
+                state_str = status_map.get(state_code, 'Unknown')
+                vcpus = info[3]
+                mem_kib = info[2]  # Current memory
+                mem_mib = mem_kib // 1024
+                print(f"{domain.name():<30} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
+            except libvirt.libvirtError as e:
+                print(f"Could not retrieve status for '{vm_name}': {e}")
+
+    def complete_status(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
     def do_start(self, args):
         """Starts one or more VMs.
 Usage: start [vm_name_1] [vm_name_2] ...
@@ -207,20 +265,15 @@ If no VM names are provided, it will start the selected VMs."""
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_stop(self, args):
-        """Stops one or more VMs gracefully. Use 'stop --force' for a forced shutdown.
-Usage: stop [--force] [vm_name_1] [vm_name_2] ...
+        """Stops one or more VMs gracefully (sends shutdown signal).
+For a forced shutdown, use the 'force_off' command.
+Usage: stop [vm_name_1] [vm_name_2] ...
 If no VM names are provided, it will stop the selected VMs."""
         if not self.conn:
             print("Not connected to any server. Use 'connect <server_name>'.")
             return
 
-        arg_list = args.split()
-        force = False
-        if '--force' in arg_list:
-            force = True
-            arg_list.remove('--force')
-
-        vms_to_stop = self._get_vms_to_operate(" ".join(arg_list))
+        vms_to_stop = self._get_vms_to_operate(args)
         if not vms_to_stop:
             return
 
@@ -231,12 +284,8 @@ If no VM names are provided, it will stop the selected VMs."""
                     print(f"VM '{vm_name}' is not running.")
                     continue
 
-                if force:
-                    domain.destroy()
-                    print(f"VM '{vm_name}' force stopped.")
-                else:
-                    domain.shutdown()
-                    print(f"Sent shutdown signal to VM '{vm_name}'.")
+                domain.shutdown()
+                print(f"Sent shutdown signal to VM '{vm_name}'.")
             except libvirt.libvirtError as e:
                 print(f"Error stopping VM '{vm_name}': {e}")
 
