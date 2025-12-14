@@ -232,23 +232,25 @@ class VMCard(Static):
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
-        start_button = self.query_one("#start", Button)
-        shutdown_button = self.query_one("#shutdown", Button)
-        stop_button = self.query_one("#stop", Button)
-        pause_button = self.query_one("#pause", Button)
-        resume_button = self.query_one("#resume", Button)
-        delete_button = self.query_one("#delete", Button)
-        connect_button = self.query_one("#connect", Button)
-        web_console_button = self.query_one("#web_console", Button)
-        restore_button = self.query_one("#snapshot_restore", Button)
-        snapshot_delete_button = self.query_one("#snapshot_delete", Button)
-        info_button = self.query_one("#configure-button", Button)
-        clone_button = self.query_one("#clone", Button)
-        rename_button = self.query_one("#rename-button", Button)
-        cpu_sparkline_container = self.query_one("#cpu-sparkline-container")
-        mem_sparkline_container = self.query_one("#mem-sparkline-container")
-        xml_button = self.query_one("#xml", Button)
-
+        try:
+            start_button = self.query_one("#start", Button)
+            shutdown_button = self.query_one("#shutdown", Button)
+            stop_button = self.query_one("#stop", Button)
+            pause_button = self.query_one("#pause", Button)
+            resume_button = self.query_one("#resume", Button)
+            delete_button = self.query_one("#delete", Button)
+            connect_button = self.query_one("#connect", Button)
+            web_console_button = self.query_one("#web_console", Button)
+            restore_button = self.query_one("#snapshot_restore", Button)
+            snapshot_delete_button = self.query_one("#snapshot_delete", Button)
+            info_button = self.query_one("#configure-button", Button)
+            clone_button = self.query_one("#clone", Button)
+            rename_button = self.query_one("#rename-button", Button)
+            cpu_sparkline_container = self.query_one("#cpu-sparkline-container")
+            mem_sparkline_container = self.query_one("#mem-sparkline-container")
+            xml_button = self.query_one("#xml", Button)
+        except NoMatches:
+            pass
 
         is_stopped = self.status == "Stopped"
         is_running = self.status == "Running"
