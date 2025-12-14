@@ -280,25 +280,18 @@ class VMManagerTUI(App):
     def _update_layout_for_size(self):
         """Update the layout based on the terminal size."""
         vms_container = self.query_one("#vms-container")
-        if self.size.width > 127 and self.size.width < 169:
+        width = self.size.width
+        if width > 127 and width < 169:
             vms_container.styles.grid_size_columns = 3
-            if self.size.width  > 42:
-                self.VMS_PER_PAGE = 9
-                vms_container.styles.width = 129
-            else:
-                self.VMS_PER_PAGE = 6
-                vms_container.styles.width = 128
-        elif self.size.width > 168:
+            self.VMS_PER_PAGE = 9
+            vms_container.styles.width = 129
+        elif width > 168:
             vms_container.styles.grid_size_columns = 4
-            if self.size.width  > 42:
-                self.VMS_PER_PAGE = 12
-                vms_container.styles.width = 170
-            else:
-                self.VMS_PER_PAGE = 8
-                vms_container.styles.width = 169
-        else:
+            self.VMS_PER_PAGE = 12
+            vms_container.styles.width = 170
+        else:  # width <= 127
             vms_container.styles.grid_size_columns = 2
-            if self.size.width  > 42:
+            if width > 85:
                 self.VMS_PER_PAGE = 6
                 vms_container.styles.width = 86
             else:
@@ -317,6 +310,15 @@ class VMManagerTUI(App):
         """Called when the app is about to be unloaded."""
         self.webconsole_manager.terminate_all()
         self.connection_manager.disconnect_all()
+
+    def _get_active_connections(self):
+        """Generator that yields active libvirt connection objects."""
+        for uri in self.active_uris:
+            conn = self.connection_manager.connect(uri)
+            if conn:
+                yield conn
+            else:
+                self.show_error_message(f"Failed to open connection to {uri}")
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt using the connection manager."""
@@ -549,18 +551,11 @@ class VMManagerTUI(App):
         total_vms = 0
         server_names = []
 
-        for uri in self.active_uris:
-            conn = self.connection_manager.connect(uri)
-            if not conn:
-                self.show_error_message(f"Failed to open connection to {uri}")
-                continue
-
+        for conn in self._get_active_connections():
             try:
-                domains = conn.listAllDomains(0)
-                if domains is not None:
-                    total_vms += len(domains)
+                total_vms += conn.numOfDomains()
             except libvirt.libvirtError:
-                self.show_error_message(f"Connection lost to {uri}")
+                self.show_error_message(f"Connection lost to {conn.getURI()}")
         
         if not self.servers and self.active_uris:
              server_names = [f"Default: {u}" for u in self.active_uris]
@@ -581,15 +576,12 @@ class VMManagerTUI(App):
         vms_container = self.query_one("#vms-container")
         
         domains_with_conn = []
-        for uri in self.active_uris:
-            conn = self.connection_manager.connect(uri)
-            if not conn:
-                continue
+        for conn in self._get_active_connections():
             try:
                 for domain in conn.listAllDomains(0) or []:
                     domains_with_conn.append((domain, conn))
             except libvirt.libvirtError:
-                self.show_error_message(f"Connection lost to {uri}")
+                self.show_error_message(f"Connection lost to {conn.getURI()}")
 
         total_vms_unfiltered = len(domains_with_conn)
         domains_to_display = domains_with_conn
