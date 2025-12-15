@@ -33,6 +33,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Detailed VM information view
 - Web console management with automatic port allocation
 - Configuration file management for server lists
+- Create new VMs (with single server connection)
 
 ## Configure VM Features
 
@@ -71,6 +72,8 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - View network interfaces with MAC addresses and IP addresses
 - Change network interface to a different network
 - View network DNS and gateway information
+- Add new network interface
+- Remove network interface
 
 ### VirtIO-FS Configuration
 - View existing VirtIO-FS mounts
@@ -100,6 +103,26 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Confirmation dialogs for destructive actions
 - Error handling and user feedback
 - VM status validation (prevents configuration changes when VM is running)
+
+## Server Management Features
+
+### Network Management
+- View all networks in a table format
+- Create new network with NAT or routed type
+- Edit network properties including DHCP settings
+- Delete network with confirmation
+- Toggle network active state
+- Toggle network autostart state
+- View network XML details
+
+### Storage Management
+- View storage pools in a tree format
+- Create new storage pool (directory or network file system)
+- Delete storage pool with confirmation
+- Create new storage volume
+- Delete storage volume with confirmation
+- Toggle storage pool active state
+- Toggle storage pool autostart state
 
 ## User Interface Features
 
