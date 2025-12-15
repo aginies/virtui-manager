@@ -126,17 +126,19 @@ class VMDetailModal(ModalScreen):
         disks_table.clear()
         if not disks_table.columns:
             disks_table.add_column("Path", key="path")
-            disks_table.add_column("Cache", key="cache")
-            disks_table.add_column("Discard", key="discard")
+            disks_table.add_column("Cache Mode", key="cache_mode")
+            disks_table.add_column("Discard Mode", key="discard_mode")
             disks_table.add_column("Status", key="status")
 
-        disks_info = self.vm_info.get("disks", [])
+        # Get the latest disk info directly from the VM's XML
+        disks_info = get_vm_disks_info(self.conn, self.domain.XMLDesc(0))
+        #self.vm_info['disks'] = disks_info
 
         for disk in disks_info:
             path = disk.get('path', 'N/A')
             status = disk.get('status', 'unknown')
-            cache_mode = disk.get('cache', 'none')
-            discard_mode = disk.get('discard', 'unmap')
+            cache_mode = disk.get('cache_mode', 'none')
+            discard_mode = disk.get('discard_mode', 'ignore')
 
             if status == 'disabled':
                 disks_table.add_row(
