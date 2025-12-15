@@ -1,5 +1,5 @@
 """
-Network Hypervisor side
+Network Hypervisor and guest side
 """
 import ipaddress
 from textual.app import ComposeResult
@@ -7,13 +7,79 @@ from textual.widgets import Button, Input, Label, RadioSet, RadioButton, Checkbo
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 
-from modals.base_modals import BaseModal
+from modals.base_modals import BaseModal, BaseDialog
 from network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
 )
 
+class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
+    """A dialog to add or edit a VM's network interface."""
+
+    def __init__(self, is_edit: bool, networks: list[str], interface_info: dict | None = None) -> None:
+        super().__init__()
+        self.is_edit = is_edit
+        self.interface_info = interface_info
+        self.networks = networks
+        self.models = ["virtio", "e1000", "e1000e", "rtl8139", "ne2k_pci", "pcnet"]
+
+    def compose(self):
+        network_options = [(str(net), str(net)) for net in self.networks]
+        model_options = [(model, model) for model in self.models]
+
+        network_value = None
+        model_value = "virtio"
+        mac_value = ""
+
+        if self.is_edit and self.interface_info:
+            network_value = self.interface_info.get("network")
+            model_value = self.interface_info.get("model", "virtio")
+            mac_value = self.interface_info.get("mac", "")
+        elif not self.is_edit and self.networks:
+            network_value = self.networks[0]
+
+        with Vertical(id="add-edit-network-dialog"):
+            yield Label("Select network and model")
+
+            if self.networks:
+                yield Select(network_options, id="network-select", prompt="Select a network", value=network_value)
+            else:
+                yield Select([], id="network-select", disabled=True, prompt="No networks available")
+
+            yield Select(model_options, id="model-select", value=model_value)
+
+            if self.is_edit:
+                yield Input(value=mac_value, id="mac-input", disabled=True)
+
+            with Horizontal(id="dialog-buttons"):
+                yield Button("Save" if self.is_edit else "Add", variant="success", id="save")
+                yield Button("Cancel", variant="error", id="cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "save":
+            network_select = self.query_one("#network-select", Select)
+            model_select = self.query_one("#model-select", Select)
+
+            new_network = network_select.value
+            new_model = model_select.value
+
+            if new_network is Select.BLANK:
+                self.app.show_error_message("Please select a network.")
+                return
+            
+            result = {"network": new_network, "model": new_model}
+            if self.is_edit:
+                result["mac"] = self.query_one("#mac-input", Input).value
+
+            self.dismiss(result)
+        else:
+            self.dismiss(None)
+
 class CreateNetworkModal(BaseModal[None]):
     """Modal screen for creating a new network."""
+
+    def __init__(self, conn) -> None:
+        super().__init__()
+        self.conn = conn
 
     def compose(self) -> ComposeResult:
         with Vertical(id="create-network-dialog"):
