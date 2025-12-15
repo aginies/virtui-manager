@@ -306,7 +306,10 @@ class VMManagerTUI(App):
         cols = 2
         container_width = 86
 
-        if width >= 169:
+        if width >= 212:
+            cols = 5
+            container_width = 213
+        elif width >= 169:
             cols = 4
             container_width = 170
         elif width >= 128:
