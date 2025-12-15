@@ -3,13 +3,11 @@ Module for performing actions and modifications on virtual machines.
 """
 import os
 import secrets
-import subprocess
 import string
 import uuid
-import copy
-import libvirt
 import logging
 import xml.etree.ElementTree as ET
+import libvirt
 from libvirt_utils import _find_vol_by_path, _get_disabled_disks_elem
 from utils import log_function_call
 
@@ -298,7 +296,7 @@ def remove_disk(domain, disk_dev_path):
     root = ET.fromstring(xml_desc)
     logging.debug(f"remove_disk: Attempting to remove disk: {disk_dev_path}")
     logging.debug(f"remove_disk: VM XML description:\n{xml_desc}")
-    
+
     disk_to_remove_xml = None
 
     # Try two separate findall calls and combine
@@ -309,7 +307,7 @@ def remove_disk(domain, disk_dev_path):
     for disk in all_matching_disks:
         source = disk.find("source")
         target = disk.find("target")
-        
+
         current_disk_path = ""
         current_target_dev = ""
 
@@ -325,7 +323,7 @@ def remove_disk(domain, disk_dev_path):
                     current_disk_path = vol.path()
                 except libvirt.libvirtError as e:
                     current_disk_path = f"ERROR: Could not resolve volume path for {vol_name} in {pool_name}"
-            
+
         if target is not None:
             current_target_dev = target.get("dev")
 
@@ -621,6 +619,63 @@ def set_memory(domain, memory_mb: int):
             )
 
 @log_function_call
+def set_disk_cache_mode(domain: libvirt.virDomain, disk_path: str, cache_mode: str):
+    """Sets the cache mode for a specific disk."""
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change disk cache mode.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    disk_found = False
+    for disk in root.findall(".//disk[@device='disk']"):
+        source = disk.find("source")
+        if source is not None and source.get("file") == disk_path:
+            driver = disk.find("driver")
+            if driver is None:
+                # If no driver tag, let's create one.
+                # We need to guess the type, qcow2 is a safe bet for images.
+                driver = ET.SubElement(disk, "driver", name="qemu", type="qcow2")
+
+            driver.set('cache', cache_mode)
+            disk_found = True
+            break
+
+    if not disk_found:
+        raise ValueError(f"Disk with path '{disk_path}' not found.")
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+
+@log_function_call
+def set_disk_discard_mode(domain: libvirt.virDomain, disk_path: str, discard_mode: str):
+    """Sets the discard mode for a specific disk."""
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change disk discard mode.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    disk_found = False
+    for disk in root.findall(".//disk[@device='disk']"):
+        source = disk.find("source")
+        if source is not None and source.get("file") == disk_path:
+            driver = disk.find("driver")
+            if driver is None:
+                driver = ET.SubElement(disk, "driver", name="qemu", type="qcow2")
+
+            driver.set('discard', discard_mode)
+            disk_found = True
+            break
+
+    if not disk_found:
+        raise ValueError(f"Disk with path '{disk_path}' not found.")
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+@log_function_call
 def set_machine_type(domain, new_machine_type):
     """
     Sets the machine type for a VM.
@@ -661,7 +716,7 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
     if enable:
         if memory_backing is None:
             memory_backing = ET.SubElement(root, 'memoryBacking')
-        
+
         # Ensure no conflicting access mode is set
         access_elem = memory_backing.find('access')
         if access_elem is not None and access_elem.get('mode') != 'shared':
@@ -706,7 +761,7 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
 
     for boot_elem in os_elem.findall('boot'):
         os_elem.remove(boot_elem)
- 
+
     boot_menu_elem = os_elem.find('bootmenu')
     if boot_menu_elem is not None:
         os_elem.remove(boot_menu_elem)
@@ -727,17 +782,17 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    
+
     devices = root.find('devices')
     if devices is None:
         if model is None: return
         devices = ET.SubElement(root, 'devices')
-        
+
     video = devices.find('video')
     if video is None:
         if model is None: return
         video = ET.SubElement(devices, 'video')
-        
+
     model_elem = video.find('model')
 
     if model is None:
@@ -772,7 +827,7 @@ def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    
+
     cpu = root.find('.//cpu')
     if cpu is None:
         cpu = ET.SubElement(root, 'cpu')
@@ -855,9 +910,6 @@ def set_vm_sound_model(domain, model):
     domain.connect().defineXML(new_xml)
 
 
-    conn.defineXML(new_xml)
-
-
 @log_function_call
 def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen_type: str, address: str, port: int | None, autoport: bool, password_enabled: bool, password: str | None):
     """
@@ -915,7 +967,7 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
         else:  # listen_type == 'none'
             if listen_elem is not None:
                 graphics_elem.remove(listen_elem)
-        
+
         # Set password
         if password_enabled and password:
             graphics_elem.set('passwd', password)
