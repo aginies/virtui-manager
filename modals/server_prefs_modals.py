@@ -3,14 +3,13 @@ Server pref modal
 Main interface
 """
 
+import libvirt
 from textual.app import ComposeResult
 from textual import on
-import libvirt
-
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.widgets import (
         Button, Label,
-        DataTable,
+        DataTable, Static,
         TabbedContent, TabPane, Tree
         )
 from modals.base_modals import BaseModal
@@ -42,6 +41,7 @@ class ServerPrefModal(BaseModal[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="server-pref-dialog", classes="ServerPrefModal"):
             yield Label("Server Preferences", id="server-pref-title")
+            yield Static(classes="button-separator")
             with TabbedContent(id="server-pref-tabs"):
                 with TabPane("Network", id="tab-network"):
                     with ScrollableContainer():
@@ -86,6 +86,10 @@ class ServerPrefModal(BaseModal[None]):
             self.app.show_error_message(f"Failed to get connection for server preferences on {uri_to_connect}.")
             self.dismiss()
             return
+
+        # Get server hostname and update the title
+        server_hostname = self.conn.getHostname()
+        self.query_one("#server-pref-title", Label).update(f"Server Preferences ({server_hostname})")
 
         self._load_networks()
         disk_map = get_all_vm_disk_usage(self.conn)
