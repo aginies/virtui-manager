@@ -129,30 +129,32 @@ class SelectServerModal(BaseModal[None]):
             self.dismiss(None)
 
 class SelectOneServerModal(ModalScreen[str]):
-    def __init__(self, servers: list[dict]):
+    def __init__(self, servers: list[dict], title: str = "Select a server", button_label: str = "Launch"):
         super().__init__()
         self.servers = servers
         self.server_options = [(s['name'], s['uri']) for s in servers]
+        self.title_text = title
+        self.button_label = button_label
 
     def compose(self) -> ComposeResult:
         with Vertical(id="select-one-server-container", classes="modal-container"):
-            yield Label("Select a server for Virsh Shell:")
+            yield Label(self.title_text)
             yield Select(self.server_options, prompt="Select server...", id="server-select")
             with Horizontal(classes="modal-buttons"):
-                yield Button("Launch", id="launch-virsh", variant="primary", disabled=True)
-                yield Button("Cancel", id="cancel-virsh")
+                yield Button(self.button_label, id="launch-btn", variant="primary", disabled=True)
+                yield Button("Cancel", id="cancel-btn")
 
     @on(Select.Changed, "#server-select")
     def on_server_select_changed(self, event: Select.Changed) -> None:
-        self.query_one("#launch-virsh", Button).disabled = not event.value
+        self.query_one("#launch-btn", Button).disabled = not event.value
 
-    @on(Button.Pressed, "#launch-virsh")
+    @on(Button.Pressed, "#launch-btn")
     def on_launch_button_pressed(self) -> None:
         select = self.query_one("#server-select", Select)
         if select.value:
             self.dismiss(select.value)
 
-    @on(Button.Pressed, "#cancel-virsh")
+    @on(Button.Pressed, "#cancel-btn")
     def on_cancel_button_pressed(self) -> None:
         self.dismiss()
 
@@ -449,17 +451,23 @@ class VMManagerTUI(App):
 
     @on(Button.Pressed, "#server_preferences_button")
     def action_server_preferences(self) -> None:
-        """Show server preferences modal."""
-        self.push_screen(ServerPrefModal())
+        """Show server preferences modal, prompting for a server if needed."""
+        def launch_server_prefs(uri: str):
+            self.push_screen(ServerPrefModal(uri=uri))
 
-    def action_virsh_shell(self) -> None:
-        """Show the virsh shell modal."""
+        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences:", "Open")
+
+    def _select_server_and_run(self, callback: callable, modal_title: str, modal_button_label: str) -> None:
+        """
+        Helper to select a server and run a callback with the selected URI.
+        Handles 0, 1, or multiple active servers.
+        """
         if len(self.active_uris) == 0:
             self.show_error_message("Not connected to any server.")
             return
 
         if len(self.active_uris) == 1:
-            self.push_screen(VirshShellScreen(uri=self.active_uris[0]))
+            callback(self.active_uris[0])
             return
 
         server_options = []
@@ -471,11 +479,18 @@ class VMManagerTUI(App):
                     break
             server_options.append({'name': name, 'uri': uri})
 
-        def launch_virsh(uri: str | None):
+        def on_server_selected(uri: str | None):
             if uri:
-                self.push_screen(VirshShellScreen(uri=uri))
+                callback(uri)
 
-        self.push_screen(SelectOneServerModal(server_options), launch_virsh)
+        self.push_screen(SelectOneServerModal(server_options, title=modal_title, button_label=modal_button_label), on_server_selected)
+
+    def action_virsh_shell(self) -> None:
+        """Show the virsh shell modal."""
+        def launch_virsh_shell(uri: str):
+            self.push_screen(VirshShellScreen(uri=uri))
+
+        self._select_server_and_run(launch_virsh_shell, "Select a server for Virsh Shell:", "Launch")
 
     @on(Button.Pressed, "#virsh_shell_button")
     def on_virsh_shell_button_pressed(self, event: Button.Pressed) -> None:

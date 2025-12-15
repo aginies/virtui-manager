@@ -35,6 +35,10 @@ import storage_manager
 class ServerPrefModal(BaseModal[None]):
     """Modal screen for server preferences."""
 
+    def __init__(self, uri: str | None = None) -> None:
+        super().__init__()
+        self.uri = uri
+
     def compose(self) -> ComposeResult:
         with Vertical(id="server-pref-dialog", classes="ServerPrefModal"):
             yield Label("Server Preferences", id="server-pref-title")
@@ -64,18 +68,22 @@ class ServerPrefModal(BaseModal[None]):
                             yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button")
 
     def on_mount(self) -> None:
-        if len(self.app.active_uris) == 0:
-            self.app.show_error_message("Not connected to any server.")
-            self.dismiss()
-            return
-        if len(self.app.active_uris) > 1:
-            self.app.show_error_message("Server Preferences are available only when connected to a single server.")
-            self.dismiss()
-            return
+        uri_to_connect = self.uri
+        if uri_to_connect is None:
+            if len(self.app.active_uris) == 0:
+                self.app.show_error_message("Not connected to any server.")
+                self.dismiss()
+                return
+            if len(self.app.active_uris) > 1:
+                # This should not happen if the app logic uses the server selection modal
+                self.app.show_error_message("Multiple servers active but none selected for preferences.")
+                self.dismiss()
+                return
+            uri_to_connect = self.app.active_uris[0]
 
-        self.conn = self.app.connection_manager.connect(self.app.active_uris[0])
+        self.conn = self.app.connection_manager.connect(uri_to_connect)
         if not self.conn:
-            self.app.show_error_message("Failed to get connection for server preferences.")
+            self.app.show_error_message(f"Failed to get connection for server preferences on {uri_to_connect}.")
             self.dismiss()
             return
 
