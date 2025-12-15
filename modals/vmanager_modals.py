@@ -1,15 +1,14 @@
 """
 Vmanager modals
 """
-from modals.base_modals import BaseModal
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.widgets import (
-        Header, Footer, Select, Button, Input, Label, Static,
-        DataTable, Link, TextArea, ListView, ListItem, Checkbox, RadioButton,
-        RadioSet, TabbedContent, TabPane, Tree
+        Button, Input, Label,
+        ListView, ListItem, Checkbox, RadioButton,
+        RadioSet
         )
-
+from modals.base_modals import BaseModal
 
 
 class FilterModal(BaseModal[dict | None]):
@@ -21,7 +20,7 @@ class FilterModal(BaseModal[dict | None]):
         self.current_status = current_status
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="filter-dialog"): #, classes="FilterModal"):
+        with Vertical(id="filter-dialog", classes="info-details"):
             yield Label("Filter by Name")
             yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
             with RadioSet(id="status-radioset"):
