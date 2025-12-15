@@ -201,7 +201,7 @@ VMDetailModal {
     align: center middle;
 } 
 #vm-detail-container {
-    width: 75;
+    width: 90;
     height: 90%;
     border: round $primary-lighten-2;
     padding: 1;
