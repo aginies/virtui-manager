@@ -78,12 +78,23 @@ ConfirmationDialog #dialog-buttons Button {
     margin-right: 1;
 }
 
+WebConsoleDialog,
+SelectDiskModal,
+SelectPoolModal,
+DeleteVMConfirmationDialog,
+CloneNameDialog
 SelectServerModal {
     align: center middle;
     content-align: center middle;
+    height: auto;
     background: rgba(0, 0, 0, 0.5);
 }
 
+WebConsoleDialog #dialog,
+SelectDiskModal #dialog,
+SelectPoolModal #dialog,
+DeleteVMConfirmationDialog #dialog,
+CloneNameDialog #dialog,
 SelectServerModal #select-server-container {
     width: 60;
     padding: 1;
@@ -92,20 +103,35 @@ SelectServerModal #select-server-container {
     height: auto;
 }
 
+SelectDiskModal #question,
+SelectPoolModal #question,
+DeleteVMConfirmationDialog #question,
+CloneNameDialog #question,
 SelectServerModal #select-server-container Label {
     content-align: center middle;
     margin-bottom: 1;
 }
 
+CloneNameDialog Input,
 SelectServerModal Checkbox {
     padding: 0 1;
     margin-bottom: 1;
 }
 
+WebConsoleDialog #dialog-buttons,
+SelectDiskModal #dialog-buttons,
+SelectPoolModal #dialog-buttons,
+DeleteVMConfirmationDialog #dialog-buttons,
+CloneNameDialog #dialog-buttons,
 SelectServerModal #dialog-buttons {
     width: 100%;
 }
 
+WebConsoleDialog #dialog-buttons Button,
+SelectDiskModal #dialog-buttons Button,
+SelectPoolModal #dialog-buttons Button,
+DeleteVMConfirmationDialog #dialog-buttons Button,
+CloneNameDialog #dialog-buttons Button,
 SelectServerModal #dialog-buttons Button {
     width: 48%;
     margin: 0 0;
