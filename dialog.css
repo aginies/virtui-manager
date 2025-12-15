@@ -98,7 +98,7 @@ CloneNameDialog #dialog,
 SelectServerModal #select-server-container {
     width: 60;
     padding: 1;
-    border: round green;
+    border: round $primary;
     background: $surface;
     height: auto;
 }

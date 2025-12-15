@@ -14,7 +14,7 @@
 #connection-dialog {
     width: 60;
     height: auto;
-    border: panel green;
+    border: round green;
     background: $surface;
     padding: 1 2;
 }
@@ -46,7 +46,7 @@
 #server-management-dialog, {
     width: 64;
     height: auto;
-    border: panel $primary;
+    border: round $primary;
     background: $surface;
     padding: 1 2;
 }
@@ -432,7 +432,7 @@ VirshShellScreen {
     height: 100%;
     max-height: 100%;
     background: $surface;
-    border: panel $primary;
+    border: round $primary;
     padding: 0;
     align: center middle;
 }
