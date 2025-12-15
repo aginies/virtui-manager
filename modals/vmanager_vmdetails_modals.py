@@ -132,7 +132,7 @@ class VMDetailModal(ModalScreen):
 
         # Get the latest disk info directly from the VM's XML
         disks_info = get_vm_disks_info(self.conn, self.domain.XMLDesc(0))
-        #self.vm_info['disks'] = disks_info
+        self.vm_info['disks'] = disks_info # Keep self.vm_info updated for consistency with other parts of the modal
 
         for disk in disks_info:
             path = disk.get('path', 'N/A')
@@ -1059,7 +1059,7 @@ class VMDetailModal(ModalScreen):
             if highlighted_index >= len(disks_info):
                 self.app.show_error_message("Invalid selection.")
                 return
-            
+
             disk_to_disable = disks_info[highlighted_index]
             if disk_to_disable['status'] != 'enabled':
                 self.app.show_error_message("Can only disable enabled disks.")
@@ -1075,7 +1075,7 @@ class VMDetailModal(ModalScreen):
                         self._update_disk_list()
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error disabling disk: {e}")
-            
+
             self.app.push_screen(ConfirmationDialog(f"Are you sure you want to disable disk:\n{disk_path}"), on_confirm)
 
         elif event.button.id == "detail_enable_disk":
@@ -1088,12 +1088,12 @@ class VMDetailModal(ModalScreen):
             if highlighted_index >= len(disks_info):
                 self.app.show_error_message("Invalid selection.")
                 return
-            
+
             disk_to_enable = disks_info[highlighted_index]
             if disk_to_enable['status'] != 'disabled':
                 self.app.show_error_message("Can only enable disabled disks.")
                 return
-            
+
             disk_path = disk_to_enable['path']
 
             def on_confirm(confirmed: bool):
@@ -1104,9 +1104,62 @@ class VMDetailModal(ModalScreen):
                         self._update_disk_list()
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error enabling disk: {e}")
-            
+
             self.app.push_screen(ConfirmationDialog(f"Are you sure you want to enable disk:\n{disk_path}?"), on_confirm)
 
+        elif event.button.id == "detail_edit_disk":
+            highlighted_index = self.query_one("#disks-table").cursor_row
+            if highlighted_index is None:
+                self.app.show_error_message("No disk selected for editing.")
+                return
+
+            # Retrieve the disk details from the vm_info dictionary
+            disks_info = self.vm_info.get("disks", [])
+            if highlighted_index >= len(disks_info):
+                self.app.show_error_message("Invalid disk selection.")
+                return
+
+            selected_disk = disks_info[highlighted_index]
+            is_stopped = self.vm_info.get("status") == "Stopped"
+
+            def edit_disk_callback(result):
+                if result:
+                    new_cache_mode = result.get('cache')
+                    new_discard_mode = result.get('discard')
+
+                    if new_cache_mode == selected_disk.get('cache_mode') and new_discard_mode == selected_disk.get('discard_mode'):
+                        self.app.show_success_message("No changes detected for disk properties.")
+                        return
+
+                    try:
+                        # VM must be stopped to edit disk properties
+                        if not is_stopped:
+                            self.app.show_error_message("VM must be stopped to edit disk properties.")
+                            return
+
+                        disk_properties = {
+                            'cache': new_cache_mode,
+                            'discard': new_discard_mode
+                        }
+                        set_disk_properties(
+                            self.domain,
+                            selected_disk.get('path'),
+                            properties=disk_properties
+                        )
+                        self.app.show_success_message(f"Disk {os.path.basename(selected_disk.get('path'))} properties updated.")
+                        self._update_disk_list() # Refresh the disk list in the UI
+                    except libvirt.libvirtError as e:
+                        self.app.show_error_message(f"Error editing disk properties: {e}")
+                    except Exception as e:
+                        self.app.show_error_message(f"An unexpected error occurred: {e}")
+
+            self.app.push_screen(
+                EditDiskModal(
+                    disk_info=selected_disk, # Pass the entire selected_disk dictionary
+                    is_stopped=is_stopped # Pass the is_stopped boolean
+                ),
+                edit_disk_callback
+            )
 
         elif event.button.id == "edit-cpu":
             def edit_cpu_callback(new_cpu_count):
