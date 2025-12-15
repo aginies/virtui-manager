@@ -194,12 +194,16 @@ class VMManagerTUI(App):
     num_pages = reactive(1)
 
     SERVER_COLOR_PALETTE = [
-        "#50c878",  # Emerald Green
-        "#2e8b57",  # Sea Green
-        "#8fbc8f",  # Dark Sea Green
-        "#20b2aa",  # Light Sea Green
-        "#008080",  # Teal
-        "#3cb371",  # Medium Sea Green
+        "#33FF57",  # Green
+        "#F333FF",  # Magenta
+        "#3357FF",  # Blue
+        "#FF8C33",  # Orange
+        "#FF33A1",  # Pink
+        "#F3FF33",  # Yellow
+        "#33FF8C",  # Mint
+        "#FF5733",  # Red-Orange
+        "#33FFF3",  # Cyan
+        "#A133FF",  # Purple
     ]
 
     CSS_PATH = ["vmanager.css", "vmcard.css", "dialog.css"]
