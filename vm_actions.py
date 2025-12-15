@@ -636,7 +636,11 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
                 driver = ET.SubElement(disk, "driver", name="qemu", type="qcow2")
 
             for key, value in properties.items():
-                driver.set(key, value)
+                if key == "cache" and value == "default":
+                    if key in driver.attrib:
+                        del driver.attrib[key]
+                else:
+                    driver.set(key, value)
 
             disk_found = True
             break
