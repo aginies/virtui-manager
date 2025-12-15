@@ -346,7 +346,10 @@ def get_vm_disks_info(conn: libvirt.virConnect, xml_content: str) -> list[dict]:
                             disk_path = f"Error: volume '{vol_name}' not found in pool '{pool_name}'"
 
                 if disk_path:
-                    disks.append({'path': disk_path, 'status': 'enabled'})
+                    driver = disk.find("driver")
+                    cache_mode = driver.get("cache") if driver is not None else "default"
+                    discard_mode = driver.get("discard") if driver is not None else "ignore"
+                    disks.append({'path': disk_path, 'status': 'enabled', 'cache_mode': cache_mode, 'discard_mode': discard_mode})
 
         # Disabled disks from metadata
         metadata_elem = root.find('metadata')
@@ -375,7 +378,10 @@ def get_vm_disks_info(conn: libvirt.virConnect, xml_content: str) -> list[dict]:
                                     disk_path = f"Error: volume '{vol_name}' not found in pool '{pool_name}'"
 
                         if disk_path:
-                            disks.append({'path': disk_path, 'status': 'disabled'})
+                            driver = disk.find("driver")
+                            cache_mode = driver.get("cache") if driver is not None else "default"
+                            discard_mode = driver.get("discard") if driver is not None else "ignore"
+                            disks.append({'path': disk_path, 'status': 'disabled', 'cache_mode': cache_mode, 'discard_mode': discard_mode})
     except ET.ParseError:
         pass  # Failed to get disks, continue without them
 
