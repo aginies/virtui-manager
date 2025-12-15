@@ -9,12 +9,10 @@ import libvirt
 
 from textual.app import App, ComposeResult, on
 from textual.widgets import (
-        Header, Footer, Button, Label, Static,
-        Link, Checkbox, Select
+        Header, Footer, Button, Label, Static, Link
         )
-from textual.containers import Horizontal, Vertical, ScrollableContainer
+from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
-from textual.screen import ModalScreen
 
 from libvirt_error_handler import register_error_handler
 from vmcard import VMCard, VMNameClicked
@@ -73,7 +71,7 @@ class VMManagerTUI(App):
     def _get_initial_active_uris(servers_list):
         if servers_list:
             return [servers_list[0]['uri']]
-        return ["qemu:///system"]
+        return []
 
     active_uris = reactive(_get_initial_active_uris(servers))
     current_page = reactive(0)
@@ -624,8 +622,8 @@ if __name__ == "__main__":
         if terminal_size.lines < 34:
             print(f"Terminal height is too small ({terminal_size.lines} lines). Please resize to at least 34 lines.")
             sys.exit(1)
-        if terminal_size.columns < 92:
-            print(f"Terminal width is too small ({terminal_size.columns} columns). Please resize to at least 92 columns.")
+        if terminal_size.columns < 86:
+            print(f"Terminal width is too small ({terminal_size.columns} columns). Please resize to at least 86 columns.")
             sys.exit(1)
         app = VMManagerTUI()
         app.run()
