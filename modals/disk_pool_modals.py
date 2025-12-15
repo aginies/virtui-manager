@@ -2,6 +2,7 @@
 Storage Pool Volume 
 """
 import os
+import libvirt
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.widgets import (
         Label, ListView, ListItem, Button, Checkbox, Input,
@@ -147,6 +148,10 @@ class AddDiskModal(BaseModal[dict | None]):
 
 class AddPoolModal(BaseModal[bool | None]):
     """Modal screen for adding a new storage pool."""
+
+    def __init__(self, conn: libvirt.virConnect) -> None:
+        super().__init__()
+        self.conn = conn
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-pool-dialog", classes="add-pool-dialog"):
@@ -299,3 +304,41 @@ class CreateVolumeModal(BaseModal[dict | None]):
             self.dismiss({'name': name, 'size_gb': size_gb, 'format': vol_format})
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
+
+class EditDiskModal(BaseModal[dict | None]):
+    def __init__(self, disk_info: dict, is_stopped: bool):
+        super().__init__()
+        self.disk_info = disk_info
+        self.is_stopped = is_stopped
+
+    def compose(self) -> ComposeResult:
+        cache_options = [("default", "default"), ("none", "none"), ("writethrough", "writethrough"), ("writeback", "writeback"), ("directsync", "directsync"), ("unsafe", "unsafe")]
+        discard_options = [("unmap", "unmap"), ("ignore", "ignore")]
+
+        with Vertical(classes="modal-container"):
+            yield Label(f"Edit Disk: {self.disk_info['path']}")
+
+            yield Label("Cache Mode:")
+            yield Select(cache_options, value=self.disk_info.get('cache', 'default'), id="edit-cache-mode", disabled=not self.is_stopped)
+
+            yield Label("Discard Mode:")
+            yield Select(discard_options, value=self.disk_info.get('discard', 'unmap'), id="edit-discard-mode", disabled=not self.is_stopped)
+
+            if not self.is_stopped:
+                yield Label("VM must be stopped to edit disk settings.", classes="warning")
+
+            with Horizontal(classes="modal-buttons"):
+                yield Button("Apply", variant="primary", id="apply-disk-edit", disabled=not self.is_stopped)
+                yield Button("Cancel", id="cancel-disk-edit")
+
+    @on(Button.Pressed, "#apply-disk-edit")
+    def on_apply(self):
+        result = {
+            "cache": self.query_one("#edit-cache-mode", Select).value,
+            "discard": self.query_one("#edit-discard-mode", Select).value
+        }
+        self.dismiss(result)
+
+    @on(Button.Pressed, "#cancel-disk-edit")
+    def on_cancel(self):
+        self.dismiss(None)
