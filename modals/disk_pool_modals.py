@@ -319,10 +319,10 @@ class EditDiskModal(BaseModal[dict | None]):
             yield Label(f"Edit Disk: {self.disk_info['path']}")
 
             yield Label("Cache Mode:")
-            yield Select(cache_options, value=self.disk_info.get('cache', 'none'), id="edit-cache-mode", disabled=not self.is_stopped)
+            yield Select(cache_options, value=self.disk_info.get('cache_mode') or 'none', id="edit-cache-mode", disabled=not self.is_stopped)
 
             yield Label("Discard Mode:")
-            yield Select(discard_options, value=self.disk_info.get('discard', 'unmap'), id="edit-discard-mode", disabled=not self.is_stopped)
+            yield Select(discard_options, value=self.disk_info.get('discard_mode') or 'unmap', id="edit-discard-mode", disabled=not self.is_stopped)
 
             if not self.is_stopped:
                 yield Label("VM must be stopped to edit disk settings.", classes="warning")
