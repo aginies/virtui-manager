@@ -288,15 +288,14 @@ class VMManagerTUI(App):
         error_footer.styles.padding = 0
         vms_container = self.query_one("#vms-container")
         vms_container.styles.grid_size_columns = 2
-        
-        self._update_layout_for_size()
+        #self._update_layout_for_size()
 
         if not self.servers:
             self.show_success_message("No servers configured. Please add one via 'Servers List'.")
 
         for uri in self.active_uris:
             self.connect_libvirt(uri)
-        self.update_header()
+        #self.update_header()
         #self.list_vms()
 
     def _update_layout_for_size(self):
