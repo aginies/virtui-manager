@@ -21,6 +21,15 @@ VMCard {
     width: 41;
     height: 14;
 }
+#dialog Select {
+    width: 50;
+    height: 5;
+    border: none;
+    margin: 0 0;
+}
+#dialog-buttons Button {
+    width: 50%;
+}
 
 .sparkline-container {
     align-horizontal: left;
