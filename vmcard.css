@@ -54,11 +54,8 @@ VMCard {
     margin: 0 2;
     padding: 0 1;
     text-style: bold;
-    height: 3vh; /* 3vh; */
-    min-height: 3vh; /* 3vh; */
-    max-height: 3vh; /* 3vh; */
+    height: 1;
     content-align: center middle;
-    margin-top: 1;
     margin-bottom: 1;
 }
 #status.running,
@@ -75,18 +72,18 @@ VMCard {
 #status.paused {
     background: yellow;
 }
+
 Button {
-    height: 3vh; /*3vh; */
-    max-height: 14vh; /* 3vh; */
-    width: 100%; /*5vh; */
+    height: 1;
+    width: 100%;
     margin: 0 1;
     padding: 0 0;
     border: hidden;
 }
+
 .Buttonpage {
-    height: 3vh;
-    max-height: 3vh; /* 3vh; */
-    width: 15%; /*5vh; */
+    height: 1;
+    width: 15%;
     margin: 0 1;
     padding: 0 0;
     overflow-y: auto;
@@ -99,22 +96,24 @@ Button {
     margin: 1 1;
     padding: 0 1;
 }
+
 #status-cpu-mem {
     width: 100%;
     height: 100%;
     padding: 0 1;
 }
+
 /* Custom button styles */
 #xml,
 #snapshot_take,
 #snapshot_restore,
 #snapshot_delete {
     color: white;
-    background: red;
-    height: 3vh;
+    height: 1;
 }
 #xml {
     padding: 0 1;
+    background: grey;
 }
 #snapshot_take, #snapshot_restore, #snapshot_delete {
     padding: 0 0;
@@ -135,62 +134,12 @@ Button {
 .button-separator {
     height: 1;
 }
-#status {
-    margin: 0 2;
-    padding: 0 1;
-    text-style: bold;
-    height: 3vh; /* 3vh; */
-    min-height: 3vh; /* 3vh; */
-    max-height: 3vh; /* 3vh; */
-    content-align: center middle;
-    margin-top: 1;
-    margin-bottom: 1;
-}
-#status.running,
-#status.stopped,
-#status.paused {
-    color: black;
-}
-#status.running {
-    background: lightgreen;
-}
-#status.stopped {
-    background: red;
-}
-#status.paused {
-    background: yellow;
-}
-Button {
-    height: 3vh; /*3vh; */
-    max-height: 14vh; /* 3vh; */
-    width: 100%; /*5vh; */
-    margin: 0 1;
-    padding: 0 0;
-    border: hidden;
-}
-.Buttonpage {
-    height: 3vh;
-    max-height: 3vh; /* 3vh; */
-    width: 15%; /*5vh; */
-    margin: 0 1;
-    padding: 0 0;
-    overflow-y: auto;
-    border: hidden;
-}
-#status-cpu-mem {
-    width: 100%;
-    height: 100%;
-    padding: 0 1;
-}
+
 #pause {
     background: #FFA500; /* Orange */
 }
-#xml {
-    background: grey;
-}
+
 #connect {
-    height: 3vh;
-    max-height: 3vh; /* 3vh; */
-    background: red; /*
-    background: #FF00FF; /* Magenta */
+    height: 1;
+    background: red;
 }
