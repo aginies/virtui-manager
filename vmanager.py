@@ -438,7 +438,14 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#view_log_button")
     def action_view_log(self) -> None:
         """View the application log file."""
-        self.push_screen(LogModal())
+        try:
+            with open("vm_manager.log", "r") as f:
+                log_content = f.read()
+        except FileNotFoundError:
+            log_content = "Log file (vm_manager.log) not found."
+        except Exception as e:
+            log_content = f"Error reading log file: {e}"
+        self.push_screen(LogModal(log_content))
 
     @on(Button.Pressed, "#server_preferences_button")
     def action_server_preferences(self) -> None:

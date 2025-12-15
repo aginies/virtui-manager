@@ -10,12 +10,16 @@ from modals.base_modals import BaseModal
 class LogModal(BaseModal[None]):
     """ Modal Screen to show Log"""
 
+    def __init__(self, log_content: str, title: str = "Log View") -> None:
+        super().__init__()
+        self.log_content = log_content
+        self.title = title
+
     def compose(self) -> ComposeResult:
         with Vertical(id="text-show"):
-            yield Label("Log View", id="title")
-            log_file = "vm_manager.log"
+            yield Label(self.title, id="title")
             text_area = TextArea()
-            text_area.load_text(open(log_file, "r").read())
+            text_area.load_text(self.log_content)
             yield text_area
         with Horizontal():
             yield Button("Close", variant="default", id="cancel-btn", classes="Buttonpage")
