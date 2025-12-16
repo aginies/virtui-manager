@@ -273,9 +273,10 @@ XMLDisplayModal #dialog-buttons Button {
 }
 #webconsole-dialog {
     height: 10;
+    width: 85;
 }
 #webconsole-config-dialog {
-    height: 18;
+    height: 26;
 }
 #remote-console-switch,
 #webconsole-config-title {
