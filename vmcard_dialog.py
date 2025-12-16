@@ -3,11 +3,10 @@ Dialog box for VMcard
 """
 
 from textual.app import ComposeResult
-from textual.containers import ScrollableContainer, Horizontal, Vertical
-from textual.screen import ModalScreen
+from textual.containers import ScrollableContainer, Horizontal, Vertical, Grid
 from textual.widgets import (
-        Button, Label, Checkbox, Select, Input, Link, ListView, ListItem,
-        Switch, Markdown
+        Button, Label, Checkbox, Select, Input, ListView, ListItem,
+        Switch, Markdown,
         )
 from modals.base_modals import BaseDialog
 from config import load_config, save_config
@@ -78,36 +77,52 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
         else:
             self.dismiss(None)
 
-
-class CloneNameDialog(BaseDialog[str | None]):
-    """A dialog to ask for a new VM name when cloning."""
+class AdvancedCloneDialog(BaseDialog[dict | None]):
+    """A dialog to ask for a new VM name and number of clones."""
 
     def compose(self):
-        yield Vertical(
-            Label("Enter new VM name", id="question"),
-            Input(placeholder="new_vm_name"),
-            Horizontal(
-                Button("Clone", variant="success", id="clone_vm"),
-                Button("Cancel", variant="error", id="cancel"),
-                id="dialog-buttons",
-            ),
-            id="dialog",
-            classes="info-container",
+        yield Grid(
+            Label("Enter base name for new VM(s)"),
+            Input(placeholder="new_vm_base_name", id="base_name_input"),
+            Label("Suffix for clone names (e.g., _C)"),
+            Input(placeholder="e.g., -clone", id="clone_suffix_input"),
+            Label("Number of clones to create"),
+            Input(value="1", id="clone_count_input", type="integer"),
+            Button("Clone", variant="success", id="clone_vm"),
+            Button("Cancel", variant="error", id="cancel"),
+            id="clone-dialog"
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "clone_vm":
-            input_widget = self.query_one(Input)
-            new_name = input_widget.value.strip()
+            base_name_input = self.query_one("#base_name_input", Input)
+            clone_count_input = self.query_one("#clone_count_input", Input)
+            clone_suffix_input = self.query_one("#clone_suffix_input", Input)
 
-            error = self.validate_name(new_name)
-            if error:
-                self.app.show_error_message(error)
+            base_name = base_name_input.value.strip()
+            clone_count_str = clone_count_input.value.strip()
+            clone_suffix = clone_suffix_input.value.strip()
+
+            if not base_name:
+                self.app.show_error_message("Base name cannot be empty.")
                 return
 
-            self.dismiss(new_name)
+            try:
+                clone_count = int(clone_count_str)
+                if clone_count < 1:
+                    raise ValueError()
+            except ValueError:
+                self.app.show_error_message("Number of clones must be a positive integer.")
+                return
+
+            if clone_count > 1 and not clone_suffix:
+                self.app.show_error_message("Suffix is mandatory when creating multiple clones.")
+                return
+
+            self.dismiss({"base_name": base_name, "count": clone_count, "suffix": clone_suffix})
         else:
             self.dismiss(None)
+
 
 class RenameVMDialog(BaseDialog[str | None]):
     """A dialog to ask for a new VM name when renaming."""
