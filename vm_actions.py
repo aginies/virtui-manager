@@ -1087,7 +1087,7 @@ def start_vm(domain):
                 # This will raise an exception if the volume doesn't exist
                 pool.storageVolLookupByName(vol_name)
             except libvirt.libvirtError as e:
-                raise Exception(f"Error checking disk volume '[red]{vol_name}[/red]' in pool '[red]{pool_name}[/red]': {e}")
+                raise Exception(f"Error checking disk volume '[red]{vol_name}[/red]' in pool '[red] {pool_name}[/red]': {e}")
 
     domain.create()
 
@@ -1099,24 +1099,38 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool):
     if not domain:
         raise ValueError("Invalid domain object.")
 
-    disk_paths = []
+    conn = domain.connect()
+
+    disks_to_delete = []
     if delete_storage:
         xml_desc = domain.XMLDesc(0)
-        disks = _get_vm_disks_info(domain.connect(), xml_desc)
-        disk_paths = [disk['path'] for disk in disks if disk.get('path')]
+        disks_to_delete = get_vm_disks_info(conn, xml_desc)
 
     if domain.isActive():
         domain.destroy()
     domain.undefine()
 
     if delete_storage:
-        for path in disk_paths:
+        for disk_info in disks_to_delete:
             try:
-                if path and os.path.exists(path):
-                    os.remove(path)
-                    logging.info(f"Successfully deleted storage file: {path}")
-                else:
-                    logging.warning(f"Storage file not found, skipping: {path}")
+                if disk_info['type'] == 'file' and disk_info['path']:
+                    if os.path.exists(disk_info['path']):
+                        os.remove(disk_info['path'])
+                        logging.info(f"Successfully deleted storage file: {disk_info['path']}")
+                    else:
+                        logging.warning(f"Storage file not found, skipping: {disk_info['path']}")
+                elif disk_info['type'] == 'volume' and disk_info['pool_name'] and disk_info['volume_name']:
+                    try:
+                        pool = conn.storagePoolLookupByName(disk_info['pool_name'])
+                        vol = pool.storageVolLookupByName(disk_info['volume_name'])
+                        vol.delete(0)
+                        logging.info(f"Successfully deleted storage volume: {disk_info['volume_name']} from pool {disk_info['pool_name']}")
+                    except libvirt.libvirtError as e:
+                        if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
+                            logging.warning(f"Storage volume '{disk_info['volume_name']}' not found in pool '{disk_info['pool_name']}', skipping deletion.")
+                        else:
+                            logging.error(f"Error deleting storage volume {disk_info['volume_name']} from pool {disk_info['pool_name']}: {e}")
+                            raise
             except OSError as e:
-                logging.error(f"Error deleting storage file {path}: {e}")
+                logging.error(f"Error deleting storage file {disk_info.get('path', 'N/A')}: {e}")
                 raise
