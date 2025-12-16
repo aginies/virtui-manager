@@ -82,6 +82,12 @@ class SelectServerModal(BaseModal[None]):
                         self.active_uris.append(uri)
 
             self.app.run_worker(connect_and_update, thread=True)
+        else:  # If checkbox is unchecked
+            # Disconnect from the server
+            self.connection_manager.disconnect(uri)
+            # Remove URI from active_uris if it exists
+            if uri in self.active_uris:
+                self.active_uris.remove(uri)
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
