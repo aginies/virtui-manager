@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 import libvirt
 from libvirt_utils import _find_vol_by_path, _get_disabled_disks_elem
 from utils import log_function_call
-
+from vm_queries import get_vm_disks_info
 
 @log_function_call
 def clone_vm(original_vm, new_vm_name):
@@ -47,8 +47,10 @@ def clone_vm(original_vm, new_vm_name):
             continue
 
         original_vol, original_pool = _find_vol_by_path(conn, original_disk_path)
+        # If the disk is not a managed libvirt storage volume, skip it as per user's instruction.
         if not original_vol:
-            raise Exception(f"Disk '[red]{original_disk_path}[/red]' is not a managed libvirt storage volume. Cannot clone via API.")
+            logging.info(f"Skipping cloning of non-libvirt managed disk: {original_disk_path}")
+            continue
 
         original_vol_xml = original_vol.XMLDesc(0)
         vol_root = ET.fromstring(original_vol_xml)
@@ -1088,3 +1090,33 @@ def start_vm(domain):
                 raise Exception(f"Error checking disk volume '[red]{vol_name}[/red]' in pool '[red]{pool_name}[/red]': {e}")
 
     domain.create()
+
+@log_function_call
+def delete_vm(domain: libvirt.virDomain, delete_storage: bool):
+    """
+    Deletes a VM and optionally its associated storage.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    disk_paths = []
+    if delete_storage:
+        xml_desc = domain.XMLDesc(0)
+        disks = _get_vm_disks_info(domain.connect(), xml_desc)
+        disk_paths = [disk['path'] for disk in disks if disk.get('path')]
+
+    if domain.isActive():
+        domain.destroy()
+    domain.undefine()
+
+    if delete_storage:
+        for path in disk_paths:
+            try:
+                if path and os.path.exists(path):
+                    os.remove(path)
+                    logging.info(f"Successfully deleted storage file: {path}")
+                else:
+                    logging.warning(f"Storage file not found, skipping: {path}")
+            except OSError as e:
+                logging.error(f"Error deleting storage file {path}: {e}")
+                raise
