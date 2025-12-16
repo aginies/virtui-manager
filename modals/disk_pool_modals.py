@@ -246,28 +246,38 @@ class AddPoolModal(BaseModal[bool | None]):
                 pool_details["format"] = netfs_format
                 pool_details["host"] = host
                 pool_details["source"] = source_path
-            try:
-                if pool_details['type'] == 'dir':
-                    create_storage_pool(
-                        self.conn,
-                        pool_details['name'],
-                        pool_details['type'],
-                        pool_details['target']
+
+            def do_create_pool():
+                try:
+                    if pool_details['type'] == 'dir':
+                        create_storage_pool(
+                            self.conn,
+                            pool_details['name'],
+                            pool_details['type'],
+                            pool_details['target']
+                        )
+                    elif pool_details['type'] == 'netfs':
+                        create_storage_pool(
+                            self.conn,
+                            pool_details['name'],
+                            pool_details['type'],
+                            pool_details['target'],
+                            source_host=pool_details['host'],
+                            source_path=pool_details['source'],
+                            source_format=pool_details['format']
+                        )
+                    self.app.call_from_thread(
+                        self.app.show_success_message, 
+                        f"Storage pool '{pool_details['name']}' created and started."
                     )
-                elif pool_details['type'] == 'netfs':
-                    create_storage_pool(
-                        self.conn,
-                        pool_details['name'],
-                        pool_details['type'],
-                        pool_details['target'],
-                        source_host=pool_details['host'],
-                        source_path=pool_details['source'],
-                        source_format=pool_details['format']
+                    self.app.call_from_thread(self.dismiss, True)
+                except Exception as e:
+                    self.app.call_from_thread(
+                        self.app.show_error_message, 
+                        f"Error creating storage pool: {e}"
                     )
-                self.app.show_success_message(f"Storage pool '{pool_details['name']}' created and started.")
-                self.dismiss(True)
-            except Exception as e:
-                self.app.show_error_message(f"Error creating storage pool: {e}")
+            
+            self.app.run_worker(do_create_pool, thread=True)
 
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
