@@ -445,9 +445,12 @@ Usage: list_unused_volumes"""
         if not self.conn:
             print("Not connected to any server. Use 'connect <server_name>'.")
             return
+        pool_name = None
+        if args:
+            pool_name = args.strip()
 
         try:
-            unused_volumes = list_unused_volumes(self.conn, None)
+            unused_volumes = list_unused_volumes(self.conn, pool_name)
 
             if unused_volumes:
                 print(f"{'Pool':<20} {'Volume Name':<30} {'Path':<50} {'Capacity':<15}")
