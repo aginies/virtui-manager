@@ -491,7 +491,23 @@ Usage: list_pool"""
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
-    def do_quit(self, arg):
+    def complete_list_unused_volumes(self, text, _, _b, _e):
+        """Auto-completion for pool names in list_unused_volumes command."""
+        if not self.conn:
+            return []
+
+        try:
+            # Get all pool names
+            pools_info = list_storage_pools(self.conn)
+            pool_names = [pool_info["name"] for pool_info in pools_info]
+
+            if not text:
+                return pool_names
+            else:
+                return [pool for pool in pool_names if pool.startswith(text)]
+        except libvirt.libvirtError:
+            return []
+
         """Exit the vmanager shell."""
         if self.conn:
             self.do_disconnect(None)
@@ -499,7 +515,7 @@ Usage: list_pool"""
         self.connection_manager.disconnect_all()
         return True
 
-    def do_exit(self, arg):
+    def do_quit(self, arg):
         """Exit the vmanager shell."""
         if self.conn:
             self.do_disconnect(None)
