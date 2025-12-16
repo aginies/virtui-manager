@@ -650,7 +650,7 @@ class VMCard(Static):
                 proposed_names = []
                 for i in range(1, count + 1):
                     if count > 1:
-                        new_name = f"{base_name}{suffix}{i}" # Use the provided suffix
+                        new_name = f"{base_name}{suffix}{i}"
                     else:
                         new_name = base_name
                     proposed_names.append(new_name)
@@ -676,7 +676,7 @@ class VMCard(Static):
 
                 for i in range(1, count + 1):
                     if count > 1:
-                        new_name = f"{base_name}_C{i}"
+                        new_name = f"{base_name}{suffix}{i}"
                     else:
                         new_name = base_name
 
