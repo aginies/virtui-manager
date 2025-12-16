@@ -6,6 +6,7 @@ import logging
 import traceback
 from datetime import datetime
 import os
+from functools import partial
 from urllib.parse import urlparse
 import libvirt
 
@@ -468,9 +469,11 @@ class VMCard(Static):
 
     def _handle_web_console_button(self, event: Button.Pressed) -> None:
         """Handles the web console button press by opening a config dialog."""
+        worker = partial(self.app.webconsole_manager.start_console, self.vm, self.conn)
+
         uuid = self.vm.UUIDString()
         if self.app.webconsole_manager.is_running(uuid):
-            self.app.webconsole_manager.start_console(self.vm, self.conn)
+            self.app.run_worker(worker, name=f"show_console_{self.vm.name()}", thread=True)
             return
 
         parsed_uri = urlparse(self.conn.getURI())
@@ -479,7 +482,10 @@ class VMCard(Static):
         if is_remote:
             def handle_dialog_result(should_start: bool) -> None:
                 if should_start:
-                    self.app.webconsole_manager.start_console(self.vm, self.conn)
+                    self.app.run_worker(worker,
+                                        name=f"start_console_{self.vm.name()}",
+                                        thread=True
+                                        )
 
             self.app.push_screen(
                 WebConsoleConfigDialog(is_remote=is_remote),
@@ -492,7 +498,10 @@ class VMCard(Static):
             if config.get('REMOTE_WEBCONSOLE') is not False:
                 config['REMOTE_WEBCONSOLE'] = False
                 save_config(config)
-            self.app.webconsole_manager.start_console(self.vm, self.conn)
+            self.app.run_worker(worker,
+                                name=f"start_console_{self.vm.name()}",
+                                thread=True
+                                )
 
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot take button press."""
