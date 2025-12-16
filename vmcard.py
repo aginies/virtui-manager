@@ -6,6 +6,7 @@ import logging
 import traceback
 from datetime import datetime
 import os
+from urllib.parse import urlparse
 import libvirt
 
 from textual.widgets import (
@@ -29,7 +30,6 @@ from vmcard_dialog import (
         )
 from utils import extract_server_name_from_uri
 from config import load_config, save_config
-from urllib.parse import urlparse
 
 # Load configuration once at module level
 _config = load_config()
