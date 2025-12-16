@@ -29,7 +29,7 @@ SnapshotNameDialog #dialog {
     width: 60;
     height: 12;
     padding: 1;
-    border: round green;
+    border: round $primary;
     background: $surface;
 }
 
@@ -53,14 +53,14 @@ SnapshotNameDialog #dialog-buttons Button {
 SelectSnapshotDialog #dialog {
     width: 60;
     padding: 1;
-    border: round green;
+    border: round $primary;
     background: $surface;
     height: auto;
 }
 
 SelectSnapshotDialog #snapshot-list {
     margin-bottom: 1;
-    border: round green;
+    border: round $primary;
     height: 10;
 }
 
@@ -152,7 +152,7 @@ RenameVMDialog #dialog {
     width: 60;
     height: 13;
     padding: 1;
-    border: round green;
+    border: round $primary;
     background: $surface;
 }
 
@@ -178,7 +178,7 @@ ChangeNetworkDialog #dialog {
     width: 60;
     height: 20;
     padding: 1;
-    border: round green;
+    border: round $primary;
     background: $surface;
 }
 
@@ -242,7 +242,7 @@ XMLDisplayModal #xml-display-dialog {
     width: 80%;
     height: 80%;
     padding: 1;
-    border: round green;
+    border: round $primary;
     background: $surface;
 }
 
