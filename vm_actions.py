@@ -786,24 +786,68 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    os_elem = root.find('os')
+    conn = domain.connect()
+    os_elem = root.find('.//os')
     if os_elem is None:
-        raise ValueError("Could not find <os> element in VM XML.")
+        os_elem = ET.SubElement(root, 'os')
 
+    # Remove old <boot> elements under <os>
     for boot_elem in os_elem.findall('boot'):
         os_elem.remove(boot_elem)
 
+    # Remove old <boot> elements under devices
+    for dev_node in root.findall('.//devices/*[boot]'):
+        boot_elem = dev_node.find('boot')
+        if boot_elem is not None:
+            dev_node.remove(boot_elem)
+
+    # Set boot menu
     boot_menu_elem = os_elem.find('bootmenu')
     if boot_menu_elem is not None:
         os_elem.remove(boot_menu_elem)
-
-    for dev in order:
-        ET.SubElement(os_elem, 'boot', dev=dev)
-
     if menu_enabled:
         ET.SubElement(os_elem, 'bootmenu', enable='yes')
 
+    # Set new boot order
+    for i, device_id in enumerate(order, 1):
+        # Find the device and add a <boot order='...'> element
+        # Check disks first
+        disk_found = False
+        for disk_elem in root.findall('.//devices/disk'):
+            source_elem = disk_elem.find('source')
+            if source_elem is not None:
+                path = None
+                if "file" in source_elem.attrib:
+                    path = source_elem.attrib["file"]
+                elif "dev" in source_elem.attrib:
+                    path = source_elem.attrib["dev"]
+                elif "pool" in source_elem.attrib and "volume" in source_elem.attrib:
+                    pool_name = source_elem.attrib["pool"]
+                    vol_name = source_elem.attrib["volume"]
+                    try:
+                        pool = conn.storagePoolLookupByName(pool_name)
+                        vol = pool.storageVolLookupByName(vol_name)
+                        path = vol.path()
+                    except libvirt.libvirtError:
+                        pass # Could not resolve path, so it cannot match device_id
+
+                if path == device_id:
+                    ET.SubElement(disk_elem, 'boot', order=str(i))
+                    disk_found = True
+                    break
+        if disk_found:
+            continue
+
+        # Check interfaces
+        for iface_elem in root.findall('.//devices/interface'):
+            mac_elem = iface_elem.find('mac')
+            if mac_elem is not None and mac_elem.get('address') == device_id:
+                ET.SubElement(iface_elem, 'boot', order=str(i))
+                break
+
+    # Update the domain
     new_xml = ET.tostring(root, encoding='unicode')
+    conn.defineXML(new_xml)
 
 @log_function_call
 def set_vm_video_model(domain: libvirt.virDomain, model: str | None):

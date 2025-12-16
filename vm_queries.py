@@ -541,16 +541,47 @@ def get_vm_shared_memory_info(xml_content: str) -> bool:
 def get_boot_info(xml_content: str) -> dict:
     """Extracts boot information from the VM's XML."""
     root = ET.fromstring(xml_content)
-    os_elem = root.find('os')
+    os_elem = root.find('.//os')
     if os_elem is None:
         return {'menu_enabled': False, 'order': []}
 
     boot_menu = os_elem.find('bootmenu')
     menu_enabled = boot_menu is not None and boot_menu.get('enable') == 'yes'
 
-    order = [boot.get('dev') for boot in os_elem.findall('boot')]
+    # First, try to get boot order from devices
+    devices = []
+    # Find all devices with a <boot order='...'> element
+    for dev_node in root.findall('.//devices/*[boot]'):
+        boot_elem = dev_node.find('boot')
+        order = boot_elem.get('order')
+        if order:
+            try:
+                order = int(order)
+                if dev_node.tag == 'disk':
+                    source_elem = dev_node.find('source')
+                    if source_elem is not None:
+                        if 'file' in source_elem.attrib:
+                            devices.append((order, source_elem.get('file')))
+                        elif 'dev' in source_elem.attrib:
+                             devices.append((order, source_elem.get('dev')))
+                elif dev_node.tag == 'interface':
+                    mac_elem = dev_node.find('mac')
+                    if mac_elem is not None:
+                        devices.append((order, mac_elem.get('address')))
+            except (ValueError, TypeError):
+                continue
 
-    return {'menu_enabled': menu_enabled, 'order': order}
+    # Sort devices by boot order
+    devices.sort(key=lambda x: x[0])
+    order_from_devices = [dev[1] for dev in devices]
+
+    if order_from_devices:
+        return {'menu_enabled': menu_enabled, 'order': order_from_devices}
+
+    # Fallback to legacy <boot dev='...'>
+    order_from_os = [boot.get('dev') for boot in os_elem.findall('boot')]
+
+    return {'menu_enabled': menu_enabled, 'order': order_from_os}
 
 
 @log_function_call
