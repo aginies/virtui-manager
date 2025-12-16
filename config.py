@@ -9,6 +9,8 @@ DEFAULT_CONFIG = {
     'websockify_path': '/usr/bin/websockify',
     'novnc_path': '/usr/share/novnc/',
     'REMOTE_WEBCONSOLE': False,
+    'VNC_QUALITY': 0,
+    'VNC_COMPRESSION': 9,
     'servers': [
         {'name': 'Localhost', 'uri': 'qemu:///system'},
     ]
@@ -44,6 +46,11 @@ def load_config():
     config = DEFAULT_CONFIG.copy()
     if user_config:
         config.update(user_config)
+        # If user sets a value to null in yaml, it becomes None. Revert to default.
+        for key, value in config.items():
+            if value is None and key in DEFAULT_CONFIG:
+                config[key] = DEFAULT_CONFIG[key]
+
 
     # Ensure 'servers' key exists and is a non-empty list
     if not isinstance(config.get('servers'), list) or not config.get('servers'):
