@@ -8,7 +8,7 @@ from config import load_config
 from libvirt_utils import find_all_vm
 from vm_actions import start_vm, delete_vm
 from connection_manager import ConnectionManager
-from storage_manager import list_unused_volumes
+from storage_manager import list_unused_volumes, list_storage_pools
 
 class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""
@@ -465,6 +465,29 @@ Usage: list_unused_volumes"""
 
         except libvirt.libvirtError as e:
             print(f"Error listing unused volumes: {e}")
+        except Exception as e:
+            print(f"An unexpected error occurred: {e}")
+
+    def do_list_pool(self, args):
+        """Lists all storage pools on the connected server.
+Usage: list_pool"""
+        if not self.conn:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        try:
+            pools_info = list_storage_pools(self.conn)
+            if pools_info:
+                print(f"{'Pool Name':<30} {'Status':<15} {'Capacity (GiB)':<15} {'Allocation (GiB)':<15}")
+                print(f"{'-'*30} {'-'*15} {'-'*15} {'-'*15}")
+                for pool_info in pools_info:
+                    capacity_gib = pool_info['capacity'] // (1024*1024*1024)
+                    allocation_gib = pool_info['allocation'] // (1024*1024*1024)
+                    print(f"{pool_info['name']:<30} {pool_info['status']:<15} {capacity_gib:<15} {allocation_gib:<15}")
+            else:
+                print("No storage pools found.")
+        except libvirt.libvirtError as e:
+            print(f"Error listing storage pools: {e}")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
