@@ -302,6 +302,7 @@ class VMCard(Static):
         conn = domain.connect()
         
         volumes_in_use = []
+        volumes_in_use_by_vm = {}  # Map volume names to VM names
         for disk in root.findall(".//devices/disk"):
             if disk.get("device") != "disk":
                 continue
@@ -330,11 +331,12 @@ class VMCard(Static):
                                         if (other_source.get("pool") == pool_name and 
                                             other_source.get("volume") == vol_name):
                                             volumes_in_use.append(vol_name)
+                                            volumes_in_use_by_vm[vol_name] = other_domain.name()
                                             break
                 except libvirt.libvirtError:
                     continue
         
-        return volumes_in_use
+        return volumes_in_use, volumes_in_use_by_vm
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -365,9 +367,9 @@ class VMCard(Static):
         if not self.vm.isActive():
             try:
                 # Check if any volumes are in use by other VMs
-                volumes_in_use = self._check_volume_usage(self.vm)
+                volumes_in_use, volumes_in_use_by_vm = self._check_volume_usage(self.vm)
                 if volumes_in_use:
-                    volume_list = ", ".join(volumes_in_use)
+                    volume_list = ", ".join([f"{vol_name} (used by {volumes_in_use_by_vm[vol_name]})" for vol_name in volumes_in_use])
                     self.app.show_error_message(f"Cannot start VM '{self.name}' because volume(s) {volume_list} are in use by other running VMs.")
                     return
                 
