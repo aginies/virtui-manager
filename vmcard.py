@@ -369,8 +369,8 @@ class VMCard(Static):
                 # Check if any volumes are in use by other VMs
                 volumes_in_use, volumes_in_use_by_vm = self._check_volume_usage(self.vm)
                 if volumes_in_use:
-                    volume_list = ", ".join([f"{vol_name} (used by {volumes_in_use_by_vm[vol_name]})" for vol_name in volumes_in_use])
-                    self.app.show_error_message(f"Cannot start VM '{self.name}' because volume(s) {volume_list} are in use by other running VMs.")
+                    volume_list = ", ".join([f"{vol_name} is used by {volumes_in_use_by_vm[vol_name]}" for vol_name in volumes_in_use])
+                    self.app.show_error_message(f"Cannot start VM '{self.name}' because volume(s) {volume_list}, a running VMs.")
                     return
                 
                 start_vm(self.vm)
