@@ -25,9 +25,6 @@ SelectServerModal {
     content-align: center middle;
 }
 
-SnapshotNameDialog {
-}
-
 SnapshotNameDialog #dialog {
     width: 60;
     height: 12;
@@ -53,9 +50,6 @@ SnapshotNameDialog #dialog-buttons Button {
     margin-left: 1;
 }
 
-SelectSnapshotDialog {
-}
-
 SelectSnapshotDialog #dialog {
     width: 60;
     padding: 1;
@@ -70,17 +64,12 @@ SelectSnapshotDialog #snapshot-list {
     height: 10;
 }
 
-ConfirmationDialog {
-}
-
 ConfirmationDialog #dialog {
     width: 60;
     height: 15;
     padding: 1;
     border: round $error;
     background: $surface;
-}
-ConfirmationDialog #dialog Label {
 }
 
 ConfirmationDialog #question {
@@ -185,9 +174,6 @@ RenameVMDialog #dialog-buttons Button {
     margin-left: 1;
 }
 
-ChangeNetworkDialog {
-}
-
 ChangeNetworkDialog #dialog {
     width: 60;
     height: 20;
@@ -250,8 +236,6 @@ ChangeNetworkDialog #dialog-buttons Button {
 }
 .net-mode {
     width: 1fr;
-}
-XMLDisplayModal {
 }
 
 XMLDisplayModal #xml-display-dialog {

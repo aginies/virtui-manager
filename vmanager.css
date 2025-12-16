@@ -1,4 +1,3 @@
-
 .server-list,
 VMDetailModal,
 .close-button,
@@ -301,8 +300,6 @@ Select {
     height: 1;
 }
 
-
-
 #status-running {
     color: green;
     border: round green;
@@ -414,7 +411,6 @@ Button {
     margin: 0 0 0 1;
 }
 
-
 .network-interface-row {
     height: auto;
     padding: 0 1;
@@ -441,8 +437,6 @@ Button {
 }
 
 /* Styles for VirshShellScreen */
-
-
 #virsh-shell-container {
     width: 90%;
     max-width: 120;
