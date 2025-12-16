@@ -48,7 +48,6 @@ Header, Footer {
 #create-volume-dialog,
 #edit-memory-dialog,
 #directory-selection-dialog,
-#filter-dialog,
 #server-management-dialog,
 #remove-disk-dialog,
 #select-machine-type-dialog,
@@ -60,6 +59,11 @@ Header, Footer {
     padding: 1 2;
 }
 
+#filter-dialog {
+    height: 20;
+    padding: 1 1;
+    border: round $primary;
+}
 #connection-dialog {
     width: 60;
 }

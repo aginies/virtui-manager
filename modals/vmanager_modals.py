@@ -20,14 +20,15 @@ class FilterModal(BaseModal[dict | None]):
         self.current_status = current_status
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="filter-dialog", classes="info-details"):
+        with Vertical(id="filter-dialog"):
             yield Label("Filter by Name")
-            yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
-            with RadioSet(id="status-radioset"):
-                yield RadioButton("All", id="status_default", value=self.current_status == "default")
-                yield RadioButton("Running", id="status_running", value=self.current_status == "running")
-                yield RadioButton("Paused", id="status_paused", value=self.current_status == "paused")
-                yield RadioButton("Stopped", id="status_stopped", value=self.current_status == "stopped")
+            with Vertical(classes="info-details"):
+                yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
+                with RadioSet(id="status-radioset"):
+                    yield RadioButton("All", id="status_default", value=self.current_status == "default")
+                    yield RadioButton("Running", id="status_running", value=self.current_status == "running")
+                    yield RadioButton("Paused", id="status_paused", value=self.current_status == "paused")
+                    yield RadioButton("Stopped", id="status_stopped", value=self.current_status == "stopped")
             with Horizontal():
                 yield Button("Apply", id="apply-btn", variant="success")
                 yield Button("Cancel", id="cancel-btn")
