@@ -65,7 +65,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             if new_network is Select.BLANK:
                 self.app.show_error_message("Please select a network.")
                 return
-            
+
             result = {"network": new_network, "model": new_model}
             if self.is_edit:
                 result["mac"] = self.query_one("#mac-input", Input).value
@@ -85,21 +85,13 @@ class CreateNetworkModal(BaseModal[None]):
         with Vertical(id="create-network-dialog"):
             yield Label("Create New Network", id="create-network-title")
 
-            host_interfaces = get_host_network_interfaces()
-            if not host_interfaces:
-                host_interfaces = [("No interfaces found", "")]
-            interface_options = []
-            for name, ip in host_interfaces:
-                display_text = f"{name} ({ip})" if ip else name
-                interface_options.append((display_text, name))
-
             with ScrollableContainer():
                 with Vertical(id="create-network-form"):
                     yield Input(placeholder="Network Name (e.g., nat_net)", id="net-name-input")
                     with RadioSet(id="type-network", classes="type-network-radioset"):
                         yield RadioButton("Nat network", id="type-network-nat", value=True)
                         yield RadioButton("Routed network", id="type-network-routed")
-                    yield Select(interface_options, prompt="Select Forward Interface", id="net-forward-input", classes="net-forward-input")
+                    yield Select([("Loading...", "")], prompt="Select Forward Interface", id="net-forward-input", classes="net-forward-input", disabled=True)
                     yield Input(placeholder="IPv4 Network (e.g., 192.168.100.0/24)", id="net-ip-input", value="192.168.11.0/24")
                     yield Checkbox("Enable DHCPv4", id="dhcp-checkbox", value=True)
                     with Vertical(id="dhcp-inputs-horizontal"):
@@ -114,6 +106,32 @@ class CreateNetworkModal(BaseModal[None]):
                         with Horizontal(id="dhcp-options"):
                             yield Button("Create Network", variant="primary", id="create-net-btn", classes="create-net-btn")
             yield Button("Close", variant="default", id="close-btn", classes="close-button")
+
+    def on_mount(self) -> None:
+        """Called when the modal is mounted to populate network interfaces."""
+        self.run_worker(self.populate_interfaces, thread=True)
+
+    def populate_interfaces(self) -> None:
+        """Worker to fetch host network interfaces."""
+        try:
+            host_interfaces = get_host_network_interfaces()
+            options = [ (f"{name} ({ip})" if ip else name, name) for name, ip in host_interfaces]
+            if not options:
+                options = [("No interfaces found", "")]
+
+            select = self.query_one("#net-forward-input", Select)
+
+            def update_select():
+                select.set_options(options)
+                select.disabled = False
+                select.prompt = "Select Forward Interface"
+
+            self.app.call_from_thread(update_select)
+        except Exception as e:
+            self.app.call_from_thread(
+                self.app.show_error_message, 
+                f"Error getting host interfaces: {e}"
+            )
 
     @on(Checkbox.Changed, "#dhcp-checkbox")
     def on_dhcp_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -158,42 +176,42 @@ class CreateNetworkModal(BaseModal[None]):
                 domain_name = self.query_one("#dns-custom-domain-input", Input).value
 
             try:
-                # Validate network address
                 ip_network = ipaddress.ip_network(ip, strict=False)
-
-                # Check for subnet overlap
-                existing_subnets = get_existing_subnets(self.conn)
-                for existing_subnet in existing_subnets:
-                    if ip_network.overlaps(existing_subnet):
-                        self.app.show_error_message(f"Subnet {ip_network} overlaps with existing network's subnet {existing_subnet}.")
-                        return
-
                 if dhcp:
-                    # Validate DHCP start and end IPs
                     dhcp_start_ip = ipaddress.ip_address(dhcp_start)
                     dhcp_end_ip = ipaddress.ip_address(dhcp_end)
-
-                    # Check if DHCP IPs are within the network
-                    if dhcp_start_ip not in ip_network:
-                        self.app.show_error_message(f"DHCP start IP {dhcp_start_ip} is not in the network {ip_network}")
-                        return
-                    if dhcp_end_ip not in ip_network:
-                        self.app.show_error_message(f"DHCP end IP {dhcp_end_ip} is not in the network {ip_network}")
+                    if dhcp_start_ip not in ip_network or dhcp_end_ip not in ip_network:
+                        self.app.show_error_message(f"DHCP IPs are not in the network {ip_network}")
                         return
                     if dhcp_start_ip >= dhcp_end_ip:
                         self.app.show_error_message("DHCP start IP must be before the end IP.")
                         return
-
             except ValueError as e:
                 self.app.show_error_message(f"Invalid IP address or network: {e}")
                 return
 
-            try:
-                create_network(self.conn, name, typenet, forward, ip, dhcp, dhcp_start, dhcp_end, domain_name)
-                self.app.show_success_message(f"Network {name} created successfully.")
-                self.dismiss(True) # True to indicate success
-            except Exception as e:
-                self.app.show_error_message(f"Error creating network: {e}")
+            def do_create_network():
+                try:
+                    existing_subnets = get_existing_subnets(self.conn)
+                    for existing_subnet in existing_subnets:
+                        if ip_network.overlaps(existing_subnet):
+                            self.app.call_from_thread(
+                                self.app.show_error_message,
+                                f"Subnet {ip_network} overlaps with existing network's subnet {existing_subnet}."
+                            )
+                            return
+
+                    create_network(self.conn, name, typenet, forward, ip, dhcp, dhcp_start, dhcp_end, domain_name)
+
+                    self.app.call_from_thread(
+                        self.app.show_success_message,
+                        f"Network {name} created successfully."
+                    )
+                    self.app.call_from_thread(self.dismiss, True)
+                except Exception as e:
+                    self.app.call_from_thread(self.app.show_error_message, f"Error creating network: {e}")
+
+            self.app.run_worker(do_create_network, thread=True)
 
 class NetworkXMLModal(BaseModal[None]):
     """Modal screen to show detailed network information."""
