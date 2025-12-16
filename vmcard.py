@@ -466,7 +466,7 @@ class VMCard(Static):
                 except libvirt.libvirtError as e:
                     self.app.show_error_message(f"Error on VM {self.name} during 'snapshot restore': {e}")
 
-        self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to restore:"), restore_snapshot)
+        self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to restore"), restore_snapshot)
 
     def _handle_snapshot_delete_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot delete button press."""
@@ -493,7 +493,7 @@ class VMCard(Static):
                     ConfirmationDialog(f"Are you sure you want to delete snapshot '{snapshot_name}'?"), on_confirm
                 )
 
-        self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to delete:"), delete_snapshot)
+        self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to delete"), delete_snapshot)
 
     def _handle_delete_button(self, event: Button.Pressed) -> None:
         """Handles the delete button press."""
