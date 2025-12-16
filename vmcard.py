@@ -415,19 +415,56 @@ class VMCard(Static):
             logging.error(f"Unexpected error handling XML button: {traceback.format_exc()}")
 
     def _handle_connect_button(self, event: Button.Pressed) -> None:
-        """Handles the connect button press."""
+        """Handles the connect button press by running virt-viewer in a worker."""
         logging.info(f"Attempting to connect to VM: {self.name}")
         if not hasattr(self, 'conn') or not self.conn:
             self.app.show_error_message("Connection info not available for this VM.")
             return
-        try:
-            uri = self.conn.getURI()
-            subprocess.Popen(
-                ["virt-viewer", "--connect", uri, self.name],
-            )
-            logging.info(f"Successfully launched virt-viewer for VM: {self.name}")
-        except (FileNotFoundError, subprocess.CalledProcessError) as e:
-            self.app.show_error_message(f"Error on VM {self.name} during 'connect': {e}")
+
+        def do_connect() -> None:
+            try:
+                uri = self.conn.getURI()
+                domain_name = self.vm.name()
+
+                command = ["virt-viewer", "--connect", uri, domain_name]
+                logging.info(f"Executing command: {' '.join(command)}")
+
+                result = subprocess.run(command, capture_output=True, text=True, check=False)
+
+                if result.returncode != 0:
+                    error_message = result.stderr.strip()
+                    logging.error(f"virt-viewer failed for {domain_name}: {error_message}")
+                    if "cannot open display" in error_message:
+                        self.app.call_from_thread(
+                            self.app.show_error_message, 
+                            "Could not open display. Ensure you are in a graphical session."
+                        )
+                    else:
+                        self.app.call_from_thread(
+                            self.app.show_error_message,
+                            f"virt-viewer failed: {error_message}"
+                        )
+                else:
+                    logging.info(f"virt-viewer for {domain_name} closed.")
+
+            except FileNotFoundError:
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    "virt-viewer command not found. Please ensure it is installed."
+                )
+            except libvirt.libvirtError as e:
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    f"Error getting VM details for {self.name}: {e}"
+                )
+            except Exception as e:
+                logging.error(f"An unexpected error occurred during connect: {e}", exc_info=True)
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    "An unexpected error occurred while trying to connect."
+                )
+
+        self.app.run_worker(do_connect, thread=True)
 
     def _handle_web_console_button(self, event: Button.Pressed) -> None:
         """Handles the web console button press by opening a config dialog."""
