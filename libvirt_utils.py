@@ -51,6 +51,38 @@ def _get_disabled_disks_elem(root):
         disabled_disks_elem = ET.SubElement(vmanager_meta_elem, f'{{{VMANAGER_NS}}}disabled-disks')
     return disabled_disks_elem
 
+def _find_pool_by_path(conn: libvirt.virConnect, file_path: str):
+    """
+    Finds an active storage pool that contains or manages the given file path.
+    """
+    for pool_name in conn.listStoragePools():
+        try:
+            pool = conn.storagePoolLookupByName(pool_name)
+            if not pool.isActive():
+                continue
+            pool_info = ET.fromstring(pool.XMLDesc(0))
+            source_path = pool_info.findtext("source/directory") or pool_info.findtext("target/path")
+            if source_path and file_path.startswith(source_path):
+                return pool
+        except libvirt.libvirtError:
+            continue
+    return None
+
+def _get_disk_info(disk_path: str) -> dict:
+    """
+    Uses qemu-img info to get details about a disk image, particularly its format.
+    """
+    try:
+        command = f"qemu-img info --output=json '{disk_path}'"
+        result = run_shell_command(command, description="Get disk image info using qemu-img")
+        if result.stderr:
+            raise Exception(f"qemu-img error: {result.stderr}")
+        import json
+        info = json.loads(result.stdout)
+        return info
+    except Exception as e:
+        raise Exception(f"Failed to get disk info for {disk_path}: {e}")
+
 def get_cpu_models(conn, arch):
     """
     Get a list of CPU models for a given architecture.
