@@ -4,6 +4,7 @@ Module for managing network-related operations for virtual machines.
 import subprocess
 import secrets
 import ipaddress
+import logging
 import xml.etree.ElementTree as ET
 import libvirt
 from utils import log_function_call
@@ -93,7 +94,9 @@ def delete_network(conn, network_name):
             net.destroy()
         net.undefine()
     except libvirt.libvirtError as e:
-        raise logging.error(f"Error deleting network '{network_name}': {e}")
+        msg = f"Error deleting network '{network_name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
 
 
 @log_function_call
@@ -131,7 +134,9 @@ def set_network_active(conn, network_name, active):
         else:
             net.destroy()
     except libvirt.libvirtError as e:
-        raise logging.error(f"Error setting network active status: {e}")
+        msg = f"Error setting network active status: {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
 
 @log_function_call
 def set_network_autostart(conn, network_name, autostart):
@@ -144,7 +149,9 @@ def set_network_autostart(conn, network_name, autostart):
         net = conn.networkLookupByName(network_name)
         net.setAutostart(autostart)
     except libvirt.libvirtError as e:
-        raise logging.error(f"Error setting network autostart status: {e}")
+        msg = f"Error setting network autostart status: {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
 
 
 @log_function_call
