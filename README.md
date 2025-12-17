@@ -17,7 +17,6 @@ This project is part of a SUSE **hackweek** project, its not mature, under heavy
 ## Media
 
 ![Screenshot](https://paste.opensuse.org/pastes/706a2fe96295/raw)
-![Screenshot](https://paste.opensuse.org/pastes/197e5bd23cfe/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/54611f2dc75a/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/dfb48c4390b5/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/37d250075470/raw)
@@ -25,7 +24,6 @@ This project is part of a SUSE **hackweek** project, its not mature, under heavy
 ![Screenshot](https://paste.opensuse.org/pastes/b596408544c0/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/a37c655832a8/raw)
 ![Screenshot](https://paste.opensuse.org/pastes/54a634950a79/raw)
-[Demo Video](https://www.youtube.com/watch?v=r49KpUghUI4)
 
 ## Features
 
@@ -41,10 +39,12 @@ This project is part of a SUSE **hackweek** project, its not mature, under heavy
 - Minimal terminal size: 34x92
 - Remote connection to libvirt server ssh needs an SSH key copy to server! (ssh-copy-id with no password)
 - Python 3.7+
-- libvirt
-- textual
-- pyaml
-- virt-viewer (for connecting to VMs)
+- ![libvirt](https://libvirt.org/)
+- ![textual](https://pypi.org/project/textual/)
+- ![pyaml](https://pypi.org/project/pyaml/)
+- ![virt-viewer](https://gitlab.com/virt-viewer/virt-viewer)
+- ![novnc](https://novnc.com/noVNC/)
+- ![websockify](https://pypi.org/project/websockify/)
 
 ## Installation
 
