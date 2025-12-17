@@ -3,12 +3,11 @@ Main interface
 """
 import os
 import logging
-import traceback
 from collections import namedtuple
 
 from textual.app import ComposeResult
 from textual.widgets import (
-        Select, Button, Input, Label, Static,
+        Select, Button, Input, Label,
         DataTable, Checkbox, RadioButton,
         RadioSet, TabbedContent, TabPane,
         ListView, ListItem
@@ -18,12 +17,11 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual import on
 import libvirt
-from vmcard_dialog import ChangeNetworkDialog
 from vm_queries import (
     get_vm_networks_info,
     get_vm_disks_info, get_vm_devices_info,
     get_supported_machine_types, get_vm_graphics_info,
-    get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
+    get_all_vm_nvram_usage, get_all_vm_disk_usage, #get_vm_sound_model,
     get_vm_network_ip,
     )
 from vm_actions import (
@@ -31,7 +29,7 @@ from vm_actions import (
         disable_disk, change_vm_network, set_shared_memory, remove_virtiofs,
         add_virtiofs, set_vm_video_model, set_cpu_model, set_uefi_file,
         set_vm_graphics, set_disk_properties, set_vm_sound_model,
-        add_network_interface, remove_network_interface, set_boot_info
+        add_network_interface, remove_network_interface, set_boot_info, set_vm_rng
 )
 from network_manager import (
     list_networks,
@@ -752,6 +750,24 @@ class VMDetailModal(ModalScreen):
         except Exception as e:
             self.app.show_error_message(f"An unexpected error occurred: {e}")
 
+    @on(Button.Pressed, "#apply-rng-btn")
+    def on_rng_apply_button_pressed(self, event: Button.Pressed) -> None:
+        if self.vm_info.get("status") != "Stopped":
+            self.app.show_error_message("VM must be stopped to apply RNG settings.")
+            return
+
+        rng_device = self.query_one("#rng-host-device", Input).value
+        if not rng_device:
+            self.app.show_error_message("RNG device path cannot be empty.")
+            return
+
+        try:
+            set_vm_rng(self.domain, rng_device)
+            self.app.show_success_message(f"RNG settings applied successfully. Device: {rng_device}")
+            # In a complete implementation, you'd call a function like:
+        except Exception as e:
+            self.app.show_error_message(f"Error applying RNG settings: {e}")
+
     @on(ListView.Highlighted, "#available-devices-list")
     def on_available_devices_list_highlighted(self, event: ListView.Highlighted) -> None:
         is_stopped = self.vm_info.get("status") == "Stopped"
@@ -1042,9 +1058,12 @@ class VMDetailModal(ModalScreen):
                 with TabPane("Watchdog", id="detail-watchdog-tab"):
                     yield Label("Watchdog")
                 with TabPane("RNG", id="detail-rng-tab"):
-                    yield Label("Host device")
-                    yield Input(value="/dev/urandom", id="rng-host-device-input")
-                    yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
+                    with Vertical(classes="info-details"):
+                        current_path = self.vm_info.get('rng_model') or "/dev/urandom"
+                        self.app.show_success_message(f"{current_path}")
+                        yield Label("Host device")
+                        yield Input(value=current_path, id="rng-host-device")
+                        yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
                 with TabPane("Input", id="detail-input-tab"):
                     yield Label("Input")
                 with TabPane("USB", id="detail-usb-tab"):
