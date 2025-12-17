@@ -8,7 +8,7 @@ import libvirt
 VMANAGER_NS = "http://github.com/aginies/vmanager"
 ET.register_namespace("vmanager", VMANAGER_NS)
 
-def _find_vol_by_path(conn, vol_path):
+def _find_vol_by_path(conn: libvirt.virConnect, vol_path):
     """Finds a storage volume by its path and returns the volume and its pool."""
     # Slower but more compatible way to find a volume by path
     try:
@@ -68,7 +68,7 @@ def _find_pool_by_path(conn: libvirt.virConnect, file_path: str):
             continue
     return None
 
-def get_cpu_models(conn, arch):
+def get_cpu_models(conn: libvirt.virConnect, arch: str):
     """
     Get a list of CPU models for a given architecture.
     """
@@ -82,7 +82,7 @@ def get_cpu_models(conn, arch):
         print(f"Error getting CPU models for arch {arch}: {e}")
         return []
 
-def find_all_vm(conn):
+def find_all_vm(conn: libvirt.virConnect):
     """
     Find all VM from the current Hypervisor
     """
