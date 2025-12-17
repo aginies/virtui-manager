@@ -107,7 +107,7 @@ def generate_webconsole_keys_if_needed() -> List[Tuple[str, str]]:
                 "-subj", "/CN=localhost"
             ]
             try:
-                result = subprocess.run(
+                subprocess.run(
                     command,
                     check=True,
                     capture_output=True,
