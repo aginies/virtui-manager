@@ -21,8 +21,8 @@ from vm_queries import (
     get_vm_networks_info,
     get_vm_disks_info, get_vm_devices_info,
     get_supported_machine_types, get_vm_graphics_info,
-    get_all_vm_nvram_usage, get_all_vm_disk_usage, #get_vm_sound_model,
-    get_vm_network_ip,
+    get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
+    get_vm_network_ip, get_vm_rng_info
     )
 from vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -84,7 +84,9 @@ class VMDetailModal(ModalScreen):
         self.uefi_path_map = {}
         #self.graphics_info = vm_info.get('graphics', {})
         self.graphics_info = get_vm_graphics_info(self.domain.XMLDesc(0))
-        self.vm_info['sound_model'] = vm_info.get('sound_model')
+        self.vm_info['sound_model'] = get_vm_sound_model(self.domain.XMLDesc(0))
+        self.vm_info['rng_model'] = get_vm_rng_info(self.domain.XMLDesc(0))
+        self.rng_info = get_vm_rng_info(self.domain.XMLDesc(0))
 
     def on_mount(self) -> None:
         try:
@@ -1058,7 +1060,7 @@ class VMDetailModal(ModalScreen):
                     yield Label("Watchdog")
                 with TabPane("RNG", id="detail-rng-tab"):
                     with Vertical(classes="info-details"):
-                        current_path = self.vm_info.get('rng_model') or "/dev/urandom"
+                        current_path = self.rng_info["backend_path"]# self.vm_info.get("rng_model")
                         self.app.show_success_message(f"{current_path}")
                         yield Label("Host device")
                         yield Input(value=current_path, id="rng-host-device")
