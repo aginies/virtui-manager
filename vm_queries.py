@@ -111,7 +111,6 @@ def get_status(domain):
     else:
         return 'Stopped'
 
-@log_function_call
 def get_vm_description(domain):
     """
     desc of the VM
@@ -196,7 +195,6 @@ def get_vm_networks_info(xml_content: str) -> list[dict]:
     return networks
 
 
-@log_function_call
 def get_vm_network_ip(domain) -> list:
     """
     Retrieves network interface IP addresses for a given VM domain.
@@ -228,7 +226,6 @@ def get_vm_network_ip(domain) -> list:
         return ip_addresses
     return []
 
-@log_function_call
 def get_vm_devices_info(xml_content: str) -> dict:
     """
     Extracts information about various virtual devices from a VM's XML definition.
@@ -499,7 +496,6 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, str]:
     return nvram_to_vm_map
 
 
-@log_function_call
 def get_supported_machine_types(conn, domain):
     """
     Returns a list of supported machine types for the domain's architecture.
@@ -526,7 +522,6 @@ def get_supported_machine_types(conn, domain):
         return []
 
 
-@log_function_call
 def get_vm_shared_memory_info(xml_content: str) -> bool:
     """Check if shared memory is enabled for the VM."""
     try:
@@ -836,7 +831,6 @@ def get_vm_graphics_info(xml_content: str) -> dict:
 
     return graphics_info
 
-@log_function_call
 def check_for_spice_vms(conn):
     """
     Checks if any VM uses Spice graphics.
