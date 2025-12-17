@@ -29,6 +29,7 @@ VMCard {
     height: 5;
     border: none;
     margin: 0 0;
+    border: none;
 }
 #dialog-buttons Button {
     width: 50%;
