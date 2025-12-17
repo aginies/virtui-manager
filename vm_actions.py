@@ -1339,3 +1339,101 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool):
                 # Catch other potential errors, like file system errors if we were to use os.remove
                 logging.error(f"An unexpected error occurred while trying to delete storage {disk_path}: {e}")
                 raise
+
+
+@log_function_call
+def check_for_other_spice_devices(domain: libvirt.virDomain) -> bool:
+    """
+    Checks for SPICE-related devices other than the main graphics element
+    in a VM's XML. Returns True if any are found, False otherwise.
+    """
+    xml_desc = domain.XMLDesc(0)
+    logging.info(f"Checking for SPICE devices in XML:\n{xml_desc}")
+
+    root = ET.fromstring(xml_desc)
+    devices = root.find('devices')
+    if not devices:
+        logging.info("No <devices> element found.")
+        return False
+
+    for channel in devices.findall("channel"):
+        if channel.get('type') == 'spicevmc':
+            logging.info("Found spicevmc channel.")
+            return True
+        elif channel.get('type') == 'spiceport':
+            target = channel.find('target')
+            if target is not None and target.get('name') == 'com.redhat.spice.0':
+                 logging.info("Found spiceport channel.")
+                 return True
+
+    for redirdev in devices.findall("redirdev"):
+        if redirdev.get('bus') == 'usb':
+            logging.info("Found USB redirection device.")
+            return True
+
+    for audio in devices.findall("audio"):
+        if audio.get('type') == 'spice':
+            logging.info("Found SPICE audio device.")
+            return True
+
+    video = devices.find("video/model[@type='qxl']")
+    if video is not None:
+        logging.info("Found QXL video model.")
+        return True
+
+    logging.info("No other SPICE devices found.")
+    return False
+
+
+@log_function_call
+def remove_spice_devices(domain: libvirt.virDomain):
+    """
+    Removes all SPICE-related devices and configurations from a VM's XML.
+    The VM must be stopped.
+    """
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to remove SPICE devices.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    devices = root.find('devices')
+    if not devices:
+        return
+
+    for graphics in devices.findall("graphics[@type='spice']"):
+        devices.remove(graphics)
+        logging.info(f"Removed SPICE graphics from VM '{domain.name()}'.")
+
+    for channel in devices.findall("channel"):
+        if channel.get('type') in ['spicevmc', 'spiceport']:
+            devices.remove(channel)
+            logging.info(f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'.")
+
+    for redirdev in devices.findall("redirdev[@bus='usb']"):
+        devices.remove(redirdev)
+        logging.info(f"Removed USB redirection device from VM '{domain.name()}'.")
+
+    for audio in devices.findall("audio"):
+        if audio.get('type') == 'spice':
+            devices.remove(audio)
+            logging.info(f"Removed SPICE audio device from VM '{domain.name()}'.")
+
+    # Change qxl video model to virtio
+    video_model = devices.find("video/model[@type='qxl']")
+    if video_model is not None:
+        video_model.set("type", "virtio")
+        logging.info(f"Changed qxl video model to virtio for VM '{domain.name()}'.")
+        # Remove qxl-specific attributes if they exist
+        for attr in ['vram', 'ram', 'vgamem']:
+            if attr in video_model.attrib:
+                del video_model.attrib[attr]
+
+    # After removing SPICE, it's good to add a default VNC graphics device if no other graphics device exists.
+    if not devices.find("graphics"):
+        logging.info(f"No graphics device found after removing SPICE. Adding default VNC graphics.")
+        graphics_elem = ET.SubElement(devices, 'graphics', type='vnc', port='-1', autoport='yes')
+        ET.SubElement(graphics_elem, 'listen', type='address')
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    conn = domain.connect()
+    conn.defineXML(new_xml)
