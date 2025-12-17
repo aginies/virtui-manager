@@ -15,6 +15,7 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 
 from libvirt_error_handler import register_error_handler
+from libvirt_utils import _get_vm_names_from_uuids
 from vmcard import VMCard, VMNameClicked, VMSelectionChanged
 from vm_queries import (
     get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
@@ -34,6 +35,7 @@ from modals.server_modals import ServerManagementModal
 from modals.vmanager_modals import (
         FilterModal, CreateVMModal,
         )
+from modals.bulk_modals import BulkActionModal
 from modals.server_prefs_modals import ServerPrefModal
 from modals.vmanager_vmdetails_modals import VMDetailModal
 from modals.vmanager_virsh_modals import VirshShellScreen
@@ -558,6 +560,8 @@ class VMManagerTUI(App):
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.info()[0] == libvirt.VIR_DOMAIN_PAUSED]
             elif self.sort_by == "stopped":
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.info()[0] not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]]
+            elif self.sort_by == "selected":
+                domains_to_display = [(d, c) for d, c in domains_to_display if d.UUIDString() in self.selected_vm_uuids]
 
         if self.search_text:
             domains_to_display = [(d, c) for d, c in domains_to_display if self.search_text.lower() in d.name().lower()]
@@ -645,8 +649,35 @@ class VMManagerTUI(App):
             self.show_error_message("No VMs selected.")
             return
 
-        self.show_success_message(f"Selected VMs: {self.selected_vm_uuids}")
-        self.push_screen(SelectServerModal(self.servers, self.active_uris, self.connection_manager), self.handle_select_server_result)
+        def get_names_and_show_modal():
+            """Worker to fetch VM names and display the bulk action modal."""
+            all_names = set()
+            uuids = list(self.selected_vm_uuids)
+            connections = list(self._get_active_connections())
+
+            for conn in connections:
+                try:
+                    names = _get_vm_names_from_uuids(conn, uuids)
+                    if names:
+                        all_names.update(names)
+                except libvirt.libvirtError:
+                    pass
+
+            vm_names_list = sorted(list(all_names))
+
+            if vm_names_list:
+                self.call_from_thread(self.push_screen, BulkActionModal(vm_names_list))
+            else:
+                self.call_from_thread(
+                    self.show_error_message, "Could not retrieve names for selected VMs."
+                )
+
+        self.run_worker(
+            get_names_and_show_modal,
+            name="get_bulk_vm_names",
+            thread=True,
+        )
+
 
     async def action_quit(self) -> None:
         """Quit the application."""
