@@ -271,7 +271,7 @@ XMLDisplayModal #dialog-buttons Button {
     width: 85;
 }
 #bulk-action-dialog {
-    height: 20;
+    height: 24;
     width: 80;
     border: round $primary;
     content-align: center middle;
