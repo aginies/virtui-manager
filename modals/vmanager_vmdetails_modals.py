@@ -1042,7 +1042,9 @@ class VMDetailModal(ModalScreen):
                 with TabPane("Watchdog", id="detail-watchdog-tab"):
                     yield Label("Watchdog")
                 with TabPane("RNG", id="detail-rng-tab"):
-                    yield Label("RNG")
+                    yield Label("Host device")
+                    yield Input(value="/dev/urandom", id="rng-host-device-input")
+                    yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
                 with TabPane("Input", id="detail-input-tab"):
                     yield Label("Input")
                 with TabPane("USB", id="detail-usb-tab"):
