@@ -3,7 +3,6 @@ Manages multiple libvirt connections.
 """
 import libvirt
 import logging
-from typing import Optional
 
 class ConnectionManager:
     """A class to manage opening, closing, and storing multiple libvirt connections."""
