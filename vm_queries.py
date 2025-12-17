@@ -640,7 +640,6 @@ def get_vm_tpm_info(xml_content: str) -> list[dict]:
     Returns a list of dictionaries with TPM details including passthrough devices.
     """
     tpm_info = []
-
     try:
         root = ET.fromstring(xml_content)
         devices = root.find("devices")
@@ -648,23 +647,24 @@ def get_vm_tpm_info(xml_content: str) -> list[dict]:
         if devices is not None:
             for tpm_elem in devices.findall("./tpm"):
                 tpm_model = tpm_elem.get('model')
-                tpm_type = 'emulated'  # Default to emulated
-
-                # Check if this is a passthrough TPM
-                if tpm_elem.find('device') is not None:
-                    tpm_type = 'passthrough'
-
-                device_path = None
-                device_elem = tpm_elem.find('device')
-                if device_elem is not None:
-                    device_path = device_elem.get('path')
 
                 backend_elem = tpm_elem.find('backend')
-                backend_type = None
-                backend_path = None
+                tpm_type = 'emulated'  # Default
+                device_path = ''
+                backend_type = ''
+                backend_path = ''
+
                 if backend_elem is not None:
-                    backend_type = backend_elem.get('type')
-                    backend_path = backend_elem.get('path')
+                    backend_type = backend_elem.get('type', '')
+                    if backend_type == 'passthrough':
+                        tpm_type = 'passthrough'
+                        device_elem = backend_elem.find('device')
+                        if device_elem is not None:
+                            device_path = device_elem.get('path', '')
+                    elif backend_type == 'emulator':
+                        tpm_type = 'emulated'
+                        # For emulator, backend_path might be in text if used as file (less common for default emulator)
+                        backend_path = backend_elem.text if backend_elem.text else ''
 
                 tpm_info.append({
                     'model': tpm_model,
@@ -702,11 +702,17 @@ def get_vm_rng_info(xml_content: str) -> dict:
                 backend_elem = rng_elem.find('backend')
                 if backend_elem is not None:
                     rng_info['backend_model'] = backend_elem.get('model')
-                    rng_info['backend_path'] = backend_elem.text
+
+                    if rng_info['backend_model'] == 'random':
+                        rng_info['backend_path'] = backend_elem.text
+                    else:
+                        source_elem = backend_elem.find('source')
+                        if source_elem is not None:
+                            rng_info['backend_path'] = source_elem.get('path')
 
     except ET.ParseError:
         pass
-    
+
     return rng_info
 
 @log_function_call
