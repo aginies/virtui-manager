@@ -321,7 +321,7 @@ def remove_disk(domain, disk_dev_path):
                     vol = pool.storageVolLookupByName(vol_name)
                     current_disk_path = vol.path()
                 except libvirt.libvirtError as e:
-                    current_disk_path = f"ERROR: Could not resolve volume path for {vol_name} in {pool_name}"
+                    current_disk_path = f"ERROR: Could not resolve volume path for {vol_name} in {pool_name}: {e}"
 
         if target is not None:
             current_target_dev = target.get("dev")
@@ -409,9 +409,9 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
     # Create the new virtiofs XML element
     fs_elem = ET.SubElement(devices, "filesystem", type="mount", accessmode="passthrough")
 
-    driver_elem = ET.SubElement(fs_elem, "driver", type="virtiofs")
-    source_elem = ET.SubElement(fs_elem, "source", dir=source_path)
-    target_elem = ET.SubElement(fs_elem, "target", dir=target_path)
+    #driver_elem = ET.SubElement(fs_elem, "driver", type="virtiofs")
+    #source_elem = ET.SubElement(fs_elem, "source", dir=source_path)
+    #target_elem = ET.SubElement(fs_elem, "target", dir=target_path)
 
     if readonly:
         ET.SubElement(fs_elem, "readonly")

@@ -113,7 +113,7 @@ def create_storage_pool(conn, name, pool_type, target, source_host=None, source_
     if pool_type == 'dir':
         xml += f"<target><path>{target}</path></target>"
     elif pool_type == 'netfs':
-        xml += f"<source>"
+        xml += "<source>"
         if source_host:
             xml += f"<host name='{source_host}'/>"
         if source_path:
@@ -122,7 +122,7 @@ def create_storage_pool(conn, name, pool_type, target, source_host=None, source_
             xml += f"<format type='{source_format}'/>"
         xml += f"</source>"
         xml += f"<target><path>{target}</path></target>"
-    xml += f"</pool>"
+    xml += "</pool>"
     pool = conn.storagePoolDefineXML(xml, 0)
     pool.create(0)
     pool.setAutostart(1)
