@@ -14,11 +14,11 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - VMs displayed in a responsive grid layout
 - Color-coded status indicators (Running, Paused, Stopped)
 - CPU and memory usage sparklines for running VMs
-- Pagination controls for large VM lists
+- Pagination controls for large VM lists (now defaults to page 1 if current page becomes empty after deletion)
 
 ### VM Management Actions
 - Start, Shutdown, Force Off (destroy), Pause, Resume
-- Delete VM with optional storage cleanup
+- Delete VM with optional storage cleanup: Now more robust, always using libvirt API for managed storage volumes, preventing permission errors. Automatically deletes VM snapshot metadata.
 - Clone VM functionality
 - Rename VM with snapshot handling
 - Take, restore, and delete VM snapshots
@@ -29,7 +29,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
   - To enable running the web console on the remote server, set `REMOTE_WEBCONSOLE: True` in your `config.yaml`.
   - When `REMOTE_WEBCONSOLE` is enabled, `websockify` and `novnc` assets must be installed on the remote server at the paths specified in `config.yaml` (default: `/usr/bin/websockify` and `/usr/share/novnc/`).
   - For secure (HTTPS) remote web console access, `cert.pem` and `key.pem` files must also be present on the remote server in `~/.config/vmanager/`.
-- Bulk actions on selected VMs (start, stop, force off, pause, delete)
+- Bulk actions on selected VMs (start, stop, force off, pause, delete): Now include a progress bar for long-running operations.
 
 ### Advanced Features
 - Filter VMs by status (All, Running, Paused, Stopped) and search by name
@@ -62,7 +62,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 
 ### Boot Configuration
 - Enable/disable boot menu
-- Boot device management (though not fully implemented in the visible UI)
+- Boot device management
 - Set boot order for devices
 
 ### Disk Management
@@ -104,6 +104,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Enable/disable password protection
 - Set password for graphics access
 - Apply graphics settings (disabled when VM is running)
+- When switching from Spice to VNC: If other SPICE-related devices (channels, audio, QXL video) are detected, the user is prompted to remove them for a clean switch. This process automatically removes SPICE channels and USB redirection, changes SPICE audio to 'none', and converts QXL video to 'virtio'. A default VNC graphics device is added if no other graphics device exists after removal.
 
 ### TPM Configuration
 - Select TPM model (tpm-crb, tpm-tis, or none)
@@ -170,6 +171,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - `p` - Server Pref
 - `m` - Servers List
 - `s` - Select Servers
+- `ctrl+a` - Select/Deselect All VMs on current page
 - `q` - Quit
 
 ### Visual Elements
@@ -204,7 +206,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Loading indicators for long-running operations
 - Detailed error messages
 - Command-line mode for advanced users
-- Bulk operations with progress indication
+- Bulk operations with improved progress indication
 - Real-time VM status updates
 
 ## Warning
