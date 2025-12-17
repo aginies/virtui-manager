@@ -29,6 +29,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
   - To enable running the web console on the remote server, set `REMOTE_WEBCONSOLE: True` in your `config.yaml`.
   - When `REMOTE_WEBCONSOLE` is enabled, `websockify` and `novnc` assets must be installed on the remote server at the paths specified in `config.yaml` (default: `/usr/bin/websockify` and `/usr/share/novnc/`).
   - For secure (HTTPS) remote web console access, `cert.pem` and `key.pem` files must also be present on the remote server in `~/.config/vmanager/`.
+- Bulk actions on selected VMs (start, stop, force off, pause, delete)
 
 ### Advanced Features
 - Filter VMs by status (All, Running, Paused, Stopped) and search by name
@@ -38,6 +39,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Web console management with automatic port allocation
 - Configuration file management for server lists
 - Create new VMs (with single server connection)
+- Bulk operations on multiple VMs
 
 ## Configure VM Features
 
@@ -61,6 +63,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 ### Boot Configuration
 - Enable/disable boot menu
 - Boot device management (though not fully implemented in the visible UI)
+- Set boot order for devices
 
 ### Disk Management
 - View all disks in a table format
@@ -71,6 +74,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Enable disk
 - Edit disk properties (cache mode and discard mode)
 - Disk status indicators (enabled/disabled)
+- Set disk cache and discard modes
 
 ### Network Configuration
 - View network interfaces with MAC addresses and IP addresses
@@ -78,6 +82,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - View network DNS and gateway information
 - Add new network interface
 - Remove network interface
+- Change network interface model
 
 ### VirtIO-FS Configuration
 - View existing VirtIO-FS mounts
@@ -111,6 +116,20 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Configure Random Number Generator (RNG) host device.
 - Apply RNG settings (disabled when VM is running).
 
+### Sound Configuration
+- Select sound model (ac97, ich6, sb16, pcspk, es1370, hda, default)
+- Sound model selection is disabled when VM is running
+
+### Watchdog Configuration
+- Configure Watchdog device for VM
+- Set watchdog model and action (reset, shutdown, poweroff)
+- Watchdog configuration is disabled when VM is running
+
+### Input Configuration
+- Configure input devices (keyboard, mouse, tablet)
+- Set input device type and bus (usb, ps2, virtio)
+- Input configuration is disabled when VM is running
+
 ### Additional Features
 - Tabbed interface for organized configuration
 - Toggle between main and extended configuration tabs
@@ -129,6 +148,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Toggle network active state
 - Toggle network autostart state
 - View network XML details
+- Get list of VMs using a specific network
 
 ### Storage Management
 - View storage pools in a tree format
@@ -138,6 +158,8 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Delete storage volume with confirmation
 - Toggle storage pool active state
 - Toggle storage pool autostart state
+- List unused storage volumes
+- Get all storage volumes across all pools
 
 ## User Interface Features
 
@@ -156,6 +178,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Sparkline graphs for CPU and memory usage
 - Responsive layout that adapts to terminal size
 - Tabbed interface for organized information display
+- Selection indicators for multiple VMs
 
 ## Technical Capabilities
 
@@ -181,6 +204,8 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Loading indicators for long-running operations
 - Detailed error messages
 - Command-line mode for advanced users
+- Bulk operations with progress indication
+- Real-time VM status updates
 
 ## Warning
 This project is part of a SUSE hackweek project, it's not mature, under heavy development, lacks a lot of features, and surely contains tons of bugs. You have been warned. Please report any bugs or ask for specific features.
