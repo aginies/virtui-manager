@@ -75,6 +75,7 @@ class VMCard(Static):
         self.last_cpu_time = 0
         self.last_cpu_time_ts = 0
         self.is_selected = is_selected
+        self.timer = None
 
     def _get_snapshot_tab_title(self) -> str:
         if self.vm:
@@ -197,7 +198,8 @@ class VMCard(Static):
 
     def on_unmount(self) -> None:
         """Stop the timer when the widget is removed."""
-        self.timer.stop()
+        if self.timer:
+            self.timer.stop()
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
@@ -217,7 +219,7 @@ class VMCard(Static):
         if self.app.bulk_operation_in_progress:
             return
 
-        self._update_webc_status() # Call on mount
+        self._update_webc_status()
 
         if self.vm:
             try:
@@ -233,7 +235,8 @@ class VMCard(Static):
                         pass # Widget might have been removed during a refresh, skip update.
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                    self.app.refresh_vm_list()
+                    if self.timer:
+                        self.timer.stop()
                     return
                 logging.warning(f"Libvirt error on refresh for {self.name}: {e}")
             except Exception as e:
@@ -254,7 +257,10 @@ class VMCard(Static):
                         cpu_percent = (cpu_diff / (time_diff * 1_000_000_000)) * 100
                         cpu_percent = cpu_percent / self.cpu # Divide by number of vCPUs
                         self.cpu_history = self.cpu_history[-20:] + [cpu_percent]
-                        self.query_one("#cpu-sparkline").data = self.cpu_history
+                        try:
+                            self.query_one("#cpu-sparkline").data = self.cpu_history
+                        except NoMatches:
+                            pass
 
                 self.last_cpu_time = current_cpu_time
                 self.last_cpu_time_ts = now
@@ -265,7 +271,10 @@ class VMCard(Static):
                     rss_kb = mem_stats['rss']
                     mem_percent = (rss_kb * 1024) / (self.memory * 1024 * 1024) * 100
                     self.mem_history = self.mem_history[-20:] + [mem_percent]
-                    self.query_one("#mem-sparkline").data = self.mem_history
+                    try:
+                        self.query_one("#mem-sparkline").data = self.mem_history
+                    except NoMatches:
+                        pass
 
                 if hasattr(self.app, "sparkline_data"):
                     uuid = self.vm.UUIDString()
@@ -273,7 +282,8 @@ class VMCard(Static):
                     self.app.sparkline_data[uuid]['mem'] = self.mem_history
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                self.app.refresh_vm_list()
+                if self.timer:
+                    self.timer.stop()
                 return
             logging.error(f"Error getting stats for {self.name}: {e}")
 
