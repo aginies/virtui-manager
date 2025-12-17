@@ -174,7 +174,10 @@ class VMCard(Static):
 
     def on_mount(self) -> None:
         self.styles.background = "#323232"
-        self.styles.border = ("solid", self.server_border_color)
+        if self.is_selected:
+            self.styles.border = ("panel", "magenta")
+        else:
+            self.styles.border = ("solid", self.server_border_color)
         self.update_button_layout()
         self._update_status_styling()
         self._update_webc_status() # Call on mount
@@ -194,12 +197,13 @@ class VMCard(Static):
         try:
             checkbox = self.query_one("#vm-select-checkbox", Checkbox)
             checkbox.value = new_value
-            if new_value:
-                self.styles.border = ("panel", "magenta")
-            else:
-                self.styles.border = ("solid", self.server_border_color)
         except NoMatches:
             pass # Widget not yet composed, ignore
+
+        if new_value:
+            self.styles.border = ("panel", "magenta")
+        else:
+            self.styles.border = ("solid", self.server_border_color)
 
     def update_stats(self) -> None:
         """Update CPU and memory statistics."""
