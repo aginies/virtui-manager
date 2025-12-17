@@ -953,7 +953,7 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str, secure_boot: bool):
     domain.connect().defineXML(new_xml)
 
 @log_function_call
-def set_vm_sound_model(domain, model):
+def set_vm_sound_model(domain: libvirt.virDomain, model: str):
     """
     Sets the sound model for a VM.
     The VM must be stopped.
