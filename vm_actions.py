@@ -1290,6 +1290,7 @@ def force_off_vm(domain: libvirt.virDomain):
 def delete_vm(domain: libvirt.virDomain, delete_storage: bool):
     """
     Deletes a VM and optionally its associated storage.
+    If the VM has snapshots, their metadata will be removed as well.
     """
     if not domain:
         raise ValueError("Invalid domain object.")
@@ -1299,13 +1300,13 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool):
     disks_to_delete = []
     if delete_storage:
         xml_desc = domain.XMLDesc(0)
-        # get_vm_disks_info returns a list of dicts, including 'path'
         disks_to_delete = get_vm_disks_info(conn, xml_desc)
 
-    # Undefine must happen after we have all the info we need from the domain object.
     if domain.isActive():
         domain.destroy()
-    domain.undefine()
+
+    # Undefine the VM, also removing any snapshot metadata.
+    domain.undefineFlags(libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA)
 
     if delete_storage:
         for disk_info in disks_to_delete:
