@@ -56,12 +56,13 @@ class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = [
-        ("v", "view_log", "Log"),
-        ("ctrl+v", "virsh_shell", "Virsh Shell"),
+        #("v", "view_log", "Log"),
+        ("ctrl+v", "virsh_shell", "Virsh"),
         ("f", "filter_view", "Filter"),
-        ("p", "server_preferences", "Server Pref"),
-        ("m", "manage_server", "Servers List"),
-        ("s", "select_server", "Select Servers"),
+        ("p", "server_preferences", "ServerPrefs"),
+        ("m", "manage_server", "ServList"),
+        ("s", "select_server", "SelServers"),
+        ("ctrl+a", "toggle_select_all", "Sel/Des All"),
         ("q", "quit", "Quit"),
     ]
 
@@ -126,9 +127,9 @@ class VMManagerTUI(App):
         with Horizontal(classes="top-controls"):
             yield Button("Select Servers", id="select_server_button", classes="Buttonpage")
             yield Button("Servers List", id="manage_servers_button", classes="Buttonpage")
-            yield Button("Server Pref", id="server_preferences_button", classes="Buttonpage")
+            yield Button("Server Prefs", id="server_preferences_button", classes="Buttonpage")
             yield Button("Filter VM", id="filter_button", classes="Buttonpage")
-            yield Button("View Log", id="view_log_button", classes="Buttonpage")
+            yield Button("Log", id="view_log_button", classes="Buttonpage")
             #yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button("Bulk CMD", id="bulk_selected_vms", classes="Buttonpage")
             yield Link("About", url="https://github.com/aginies/vmanager")
@@ -464,6 +465,20 @@ class VMManagerTUI(App):
                 )
 
         self.run_worker(get_details_and_show_modal, name=f"get_details_{message.vm_name}", thread=True)
+
+    def action_toggle_select_all(self) -> None:
+        """Selects or deselects all VMs on the current page."""
+        visible_cards = self.query(VMCard)
+        if not visible_cards:
+            return
+
+        # If all visible cards are already selected, deselect them. Otherwise, select them.
+        all_currently_selected = all(card.is_selected for card in visible_cards)
+
+        target_selection_state = not all_currently_selected
+
+        for card in visible_cards:
+            card.is_selected = target_selection_state
 
     @on(VMSelectionChanged)
     def on_vm_selection_changed(self, message: VMSelectionChanged) -> None:
