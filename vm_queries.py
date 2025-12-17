@@ -686,12 +686,10 @@ def get_vm_rng_info(xml_content: str) -> dict:
     Returns a dictionary with RNG details.
     """
     rng_info = {
-        'model': None,
-        'backend': None,
-        'backend_type': None,
-        'backend_path': None
+        'rng_model': None,
+        'backend_model': None,
+        'backend_path': None,
     }
-
     try:
         root = ET.fromstring(xml_content)
         devices = root.find("devices")
@@ -699,13 +697,12 @@ def get_vm_rng_info(xml_content: str) -> dict:
         if devices is not None:
             rng_elem = devices.find("./rng")
             if rng_elem is not None:
-                rng_info['model'] = rng_elem.get('model')
+                rng_info['rng_model'] = rng_elem.get('model')
 
                 backend_elem = rng_elem.find('backend')
                 if backend_elem is not None:
-                    rng_info['backend_type'] = backend_elem.get('type')
-                    rng_info['backend_path'] = backend_elem.get('path')
-                    rng_info['backend'] = backend_elem.text
+                    rng_info['backend_model'] = backend_elem.get('model')
+                    rng_info['backend_path'] = backend_elem.text
 
     except ET.ParseError:
         pass
