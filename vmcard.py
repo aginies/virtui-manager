@@ -22,7 +22,7 @@ from textual import on
 from textual.events import Click
 from textual.css.query import NoMatches
 from vm_queries import get_vm_disks_info, get_status
-from vm_actions import clone_vm, rename_vm, start_vm
+from vm_actions import clone_vm, delete_vm, rename_vm, start_vm
 
 from modals.vmanager_xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal
@@ -700,34 +700,12 @@ class VMCard(Static):
 
             def do_delete():
                 try:
-                    disk_paths = []
-                    if delete_storage:
-                        xml_desc = self.vm.XMLDesc(0)
-                        disks = get_vm_disks_info(self.vm.connect(), xml_desc)
-                        disk_paths = [disk['path'] for disk in disks if disk.get('path')]
-
-                    if self.vm.isActive():
-                        self.vm.destroy()
-                    self.vm.undefine()
-
-                    if delete_storage:
-                        for path in disk_paths:
-                            try:
-                                if path and os.path.exists(path):
-                                    os.remove(path)
-                                    logging.info(f"Successfully deleted storage file: {path}")
-                                    self.app.call_from_thread(self.app.show_success_message, f"Storage '{path}' deleted.")
-                                else:
-                                    logging.warning(f"Storage file not found, skipping: {path}")
-                            except OSError as e:
-                                logging.error(f"Error deleting storage file {path}: {e}")
-                                self.app.call_from_thread(self.app.show_error_message, f"Error deleting storage '{path}': {e}")
-
+                    delete_vm(self.vm, delete_storage=delete_storage)
                     self.app.call_from_thread(self.app.show_success_message, f"VM '{self.name}' deleted successfully.")
                     self.app.call_from_thread(self.app.refresh_vm_list)
                     logging.info(f"Successfully deleted VM: {self.name}")
                 except libvirt.libvirtError as e:
-                    self.app.call_from_thread(self.app.show_error_message, f"Error on VM {self.name} during 'delete VM': {e}")
+                    self.app.call_from_thread(self.app.show_error_message, f"Error deleting VM '{self.name}': {e}")
                 except Exception as e:
                     logging.error(f"An unexpected error occurred during VM deletion: {e}")
                     self.app.call_from_thread(self.app.show_error_message, f"An unexpected error occurred: {e}")
@@ -735,7 +713,6 @@ class VMCard(Static):
                     try:
                         self.app.call_from_thread(loading_modal.dismiss)
                     except Exception:
-                        # If we can\'t dismiss the modal (e.g., app is no longer active), silently continue
                         pass
 
             self.app.run_worker(do_delete, thread=True)
