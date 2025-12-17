@@ -177,6 +177,7 @@ Button {
 }
 
 .vm-select-checkbox {
-    width: 7;
-    height: 3;
+    width: 5;
+    height: 2;
+    border: none;
 }
