@@ -177,7 +177,7 @@ def get_vm_networks_info(xml_content: str) -> list[dict]:
         if mac_address_node is None:
             continue
         mac_address = mac_address_node.get("address")
-        
+
         source = interface.find("source")
         network_name = None
         if source is not None:
@@ -463,7 +463,7 @@ def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, str]:
                     disk_to_vm_map[path] = vm_name
         except libvirt.libvirtError:
             continue
-            
+
     return disk_to_vm_map
 
 @log_function_call
@@ -636,6 +636,149 @@ def get_vm_sound_model(xml_content: str) -> str | None:
     except ET.ParseError:
         pass
     return None
+
+@log_function_call
+def get_vm_tpm_info(xml_content: str) -> list[dict]:
+    """
+    Extracts TPM information from a VM's XML definition.
+    Returns a list of dictionaries with TPM details including passthrough devices.
+    """
+    tpm_info = []
+
+    try:
+        root = ET.fromstring(xml_content)
+        devices = root.find("devices")
+
+        if devices is not None:
+            for tpm_elem in devices.findall("./tpm"):
+                tpm_model = tpm_elem.get('model')
+                tpm_type = 'emulated'  # Default to emulated
+
+                # Check if this is a passthrough TPM
+                if tpm_elem.find('device') is not None:
+                    tpm_type = 'passthrough'
+
+                device_path = None
+                device_elem = tpm_elem.find('device')
+                if device_elem is not None:
+                    device_path = device_elem.get('path')
+
+                backend_elem = tpm_elem.find('backend')
+                backend_type = None
+                backend_path = None
+                if backend_elem is not None:
+                    backend_type = backend_elem.get('type')
+                    backend_path = backend_elem.get('path')
+
+                tpm_info.append({
+                    'model': tpm_model,
+                    'type': tpm_type,
+                    'device_path': device_path,
+                    'backend_type': backend_type,
+                    'backend_path': backend_path
+                })
+
+    except ET.ParseError:
+        pass
+
+    return tpm_info
+
+@log_function_call
+def get_vm_rng_info(xml_content: str) -> dict:
+    """
+    Extracts RNG (Random Number Generator) information from a VM's XML definition.
+    Returns a dictionary with RNG details.
+    """
+    rng_info = {
+        'model': None,
+        'backend': None,
+        'backend_type': None,
+        'backend_path': None
+    }
+
+    try:
+        root = ET.fromstring(xml_content)
+        devices = root.find("devices")
+
+        if devices is not None:
+            rng_elem = devices.find("./rng")
+            if rng_elem is not None:
+                rng_info['model'] = rng_elem.get('model')
+
+                backend_elem = rng_elem.find('backend')
+                if backend_elem is not None:
+                    rng_info['backend_type'] = backend_elem.get('type')
+                    rng_info['backend_path'] = backend_elem.get('path')
+                    rng_info['backend'] = backend_elem.text
+
+    except ET.ParseError:
+        pass
+    
+    return rng_info
+
+@log_function_call
+def get_vm_watchdog_info(xml_content: str) -> dict:
+    """
+    Extracts Watchdog information from a VM's XML definition.
+    Returns a dictionary with Watchdog details.
+    """
+    watchdog_info = {
+        'model': None,
+        'action': None
+    }
+
+    try:
+        root = ET.fromstring(xml_content)
+        devices = root.find("devices")
+
+        if devices is not None:
+            watchdog_elem = devices.find("./watchdog")
+            if watchdog_elem is not None:
+                watchdog_info['model'] = watchdog_elem.get('model')
+                watchdog_info['action'] = watchdog_elem.get('action')
+
+    except ET.ParseError:
+        pass
+
+    return watchdog_info
+
+@log_function_call
+def get_vm_input_info(xml_content: str) -> list[dict]:
+    """
+    Extracts Input (keyboard and mouse) information from a VM's XML definition.
+    Returns a list of dictionaries with input device details.
+    """
+    input_info = []
+
+    try:
+        root = ET.fromstring(xml_content)
+        devices = root.find("devices")
+
+        if devices is not None:
+            for input_elem in devices.findall("./input"):
+                input_type = input_elem.get('type')
+                input_bus = input_elem.get('bus')
+
+                input_details = {
+                    'type': input_type,
+                    'bus': input_bus
+                }
+
+                # Add specific details for different input types
+                if input_type == 'tablet':
+                    tablet_elem = input_elem.find('tablet')
+                    if tablet_elem is not None:
+                        input_details['tablet'] = True
+                elif input_type == 'mouse' or input_type == 'keyboard':
+                    # Mouse and keyboard devices might have specific properties
+                    pass  # Add more specific handling if needed
+
+                input_info.append(input_details)
+
+    except ET.ParseError:
+        pass
+
+    return input_info
 
 def get_vm_graphics_info(xml_content: str) -> dict:
     """
