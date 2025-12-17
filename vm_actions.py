@@ -137,7 +137,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         root = ET.fromstring(xml_desc)
         name_elem = root.find('name')
         if name_elem is None:
-            raise Exception("Could not find name element in VM XML.")
+            raise logging.error("Could not find name element in VM XML.")
         name_elem.text = new_name
         new_xml = ET.tostring(root, encoding='unicode')
 
@@ -145,7 +145,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         conn.defineXML(new_xml)
     except Exception as e:
         conn.defineXML(xml_desc)
-        raise Exception(f"Failed to rename VM, but restored original state. Error: {e}")
+        raise logging.error(f"Failed to rename VM, but restored original state. Error: {e}")
 
 def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, disk_format='qcow2'):
     """
@@ -186,13 +186,13 @@ def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, di
             break
 
     if not target_dev:
-        raise Exception("No available device slots for new disk.")
+        raise logging.error("No available device slots for new disk.")
 
     disk_xml = ""
 
     if create:
         if device_type != 'disk':
-            raise Exception("Cannot create non-disk device types.")
+            raise logging.error("Cannot create non-disk device types.")
 
         # Find storage pool from path
         pool = None
@@ -210,14 +210,14 @@ def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, di
                     continue  # Some pools might not have paths, etc.
 
         if not pool:
-            raise Exception(f"Could not find an active storage pool managing the path '[red]{os.path.dirname(disk_path)}[/red]'.")
+            raise logging.error(f"Could not find an active storage pool managing the path '{os.path.dirname(disk_path)}'.")
 
         vol_name = os.path.basename(disk_path)
 
         # Check if volume already exists
         try:
             pool.storageVolLookupByName(vol_name)
-            raise Exception(f"A storage volume named '{vol_name}' already exists in pool '{pool.name()}'.")
+            raise logging.error(f"A storage volume named '{vol_name}' already exists in pool '{pool.name()}'.")
         except libvirt.libvirtError as e:
             if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
                 raise
@@ -234,7 +234,7 @@ def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, di
         try:
             new_vol = pool.createXML(vol_xml_def, 0)
         except libvirt.libvirtError as e:
-            raise Exception(f"Failed to create volume in libvirt pool: {e}")
+            raise logging.error(f"Failed to create volume in libvirt pool: {e}")
 
         disk_xml = f"""
         <disk type='volume' device='disk'>
@@ -275,7 +275,7 @@ def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, di
             """
 
     if not disk_xml:
-        raise Exception("Could not generate disk XML for attaching.")
+        raise logging.error("Could not generate disk XML for attaching.")
 
     flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
     if domain.isActive():
@@ -340,7 +340,7 @@ def remove_disk(domain, disk_dev_path):
             break
 
     if not disk_to_remove_xml:
-        raise Exception(f"Disk with device path or name '[red]{disk_dev_path}[/red]' not found.")
+        raise logging.error(f"Disk with device path or name '[red]{disk_dev_path}[/red]' not found.")
 
     flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
     if domain.isActive():
@@ -714,7 +714,7 @@ def set_machine_type(domain, new_machine_type):
 
     type_elem = root.find(".//os/type")
     if type_elem is None:
-        raise Exception("Could not find OS type element in VM XML.")
+        raise logging.error("Could not find OS type element in VM XML.")
 
     type_elem.set('machine', new_machine_type)
 
@@ -1209,18 +1209,18 @@ def start_vm(domain):
         if 'file' in source_elem.attrib:
             disk_path = source_elem.get('file')
             if not os.path.exists(disk_path):
-                raise Exception(f"Disk image file not found: [red]{disk_path}[/red]")
+                raise logging.error(f"Disk image file not found: {disk_path}")
         elif 'pool' in source_elem.attrib and 'volume' in source_elem.attrib:
             pool_name = source_elem.get('pool')
             vol_name = source_elem.get('volume')
             try:
                 pool = conn.storagePoolLookupByName(pool_name)
                 if not pool.isActive():
-                    raise Exception(f"Storage pool '[red]{pool_name}[/red]' is not active.")
+                    raise logging.error(f"Storage pool '{pool_name}' is not active.")
                 # This will raise an exception if the volume doesn't exist
                 pool.storageVolLookupByName(vol_name)
             except libvirt.libvirtError as e:
-                raise Exception(f"Error checking disk volume '[red]{vol_name}[/red]' in pool '[red] {pool_name}[/red]': {e}")
+                raise logging.error(f"Error checking disk volume '{vol_name}' in pool '{pool_name}': {e}")
 
     domain.create()
 
