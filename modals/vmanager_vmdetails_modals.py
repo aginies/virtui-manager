@@ -22,14 +22,14 @@ from vm_queries import (
     get_vm_disks_info, get_vm_devices_info,
     get_supported_machine_types, get_vm_graphics_info,
     get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
-    get_vm_network_ip, get_vm_rng_info
+    get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info
     )
 from vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
         disable_disk, change_vm_network, set_shared_memory, remove_virtiofs,
         add_virtiofs, set_vm_video_model, set_cpu_model, set_uefi_file,
         set_vm_graphics, set_disk_properties, set_vm_sound_model,
-        add_network_interface, remove_network_interface, set_boot_info, set_vm_rng
+        add_network_interface, remove_network_interface, set_boot_info, set_vm_rng, set_vm_tpm
 )
 from network_manager import (
     list_networks,
@@ -87,6 +87,9 @@ class VMDetailModal(ModalScreen):
         self.vm_info['sound_model'] = get_vm_sound_model(self.domain.XMLDesc(0))
         self.vm_info['rng_model'] = get_vm_rng_info(self.domain.XMLDesc(0))
         self.rng_info = get_vm_rng_info(self.domain.XMLDesc(0))
+        # Initialize TPM info
+        self.tpm_info = get_vm_tpm_info(self.domain.XMLDesc(0))
+
 
     def on_mount(self) -> None:
         try:
@@ -130,6 +133,7 @@ class VMDetailModal(ModalScreen):
 
         # Initialize Graphics tab values
         self._update_graphics_ui()
+        self._update_tpm_ui()
         self._populate_disks_table()
         self._populate_networks_table()
 
@@ -769,6 +773,54 @@ class VMDetailModal(ModalScreen):
         except Exception as e:
             self.app.show_error_message(f"Error applying RNG settings: {e}")
 
+    @on(Select.Changed, "#tpm-type-select")
+    def on_tpm_type_changed(self, event: Select.Changed) -> None:
+        if self.tpm_info:
+            self.tpm_info[0]['type'] = event.value
+        else:
+            self.tpm_info = [{'type': event.value, 'model': 'tpm-crb'}] # Default model if none exists
+        self._update_tpm_ui()
+
+    @on(Select.Changed, "#tpm-model-select")
+    def on_tpm_model_changed(self, event: Select.Changed) -> None:
+        if self.tpm_info:
+            self.tpm_info[0]['model'] = event.value
+        else:
+            self.tpm_info = [{'model': event.value, 'type': 'emulated'}] # Default type if none exists
+        self._update_tpm_ui()
+
+    @on(Button.Pressed, "#apply-tpm-btn")
+    def on_tpm_apply_button_pressed(self, event: Button.Pressed) -> None:
+        if self.vm_info.get("status") != "Stopped":
+            self.app.show_error_message("VM must be stopped to apply TPM settings.")
+            return
+
+        tpm_model = self.query_one("#tpm-model-select", Select).value
+        tpm_type = self.query_one("#tpm-type-select", Select).value
+        device_path = self.query_one("#tpm-device-path-input", Input).value
+        backend_type = self.query_one("#tpm-backend-type-input", Input).value
+        backend_path = self.query_one("#tpm-backend-path-input", Input).value
+
+        # Basic validation for passthrough
+        if tpm_type == 'passthrough' and not device_path:
+            self.app.show_error_message("Device path is required for passthrough TPM.")
+            return
+
+        try:
+            set_vm_tpm(
+                self.domain,
+                tpm_model if tpm_model != "none" else None,
+                tpm_type=tpm_type,
+                device_path=device_path if tpm_type == 'passthrough' else None,
+                backend_type=backend_type if tpm_type == 'passthrough' else None,
+                backend_path=backend_path if tpm_type == 'passthrough' else None
+            )
+            self.app.show_success_message("TPM settings applied successfully.")
+            self.tpm_info = get_vm_tpm_info(self.domain.XMLDesc(0)) # Refresh info
+            self._update_tpm_ui()
+        except Exception as e:
+            self.app.show_error_message(f"Error applying TPM settings: {e}")
+
     @on(ListView.Highlighted, "#available-devices-list")
     def on_available_devices_list_highlighted(self, event: ListView.Highlighted) -> None:
         is_stopped = self.vm_info.get("status") == "Stopped"
@@ -945,7 +997,7 @@ class VMDetailModal(ModalScreen):
 
                 if self.vm_info.get("devices"):
                     with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
-                        if self.vm_info.get('shared_memory') == False:
+                        if not self.vm_info.get('shared_memory'):
                             yield Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", classes="tabd-warning")
                         with ScrollableContainer(classes="info-details"):
                             virtiofs_table = DataTable(id="virtiofs-table")
@@ -1049,15 +1101,55 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Button("Apply Graphics Settings", id="graphics-apply-btn", variant="primary", disabled=not is_stopped)
                 with TabPane("TPM", id="detail-tpm-tab"):
-                    yield Label("TPM")
+                    is_stopped = self.vm_info.get("status") == "Stopped"
+                    tpm_model = self.tpm_info[0].get('model') if self.tpm_info else 'none'
+                    tpm_type = self.tpm_info[0].get('type') if self.tpm_info else 'emulated'
+                    tpm_device_path = self.tpm_info[0].get('device_path', '') if self.tpm_info else ''
+                    tpm_backend_type = self.tpm_info[0].get('backend_type', '') if self.tpm_info else ''
+                    tpm_backend_path = self.tpm_info[0].get('backend_path', '') if self.tpm_info else ''
+
+                    with Vertical(classes="info-details"):
+                        yield Label("TPM Model:")
+                        yield Select(
+                            [("None", "none"), ("tpm-crb", "tpm-crb"), ("tpm-tis", "tpm-tis")],
+                            value=tpm_model,
+                            id="tpm-model-select",
+                            disabled=not is_stopped,
+                            allow_blank=False,
+                        )
+                        yield Label("TPM Type:")
+                        yield Select(
+                            [("Emulated", "emulated"), ("Passthrough", "passthrough")],
+                            value=tpm_type,
+                            id="tpm-type-select",
+                            disabled=not is_stopped,
+                            allow_blank=False,
+                        )
+                        yield Label("Device Path (for passthrough):")
+                        yield Input(
+                            value=tpm_device_path,
+                            id="tpm-device-path-input",
+                            disabled=not is_stopped or tpm_type != 'passthrough',
+                            placeholder="/dev/tpm0"
+                        )
+                        yield Label("Backend Type (for passthrough):")
+                        yield Input(
+                            value=tpm_backend_type,
+                            id="tpm-backend-type-input",
+                            disabled=not is_stopped or tpm_type != 'passthrough',
+                            placeholder="emulator or passthrough"
+                        )
+                        yield Label("Backend Path (for passthrough):")
+                        yield Input(
+                            value=tpm_backend_path,
+                            id="tpm-backend-path-input",
+                            disabled=not is_stopped or tpm_type != 'passthrough',
+                            placeholder="/dev/tpmrm0"
+                        )
+                        yield Button("Apply TPM Settings", id="apply-tpm-btn", variant="primary", disabled=not is_stopped)
 
 
             with TabbedContent(id="detail2-vm"):
-        # TOFIX !
-                with TabPane("Serial", id="detail-serial-tab"):
-                    yield Label("Serial")
-                with TabPane("Watchdog", id="detail-watchdog-tab"):
-                    yield Label("Watchdog")
                 with TabPane("RNG", id="detail-rng-tab"):
                     with Vertical(classes="info-details"):
                         current_path = self.rng_info["backend_path"]# self.vm_info.get("rng_model")
@@ -1065,6 +1157,11 @@ class VMDetailModal(ModalScreen):
                         yield Label("Host device")
                         yield Input(value=current_path, id="rng-host-device")
                         yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
+        # TOFIX !
+                with TabPane("Serial", id="detail-serial-tab"):
+                    yield Label("Serial")
+                with TabPane("Watchdog", id="detail-watchdog-tab"):
+                    yield Label("Watchdog")
                 with TabPane("Input", id="detail-input-tab"):
                     yield Label("Input")
                 with TabPane("USB", id="detail-usb-tab"):
@@ -1081,6 +1178,56 @@ class VMDetailModal(ModalScreen):
                     yield Label("Channel")
 
             yield Button("Close", variant="default", id="close-btn", classes="close-button")
+
+    def _update_tpm_ui(self) -> None:
+        """Updates the UI elements for the TPM tab based on self.tpm_info."""
+        is_stopped = self.vm_info.get("status") == "Stopped"
+
+        # TPM Model
+        try:
+            tpm_model_select = self.query_one("#tpm-model-select", Select)
+            tpm_model_select.value = self.tpm_info[0].get('model', 'none') if self.tpm_info else 'none'
+            tpm_model_select.disabled = not is_stopped
+        except Exception:
+            pass
+
+        # TPM Type
+        try:
+            tpm_type_select = self.query_one("#tpm-type-select", Select)
+            tpm_type_select.value = self.tpm_info[0].get('type', 'emulated') if self.tpm_info else 'emulated'
+            tpm_type_select.disabled = not is_stopped
+        except Exception:
+            pass
+
+        # Device Path (for passthrough)
+        try:
+            device_path_input = self.query_one("#tpm-device-path-input", Input)
+            device_path_input.value = self.tpm_info[0].get('device_path', '') if self.tpm_info else ''
+            device_path_input.disabled = not is_stopped or (self.tpm_info[0].get('type') != 'passthrough' if self.tpm_info else True)
+        except Exception:
+            pass
+
+        # Backend Type
+        try:
+            backend_type_input = self.query_one("#tpm-backend-type-input", Input)
+            backend_type_input.value = self.tpm_info[0].get('backend_type', '') if self.tpm_info else ''
+            backend_type_input.disabled = not is_stopped or (self.tpm_info[0].get('type') != 'passthrough' if self.tpm_info else True)
+        except Exception:
+            pass
+
+        # Backend Path
+        try:
+            backend_path_input = self.query_one("#tpm-backend-path-input", Input)
+            backend_path_input.value = self.tpm_info[0].get('backend_path', '') if self.tpm_info else ''
+            backend_path_input.disabled = not is_stopped or (self.tpm_info[0].get('type') != 'passthrough' if self.tpm_info else True)
+        except Exception:
+            pass
+
+        # Apply button
+        try:
+            self.query_one("#apply-tpm-btn", Button).disabled = not is_stopped
+        except Exception:
+            pass
 
     def _update_disk_list(self):
         new_xml = self.domain.XMLDesc(0)
