@@ -91,11 +91,18 @@ class VMCard(Static):
     def _update_webc_status(self) -> None:
         """Updates the web console status indicator."""
         if hasattr(self.app, 'webconsole_manager') and self.vm:
-            uuid = self.vm.UUIDString()
-            if self.app.webconsole_manager.is_running(uuid):
-                if self.webc_status_indicator != " (WebC On)":
-                    self.webc_status_indicator = " (WebC On)"
-                return
+            try:
+                uuid = self.vm.UUIDString()
+                if self.app.webconsole_manager.is_running(uuid):
+                    if self.webc_status_indicator != " (WebC On)":
+                        self.webc_status_indicator = " (WebC On)"
+                    return
+            except libvirt.libvirtError as e:
+                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                    pass # The VM is gone, let other parts handle the refresh.
+                else:
+                    logging.warning(f"Error getting UUID for webconsole status: {e}")
+
         if self.webc_status_indicator != "":
             self.webc_status_indicator = ""
 
@@ -207,6 +214,9 @@ class VMCard(Static):
 
     def update_stats(self) -> None:
         """Update CPU and memory statistics."""
+        if self.app.bulk_operation_in_progress:
+            return
+
         self._update_webc_status() # Call on mount
 
         if self.vm:
@@ -214,10 +224,13 @@ class VMCard(Static):
                 new_status = get_status(self.vm)
                 if self.status != new_status:
                     self.status = new_status
-                    status_widget = self.query_one("#status")
-                    status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
-                    self._update_status_styling()
-                    self.update_button_layout()
+                    try:
+                        status_widget = self.query_one("#status")
+                        status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
+                        self._update_status_styling()
+                        self.update_button_layout()
+                    except NoMatches:
+                        pass # Widget might have been removed during a refresh, skip update.
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     self.app.refresh_vm_list()
@@ -226,8 +239,8 @@ class VMCard(Static):
             except Exception as e:
                 logging.error(f"Unexpected error refreshing status for {self.name}: {e}")
 
-        if self.vm and self.vm.isActive():
-            try:
+        try:
+            if self.vm and self.vm.isActive():
                 # CPU Usage
                 stats = self.vm.getCPUStats(True)
                 current_cpu_time = stats[0]['cpu_time']
@@ -258,9 +271,11 @@ class VMCard(Static):
                     uuid = self.vm.UUIDString()
                     self.app.sparkline_data[uuid]['cpu'] = self.cpu_history
                     self.app.sparkline_data[uuid]['mem'] = self.mem_history
-
-            except libvirt.libvirtError as e:
-                logging.error(f"Error getting stats for {self.name}: {e}")
+        except libvirt.libvirtError as e:
+            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                self.app.refresh_vm_list()
+                return
+            logging.error(f"Error getting stats for {self.name}: {e}")
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
@@ -282,18 +297,32 @@ class VMCard(Static):
             mem_sparkline_container = self.query_one("#mem-sparkline-container")
             xml_button = self.query_one("#xml", Button)
         except NoMatches:
-            pass
+            # If any essential button isn't found, it means the card is likely being torn down.
+            # Just return and avoid further updates.
+            return
 
         is_stopped = self.status == "Stopped"
         is_running = self.status == "Running"
         is_paused = self.status == "Paused"
-        has_snapshots = self.vm and self.vm.snapshotNum(0) > 0
+        has_snapshots = False
+        try:
+            if self.vm:
+                has_snapshots = self.vm.snapshotNum(0) > 0
+        except libvirt.libvirtError as e:
+            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                self.app.refresh_vm_list()
+                return
+            logging.warning(f"Could not get snapshot count for {self.name}: {e}")
 
         # Update Snapshot TabPane title
-        tabbed_content = self.query_one(TabbedContent)
-        snapshot_tab_pane = tabbed_content.get_pane("snapshot-tab")
-        if snapshot_tab_pane:
-            snapshot_tab_pane.title = self._get_snapshot_tab_title()
+        try:
+            tabbed_content = self.query_one(TabbedContent)
+            snapshot_tab_pane = tabbed_content.get_pane("snapshot-tab")
+            # Only update the title if the widget is still mounted to prevent crashes
+            if snapshot_tab_pane and self.is_mounted:
+                snapshot_tab_pane.title = self._get_snapshot_tab_title()
+        except NoMatches:
+            pass
 
         start_button.display = is_stopped
         shutdown_button.display = is_running
@@ -319,9 +348,12 @@ class VMCard(Static):
 
 
     def _update_status_styling(self):
-        status_widget = self.query_one("#status")
-        status_widget.remove_class("stopped", "running", "paused")
-        status_widget.add_class(self.status.lower())
+        try:
+            status_widget = self.query_one("#status")
+            status_widget.remove_class("stopped", "running", "paused")
+            status_widget.add_class(self.status.lower())
+        except NoMatches:
+            pass # Widget not found, likely torn down or not yet composed.
 
     def _check_volume_usage(self, domain):
         """Check if any volumes used by this VM are in use by other running VMs."""
@@ -550,9 +582,16 @@ class VMCard(Static):
         """Handles the web console button press by opening a config dialog."""
         worker = partial(self.app.webconsole_manager.start_console, self.vm, self.conn)
 
-        uuid = self.vm.UUIDString()
-        if self.app.webconsole_manager.is_running(uuid):
-            self.app.run_worker(worker, name=f"show_console_{self.vm.name()}", thread=True)
+        try:
+            uuid = self.vm.UUIDString()
+            if self.app.webconsole_manager.is_running(uuid):
+                self.app.run_worker(worker, name=f"show_console_{self.vm.name()}", thread=True)
+                return
+        except libvirt.libvirtError as e:
+            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                self.app.refresh_vm_list()
+                return
+            self.app.show_error_message(f"Error checking web console status for {self.name}: {e}")
             return
 
         parsed_uri = urlparse(self.conn.getURI())
@@ -837,7 +876,13 @@ class VMCard(Static):
 
     def _handle_configure_button(self, event: Button.Pressed) -> None:
         """Handles the configure button press."""
-        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+        try:
+            self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+        except libvirt.libvirtError as e:
+            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                self.app.refresh_vm_list()
+                return
+            self.app.show_error_message(f"Error getting UUID for {self.name}: {e}")
 
     @on(Checkbox.Changed, "#vm-select-checkbox")
     def on_vm_select_checkbox_changed(self, event: Checkbox.Changed) -> None:
