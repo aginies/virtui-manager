@@ -15,7 +15,7 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 
 from libvirt_error_handler import register_error_handler
-from vmcard import VMCard, VMNameClicked
+from vmcard import VMCard, VMNameClicked, VMSelectionChanged
 from vm_queries import (
     get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
     get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
@@ -40,6 +40,7 @@ from modals.vmanager_virsh_modals import VirshShellScreen
 from modals.vmanager_select_server_modals import SelectServerModal, SelectOneServerModal
 from connection_manager import ConnectionManager
 from webconsole_manager import WebConsoleManager
+from vm_actions import start_vm, delete_vm#, stop_vm
 
 # Configure logging
 logging.basicConfig(
@@ -82,6 +83,7 @@ class VMManagerTUI(App):
     sort_by = reactive("default")
     search_text = reactive("")
     num_pages = reactive(1)
+    selected_vm_uuids: reactive[list[str]] = reactive(list)
 
     SERVER_COLOR_PALETTE = [
         "#33FF57",  # Green
@@ -123,7 +125,8 @@ class VMManagerTUI(App):
             yield Button("Server Pref", id="server_preferences_button", classes="Buttonpage")
             yield Button("Filter VM", id="filter_button", classes="Buttonpage")
             yield Button("View Log", id="view_log_button", classes="Buttonpage")
-            yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
+            #yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
+            yield Button("Bulk CMD", id="bulk_selected_vms", classes="Buttonpage")
             yield Link("About", url="https://github.com/aginies/vmanager")
 
         with Horizontal(id="pagination-controls") as pc:
@@ -458,6 +461,17 @@ class VMManagerTUI(App):
 
         self.run_worker(get_details_and_show_modal, name=f"get_details_{message.vm_name}", thread=True)
 
+    @on(VMSelectionChanged)
+    def on_vm_selection_changed(self, message: VMSelectionChanged) -> None:
+        """Handles when a VM's selection state changes."""
+        if message.is_selected:
+            if message.vm_uuid not in self.selected_vm_uuids:
+                self.selected_vm_uuids.append(message.vm_uuid)
+        else:
+            if message.vm_uuid in self.selected_vm_uuids:
+                self.selected_vm_uuids.remove(message.vm_uuid)
+        logging.info(f"Selected VMs: {self.selected_vm_uuids}")
+
     def handle_create_vm_result(self, result: dict | None) -> None:
         """Handle the result from the CreateVMModal and create the VM."""
         if not result:
@@ -564,7 +578,8 @@ class VMManagerTUI(App):
             cpu_hist = self.sparkline_data[uuid]["cpu"]
             mem_hist = self.sparkline_data[uuid]["mem"]
 
-            vm_card = VMCard(cpu_history=cpu_hist, mem_history=mem_hist)
+            is_vm_selected = uuid in self.selected_vm_uuids
+            vm_card = VMCard(cpu_history=cpu_hist, mem_history=mem_hist, is_selected=is_vm_selected)
             vm_card.name = domain.name()
             vm_card.status = get_status(domain)
             vm_card.cpu = info[3]
@@ -622,6 +637,16 @@ class VMManagerTUI(App):
         if self.current_page < self.num_pages - 1:
             self.current_page += 1
             self.refresh_vm_list()
+
+    @on(Button.Pressed, "#bulk_selected_vms")
+    def on_bulk_selected_vms_button_pressed(self) -> None:
+        """Handles the 'Bulk Selected' button press."""
+        if not self.selected_vm_uuids:
+            self.show_error_message("No VMs selected.")
+            return
+
+        self.show_success_message(f"Selected VMs: {self.selected_vm_uuids}")
+        self.push_screen(SelectServerModal(self.servers, self.active_uris, self.connection_manager), self.handle_select_server_result)
 
     async def action_quit(self) -> None:
         """Quit the application."""
