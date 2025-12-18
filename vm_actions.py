@@ -1527,7 +1527,8 @@ def check_migration_compatibility(source_conn: libvirt.virConnect, dest_conn: li
                         issues.append(f"ERROR: Storage pool '{pool_name}' is not active on destination host.")
                     else:
                         dest_pool_xml = ET.fromstring(dest_pool.XMLDesc(0))
-                        dest_pool_type = dest_pool_xml.find('type').text
+                        type_elem = dest_pool_xml.find('type')
+                        dest_pool_type = type_elem.text if type_elem is not None else "unknown"
                         if dest_pool_type not in ['netfs', 'iscsi', 'glusterfs', 'rbd', 'nfs']:
                              issues.append(f"WARNING: Storage pool '{pool_name}' on destination is of type '{dest_pool_type}', which may not be shared. Live migration requires shared storage.")
                 except libvirt.libvirtError:
