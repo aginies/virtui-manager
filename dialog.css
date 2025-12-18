@@ -9,6 +9,7 @@ WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
 ProgressModal,
+MigrationModal,
 DeleteVMConfirmationDialog,
 AdvancedCloneDialog {
     align: center middle;
@@ -19,6 +20,7 @@ ConfirmationDialog #dialog Label,
 RenameVMDialog,
 WebConsoleDialog,
 XMLDisplayModal,
+MigrationModal,
 WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
@@ -91,6 +93,7 @@ ConfirmationDialog #dialog-buttons Button {
 WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
+MigrationModal,
 SelectServerModal {
     height: auto;
 }
@@ -302,4 +305,8 @@ XMLDisplayModal #dialog-buttons Button {
     border: round $primary;
     width: 55;
     height: 15;
+}
+.log-view {
+    background: #222222; /* Dark grey */
+    color: #DDDDDD;     /* Light grey */
 }
