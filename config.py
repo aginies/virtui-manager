@@ -1,6 +1,9 @@
+"""
+Maange the configuration of the tool
+"""
 import os
-import yaml
 from pathlib import Path
+import yaml
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
@@ -11,9 +14,11 @@ DEFAULT_CONFIG = {
     'REMOTE_WEBCONSOLE': False,
     'VNC_QUALITY': 0,
     'VNC_COMPRESSION': 9,
+    'network_models': ["virtio", "e1000", "e1000e", "rtl8139", "ne2k_pci", "pcnet"],
+    'sound_models': ["none", "ich6", "ich9", "ac97", "sb16", "usb"],
     'servers': [
         {'name': 'Localhost', 'uri': 'qemu:///system'},
-    ]
+    ],
 }
 
 def get_config_paths():
