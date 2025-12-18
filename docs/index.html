@@ -4,50 +4,35 @@
     <title>Rainbow V Manager</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body { 
-            font-family: 'Helvetica Neue', Arial, sans-serif; 
-            max-width: 800px; 
-            margin: 0 auto; 
-            padding: 20px; 
-            background-color: #fdf6e3; 
-            color: #657b83;
-        }
-        h1 { 
-            color: #268bd2; 
-            margin-bottom: 10px;
-        }
-        a { 
-            color: #268bd2; 
-            text-decoration: none; 
-        }
-        a:hover { 
-            text-decoration: underline; 
-        }
-        .feature-list { 
-            margin: 20px 0; 
-        }
-        p {
-            line-height: 1.5;
-        }
-        .media-section {
-            margin: 30px 0;
-            text-align: center;
-        }
-        .media-section img {
-            max-width: 100%;
-            height: auto;
-            border: 1px solid #eee;
-            border-radius: 4px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
+<style>
+    .sidebar {
+        float: left;
+        width: 20%;
+        padding: 10px;
+        background-color: #f0f0f0;
+        border-right: 1px solid #ccc;
+    }
+    .main-content {
+        float: right;
+        width: 80%;
+        padding-left: 20%;
+    }
+</style>
 </head>
 <body>
+<div class="sidebar">
+  <h3>Navigation</h3>
+  <ul>
+    <li><a href="#key-features">Key Features</a></li>
+    <li><a href="#quick-links">Quick Links</a></li>
+    <li><a href="media.html">Media</a></li>
+  </ul>
+</div>
     <h1>Rainbow V Manager</h1>
     <p>A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM virtual machines using the libvirt python API.</p>
     
-    <h2>Key Features</h2>
+    <h2 id="key-features">Key Features</h2>
     <ul class="feature-list">
         <li><strong>Scalable VM Management</strong>: Manage hundreds of VMs across multiple libvirt servers with a single, consistent interface.</li>
         <li><strong>Zero X11 Dependency</strong>: Full control via terminal, eliminating the need for graphical environments.</li>
@@ -66,13 +51,14 @@
         <p>Interface showing multi-server VM management with color-coded status indicators</p>
     </div>
     
-    <h2>Quick Links</h2>
+    <h2 id="quick-links">Quick Links</h2>
     <ul class="feature-list">
-        <li><a href="../README.md">Read the full documentation</a></li>
-        <li><a href="../FEATURES.md">View features list</a></li>
+        <li><a href="https://github.com/aginies/vmanager/blob/main/README.md">Read the full documentation</a></li>
+        <li><a href="https://github.com/aginies/vmanager/blob/main/FEATURES.md">View features list</a></li>
         <li><a href="https://github.com/aginies/vmanager">GitHub Repository</a></li>
     </ul>
     
-    <p>License: GPL3</p>
+    <p>Author: aginies@suse.com</p>
+<p>License: <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL3</a></p>
 </body>
 </html>

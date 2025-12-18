@@ -1,0 +1,36 @@
+body { 
+    font-family: 'Helvetica Neue', Arial, sans-serif; 
+    max-width: 800px; 
+    margin: 0 auto; 
+    padding: 20px; 
+    background-color: #fdf6e3; 
+    color: #657b83;
+}
+h1 { 
+    color: #268bd2; 
+    margin-bottom: 10px;
+}
+a { 
+    color: #268bd2; 
+    text-decoration: none; 
+}
+a:hover { 
+    text-decoration: underline; 
+}
+.feature-list { 
+    margin: 20px 0; 
+}
+p {
+    line-height: 1.5;
+}
+.media-section {
+    margin: 30px 0;
+    text-align: center;
+}
+.media-section img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
