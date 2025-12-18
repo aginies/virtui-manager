@@ -9,6 +9,7 @@ VMDetailModal,
 .centered-status-label,
 .network-interface-row,
 VirshShellScreen,
+#migration-dialog,
 #virsh-shell-container,
 #virsh-input-container {
     align: center middle;
@@ -31,7 +32,6 @@ Header, Footer {
     background: $primary;
     color: $text;
 }
-
 #connection-dialog,
 #add-edit-network-dialog,
 #edit-server-dialog,
@@ -94,6 +94,7 @@ Header, Footer {
 #server-management-dialog {
     width: 64;
 }
+#migration-dialog Label,
 #add-edit-network-dialog Label,
 #connection-dialog Label,
 #select-server-container Label,
@@ -138,7 +139,6 @@ Header, Footer {
     width: 100%;
     margin-bottom: 1;
 }
-
 #add-edit-network-dialog Horizontal,
 #connection-dialog Horizontal,
 #add-server-dialog Horizontal,
@@ -162,7 +162,7 @@ Header, Footer {
     height: auto;
     align: center middle;
 }
-
+#migration-dialog Button,
 #add-edit-network-dialog Button,
 #connection-dialog Button,
 #select-server-container Button,
@@ -198,9 +198,11 @@ Header, Footer {
     margin-bottom: 1;
 }
 
+#migration-dialog Select,
 #cpu-model-select Select,
 #remove-disk-dialog Select,
 #uefi-file-select Select,
+#dest-server-select Select,
 #select-pool-dialog Select,
 Select {
     width: 50;
@@ -626,4 +628,7 @@ NetworkListItem {
 .boot-buttons Button {
     width: 1;
     margin: 1 0;
+}
+#results-log {
+    height: 9;
 }
