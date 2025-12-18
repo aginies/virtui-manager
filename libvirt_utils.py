@@ -183,3 +183,82 @@ def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: list[str]) -> l
         except libvirt.libvirtError:
             pass
     return vm_names
+
+def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
+    """
+    Get detailed information about a specific network based on its name.
+    Extracts forward mode, port, bridge, network, and DHCP information.
+    """
+    try:
+        network = conn.networkLookupByName(network_name)
+        xml_desc = network.XMLDesc(0)
+        root = ET.fromstring(xml_desc)
+
+        info = {'name': network.name(), 'uuid': network.UUIDString()}
+
+        # Forwarding info
+        forward_elem = root.find('forward')
+        if forward_elem is not None:
+            info['forward_mode'] = forward_elem.get('mode')
+            dev = forward_elem.get('dev')
+            if dev is None:
+                interface_elem = forward_elem.find('interface')
+                if interface_elem is not None:
+                    dev = interface_elem.get('dev')
+            info['forward_dev'] = dev
+
+            # NAT port range for forwarding
+            nat_elem = forward_elem.find('nat')
+            if nat_elem is not None:
+                port_elem = nat_elem.find('port')
+                if port_elem is not None:
+                    info['port_forward_start'] = port_elem.get('start')
+                    info['port_forward_end'] = port_elem.get('end')
+        else:
+            info['forward_mode'] = 'isolated' # If no forward element, it's an isolated network
+            info['forward_dev'] = None
+
+        # Bridge info
+        bridge_elem = root.find('bridge')
+        if bridge_elem is not None:
+            info['bridge_name'] = bridge_elem.get('name')
+        else:
+            info['bridge_name'] = None
+
+        # IP addressing info
+        ip_elem = root.find('ip')
+        if ip_elem is not None:
+            info['ip_address'] = ip_elem.get('address')
+            info['netmask'] = ip_elem.get('netmask')
+            info['prefix'] = ip_elem.get('prefix')
+
+            # DHCP info
+            dhcp_elem = ip_elem.find('dhcp')
+            if dhcp_elem is not None:
+                info['dhcp'] = True
+                range_elem = dhcp_elem.find('range')
+                if range_elem is not None:
+                    info['dhcp_start'] = range_elem.get('start')
+                    info['dhcp_end'] = range_elem.get('end')
+                else:
+                    info['dhcp_start'] = None
+                    info['dhcp_end'] = None
+            else:
+                info['dhcp'] = False
+        else:
+            info['ip_address'] = None
+            info['netmask'] = None
+            info['prefix'] = None
+            info['dhcp'] = False
+
+        # Domain name
+        domain_elem = root.find('domain')
+        if domain_elem is not None:
+            info['domain_name'] = domain_elem.get('name')
+        else:
+            info['domain_name'] = None
+
+        return info
+
+    except libvirt.libvirtError:
+        return {}
