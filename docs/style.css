@@ -1,29 +1,31 @@
-/* Solarized Light Theme */
+body {
+    background-color: #002b36;
+    color: #073642;
+}
+
 .sidebar {
     float: left;
     width: 15%;
     padding: 10px;
-    background-color: #eee8d5; /* solarized base2 */
-    color: #073642; /* solarized base02 */
-    border-right: 1px solid #839496; /* solarized base1 */
+    background-color: #002b36;
+    color: #073642;
+    border-right: 1px solid #839496;
 }
 .main-content {
     float: right;
     width: 85%;
     padding-left: 15%;
-    color: #586e75; /* solarized base01 */
+    color: #073642;
 }
 
-/* Gallery styles */
 .gallery img {
     max-width: 200px;
     height: auto;
     margin: 5px;
     cursor: pointer;
-    border: 1px solid #839496; /* solarized base1 */
+    border: 1px solid #839496;
 }
 
-/* Lightbox styles */
 #lightbox {
     display: none;
     position: fixed;
@@ -41,7 +43,7 @@
     max-height: 90%;
 }
 #close-lightbox {
-    color: #839496; /* solarized base1 */
+    color: #839496;
     position: absolute;
     top: 20px;
     right: 20px;
@@ -49,9 +51,8 @@
     font-size: 24px;
 }
 
-/* Navigation buttons */
 #prev, #next {
-    color: #839496; /* solarized base1 */
+    color: #839496;
     position: absolute;
     top: 50%;
     transform: translateY(-50%);

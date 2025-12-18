@@ -23,11 +23,11 @@
         <img src="https://paste.opensuse.org/pastes/32c592108214/raw" alt="Bulk Command">
     </div>
 
-    <div id="lightbox" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); justify-content:center; align-items:center; z-index:1000;">
-        <span id="prev" style="color: white; position: absolute; left: 20px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 30px;">&lt;</span>
-        <img id="lightbox-img" style="max-width:90%; max-height:90%;">
-        <span id="next" style="color: white; position: absolute; right: 20px; top: 50%; transform: translateY(-50%); cursor: pointer; font-size: 30px;">&gt;</span>
-        <span id="close-lightbox" style="color:white; position:absolute; top:20px; right:20px; cursor:pointer;">&times;</span>
+    <div id="lightbox">
+        <span id="prev">&lt;</span>
+        <img id="lightbox-img">
+        <span id="next">&gt;</span>
+        <span id="close-lightbox">&times;</span>
     </div>
 
     <script>
@@ -56,7 +56,6 @@
             document.getElementById('lightbox').style.display = 'none';
         });
 
-        // Add keyboard navigation
         document.addEventListener('keydown', function(event) {
             if (document.getElementById('lightbox').style.display === 'flex') {
                 if (event.key === 'ArrowLeft') {
