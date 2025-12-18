@@ -70,6 +70,34 @@ pip install libvirt-python textual pyaml
 which virt-viewer
 ```
 
+## Configuration
+
+The application uses a YAML configuration file to customize its behavior. The configuration file can be placed at:
+
+- `~/.config/vmanager/config.yaml` (user-specific)
+- `/etc/vmanager/config.yaml` (system-wide)
+
+The default configuration is provided in `config.py`, and user configurations merge with these defaults. Here are the key configuration options:
+
+- **WC_PORT_RANGE_START**: Start port for websockify (default: 40000)
+- **WC_PORT_RANGE_END**: End port for websockify (default: 40050)
+- **websockify_path**: Path to the websockify binary (default: `/usr/bin/websockify`)
+- **novnc_path**: Path to noVNC files (default: `/usr/share/novnc/`)
+- **REMOTE_WEBCONSOLE**: Enable remote web console (default: `False`)
+- **VNC_QUALITY**: VNC quality setting (0-10, default: 0)
+- **VNC_COMPRESSION**: VNC compression level (default: 9)
+- **network_models**: List of allowed network models (default: `['virtio', 'e1000', 'e1000e', 'rtl8139', 'ne2k_pci', 'pcnet']`)
+- **sound_models**: List of allowed sound models (default: `['none', 'ich6', 'ich9', 'ac97', 'sb16', 'usb']`)
+- **servers**: List of libvirt server connections (default: `[{'name': 'Localhost', 'uri': 'qemu:///system'}]`)
+
+To customize, create a `config.yaml` file with the desired settings. For example:
+
+```yaml
+servers:
+  - name: "Remote Server"
+    uri: "qemu+ssh://user@remote-host/system"
+```
+
 ## License
 
 This project is licensed under the GPL3 License.
