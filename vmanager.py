@@ -132,7 +132,7 @@ class VMManagerTUI(App):
             yield Button("Log", id="view_log_button", classes="Buttonpage")
             #yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button("Bulk CMD", id="bulk_selected_vms", classes="Buttonpage")
-            yield Link("About", url="https://github.com/aginies/vmanager")
+            yield Link("About", url="https://aginies.github.io/vmanager/")
 
         with Horizontal(id="pagination-controls") as pc:
             pc.styles.display = "none"
