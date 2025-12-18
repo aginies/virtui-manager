@@ -111,6 +111,7 @@ class VMManagerTUI(App):
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}
         self._color_index = 0
+        self.devel = "(Devel v0.3.0)"
         #self.resize_timer = ""
 
     def get_server_color(self, uri: str) -> str:
@@ -158,7 +159,7 @@ class VMManagerTUI(App):
     def on_mount(self) -> None:
         """Called when the app is mounted."""
         register_error_handler()
-        self.title = "Rainbow V Manager"
+        self.title = f"Rainbow V Manager {self.devel}"
 
         if not check_virt_viewer():
             self.show_error_message("'virt-viewer' is not installed. 'Connect' button will be disabled.")
