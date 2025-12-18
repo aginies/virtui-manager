@@ -1,14 +1,13 @@
 """
 Modals for handling VM migration.
 """
-import logging
 from typing import List, Dict
 import libvirt
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static, Select, Log, Checkbox
+from textual.widgets import Button, Static, Select, Log, Checkbox, Label
 from textual import on, work
 
 from vm_actions import check_migration_compatibility
@@ -28,6 +27,14 @@ class MigrationModal(ModalScreen):
         self.dest_conn = None
         self.compatibility_checked = False
         self.checks_passed = False
+        self.bg_red = "\033[41m"
+        self.bg_green = "\033[42m"
+        self.bg_yellow = "\033[43m"
+        self.bg_blue = "\033[44m"
+        self.red = "\033[31m"
+        self.green = "\033[32m"
+        self.blue = "\033[34m"
+        self.reset = "\033[0m"
 
     def compose(self) -> ComposeResult:
         vm_names = ", ".join([vm.name() for vm in self.vms_to_migrate])
@@ -39,23 +46,27 @@ class MigrationModal(ModalScreen):
         ]
         migration_type = "Live" if self.is_live else "Offline"
 
-        with Vertical(id="migration-dialog", classes="modal-container"):
-            yield Static(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
+        with Vertical(id="migration-dialog", classes="info-details"):
+            yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
             yield Static("Select destination server:")
-            yield Select(dest_servers, id="dest-server-select", prompt="Destination...")
+            yield Select(dest_servers, id="dest-server-select", prompt="Destination...", disabled=not dest_servers)
+            if not dest_servers:
+                yield Static("[i]No destination servers available (all active servers are either the source, or there are no active servers).[/i]")
+            
             yield Static("Migration Options:")
             with Horizontal():
                 yield Checkbox("Copy storage all", id="copy-storage-all", tooltip="Copy all disk files during migration")
                 yield Checkbox("Unsafe migration", id="unsafe", tooltip="Perform unsafe migration (may lose data)")
                 yield Checkbox("Persistent migration", id="persistent", tooltip="Keep VM persistent on destination")
+            with Horizontal():
                 yield Checkbox("Compress data", id="compress", tooltip="Compress data during migration")
                 yield Checkbox("Tunnelled migration", id="tunnelled", tooltip="Tunnel migration data through libvirt daemon")
             yield Static("Compatibility Check Results / Migration Log:")
-            yield Log(id="results-log", classes="log-view", highlight=True)
+            yield Log(id="results-log", highlight=False)
             with Horizontal(classes="modal-buttons"):
-                yield Button("Check Compatibility", variant="primary", id="check")
-                yield Button("Start Migration", variant="success", id="start", disabled=True)
-            yield Button("Close", variant="default", id="close", disabled=False)
+                yield Button("Check Compatibility", variant="primary", id="check", classes="Buttonpage")
+                yield Button("Start Migration", variant="success", id="start", disabled=True, classes="Buttonpage")
+                yield Button("Close", variant="default", id="close", disabled=False, classes="close-button")
 
     def _lock_controls(self, lock: bool):
         self.query_one("#check").disabled = lock
@@ -70,7 +81,7 @@ class MigrationModal(ModalScreen):
             self.dest_conn = self.connections[dest_uri]
         else:
             self.dest_conn = None
-        
+
         self.query_one("#start", Button).disabled = True
         self.compatibility_checked = False
         self.checks_passed = False
@@ -79,53 +90,52 @@ class MigrationModal(ModalScreen):
     @work(exclusive=True, thread=True)
     async def run_compatibility_checks(self):
         log = self.query_one("#results-log", Log)
-        self.call_from_thread(self._lock_controls, True)
-        
+        self.app.call_from_thread(self._lock_controls, True)
+
         def write_log(line):
-            self.call_from_thread(log.write_line, line)
+            self.app.call_from_thread(log.write_line, line)
 
         all_checks_ok = True
         for vm in self.vms_to_migrate:
-            write_log(f"\n--- Checking {vm.name()} ---")
+            write_log(f"\n{self.bg_blue}---{self.reset} Checking {vm.name()} {self.bg_blue}---{self.reset}")
             issues = check_migration_compatibility(self.source_conn, self.dest_conn, vm, self.is_live)
-            
             errors = [i for i in issues if "ERROR" in i]
             if errors:
                 all_checks_ok = False
                 for issue in errors:
-                    write_log(f"[b red]{issue}[/b red]")
-            
+                    write_log(f"{self.red}{issue}{self.reset}")
+
             warnings = [i for i in issues if "WARNING" in i]
             if warnings:
                 for issue in warnings:
-                     write_log(f"[yellow]{issue}[/yellow]")
-            
+                     write_log(f"{self.red}WARNING{self.reset}{issue}")
+
             infos = [i for i in issues if "INFO" in i]
             if infos:
                  for issue in infos:
-                      write_log(f"[dim]{issue}[/dim]")
+                      write_log(f"{self.green}INFO{self.reset}{issue}")
 
             if not errors:
-                write_log("[green]✓ Compatibility checks passed (with warnings if any shown above).[/green]")
-        
+                write_log(f"{self.green}✓ Compatibility checks passed{self.reset} (with warnings if any shown above).")
+
         self.checks_passed = all_checks_ok
         self.compatibility_checked = True
-        
+
         def update_ui_after_check():
             self._lock_controls(False)
             self.query_one("#start").disabled = not self.checks_passed
-        self.call_from_thread(update_ui_after_check)
+        self.app.call_from_thread(update_ui_after_check)
 
     @work(exclusive=True, thread=True)
     async def run_migration(self):
         log = self.query_one("#results-log", Log)
         def write_log(line):
-            self.call_from_thread(log.write_line, line)
+            self.app.call_from_thread(log.write_line, line)
 
-        self.call_from_thread(self._lock_controls, True)
-        
+        self.app.call_from_thread(self._lock_controls, True)
+
         for vm in self.vms_to_migrate:
-            write_log(f"\n--- Migrating {vm.name()} ---")
+            write_log(f"\n{self.blue}---{self.reset} Migrating {vm.name()} {self.blue}---{self.reset}")
             try:
                 if self.is_live:
                     flags = libvirt.VIR_MIGRATE_LIVE | libvirt.VIR_MIGRATE_PEER2PEER | libvirt.VIR_MIGRATE_PERSIST_DEST
@@ -138,7 +148,7 @@ class MigrationModal(ModalScreen):
 
                     # Apply flags based on checkbox values
                     if copy_storage_all:
-                        flags |= libvirt.VIR_MIGRATE_COPY_STORAGE_ALL
+                        flags |= libvirt.VIR_MIGRATE_NON_SHARED_DISK
                     if unsafe:
                         flags |= libvirt.VIR_MIGRATE_UNSAFE
                     if persistent:
@@ -153,13 +163,13 @@ class MigrationModal(ModalScreen):
                     xml_desc = vm.XMLDesc(0)
                     self.dest_conn.defineXML(xml_desc)
                     vm.undefine()
-                write_log(f"[green]✓ Successfully migrated {vm.name()}.[/green]")
+                write_log(f"{self.bg_green}✓ Successfully migrated{self.reset} {vm.name()}.")
             except libvirt.libvirtError as e:
-                write_log(f"[b red]ERROR: Failed to migrate {vm.name()}: {e}[/b red]")
+                write_log(f"{self.bg_red}ERROR: Failed to migrate{self.reset} {vm.name()}: {e}")
 
         write_log("\n--- Migration process finished ---")
-        self.call_from_thread(self.app.refresh_vm_list)
-        self.call_from_thread(self._lock_controls, False)
+        self.app.call_from_thread(self.app.refresh_vm_list)
+        self.app.call_from_thread(self._lock_controls, False)
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed):
@@ -178,7 +188,7 @@ class MigrationModal(ModalScreen):
             if not self.checks_passed:
                 self.app.show_error_message("Cannot start migration due to compatibility errors.")
                 return
-            
+
             log.clear()
             self.run_migration()
 
