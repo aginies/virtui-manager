@@ -1,12 +1,12 @@
 body {
     background-color: #073642;
-    color: #839496;
+    color: #eee8d5;
     font-family: Arial, sans-serif;
 }
 
 header {
     background-color: #073642;
-    color: #839496;
+    color: #eee8d5;
     padding: 10px;
     text-align: center;
     width: 100%;
@@ -25,7 +25,7 @@ nav ul li {
 }
 
 nav ul a {
-    color: #839496;
+    color: #eee8d5;
     text-decoration: none;
 }
 
@@ -50,7 +50,7 @@ nav ul a:hover {
 }
 
 a {
-    color: #839496;
+    color: #eee8d5;
     text-decoration: none;
 }
 
@@ -84,7 +84,7 @@ a:hover {
     max-height: 90%;
 }
 #close-lightbox {
-    color: #839496;
+    color: #eee8d5;
     position: absolute;
     top: 20px;
     right: 20px;
@@ -93,7 +93,7 @@ a:hover {
 }
 
 #prev, #next {
-    color: #839496;
+    color: #eee8d5;
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
