@@ -35,7 +35,7 @@ def list_networks(conn):
     return networks
 
 @log_function_call
-def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, dhcp_start, dhcp_end, domain_name):
+def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, dhcp_start, dhcp_end, domain_name, uuid=None):
     """
     Creates a new NAT/Routed network.
     """
@@ -44,7 +44,7 @@ def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, d
 
     net = ipaddress.ip_network(ip_network)
     generated_mac = generate_mac_address()
-
+    uuid_str = f'<uuid>{uuid}</uuid>' if uuid else ''
     nat_xml = ""
     if typenet == "nat":
         nat_xml = """
@@ -58,6 +58,7 @@ def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, d
     xml = f"""
 <network>
   <name>{name}</name>
+  {uuid_str}
   <forward mode='{typenet}' {xml_forward_dev}>{nat_xml}
   </forward>
   <bridge name='{name}' stp='on' delay='0'/>
