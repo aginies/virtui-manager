@@ -531,6 +531,8 @@ class VMManagerTUI(App):
             return
 
         action_type = result.get('action')
+        delete_storage_flag = result.get('delete_storage', False)
+
         if not action_type:
             self.show_error_message("No action type received from bulk action modal.")
             return
@@ -546,12 +548,12 @@ class VMManagerTUI(App):
 
         # Perform the action in a worker to avoid blocking the UI
         self.run_worker(
-            lambda: self._perform_bulk_action_worker(action_type, selected_uuids_copy),
+            lambda: self._perform_bulk_action_worker(action_type, selected_uuids_copy, delete_storage_flag),
             name=f"bulk_action_{action_type}",
             thread=True
         )
 
-    def _perform_bulk_action_worker(self, action_type: str, vm_uuids: list[str]) -> None:
+    def _perform_bulk_action_worker(self, action_type: str, vm_uuids: list[str], delete_storage_flag: bool = False) -> None:
         """Worker function to perform the selected bulk action on VMs."""
         total_vms = len(vm_uuids)
 
@@ -611,9 +613,9 @@ class VMManagerTUI(App):
                         pause_vm(domain)
                         self.call_from_thread(self.show_success_message, f"VM '{vm_name}' paused.")
                     elif action_type == "delete":
-                        # For bulk delete, default to deleting storage as requested.
-                        delete_vm(domain, delete_storage=True)
-                        self.call_from_thread(self.show_success_message, f"VM '{vm_name}' and its storage deleted.")
+                        delete_vm(domain, delete_storage=delete_storage_flag)
+                        storage_msg = "and its storage " if delete_storage_flag else ""
+                        self.call_from_thread(self.show_success_message, f"VM '{vm_name}' {storage_msg}deleted.")
                     else:
                         self.call_from_thread(self.show_error_message, f"Unknown bulk action type: {action_type}")
                         failed_vms.append(vm_name)
