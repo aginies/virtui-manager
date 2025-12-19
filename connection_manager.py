@@ -3,6 +3,7 @@ Manages multiple libvirt connections.
 """
 import libvirt
 import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 class ConnectionManager:
     """A class to manage opening, closing, and storing multiple libvirt connections."""
@@ -34,13 +35,23 @@ class ConnectionManager:
 
     def _create_connection(self, uri: str) -> libvirt.virConnect | None:
         """
-        Creates a new connection to the given URI.
+        Creates a new connection to the given URI with a timeout.
         """
         try:
             logging.info(f"Opening new libvirt connection to {uri}")
-            # The RO flag is useful for passive monitoring, but we need RW for actions.
-            # For now, let's stick to the default behavior.
-            conn = libvirt.open(uri)
+
+            def open_connection():
+                return libvirt.open(uri)
+
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(open_connection)
+                try:
+                    # Wait for 10 seconds for the connection to establish
+                    conn = future.result(timeout=10)
+                except TimeoutError:
+                    # If it times out, we raise a libvirtError to be caught by the existing error handling.
+                    raise libvirt.libvirtError("Connection timed out after 10 seconds")
+
             if conn is None:
                 # This case can happen if the URI is valid but the hypervisor is not running
                 raise libvirt.libvirtError(f"libvirt.open('{uri}') returned None")
