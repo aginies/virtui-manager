@@ -5,7 +5,7 @@ import os
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
         Label, Button, DirectoryTree, LoadingIndicator,
-        Markdown, ProgressBar
+        Markdown, ProgressBar, Log
         )
 from textual.app import ComposeResult
 from modals.base_modals import BaseModal, BaseDialog
@@ -55,19 +55,36 @@ class LoadingModal(BaseModal[None]):
         yield LoadingIndicator()
 
 class ProgressModal(BaseModal[None]):
-    """A modal that shows a progress bar for a long-running task."""
-    BINDINGS = []
+    """A modal that shows a progress bar and logs for a long-running task."""
 
     def __init__(self, title: str = "Working...") -> None:
         super().__init__()
         self._title_text = title
+        self._progress_bar: ProgressBar | None = None
+        self._log: Log | None = None
 
     def compose(self) -> ComposeResult:
         yield Vertical(
             Label(self._title_text, id="progress-title"),
             ProgressBar(total=100, show_eta=True, id="progress-bar"),
+            Log(id="progress-log", classes="progress-log", auto_scroll=True),
             id="progress-modal-container",
         )
+
+    def on_mount(self) -> None:
+        """Called when the modal is mounted."""
+        self._progress_bar = self.query_one(ProgressBar)
+        self._log = self.query_one(Log)
+
+    def update_progress(self, progress: float) -> None:
+        """Updates the progress bar."""
+        if self._progress_bar:
+            self._progress_bar.update(progress=progress)
+
+    def add_log(self, message: str) -> None:
+        """Adds a message to the log."""
+        if self._log:
+            self._log.write_line(message)
 
 
 class ConfirmationDialog(BaseDialog[bool]):
