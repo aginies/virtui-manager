@@ -437,18 +437,18 @@ def get_vm_disks_info(conn: libvirt.virConnect, xml_content: str) -> list[dict]:
 
     return disks
 
-def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, str]:
+def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
-    Scans all VMs and returns a mapping of disk path to VM name.
+    Scans all VMs and returns a mapping of disk path to a list of VM names.
     """
-    disk_to_vm_map = {}
+    disk_to_vms_map = {}
     if not conn:
-        return disk_to_vm_map
+        return disk_to_vms_map
     
     try:
         domains = conn.listAllDomains(0)
     except libvirt.libvirtError:
-        return disk_to_vm_map
+        return disk_to_vms_map
 
     for domain in domains:
         try:
@@ -458,24 +458,27 @@ def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, str]:
             for disk in disks:
                 path = disk.get('path')
                 if path:
-                    disk_to_vm_map[path] = vm_name
+                    if path not in disk_to_vms_map:
+                        disk_to_vms_map[path] = []
+                    if vm_name not in disk_to_vms_map[path]:
+                        disk_to_vms_map[path].append(vm_name)
         except libvirt.libvirtError:
             continue
 
-    return disk_to_vm_map
+    return disk_to_vms_map
 
-def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, str]:
+def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
-    Scans all VMs and returns a mapping of NVRAM file path to VM name.
+    Scans all VMs and returns a mapping of NVRAM file path to a list of VM names.
     """
-    nvram_to_vm_map = {}
+    nvram_to_vms_map = {}
     if not conn:
-        return nvram_to_vm_map
+        return nvram_to_vms_map
 
     try:
         domains = conn.listAllDomains(0)
     except libvirt.libvirtError:
-        return nvram_to_vm_map
+        return nvram_to_vms_map
 
     for domain in domains:
         try:
@@ -486,10 +489,13 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, str]:
                 nvram_path = nvram_elem.text
                 if nvram_path:
                     vm_name = domain.name()
-                    nvram_to_vm_map[nvram_path] = vm_name
+                    if nvram_path not in nvram_to_vms_map:
+                        nvram_to_vms_map[nvram_path] = []
+                    if vm_name not in nvram_to_vms_map[nvram_path]:
+                        nvram_to_vms_map[nvram_path].append(vm_name)
         except (libvirt.libvirtError, ET.ParseError):
             continue
-    return nvram_to_vm_map
+    return nvram_to_vms_map
 
 
 def get_supported_machine_types(conn, domain):
