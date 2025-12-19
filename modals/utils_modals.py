@@ -57,6 +57,8 @@ class LoadingModal(BaseModal[None]):
 class ProgressModal(BaseModal[None]):
     """A modal that shows a progress bar and logs for a long-running task."""
 
+    BINDINGS = []
+
     def __init__(self, title: str = "Working...") -> None:
         super().__init__()
         self._title_text = title
