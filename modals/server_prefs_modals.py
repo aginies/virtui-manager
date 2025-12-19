@@ -6,6 +6,7 @@ Main interface
 import libvirt
 from textual.app import ComposeResult
 from textual import on
+from textual.worker import Worker
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.widgets import (
         Button, Label,
@@ -28,8 +29,9 @@ from modals.network_modals import AddEditNetworkModal, NetworkXMLModal
 from modals.disk_pool_modals import (
         AddPoolModal,
         CreateVolumeModal,
+        MoveVolumeModal,
         )
-from modals.utils_modals import ConfirmationDialog
+from modals.utils_modals import ConfirmationDialog, ProgressModal
 
 
 class ServerPrefModal(BaseModal[None]):
@@ -66,6 +68,7 @@ class ServerPrefModal(BaseModal[None]):
                             yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button")
                             yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button")
                             yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button")
+                            yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button")
                             yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button")
             #yield Button("Close", id="close-btn", classes="close-button")
 
@@ -96,13 +99,15 @@ class ServerPrefModal(BaseModal[None]):
         self._load_networks()
         disk_map = get_all_vm_disk_usage(self.conn)
         nvram_map = get_all_vm_nvram_usage(self.conn)
-        self.file_to_vm_map = {**disk_map, **nvram_map}
-        # Create reverse mapping: from file paths to list of VM names
-        self.path_to_vm_list = {}
-        for path, vm_name in self.file_to_vm_map.items():
-            if path not in self.path_to_vm_list:
-                self.path_to_vm_list[path] = []
-            self.path_to_vm_list[path].append(vm_name)
+        
+        # Merge the two dictionaries correctly
+        self.path_to_vm_list = disk_map.copy()
+        for path, vm_names in nvram_map.items():
+            if path in self.path_to_vm_list:
+                # Combine lists and remove duplicates
+                self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
+            else:
+                self.path_to_vm_list[path] = vm_names
         self._load_storage_pools()
 
         self.query_one("#toggle-active-pool-btn").display = False
@@ -110,10 +115,11 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#add-pool-btn").display = False
         self.query_one("#del-pool-btn").display = False
         self.query_one("#add-vol-btn").display = False
+        self.query_one("#move-vol-btn").display = False
         self.query_one("#del-vol-btn").display = False
 
 
-    def _load_storage_pools(self) -> None:
+    def _load_storage_pools(self, expand_pools: list[str] | None = None) -> None:
         """Load storage pools into the tree view."""
         tree: Tree[dict] = self.query_one("#storage-tree")
         tree.clear()
@@ -128,6 +134,9 @@ class ServerPrefModal(BaseModal[None]):
             pool_node.data["type"] = "pool"
             # Add a dummy node to make the pool node expandable
             pool_node.add_leaf("Loading volumes...")
+
+            if expand_pools and pool_name in expand_pools:
+                self.app.call_later(pool_node.expand)
 
     def _load_networks(self):
         table = self.query_one("#networks-table", DataTable)
@@ -206,9 +215,10 @@ class ServerPrefModal(BaseModal[None]):
         toggle_active_btn.display = is_pool
         toggle_autostart_btn.display = is_pool
         del_pool_btn.display = is_pool
-        add_pool_btn.display = is_pool
+        add_pool_btn.display = True
 
         self.query_one("#del-vol-btn").display = is_volume
+        self.query_one("#move-vol-btn").display = is_volume
 
         if is_pool:
             is_active = node_data.get('status') == 'active'
@@ -356,6 +366,89 @@ class ServerPrefModal(BaseModal[None]):
             on_confirm
         )
 
+    @on(Button.Pressed, "#move-vol-btn")
+    def on_move_volume_button_pressed(self, event: Button.Pressed) -> None:
+        tree: Tree[dict] = self.query_one("#storage-tree")
+        if not tree.cursor_node or not tree.cursor_node.data:
+            return
+
+        node_data = tree.cursor_node.data
+        if node_data.get("type") != "volume":
+            return
+
+        volume_name = node_data.get('name')
+        if not tree.cursor_node.parent or not tree.cursor_node.parent.data:
+            self.app.show_error_message("Could not determine the source pool.")
+            return
+        source_pool_name = tree.cursor_node.parent.data.get('name')
+
+        def on_move(result: dict | None) -> None:
+            if not result:
+                return
+
+            dest_pool_name = result['dest_pool']
+            new_volume_name = result['new_name']
+
+            progress_modal = ProgressModal(title=f"Moving {volume_name}...")
+            self.app.push_screen(progress_modal)
+
+            def progress_callback(progress: float):
+                self.app.call_from_thread(progress_modal.update_progress, progress=progress)
+
+            def log_callback(message: str):
+                self.app.call_from_thread(progress_modal.add_log, message)
+
+            def do_move():
+                try:
+                    updated_vms = storage_manager.move_volume(
+                        self.conn,
+                        source_pool_name,
+                        dest_pool_name,
+                        volume_name,
+                        new_volume_name,
+                        progress_callback=progress_callback,
+                        log_callback=log_callback
+                    )
+                    return {
+                        "message": f"Volume '{volume_name}' moved to pool '{dest_pool_name}'.",
+                        "source_pool": source_pool_name,
+                        "dest_pool": dest_pool_name,
+                        "updated_vms": updated_vms
+                    }
+                except Exception as e:
+                    return e
+
+            self.run_worker(do_move, name="move_volume_worker", exclusive=True, thread=True)
+
+        self.app.push_screen(MoveVolumeModal(self.conn, source_pool_name, volume_name), on_move)
+
+    @on(Worker.StateChanged)
+    def on_move_volume_worker_done(self, event: Worker.StateChanged) -> None:
+        """Called when the move volume worker is done."""
+        if event.worker.name != "move_volume_worker":
+            return
+
+        # We only care about terminal states
+        if event.worker.state not in ("SUCCESS", "ERROR"):
+            return
+
+        self.app.pop_screen()  # Pop the progress modal
+
+        if event.worker.state == "SUCCESS":
+            result = event.worker.result
+            if isinstance(result, Exception):
+                self.app.show_error_message(str(result))
+                self._load_storage_pools()
+            else:
+                self.app.show_success_message(result["message"])
+                updated_vms = result.get("updated_vms", [])
+                if updated_vms:
+                    vm_list = ", ".join(updated_vms)
+                    self.app.show_success_message(f"Updated VM configurations for: {vm_list}")
+                self._load_storage_pools(expand_pools=[result["source_pool"], result["dest_pool"]])
+        elif event.worker.state == "ERROR":
+            self.app.show_error_message(f"Move operation failed: {event.worker.error}")
+            self._load_storage_pools()
 
     @on(DataTable.RowSelected, "#networks-table")
     def on_network_table_row_selected(self, event: DataTable.RowSelected) -> None:
