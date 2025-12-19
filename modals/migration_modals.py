@@ -12,6 +12,7 @@ from textual import on, work
 
 from vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
 from utils import extract_server_name_from_uri
+from pprint import pprint # pprint(vars(object))
 
 class MigrationModal(ModalScreen):
     """A modal to handle VM migration."""
@@ -34,11 +35,30 @@ class MigrationModal(ModalScreen):
     def compose(self) -> ComposeResult:
         vm_names = ", ".join([vm.name() for vm in self.vms_to_migrate])
         source_uri = self.source_conn.getURI()
-        dest_servers = [
-            (extract_server_name_from_uri(uri), uri)
-            for uri in self.connections
-            if uri != source_uri
-        ]
+        
+        try:
+            source_hostname = self.source_conn.getHostname()
+        except libvirt.libvirtError:
+            source_hostname = None # Can't get hostname, will have to rely on URI
+
+        dest_servers = []
+        for uri, conn in self.connections.items():
+            if uri == source_uri:
+                continue
+
+            if source_hostname:
+                try:
+                    dest_hostname = conn.getHostname()
+                    if dest_hostname == source_hostname:
+                        continue # It's the same host, skip it
+                except libvirt.libvirtError:
+                    # Could not get hostname for destination, can't compare.
+                    # We will let it be in the list and let libvirt fail if it's the same.
+                    # This preserves existing behavior for problematic connections.
+                    pass
+
+            dest_servers.append((extract_server_name_from_uri(uri), uri))
+
         migration_type = "Live" if self.is_live else "Offline"
 
         default_dest_uri = None
@@ -50,11 +70,11 @@ class MigrationModal(ModalScreen):
             with ScrollableContainer(id="migration-content-wrapper"):
                 yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
                 yield Static("Select destination server:")
-                yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri)
+                yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
                 
                 yield Static("Migration Options:")
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox("Copy storage all", id="copy-storage-all", tooltip="Copy all disk files during migration", value=True)
+                    yield Checkbox("Copy storage all", id="copy-storage-all", tooltip="Copy all disk files during migration", value=False)
                     yield Checkbox("Unsafe migration", id="unsafe", tooltip="Perform unsafe migration (may lose data)", disabled=not self.is_live)
                     yield Checkbox("Persistent migration", id="persistent", tooltip="Keep VM persistent on destination", value=True)
                 with Horizontal(classes="checkbox-container"):
@@ -207,7 +227,7 @@ class MigrationModal(ModalScreen):
         self.app.call_from_thread(lambda: setattr(progress_bar, "total", len(self.vms_to_migrate)))
         self.app.call_from_thread(lambda: setattr(progress_bar, "progress", 0))
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "block"))
-        
+
         copy_storage_all = self.query_one("#copy-storage-all", Checkbox).value
         unsafe = self.query_one("#unsafe", Checkbox).value
         persistent = self.query_one("#persistent", Checkbox).value
@@ -216,10 +236,11 @@ class MigrationModal(ModalScreen):
 
         for vm in self.vms_to_migrate:
             write_log(f"\n[bold]--- Migrating {vm.name()} ---[/]")
+
             try:
                 if self.is_live:
                     flags = libvirt.VIR_MIGRATE_LIVE | libvirt.VIR_MIGRATE_PEER2PEER
-                    
+
                     if copy_storage_all:
                         flags |= libvirt.VIR_MIGRATE_NON_SHARED_DISK
                     if unsafe:
@@ -230,7 +251,7 @@ class MigrationModal(ModalScreen):
                         flags |= libvirt.VIR_MIGRATE_COMPRESSED
                     if tunnelled:
                         flags |= libvirt.VIR_MIGRATE_TUNNELLED
-                    
+
                     write_log(f"[dim]Using live migration flags: {flags}[/dim]")
                     vm.migrate(self.dest_conn, flags, None, None, 0)
                 else:  # Offline migration
@@ -242,23 +263,43 @@ class MigrationModal(ModalScreen):
                     if copy_storage_all:
                         flags |= libvirt.VIR_MIGRATE_NON_SHARED_DISK
                         params = {libvirt.VIR_MIGRATE_PARAM_MIGRATE_DISKS: "*"}
-                        dest_uri = self.dest_conn.getURI()
                         write_log("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
-                        vm.migrateToURI3(dest_uri, params, flags)
+                        vm.migrateToURI3(self.dest_conn, params, flags)
                     else:
                         write_log("[dim]Using migrate for offline migration without storage copy.[/dim]")
                         vm.migrate(self.dest_conn, flags, None, None, 0)
 
+
                 write_log(f"[green]✓ Successfully migrated {vm.name()}.[/]")
+
+                if persistent:
+                    try:
+                        vm.undefine()
+                        write_log(f"[green]✓ Successfully undefined {vm.name()} from the source host.[/]")
+                    except libvirt.libvirtError as e:
+                        write_log(f"[yellow]WARNING: Failed to undefine {vm.name()} from the source host: {e}[/]")
+
             except libvirt.libvirtError as e:
                 write_log(f"[red]ERROR: Failed to migrate {vm.name()}: {e}[/]")
             
             self.app.call_from_thread(progress_bar.advance, 1)
 
+        def final_ui_state():
+            """Disables all controls except the Close button after migration is finished."""
+            self.query_one("#check").disabled = True
+            self.query_one("#start").disabled = True
+            self.query_one("#dest-server-select").disabled = True
+            self.query_one("#copy-storage-all").disabled = True
+            self.query_one("#unsafe").disabled = True
+            self.query_one("#persistent").disabled = True
+            self.query_one("#compress").disabled = True
+            self.query_one("#tunnelled").disabled = True
+            self.query_one("#close").disabled = False
+
         write_log("\n[bold]--- Migration process finished ---[/]")
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "none"))
         self.app.call_from_thread(self.app.refresh_vm_list)
-        self.app.call_from_thread(self._lock_controls, False)
+        self.app.call_from_thread(final_ui_state)
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed):
