@@ -312,30 +312,31 @@ XMLDisplayModal #dialog-buttons Button {
 }
 ProgressModal {
     align: center middle;
-    width: 80%; /* Make modal wider */
-    height: 80%; /* Make modal taller */
-    padding: 2; /* Some padding around the content */
+    width: 80%;
+    height: 80%;
+    padding: 2;
+    border: round $primary;
 }
 
 ProgressModal #progress-modal-container {
-    layout: vertical; /* Ensure vertical layout */
-    height: 100%;
-    width: 100%;
+    layout: vertical;
+    height: 80%;
+    width: 80%;
 }
 
 ProgressModal #progress-title {
-    height: auto; /* Title takes only necessary height */
+    height: auto;
 }
 
 ProgressModal #progress-bar {
-    height: auto; /* Progress bar takes only necessary height */
-    margin-bottom: 1; /* Space below progress bar */
+    height: auto;
+    margin-bottom: 1;
 }
 
 ProgressModal .progress-log {
-    height: 1fr; /* Log takes up all remaining vertical space */
-    min-height: 5; /* Minimum height for the log to be visible */
+    height: 1fr;
+    min-height: 5;
     border: heavy $primary;
-    padding: 0 1; /* Some internal padding for logs */
+    padding: 0 1;
     background: $surface-darken-1;
 }
