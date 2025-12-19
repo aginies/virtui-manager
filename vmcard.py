@@ -737,8 +737,6 @@ class VMCard(Static):
 
     def _handle_clone_button(self, event: Button.Pressed) -> None:
         """Handles the clone button press."""
-        logging.info(f"Attempting to clone VM: {self.name}")
-
         app = self.app
 
         def handle_clone_results(result: dict | None) -> None:
@@ -752,7 +750,12 @@ class VMCard(Static):
             progress_modal = ProgressModal(title=f"Cloning {self.name}...")
             app.push_screen(progress_modal)
 
+            def log_callback(message: str):
+                app.call_from_thread(progress_modal.add_log, message)
+
             def do_clone() -> None:
+                log_callback(f"Attempting to clone VM: {self.name}")
+
                 # Validate that new VM names do not already exist
                 existing_vm_names = set()
                 try:
@@ -760,6 +763,7 @@ class VMCard(Static):
                     for domain in all_domains:
                         existing_vm_names.add(domain.name())
                 except libvirt.libvirtError as e:
+                    log_callback(f"ERROR: Error getting existing VM names: {e}")
                     app.call_from_thread(app.show_error_message, f"Error getting existing VM names: {e}")
                     app.call_from_thread(progress_modal.dismiss)
                     return
@@ -771,16 +775,19 @@ class VMCard(Static):
                     else:
                         new_name = base_name
                     proposed_names.append(new_name)
+                    log_callback(f"INFO: Proposed Name(s): {proposed_names}")
 
                 conflicting_names = [name for name in proposed_names if name in existing_vm_names]
 
                 if conflicting_names:
-                    app.call_from_thread(
-                        app.show_error_message,
-                        f"The following VM names already exist: {', '.join(conflicting_names)}. Aborting cloning."
-                    )
+                    msg = f"The following VM names already exist: {', '.join(conflicting_names)}. Aborting cloning."
+                    log_callback(f"ERROR: {msg}")
+                    app.call_from_thread(app.show_error_message, msg)
                     app.call_from_thread(progress_modal.dismiss)
                     return
+                else:
+                    msg = "No Conflicting Name"
+                    log_callback(f"INFO: {msg}")
 
                 success_clones = []
                 failed_clones = []
@@ -798,12 +805,13 @@ class VMCard(Static):
                         new_name = base_name
 
                     try:
-                        clone_vm(self.vm, new_name)
+                        log_callback(f"Cloning '{self.name}' to '{new_name}'...")
+                        clone_vm(self.vm, new_name, log_callback=log_callback)
                         success_clones.append(new_name)
-                        logging.info(f"Successfully cloned VM '{self.name}' to '{new_name}'")
+                        log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
                     except Exception as e:
                         failed_clones.append(new_name)
-                        logging.error(f"Error cloning VM {self.name} to {new_name}: {e}")
+                        log_callback(f"ERROR: Error cloning VM {self.name} to {new_name}: {e}")
                     finally:
                         # Advance the progress bar
                         def advance_progress_bar():
@@ -813,15 +821,13 @@ class VMCard(Static):
 
                 # Show summary messages
                 if success_clones:
-                    app.call_from_thread(
-                        app.show_success_message,
-                        f"Successfully cloned to: {', '.join(success_clones)}"
-                    )
+                    msg = f"Successfully cloned to: {', '.join(success_clones)}"
+                    app.call_from_thread(app.show_success_message, msg)
+                    log_callback(msg)
                 if failed_clones:
-                    app.call_from_thread(
-                        app.show_error_message,
-                        f"Failed to clone to: {', '.join(failed_clones)}"
-                    )
+                    msg = f"Failed to clone to: {', '.join(failed_clones)}"
+                    app.call_from_thread(app.show_error_message, msg)
+                    log_callback(f"ERROR: {msg}")
 
                 if success_clones:
                     app.call_from_thread(app.refresh_vm_list)
