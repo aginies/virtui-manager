@@ -9,7 +9,7 @@ import libvirt
 from libvirt_utils import _find_vol_by_path, _get_disabled_disks_elem
 from utils import log_function_call
 from vm_queries import get_vm_disks_info
-from network_manager import get_host_network_info
+from network_manager import get_host_network_info, list_networks
 
 
 @log_function_call
@@ -1448,10 +1448,10 @@ def remove_spice_devices(domain: libvirt.virDomain):
     conn.defineXML(new_xml)
 
 @log_function_call
-def check_migration_compatibility(source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, domain: libvirt.virDomain, is_live: bool):
+def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, domain_name: str, is_live: bool):
     """
-    Checks if a VM is compatible for migration between two hosts based on a predefined checklist.
-    Returns a list of issue strings. An empty list suggests compatibility.
+    Checks if two servers are compatible for migration.
+    Returns a list of issues, where each issue is a dict with 'severity' and 'message'.
     """
     issues = []
 
@@ -1459,58 +1459,90 @@ def check_migration_compatibility(source_conn: libvirt.virConnect, dest_conn: li
         source_arch = source_conn.getInfo()[0]
         dest_arch = dest_conn.getInfo()[0]
         if source_arch != dest_arch:
-            issues.append(f"ERROR: Host architecture mismatch. Source: {source_arch}, Destination: {dest_arch}")
+            issues.append({'severity': 'ERROR', 'message': f"Host architecture mismatch. Source: {source_arch}, Destination: {dest_arch}"})
     except libvirt.libvirtError as e:
-        issues.append(f"WARNING: Could not check host architecture: {e}")
+        issues.append({'severity': 'WARNING', 'message': f"Could not check host architecture: {e}"})
 
-    # Get domain XML
+    try:
+        dest_domain = dest_conn.lookupByName(domain_name)
+        if dest_domain.isActive():
+            issues.append({'severity': 'ERROR', 'message': f"A VM with the name '{domain_name}' is already running or paused on the destination host."})
+        else:
+            issues.append({'severity': 'WARNING', 'message': f"A shut-down VM with the name '{domain_name}' exists on the destination and its configuration will be overwritten."})
+    except libvirt.libvirtError as e:
+        if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+            issues.append({'severity': 'WARNING', 'message': f"Could not check for existing VM on destination host: {e}"})
+
+    # Time synchronization check
+    if is_live:
+        try:
+            source_time = source_conn.getTime()
+            dest_time = dest_conn.getTime()
+            time_diff = abs(source_time[0] - dest_time[0])
+            if time_diff > 1:  # Check if difference is more than 1 second
+                issues.append({'severity': 'ERROR', 'message': f"Host time synchronization issue detected. Difference: {time_diff} seconds. Please ensure NTP is configured on both hosts."})
+        except libvirt.libvirtError as e:
+            issues.append({'severity': 'WARNING', 'message': f"Could not check host time synchronization: {e}"})
+
+    # Add informational notes for manual checks
+    issues.append({'severity': 'INFO', 'message': "For a successful migration, please also manually verify the following:"})
+    issues.append({'severity': 'INFO', 'message': "  - Firewalls on both hosts allow migration traffic (usually TCP ports 49152-49215)."})
+    issues.append({'severity': 'INFO', 'message': "  - The 'qemu' user and 'kvm'/'libvirt' groups have the same UID/GIDs on both hosts."})
+
+    return issues
+
+
+@log_function_call
+def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool):
+    """
+    Checks if a VM is compatible for migration to a destination host.
+    Returns a list of issues, where each issue is a dict with 'severity' and 'message'.
+    """
+    issues = []
+
     try:
         xml_desc = domain.XMLDesc(0)
         root = ET.fromstring(xml_desc)
     except libvirt.libvirtError as e:
-        issues.append(f"ERROR: Could not get VM XML description: {e}")
-        issues.extend([
-            "INFO: For a successful migration, please manually verify the following:",
-            "  - Firewalls on both hosts allow migration traffic (usually TCP ports 49152-49215).",
-            "  - The 'qemu' user and 'kvm'/'libvirt' groups have the same UID/GIDs on both hosts.",
-            "  - Storage is accessible on the destination with identical paths."
-        ])
+        issues.append({'severity': 'ERROR', 'message': f"Could not get VM XML description: {e}"})
         return issues
 
     cpu_elem = root.find('cpu')
     if cpu_elem is not None:
         if cpu_elem.get('mode') in ['host-passthrough', 'host-model']:
-            issues.append("WARNING: VM CPU is set to 'host-passthrough' or 'host-model'. This requires highly compatible CPUs on source and destination.")
+            issues.append({'severity': 'WARNING', 'message': "VM CPU is set to 'host-passthrough' or 'host-model'. This requires highly compatible CPUs on source and destination."})
         cpu_xml = ET.tostring(cpu_elem, encoding='unicode')
         try:
             compare_result = dest_conn.compareCPU(cpu_xml, 0)
             if compare_result == libvirt.VIR_CPU_COMPARE_INCOMPATIBLE:
-                issues.append("ERROR: The VM's CPU configuration is not compatible with the destination host's CPU.")
+                issues.append({'severity': 'ERROR', 'message': "The VM's CPU configuration is not compatible with the destination host's CPU."})
         except libvirt.libvirtError as e:
-            issues.append(f"WARNING: Could not compare VM CPU with destination host: {e}")
+            issues.append({'severity': 'WARNING', 'message': f"Could not compare VM CPU with destination host: {e}"})
 
-    try:
-        dest_domain = dest_conn.lookupByName(domain.name())
-        if dest_domain.isActive():
-            issues.append(f"ERROR: A VM with the name '{domain.name()}' is already running or paused on the destination host.")
-        else:
-            issues.append(f"WARNING: A shut-down VM with the name '{domain.name()}' exists on the destination and its configuration will be overwritten.")
-    except libvirt.libvirtError as e:
-        if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-            issues.append(f"WARNING: Could not check for existing VM on destination host: {e}")
+    # Network configuration check
+    dest_networks = {net['name']: net for net in list_networks(dest_conn)}
+    for iface in root.findall(".//devices/interface[@type='network']"):
+        source = iface.find('source')
+        if source is not None:
+            network_name = source.get('network')
+            if network_name:
+                if network_name not in dest_networks:
+                    issues.append({'severity': 'ERROR', 'message': f"Network '{network_name}' not found on the destination host."})
+                elif not dest_networks[network_name]['active']:
+                    issues.append({'severity': 'ERROR', 'message': f"Network '{network_name}' is not active on the destination host."})
 
     if is_live:
         for disk in root.findall(".//disk[@device='disk']"):
             target = disk.find('target')
             if target is not None and target.get('bus') == 'sata':
-                issues.append("ERROR: VM has a SATA disk, which is not migratable live.")
+                issues.append({'severity': 'ERROR', 'message': "VM has a SATA disk, which is not migratable live."})
                 break
 
         if root.find(".//devices/filesystem[@type='mount']") is not None:
-            issues.append("ERROR: VM uses filesystem pass-through, which is incompatible with live migration.")
+            issues.append({'severity': 'ERROR', 'message': "VM uses filesystem pass-through, which is incompatible with live migration."})
 
         if root.find(".//devices/hostdev") is not None:
-            issues.append("ERROR: VM uses PCI pass-through (hostdev), which is not supported for live migration.")
+            issues.append({'severity': 'ERROR', 'message': "VM uses PCI pass-through (hostdev), which is not supported for live migration."})
 
     disk_paths = []
     for disk in root.findall(".//devices/disk"):
@@ -1524,36 +1556,21 @@ def check_migration_compatibility(source_conn: libvirt.virConnect, dest_conn: li
                 try:
                     dest_pool = dest_conn.storagePoolLookupByName(pool_name)
                     if not dest_pool.isActive():
-                        issues.append(f"ERROR: Storage pool '{pool_name}' is not active on destination host.")
+                        issues.append({'severity': 'ERROR', 'message': f"Storage pool '{pool_name}' is not active on destination host."})
                     else:
                         dest_pool_xml = ET.fromstring(dest_pool.XMLDesc(0))
                         type_elem = dest_pool_xml.find('type')
                         dest_pool_type = type_elem.text if type_elem is not None else "unknown"
                         if dest_pool_type not in ['netfs', 'iscsi', 'glusterfs', 'rbd', 'nfs']:
-                             issues.append(f"WARNING: Storage pool '{pool_name}' on destination is of type '{dest_pool_type}', which may not be shared. Live migration requires shared storage.")
+                            issues.append({'severity': 'WARNING', 'message': f"Storage pool '{pool_name}' on destination is of type '{dest_pool_type}', which may not be shared. Live migration requires shared storage."})
                 except libvirt.libvirtError:
-                    issues.append(f"ERROR: Storage pool '{pool_name}' not found on destination host.")
+                    issues.append({'severity': 'ERROR', 'message': f"Storage pool '{pool_name}' not found on destination host."})
 
     if disk_paths:
-        issues.append("INFO: The VM uses disk images at the following paths. For migration to succeed, these paths MUST be accessible on the destination host:")
+        issues.append({'severity': 'INFO', 'message': "The VM uses disk images at the following paths. For migration to succeed, these paths MUST be accessible on the destination host:"})
         for path in disk_paths:
-            issues.append(f"  - {path}")
-        issues.append("INFO: This usually means using a shared storage system like NFS or iSCSI, mounted at the same location on both hosts.")
-
-    # Add informational notes for manual checks
-    issues.append("INFO: For a successful migration, please also manually verify the following:")
-    issues.append("  - Firewalls on both hosts allow migration traffic (usually TCP ports 49152-49215).")
-    issues.append("  - The 'qemu' user and 'kvm'/'libvirt' groups have the same UID/GIDs on both hosts.")
-
-    # Time synchronization check
-    if is_live:
-        try:
-            source_time = source_conn.getTime()
-            dest_time = dest_conn.getTime()
-            time_diff = abs(source_time[0] - dest_time[0])
-            if time_diff > 1: # Check if difference is more than 1 second
-                issues.append(f"ERROR: Host time synchronization issue detected. Difference: {time_diff} seconds. Please ensure NTP is configured on both hosts.")
-        except libvirt.libvirtError as e:
-            issues.append(f"WARNING: Could not check host time synchronization: {e}")
+            issues.append({'severity': 'INFO', 'message': f"  - {path}"})
+        issues.append({'severity': 'INFO', 'message': "This usually means using a shared storage system like NFS or iSCSI, mounted at the same location on both hosts."})
 
     return issues
+
