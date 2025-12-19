@@ -13,7 +13,7 @@ from network_manager import get_host_network_info, list_networks
 
 
 @log_function_call
-def clone_vm(original_vm, new_vm_name):
+def clone_vm(original_vm, new_vm_name, log_callback=None):
     """
     Clones a VM, including its storage using libvirt's storage pool API.
     """
@@ -21,6 +21,9 @@ def clone_vm(original_vm, new_vm_name):
     original_xml = original_vm.XMLDesc(0)
     root = ET.fromstring(original_xml)
 
+    msg_start = "Setting up new VM, cleaning some paramaters..."
+    logging.info(msg_start)
+    log_callback(msg_start)
     name_elem = root.find('name')
     if name_elem is not None:
         name_elem.text = new_vm_name
@@ -85,6 +88,9 @@ def clone_vm(original_vm, new_vm_name):
 
         # Clone the volume. A flag of 0 indicates a full (deep) clone.
         try:
+            msg = f"Creating the new volume: {new_vol_name}"
+            logging.info(msg)
+            log_callback(msg)
             new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
         except libvirt.libvirtError as e:
             # Re-raise the error with a more informative message.
@@ -97,6 +103,9 @@ def clone_vm(original_vm, new_vm_name):
         source_elem.set('volume', new_vol.name())
 
     new_xml = ET.tostring(root, encoding='unicode')
+    msg_end = "Defining the VM..."
+    logging.info(msg)
+    log_callback(msg)
     new_vm = conn.defineXML(new_xml)
 
     return new_vm
