@@ -929,8 +929,8 @@ class VMCard(Static):
                 return
             self.app.push_screen(MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections))
 
-        #self.app.push_screen(ConfirmationDialog("Experimental Features! not yet fully tested!"), on_confirm)
-        self.app.push_screen(MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections))
+        self.app.push_screen(ConfirmationDialog("Experimental Features! not yet fully tested!"), on_confirm)
+        #self.app.push_screen(MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections))
 
     @on(Checkbox.Changed, "#vm-select-checkbox")
     def on_vm_select_checkbox_changed(self, event: Checkbox.Changed) -> None:
