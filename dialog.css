@@ -1,3 +1,8 @@
+/*
+ * Common styles for Dialogs.
+ */
+
+/* Modal screen overlay */
 BulkActionModal,
 WebConsoleDialog,
 SnapshotNameDialog,
@@ -6,7 +11,6 @@ SelectOneServerModal,
 ConfirmationDialog,
 ChangeNetworkDialog,
 XMLDisplayModal,
-WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
 VMDetailModal,
@@ -15,17 +19,18 @@ ProgressModal,
 MigrationModal,
 MoveVolumeModal,
 DeleteVMConfirmationDialog,
-AdvancedCloneDialog {
+AdvancedCloneDialog,
+RenameVMDialog {
     align: center middle;
     background: rgba(0, 0, 0, 0.5);
 }
 
+/* Common centered content alignment for many dialogs */
 ConfirmationDialog #dialog Label,
 RenameVMDialog,
 WebConsoleDialog,
 XMLDisplayModal,
 MigrationModal,
-WebConsoleDialog,
 MoveVolumeModal,
 SelectDiskModal,
 SelectPoolModal,
@@ -34,170 +39,227 @@ DeleteVMConfirmationDialog,
 SelectServerModal {
     content-align: center middle;
 }
-SnapshotNameDialog #dialog {
-    width: 60;
-    height: 12;
-    padding: 1;
-    border: round $primary;
-}
 
-SnapshotNameDialog #question {
-    margin-bottom: 1;
-}
-
-SnapshotNameDialog Input {
-    margin-bottom: 1;
-}
-
-SnapshotNameDialog #dialog-buttons {
-    width: 100%;
-}
-
-SnapshotNameDialog #dialog-buttons Button {
-    width: 50%;
-    margin-left: 1;
-}
-
-SelectSnapshotDialog #dialog {
-    width: 60;
-    padding: 1;
-    border: round $primary;
-    background: $surface;
-    height: auto;
-}
-
-ProgressModal,
-SelectServerModal,
-SelectSnapshotDialog #snapshot-list {
-    margin-bottom: 1;
-    border: round $primary;
-    height: 10;
-}
-
-ConfirmationDialog #dialog {
-    width: 60;
-    height: 15;
-    padding: 1;
-    border: round $error;
-    background: $surface;
-}
-
-ConfirmationDialog #question {
-    margin-bottom: 1;
-}
-
-ConfirmationDialog #dialog-buttons {
-    width: 100%;
-    margin-top: 1;
-}
-
-ConfirmationDialog #dialog-buttons Button {
-    width: 50%;
-    margin-left: 1;
-    margin-right: 1;
-}
-WebConsoleDialog,
-SelectDiskModal,
-SelectPoolModal,
-MigrationModal,
-DeleteVMConfirmationDialog {
-    height: auto;
-}
+/*
+ * Base styles for standard dialog containers.
+ */
+SnapshotNameDialog #dialog,
+SelectSnapshotDialog #dialog,
+ConfirmationDialog #dialog,
 WebConsoleDialog #dialog,
 SelectDiskModal #dialog,
 MoveVolumeModal #move-volume-dialog,
 SelectPoolModal #dialog,
 SelectOneServerModal #select-one-server-container,
 DeleteVMConfirmationDialog #dialog,
-SelectServerModal #select-server-container {
+SelectServerModal #select-server-container,
+RenameVMDialog #dialog,
+ChangeNetworkDialog #dialog {
     width: 60;
     padding: 1;
     border: round $primary;
     background: $surface;
+    height: auto; /* Default to auto height, override below if needed */
+}
+
+/* Height overrides for standard dialogs */
+SnapshotNameDialog #dialog { height: 12; }
+ConfirmationDialog #dialog { height: 15; }
+RenameVMDialog #dialog { height: 13; }
+ChangeNetworkDialog #dialog { height: 20; }
+
+/* Border override for confirmation dialog */
+ConfirmationDialog #dialog {
+    border: $error;
+}
+
+/* Common style for question/prompt labels */
+SnapshotNameDialog #question,
+ConfirmationDialog #question,
+RenameVMDialog #question,
+SelectDiskModal #question,
+SelectPoolModal #question,
+DeleteVMConfirmationDialog #question,
+SelectServerModal #select-server-container Label {
+    margin-bottom: 1;
 }
 
 SelectDiskModal #question,
 SelectPoolModal #question,
 DeleteVMConfirmationDialog #question,
-SelectServerModal #select-server-container Label {
+SelectServerModal #select-server-container Label,
+RenameVMDialog #question {
     content-align: center middle;
-    margin-bottom: 1;
 }
 
-SelectServerModal Checkbox {
-    padding: 0 1;
-    margin-bottom: 1;
-}
-
+/* Common style for dialog button containers */
+SnapshotNameDialog #dialog-buttons,
+ConfirmationDialog #dialog-buttons,
 WebConsoleDialog #dialog-buttons,
 SelectDiskModal #dialog-buttons,
 SelectPoolModal #dialog-buttons,
 DeleteVMConfirmationDialog #dialog-buttons,
-SelectServerModal #dialog-buttons {
+SelectServerModal #dialog-buttons,
+RenameVMDialog #dialog-buttons,
+ChangeNetworkDialog #dialog-buttons {
     width: 100%;
 }
 
-SelectServerModal #select-server-container Button,
+ConfirmationDialog #dialog-buttons {
+    margin-top: 1;
+}
+
+/* Common styles for dialog buttons */
+SnapshotNameDialog #dialog-buttons Button,
+ConfirmationDialog #dialog-buttons Button,
+RenameVMDialog #dialog-buttons Button,
+ChangeNetworkDialog #dialog-buttons Button {
+    width: 50%;
+    margin-left: 1;
+}
+
+ConfirmationDialog #dialog-buttons Button {
+    margin-right: 1;
+}
+
 WebConsoleDialog #dialog-buttons Button,
 SelectDiskModal #dialog-buttons Button,
 SelectPoolModal #dialog-buttons Button,
-DeleteVMConfirmationDialog #dialog-buttons Button {
+DeleteVMConfirmationDialog #dialog-buttons Button,
+SelectServerModal #select-server-container Button {
     width: 48%;
     margin: 0 0;
 }
 
 
-RenameVMDialog {
-    align: center middle;
-}
+/* --- Specific/Complex Dialog Styles --- */
 
-RenameVMDialog #dialog {
-    width: 60;
-    height: 13;
-    padding: 1;
-    border: round $primary;
-    background: $surface;
-}
-
-RenameVMDialog #question {
-    align: center middle;
-    margin-bottom: 1;
-}
-
+/* Inputs for dialogs that ask for a name */
+SnapshotNameDialog Input,
 RenameVMDialog Input {
     margin-bottom: 1;
 }
 
-RenameVMDialog #dialog-buttons {
-    width: 100%;
-}
-
-RenameVMDialog #dialog-buttons Button {
-    width: 50%;
-    margin-left: 1;
-}
-
-ChangeNetworkDialog #dialog {
-    width: 60;
-    height: 20;
-    padding: 1;
-    border: round $primary;
-    background: $surface;
-}
-
-ChangeNetworkDialog #interface-select {
+/* List used in snapshot selection */
+SelectSnapshotDialog #snapshot-list,
+ProgressModal,
+SelectServerModal {
     margin-bottom: 1;
-    height: 4;
+    border: round $primary;
+    height: 10;
 }
 
+/* Network selection dialog */
+ChangeNetworkDialog #interface-select,
 ChangeNetworkDialog #network-select {
     margin-bottom: 1;
     height: 4;
 }
 
-ChangeNetworkDialog #dialog-buttons Button {
-    width: 50%;
-    margin-left: 1;
+/* XML Display Modal */
+XMLDisplayModal #xml-display-dialog {
+    width: 80%;
+    height: 80%;
+    padding: 1;
+    border: round $primary;
+    background: $surface;
+}
+
+XMLDisplayModal #xml-textarea {
+    height: 1fr;
+    border: round $primary;
+    margin-bottom: 1;
+}
+
+XMLDisplayModal #dialog-buttons {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
+XMLDisplayModal #dialog-buttons Button {
+    content-align: center middle;
+    width: 100%;
+}
+
+/* Progress Modal */
+ProgressModal {
+    align: center middle;
+    width: 80%;
+    height: 80%;
+    padding: 2;
+    border: round $primary;
+}
+
+ProgressModal #progress-modal-container {
+    layout: vertical;
+    height: 80%;
+    width: 80%;
+    border: round $primary;
+}
+
+ProgressModal #progress-title {
+    height: auto;
+}
+
+ProgressModal #progress-bar {
+    height: auto;
+    margin-bottom: 1;
+}
+
+ProgressModal .progress-log {
+    height: 1fr;
+    min-height: 5;
+    border: heavy $primary;
+    padding: 0 1;
+    background: $surface-darken-1;
+}
+
+/* WebConsole Dialogs */
+#webconsole-dialog,
+#webconsole-config-dialog {
+    padding: 0 1;
+    width: 60;
+    content-align: center middle;
+    border: round $primary;
+}
+#webconsole-dialog {
+    height: 10;
+    width: 85;
+}
+#webconsole-config-dialog {
+    height: 26;
+}
+#remote-console-switch,
+#webconsole-config-title {
+    column-span: 2;
+    margin: 1 1;
+    content-align: center middle;
+    width: 100%;
+}
+.webconsole-config-label {
+    content-align: right middle;
+}
+
+
+/* Bulk Action Dialog */
+#bulk-action-dialog {
+    height: 24;
+    width: 80;
+    border: round $primary;
+    content-align: center middle;
+    padding: 0 1;
+}
+#cancel-btn,
+#perform-action-btn {
+    width: 25%
+}
+
+/* --- MISC & UNCATEGORIZED --- */
+
+SelectServerModal Checkbox {
+    padding: 0 1;
+    margin-bottom: 1;
 }
 
 #tab-storage {
@@ -205,7 +267,7 @@ ChangeNetworkDialog #dialog-buttons Button {
 }
 
 #storage-tree {
-    height: 1fr; /* Take up remaining space */
+    height: 1fr;
     border: round $primary;
     margin-bottom: 1;
 }
@@ -246,65 +308,6 @@ ChangeNetworkDialog #dialog-buttons Button {
     width: 1fr;
 }
 
-XMLDisplayModal #xml-display-dialog {
-    width: 80%;
-    height: 80%;
-    padding: 1;
-    border: round $primary;
-    background: $surface;
-}
-
-XMLDisplayModal #xml-textarea {
-    height: 1fr;
-    border: round $primary;
-    margin-bottom: 1;
-}
-
-XMLDisplayModal #dialog-buttons {
-    height: auto;
-    align: center middle;
-}
-
-XMLDisplayModal #dialog-buttons Button {
-    content-align: center middle;
-    width: 100%;
-}
-#webconsole-dialog,
-#webconsole-config-dialog {
-    padding: 0 1;
-    width: 60;
-    content-align: center middle;
-    border: round $primary;
-}
-#webconsole-dialog {
-    height: 10;
-    width: 85;
-}
-#bulk-action-dialog {
-    height: 24;
-    width: 80;
-    border: round $primary;
-    content-align: center middle;
-    padding: 0 1;
-}
-#cancel-btn,
-#perform-action-btn {
-    width: 25%
-}
-#webconsole-config-dialog {
-    height: 26;
-}
-#remote-console-switch,
-#webconsole-config-title {
-    column-span: 2;
-    margin: 1 1;
-    content-align: center middle;
-    width: 100%;
-}
-.webconsole-config-label {
-    content-align: right middle;
-}
-#progress-modal-container,
 #clone-dialog {
     grid-rows: 4;
     grid-size-columns: 2;
@@ -313,37 +316,9 @@ XMLDisplayModal #dialog-buttons Button {
     width: 55;
     height: 15;
 }
+
 .log-view {
     background: #222222; /* Dark grey */
     color: #DDDDDD;     /* Light grey */
 }
-ProgressModal {
-    align: center middle;
-    width: 80%;
-    height: 80%;
-    padding: 2;
-    border: round $primary;
-}
 
-ProgressModal #progress-modal-container {
-    layout: vertical;
-    height: 80%;
-    width: 80%;
-}
-
-ProgressModal #progress-title {
-    height: auto;
-}
-
-ProgressModal #progress-bar {
-    height: auto;
-    margin-bottom: 1;
-}
-
-ProgressModal .progress-log {
-    height: 1fr;
-    min-height: 5;
-    border: heavy $primary;
-    padding: 0 1;
-    background: $surface-darken-1;
-}
