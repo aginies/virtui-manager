@@ -1,35 +1,27 @@
-.server-list,
-.close-button,
-#add-disk-dialog,
-#remove-disk-dialog,
-#select-machine-type-dialog,
-#select-pool-dialog,
-#select-disk-dialog,
-.centered-status-label,
-.network-interface-row,
-#migration-dialog,
-#virsh-shell-container,
-#virsh-input-container {
-    align: center middle;
-}
+/* --- General Layout & Global Styles --- */
 
-/* Styles for VMManagerTUI */
-#vms-container {
-    height: 80;
-    width: 85;
-    max-height: 90vh;
-    /*overflow-y: scroll;
-    overflow-x: scroll;*/
-    grid-rows: 14;
-    grid-gutter: 0 1;
-    layout: grid;
-    overflow: auto;
-    padding: 0 1;
-}
 Header, Footer {
     background: $primary;
     color: $text;
 }
+
+/* Default Button Style (can be overridden) */
+Button {
+    height: 3vh;
+    width: 100%;
+    margin: 1 1;
+    padding: 0 0;
+    border: hidden;
+}
+
+Input:focus,
+Select:focus {
+    border: tall $accent;
+}
+
+/* --- Base Dialog & Container Styles --- */
+
+/* Common container for most dialogs */
 #connection-dialog,
 #add-edit-network-dialog,
 #edit-server-dialog,
@@ -50,34 +42,53 @@ Header, Footer {
 #remove-disk-dialog,
 #select-machine-type-dialog,
 #select-pool-dialog,
-#select-disk-dialog {
+#select-disk-dialog,
+#filter-dialog,
+#server-pref-dialog,
+#migration-dialog,
+#move-volume-dialog {
     height: auto;
     border: round $primary;
     background: $surface;
     padding: 1 2;
 }
 
-#filter-dialog {
-    height: 20;
-    padding: 1 1;
-    border: round $primary;
-}
-#connection-dialog {
-    width: 60;
+/* Common centered alignment for various elements */
+.server-list,
+.close-button,
+#add-disk-dialog,
+#remove-disk-dialog,
+#select-machine-type-dialog,
+#select-pool-dialog,
+#select-disk-dialog,
+.centered-status-label,
+.network-interface-row,
+#migration-dialog,
+#virsh-shell-container,
+#virsh-input-container {
+    align: center middle;
 }
 
-.small {
-	height: 4;
-}
-.server-list {
-    padding: 1 1;
-}
+/* --- Dialog Width & Height Overrides --- */
+#connection-dialog { width: 60; }
+#filter-dialog { height: 20; }
+#move-volume-dialog { height: 20; }
+#add-disk-dialog,
+#remove-disk-dialog,
+#select-machine-type-dialog,
+#select-pool-dialog,
+#select-disk-dialog { width: 50; max-width: 90; }
+#server-pref-dialog { width: 90; height: 30; }
+#migration-dialog { width: 84; height: 34; }
+#select-one-server-container { height: 10; }
+
+
+/* Default width for many dialogs */
 #add-edit-network-dialog,
 #edit-server-dialog,
 #select-server-container,
 #add-pool-dialog,
 #add-server-dialog,
-#add-disk-dialog,
 #server-selection-dialog,
 #network-detail-dialog,
 #add-edit-virtiofs-dialog,
@@ -86,12 +97,15 @@ Header, Footer {
 #edit-cpu-dialog,
 #create-volume-dialog,
 #edit-memory-dialog,
-#server-selection-dialog,
 #directory-selection-dialog,
 #filter-dialog,
 #server-management-dialog {
     width: 64;
 }
+
+/* --- Common Elements Inside Dialogs --- */
+
+/* Labels */
 #migration-dialog Label,
 #add-edit-network-dialog Label,
 #connection-dialog Label,
@@ -120,6 +134,7 @@ Header, Footer {
     margin-bottom: 1;
 }
 
+/* Inputs and Selects */
 #add-edit-network-dialog Input,
 #connection-dialog Input,
 #edit-server-dialog Input,
@@ -137,6 +152,8 @@ Header, Footer {
     width: 100%;
     margin-bottom: 1;
 }
+
+/* Horizontal Layouts (often for buttons) */
 #add-edit-network-dialog Horizontal,
 #connection-dialog Horizontal,
 #add-server-dialog Horizontal,
@@ -160,6 +177,8 @@ Header, Footer {
     height: auto;
     align: center middle;
 }
+
+/* Buttons inside dialogs */
 #migration-dialog Button,
 #add-edit-network-dialog Button,
 #connection-dialog Button,
@@ -179,63 +198,33 @@ Header, Footer {
 #edit-cpu-dialog Button,
 #edit-memory-dialog Button,
 #select-machine-type-dialog Button {
-    margin: 0 1;
+    margin: 0 1; /* Overrides default button margin */
 }
 
-#shared-memory {
-    height: 4;
-    border: none;
-}
-
-.dir-target-path-input {
-    width: 50%;
-}
 #filter-dialog Button {
     width: 50%;
     height: auto;
     margin-bottom: 1;
 }
 
-#move-volume-dialog Select,
-#migration-dialog Select,
-#cpu-model-select Select,
-#remove-disk-dialog Select,
-#uefi-file-select Select,
-#dest-server-select Select,
-#select-pool-dialog Select,
-Select {
-    width: 50;
-    height: 5;
-    border: none;
-    margin: 0 0;
-    margin-bottom: 0;
+#select-one-server-container Button {
+    width: 50%;
 }
-#migration-dialog Checkbox {
-    padding: 0 0;
-    margin: 0 0;
-    margin-bottom: 0;
-    border: none;
-}
-.disk-info {
-    margin: 0 2;
-    padding: 0 0;
-    height: 40;
-    border-left: round;
-}
-.detail-disks {
-    width: 15%;
-    background: $primary;
-    /*height: 3vh;*/
-}
-.tabd {
-    margin: 0 1;
-}
-.tabd-warning {
-    margin: 0 1;
-    background: red 40%;
-}
-/* Styles for VMDetailModal */
 
+/* --- Specific & Complex Component Styles --- */
+
+#vms-container {
+    height: 80;
+    width: 85;
+    max-height: 90vh;
+    grid-rows: 14;
+    grid-gutter: 0 1;
+    layout: grid;
+    overflow: auto;
+    padding: 0 1;
+}
+
+/* VM Detail Modal */
 #vm-detail-container {
     width: 92;
     height: 96%;
@@ -243,16 +232,8 @@ Select {
     padding: 1;
     overflow: auto;
 }
-#text-show {
-    width: 100%;
-    height: 90%;
-    background: $surface;
-    border: round $primary;
-    padding: 1;
-    overflow: auto;
-}
 
-#title {
+#vm-detail-container #title {
     content-align: center middle;
     width: 100%;
     text-style: bold;
@@ -270,185 +251,7 @@ Select {
     text-align: right;
 }
 
-.section-title {
-    text-style: bold;
-    background: $primary;
-    color: $text;
-    width: 100%;
-    margin-top: 1;
-}
-
-
-.info-section,
-.info-details,
-.storage-pool-details {
-    background: $panel;
-    margin-bottom: 1;
-}
-
-.info-section {
-    height: 10;
-    max-height: 10;
-    padding: 0 1;
-    border: round $primary;
-}
-.server-list {
-    height: auto;
-    padding: 0 0;
-    margin-bottom: 1;
-}
-
-#server-pref-title, {
-    align: center middle;
-}
-.server-pref-button {
-    height: 4;
-    padding: 0 0;
-    margin-bottom: 1;
-}
-.info-details {
-    height: auto;
-    padding: 0 0;
-    border: round $primary;
-}
-
-#status-running {
-    color: green;
-    border: round green;
-}
-#status-stopped, #status-shut-off {
-    color: red;
-    border: round red;
-}
-#status-paused {
-    color: yellow;
-    border: round yellow;
-}
-
-.error-message {
-    text-align: center;
-    color: red;
-    height: 1;
-}
-Button {
-    height: 3vh; /*3vh; */
-    width: 100%; /*5vh; */
-    margin: 1 1;
-    padding: 0 0;
-    border: hidden;
-}
-.Buttonpage {
-    height: auto;
-    width: auto;
-    margin: 0 0;
-    padding: 1 1;
-    color: white;
-    background: black;
-    border: round;
-}
-.button-details {
-    height: 1;
-    padding: 0 0;
-    padding: 0 0;
-}
-.ctrlpage {
-    height: 3vh;
-    width: auto;
-    margin: 0 0;
-    padding: 0 0;
-    color: white;
-    text-style: underline;
-    background: $background;
-}
-.close-button {
-    height: 1;
-    width: auto;
-    color: white;
-    background: red;
-    border: hidden;
-    margin: 1 1;
-}
-.delete-button,
-.done-button,
-.cancel-button,
-.edit-button,
-.add-button {
-    height: 1;
-    width: 25%; /*5vh; */
-    color: white;
-}
-.toggle-detail-button {
-    width: 18%;
-    height: 1;
-    align: center top;
-}
-
-.cancel-button,
-.delete-button {
-    background: red;
-}
-.clone-button {
-    height: 1;
-    color: black;
-    background: pink;
-}
-.rename-button {
-    background: green;
-}
-.edit-button,
-.add-button {
-    background: green;
-}
-
-#detail_add_disk, #detail_remove_disk, #detail_disable_disk, #detail_enable_disk {
-    width: 12%;
-}
-.networks-table {
-    height: 18;
-    margin: 1 1;
-    border: round $primary;
-}
-#storage-action-label {
-    height: 4vh;
-}
-.storage-pool-details {
-    height: 22;
-    padding: 0 0;
-}
-.edit-detail-btn {
-    width: auto;
-    height: 1;
-    background: $primary;
-    min-height: 1;
-    margin: 0 0 0 1;
-}
-
-.network-interface-row {
-    height: auto;
-    padding: 0 1;
-}
-
-.network-mac-label {
-    height: auto;
-    width: 40%;
-}
-#add-disk-dialog,
-#remove-disk-dialog,
-#select-machine-type-dialog,
-#select-pool-dialog,
-#select-disk-dialog {
-    width: 50;
-    max-width: 90; /* Increased from 60 */
-}
-
-#machine-type-list, #disk-selection-list {
-    background: $surface;
-    height: 25;
-    /*height: 1fr; /* Make height flexible within ScrollableContainer */
-    border: round $primary;
-}
-
-/* Styles for VirshShellScreen */
+/* Virsh Shell */
 #virsh-shell-container {
     width: 90%;
     max-width: 120;
@@ -498,114 +301,64 @@ Button {
     background: $surface;
     color: $text;
 }
-.existing-networks-list {
-    background: $surface;
-    height: 5;
-    border: round $primary;
-}
-.net-forward-input,
-.disk-format-select {
-    border: hidden;
-    height: 4;
-    width: 50%;
-    margin: 0 0;
-}
-.create-network-form {
-    background: $surface;
-    border: round $primary;
-}
-.hidden {
-    display: none;
-}
-.dhcp-input {
-    width: 50%;
-}
-.dns-domain-radioset {
-    background: $surface;
-    height: 2;
-    border: none;
-}
-.create-net-btn {
-    border: none;
-    width: 50%;
-    margin-top: 1;
-    background: green;
-}
 
-/* Server Preferences Modal Styles */
-/* Main dialog container */
-#server-pref-dialog {
-    width: 90;
-    height: 30;
-    border: round $primary;
-    background: $surface;
-    padding: 1 0;
-}
-.info-network-pref {
-    height: auto;
-    margin: 1 1;
-    padding: 0 0;
-    border: round $primary;
-    margin-bottom: 1;
-}
-/* ListView item styling */
-ListView > ListItem {
-    height: 1;
-    padding: 0 0;
-    content-align-vertical: middle;
-    border: none;
-}
-#network-select,
-#model-select,
-#net-forward-input,
-#disk-format-select,
-#vol-format-select,
-#edit-cache-mode,
-#edit-discard-mode,
-#server-select,
-#pool-type-select,
-#netfs-format-select,
-#uefi-file-select,
-#video-model-select,
-#sound-model-select,
-#graphics-type-select,
-#graphics-listen-type-select,
-#tpm-model-select,
-#tpm-type-select,
-#cpu-model-select,
-ListView > ListItem:hover {
-    height: auto;
-    background: $primary-darken-2;
-    border: none;
-}
-/* Input focus styling */
-Input:focus {
-    border: tall $accent;
-}
-Select:focus {
-    border: tall $accent;
-}
-/* Radio button spacing */
-RadioButton {
-    padding: 0 0 0 1;
-}
-NetworkListItem {
+
+/* Migration Modal */
+#migration-dialog .checkbox-container {
     height: auto;
     margin-bottom: 0;
 }
-.net-name {
-    width: 30%;
-}
-.net-mode {
-    width: 15%;
-}
-#net-active-check {
-    width: 25%;
+
+#migration-dialog Checkbox {
+    height: 1;
+    padding: 0;
+    margin: 0 1;
+    border: none;
 }
 
-#net-autostart-check {
-    width: 25%;
+#migration-dialog #dest-server-select {
+    height: 3;
+    margin-bottom: 0;
 }
+
+#migration-content-wrapper {
+    height: 32;
+    overflow-y: auto;
+    layout: vertical;
+}
+
+#migration-summary-grid {
+    grid-size-rows: 2;
+    grid-size-columns: 2;
+    grid-gutter: 1;
+    height: auto;
+    margin-top: 1;
+}
+
+#migration-summary-grid .summary-tittle {
+    margin: 0 0;
+    text-align: center;
+}
+
+#result-logs {
+    height: 5;
+    margin-top: 1;
+    padding: 0 1;
+}
+
+#can-migrate-list,
+#cannot-migrate-list {
+    height: auto;
+    width: 100%;
+    padding: 0 0;
+    background: $panel;
+    margin-top: 0;
+}
+#can-migrate-list { border: round green; }
+#cannot-migrate-list { border: round red; }
+
+
+/* Boot Manager */
 .boot-manager {
     align: center top;
     height: auto;
@@ -635,76 +388,143 @@ NetworkListItem {
     width: 1;
     margin: 1 0;
 }
-/* MigrationModal Compact Layout */
-#migration-dialog {
-    width: 84;
-    height: 34;
-    border: round $primary;
-    layout: vertical; /* Ensure vertical layout for 1fr to work */
-}
 
-#migration-dialog #dest-server-select {
-    height: 3;
-    margin-bottom: 0;
-}
 
-#migration-dialog .checkbox-container {
-    height: auto;
-    margin-bottom: 0;
-}
+/* --- Utility & Common Component Styles --- */
 
-#migration-dialog Checkbox {
-    height: 1;
-    padding: 0;
-    margin: 0 1;
-}
-
-#result-logs {
-    height: 5;
-    margin-top: 1;
-    /*border: round $primary-lighten-2;*/
-    padding: 0 1;
-}
-
-#migration-content-wrapper {
-    height: 32;
-    overflow-y: auto;
-    layout: vertical; /* Ensure vertical layout for content wrapper */
-}
-
-#migration-summary-grid {
-    grid-size-rows: 2;
-    grid-size-columns: 2;
-    grid-gutter: 1;
-    height: auto;
-    margin-top: 1;
-}
-
-#migration-summary-grid .summary-tittle {
-    margin: 0 0;
-    text-align: center;
-}
-
-#can-migrate-list,
-#cannot-migrate-list {
-    height: auto;
+.section-title {
+    text-style: bold;
+    background: $primary;
+    color: $text;
     width: 100%;
-    padding: 0 0;
+    margin-top: 1;
+}
+
+.info-section,
+.info-details,
+.storage-pool-details {
     background: $panel;
-    margin-top: 0;
+    margin-bottom: 1;
+    border: round $primary;
 }
-#can-migrate-list {
-    border: round green;
+.info-section { height: 10; max-height: 10; padding: 0 1; }
+.info-details { height: auto; padding: 0 0; }
+.storage-pool-details { height: 22; padding: 0 0; }
+.info-network-pref {
+    height: auto;
+    margin: 1 1;
+    padding: 0 0;
+    border: round $primary;
+    margin-bottom: 1;
 }
-#cannot-migrate-list {
-    border: round red;
+
+#text-show {
+    width: 100%;
+    height: 90%;
+    background: $surface;
+    border: round $primary;
+    padding: 1;
+    overflow: auto;
 }
-#select-one-server-container {
-    height: 10;
+
+/* Status colors */
+#status-running { color: green; border: round green; }
+#status-stopped, #status-shut-off { color: red; border: round red; }
+#status-paused { color: yellow; border: round yellow; }
+.error-message { text-align: center; color: red; height: 1; }
+
+
+/* Specific button variants */
+.Buttonpage { height: auto; width: auto; margin: 0 0; padding: 1 1; color: white; background: black; border: round; }
+.button-details { height: 1; padding: 0 0; }
+.ctrlpage { height: 3vh; width: auto; margin: 0 0; padding: 0 0; color: white; text-style: underline; background: $background; }
+.close-button { height: 1; width: auto; color: white; background: red; border: hidden; margin: 1 1; }
+.delete-button, .cancel-button { background: red; }
+.rename-button, .edit-button, .add-button { background: green; }
+.delete-button, .done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
+.toggle-detail-button { width: 18%; height: 1; align: center top; }
+.clone-button { height: 1; color: black; background: pink; }
+.edit-detail-btn { width: auto; height: 1; background: $primary; min-height: 1; margin: 0 0 0 1; }
+.create-net-btn { border: none; width: 50%; margin-top: 1; background: green; }
+
+
+/* List & Table styles */
+ListView > ListItem { height: 1; padding: 0 0; content-align-vertical: middle; border: none; }
+ListView > ListItem:hover { height: auto; background: $primary-darken-2; border: none; }
+.networks-table { height: 18; margin: 1 1; border: round $primary; }
+.existing-networks-list { background: $surface; height: 5; border: round $primary; }
+#machine-type-list, #disk-selection-list { background: $surface; height: 25; border: round $primary; }
+
+
+/* Misc form elements */
+#shared-memory { height: 4; border: none; }
+.small { height: 4; }
+.dir-target-path-input { width: 50%; }
+RadioButton { padding: 0 0 0 1; }
+.create-network-form { background: $surface; border: round $primary; }
+.hidden { display: none; }
+.dhcp-input { width: 50%; }
+.dns-domain-radioset { background: $surface; height: 2; border: none; }
+.tabd { margin: 0 1; }
+.tabd-warning { margin: 0 1; background: red 40%; }
+.disk-info { margin: 0 2; padding: 0 0; height: 40; border-left: round; }
+.detail-disks { width: 15%; background: $primary; }
+.network-interface-row { height: auto; padding: 0 1; }
+.network-mac-label { height: auto; width: 40%; }
+
+/* Select widgets */
+#move-volume-dialog Select,
+#migration-dialog Select,
+#cpu-model-select Select,
+#remove-disk-dialog Select,
+#uefi-file-select Select,
+#dest-server-select Select,
+#select-pool-dialog Select,
+Select {
+    width: 50;
+    height: 5;
+    border: none;
+    margin: 0 0;
+    margin-bottom: 0;
 }
-#select-one-server-container Button {
+
+#network-select,
+#model-select,
+#net-forward-input,
+#disk-format-select,
+#vol-format-select,
+#edit-cache-mode,
+#edit-discard-mode,
+#server-select,
+#pool-type-select,
+#netfs-format-select,
+#uefi-file-select,
+#video-model-select,
+#sound-model-select,
+#graphics-type-select,
+#graphics-listen-type-select,
+#tpm-model-select,
+#tpm-type-select,
+#cpu-model-select {
+    height: auto;
+    background: $primary-darken-2;
+    border: none;
+}
+.net-forward-input,
+.disk-format-select {
+    border: hidden;
+    height: 4;
     width: 50%;
+    margin: 0 0;
 }
-#move-volume-dialog {
-    height: 20;
-}
+
+/* Server Preferences */
+#server-pref-title { align: center middle; }
+.server-pref-button { height: 4; padding: 0 0; margin-bottom: 1; }
+
+/* Network List Item in server prefs */
+NetworkListItem { height: auto; margin-bottom: 0; }
+.net-name { width: 30%; }
+.net-mode { width: 15%; }
+#net-active-check { width: 25%; }
+#net-autostart-check { width: 25%; }
