@@ -8,8 +8,11 @@ XMLDisplayModal,
 WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
+VMDetailModal,
+VirshShellScreen,
 ProgressModal,
 MigrationModal,
+MoveVolumeModal,
 DeleteVMConfirmationDialog,
 AdvancedCloneDialog {
     align: center middle;
@@ -22,6 +25,7 @@ WebConsoleDialog,
 XMLDisplayModal,
 MigrationModal,
 WebConsoleDialog,
+MoveVolumeModal,
 SelectDiskModal,
 SelectPoolModal,
 DeleteVMConfirmationDialog,
@@ -33,7 +37,6 @@ SnapshotNameDialog #dialog {
     height: 12;
     padding: 1;
     border: round $primary;
-    background: $surface;
 }
 
 SnapshotNameDialog #question {
@@ -94,11 +97,13 @@ WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
 MigrationModal,
+DeleteVMConfirmationDialog,
 SelectServerModal {
     height: auto;
 }
 WebConsoleDialog #dialog,
 SelectDiskModal #dialog,
+MoveVolumeModal #move-volume-dialog,
 SelectPoolModal #dialog,
 DeleteVMConfirmationDialog #dialog,
 SelectServerModal #select-server-container {
@@ -106,7 +111,6 @@ SelectServerModal #select-server-container {
     padding: 1;
     border: round $primary;
     background: $surface;
-    height: auto;
 }
 
 SelectDiskModal #question,

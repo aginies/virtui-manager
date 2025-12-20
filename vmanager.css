@@ -1,5 +1,4 @@
 .server-list,
-VMDetailModal,
 .close-button,
 #add-disk-dialog,
 #remove-disk-dialog,
@@ -8,7 +7,6 @@ VMDetailModal,
 #select-disk-dialog,
 .centered-status-label,
 .network-interface-row,
-VirshShellScreen,
 #migration-dialog,
 #virsh-shell-container,
 #virsh-input-container {
@@ -198,6 +196,7 @@ Header, Footer {
     margin-bottom: 1;
 }
 
+#move-volume-dialog Select,
 #migration-dialog Select,
 #cpu-model-select Select,
 #remove-disk-dialog Select,
@@ -700,4 +699,7 @@ NetworkListItem {
 }
 #cannot-migrate-list {
     border: round red;
+}
+#move-volume-dialog {
+    height: 20;
 }
