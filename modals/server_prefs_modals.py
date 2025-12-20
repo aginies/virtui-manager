@@ -32,6 +32,7 @@ from modals.disk_pool_modals import (
         MoveVolumeModal,
         )
 from modals.utils_modals import ConfirmationDialog, ProgressModal
+from modals.vmanager_xml_modals import XMLDisplayModal
 
 
 class ServerPrefModal(BaseModal[None]):
@@ -65,11 +66,13 @@ class ServerPrefModal(BaseModal[None]):
                         with Horizontal():
                             yield Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button")
                             yield Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button")
-                            yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button")
-                            yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button")
+                            with Vertical():
+                                yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button")
+                                yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button")
                             yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button")
                             yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button")
                             yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button")
+                            yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button")
             #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
@@ -117,6 +120,7 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#add-vol-btn").display = False
         self.query_one("#move-vol-btn").display = False
         self.query_one("#del-vol-btn").display = False
+        self.query_one("#view-storage-xml-btn").display = False
 
 
     def _load_storage_pools(self, expand_pools: list[str] | None = None) -> None:
@@ -215,10 +219,11 @@ class ServerPrefModal(BaseModal[None]):
         toggle_active_btn.display = is_pool
         toggle_autostart_btn.display = is_pool
         del_pool_btn.display = is_pool
-        add_pool_btn.display = True
+        add_pool_btn.display = not is_volume
 
         self.query_one("#del-vol-btn").display = is_volume
         self.query_one("#move-vol-btn").display = is_volume
+        self.query_one("#view-storage-xml-btn").display = is_pool or is_volume
 
         if is_pool:
             is_active = node_data.get('status') == 'active'
@@ -227,6 +232,34 @@ class ServerPrefModal(BaseModal[None]):
             toggle_autostart_btn.label = "Autostart Off" if has_autostart else "Autostart On"
 
         self.query_one("#add-vol-btn").display = is_pool and is_active
+
+    @on(Button.Pressed, "#view-storage-xml-btn")
+    def on_view_storage_xml_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle the View XML button press to show pool/volume XML."""
+        tree: Tree[dict] = self.query_one("#storage-tree")
+        if not tree.cursor_node or not tree.cursor_node.data:
+            return
+
+        node_data = tree.cursor_node.data
+        node_type = node_data.get("type")
+
+        target_obj = None
+        if node_type == "pool":
+            target_obj = node_data.get('pool')
+        elif node_type == "volume":
+            target_obj = node_data.get('volume')
+        else:
+            return
+
+        if not target_obj:
+            self.app.show_error_message("Could not find object to display XML for.")
+            return
+
+        try:
+            xml_content = target_obj.XMLDesc(0)
+            self.app.push_screen(XMLDisplayModal(xml_content, read_only=True))
+        except libvirt.libvirtError as e:
+            self.app.show_error_message(f"Error getting XML for {node_type}: {e}")
 
     @on(Button.Pressed, "#toggle-active-pool-btn")
     def on_toggle_active_pool_button_pressed(self, event: Button.Pressed) -> None:
