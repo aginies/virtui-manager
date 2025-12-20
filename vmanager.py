@@ -367,7 +367,7 @@ class VMManagerTUI(App):
         def launch_server_prefs(uri: str):
             self.push_screen(ServerPrefModal(uri=uri))
 
-        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences:", "Open")
+        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
 
     def _select_server_and_run(self, callback: callable, modal_title: str, modal_button_label: str) -> None:
         """
@@ -402,7 +402,7 @@ class VMManagerTUI(App):
         def launch_virsh_shell(uri: str):
             self.push_screen(VirshShellScreen(uri=uri))
 
-        self._select_server_and_run(launch_virsh_shell, "Select a server for Virsh Shell:", "Launch")
+        self._select_server_and_run(launch_virsh_shell, "Select a server for Virsh Shell", "Launch")
 
     @on(Button.Pressed, "#virsh_shell_button")
     def on_virsh_shell_button_pressed(self, event: Button.Pressed) -> None:

@@ -96,7 +96,7 @@ class SelectServerModal(BaseModal[None]):
         elif event.button.id == "cancel-servers":
             self.dismiss(None)
 
-class SelectOneServerModal(ModalScreen[str]):
+class SelectOneServerModal(BaseModal[str]):
     def __init__(self, servers: list[dict], title: str = "Select a server", button_label: str = "Launch"):
         super().__init__()
         self.servers = servers
@@ -105,10 +105,11 @@ class SelectOneServerModal(ModalScreen[str]):
         self.button_label = button_label
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="select-one-server-container", classes="modal-container"):
+        with Vertical(id="select-one-server-container"):
             yield Label(self.title_text)
             yield Select(self.server_options, prompt="Select server...", id="server-select")
-            with Horizontal(classes="modal-buttons"):
+            yield Label("")
+            with Horizontal():
                 yield Button(self.button_label, id="launch-btn", variant="primary", disabled=True)
                 yield Button("Cancel", id="cancel-btn")
 

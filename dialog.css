@@ -2,6 +2,7 @@ BulkActionModal,
 WebConsoleDialog,
 SnapshotNameDialog,
 SelectSnapshotDialog,
+SelectOneServerModal,
 ConfirmationDialog,
 ChangeNetworkDialog,
 XMLDisplayModal,
@@ -28,6 +29,7 @@ WebConsoleDialog,
 MoveVolumeModal,
 SelectDiskModal,
 SelectPoolModal,
+SelectOneServerModal,
 DeleteVMConfirmationDialog,
 SelectServerModal {
     content-align: center middle;
@@ -65,6 +67,7 @@ SelectSnapshotDialog #dialog {
 }
 
 ProgressModal,
+SelectServerModal,
 SelectSnapshotDialog #snapshot-list {
     margin-bottom: 1;
     border: round $primary;
@@ -97,14 +100,14 @@ WebConsoleDialog,
 SelectDiskModal,
 SelectPoolModal,
 MigrationModal,
-DeleteVMConfirmationDialog,
-SelectServerModal {
+DeleteVMConfirmationDialog {
     height: auto;
 }
 WebConsoleDialog #dialog,
 SelectDiskModal #dialog,
 MoveVolumeModal #move-volume-dialog,
 SelectPoolModal #dialog,
+SelectOneServerModal #select-one-server-container,
 DeleteVMConfirmationDialog #dialog,
 SelectServerModal #select-server-container {
     width: 60;
@@ -134,11 +137,11 @@ SelectServerModal #dialog-buttons {
     width: 100%;
 }
 
+SelectServerModal #select-server-container Button,
 WebConsoleDialog #dialog-buttons Button,
 SelectDiskModal #dialog-buttons Button,
 SelectPoolModal #dialog-buttons Button,
-DeleteVMConfirmationDialog #dialog-buttons Button,
-SelectServerModal #dialog-buttons Button {
+DeleteVMConfirmationDialog #dialog-buttons Button {
     width: 48%;
     margin: 0 0;
 }

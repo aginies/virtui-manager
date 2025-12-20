@@ -700,6 +700,13 @@ NetworkListItem {
 #cannot-migrate-list {
     border: round red;
 }
+#select-one-server-container {
+    height: 10;
+
+}
+#select-one-server-container Button {
+    width: 50%;
+}
 #move-volume-dialog {
     height: 20;
 }
