@@ -11,7 +11,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Server selection and management interface
 
 ### VM Grid Display
-- VMs displayed in a responsive grid layout
+- VMs displayed in a responsive grid layout (up to 5x3 = 15 VM)
 - Color-coded status indicators (Running, Paused, Stopped)
 - CPU and memory usage sparklines for running VMs
 - Pagination controls for large VM lists (now defaults to page 1 if current page becomes empty after deletion)
