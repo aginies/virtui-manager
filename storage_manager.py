@@ -219,6 +219,18 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     dest_pool = conn.storagePoolLookupByName(dest_pool_name)
     source_vol = source_pool.storageVolLookupByName(volume_name)
 
+    # Check if the volume is in use by any running VMs before starting the move
+    vms_using_volume = find_vms_using_volume(conn, source_vol.path())
+    running_vms = [vm.name() for vm in vms_using_volume if vm.state()[0] == libvirt.VIR_DOMAIN_RUNNING]
+
+    if running_vms:
+        msg = f"Cannot move volume '{volume_name}' because it is in use by running VM(s): {', '.join(running_vms)}."
+        log_and_callback(f"ERROR: {msg}")
+        raise Exception(msg)
+
+    if vms_using_volume:
+        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}. Their configuration will be updated after the move.")
+
     source_info = source_vol.info()
     source_capacity = source_info[1]
     source_format = "qcow2"  # Default
@@ -294,15 +306,17 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         if progress_callback:
             progress_callback(100)
 
+        # Refresh destination pool to make the new volume visible
+        log_and_callback(f"Refreshing destination pool '{dest_pool.name()}'...")
+        dest_pool.refresh(0)
+
         # Update any VM configurations that use this volume
         old_path = source_vol.path()
         new_path = new_vol.path()
 
-        vms_to_update = find_vms_using_volume(conn, old_path)
-        if vms_to_update:
-            log_and_callback(f"Found {len(vms_to_update)} VM(s) using the volume: {[vm.name() for vm in vms_to_update]}")
-            for vm in vms_to_update:
-                log_and_callback(f"Updating VM '{vm.name()}' configuration...")
+        if vms_using_volume:
+            log_and_callback(f"Updating configurations for {len(vms_using_volume)} VM(s)...")
+            for vm in vms_using_volume:
                 xml_desc = vm.XMLDesc(0)
                 root = ET.fromstring(xml_desc)
 
@@ -318,8 +332,8 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
                             updated = True
 
                 if updated:
-                    new_xml_desc = ET.tostring(root, encoding='unicode')
-                    conn.defineXML(new_xml_desc)
+                    log_and_callback(f"Updating VM '{vm.name()}' configuration...")
+                    conn.defineXML(ET.tostring(root, encoding='unicode'))
                     updated_vm_names.append(vm.name())
             log_and_callback(f"Updated configurations for VMs: {', '.join(updated_vm_names)}")
 
@@ -327,6 +341,10 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         log_and_callback(f"Deleting original volume '{volume_name}'...")
         source_vol.delete(0)
         log_and_callback("Original volume deleted.")
+
+        # Refresh source pool to remove the old volume from listings
+        log_and_callback(f"Refreshing source pool '{source_pool.name()}'...")
+        source_pool.refresh(0)
 
     except Exception as e:
         # If anything fails, try to clean up the newly created (but possibly incomplete) volume
@@ -344,7 +362,6 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
             log_and_callback(f"Removed temporary file: {temp_path}")
 
     return updated_vm_names
-
 def delete_storage_pool(pool: libvirt.virStoragePool):
     """
     Deletes a storage pool.
@@ -435,7 +452,7 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
 
         source_pools_list = list_storage_pools(source_conn)
         dest_pools_map = {p['name']: p for p in list_storage_pools(dest_conn)}
-    
+
         def _is_default_image_pool(pool: libvirt.virStoragePool) -> bool:
             """Checks if the given pool is the default 'dir' type pool with path /var/lib/libvirt/images."""
             if pool.name() == "default":
@@ -444,20 +461,20 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
                     root = ET.fromstring(xml_desc)
                     pool_type = root.get("type")
                     path_element = root.find("target/path")
-    
+
                     if pool_type == "dir" and path_element is not None and path_element.text == "/var/lib/libvirt/images":
                         return True
                 except (libvirt.libvirtError, ET.ParseError):
                     pass
             return False
-    
+
         def get_pool_details(pool: libvirt.virStoragePool) -> Dict[str, Any] | None:
             """Parse pool XML to get its type and target details for comparison."""
             try:
                 xml_desc = pool.XMLDesc(0)
                 root = ET.fromstring(xml_desc)
                 pool_type = root.get("type")
-                
+
                 target_details = {}
                 if pool_type == 'dir':
                     path_elem = root.find("target/path")
@@ -471,30 +488,30 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
                     if dir_elem is not None:
                         target_details['path'] = dir_elem.get('path')
                 # Other pool types can be added here (e.g., iscsi, rbd)
-    
+
                 return {"type": pool_type, "target": target_details}
             except (libvirt.libvirtError, ET.ParseError) as e:
                 logging.warning(f"Could not parse XML for pool {pool.name()}: {e}")
                 return None
-    
+
         shared_pools_info = []
         for source_pool_info in source_pools_list:
             source_name = source_pool_info['name']
             source_pool = source_pool_info['pool']
-    
+
             if _is_default_image_pool(source_pool):
                 continue
-            
+
             if source_name in dest_pools_map:
                 dest_pool_info = dest_pools_map[source_name]
                 dest_pool = dest_pool_info['pool']
-    
+
                 if _is_default_image_pool(dest_pool):
                     continue
-    
+
                 source_details = get_pool_details(source_pool)
                 dest_details = get_pool_details(dest_pool)
-    
+
                 # A pool is shared if its name, type, and target are identical
                 if source_details and dest_details and source_details == dest_details:
                     warning = ""
@@ -502,7 +519,7 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
                         warning += f"Source pool '{source_name}' is inactive. "
                     if dest_pool_info['status'] != 'active':
                         warning += f"Destination pool '{source_name}' is inactive."
-                    
+
                     shared_pools_info.append({
                         "name": source_name,
                         "type": source_details.get('type'),
@@ -511,5 +528,5 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
                         "dest_status": dest_pool_info['status'],
                         "warning": warning.strip()
                     })
-    
+
         return shared_pools_info
