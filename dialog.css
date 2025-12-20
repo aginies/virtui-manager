@@ -322,3 +322,51 @@ SelectServerModal Checkbox {
     color: #DDDDDD;     /* Light grey */
 }
 
+/* --- Password Modal --- */
+PasswordModal {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.5);
+}
+PasswordModal #password-dialog {
+    width: 60;
+    height: 12;
+    padding: 1;
+    border: round $primary;
+    background: $surface;
+}
+PasswordModal Input {
+    margin-bottom: 1;
+}
+PasswordModal #dialog-buttons {
+    width: 100%;
+}
+PasswordModal #dialog-buttons Button {
+    width: 50%;
+    margin-left: 1;
+}
+
+/* --- HowTo SSH Modal --- */
+HowToSSHModal {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.5);
+}
+HowToSSHModal #howto-ssh-dialog {
+    width: 80;
+    height: 30;
+    padding: 1;
+    border: round $primary;
+    background: $surface;
+}
+HowToSSHModal #howto-ssh-content {
+    height: 1fr;
+}
+HowToSSHModal #dialog-buttons {
+    width: 100%;
+    height: auto;
+    align: center middle;
+    padding-top: 1;
+}
+HowToSSHModal Button {
+    width: 100%;
+}
+

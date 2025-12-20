@@ -8,7 +8,7 @@ from textual.widgets import Button, Label, DataTable, Input
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.screen import ModalScreen
 from vmcard import ConfirmationDialog
-
+from modals.howto_ssh_modal import HowToSSHModal
 from modals.base_modals import BaseModal
 
 from config import save_config
@@ -101,6 +101,7 @@ class ServerManagementModal(ModalScreen):
                 with Horizontal():
                     yield Button("Connect", id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
                     yield Button("Custom URL", id="custom-conn-btn", classes="Buttonpage")
+                    yield Button("SSH Help", id="ssh-help-btn", classes="Buttonpage")
             #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
@@ -180,6 +181,9 @@ class ServerManagementModal(ModalScreen):
                  if uri:
                      self.dismiss(uri)
              self.app.push_screen(ConnectionModal(), connection_callback)
+        
+        elif event.button.id == "ssh-help-btn":
+            self.app.push_screen(HowToSSHModal())
 
 
     def action_close_modal(self) -> None:
