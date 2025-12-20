@@ -11,8 +11,9 @@ from textual.widgets import Button, Static, Select, Checkbox, Label, ProgressBar
 from textual import on, work
 
 from vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
+from storage_manager import find_shared_storage_pools
 from utils import extract_server_name_from_uri
-from pprint import pprint # pprint(vars(object))
+#from pprint import pprint # pprint(vars(object))
 
 class MigrationModal(ModalScreen):
     """A modal to handle VM migration."""
@@ -35,7 +36,7 @@ class MigrationModal(ModalScreen):
     def compose(self) -> ComposeResult:
         vm_names = ", ".join([vm.name() for vm in self.vms_to_migrate])
         source_uri = self.source_conn.getURI()
-        
+
         try:
             source_hostname = self.source_conn.getHostname()
         except libvirt.libvirtError:
@@ -66,8 +67,8 @@ class MigrationModal(ModalScreen):
             default_dest_uri = dest_servers[0][1]
             self.dest_conn = self.connections[default_dest_uri]
 
-        with Vertical(id="migration-dialog",):
-            with ScrollableContainer(id="migration-content-wrapper"):
+        with ScrollableContainer(id="migration-dialog",):
+            with Vertical(id="migration-content-wrapper"):
                 yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
                 yield Static("Select destination server:")
                 yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
@@ -84,12 +85,12 @@ class MigrationModal(ModalScreen):
                 yield ProgressBar(total=100, show_eta=False, id="migration-progress")
                 yield Static(id="results-log")
                 yield Grid(
-                    Vertical(
-                        Static("[b]VMs Ready for Migration:[/b]", classes="summary-title"),
+                    ScrollableContainer(
+                        Static("[b]VMs [green]Ready[/] for Migration[/b]", classes="summary-title"),
                         Static(id="can-migrate-list"),
                     ),
-                    Vertical(
-                        Static("[b]VMs Not Ready for Migration:[/b]", classes="summary-title"),
+                    ScrollableContainer(
+                        Static("[b]VMs [red]Not[/] Ready for Migration[/b]", classes="summary-title"),
                         Static(id="cannot-migrate-list"),
                     ),
                     id="migration-summary-grid"
@@ -146,6 +147,18 @@ class MigrationModal(ModalScreen):
             self.app.call_from_thread(self._write_log_line, line)
 
         all_checks_ok = True
+        shared_pools = find_shared_storage_pools(self.source_conn, self.dest_conn)
+        write_log("\n[bold]-- Shared Storage Pools --[/]")
+        if not shared_pools:
+            write_log("INFO: No common shared storage pools found between hosts.")
+        else:
+            for pool in shared_pools:
+                write_log(f"INFO: Shared pool '[bold]{pool['name']}[/]' (Type: {pool.get('type', 'N/A')})")
+                write_log(f"  - Target: {pool.get('target', 'N/A')}")
+                write_log(f"  - Status: Source: {pool['source_status']}, Destination: {pool['dest_status']}")
+                if pool['warning']:
+                    write_log(f"  - [on yellow bold][black]WARNING[/][/]: [yellow]{pool['warning']}[/]")
+
         for i, vm in enumerate(self.vms_to_migrate):
             try:
                 write_log(f"\n[on blue][bold]--- CHECKING {vm.name()} ---[/][/]")
@@ -173,6 +186,7 @@ class MigrationModal(ModalScreen):
                     ]
                 for issue in server_infos:
                     write_log(f"[bold]INFO[/]: [green]{issue['message']}[/]")
+
 
                 # --- VM Compatibility ---
                 write_log(f"[bold]-- VM Compatibility --[/]")
