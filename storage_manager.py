@@ -4,8 +4,11 @@ Module for managing libvirt storage pools and volumes.
 from typing import List, Dict, Any
 import logging
 import os
+import shutil
+import tempfile
 import xml.etree.ElementTree as ET
 import libvirt
+import threading
 from vm_queries import get_vm_disks_info
 
 def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
@@ -175,8 +178,8 @@ def delete_volume(vol: libvirt.virStorageVol):
         logging.error(msg)
         raise Exception(msg) from e
 
-def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str) -> List[libvirt.virDomain]:
-    """Finds VMs that are using a specific storage volume path."""
+def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str, vol_name: str) -> List[libvirt.virDomain]:
+    """Finds VMs that are using a specific storage volume path by checking different disk types."""
     vms_using_volume = []
     if not conn:
         return vms_using_volume
@@ -184,18 +187,38 @@ def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str) -> List[libvi
     try:
         domains = conn.listAllDomains(0)
         for domain in domains:
-            # Quick check to avoid parsing XML for every VM
+            # Quick check to avoid parsing XML for every VM if volume name isn't there
             xml_desc = domain.XMLDesc(0)
-            if vol_path not in xml_desc:
+            if vol_name not in xml_desc:
                 continue
 
             root = ET.fromstring(xml_desc)
             for disk in root.findall('.//disk'):
                 source_element = disk.find('source')
-                if source_element is not None:
-                    if source_element.get('file') == vol_path or source_element.get('dev') == vol_path:
-                        vms_using_volume.append(domain)
-                        break  # Found it in this VM, move to the next
+                if source_element is None:
+                    continue
+
+                # Case 1: Disk path is specified directly
+                disk_path = source_element.get('file') or source_element.get('dev')
+                if disk_path and disk_path == vol_path:
+                    vms_using_volume.append(domain)
+                    break  # Found it, move to the next domain
+
+                # Case 2: Disk is specified by pool and volume name
+                if disk.get('type') == 'volume':
+                    pool_name = source_element.get('pool')
+                    volume_name_from_xml = source_element.get('volume')
+                    if pool_name and volume_name_from_xml:
+                        try:
+                            p = conn.storagePoolLookupByName(pool_name)
+                            v = p.storageVolLookupByName(volume_name_from_xml)
+                            if v.path() == vol_path:
+                                vms_using_volume.append(domain)
+                                break  # Found it, move to the next domain
+                        except libvirt.libvirtError:
+                            # This can happen if the pool/volume is not found, which is not necessarily an error to halt on.
+                            logging.warning(f"Could not resolve volume '{volume_name_from_xml}' in pool '{pool_name}' for VM '{domain.name()}'.")
+                            continue
     except (libvirt.libvirtError, ET.ParseError) as e:
         logging.error(f"Error finding VMs using volume {vol_path}: {e}")
 
@@ -204,8 +227,9 @@ def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str) -> List[libvi
 
 def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name: str, volume_name: str, new_volume_name: str = None, progress_callback=None, log_callback=None) -> List[str]:
     """
-    Moves a storage volume by downloading it to a temporary file and then uploading it to a new volume.
-    This is a compatible and safe method for moving volumes across different pools.
+    Moves a storage volume using an in-memory pipe for direct streaming.
+    This method avoids intermediate disk I/O by streaming data from the source
+    to the destination volume concurrently.
     """
     def log_and_callback(message):
         logging.info(message)
@@ -219,8 +243,25 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     dest_pool = conn.storagePoolLookupByName(dest_pool_name)
     source_vol = source_pool.storageVolLookupByName(volume_name)
 
+    # Check for available space before starting the move
+    source_info = source_vol.info()
+    source_capacity = source_info[1]  # in bytes
+
+    # 1. Check for space in the temporary directory for the pipe
+    tmp_dir = tempfile.gettempdir()
+    try:
+        tmp_free_space = shutil.disk_usage(tmp_dir).free
+        if tmp_free_space < source_capacity:
+            msg = (f"Not enough space in temporary directory '{tmp_dir}'. "
+                   f"Required: {source_capacity // 1024**2} MB, "
+                   f"Available: {tmp_free_space // 1024**2} MB.")
+            log_and_callback(f"ERROR: {msg}")
+            raise Exception(msg)
+    except FileNotFoundError:
+        log_and_callback(f"WARNING: Could not check disk space for temporary directory '{tmp_dir}'.")
+
     # Check if the volume is in use by any running VMs before starting the move
-    vms_using_volume = find_vms_using_volume(conn, source_vol.path())
+    vms_using_volume = find_vms_using_volume(conn, source_vol.path(), source_vol.name())
     running_vms = [vm.name() for vm in vms_using_volume if vm.state()[0] == libvirt.VIR_DOMAIN_RUNNING]
 
     if running_vms:
@@ -251,58 +292,104 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     new_vol = dest_pool.createXML(new_vol_xml, 0)
     updated_vm_names = []
 
-    # Use a temporary file in the destination pool's directory if possible, else /tmp
-    temp_dir = "/tmp"
-    try:
-        pool_xml = ET.fromstring(dest_pool.XMLDesc(0))
-        path_elem = pool_xml.find("target/path")
-        if path_elem is not None and os.path.isdir(path_elem.text):
-            temp_dir = path_elem.text
-    except (ET.ParseError, libvirt.libvirtError):
-        pass
+    # Create a pipe for in-memory streaming
+    r_fd, w_fd = os.pipe()
+    log_and_callback("Starting in-memory stream for volume move...")
 
-    temp_path = os.path.join(temp_dir, f"{new_volume_name}.tmp")
-    log_and_callback(f"Using temporary file for transfer: {temp_path}")
+    download_thread = None
+    upload_thread = None
+    download_error = None
+    upload_error = None
+    download_stream = conn.newStream(0)
+    upload_stream = conn.newStream(0)
 
     try:
-        # 1. Download source volume to the temporary file
-        log_and_callback(f"Downloading '{volume_name}' to {temp_path}...")
-        downloaded_bytes = 0
-        with open(temp_path, "wb") as f:
-            stream = conn.newStream(0)
-            def stream_writer(stream, data, opaque_file):
-                nonlocal downloaded_bytes
-                opaque_file.write(data)
-                written = len(data)
-                downloaded_bytes += written
-                if progress_callback and source_capacity > 0:
-                    # Download is first 50%
-                    progress = (downloaded_bytes / source_capacity) * 50
-                    progress_callback(progress)
-                return 0
-            source_vol.download(stream, 0, source_capacity)
-            stream.recvAll(stream_writer, f)
-        log_and_callback("Download to temporary file complete.")
-        if progress_callback:
-            progress_callback(50)
+        # --- Download Thread ---
+        def download_volume_task(stream, write_fd, capacity, callback):
+            nonlocal download_error
+            try:
+                log_and_callback(f"Downloading '{volume_name}'...")
+                downloaded_bytes = 0
 
-        # 2. Upload from the temporary file to the new volume
-        log_and_callback(f"Uploading from {temp_path} to '{new_volume_name}'...")
-        uploaded_bytes = 0
-        with open(temp_path, "rb") as f:
-            stream = conn.newStream(0)
-            def stream_reader(stream, nbytes, opaque_file):
-                nonlocal uploaded_bytes
-                chunk = opaque_file.read(nbytes)
-                uploaded_bytes += len(chunk)
-                if progress_callback and source_capacity > 0:
-                    # Upload is second 50%
-                    progress = 50 + (uploaded_bytes / source_capacity) * 50
-                    progress_callback(progress)
-                return chunk
-            new_vol.upload(stream, 0, source_capacity)
-            stream.sendAll(stream_reader, f)
-        log_and_callback("Upload to new volume complete.")
+                def stream_writer_pipe(st, data, opaque_fd):
+                    nonlocal downloaded_bytes, download_error
+                    try:
+                        os.write(opaque_fd, data)
+                        downloaded_bytes += len(data)
+                        if callback and capacity > 0:
+                            progress = (downloaded_bytes / capacity) * 50
+                            callback(progress)
+                        return 0
+                    except Exception as e:
+                        logging.error(f"Error in stream writer pipe: {e}")
+                        download_error = e
+                        return -1  # Abort stream
+
+                source_vol.download(stream, 0, capacity)
+                stream.recvAll(stream_writer_pipe, write_fd)
+
+                if download_error:
+                    stream.abort()
+                else:
+                    stream.finish()
+                log_and_callback("Download stream finished.")
+            except Exception as e:
+                logging.error(f"Error in download thread: {e}")
+
+                download_error = e
+                stream.abort()
+            finally:
+                os.close(write_fd)
+
+        # --- Upload Thread ---
+        def upload_volume_task(stream, read_fd, capacity, callback):
+            nonlocal upload_error
+            try:
+                log_and_callback(f"Uploading to '{new_volume_name}'...")
+                uploaded_bytes = 0
+
+                def stream_reader_pipe(st, nbytes, opaque_fd):
+                    nonlocal uploaded_bytes
+                    try:
+                        chunk = os.read(opaque_fd, nbytes)
+                        uploaded_bytes += len(chunk)
+                        if callback and capacity > 0:
+                            progress = 50 + (uploaded_bytes / capacity) * 50
+                            callback(progress)
+                        return chunk
+                    except Exception as e:
+                        logging.error(f"Error in stream reader pipe: {e}")
+                        raise e # Propagate error to sendAll
+
+                new_vol.upload(stream, 0, capacity)
+                stream.sendAll(stream_reader_pipe, read_fd)
+                stream.finish()
+                log_and_callback("Upload stream finished.")
+            except Exception as e:
+                logging.error(f"Error in upload thread: {e}")
+                nonlocal upload_error
+                upload_error = e
+                stream.abort()
+            finally:
+                os.close(read_fd)
+
+        # Create and start threads
+        download_thread = threading.Thread(target=download_volume_task, args=(download_stream, w_fd, source_capacity, progress_callback))
+        upload_thread = threading.Thread(target=upload_volume_task, args=(upload_stream, r_fd, source_capacity, progress_callback))
+
+        download_thread.start()
+        upload_thread.start()
+
+        download_thread.join()
+        upload_thread.join()
+
+        # Check for errors during streaming
+        if download_error:
+            raise Exception(f"Failed to download volume: {download_error}") from download_error
+        if upload_error:
+            raise Exception(f"Failed to upload volume: {upload_error}") from upload_error
+
+        log_and_callback("In-memory stream transfer complete.")
         if progress_callback:
             progress_callback(100)
 
@@ -313,31 +400,42 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         # Update any VM configurations that use this volume
         old_path = source_vol.path()
         new_path = new_vol.path()
-
+        old_pool_name = source_pool.name()
+        new_pool_name = dest_pool.name()
+        
         if vms_using_volume:
             log_and_callback(f"Updating configurations for {len(vms_using_volume)} VM(s)...")
             for vm in vms_using_volume:
                 xml_desc = vm.XMLDesc(0)
                 root = ET.fromstring(xml_desc)
-
                 updated = False
                 for disk in root.findall('.//disk'):
                     source_element = disk.find('source')
-                    if source_element is not None:
-                        if source_element.get('file') == old_path:
-                            source_element.set('file', new_path)
-                            updated = True
-                        if source_element.get('dev') == old_path:
-                            source_element.set('dev', new_path)
-                            updated = True
+                    if source_element is None:
+                        continue
 
+                    # Case 1: file or dev
+                    if source_element.get('file') == old_path:
+                        source_element.set('file', new_path)
+                        updated = True
+                    if source_element.get('dev') == old_path:
+                        source_element.set('dev', new_path)
+                        updated = True
+
+                    # Case 2: volume
+                    if disk.get('type') == 'volume':
+                        if source_element.get('pool') == old_pool_name and source_element.get('volume') == volume_name:
+                            source_element.set('pool', new_pool_name)
+                            source_element.set('volume', new_volume_name)
+                            updated = True
+                
                 if updated:
                     log_and_callback(f"Updating VM '{vm.name()}' configuration...")
                     conn.defineXML(ET.tostring(root, encoding='unicode'))
                     updated_vm_names.append(vm.name())
             log_and_callback(f"Updated configurations for VMs: {', '.join(updated_vm_names)}")
 
-        # 3. Delete the original volume after successful copy
+        # Delete the original volume after successful copy
         log_and_callback(f"Deleting original volume '{volume_name}'...")
         source_vol.delete(0)
         log_and_callback("Original volume deleted.")
@@ -345,21 +443,30 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         # Refresh source pool to remove the old volume from listings
         log_and_callback(f"Refreshing source pool '{source_pool.name()}'...")
         source_pool.refresh(0)
+        log_and_callback("\nMove Finished, you can close this window")
 
     except Exception as e:
         # If anything fails, try to clean up the newly created (but possibly incomplete) volume
         logging.error(f"An error occurred during volume move: {e}. Cleaning up destination volume.")
-        try:
-            new_vol.delete(0)
-        except libvirt.libvirtError as del_e:
-            logging.error(f"Failed to clean up destination volume '{new_volume_name}': {del_e}")
+        if new_vol:
+            try:
+                new_vol.delete(0)
+            except libvirt.libvirtError as del_e:
+                logging.error(f"Failed to clean up destination volume '{new_volume_name}': {del_e}")
         # Re-raise the original exception
         raise
     finally:
-        # 4. Clean up the temporary file in all cases
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-            log_and_callback(f"Removed temporary file: {temp_path}")
+        # Abort streams if they are still active
+        try:
+            if download_stream:
+                download_stream.abort()
+        except libvirt.libvirtError:
+            pass
+        try:
+            if upload_stream:
+                upload_stream.abort()
+        except libvirt.libvirtError:
+            pass
 
     return updated_vm_names
 def delete_storage_pool(pool: libvirt.virStoragePool):
