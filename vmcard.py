@@ -893,7 +893,29 @@ class VMCard(Static):
 
     def _handle_migration_button(self, event: Button.Pressed) -> None:
         """Handles the migration button press."""
-        selected_vms = [card.vm for card in self.app.query("VMCard") if card.is_selected]
+        # Get selected VM UUIDs from the central app state
+        selected_vm_uuids = self.app.selected_vm_uuids
+
+        selected_vms = []
+        if selected_vm_uuids:
+            # Convert UUIDs to libvirt.virDomain objects
+            for uuid in selected_vm_uuids:
+                found_domain = None
+                for uri in self.app.active_uris:
+                    conn = self.app.connection_manager.connect(uri)
+                    if conn:
+                        try:
+                            domain = conn.lookupByUUIDString(uuid)
+                            selected_vms.append(domain)
+                            found_domain = True
+                            break
+                        except libvirt.libvirtError:
+                            continue
+                if not found_domain:
+                    self.app.show_error_message(f"Selected VM with UUID {uuid} not found on any active server.")
+                    # Decide if we continue with other VMs or abort. For now, continue.
+        
+        # If no VMs are selected via checkboxes, default to the current VM (the one the button was clicked on).
         if not selected_vms:
             selected_vms = [self.vm]
 
