@@ -30,6 +30,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
   - When `REMOTE_WEBCONSOLE` is enabled, `websockify` and `novnc` assets must be installed on the remote server at the paths specified in `config.yaml` (default: `/usr/bin/websockify` and `/usr/share/novnc/`).
   - For secure (HTTPS) remote web console access, `cert.pem` and `key.pem` files must also be present on the remote server in `~/.config/vmanager/`.
 - Bulk actions on selected VMs (start, stop, force off, pause, delete): Now include a progress bar for long-running operations.
+- VM Migration (Live and Offline)
 
 ### Advanced Features
 - Filter VMs by status (All, Running, Paused, Stopped) and search by name
@@ -161,6 +162,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Toggle storage pool autostart state
 - List unused storage volumes
 - Get all storage volumes across all pools
+- Move storage volume between pools
 
 ## User Interface Features
 
