@@ -19,7 +19,7 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 ### VM Management Actions
 - Start, Shutdown, Force Off (destroy), Pause, Resume
 - Delete VM with optional storage cleanup: Now more robust, always using libvirt API for managed storage volumes, preventing permission errors. Automatically deletes VM snapshot metadata.
-- Clone VM functionality
+- Clone VM functionality: Clone VMs with advanced options, including specifying a custom suffix, cloning multiple instances at once, and automatic creation of storage for the new clones.
 - Rename VM with snapshot handling
 - Take, restore, and delete VM snapshots
 - View/Edit XML configuration
