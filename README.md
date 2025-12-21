@@ -6,38 +6,17 @@ This is using Python Textual: https://github.com/Textualize/textual
 
 ## Why
 
-Virt-manager is only usable with X or X forward, and this is very slow and not possible in many cases to use it,. It has a lot of dependencies.
+Virt-manager is only usable with X or X forward, and this is very slow and not possible in many cases to use it. It has a lot of dependencies.
 
-This terminal solution is simple, very few deps, remote control with low bandwidth. Moreover it includes some features like disabling a disk (intead or removing it completly), change machine-type. Some other will be implemented later.
+This terminal solution is simple, very few deps, remote control with low bandwidth. Moreover it includes some features like disabling a disk (intead or removing it completly), change machine-type, etc.... 
 
 ## Warning
 
-This project is part of a SUSE **hackweek** project, its not mature, under heavy developement, its lacks a lot of features, and surely contains tons of bugs. You have been warned. Please report any bugs or ask for specific features.
+Born during a **SUSE hackweek**, this project is a work-in-progress—packed with potential but still missing a few features and tests, all while being co-piloted by an AI agent for extra creativity and efficiency!
 
 ## Features
 
 [Features](FEATURES.md)
-
-## Command-Line Tool (vmanager_cmd.py)
-
-In addition to the main TUI application, `vmanager` also provides a command-line interface (`vmanager_cmd.py`) for managing virtual machines and storage. This tool offers the following key features:
-
-*   **Multi-server Management**: Connect to and manage multiple `libvirt` servers simultaneously from a single shell.
-*   **Bulk VM Operations**: Execute commands like `start`, `stop`, `status`, `pause`, `resume`, `force_off`, and `delete` on multiple VMs across different connected servers at once.
-*   **Advanced VM Selection**: Select VMs for operations using direct names or powerful regular expression patterns.
-*   **Interactive VM Deletion**: Delete VMs with interactive confirmation, including an option to also remove associated storage volumes.
-*   **Storage Management**: List storage pools and identify unused storage volumes across all connected servers.
-*   **Tab Autocompletion**: Enjoy context-aware autocompletion for server names, VM names, and storage pool names, enhancing usability and speed.
-
-To launch the CLI, run:
-
-```bash
-python3 vmanager_cmd.py
-```
-or:
-```bash
-python3 vmanager.py --cmd
-```
 
 ## TODO
 
@@ -47,7 +26,7 @@ python3 vmanager.py --cmd
 ## Requirements
 
 - Minimal terminal size: 34x92
-- Remote connection to libvirt server ssh needs an SSH key copy to server! (ssh-copy-id with no password)
+- Remote connection to libvirt server ssh (ssh-agent recomended)
 - Python 3.7+
 - [libvirt](https://libvirt.org/)
 - [textual](https://pypi.org/project/textual/)
@@ -78,6 +57,20 @@ pip install libvirt-python textual pyaml
 
 ```bash
 which virt-viewer
+```
+
+## Command-Line Tool (vmanager_cmd.py)
+
+In addition to the main TUI application, `vmanager` also provides a command-line interface (`vmanager_cmd.py`) for managing virtual machines and storage.
+
+To launch the CLI, run:
+
+```bash
+python3 vmanager_cmd.py
+```
+or:
+```bash
+python3 vmanager.py --cmd
 ```
 
 ## Configuration

@@ -111,7 +111,7 @@ class VMManagerTUI(App):
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}
         self._color_index = 0
-        self.devel = "(Devel v0.3.0)"
+        self.devel = "(Devel v0.4.0)"
         #self.resize_timer = ""
 
     def get_server_color(self, uri: str) -> str:

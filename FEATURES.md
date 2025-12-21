@@ -202,5 +202,14 @@ Rainbow V Manager is a Textual-based TUI (Terminal User Interface) application f
 - Bulk operations with improved progress indication
 - Real-time VM status updates
 
-## Warning
-This project is part of a SUSE hackweek project, it's not mature, under heavy development, lacks a lot of features, and surely contains tons of bugs. You have been warned. Please report any bugs or ask for specific features.
+## Extra Command-Line Tool (vmanager_cmd.py)
+
+In addition to the main TUI application, `vmanager` also provides a command-line interface (`vmanager_cmd.py`) for managing virtual machines and storage. This tool offers the following key features:
+
+*   **Multi-server Management**: Connect to and manage multiple `libvirt` servers simultaneously from a single shell.
+*   **Bulk VM Operations**: Execute commands like `start`, `stop`, `status`, `pause`, `resume`, `force_off`, and `delete` on multiple VMs across different connected servers at once.
+*   **Advanced VM Selection**: Select VMs for operations using direct names or powerful regular expression patterns.
+*   **Interactive VM Deletion**: Delete VMs with interactive confirmation, including an option to also remove associated storage volumes.
+*   **Storage Management**: List storage pools and identify unused storage volumes across all connected servers.
+*   **Tab Autocompletion**: Enjoy context-aware autocompletion for server names, VM names, and storage pool names, enhancing usability and speed.
+
