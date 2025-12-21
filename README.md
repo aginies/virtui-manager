@@ -18,6 +18,27 @@ This project is part of a SUSE **hackweek** project, its not mature, under heavy
 
 [Features](FEATURES.md)
 
+## Command-Line Tool (vmanager_cmd.py)
+
+In addition to the main TUI application, `vmanager` also provides a command-line interface (`vmanager_cmd.py`) for managing virtual machines and storage. This tool offers the following key features:
+
+*   **Multi-server Management**: Connect to and manage multiple `libvirt` servers simultaneously from a single shell.
+*   **Bulk VM Operations**: Execute commands like `start`, `stop`, `status`, `pause`, `resume`, `force_off`, and `delete` on multiple VMs across different connected servers at once.
+*   **Advanced VM Selection**: Select VMs for operations using direct names or powerful regular expression patterns.
+*   **Interactive VM Deletion**: Delete VMs with interactive confirmation, including an option to also remove associated storage volumes.
+*   **Storage Management**: List storage pools and identify unused storage volumes across all connected servers.
+*   **Tab Autocompletion**: Enjoy context-aware autocompletion for server names, VM names, and storage pool names, enhancing usability and speed.
+
+To launch the CLI, run:
+
+```bash
+python3 vmanager_cmd.py
+```
+or:
+```bash
+python3 vmanager.py --cmd
+```
+
 ## TODO
 
 - Add all missing features on Adding/Removing stuff to VM
