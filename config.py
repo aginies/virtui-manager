@@ -7,6 +7,7 @@ import yaml
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
+    'AUTOCONNECT_ON_STARTUP': False,
     'WC_PORT_RANGE_START': 40000,
     'WC_PORT_RANGE_END': 40050,
     'websockify_path': '/usr/bin/websockify',

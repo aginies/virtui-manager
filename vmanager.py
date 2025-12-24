@@ -73,12 +73,12 @@ class VMManagerTUI(App):
     novnc_available = reactive(True)
 
     @staticmethod
-    def _get_initial_active_uris(servers_list):
-        if servers_list:
+    def _get_initial_active_uris(servers_list, autoconnect=False):
+        if autoconnect and servers_list:
             return [servers_list[0]['uri']]
         return []
 
-    active_uris = reactive(_get_initial_active_uris(servers))
+    active_uris = reactive(_get_initial_active_uris(servers, config.get('AUTOCONNECT_ON_STARTUP', False)))
     current_page = reactive(0)
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
@@ -274,11 +274,6 @@ class VMManagerTUI(App):
     def show_success_message(self, message: str):
         logging.info(message)
         self.notify(message, timeout=10, title="Info")
-
-    def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
-        """Pause or resume VMCard updates when a bulk operation starts or stops."""
-        for card in self.query(VMCard):
-            card.toggle_updates(not in_progress)
 
     @on(Button.Pressed, "#select_server_button")
     def action_select_server(self) -> None:
