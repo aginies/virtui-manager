@@ -202,15 +202,6 @@ class VMCard(Static):
         if self.timer:
             self.timer.stop()
 
-    def toggle_updates(self, enable: bool) -> None:
-        """Enable or disable the periodic statistics update."""
-        if self.timer:
-            if enable:
-                self.timer.resume()
-                self.update_stats() # Trigger an immediate update
-            else:
-                self.timer.pause()
-
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
         try:

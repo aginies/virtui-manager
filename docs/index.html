@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html class="theme-christmas">
 <head>
     <title>Rainbow V Manager</title>
     <meta charset="utf-8">
@@ -85,33 +85,83 @@
     </div>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const theme = document.documentElement.className;
         const container = document.body;
-        const starCount = 100;
-        const snowflakeCount = 40;
 
-        // Create stars
-        for (let i = 0; i < starCount; i++) {
-            const star = document.createElement('div');
-            star.classList.add('star');
-            star.style.top = `${Math.random() * 100}%`;
-            star.style.left = `${Math.random() * 100}%`;
-            star.style.animationDelay = `${Math.random() * 3}s`;
-            star.style.animationDuration = `${Math.random() * 2 + 1.5}s`;
-            container.appendChild(star);
+        // --- Theme-based Animation Controller ---
+        if (theme.includes('christmas') || theme.includes('dark')) {
+            createSnowflakesAndStars();
+        } else if (theme.includes('ufo')) {
+            createUFOs();
         }
 
-        // Create snowflakes
-        const snowflakeContent = ['❄️', '❅', '❆'];
-        for (let i = 0; i < snowflakeCount; i++) {
-            const snowflake = document.createElement('div');
-            snowflake.classList.add('snowflake');
-            snowflake.textContent = snowflakeContent[Math.floor(Math.random() * snowflakeContent.length)];
-            snowflake.style.left = `${Math.random() * 100}vw`;
-            snowflake.style.animationDuration = `${Math.random() * 8 + 7}s`;
-            snowflake.style.animationDelay = `${Math.random() * 10}s`;
-            snowflake.style.fontSize = `${Math.random() * 15 + 10}px`;
-            snowflake.style.opacity = Math.random() * 0.7 + 0.3;
-            container.appendChild(snowflake);
+        // --- Animation Functions ---
+
+        function createSnowflakesAndStars() {
+            const starCount = 100;
+            const snowflakeCount = 40;
+
+            // Create stars
+            for (let i = 0; i < starCount; i++) {
+                const star = document.createElement('div');
+                star.classList.add('star');
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 3}s`;
+                star.style.animationDuration = `${Math.random() * 2 + 1.5}s`;
+                container.appendChild(star);
+            }
+
+            // Create snowflakes
+            const snowflakeContent = ['❄️', '❅', '❆'];
+            for (let i = 0; i < snowflakeCount; i++) {
+                const snowflake = document.createElement('div');
+                snowflake.classList.add('snowflake');
+                snowflake.textContent = snowflakeContent[Math.floor(Math.random() * snowflakeContent.length)];
+                snowflake.style.left = `${Math.random() * 100}vw`;
+                snowflake.style.animationDuration = `${Math.random() * 8 + 7}s`;
+                snowflake.style.animationDelay = `${Math.random() * 10}s`;
+                snowflake.style.fontSize = `${Math.random() * 15 + 10}px`;
+                snowflake.style.opacity = Math.random() * 0.7 + 0.3;
+                container.appendChild(snowflake);
+            }
+        }
+
+        function createUFOs() {
+            const ufoTypes = ['🛸', '🚀', '🛰️', 'ship'];
+            
+            setInterval(() => {
+                const ufoType = ufoTypes[Math.floor(Math.random() * ufoTypes.length)];
+
+                const ufo = document.createElement('div');
+                ufo.classList.add('ufo');
+
+                const visualContainer = document.createElement('div');
+                
+                if (ufoType === 'ship') {
+                    visualContainer.classList.add('ufo-ship');
+                } else {
+                    visualContainer.classList.add('ufo-emoji');
+                    visualContainer.textContent = ufoType;
+                }
+                ufo.appendChild(visualContainer);
+
+                // Randomize vertical position, speed, and size
+                const startY = Math.random() * window.innerHeight * 0.8;
+                const duration = Math.random() * 8 + 8; // 8 to 16 seconds
+                const scale = Math.random() * 0.5 + 0.6; // 0.6x to 1.1x size
+
+                ufo.style.top = `${startY}px`;
+                ufo.style.animationDuration = `${duration}s`;
+                ufo.style.transform = `scale(${scale})`;
+
+                container.appendChild(ufo);
+
+                setTimeout(() => {
+                    ufo.remove();
+                }, duration * 1000);
+
+            }, 1500); // New UFO every 1.5 seconds
         }
     });
     </script>
