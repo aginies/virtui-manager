@@ -8,6 +8,7 @@ class VmAction:
     STOP = "stop"
     FORCE_OFF = "force_off"
     PAUSE = "pause"
+    RESUME = "resume"
     DELETE = "delete"
 
 class VmStatus:

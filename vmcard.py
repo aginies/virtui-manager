@@ -433,14 +433,9 @@ class VMCard(Static):
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
+        from constants import VmAction
         logging.info(f"Attempting to resume VM: {self.name}")
-        try:
-            self.vm.resume()
-            self.app.refresh_vm_list()
-            logging.info(f"Successfully resumed VM: {self.name}")
-            self.app.show_success_message(f"VM '{self.name}' resumed successfully.")
-        except libvirt.libvirtError as e:
-            self.app.show_error_message(f"Error on VM {self.name} during 'resume': {e}")
+        self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.RESUME))
 
     def _handle_xml_button(self, event: Button.Pressed) -> None:
         """Handles the xml button press."""

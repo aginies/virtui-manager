@@ -462,6 +462,9 @@ class VMManagerTUI(App):
                 elif message.action == VmAction.DELETE:
                     self.vm_service.delete_vm(domain, delete_storage=message.delete_storage)
                     self.call_from_thread(self.show_success_message, f"VM '{vm_name}' deleted successfully.")
+                elif message.action == VmAction.RESUME:
+                    self.vm_service.resume_vm(domain)
+                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' resumed successfully.")
                 # Other actions (stop, pause, etc.) will be handled here in the future
                 else:
                     self.call_from_thread(self.show_error_message, f"Unknown action '{message.action}' requested.")

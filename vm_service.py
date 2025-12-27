@@ -136,6 +136,10 @@ class VMService:
 
         delete_action(domain, delete_storage=delete_storage)
 
+    def resume_vm(self, domain: libvirt.virDomain) -> None:
+        """Resumes the VM."""
+        domain.resume()
+
     def get_vm_details(self, active_uris: list[str], vm_uuid: str) -> tuple | None:
         """Finds a VM by UUID and returns its detailed information."""
         from vm_queries import (
