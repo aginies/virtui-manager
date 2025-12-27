@@ -4,6 +4,7 @@ Handles all libvirt interactions and data processing.
 """
 import libvirt
 from connection_manager import ConnectionManager
+from constants import VmStatus
 
 class VMService:
     """A service class to abstract libvirt operations."""
@@ -117,14 +118,14 @@ class VMService:
         total_vms_unfiltered = len(domains_with_conn)
         domains_to_display = domains_with_conn
 
-        if sort_by != "default":
-            if sort_by == "running":
+        if sort_by != VmStatus.DEFAULT:
+            if sort_by == VmStatus.RUNNING:
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.info()[0] == libvirt.VIR_DOMAIN_RUNNING]
-            elif sort_by == "paused":
+            elif sort_by == VmStatus.PAUSED:
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.info()[0] == libvirt.VIR_DOMAIN_PAUSED]
-            elif sort_by == "stopped":
+            elif sort_by == VmStatus.STOPPED:
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.info()[0] not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]]
-            elif sort_by == "selected":
+            elif sort_by == VmStatus.SELECTED:
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.UUIDString() in selected_vm_uuids]
 
         if search_text:

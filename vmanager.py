@@ -39,6 +39,7 @@ from modals.vmanager_select_server_modals import SelectServerModal, SelectOneSer
 from vm_service import VMService
 from webconsole_manager import WebConsoleManager
 from vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm#, stop_vm
+from constants import VmAction, VmStatus
 
 # Configure logging
 logging.basicConfig(
@@ -79,7 +80,7 @@ class VMManagerTUI(App):
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
     WC_PORT_RANGE_START = config.get('WC_PORT_RANGE_START')
     WC_PORT_RANGE_END = config.get('WC_PORT_RANGE_END')
-    sort_by = reactive("default")
+    sort_by = reactive(VmStatus.DEFAULT)
     search_text = reactive("")
     num_pages = reactive(1)
     selected_vm_uuids: reactive[list[str]] = reactive(list)
@@ -582,19 +583,19 @@ class VMManagerTUI(App):
 
                 try:
                     msg = None # Default message is None
-                    if action_type == "start":
+                    if action_type == VmAction.START:
                         start_vm(domain)
                         msg = f"VM '{vm_name}' started."
-                    elif action_type == "stop":
+                    elif action_type == VmAction.STOP:
                         stop_vm(domain)
                         msg = f"Sent shutdown signal to VM '{vm_name}'."
-                    elif action_type == "force_off":
+                    elif action_type == VmAction.FORCE_OFF:
                         force_off_vm(domain)
                         msg = f"VM '{vm_name}' forcefully powered off."
-                    elif action_type == "pause":
+                    elif action_type == VmAction.PAUSE:
                         pause_vm(domain)
                         msg = f"VM '{vm_name}' paused."
-                    elif action_type == "delete":
+                    elif action_type == VmAction.DELETE:
                         # delete_vm now handles its own logging via the callback
                         log_callback = lambda m: self.call_from_thread(add_log_message, m)
                         delete_vm(domain, delete_storage=delete_storage_flag, log_callback=log_callback)

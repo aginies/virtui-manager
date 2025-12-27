@@ -10,6 +10,7 @@ from textual.widgets import (
         RadioSet
         )
 from modals.base_modals import BaseModal
+from constants import VmStatus
 
 
 class FilterModal(BaseModal[None]):
@@ -22,7 +23,7 @@ class FilterModal(BaseModal[None]):
             self.status = status
             self.search = search
 
-    def __init__(self, current_search: str = "", current_status: str = "default") -> None:
+    def __init__(self, current_search: str = "", current_status: str = VmStatus.DEFAULT) -> None:
         super().__init__()
         self.current_search = current_search
         self.current_status = current_status
@@ -33,11 +34,11 @@ class FilterModal(BaseModal[None]):
             with Vertical(classes="info-details"):
                 yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
                 with RadioSet(id="status-radioset"):
-                    yield RadioButton("All", id="status_default", value=self.current_status == "default")
-                    yield RadioButton("Running", id="status_running", value=self.current_status == "running")
-                    yield RadioButton("Paused", id="status_paused", value=self.current_status == "paused")
-                    yield RadioButton("Stopped", id="status_stopped", value=self.current_status == "stopped")
-                    yield RadioButton("Manually Selected", id="status_selected", value=self.current_status == "selected")
+                    yield RadioButton("All", id=f"status_{VmStatus.DEFAULT}", value=self.current_status == VmStatus.DEFAULT)
+                    yield RadioButton("Running", id=f"status_{VmStatus.RUNNING}", value=self.current_status == VmStatus.RUNNING)
+                    yield RadioButton("Paused", id=f"status_{VmStatus.PAUSED}", value=self.current_status == VmStatus.PAUSED)
+                    yield RadioButton("Stopped", id=f"status_{VmStatus.STOPPED}", value=self.current_status == VmStatus.STOPPED)
+                    yield RadioButton("Manually Selected", id=f"status_{VmStatus.SELECTED}", value=self.current_status == VmStatus.SELECTED)
             with Horizontal():
                 yield Button("Apply", id="apply-btn", variant="success")
                 yield Button("Cancel", id="cancel-btn")
@@ -49,7 +50,7 @@ class FilterModal(BaseModal[None]):
             search_text = self.query_one("#search-input", Input).value
             radioset = self.query_one(RadioSet)
             status_button = radioset.pressed_button
-            status = "default"
+            status = VmStatus.DEFAULT
             if status_button:
                 status = status_button.id.replace("status_", "")
             
@@ -62,7 +63,7 @@ class FilterModal(BaseModal[None]):
         search_text = self.query_one("#search-input", Input).value
         radioset = self.query_one(RadioSet)
         status_button = radioset.pressed_button
-        status = "default"
+        status = VmStatus.DEFAULT
         if status_button:
             status = status_button.id.replace("status_", "")
         
