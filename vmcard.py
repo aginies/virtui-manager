@@ -216,74 +216,68 @@ class VMCard(Static):
             self.styles.border = ("solid", self.server_border_color)
 
     def update_stats(self) -> None:
-        """Update CPU and memory statistics."""
-        self._update_webc_status()
+        """Schedules a worker to update CPU and memory statistics for the VM."""
+        if not self.vm:
+            return
 
-        if self.vm:
+        def update_worker():
+            # This runs in a background thread
             try:
-                new_status = get_status(self.vm)
-                if self.status != new_status:
-                    self.status = new_status
-                    try:
-                        status_widget = self.query_one("#status")
-                        status_widget.update(f"Status: {self.status}{self.webc_status_indicator}")
+                stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
+
+                # This will be None if the domain is gone or inactive
+                if not stats:
+                    # If VM was previously running, update its state to reflect it's stopped.
+                    if self.status != "Stopped":
+                        def update_to_stopped():
+                            self.status = "Stopped"
+                            self._update_status_styling()
+                            self.update_button_layout()
+                            self.query_one("#cpu-sparkline-container").display = False
+                            self.query_one("#mem-sparkline-container").display = False
+                        self.app.call_from_thread(update_to_stopped)
+                    return
+
+                def apply_stats_to_ui():
+                    # This runs on the main thread
+                    # Update status if changed
+                    if self.status != stats['status']:
+                        self.status = stats['status']
                         self._update_status_styling()
                         self.update_button_layout()
+                    
+                    # Update sparklines
+                    self.cpu_history = self.cpu_history[-20:] + [stats['cpu_percent']]
+                    self.mem_history = self.mem_history[-20:] + [stats['mem_percent']]
+                    
+                    try:
+                        self.query_one("#cpu-sparkline").data = self.cpu_history
+                        self.query_one("#mem-sparkline").data = self.mem_history
                     except NoMatches:
-                        pass # Widget might have been removed during a refresh, skip update.
+                        pass # Card may be unmounting
+
+                    # Persist history for global refresh
+                    if hasattr(self.app, "sparkline_data"):
+                        uuid = self.vm.UUIDString()
+                        if uuid in self.app.sparkline_data:
+                            self.app.sparkline_data[uuid]['cpu'] = self.cpu_history
+                            self.app.sparkline_data[uuid]['mem'] = self.mem_history
+                
+                self.app.call_from_thread(apply_stats_to_ui)
+
             except libvirt.libvirtError as e:
+                # Handle cases where the VM disappears during the operation
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     if self.timer:
                         self.timer.stop()
-                    return
-                logging.warning(f"Libvirt error on refresh for {self.name}: {e}")
+                else:
+                    logging.warning(f"Libvirt error during background stat update for {self.name}: {e}")
             except Exception as e:
-                logging.error(f"Unexpected error refreshing status for {self.name}: {e}")
+                logging.error(f"Unexpected error in update_stats worker for {self.name}: {e}", exc_info=True)
 
-        try:
-            if self.vm and self.vm.isActive():
-                # CPU Usage
-                stats = self.vm.getCPUStats(True)
-                current_cpu_time = stats[0]['cpu_time']
-                now = datetime.now().timestamp()
-
-                if self.last_cpu_time > 0:
-                    time_diff = now - self.last_cpu_time_ts
-                    cpu_diff = current_cpu_time - self.last_cpu_time
-                    if time_diff > 0:
-                        # nanoseconds to seconds, then divide by number of cpus
-                        cpu_percent = (cpu_diff / (time_diff * 1_000_000_000)) * 100
-                        cpu_percent = cpu_percent / self.cpu # Divide by number of vCPUs
-                        self.cpu_history = self.cpu_history[-20:] + [cpu_percent]
-                        try:
-                            self.query_one("#cpu-sparkline").data = self.cpu_history
-                        except NoMatches:
-                            pass
-
-                self.last_cpu_time = current_cpu_time
-                self.last_cpu_time_ts = now
-
-                # Memory Usage
-                mem_stats = self.vm.memoryStats()
-                if 'rss' in mem_stats:
-                    rss_kb = mem_stats['rss']
-                    mem_percent = (rss_kb * 1024) / (self.memory * 1024 * 1024) * 100
-                    self.mem_history = self.mem_history[-20:] + [mem_percent]
-                    try:
-                        self.query_one("#mem-sparkline").data = self.mem_history
-                    except NoMatches:
-                        pass
-
-                if hasattr(self.app, "sparkline_data"):
-                    uuid = self.vm.UUIDString()
-                    self.app.sparkline_data[uuid]['cpu'] = self.cpu_history
-                    self.app.sparkline_data[uuid]['mem'] = self.mem_history
-        except libvirt.libvirtError as e:
-            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                if self.timer:
-                    self.timer.stop()
-                return
-            logging.error(f"Error getting stats for {self.name}: {e}")
+        # Always check webc status on the main thread before starting the worker
+        self._update_webc_status()
+        self.app.run_worker(update_worker, thread=True, name=f"update_stats_{self.name}")
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""

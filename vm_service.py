@@ -11,6 +11,60 @@ class VMService:
 
     def __init__(self):
         self.connection_manager = ConnectionManager()
+        self._cpu_time_cache = {} # Cache for calculating CPU usage {uuid: (last_time, last_timestamp)}
+
+    def get_vm_runtime_stats(self, domain: libvirt.virDomain) -> dict | None:
+        """Gets live statistics for a given, active VM domain."""
+        from vm_queries import get_status
+        from datetime import datetime
+
+        if not domain or not domain.isActive():
+            return None
+
+        uuid = domain.UUIDString()
+        stats = {}
+        try:
+            # Status
+            stats['status'] = get_status(domain)
+
+            # CPU Usage
+            cpu_stats = domain.getCPUStats(True)
+            current_cpu_time = cpu_stats[0]['cpu_time']
+            now = datetime.now().timestamp()
+            
+            cpu_percent = 0.0
+            if uuid in self._cpu_time_cache:
+                last_cpu_time, last_cpu_time_ts = self._cpu_time_cache[uuid]
+                time_diff = now - last_cpu_time_ts
+                cpu_diff = current_cpu_time - last_cpu_time
+                if time_diff > 0:
+                    num_cpus = domain.info()[3]
+                    # nanoseconds to seconds, then divide by number of cpus
+                    cpu_percent = (cpu_diff / (time_diff * 1_000_000_000)) * 100
+                    cpu_percent = cpu_percent / num_cpus if num_cpus > 0 else 0
+
+            stats['cpu_percent'] = cpu_percent
+            self._cpu_time_cache[uuid] = (current_cpu_time, now)
+
+            # Memory Usage
+            mem_stats = domain.memoryStats()
+            mem_percent = 0.0
+            if 'rss' in mem_stats:
+                total_mem_kb = domain.info()[1]
+                if total_mem_kb > 0:
+                    rss_kb = mem_stats['rss']
+                    mem_percent = (rss_kb / total_mem_kb) * 100
+            
+            stats['mem_percent'] = mem_percent
+            
+            return stats
+
+        except libvirt.libvirtError as e:
+            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                # If domain disappears, remove it from cache
+                if uuid in self._cpu_time_cache:
+                    del self._cpu_time_cache[uuid]
+            return None
 
     def connect(self, uri: str) -> libvirt.virConnect | None:
         """Connects to a libvirt URI."""
