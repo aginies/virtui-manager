@@ -78,6 +78,78 @@ class VMService:
         """Disconnects all active libvirt connections."""
         self.connection_manager.disconnect_all()
 
+    def perform_bulk_action(self, active_uris: list[str], vm_uuids: list[str], action_type: str, delete_storage_flag: bool, progress_callback: callable):
+        """Performs a bulk action on a list of VMs, reporting progress via a callback."""
+        from vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
+        from constants import VmAction
+
+        action_dispatcher = {
+            VmAction.START: start_vm,
+            VmAction.STOP: stop_vm,
+            VmAction.FORCE_OFF: force_off_vm,
+            VmAction.PAUSE: pause_vm,
+        }
+
+        total_vms = len(vm_uuids)
+        progress_callback("setup", total=total_vms)
+        progress_callback("log", message=f"Starting bulk '{action_type}' on {total_vms} VMs...")
+
+        successful_vms = []
+        failed_vms = []
+
+        for i, vm_uuid in enumerate(vm_uuids):
+            domain = None
+            vm_name = "Unknown VM"
+
+            # Find the domain on any active connection
+            for uri in active_uris:
+                conn = self.connect(uri)
+                if not conn:
+                    continue
+                try:
+                    domain = conn.lookupByUUIDString(vm_uuid)
+                    vm_name = domain.name()
+                    break
+                except libvirt.libvirtError:
+                    continue
+            
+            progress_callback("progress", name=vm_name, current=i + 1, total=total_vms)
+
+            if not domain:
+                msg = f"VM with UUID {vm_uuid} not found on any active server."
+                progress_callback("log_error", message=msg)
+                failed_vms.append(vm_uuid)
+                continue
+
+            try:
+                action_func = action_dispatcher.get(action_type)
+                if action_func:
+                    action_func(domain)
+                    msg = f"Performed '{action_type}' on VM '{vm_name}'."
+                    progress_callback("log", message=msg)
+                elif action_type == VmAction.DELETE:
+                    # Special case for delete action's own callback
+                    delete_log_callback = lambda m: progress_callback("log", message=m)
+                    delete_vm(domain, delete_storage=delete_storage_flag, log_callback=delete_log_callback)
+                else:
+                    msg = f"Unknown bulk action type: {action_type}"
+                    progress_callback("log_error", message=msg)
+                    failed_vms.append(vm_name)
+                    continue
+                
+                successful_vms.append(vm_name)
+
+            except libvirt.libvirtError as e:
+                msg = f"Error performing '{action_type}' on VM '{vm_name}': {e}"
+                progress_callback("log_error", message=msg)
+                failed_vms.append(vm_name)
+            except Exception as e:
+                msg = f"Unexpected error on '{action_type}' for VM '{vm_name}': {e}"
+                progress_callback("log_error", message=msg)
+                failed_vms.append(vm_name)
+        
+        return successful_vms, failed_vms
+
     def get_connection(self, uri: str) -> libvirt.virConnect | None:
         """Gets an existing connection object from the manager."""
         return self.connection_manager.get_connection(uri)
