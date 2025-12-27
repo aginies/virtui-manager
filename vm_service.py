@@ -23,6 +23,68 @@ class VMService:
         """Disconnects all active libvirt connections."""
         self.connection_manager.disconnect_all()
 
+    def get_connection(self, uri: str) -> libvirt.virConnect | None:
+        """Gets an existing connection object from the manager."""
+        return self.connection_manager.get_connection(uri)
+
+    def get_all_uris(self) -> list[str]:
+        """Gets all URIs currently held by the connection manager."""
+        return self.connection_manager.get_all_uris()
+
+    def get_vm_details(self, active_uris: list[str], vm_uuid: str) -> tuple | None:
+        """Finds a VM by UUID and returns its detailed information."""
+        from vm_queries import (
+            get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
+            get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
+            get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
+            get_boot_info, get_vm_video_model, get_vm_cpu_model
+        )
+
+        domain = None
+        conn_for_domain = None
+
+        for uri in active_uris:
+            conn = self.connect(uri)
+            if not conn:
+                continue
+            try:
+                domain = conn.lookupByUUIDString(vm_uuid)
+                conn_for_domain = conn
+                break
+            except libvirt.libvirtError:
+                continue
+
+        if not domain or not conn_for_domain:
+            return None
+
+        try:
+            info = domain.info()
+            xml_content = domain.XMLDesc(0)
+            vm_info = {
+                'name': domain.name(),
+                'uuid': domain.UUIDString(),
+                'status': get_status(domain),
+                'description': get_vm_description(domain),
+                'cpu': info[3],
+                'cpu_model': get_vm_cpu_model(xml_content),
+                'memory': info[2] // 1024,
+                'machine_type': get_vm_machine_info(xml_content),
+                'firmware': get_vm_firmware_info(xml_content),
+                'shared_memory': get_vm_shared_memory_info(xml_content),
+                'networks': get_vm_networks_info(xml_content),
+                'detail_network': get_vm_network_ip(domain),
+                'network_dns_gateway': get_vm_network_dns_gateway_info(domain),
+                'disks': get_vm_disks_info(conn_for_domain, xml_content),
+                'devices': get_vm_devices_info(xml_content),
+                'boot': get_boot_info(xml_content, conn_for_domain),
+                'video_model': get_vm_video_model(xml_content),
+                'xml': xml_content,
+            }
+            return (vm_info, domain, conn_for_domain)
+        except libvirt.libvirtError:
+            # Propagate the error to be handled by the caller
+            raise
+
     def get_vms(self, active_uris: list[str], servers: list[dict], sort_by: str, search_text: str, selected_vm_uuids: list[str]) -> tuple:
         """Fetch, filter, and return VM data without creating UI components."""
         domains_with_conn = []

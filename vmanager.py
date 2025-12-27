@@ -18,12 +18,7 @@ from libvirt_error_handler import register_error_handler
 from libvirt_utils import _get_vm_names_from_uuids
 from vmcard import VMCard, VMNameClicked, VMSelectionChanged
 from vm_queries import (
-    get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
-    get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
-    get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
-    get_boot_info, get_vm_video_model,
-    get_vm_cpu_model, get_vm_graphics_info,
-    check_for_spice_vms,
+    get_status, get_vm_graphics_info, check_for_spice_vms,
 )
 from config import load_config, save_config
 from utils import (
@@ -406,51 +401,22 @@ class VMManagerTUI(App):
 
     @on(VMNameClicked)
     async def on_vm_name_clicked(self, message: VMNameClicked) -> None:
-        """Callback when a VM's name is clicked. Fetches details in a worker."""
-        domain = None
-        conn_for_domain = None
-
-        for uri in self.active_uris:
-            conn = self.vm_service.connect(uri)
-            if not conn:
-                continue
-            try:
-                domain = conn.lookupByUUIDString(message.vm_uuid)
-                conn_for_domain = conn
-                break
-            except libvirt.libvirtError:
-                continue
-
-        if not domain or not conn_for_domain:
-            self.show_error_message(f"VM {message.vm_name} with UUID {message.vm_uuid} not found on any active server.")
-            return
+        """Callback when a VM's name is clicked. Fetches details via the VMService."""
 
         def get_details_and_show_modal():
-            """Worker function to fetch VM details and then push the modal screen."""
+            """Worker function to fetch VM details via the service."""
             try:
-                info = domain.info()
-                xml_content = domain.XMLDesc(0)
-                vm_info = {
-                    'name': domain.name(),
-                    'uuid': domain.UUIDString(),
-                    'status': get_status(domain),
-                    'description': get_vm_description(domain),
-                    'cpu': info[3],
-                    'cpu_model': get_vm_cpu_model(xml_content),
-                    'memory': info[2] // 1024,
-                    'machine_type': get_vm_machine_info(xml_content),
-                    'firmware': get_vm_firmware_info(xml_content),
-                    'shared_memory': get_vm_shared_memory_info(xml_content),
-                    'networks': get_vm_networks_info(xml_content),
-                    'detail_network': get_vm_network_ip(domain),
-                    'network_dns_gateway': get_vm_network_dns_gateway_info(domain),
-                    'disks': get_vm_disks_info(conn_for_domain, xml_content),
-                    'devices': get_vm_devices_info(xml_content),
-                    'boot': get_boot_info(xml_content, conn_for_domain),
-                    'video_model': get_vm_video_model(xml_content),
-                    'xml': xml_content,
-                }
+                result = self.vm_service.get_vm_details(self.active_uris, message.vm_uuid)
+                
+                if not result:
+                    self.call_from_thread(
+                        self.show_error_message,
+                        f"VM {message.vm_name} with UUID {message.vm_uuid} not found on any active server."
+                    )
+                    return
 
+                vm_info, domain, conn_for_domain = result
+                
                 def on_detail_modal_dismissed(result: None):
                     self.refresh_vm_list()
 

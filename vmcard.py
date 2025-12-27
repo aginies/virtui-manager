@@ -893,7 +893,7 @@ class VMCard(Static):
             for uuid in selected_vm_uuids:
                 found_domain = None
                 for uri in self.app.active_uris:
-                    conn = self.app.connection_manager.connect(uri)
+                    conn = self.app.vm_service.connect(uri)
                     if conn:
                         try:
                             domain = conn.lookupByUUIDString(uuid)
@@ -924,10 +924,10 @@ class VMCard(Static):
             return
 
         # Get all active connections from the connection manager
-        active_uris = self.app.connection_manager.get_all_uris()
+        active_uris = self.app.vm_service.get_all_uris()
         all_connections = {}
         for uri in active_uris:
-            conn = self.app.connection_manager.get_connection(uri)
+            conn = self.app.vm_service.get_connection(uri)
             if conn: # Ensure connection is valid
                 all_connections[uri] = conn
 
