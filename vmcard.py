@@ -52,6 +52,14 @@ class VMSelectionChanged(Message):
         self.vm_uuid = vm_uuid
         self.is_selected = is_selected
 
+class VmActionRequest(Message):
+    """Posted when a user requests an action on a VM (start, stop, etc.)."""
+    def __init__(self, vm_uuid: str, action: str, delete_storage: bool = False) -> None:
+        super().__init__()
+        self.vm_uuid = vm_uuid
+        self.action = action
+        self.delete_storage = delete_storage
+
 class VMCard(Static):
     """
     Main VM card
@@ -365,53 +373,14 @@ class VMCard(Static):
         except NoMatches:
             pass # Widget not found, likely torn down or not yet composed.
 
-    def _check_volume_usage(self, domain):
-        """Check if any volumes used by this VM are in use by other running VMs."""
-        xml_desc = domain.XMLDesc(0)
-        root = ET.fromstring(xml_desc)
-        conn = domain.connect()
-        
-        volumes_in_use = []
-        volumes_in_use_by_vm = {}  # Map volume names to VM names
-        for disk in root.findall(".//devices/disk"):
-            if disk.get("device") != "disk":
-                continue
-            
-            source_elem = disk.find("source")
-            if source_elem is None:
-                continue
-            
-            if "pool" in source_elem.attrib and "volume" in source_elem.attrib:
-                pool_name = source_elem.get("pool")
-                vol_name = source_elem.get("volume")
-                try:
-                    pool = conn.storagePoolLookupByName(pool_name)
-                    if pool.isActive():
-                        #vol = pool.storageVolLookupByName(vol_name)
-                        #vol_path = vol.path()
-                        
-                        # Check if this volume is used by other VMs
-                        for other_domain in conn.listAllDomains(0):
-                            if other_domain.name() != domain.name() and other_domain.isActive():
-                                other_domain_xml = other_domain.XMLDesc(0)
-                                other_domain_root = ET.fromstring(other_domain_xml)
-                                for other_disk in other_domain_root.findall(".//devices/disk"):
-                                    other_source = other_disk.find("source")
-                                    if other_source is not None and "pool" in other_source.attrib and "volume" in other_source.attrib:
-                                        if (other_source.get("pool") == pool_name and 
-                                            other_source.get("volume") == vol_name):
-                                            volumes_in_use.append(vol_name)
-                                            volumes_in_use_by_vm[vol_name] = other_domain.name()
-                                            break
-                except libvirt.libvirtError:
-                    continue
-        
-        return volumes_in_use, volumes_in_use_by_vm
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
+        from constants import VmAction
+        if event.button.id == "start":
+            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.START))
+            return
+
         button_handlers = {
-            "start": self._handle_start_button,
             "shutdown": self._handle_shutdown_button,
             "stop": self._handle_stop_button,
             "pause": self._handle_pause_button,
@@ -432,38 +401,17 @@ class VMCard(Static):
         if handler:
             handler(event)
 
-    def _handle_start_button(self, event: Button.Pressed) -> None:
-        """Handles the start button press."""
-        logging.info(f"Attempting to start VM: {self.name}")
-        if not self.vm.isActive():
-            try:
-                # Check if any volumes are in use by other VMs
-                volumes_in_use, volumes_in_use_by_vm = self._check_volume_usage(self.vm)
-                if volumes_in_use:
-                    volume_list = ", ".join([f"{vol_name} is used by {volumes_in_use_by_vm[vol_name]}" for vol_name in volumes_in_use])
-                    self.app.show_error_message(f"Cannot start VM '{self.name}' because volume(s) {volume_list}, a running VMs.")
-                    return
-                
-                start_vm(self.vm)
-                #self.vm.create()
-                self.app.refresh_vm_list()
-                logging.info(f"Successfully started VM: {self.name}")
-                self.app.show_success_message(f"VM '{self.name}' started successfully.")
-            except Exception as e:
-                self.app.show_error_message(f"Error on VM {self.name} during 'start': {e}")
-
     def _handle_shutdown_button(self, event: Button.Pressed) -> None:
         """Handles the shutdown button press."""
+        from constants import VmAction
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.vm.isActive():
-            try:
-                self.vm.shutdown()
-                self.app.show_success_message(f"Shutdown signal sent to VM '{self.name}'.")
-            except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error on VM {self.name} during 'shutdown': {e}")
+            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.STOP))
+
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
+        from constants import VmAction
         logging.info(f"Attempting to stop VM: {self.name}")
 
         def on_confirm(confirmed: bool) -> None:
@@ -471,28 +419,17 @@ class VMCard(Static):
                 return
 
             if self.vm.isActive():
-                try:
-                    self.vm.destroy()
-                    self.app.refresh_vm_list()
-                    logging.info(f"Successfully stopped VM: {self.name}")
-                    self.app.show_success_message(f"VM '{self.name}' stopped successfully.")
-                except libvirt.libvirtError as e:
-                    self.app.show_error_message(f"Error on VM {self.name} during 'stop': {e}")
+                self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.FORCE_OFF))
 
         message = f"This is a hard stop, like unplugging the power cord.\nAre you sure you want to stop '{self.name}'?"
         self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
     def _handle_pause_button(self, event: Button.Pressed) -> None:
         """Handles the pause button press."""
+        from constants import VmAction
         logging.info(f"Attempting to pause VM: {self.name}")
         if self.vm.isActive():
-            try:
-                self.vm.suspend()
-                self.app.refresh_vm_list()
-                logging.info(f"Successfully paused VM: {self.name}")
-                self.app.show_success_message(f"VM '{self.name}' paused successfully.")
-            except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error on VM {self.name} during 'pause': {e}")
+            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.PAUSE))
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
@@ -697,6 +634,7 @@ class VMCard(Static):
 
     def _handle_delete_button(self, event: Button.Pressed) -> None:
         """Handles the delete button press."""
+        from constants import VmAction
         logging.info(f"Attempting to delete VM: {self.name}")
 
         def on_confirm(result: tuple[bool, bool]) -> None:
@@ -704,27 +642,7 @@ class VMCard(Static):
             if not confirmed:
                 return
 
-            loading_modal = LoadingModal()
-            self.app.push_screen(loading_modal)
-
-            def do_delete():
-                try:
-                    delete_vm(self.vm, delete_storage=delete_storage)
-                    self.app.call_from_thread(self.app.show_success_message, f"VM '{self.name}' deleted successfully.")
-                    self.app.call_from_thread(self.app.refresh_vm_list)
-                    logging.info(f"Successfully deleted VM: {self.name}")
-                except libvirt.libvirtError as e:
-                    self.app.call_from_thread(self.app.show_error_message, f"Error deleting VM '{self.name}': {e}")
-                except Exception as e:
-                    logging.error(f"An unexpected error occurred during VM deletion: {e}")
-                    self.app.call_from_thread(self.app.show_error_message, f"An unexpected error occurred: {e}")
-                finally:
-                    try:
-                        self.app.call_from_thread(loading_modal.dismiss)
-                    except Exception:
-                        pass
-
-            self.app.run_worker(do_delete, thread=True)
+            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.DELETE, delete_storage=delete_storage))
 
         self.app.push_screen(
             DeleteVMConfirmationDialog(self.name), on_confirm

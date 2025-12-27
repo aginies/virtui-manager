@@ -224,6 +224,42 @@ def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str, vol_name: str
 
     return vms_using_volume
 
+def check_domain_volumes_in_use(domain: libvirt.virDomain) -> None:
+    """
+    Check if any volumes used by the domain are in use by other running VMs.
+    Raises a ValueError if a volume is in use.
+    """
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    conn = domain.connect()
+
+    for disk in root.findall(".//devices/disk"):
+        if disk.get("device") != "disk":
+            continue
+        
+        source_elem = disk.find("source")
+        if source_elem is None or "pool" not in source_elem.attrib or "volume" not in source_elem.attrib:
+            continue
+
+        pool_name = source_elem.get("pool")
+        vol_name = source_elem.get("volume")
+        try:
+            # Check against all other running domains
+            for other_domain in conn.listAllDomains(libvirt.VIR_DOMAIN_RUNNING):
+                if other_domain.UUIDString() == domain.UUIDString():
+                    continue
+                
+                other_xml = other_domain.XMLDesc(0)
+                other_root = ET.fromstring(other_xml)
+                for other_disk in other_root.findall(".//devices/disk"):
+                    other_source = other_disk.find("source")
+                    if (other_source is not None and 
+                        other_source.get("pool") == pool_name and 
+                        other_source.get("volume") == vol_name):
+                        raise ValueError(f"Volume '{vol_name}' is in use by running VM '{other_domain.name()}'")
+        except libvirt.libvirtError:
+            # Ignore errors during check (e.g., pool not found on other host)
+            continue
 
 def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name: str, volume_name: str, new_volume_name: str = None, progress_callback=None, log_callback=None) -> List[str]:
     """

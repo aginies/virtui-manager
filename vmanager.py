@@ -16,7 +16,7 @@ from textual.reactive import reactive
 
 from libvirt_error_handler import register_error_handler
 from libvirt_utils import _get_vm_names_from_uuids
-from vmcard import VMCard, VMNameClicked, VMSelectionChanged
+from vmcard import VMCard, VMNameClicked, VMSelectionChanged, VmActionRequest
 from vm_queries import (
     get_status, get_vm_graphics_info, check_for_spice_vms,
 )
@@ -434,6 +434,46 @@ class VMManagerTUI(App):
                 )
 
         self.run_worker(get_details_and_show_modal, name=f"get_details_{message.vm_name}", thread=True)
+
+    @on(VmActionRequest)
+    def on_vm_action_request(self, message: VmActionRequest) -> None:
+        """Handles a request to perform an action on a VM."""
+        
+        def action_worker():
+            domain = self.vm_service.find_domain_by_uuid(self.active_uris, message.vm_uuid)
+            if not domain:
+                self.call_from_thread(self.show_error_message, f"Could not find VM with UUID {message.vm_uuid}")
+                return
+            
+            vm_name = domain.name()
+            try:
+                if message.action == VmAction.START:
+                    self.vm_service.start_vm(domain)
+                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' started successfully.")
+                elif message.action == VmAction.STOP:
+                    self.vm_service.stop_vm(domain)
+                    self.call_from_thread(self.show_success_message, f"Sent shutdown signal to VM '{vm_name}'.")
+                elif message.action == VmAction.PAUSE:
+                    self.vm_service.pause_vm(domain)
+                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' paused successfully.")
+                elif message.action == VmAction.FORCE_OFF:
+                    self.vm_service.force_off_vm(domain)
+                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' forcefully stopped.")
+                elif message.action == VmAction.DELETE:
+                    self.vm_service.delete_vm(domain, delete_storage=message.delete_storage)
+                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' deleted successfully.")
+                # Other actions (stop, pause, etc.) will be handled here in the future
+                else:
+                    self.call_from_thread(self.show_error_message, f"Unknown action '{message.action}' requested.")
+                    return
+
+                # If action was successful, refresh the list
+                self.call_from_thread(self.refresh_vm_list)
+
+            except Exception as e:
+                self.call_from_thread(self.show_error_message, f"Error on VM '{vm_name}' during '{message.action}': {e}")
+
+        self.run_worker(action_worker, name=f"action_{message.action}_{message.vm_uuid}", thread=True)
 
     def action_toggle_select_all(self) -> None:
         """Selects or deselects all VMs on the current page."""

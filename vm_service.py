@@ -86,6 +86,56 @@ class VMService:
         """Gets all URIs currently held by the connection manager."""
         return self.connection_manager.get_all_uris()
 
+    def find_domain_by_uuid(self, active_uris: list[str], vm_uuid: str) -> libvirt.virDomain | None:
+        """Finds and returns a domain object from a UUID across active connections."""
+        for uri in active_uris:
+            conn = self.connect(uri)
+            if conn:
+                try:
+                    domain = conn.lookupByUUIDString(vm_uuid)
+                    return domain
+                except libvirt.libvirtError:
+                    continue
+        return None
+
+    def start_vm(self, domain: libvirt.virDomain) -> None:
+        """Performs pre-flight checks and starts the VM."""
+        from vm_actions import start_vm as start_action
+        from storage_manager import check_domain_volumes_in_use
+        
+        if domain.isActive():
+            return # Already running, do nothing
+
+        # Perform pre-flight checks
+        check_domain_volumes_in_use(domain)
+
+        # If checks pass, start the VM
+        start_action(domain)
+
+    def stop_vm(self, domain: libvirt.virDomain) -> None:
+        """Stops the VM."""
+        from vm_actions import stop_vm as stop_action
+
+        stop_action(domain)
+
+    def pause_vm(self, domain: libvirt.virDomain) -> None:
+        """Pauses the VM."""
+        from vm_actions import pause_vm as pause_action
+
+        pause_action(domain)
+
+    def force_off_vm(self, domain: libvirt.virDomain) -> None:
+        """Forcefully stops the VM."""
+        from vm_actions import force_off_vm as force_off_action
+
+        force_off_action(domain)
+
+    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
+        """Deletes the VM."""
+        from vm_actions import delete_vm as delete_action
+
+        delete_action(domain, delete_storage=delete_storage)
+
     def get_vm_details(self, active_uris: list[str], vm_uuid: str) -> tuple | None:
         """Finds a VM by UUID and returns its detailed information."""
         from vm_queries import (
