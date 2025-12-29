@@ -55,6 +55,21 @@ ssh-add -l
 ### Step 3: Connect
 
 That's it! `Rainbow V Manager` will now use the agent to authenticate for any `qemu+ssh://` connections without any more prompts.
+
+---
+
+### SSH Compression for Performance
+
+For connections over slower networks, enabling SSH compression can significantly improve performance. This is configured in your SSH client's configuration file.
+
+To enable compression for a specific host, add the following to your `~/.ssh/config` file:
+
+```
+Host your_remote_host_name
+  Compression yes
+```
+
+Replace `your_remote_host_name` with the actual hostname or IP address you use in your `qemu+ssh://` URI. If you want to enable compression for all SSH connections, you can use `Host *`.
 """
 
 class HowToSSHModal(BaseModal[None]):
