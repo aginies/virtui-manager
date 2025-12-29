@@ -4,7 +4,9 @@ Module for retrieving information about virtual machines.
 import xml.etree.ElementTree as ET
 import libvirt
 from libvirt_utils import _get_disabled_disks_elem, VMANAGER_NS
+from vm_cache import get_from_cache, set_in_cache
 #from utils import log_function_call
+
 
 
 def get_vm_info(conn):
@@ -18,6 +20,14 @@ def get_vm_info(conn):
     domains = conn.listAllDomains(0)
     if domains is not None:
         for domain in domains:
+            uuid = domain.UUIDString()
+            cached_info = get_from_cache(uuid)
+            if cached_info:
+                # To ensure the status is fresh, we can re-fetch just the status
+                cached_info['status'] = get_status(domain)
+                vm_info_list.append(cached_info)
+                continue
+
             info = domain.info()
             xml_content = domain.XMLDesc(0)
             vm_info = {
@@ -41,6 +51,7 @@ def get_vm_info(conn):
                 'disks': get_vm_disks_info(conn, xml_content),
                 'devices': get_vm_devices_info(xml_content),
             }
+            set_in_cache(uuid, vm_info)
             vm_info_list.append(vm_info)
 
     return vm_info_list

@@ -29,6 +29,16 @@ class ConfigModal(BaseModal[None]):
                     tooltip="Automatically connect to the first configured server on application startup"
                 )
 
+                # Performance settings
+                yield Label("Performance", classes="config-section-label")
+                yield Label("Cache TTL (seconds):")
+                yield Input(
+                    value=str(self.config.get("CACHE_TTL", 1)),
+                    id="cache-ttl-input",
+                    type="integer",
+                    tooltip="Time-to-live for VM metadata cache in seconds. Reduces libvirt calls."
+                )
+
                 # Web console settings
                 yield Label("Web Console (novnc)", classes="config-section-label")
                 yield Checkbox(
@@ -99,6 +109,7 @@ class ConfigModal(BaseModal[None]):
                 self.config["WC_PORT_RANGE_END"] = int(self.query_one("#wc-port-end-input", Input).value)
                 self.config["VNC_QUALITY"] = int(self.query_one("#vnc-quality-input", Input).value)
                 self.config["VNC_COMPRESSION"] = int(self.query_one("#vnc-compression-input", Input).value)
+                self.config["CACHE_TTL"] = int(self.query_one("#cache-ttl-input", Input).value)
 
                 save_config(self.config)
                 self.app.show_success_message("Configuration saved successfully.")
