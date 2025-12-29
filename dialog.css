@@ -231,6 +231,7 @@ ProgressModal .progress-log {
     height: 26;
 }
 #remote-console-switch,
+#config-title,
 #webconsole-config-title {
     column-span: 2;
     margin: 1 1;
@@ -251,6 +252,7 @@ ProgressModal .progress-log {
     padding: 0 1;
 }
 #cancel-btn,
+#save-config-btn,
 #perform-action-btn {
     width: 25%
 }
@@ -346,13 +348,15 @@ PasswordModal #dialog-buttons Button {
 }
 
 /* --- HowTo SSH Modal --- */
+ConfigModal #config-dialog,
 HowToSSHModal {
     align: center middle;
     background: rgba(0, 0, 0, 0.5);
 }
+ConfigModal #config-dialog,
 HowToSSHModal #howto-ssh-dialog {
     width: 80;
-    height: 30;
+    height: 34;
     padding: 1;
     border: round $primary;
     background: $surface;
@@ -369,4 +373,12 @@ HowToSSHModal #dialog-buttons {
 HowToSSHModal Button {
     width: 100%;
 }
-
+#wc-port-start-input,
+#wc-port-end-input,
+#vnc-quality-input,
+#vnc-compression-input,
+#port-range-label {
+    width: 33%;
+    height: 1;
+    border: none;
+}

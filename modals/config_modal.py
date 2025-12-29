@@ -2,7 +2,7 @@
 Modal for user configuration
 """
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, ScrollableContainer
+from textual.containers import Vertical, Horizontal, ScrollableContainer, Grid
 from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static
 
@@ -18,14 +18,15 @@ class ConfigModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="config-dialog"):
-            yield Label("Application Configuration")
+            yield Label("Application Configuration", id="config-title")
             yield Static(f"Editing: {get_user_config_path()}", classes="config-path-label")
             with ScrollableContainer():
                 # Autoconnect on startup
                 yield Checkbox(
                     "Autoconnect on startup",
                     self.config.get("AUTOCONNECT_ON_STARTUP", False),
-                    id="autoconnect-checkbox"
+                    id="autoconnect-checkbox",
+                    tooltip="Automatically connect to the first configured server on application startup"
                 )
 
                 # Web console settings
@@ -33,17 +34,20 @@ class ConfigModal(BaseModal[None]):
                 yield Checkbox(
                     "Enable remote web console",
                     self.config.get("REMOTE_WEBCONSOLE", False),
-                    id="remote-webconsole-checkbox"
+                    id="remote-webconsole-checkbox",
+                    tooltip="Enable remote web console"
                 )
                 yield Label("Websockify Path:")
                 yield Input(
                     value=self.config.get("websockify_path", "/usr/bin/websockify"),
-                    id="websockify-path-input"
+                    id="websockify-path-input",
+                    tooltip="Path to the websockify binary"
                 )
                 yield Label("noVNC Path:")
                 yield Input(
                     value=self.config.get("novnc_path", "/usr/share/novnc/"),
-                    id="novnc-path-input"
+                    id="novnc-path-input",
+                    tooltip="Path to noVNC files"
                 )
                 with Horizontal(classes="port-range-container"):
                     yield Label("Websockify Port Range:", classes="port-range-label")
@@ -51,30 +55,37 @@ class ConfigModal(BaseModal[None]):
                         value=str(self.config.get("WC_PORT_RANGE_START", 40000)),
                         id="wc-port-start-input",
                         type="integer",
-                        classes="port-range-input"
+                        classes="port-range-input",
+                        tooltip="Start port for websockify"
                     )
                     yield Input(
                         value=str(self.config.get("WC_PORT_RANGE_END", 40050)),
                         id="wc-port-end-input",
                         type="integer",
-                        classes="port-range-input"
+                        classes="port-range-input",
+                        tooltip="End port for websockify"
                     )
-                yield Label("VNC Quality (0-9):")
-                yield Input(
-                    value=str(self.config.get("VNC_QUALITY", 0)),
-                    id="vnc-quality-input",
-                    type="integer"
-                )
-                yield Label("VNC Compression (0-9):")
-                yield Input(
-                    value=str(self.config.get("VNC_COMPRESSION", 9)),
-                    id="vnc-compression-input",
-                    type="integer"
-                )
+                with Vertical():
+                    with Horizontal():
+                        yield Label("VNC Quality (0-9):")
+                        yield Input(
+                            value=str(self.config.get("VNC_QUALITY", 0)),
+                            id="vnc-quality-input",
+                            type="integer",
+                            tooltip="VNC quality setting (0-9)"
+                        )
+                    with Horizontal():
+                        yield Label("VNC Compression (0-9):")
+                        yield Input(
+                            value=str(self.config.get("VNC_COMPRESSION", 9)),
+                            id="vnc-compression-input",
+                            type="integer",
+                            tooltip="VNC compression level (0-9)"
+                        )
 
-            with Horizontal(classes="config-buttons"):
-                yield Button("Save", variant="primary", id="save-config-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+        with Horizontal():
+            yield Button("Save", variant="primary", id="save-config-btn")
+            yield Button("Cancel", variant="default", id="cancel-btn")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
