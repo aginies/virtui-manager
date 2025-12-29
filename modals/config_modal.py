@@ -35,7 +35,7 @@ class ConfigModal(BaseModal[None]):
                     "Enable remote web console",
                     self.config.get("REMOTE_WEBCONSOLE", False),
                     id="remote-webconsole-checkbox",
-                    tooltip="Enable remote web console"
+                    tooltip="Enable secure SSH and noVNC remote viewing for headless server environments"
                 )
                 yield Label("Websockify Path:")
                 yield Input(
