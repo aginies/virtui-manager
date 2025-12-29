@@ -1,0 +1,98 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vmanager"
+version = "0.4.0"
+description = "Terminal-based interface to manage virtual machines using libvirt"
+readme = "README.md"
+authors = [
+    {name = "Antoine Ginies", email = "aginies@suse.com"}
+]
+maintainers = [
+    {name = "Antoine Ginies", email = "aginies@suse.com"}
+]
+license = {text = "GPL-3.0-or-later"}
+requires-python = ">=3.7"
+keywords = ["virtualization", "libvirt", "kvm", "qemu", "tui", "terminal"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "libvirt-python>=6.0.0",
+    "textual>=0.40.0",
+    "PyYAML>=5.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]
+
+webconsole = [
+    "websockify>=0.10.0",
+]
+
+[project.urls]
+Homepage = "https://aginies.github.io/vmanager/"
+Documentation = "https://aginies.github.io/vmanager/"
+Repository = "https://github.com/aginies/vmanager"
+Issues = "https://github.com/aginies/vmanager/issues"
+Changelog = "https://github.com/aginies/vmanager/releases"
+
+[project.scripts]
+vmanager = "vmanager:main"
+vmanager-cmd = "vmanager_cmd:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["modals"]
+
+[tool.setuptools.package-data]
+"*" = ["*.css", "*.md"]
+
+[tool.black]
+line-length = 100
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+
+[tool.ruff]
+line-length = 100
+target-version = "py37"
+select = ["E", "F", "W", "I", "N", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=vmanager --cov-report=html --cov-report=term-missing"
+
+[tool.mypy]
+python_version = "3.7"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
