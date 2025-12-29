@@ -286,8 +286,8 @@ class VMCard(Static):
                             mem_history.pop(0)
 
                         try:
-                            self.query_one("#cpu-sparkline").data = cpu_history
-                            self.query_one("#mem-sparkline").data = mem_history
+                            self.query_one("#cpu-sparkline").data = list(cpu_history)
+                            self.query_one("#mem-sparkline").data = list(mem_history)
                         except NoMatches:
                             # Card may be unmounting
                             pass
