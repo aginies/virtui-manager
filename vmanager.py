@@ -6,48 +6,125 @@ import sys
 import logging
 import argparse
 import libvirt
+from typing import Any, Callable
 
 from textual.app import App, ComposeResult, on
-from textual.widgets import (
-        Header, Footer, Button, Label, Static, Link, ProgressBar
-        )
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
+from textual.widgets import (
+    Button,
+    Footer,
+    Header,
+    Label,
+    Link,
+    ProgressBar,
+    Static,
+)
+from textual.worker import Worker, WorkerState
 
+from config import load_config, save_config
+from constants import VmAction, VmStatus
 from libvirt_error_handler import register_error_handler
 from libvirt_utils import _get_vm_names_from_uuids
-from vmcard import VMCard, VMNameClicked, VMSelectionChanged, VmActionRequest
-from vm_queries import (
-    get_status, get_vm_graphics_info, check_for_spice_vms,
-)
-from config import load_config, save_config
-from utils import (
-        generate_webconsole_keys_if_needed, check_virt_viewer,
-        check_websockify, check_novnc_path
-)
+from modals.bulk_modals import BulkActionModal
+from modals.config_modal import ConfigModal
 from modals.log_modal import LogModal
 from modals.server_modals import ServerManagementModal
-from modals.vmanager_modals import (
-        FilterModal, CreateVMModal,
-        )
-from modals.config_modal import ConfigModal
-from modals.bulk_modals import BulkActionModal
-from modals.utils_modals import ProgressModal
 from modals.server_prefs_modals import ServerPrefModal
+from modals.select_server_modals import SelectOneServerModal, SelectServerModal
+from modals.utils_modals import ProgressModal
+from modals.vmanager_modals import (
+    CreateVMModal,
+    FilterModal,
+)
 from modals.vmdetails_modals import VMDetailModal
 from modals.virsh_modals import VirshShellScreen
-from modals.select_server_modals import SelectServerModal, SelectOneServerModal
+from utils import (
+    check_novnc_path,
+    check_virt_viewer,
+    check_websockify,
+    generate_webconsole_keys_if_needed,
+)
+from vm_actions import force_off_vm, pause_vm, start_vm, stop_vm  # , stop_vm
+from vm_queries import (
+    check_for_spice_vms,
+    get_status,
+    get_vm_graphics_info,
+)
 from vm_service import VMService
+from vmcard import VMCard, VmActionRequest, VMNameClicked, VMSelectionChanged
 from webconsole_manager import WebConsoleManager
-from vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm#, stop_vm
-from constants import VmAction, VmStatus
 
 # Configure logging
 logging.basicConfig(
-    filename='vm_manager.log',
+    filename="vm_manager.log",
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
+
+
+class WorkerManager:
+    """A class to manage and track Textual workers."""
+
+    def __init__(self, app: App):
+        self.app = app
+        self.workers: dict[str, Worker] = {}
+
+    def run(
+        self,
+        callable: Callable[..., Any],
+        *,
+        name: str,
+        group: str | None = None,
+        exclusive: bool = False,
+        thread: bool = True,
+        description: str | None = None,
+        exit_on_error: bool = True,
+    ) -> Worker | None:
+        """
+        Runs and tracks a worker, preventing overlaps for workers with the same name.
+        """
+        if self.is_running(name):
+            logging.warning(f"Worker '{name}' is already running. Skipping new run.")
+            return None
+
+        worker = self.app.run_worker(
+            callable,
+            name=name,
+            thread=thread,
+            group=group,
+            exclusive=exclusive,
+            description=description,
+            exit_on_error=exit_on_error,
+        )
+
+        self.workers[name] = worker
+        return worker
+
+    def is_running(self, name: str) -> bool:
+        """Check if a worker with the given name is currently running."""
+        return name in self.workers and self.workers[name].state not in (
+            WorkerState.SUCCESS,
+            WorkerState.CANCELLED,
+            WorkerState.ERROR,
+        )
+
+    def cancel(self, name: str) -> bool:
+        """Cancel a running worker by name. Returns True if cancelled, False otherwise."""
+        if name in self.workers:
+            logging.info(f"Cancelling worker '{name}'.")
+            self.workers[name].cancel()
+            return True
+        return False
+
+    def cancel_all(self) -> None:
+        """Cancel all running workers."""
+        logging.info("Cancelling all running workers.")
+        for worker in list(self.workers.values()):
+            worker.cancel()
+        self.workers.clear()
+
+
 
 class VMManagerTUI(App):
     """A Textual application to manage VMs."""
@@ -106,16 +183,35 @@ class VMManagerTUI(App):
     def __init__(self):
         super().__init__()
         self.vm_service = VMService()
+        self.worker_manager = WorkerManager(self)
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}
         self._color_index = 0
         self.devel = "(Devel v0.4.0)"
-        #self.resize_timer = ""
+        # self.resize_timer = ""
+
+    @on(Worker.StateChanged)
+    def _on_worker_state_changed(self, event: Worker.StateChanged) -> None:
+        """Removes finished workers from the manager's tracking dictionary."""
+        worker_name = event.worker.name
+        if not worker_name:
+            return
+
+        if event.state in (
+            WorkerState.SUCCESS,
+            WorkerState.CANCELLED,
+            WorkerState.ERROR,
+        ):
+            if worker_name in self.worker_manager.workers:
+                del self.worker_manager.workers[worker_name]
+
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
         if uri not in self.server_color_map:
-            color = self.SERVER_COLOR_PALETTE[self._color_index % len(self.SERVER_COLOR_PALETTE)]
+            color = self.SERVER_COLOR_PALETTE[
+                self._color_index % len(self.SERVER_COLOR_PALETTE)
+            ]
             self.server_color_map[uri] = color
             self._color_index += 1
         return self.server_color_map[uri]
@@ -124,12 +220,16 @@ class VMManagerTUI(App):
         """Create child widgets for the app."""
         yield Header()
         with Horizontal(classes="top-controls"):
-            yield Button("Select Servers", id="select_server_button", classes="Buttonpage")
+            yield Button(
+                "Select Servers", id="select_server_button", classes="Buttonpage"
+            )
             yield Button("Servers List", id="manage_servers_button", classes="Buttonpage")
-            yield Button("Server Prefs", id="server_preferences_button", classes="Buttonpage")
+            yield Button(
+                "Server Prefs", id="server_preferences_button", classes="Buttonpage"
+            )
             yield Button("Filter VM", id="filter_button", classes="Buttonpage")
             yield Button("Log", id="view_log_button", classes="Buttonpage")
-            #yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
+            # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button("Bulk CMD", id="bulk_selected_vms", classes="Buttonpage")
             yield Button("Config", id="config_button", classes="Buttonpage")
             yield Link("About", url="https://aginies.github.io/vmanager/")
@@ -139,20 +239,26 @@ class VMManagerTUI(App):
             pc.styles.align_horizontal = "center"
             pc.styles.height = "auto"
             pc.styles.padding_bottom = 0
-            yield Button("Previous Page", id="prev-button", variant="primary", classes="ctrlpage")
+            yield Button(
+                "Previous Page", id="prev-button", variant="primary", classes="ctrlpage"
+            )
             yield Label("", id="page-info", classes="")
-            yield Button("Next Page", id="next-button", variant="primary", classes="ctrlpage")
+            yield Button(
+                "Next Page", id="next-button", variant="primary", classes="ctrlpage"
+            )
 
         with Vertical(id="vms-container"):
             pass
 
         yield Static(id="error-footer", classes="error-message")
         yield Footer()
-        self.show_success_message("In some Terminal use 'Shift' key while selecting text with the mouse to copy it.")
+        self.show_success_message(
+            "In some Terminal use 'Shift' key while selecting text with the mouse to copy it."
+        )
 
     def reload_servers(self, new_servers):
         self.servers = new_servers
-        self.config['servers'] = new_servers
+        self.config["servers"] = new_servers
         save_config(self.config)
 
     def on_mount(self) -> None:
@@ -161,20 +267,26 @@ class VMManagerTUI(App):
         self.title = f"Rainbow V Manager {self.devel}"
 
         if not check_virt_viewer():
-            self.show_error_message("'virt-viewer' is not installed. 'Connect' button will be disabled.")
+            self.show_error_message(
+                "'virt-viewer' is not installed. 'Connect' button will be disabled."
+            )
             self.virt_viewer_available = False
 
         if not check_websockify():
-            self.show_error_message("'websockify' is not installed. 'Web Console' button will be disabled.")
+            self.show_error_message(
+                "'websockify' is not installed. 'Web Console' button will be disabled."
+            )
             self.websockify_available = False
 
         if not check_novnc_path():
-            self.show_error_message("'novnc' is not installed. 'Web Console' button will be disabled.")
+            self.show_error_message(
+                "'novnc' is not installed. 'Web Console' button will be disabled."
+            )
             self.novnc_available = False
 
         messages = generate_webconsole_keys_if_needed()
         for level, message in messages:
-            if level == 'info':
+            if level == "info":
                 self.show_success_message(message)
             else:
                 self.show_error_message(message)
@@ -186,14 +298,16 @@ class VMManagerTUI(App):
         error_footer.styles.padding = 0
         vms_container = self.query_one("#vms-container")
         vms_container.styles.grid_size_columns = 2
-        #self._update_layout_for_size()
+        # self._update_layout_for_size()
 
         if not self.servers:
-            self.show_success_message("No servers configured. Please add one via 'Servers List'.")
+            self.show_success_message(
+                "No servers configured. Please add one via 'Servers List'."
+            )
 
         for uri in self.active_uris:
             self.connect_libvirt(uri)
-        #self.refresh_vm_list()
+        # self.refresh_vm_list()
 
     def _update_layout_for_size(self):
         """Update the layout based on the terminal size."""
@@ -215,11 +329,11 @@ class VMManagerTUI(App):
         elif width >= 86:
             cols = 2
             container_width = 86
-        else: # width < 86
+        else:  # width < 86
             cols = 2
             container_width = 84
 
-        rows = 2 # Default to 2 rows
+        rows = 2  # Default to 2 rows
         if height > 42:
             rows = 3
 
@@ -228,20 +342,21 @@ class VMManagerTUI(App):
         self.VMS_PER_PAGE = cols * rows
 
         if width < 86:
-            self.VMS_PER_PAGE = self.config.get('VMS_PER_PAGE', 4)
+            self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
 
         self.refresh_vm_list()
 
     def on_resize(self, event):
         """Handle terminal resize events."""
-#        if hasattr(self, 'resize_timer'):
-#            self.resize_timer.stop()
-#        self.resize_timer = self.set_timer(0.5, self._update_layout_for_size)
+        #        if hasattr(self, 'resize_timer'):
+        #            self.resize_timer.stop()
+        #        self.resize_timer = self.set_timer(0.5, self._update_layout_for_size)
         self.set_timer(1.5, self._update_layout_for_size)
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
         self.webconsole_manager.terminate_all()
+        self.worker_manager.cancel_all()
         self.vm_service.disconnect_all()
 
     def _get_active_connections(self):
@@ -265,7 +380,8 @@ class VMManagerTUI(App):
                     spice_message = check_for_spice_vms(conn)
                     if spice_message:
                         self.call_from_thread(self.show_success_message, spice_message)
-                self.run_worker(check_spice, name=f"check_spice_{uri}", thread=True)
+
+                self.worker_manager.run(check_spice, name=f"check_spice_{uri}")
 
     def show_error_message(self, message: str):
         logging.error(message)
@@ -450,10 +566,12 @@ class VMManagerTUI(App):
             except libvirt.libvirtError as e:
                 self.call_from_thread(
                     self.show_error_message,
-                    f"Error getting details for {message.vm_name}: {e}"
+                    f"Error getting details for {message.vm_name}: {e}",
                 )
 
-        self.run_worker(get_details_and_show_modal, name=f"get_details_{message.vm_name}", thread=True)
+        self.worker_manager.run(
+            get_details_and_show_modal, name=f"get_details_{message.vm_name}"
+        )
 
     @on(VmActionRequest)
     def on_vm_action_request(self, message: VmActionRequest) -> None:
@@ -494,9 +612,14 @@ class VMManagerTUI(App):
                 self.call_from_thread(self.refresh_vm_list)
 
             except Exception as e:
-                self.call_from_thread(self.show_error_message, f"Error on VM '{vm_name}' during '{message.action}': {e}")
+                self.call_from_thread(
+                    self.show_error_message,
+                    f"Error on VM '{vm_name}' during '{message.action}': {e}",
+                )
 
-        self.run_worker(action_worker, name=f"action_{message.action}_{message.vm_uuid}", thread=True)
+        self.worker_manager.run(
+            action_worker, name=f"action_{message.action}_{message.vm_uuid}"
+        )
 
     def action_toggle_select_all(self) -> None:
         """Selects or deselects all VMs on the current page."""
@@ -575,13 +698,16 @@ class VMManagerTUI(App):
         self.bulk_operation_in_progress = True
         #self.refresh_vm_list()  # Refresh to update selection borders
 
-        self.push_screen(ProgressModal(title=f"Bulk {action_type.capitalize()}: Pending..."))
+        self.push_screen(
+            ProgressModal(title=f"Bulk {action_type.capitalize()}: Pending...")
+        )
 
         # Perform the action in a worker to avoid blocking the UI
-        self.run_worker(
-            lambda: self._perform_bulk_action_worker(action_type, selected_uuids_copy, delete_storage_flag),
+        self.worker_manager.run(
+            lambda: self._perform_bulk_action_worker(
+                action_type, selected_uuids_copy, delete_storage_flag
+            ),
             name=f"bulk_action_{action_type}",
-            thread=True
         )
 
     def _perform_bulk_action_worker(self, action_type: str, vm_uuids: list[str], delete_storage_flag: bool = False) -> None:
@@ -668,13 +794,19 @@ class VMManagerTUI(App):
     def refresh_vm_list(self) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
         vms_container = self.query_one("#vms-container")
+
         # Stop all timers on existing cards to prevent race conditions during refresh
-        for card in vms_container.children:
-            if isinstance(card, VMCard) and card.timer:
+        for card in vms_container.query(VMCard):
+            if card.timer:
                 card.timer.stop()
-        vms_container.remove_children()
-        # TODO: Add a LoadingIndicator here
-        self.run_worker(self.list_vms_worker, name="list_vms", thread=True)
+
+        # Try to run the worker. If it's already running, this will do nothing.
+        worker = self.worker_manager.run(self.list_vms_worker, name="list_vms")
+
+        if worker:
+            # If the worker was started, clear the container to make way for new cards
+            vms_container.remove_children()
+            # TODO: Add a LoadingIndicator here
 
     def list_vms_worker(self):
         """Worker to fetch, filter, and display VMs using the VMService."""
@@ -807,10 +939,9 @@ class VMManagerTUI(App):
                     self.show_error_message, "Could not retrieve names for selected VMs."
                 )
 
-        self.run_worker(
+        self.worker_manager.run(
             get_names_and_show_modal,
             name="get_bulk_vm_names",
-            thread=True,
         )
 
 
