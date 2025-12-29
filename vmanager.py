@@ -838,11 +838,8 @@ class VMManagerTUI(App):
                 if uuid not in self.sparkline_data:
                     self.sparkline_data[uuid] = {"cpu": [], "mem": []}
 
-                cpu_hist = self.sparkline_data[uuid]["cpu"]
-                mem_hist = self.sparkline_data[uuid]["mem"]
-
                 is_vm_selected = uuid in self.selected_vm_uuids
-                vm_card = VMCard(cpu_history=cpu_hist, mem_history=mem_hist, is_selected=is_vm_selected)
+                vm_card = VMCard(is_selected=is_vm_selected)
                 vm_card.name = domain.name()
                 vm_card.status = get_status(domain)
                 vm_card.cpu = info[3]

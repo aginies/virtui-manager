@@ -54,10 +54,8 @@ class VMCard(Static):
     server_border_color = reactive("green")
     is_selected = reactive(False)
 
-    def __init__(self, cpu_history: list[float] = None, mem_history: list[float] = None, is_selected: bool = False) -> None:
+    def __init__(self, is_selected: bool = False) -> None:
         super().__init__()
-        self.cpu_history = cpu_history if cpu_history is not None else []
-        self.mem_history = mem_history if mem_history is not None else []
         self.last_cpu_time = 0
         self.last_cpu_time_ts = 0
         self.is_selected = is_selected
@@ -119,12 +117,12 @@ class VMCard(Static):
             with Horizontal(id="cpu-sparkline-container", classes="sparkline-container"):
                 cpu_spark = Static(f"{self.cpu} VCPU", id="cpu-mem-info", classes="sparkline-label")
                 yield cpu_spark
-                yield Sparkline(self.cpu_history, id="cpu-sparkline")
+                yield Sparkline([], id="cpu-sparkline")
             with Horizontal(id="mem-sparkline-container", classes="sparkline-container"):
                 mem_gb = round(self.memory / 1024, 1)
                 mem_spark = Static(f"{mem_gb} Gb", id="cpu-mem-info", classes="sparkline-label")
                 yield mem_spark
-                yield Sparkline(self.mem_history, id="mem-sparkline")
+                yield Sparkline([], id="mem-sparkline")
 
             with TabbedContent(id="button-container"):
                 with TabPane("Manage", id="manage-tab"):
@@ -175,7 +173,20 @@ class VMCard(Static):
             self.styles.border = ("solid", self.server_border_color)
         self.update_button_layout()
         self._update_status_styling()
-        self._update_webc_status() # Call on mount
+        self._update_webc_status()  # Call on mount
+
+        # Load existing history from the app's central store
+        if self.vm and hasattr(self.app, "sparkline_data"):
+            try:
+                uuid = self.vm.UUIDString()
+                if uuid in self.app.sparkline_data:
+                    cpu_sparkline = self.query_one("#cpu-sparkline", Sparkline)
+                    mem_sparkline = self.query_one("#mem-sparkline", Sparkline)
+                    cpu_sparkline.data = self.app.sparkline_data[uuid]["cpu"]
+                    mem_sparkline.data = self.app.sparkline_data[uuid]["mem"]
+            except (libvirt.libvirtError, NoMatches):
+                pass  # Ignore if vm is gone or widgets not ready
+
         self.update_stats()
         self.timer = self.set_interval(5, self.update_stats)
 
@@ -231,28 +242,33 @@ class VMCard(Static):
                         return
 
                     # Update status if changed
-                    if self.status != stats['status']:
-                        self.status = stats['status']
+                    if self.status != stats["status"]:
+                        self.status = stats["status"]
                         self._update_status_styling()
                         self.update_button_layout()
-                    
-                    # Update sparklines
-                    self.cpu_history = self.cpu_history[-20:] + [stats['cpu_percent']]
-                    self.mem_history = self.mem_history[-20:] + [stats['mem_percent']]
-                    
-                    try:
-                        self.query_one("#cpu-sparkline").data = self.cpu_history
-                        self.query_one("#mem-sparkline").data = self.mem_history
-                    except NoMatches:
-                        pass # Card may be unmounting, the guard should prevent most of this.
 
-                    # Persist history for global refresh
-                    if hasattr(self.app, "sparkline_data"):
-                        uuid = self.vm.UUIDString()
-                        if uuid in self.app.sparkline_data:
-                            self.app.sparkline_data[uuid]['cpu'] = self.cpu_history
-                            self.app.sparkline_data[uuid]['mem'] = self.mem_history
-                
+                    # Update sparklines by modifying the central data store
+                    uuid = self.vm.UUIDString()
+                    if hasattr(self.app, "sparkline_data") and uuid in self.app.sparkline_data:
+                        sparkline_storage = self.app.sparkline_data[uuid]
+
+                        cpu_history = sparkline_storage["cpu"]
+                        cpu_history.append(stats["cpu_percent"])
+                        if len(cpu_history) > 20:
+                            cpu_history.pop(0)
+
+                        mem_history = sparkline_storage["mem"]
+                        mem_history.append(stats["mem_percent"])
+                        if len(mem_history) > 20:
+                            mem_history.pop(0)
+
+                        try:
+                            self.query_one("#cpu-sparkline").data = cpu_history
+                            self.query_one("#mem-sparkline").data = mem_history
+                        except NoMatches:
+                            # Card may be unmounting
+                            pass
+
                 self.app.call_from_thread(apply_stats_to_ui)
 
             except libvirt.libvirtError as e:
