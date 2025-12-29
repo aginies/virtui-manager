@@ -190,6 +190,16 @@ class VMCard(Static):
         self.update_stats()
         self.timer = self.set_interval(5, self.update_stats)
 
+    def watch_status(self, old_value: str, new_value: str) -> None:
+        """Called when status changes."""
+        self._update_status_styling()
+        self.update_button_layout()
+        try:
+            status_widget = self.query_one("#status")
+            status_widget.update(f"Status: {new_value}{self.webc_status_indicator}")
+        except NoMatches:
+            pass
+
     def watch_server_border_color(self, old_color: str, new_color: str) -> None:
         """Called when server_border_color changes."""
         self.styles.border = ("solid", new_color)
@@ -244,10 +254,6 @@ class VMCard(Static):
 
                         def update_to_stopped():
                             self.status = "Stopped"
-                            self._update_status_styling()
-                            self.update_button_layout()
-                            self.query_one("#cpu-sparkline-container").display = False
-                            self.query_one("#mem-sparkline-container").display = False
 
                         self.app.call_from_thread(update_to_stopped)
                     return
@@ -261,8 +267,6 @@ class VMCard(Static):
                     # Update status if changed
                     if self.status != stats["status"]:
                         self.status = stats["status"]
-                        self._update_status_styling()
-                        self.update_button_layout()
 
                     # Update sparklines by modifying the central data store
                     if (
