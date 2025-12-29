@@ -2,8 +2,8 @@
 VM Service Layer
 Handles all libvirt interactions and data processing.
 """
-import libvirt
 import time
+import libvirt
 from connection_manager import ConnectionManager
 from constants import VmStatus
 
@@ -27,6 +27,13 @@ class VMService:
         self._domain_cache.clear()
         self._uuid_to_conn_cache.clear()
         self._cache_timestamp = 0.0
+
+    def invalidate_vm_cache(self, uuid: str):
+        """Invalidates all cached data for a specific VM."""
+        if uuid in self._vm_data_cache:
+            del self._vm_data_cache[uuid]
+        if uuid in self._cpu_time_cache:
+            del self._cpu_time_cache[uuid]
 
     def _update_domain_cache(self, active_uris: list[str], force: bool = False):
         """Updates the domain and connection cache."""
@@ -52,7 +59,7 @@ class VMService:
         """Gets info and XML from cache or fetches them, fetching both if both are missing."""
         uuid = domain.UUIDString()
         now = time.time()
-        
+
         # Ensure cache entry exists
         self._vm_data_cache.setdefault(uuid, {})
         vm_cache = self._vm_data_cache[uuid]
@@ -144,7 +151,7 @@ class VMService:
             cpu_stats = domain.getCPUStats(True)
             current_cpu_time = cpu_stats[0]['cpu_time']
             now = datetime.now().timestamp()
-            
+
             cpu_percent = 0.0
             if uuid in self._cpu_time_cache:
                 last_cpu_time, last_cpu_time_ts = self._cpu_time_cache[uuid]
@@ -171,9 +178,9 @@ class VMService:
                 if total_mem_kb > 0:
                     rss_kb = mem_stats['rss']
                     mem_percent = (rss_kb / total_mem_kb) * 100
-            
+
             stats['mem_percent'] = mem_percent
-            
+
             return stats
 
         except libvirt.libvirtError as e:
@@ -219,7 +226,7 @@ class VMService:
         for i, vm_uuid in enumerate(vm_uuids):
             domain = found_domains.get(vm_uuid)
             vm_name = domain.name() if domain else "Unknown VM"
-            
+
             progress_callback("progress", name=vm_name, current=i + 1, total=total_vms)
 
             if not domain:
@@ -243,7 +250,7 @@ class VMService:
                     progress_callback("log_error", message=msg)
                     failed_vms.append(vm_name)
                     continue
-                
+
                 successful_vms.append(vm_name)
 
             except libvirt.libvirtError as e:
@@ -254,7 +261,7 @@ class VMService:
                 msg = f"Unexpected error on '{action_type}' for VM '{vm_name}': {e}"
                 progress_callback("log_error", message=msg)
                 failed_vms.append(vm_name)
-        
+
         return successful_vms, failed_vms
 
     def get_connection(self, uri: str) -> libvirt.virConnect | None:
@@ -268,7 +275,7 @@ class VMService:
     def find_domains_by_uuids(self, active_uris: list[str], vm_uuids: list[str]) -> dict[str, libvirt.virDomain]:
         """Finds and returns a dictionary of domain objects from a list of UUIDs."""
         self._update_domain_cache(active_uris)
-        
+
         found_domains = {}
         missing_uuids = []
 
@@ -289,7 +296,7 @@ class VMService:
                 domain = self._domain_cache.get(uuid)
                 if domain:
                     found_domains[uuid] = domain
-        
+
         return found_domains
 
     def find_domain_by_uuid(self, active_uris: list[str], vm_uuid: str) -> libvirt.virDomain | None:
@@ -301,7 +308,7 @@ class VMService:
         """Performs pre-flight checks and starts the VM."""
         from vm_actions import start_vm as start_action
         from storage_manager import check_domain_volumes_in_use
-        
+
         if domain.isActive():
             return # Already running, do nothing
 
@@ -332,11 +339,10 @@ class VMService:
     def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
         """Deletes the VM."""
         from vm_actions import delete_vm as delete_action
-        
+
         uuid = domain.UUIDString()
         delete_action(domain, delete_storage=delete_storage)
-        if uuid in self._vm_data_cache:
-            del self._vm_data_cache[uuid]
+        self.invalidate_vm_cache(uuid)
 
 
     def resume_vm(self, domain: libvirt.virDomain) -> None:
@@ -370,7 +376,7 @@ class VMService:
                          break
                 except libvirt.libvirtError:
                     continue
-        
+
         if not conn_for_domain:
             # This would indicate a cache inconsistency or a race condition
             return None
@@ -453,10 +459,10 @@ class VMService:
                     elif sort_by == VmStatus.STOPPED and status not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
                         domains_to_display_filtered.append((d, c))
                 domains_to_display = domains_to_display_filtered
-        
+
         if search_text:
             domains_to_display = [(d, c) for d, c in domains_to_display if search_text.lower() in d.name().lower()]
 
         total_filtered_vms = len(domains_to_display)
-        
+
         return domains_to_display, total_vms, total_filtered_vms, server_names
