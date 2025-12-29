@@ -900,6 +900,7 @@ class VMDetailModal(ModalScreen):
             self.query_one("#boot-down", Button).disabled = True
 
     def compose(self) -> ComposeResult:
+        xml_root = ET.fromstring(self.xml_desc)
         with Vertical(id="vm-detail-container"):
             yield Label(f"VM Details: {self.vm_name}", id="title")
             yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
@@ -916,7 +917,6 @@ class VMDetailModal(ModalScreen):
                         current_cpu_model = self.vm_info.get('cpu_model', 'default')
                         yield Label(f"CPU Model: {current_cpu_model}", id="cpu-model-label", classes="tabd")
 
-                        xml_root = ET.fromstring(self.vm_info['xml'])
                         arch_elem = xml_root.find(".//os/type")
                         arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64'
 
@@ -1061,8 +1061,6 @@ class VMDetailModal(ModalScreen):
 
                         video_models = []
                         try:
-                            xml_root = ET.fromstring(self.vm_info['xml'])
-
                             os_type_elem = xml_root.find(".//os/type")
                             arch = os_type_elem.get('arch') if os_type_elem is not None else 'x86_64'
                             machine = os_type_elem.get('machine') if os_type_elem is not None else None
