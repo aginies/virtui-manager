@@ -8,10 +8,10 @@ version = "0.4.0"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
 authors = [
-    {name = "Antoine Ginies", email = "aginies@suse.com"}
+    {name = "Antoine Ginies", email = "antoine@ginies.org"}
 ]
 maintainers = [
-    {name = "Antoine Ginies", email = "aginies@suse.com"}
+    {name = "Antoine Ginies", email = "antoine@ginies.org"}
 ]
 license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.7"
