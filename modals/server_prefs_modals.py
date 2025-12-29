@@ -89,7 +89,7 @@ class ServerPrefModal(BaseModal[None]):
                 return
             uri_to_connect = self.app.active_uris[0]
 
-        self.conn = self.app.connection_manager.connect(uri_to_connect)
+        self.conn = self.app.vm_service.connect(uri_to_connect)
         if not self.conn:
             self.app.show_error_message(f"Failed to get connection for server preferences on {uri_to_connect}.")
             self.dismiss()

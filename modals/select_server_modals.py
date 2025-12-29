@@ -67,7 +67,7 @@ class SelectServerModal(BaseModal[None]):
             self.app.push_screen(loading_modal)
 
             def connect_and_update():
-                conn = self.connection_manager.connect(uri)
+                conn = self.app.vm_service.connect(uri)
                 self.app.call_from_thread(loading_modal.dismiss)
                 if conn is None:
                     self.app.call_from_thread(
