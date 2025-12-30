@@ -183,6 +183,7 @@ class VMDetailModal(ModalScreen):
         disks_table.clear()
         if not disks_table.columns:
             disks_table.add_column("Path", key="path")
+            disks_table.add_column("Bus Type", key="bus")
             disks_table.add_column("Cache Mode", key="cache_mode")
             disks_table.add_column("Discard Mode", key="discard_mode")
             disks_table.add_column("Status", key="status")
@@ -192,12 +193,14 @@ class VMDetailModal(ModalScreen):
         for disk in disks_info:
             path = disk.get('path', 'N/A')
             status = disk.get('status', 'unknown')
+            bus = disk.get('bus', 'N/A')
             cache_mode = disk.get('cache_mode', 'none')
             discard_mode = disk.get('discard_mode', 'ignore')
 
             if status == 'disabled':
                 disks_table.add_row(
                     path,
+                    bus,
                     "",
                     "",
                     "(disabled)",
@@ -206,6 +209,7 @@ class VMDetailModal(ModalScreen):
             else:
                 disks_table.add_row(
                     path,
+                    bus,
                     cache_mode,
                     discard_mode,
                     "enabled",
@@ -1072,6 +1076,24 @@ class VMDetailModal(ModalScreen):
             row_key = f"{device['type']}-{device['bus']}-{i}"
             input_table.add_row(device['type'], device['bus'], key=row_key)
 
+    def _update_input_table(self):
+        """Refreshes the input table."""
+        try:
+            # Refresh domain object to ensure we get the latest config
+            self.domain = self.conn.lookupByUUIDString(self.vm_info['uuid'])
+        except libvirt.libvirtError as e:
+            logging.error(f"Error refreshing domain object: {e}")
+
+        self.xml_desc = self.domain.XMLDesc(0)
+        logging.info(f"Updated XML for VM {self.vm_name}")
+
+        inputs = get_vm_input_info(self.xml_desc)
+        logging.info(f"Found {len(inputs)} input devices after update: {inputs}")
+
+        if 'devices' in self.vm_info and isinstance(self.vm_info['devices'], dict):
+            self.vm_info['devices']['input'] = inputs
+        self._populate_input_table()
+
     @on(DataTable.RowSelected, "#input-table")
     def on_input_table_row_selected(self, event: DataTable.RowSelected) -> None:
         row_index = event.cursor_row
@@ -1094,7 +1116,7 @@ class VMDetailModal(ModalScreen):
         devices = self.vm_info.get("devices", {})
         usb_controllers = devices.get("usb", [])
         scsi_controllers = devices.get("scsi", [])
-        
+
         all_controllers = []
         for controller in usb_controllers:
             if controller.get('type') == 'controller':
@@ -1466,8 +1488,16 @@ class VMDetailModal(ModalScreen):
 
                     with Vertical(classes="info-details"):
                         yield Label("Watchdog Model:")
+                        
+                        watchdog_models = [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")]
+                        
+                        # Add current model if not in list to prevent crash
+                        known_models = [m[1] for m in watchdog_models]
+                        if watchdog_model not in known_models:
+                             watchdog_models.append((watchdog_model, watchdog_model))
+
                         yield Select(
-                            [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")],
+                            watchdog_models,
                             value=watchdog_model,
                             id="watchdog-model-select",
                             disabled=not self.is_vm_stopped,
@@ -1522,12 +1552,12 @@ class VMDetailModal(ModalScreen):
                         with Vertical(classes="boot-list-container"):
                             yield Label("Attached to VM")
                             yield ListView(id="attached-pci-list")
-                with TabPane("PCIe", id="detail-pcie-tab"):
-                    yield Label("PCIe")
-                with TabPane("SATA", id="detail-sata-tab"):
-                    yield Label("SATA")
+                #with TabPane("PCIe", id="detail-pcie-tab"):
+                #    yield Label("PCIe")
+                #with TabPane("SATA", id="detail-sata-tab"):
+                #    yield Label("SATA")
                 with TabPane("Channel", id="detail-channel-tab"):
-                    yield Label("Channel")
+                    yield Label("TODO Channel")
 
             yield Button("Close", variant="default", id="close-btn", classes="close-button")
 
@@ -1714,8 +1744,7 @@ class VMDetailModal(ModalScreen):
                             result["bus"]
                         )
                         self.app.show_success_message("Input device added successfully.")
-                        self.xml_desc = self.domain.XMLDesc(0)
-                        self._populate_input_table()
+                        self._update_input_table()
                     except (libvirt.libvirtError, ValueError) as e:
                         self.app.show_error_message(f"Error adding input device: {e}")
 
@@ -1734,8 +1763,7 @@ class VMDetailModal(ModalScreen):
                         try:
                             remove_vm_input(self.domain, self.selected_input_device['type'], self.selected_input_device['bus'])
                             self.app.show_success_message("Input device removed successfully.")
-                            self.xml_desc = self.domain.XMLDesc(0)
-                            self._populate_input_table()
+                            self._update_input_table()
                         except (libvirt.libvirtError, ValueError) as e:
                             self.app.show_error_message(f"Error removing input device: {e}")
                 self.app.push_screen(ConfirmationDialog(message), on_confirm)
@@ -1920,6 +1948,7 @@ class VMDetailModal(ModalScreen):
                             self.domain,
                             result["disk_path"],
                             device_type=result["device_type"],
+                            bus=result["bus"],
                             create=result["create"],
                             size_gb=result["size_gb"],
                             disk_format=result["disk_format"],
@@ -1949,14 +1978,8 @@ class VMDetailModal(ModalScreen):
                 all_volumes_in_pool = storage_manager.list_storage_volumes(selected_pool_obj)
                 all_volume_paths = [vol['volume'].path() for vol in all_volumes_in_pool]
 
-                used_disks = get_all_vm_disk_usage(self.conn)
-                used_nvrams = get_all_vm_nvram_usage(self.conn)
-                used_paths = set(used_disks.keys()) | set(used_nvrams.keys())
-
-                available_disks = [path for path in all_volume_paths if path not in used_paths]
-
-                if not available_disks:
-                    self.app.show_error_message(f"No available disks found in pool '{pool_name}'.")
+                if not all_volume_paths:
+                    self.app.show_error_message(f"No volumes found in pool '{pool_name}'.")
                     return
 
                 def attach_disk_callback(disk_to_attach: str | None) -> None:
@@ -1973,7 +1996,7 @@ class VMDetailModal(ModalScreen):
                             self.app.show_error_message(f"Error attaching disk: {e}")
 
                 self.app.push_screen(
-                    SelectDiskModal(available_disks, f"Select a disk to attach from pool '{pool_name}'"),
+                    SelectDiskModal(all_volume_paths, f"Select a disk to attach from pool '{pool_name}'"),
                     attach_disk_callback
                 )
 
@@ -2137,8 +2160,9 @@ class VMDetailModal(ModalScreen):
                 if result:
                     new_cache_mode = result.get('cache')
                     new_discard_mode = result.get('discard')
+                    new_bus = result.get('bus')
 
-                    if new_cache_mode == selected_disk.get('cache_mode') and new_discard_mode == selected_disk.get('discard_mode'):
+                    if new_cache_mode == selected_disk.get('cache_mode') and new_discard_mode == selected_disk.get('discard_mode') and new_bus == selected_disk.get('bus'):
                         self.app.show_success_message("No changes detected for disk properties.")
                         return
 
@@ -2150,7 +2174,8 @@ class VMDetailModal(ModalScreen):
 
                         disk_properties = {
                             'cache': new_cache_mode,
-                            'discard': new_discard_mode
+                            'discard': new_discard_mode,
+                            'bus': new_bus
                         }
                         set_disk_properties(
                             self.domain,
