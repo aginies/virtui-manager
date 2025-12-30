@@ -377,6 +377,7 @@ HowToSSHModal Button {
 #wc-port-end-input,
 #vnc-quality-input,
 #vnc-compression-input,
+#cache-ttl-input,
 #port-range-label {
     width: 33%;
     height: 1;

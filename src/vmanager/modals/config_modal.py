@@ -31,16 +31,16 @@ class ConfigModal(BaseModal[None]):
 
                 # Performance settings
                 yield Label("Performance", classes="config-section-label")
-                yield Label("Cache TTL (seconds):")
-                yield Input(
-                    value=str(self.config.get("CACHE_TTL", 1)),
-                    id="cache-ttl-input",
-                    type="integer",
-                    tooltip="Time-to-live for VM metadata cache in seconds. Reduces libvirt calls."
-                )
+                with Horizontal():
+                    yield Label("Cache TTL (seconds):")
+                    yield Input(
+                        value=str(self.config.get("CACHE_TTL", 1)),
+                        id="cache-ttl-input",
+                        type="integer",
+                        tooltip="Time-to-live for VM metadata cache in seconds. Reduces libvirt calls."
+                    )
 
                 # Logging settings
-                yield Label("Logging", classes="config-section-label")
                 yield Label("Log File Path:")
                 yield Input(
                     value=self.config.get("LOG_FILE_PATH", ""),
