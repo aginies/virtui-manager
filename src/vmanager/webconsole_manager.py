@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import libvirt
 
-from constants import AppName
+from constants import AppInfo
 from config import load_config, get_log_path
 from utils import find_free_port
 from vm_queries import get_vm_graphics_info
@@ -177,7 +177,7 @@ class WebConsoleManager:
         ]
 
         # Assume remote config directory for certs
-        remote_config_dir = "~/.config/" + AppName.name
+        remote_config_dir = "~/.config/" + AppInfo.name
         remote_cert_file = f"{remote_config_dir}/cert.pem"
         remote_key_file = f"{remote_config_dir}/key.pem"
         url_scheme = "http"
@@ -302,7 +302,7 @@ class WebConsoleManager:
             f"{host}:{port}", "--web", novnc_path
         ]
 
-        config_dir = Path.home() / '.config' / AppName.name
+        config_dir = Path.home() / '.config' / AppInfo.name
         cert_file = config_dir / 'cert.pem'
         key_file = config_dir / 'key.pem'
         url_scheme = "http"

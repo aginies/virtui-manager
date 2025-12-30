@@ -4,7 +4,7 @@ Maange the configuration of the tool
 import os
 from pathlib import Path
 import yaml
-from constants import AppName
+from constants import AppInfo
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
@@ -22,7 +22,7 @@ DEFAULT_CONFIG = {
     'servers': [
         {'name': 'Localhost', 'uri': 'qemu:///system'},
     ],
-    'LOG_FILE_PATH': str(Path.home() / ".local" / AppName.name / "vm_manager.log"),
+    'LOG_FILE_PATH': str(Path.home() / ".local" / AppInfo.name / "vm_manager.log"),
 }
 
 def get_log_path() -> Path:
@@ -39,8 +39,8 @@ def get_log_path() -> Path:
 def get_config_paths():
     """Returns the potential paths for the config file."""
     return [
-        Path.home() / '.config' / AppName.name / 'config.yaml',
-        Path('/etc') / AppName.name / 'config.yaml'
+        Path.home() / '.config' / AppInfo.name / 'config.yaml',
+        Path('/etc') / AppInfo.name / 'config.yaml'
     ]
 
 def get_user_config_path():

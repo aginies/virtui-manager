@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 import os
 from typing import List, Tuple, Union
-from constants import AppName
+from constants import AppInfo
 
 
 def find_free_port(start: int, end: int) -> int:
@@ -87,7 +87,7 @@ def generate_webconsole_keys_if_needed() -> List[Tuple[str, str]]:
         Exception: For unexpected errors during key generation
     """
     messages = []
-    config_dir = Path.home() / '.config' / AppName.name
+    config_dir = Path.home() / '.config' / AppInfo.name
     key_path = config_dir / 'key.pem'
     cert_path = config_dir / 'cert.pem'
 
