@@ -976,7 +976,7 @@ def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
     domain.connect().defineXML(new_xml)
 
 @log_function_call
-def set_uefi_file(domain: libvirt.virDomain, uefi_path: str, secure_boot: bool):
+def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot: bool):
     """
     Sets the UEFI file for a VM and optionally enables/disables secure boot.
     The VM must be stopped.
@@ -992,17 +992,27 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str, secure_boot: bool):
     if os_elem is None:
         raise ValueError("Could not find <os> element in VM XML.")
 
-    loader_elem = os_elem.find('loader')
-    if loader_elem is None:
-        loader_elem = ET.SubElement(os_elem, 'loader', type='pflash')
+    if not uefi_path:  # Switching to BIOS
+        if 'firmware' in os_elem.attrib:
+            del os_elem.attrib['firmware']
+        
+        firmware_feature_elem = os_elem.find('firmware')
+        if firmware_feature_elem is not None:
+            os_elem.remove(firmware_feature_elem)
 
-    if not uefi_path:
+        loader_elem = os_elem.find('loader')
         if loader_elem is not None:
             os_elem.remove(loader_elem)
+
         nvram_elem = os_elem.find('nvram')
         if nvram_elem is not None:
             os_elem.remove(nvram_elem)
-    else:
+    else:  # Switching to UEFI
+        os_elem.set('firmware', 'efi')
+        
+        loader_elem = os_elem.find('loader')
+        if loader_elem is None:
+            loader_elem = ET.SubElement(os_elem, 'loader', type='pflash')
         loader_elem.text = uefi_path
         if secure_boot:
             loader_elem.set('secure', 'yes')
@@ -1011,7 +1021,9 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str, secure_boot: bool):
 
         nvram_elem = os_elem.find('nvram')
         if nvram_elem is None:
-            nvram_elem = ET.SubElement(os_elem, 'nvram', template=f"{uefi_path.replace('.bin', '_VARS.fd')}",)
+            ET.SubElement(os_elem, 'nvram', template=f"{uefi_path.replace('.bin', '_VARS.fd')}")
+        else:
+            nvram_elem.set('template', uefi_path.replace('.bin', '_VARS.fd'))
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)

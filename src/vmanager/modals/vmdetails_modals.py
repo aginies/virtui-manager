@@ -1214,13 +1214,16 @@ class VMDetailModal(ModalScreen):
                             )
                             yield Checkbox("AMD-SEV", id="sev-checkbox", disabled=not self.is_vm_stopped)
                             yield Checkbox("AMD-SEV-ES", id="sev-es-checkbox", disabled=not self.is_vm_stopped)
-
                             yield Select(
                                 [], # Will be populated in on_mount
                                 id="uefi-file-select",
                                 disabled=not self.is_vm_stopped,
                                 allow_blank=True,
                             )
+                            yield Button("Switch to BIOS", id="switch-to-bios", disabled=not self.is_vm_stopped)
+                        else:
+                            yield Button("Switch to UEFI", id="switch-to-uefi", disabled=not self.is_vm_stopped)
+
 
                         if "machine_type" in self.vm_info:
                             yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
@@ -1939,6 +1942,48 @@ class VMDetailModal(ModalScreen):
                         except Exception as e:
                             self.app.show_error_message(f"An unexpected error occurred: {e}")
                 self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+        elif event.button.id == "switch-to-bios":
+            def on_confirm_bios_switch(confirmed: bool):
+                if confirmed:
+                    try:
+                        set_uefi_file(self.domain, uefi_path=None, secure_boot=False)
+                        self.app.show_success_message("Switched to BIOS successfully. Please reopen the dialog to see changes.")
+                        self.dismiss()
+                    except (libvirt.libvirtError, ValueError) as e:
+                        self.app.show_error_message(f"Error switching to BIOS: {e}")
+
+            self.app.push_screen(
+                ConfirmationDialog("Are you sure you want to switch to BIOS? This may affect bootability."),
+                on_confirm_bios_switch
+            )
+
+        elif event.button.id == "switch-to-uefi":
+            all_uefi_files = get_uefi_files()
+            xml_root = ET.fromstring(self.xml_desc)
+            arch_elem = xml_root.find(".//os/type")
+            arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64'
+            uefi_for_arch = [f for f in all_uefi_files if arch in f.architectures]
+            
+            if not uefi_for_arch:
+                self.app.show_error_message(f"No UEFI firmware found for architecture '{arch}'.")
+                return
+
+            uefi_paths = [f.executable for f in uefi_for_arch]
+
+            def on_uefi_file_selected(uefi_path: str | None):
+                if uefi_path:
+                    try:
+                        set_uefi_file(self.domain, uefi_path=uefi_path, secure_boot=False)
+                        self.app.show_success_message("Switched to UEFI successfully. Please reopen the dialog to see changes.")
+                        self.dismiss()
+                    except (libvirt.libvirtError, ValueError) as e:
+                        self.app.show_error_message(f"Error switching to UEFI: {e}")
+
+            self.app.push_screen(
+                SelectDiskModal(uefi_paths, "Select UEFI Firmware"),
+                on_uefi_file_selected
+            )
 
         elif event.button.id == "detail_add_disk":
             def add_disk_callback(result):
