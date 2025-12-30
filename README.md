@@ -6,15 +6,15 @@ TUI is [Python Textual](https://github.com/Textualize/textual)
 
 ## Why
 
-Virt-manager is only usable with X or X forward, and this is very slow and not possible in many cases to use it. It has a lot of dependencies.
+Virt-manager is only usable with X or X forward, and this is very slow and not possible in many cases to use it. It has a lot of X dependencies. 
 
-This terminal solution is simple, very few deps, remote control with low bandwidth. Moreover it includes some features like disabling a disk (intead or removing it completly), change machine-type, etc.... 
+This terminal solution is simple, very few deps, remote control with low bandwidth. Moreover it includes some features like disabling a disk (intead or removing it completly), change machine-type, Bulk operation, etc.... 
 
-I worked in the past on some other Virtu related project like [pvirsh](https://github.com/aginies/pvirsh), [virt-scenario](https://github.com/aginies/virt-scenario), and most of their features will be integrated into this project in the futur some are already availables).
+I developed some other Virtu related project like [pvirsh](https://github.com/aginies/pvirsh), [virt-scenario](https://github.com/aginies/virt-scenario), and most of their features will be integrated into this project too (some are already availables).
 
 ## Warning
 
-Born during a **SUSE hackweek**, this project is a work-in-progress—packed with potential bugs, and it still missing some features and it is not fully tested. Devel is also co-piloted by some AI agent for extra efficiency.
+Born during a **SUSE hackweek**, this project is a work-in-progress with potential bugs, and it still missing some features, and it is not fully tested. Development is also co-piloted by some AI agent for extra efficiency.
 
 ## Features
 
@@ -23,11 +23,11 @@ Born during a **SUSE hackweek**, this project is a work-in-progress—packed wit
 ## TODO
 
 - Add all missing features on Adding/Removing stuff to VM
-- Being able to create VM based on scenario usage: API is ready, just need to call it (https://github.com/aginies/virt-scenario)
+- Being able to create VM based on scenario usage: API is ready, just need to call from [virt-scenario](https://github.com/aginies/virt-scenario)
 
 ## Requirements
 
-- Minimal terminal size: 34x92
+- Recomended Minimal terminal size: 34x92
 - Remote connection to libvirt server ssh (ssh-agent recomended)
 - Python 3.7+
 - [libvirt](https://libvirt.org/)
@@ -47,11 +47,13 @@ git clone https://github.com/aginies/virtui-manager.git
 ```
 
 ```bash
+cd src/vmanager
 python3 vmanager.py
 ```
 
 ### Install Python dependencies
 
+Get them from you Linux distribution, or using pip:
 ```bash
 pip install libvirt-python textual pyaml
 ```
@@ -67,11 +69,10 @@ which virt-viewer
 In addition to the main TUI application, `vmanager` also provides a command-line interface (`vmanager_cmd.py`) for managing virtual machines and storage.
 
 To launch the CLI, run:
-
 ```bash
 python3 vmanager_cmd.py
 ```
-or:
+Or:
 ```bash
 python3 vmanager.py --cmd
 ```
@@ -93,7 +94,7 @@ The default configuration is provided in `config.py`, and user configurations me
 - **VNC_QUALITY**: VNC quality setting (0-10, default: 0)
 - **VNC_COMPRESSION**: VNC compression level (default: `9`)
 - **AUTOCONNECT_ON_STARTUP**: Automatically connect to the first configured server on application startup (default: `False`)
-- **CACHE_TTL**: Time-to-live for VM metadata cache in seconds. Reduces `libvirt` calls. (default: `1`)
+- **CACHE_TTL**: Time-to-live for VM metadata cache in seconds. Reduces `libvirt` calls. (default: `3`)
 - **network_models**: List of allowed network models (default: `['virtio', 'e1000', 'e1000e', 'rtl8139', 'ne2k_pci', 'pcnet']`)
 - **sound_models**: List of allowed sound models (default: `['none', 'ich6', 'ich9', 'ac97', 'sb16', 'usb']`)
 - **servers**: List of libvirt server connections (default: `[{'name': 'Localhost', 'uri': 'qemu:///system'}]`)
