@@ -262,3 +262,46 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
 
     except libvirt.libvirtError:
         return {}
+
+
+def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
+    """Gets all USB devices from the host."""
+    usb_devices = []
+    try:
+        devices = conn.listAllDevices(0)
+        for dev in devices:
+            try:
+                xml_desc = dev.XMLDesc(0)
+                root = ET.fromstring(xml_desc)
+                if root.find("capability[@type='usb_device']") is not None:
+                    capability = root.find("capability[@type='usb_device']")
+                    vendor_elem = capability.find('vendor')
+                    product_elem = capability.find('product')
+                    vendor_id = vendor_elem.get('id') if vendor_elem is not None else None
+                    product_id = product_elem.get('id') if product_elem is not None else None
+
+                    if not vendor_id or not product_id:
+                        continue
+
+                    product_name = "Unknown"
+                    if product_elem is not None and product_elem.text:
+                        product_name = product_elem.text.strip()
+
+                    vendor_name = "Unknown"
+                    if vendor_elem is not None and vendor_elem.text:
+                        vendor_name = vendor_elem.text.strip()
+
+                    usb_devices.append({
+                        "name": dev.name(),
+                        "vendor_id": vendor_id,
+                        "product_id": product_id,
+                        "vendor_name": vendor_name,
+                        "product_name": product_name,
+                        "description": f"{vendor_name} - {product_name} ({vendor_id}:{product_id})"
+                    })
+            except libvirt.libvirtError as e:
+                logging.warning(f"Skipping device {dev.name() if hasattr(dev, 'name') else 'unknown'}: {e}")
+                continue
+    except libvirt.libvirtError as e:
+        logging.error(f"Error getting host USB devices: {e}")
+    return usb_devices
