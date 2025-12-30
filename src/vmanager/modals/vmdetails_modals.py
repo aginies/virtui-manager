@@ -24,7 +24,8 @@ from vm_queries import (
     get_supported_machine_types, get_vm_graphics_info,
     get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
     get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info,
-    get_attached_usb_devices, get_serial_devices, get_vm_input_info
+    get_attached_usb_devices, get_serial_devices, get_vm_input_info,
+    get_vm_watchdog_info
     )
 from vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -34,7 +35,7 @@ from vm_actions import (
         add_network_interface, remove_network_interface, set_boot_info, set_vm_rng, set_vm_tpm,
         check_for_other_spice_devices, remove_spice_devices, attach_usb_device,
         detach_usb_device, add_serial_console, remove_serial_console,
-        add_vm_input, remove_vm_input
+        add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog
 )
 from config import get_log_path
 from network_manager import (
@@ -102,6 +103,7 @@ class VMDetailModal(ModalScreen):
         self.rng_info = get_vm_rng_info(self.xml_desc)
         # Initialize TPM info
         self.tpm_info = get_vm_tpm_info(self.xml_desc)
+        self.watchdog_info = get_vm_watchdog_info(self.xml_desc)
 
     @property
     def is_vm_stopped(self) -> bool:
@@ -1357,7 +1359,29 @@ class VMDetailModal(ModalScreen):
                             yield Button("Add PTY Console", id="add-serial-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove Console", id="remove-serial-btn", variant="error", disabled=True)
                 with TabPane("Watchdog", id="detail-watchdog-tab"):
-                    yield Label("Watchdog")
+                    watchdog_model = self.watchdog_info.get('model') if self.watchdog_info and self.watchdog_info.get('model') else 'none'
+                    watchdog_action = self.watchdog_info.get('action') if self.watchdog_info and self.watchdog_info.get('action') else 'reset'
+
+                    with Vertical(classes="info-details"):
+                        yield Label("Watchdog Model:")
+                        yield Select(
+                            [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")],
+                            value=watchdog_model,
+                            id="watchdog-model-select",
+                            disabled=not self.is_vm_stopped,
+                            allow_blank=False
+                        )
+                        yield Label("Action:")
+                        yield Select(
+                            [("Reset", "reset"), ("Shutdown", "shutdown"), ("Poweroff", "poweroff"), ("Pause", "pause"), ("None", "none"), ("Dump", "dump"), ("Inject-NMI", "inject-nmi")],
+                            value=watchdog_action,
+                            id="watchdog-action-select",
+                            disabled=not self.is_vm_stopped,
+                            allow_blank=False
+                        )
+                        with Horizontal():
+                            yield Button("Apply Watchdog Settings", id="apply-watchdog-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button("Remove Watchdog", id="remove-watchdog-btn", variant="error", disabled=not self.is_vm_stopped or watchdog_model == 'none')
                 with TabPane("Input", id="detail-input-tab"):
                     with ScrollableContainer(classes="info-details"):
                         yield DataTable(id="input-table", cursor_type="row")
@@ -1365,8 +1389,8 @@ class VMDetailModal(ModalScreen):
                         with Horizontal():
                             yield Button("Add Input", id="add-input-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove Input", id="remove-input-btn", variant="error", disabled=True)
-                with TabPane("USB", id="detail-usb-tab"):
-                    yield Label("USB")
+                with TabPane("Controller", id="detail-controler-tab"):
+                    yield Label("Controller")
                 with TabPane("USB Host", id="detail-usbhost-tab"):
                     with Horizontal(classes="boot-manager"):
                         with Vertical(classes="boot-list-container"):
@@ -1437,6 +1461,61 @@ class VMDetailModal(ModalScreen):
             self.query_one("#apply-tpm-btn", Button).disabled = not self.is_vm_stopped
         except Exception:
             pass
+
+    def _update_watchdog_ui(self) -> None:
+        """Updates the UI elements for the Watchdog tab."""
+        try:
+            model = self.watchdog_info.get('model') if self.watchdog_info else 'none'
+            action = self.watchdog_info.get('action') if self.watchdog_info else 'reset'
+
+            self.query_one("#watchdog-model-select", Select).value = model
+            self.query_one("#watchdog-action-select", Select).value = action
+            
+            self.query_one("#apply-watchdog-btn", Button).disabled = not self.is_vm_stopped
+            self.query_one("#remove-watchdog-btn", Button).disabled = not self.is_vm_stopped or model == 'none'
+        except Exception:
+            pass
+
+    @on(Button.Pressed, "#apply-watchdog-btn")
+    def on_watchdog_apply_button_pressed(self, event: Button.Pressed) -> None:
+        if not self.is_vm_stopped:
+            self.app.show_error_message("VM must be stopped to apply Watchdog settings.")
+            return
+
+        model = self.query_one("#watchdog-model-select", Select).value
+        action = self.query_one("#watchdog-action-select", Select).value
+
+        if model == 'none':
+             # If none is selected, treat it as removal
+             self.on_watchdog_remove_button_pressed(event)
+             return
+
+        try:
+            set_vm_watchdog(self.domain, model, action)
+            self.app.show_success_message("Watchdog settings applied successfully.")
+            self.watchdog_info = get_vm_watchdog_info(self.domain.XMLDesc(0))
+            self._update_watchdog_ui()
+        except Exception as e:
+            self.app.show_error_message(f"Error applying Watchdog settings: {e}")
+
+    @on(Button.Pressed, "#remove-watchdog-btn")
+    def on_watchdog_remove_button_pressed(self, event: Button.Pressed) -> None:
+        if not self.is_vm_stopped:
+            self.app.show_error_message("VM must be stopped to remove Watchdog.")
+            return
+
+        def on_confirm(confirmed: bool):
+            if confirmed:
+                try:
+                    remove_vm_watchdog(self.domain)
+                    self.app.show_success_message("Watchdog removed successfully.")
+                    self.watchdog_info = {'model': 'none', 'action': 'reset'} # Reset to defaults
+                    self._update_watchdog_ui()
+                except Exception as e:
+                    self.app.show_error_message(f"Error removing Watchdog: {e}")
+
+        self.app.push_screen(ConfirmationDialog("Are you sure you want to remove the Watchdog device?"), on_confirm)
+
 
     def _update_disk_list(self):
         new_xml = self.domain.XMLDesc(0)

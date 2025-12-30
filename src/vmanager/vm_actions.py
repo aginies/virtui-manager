@@ -1229,6 +1229,35 @@ def set_vm_watchdog(domain: libvirt.virDomain, watchdog_model: str = 'i6300esb',
 
 
 @log_function_call
+def remove_vm_watchdog(domain: libvirt.virDomain):
+    """
+    Removes Watchdog configuration from a VM.
+    The VM must be stopped.
+    """
+    invalidate_cache(domain.UUIDString())
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to remove Watchdog settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    devices = root.find('devices')
+    if devices is None:
+        return # No devices, so no watchdog
+
+    # Remove existing Watchdog elements
+    existing_watchdog_elements = devices.findall('./watchdog')
+    if not existing_watchdog_elements:
+        raise ValueError("No watchdog device found to remove.")
+
+    for elem in existing_watchdog_elements:
+        devices.remove(elem)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+
+@log_function_call
 def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bus: str = 'usb'):
     """
     Sets Input (keyboard and mouse) configuration for a VM.
