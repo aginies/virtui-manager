@@ -17,7 +17,7 @@ from textual.widgets import (
 from textual.worker import Worker, WorkerState
 
 from config import load_config, save_config, get_log_path
-from constants import VmAction, VmStatus
+from constants import VmAction, VmStatus, ButtonLabels, ButtonIds, StatusText, ErrorMessages
 from events import VmActionRequest, VMNameClicked, VMSelectionChanged
 from libvirt_error_handler import register_error_handler
 from libvirt_utils import _get_vm_names_from_uuids
@@ -213,17 +213,17 @@ class VMManagerTUI(App):
         yield Header()
         with Horizontal(classes="top-controls"):
             yield Button(
-                "Select Servers", id="select_server_button", classes="Buttonpage"
+                ButtonLabels.SELECT_SERVER, id=ButtonIds.SELECT_SERVER_BUTTON, classes="Buttonpage"
             )
-            yield Button("Servers List", id="manage_servers_button", classes="Buttonpage")
+            yield Button(ButtonLabels.MANAGE_SERVERS, id=ButtonIds.MANAGE_SERVERS_BUTTON, classes="Buttonpage")
             yield Button(
-                "Server Prefs", id="server_preferences_button", classes="Buttonpage"
+                ButtonLabels.SERVER_PREFERENCES, id=ButtonIds.SERVER_PREFERENCES_BUTTON, classes="Buttonpage"
             )
-            yield Button("Filter VM", id="filter_button", classes="Buttonpage")
-            yield Button("Log", id="view_log_button", classes="Buttonpage")
+            yield Button(ButtonLabels.FILTER_VM, id=ButtonIds.FILTER_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.VIEW_LOG, id=ButtonIds.VIEW_LOG_BUTTON, classes="Buttonpage")
             # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
-            yield Button("Bulk CMD", id="bulk_selected_vms", classes="Buttonpage")
-            yield Button("Config", id="config_button", classes="Buttonpage")
+            yield Button(ButtonLabels.BULK_CMD, id=ButtonIds.BULK_SELECTED_VMS, classes="Buttonpage")
+            yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
         with Horizontal(id="pagination-controls") as pc:
@@ -232,11 +232,11 @@ class VMManagerTUI(App):
             pc.styles.height = "auto"
             pc.styles.padding_bottom = 0
             yield Button(
-                "Previous Page", id="prev-button", variant="primary", classes="ctrlpage"
+                ButtonLabels.PREVIOUS_PAGE, id=ButtonIds.PREV_BUTTON, variant="primary", classes="ctrlpage"
             )
             yield Label("", id="page-info", classes="")
             yield Button(
-                "Next Page", id="next-button", variant="primary", classes="ctrlpage"
+                ButtonLabels.NEXT_PAGE, id=ButtonIds.NEXT_BUTTON, variant="primary", classes="ctrlpage"
             )
 
         with Vertical(id="vms-container"):
@@ -260,19 +260,19 @@ class VMManagerTUI(App):
 
         if not check_virt_viewer():
             self.show_error_message(
-                "'virt-viewer' is not installed. 'Connect' button will be disabled."
+                ErrorMessages.VIRT_VIEWER_NOT_FOUND
             )
             self.virt_viewer_available = False
 
         if not check_websockify():
             self.show_error_message(
-                "'websockify' is not installed. 'Web Console' button will be disabled."
+                ErrorMessages.WEBSOCKIFY_NOT_FOUND
             )
             self.websockify_available = False
 
         if not check_novnc_path():
             self.show_error_message(
-                "'novnc' is not installed. 'Web Console' button will be disabled."
+                ErrorMessages.NOVNC_NOT_FOUND
             )
             self.novnc_available = False
 
