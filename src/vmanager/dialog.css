@@ -12,6 +12,8 @@ ConfirmationDialog,
 ChangeNetworkDialog,
 XMLDisplayModal,
 SelectDiskModal,
+AddDiskModal,
+EditDiskModal,
 SelectPoolModal,
 VMDetailModal,
 VirshShellScreen,
@@ -29,6 +31,8 @@ AddInputDeviceModal {
 /* Common centered content alignment for many dialogs */
 ConfirmationDialog #dialog Label,
 RenameVMDialog,
+AddDiskModal,
+EditDiskModal,
 WebConsoleDialog,
 XMLDisplayModal,
 MigrationModal,
@@ -266,6 +270,8 @@ ProgressModal .progress-log {
     content-align: center middle;
     padding: 0 1;
 }
+#apply-disk-edit,
+#cancel-disk-edit,
 #add-input,
 #cancel-input {
    width: 50%;
