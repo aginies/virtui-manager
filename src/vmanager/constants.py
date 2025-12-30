@@ -42,6 +42,15 @@ class ButtonLabels:
     MIGRATION = "! Migration !"
     VIEW_XML = "View XML"
     RENAME = "Rename"
+    SELECT_SERVER = "Select Servers"
+    MANAGE_SERVERS = "Servers List"
+    SERVER_PREFERENCES = "Server Prefs"
+    FILTER_VM = "Filter VM"
+    VIEW_LOG = "Log"
+    BULK_CMD = "Bulk CMD"
+    CONFIG = "Config"
+    PREVIOUS_PAGE = "Previous Page"
+    NEXT_PAGE = "Next Page"
 
 class ButtonIds:
     """Constants for button IDs"""
@@ -61,6 +70,15 @@ class ButtonIds:
     MIGRATION = "migration"
     XML = "xml"
     RENAME_BUTTON = "rename-button"
+    SELECT_SERVER_BUTTON = "select_server_button"
+    MANAGE_SERVERS_BUTTON = "manage_servers_button"
+    SERVER_PREFERENCES_BUTTON = "server_preferences_button"
+    FILTER_BUTTON = "filter_button"
+    VIEW_LOG_BUTTON = "view_log_button"
+    BULK_SELECTED_VMS = "bulk_selected_vms"
+    CONFIG_BUTTON = "config_button"
+    PREV_BUTTON = "prev-button"
+    NEXT_BUTTON = "next-button"
 
 class TabTitles:
     """Constants for tab titles"""
@@ -91,6 +109,8 @@ class ErrorMessages:
     NO_DESTINATION_SERVERS = "No destination servers available."
     DIFFERENT_SOURCE_HOSTS = "Cannot migrate VMs from different source hosts at the same time."
     MIXED_VM_STATES = "Cannot migrate running/paused and stopped VMs at the same time."
+    WEBSOCKIFY_NOT_FOUND = "websockify is not installed. 'Web Console' button will be disabled."
+    NOVNC_NOT_FOUND = "novnc is not installed. 'Web Console' button will be disabled."
 
 class DialogMessages:
     """Constants for dialog messages"""
