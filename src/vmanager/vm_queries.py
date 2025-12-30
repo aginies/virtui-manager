@@ -884,3 +884,26 @@ def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
             continue
 
     return network_to_vms
+
+
+def get_attached_usb_devices(xml_content: str) -> list[dict]:
+    """Gets all USB devices attached to the VM described by xml_content."""
+    attached_devices = []
+    try:
+        root = ET.fromstring(xml_content)
+        for hostdev in root.findall(".//devices/hostdev[@type='usb']"):
+            source = hostdev.find('source')
+            vendor = source.find('vendor')
+            product = source.find('product')
+            if vendor is not None and product is not None:
+                vendor_id = vendor.get('id')
+                product_id = product.get('id')
+                attached_devices.append({
+                    "vendor_id": vendor_id,
+                    "product_id": product_id,
+                })
+    except ET.ParseError as e:
+        logging.error(f"Error parsing XML for attached USB devices: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error getting attached USB devices: {e}")
+    return attached_devices
