@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vmanager"
+name = "virtui-manager"
 version = "0.4.0"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
@@ -28,6 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: System :: Systems Administration",
     "Topic :: Utilities",
 ]
@@ -52,11 +53,11 @@ webconsole = [
 ]
 
 [project.urls]
-Homepage = "https://aginies.github.io/vmanager/"
-Documentation = "https://aginies.github.io/vmanager/"
-Repository = "https://github.com/aginies/vmanager"
-Issues = "https://github.com/aginies/vmanager/issues"
-Changelog = "https://github.com/aginies/vmanager/releases"
+Homepage = "https://aginies.github.io/virtui-manager/"
+Documentation = "https://aginies.github.io/virtui-manager/"
+Repository = "https://github.com/aginies/virtui-manager"
+Issues = "https://github.com/aginies/virtui-manager/issues"
+Changelog = "https://github.com/aginies/virtui-manager/releases"
 
 [project.scripts]
 vmanager = "vmanager:main"
@@ -73,7 +74,7 @@ vmanager = ["*.css", "*.md"]
 
 [tool.black]
 line-length = 100
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312','py313',]
 
 [tool.ruff]
 line-length = 100
