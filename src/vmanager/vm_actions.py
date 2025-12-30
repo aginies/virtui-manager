@@ -172,10 +172,11 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         logging.error(msg)
         raise Exception(msg) from e
 
-def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, disk_format='qcow2'):
+def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, size_gb=10, disk_format='qcow2'):
     """
     Adds a disk to a VM. Can optionally create a new disk image in a libvirt storage pool.
     device_type can be 'disk' or 'cdrom'
+    bus can be 'virtio', 'ide', 'sata', 'scsi', 'usb'
     """
     if not domain:
         raise ValueError("Invalid domain object.")
@@ -187,16 +188,17 @@ def add_disk(domain, disk_path, device_type='disk', create=False, size_gb=10, di
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    if device_type == 'disk':
-        bus = 'virtio'
+    if bus == 'virtio':
         prefix = 'vd'
-        dev_letters = string.ascii_lowercase
-    elif device_type == 'cdrom':
-        bus = 'sata'
+    elif bus == 'ide':
+        prefix = 'hd'
+    elif bus in ['sata', 'scsi', 'usb']:
         prefix = 'sd'
-        dev_letters = string.ascii_lowercase
     else:
-        raise ValueError(f"Unsupported device type: {device_type}")
+        # Fallback for any other bus types, though we control the list in UI
+        prefix = 'sd'
+    
+    dev_letters = string.ascii_lowercase
 
     used_devs = [
         target.get("dev")
@@ -741,11 +743,18 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
                 driver = ET.SubElement(disk, "driver", name="qemu", type="qcow2")
 
             for key, value in properties.items():
+                if key == "bus":
+                    continue
                 if key == "cache" and value == "default":
                     if key in driver.attrib:
                         del driver.attrib[key]
                 else:
                     driver.set(key, value)
+            
+            if 'bus' in properties:
+                target = disk.find("target")
+                if target is not None:
+                    target.set('bus', properties['bus'])
 
             disk_found = True
             break
@@ -1301,12 +1310,16 @@ def add_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to add an input device.")
 
-    input_xml = f"""
-    <input type='{input_type}' bus='{input_bus}'/>
-    """
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
 
-    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
-    domain.attachDeviceFlags(input_xml, flags)
+    ET.SubElement(devices, 'input', type=input_type, bus=input_bus)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
 
 
 @log_function_call
@@ -1334,9 +1347,10 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
     if input_to_remove is None:
         raise ValueError(f"Input device with type '{input_type}' and bus '{input_bus}' not found.")
 
-    input_xml = ET.tostring(input_to_remove, encoding='unicode')
-    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
-    domain.detachDeviceFlags(input_xml, flags)
+    devices.remove(input_to_remove)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
 
 
 def start_vm(domain):
