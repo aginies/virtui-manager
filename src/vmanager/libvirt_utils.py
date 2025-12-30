@@ -311,13 +311,14 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> list[dict]:
     """Gets all PCI devices from the host that are available for passthrough."""
     pci_devices = []
     try:
-        devices = conn.listAllDevices(0)
+        # Filter only PCI devices
+        devices = conn.listAllDevices(libvirt.VIR_CONNECT_LIST_NODE_DEVICES_CAP_PCI_DEV)
         for dev in devices:
             try:
                 xml_desc = dev.XMLDesc(0)
                 root = ET.fromstring(xml_desc)
-                if root.tag == 'capability' and root.get('type') == 'pci_device':
-                    capability = root
+                capability = root.find("capability[@type='pci']")
+                if capability is not None:
                     vendor_elem = capability.find('vendor')
                     product_elem = capability.find('product')
                     address_elem = capability.find('address')
