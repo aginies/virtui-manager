@@ -13,7 +13,7 @@ from textual.widgets import (
         RadioSet, TabbedContent, TabPane,
         ListView, ListItem
         )
-from textual.containers import ScrollableContainer, Horizontal, Vertical
+from textual.containers import ScrollableContainer, Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual import on
@@ -25,7 +25,7 @@ from vm_queries import (
     get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
     get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info,
     get_attached_usb_devices, get_serial_devices, get_vm_input_info,
-    get_vm_watchdog_info
+    get_vm_watchdog_info, get_attached_pci_devices
     )
 from vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -48,7 +48,7 @@ from firmware_manager import (
 import storage_manager
 from libvirt_utils import (
         get_cpu_models, get_domain_capabilities_xml, get_video_domain_capabilities,
-        get_host_usb_devices
+        get_host_usb_devices, get_host_pci_devices
         )
 from modals.utils_modals import ConfirmationDialog
 from modals.cpu_mem_pc_modals import (
@@ -173,6 +173,7 @@ class VMDetailModal(ModalScreen):
         self._populate_disks_table()
         self._populate_networks_table()
         self._populate_usb_lists()
+        self._populate_pci_lists()
         self._populate_serial_table()
         self._populate_input_table()
         self._populate_controller_table()
@@ -986,6 +987,55 @@ class VMDetailModal(ModalScreen):
             except libvirt.libvirtError as e:
                 self.app.show_error_message(f"Error detaching USB device: {e}")
 
+    def _populate_pci_lists(self):
+        """Populates the PCI device lists."""
+        available_list = self.query_one("#available-pci-list", ListView)
+        attached_list = self.query_one("#attached-pci-list", ListView)
+        available_list.clear()
+        attached_list.clear()
+
+        host_devices = get_host_pci_devices(self.conn)
+        attached_device_info = get_attached_pci_devices(self.xml_desc)
+
+        attached_pci_addresses = [d['pci_address'] for d in attached_device_info]
+
+        for dev in host_devices:
+            if dev['pci_address'] in attached_pci_addresses:
+                item = ListItem(Label(dev['description']))
+                item.tooltip = dev['description']
+                item.data = dev
+                attached_list.append(item)
+                attached_pci_addresses.remove(dev['pci_address']) # Remove so it's not added twice
+            else:
+                item = ListItem(Label(dev['description']))
+                item.tooltip = dev['description']
+                item.data = dev
+                available_list.append(item)
+
+        # Add any attached devices that are no longer present on the host
+        for pci_address in attached_pci_addresses:
+            description = f"Disconnected Device ({pci_address})"
+            item = ListItem(Label(description))
+            item.tooltip = description
+            item.data = {"pci_address": pci_address, "description": description, "disconnected": True}
+            attached_list.append(item)
+
+    @on(ListView.Highlighted, "#available-pci-list")
+    def on_available_pci_list_highlighted(self, event: ListView.Highlighted) -> None:
+        self.query_one("#attach-pci-btn", Button).disabled = event.item is None
+
+    @on(ListView.Highlighted, "#attached-pci-list")
+    def on_attached_pci_list_highlighted(self, event: ListView.Highlighted) -> None:
+        self.query_one("#detach-pci-btn", Button).disabled = event.item is None
+
+    @on(Button.Pressed, "#attach-pci-btn")
+    def on_attach_pci_button_pressed(self, event: Button.Pressed) -> None:
+        self.app.show_error_message("PCI passthrough not implemented yet.")
+
+    @on(Button.Pressed, "#detach-pci-btn")
+    def on_detach_pci_button_pressed(self, event: Button.Pressed) -> None:
+        self.app.show_error_message("PCI passthrough not implemented yet.")
+
     def _populate_serial_table(self):
         """Populates the serial devices table."""
         serial_table = self.query_one("#serial-table", DataTable)
@@ -1435,7 +1485,7 @@ class VMDetailModal(ModalScreen):
                             yield Button("Apply Watchdog Settings", id="apply-watchdog-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove Watchdog", id="remove-watchdog-btn", variant="error", disabled=not self.is_vm_stopped or watchdog_model == 'none')
                 with TabPane("Input", id="detail-input-tab"):
-                    with ScrollableContainer(classes="info-details"):
+                    with VerticalScroll(classes="info-details"):
                         yield DataTable(id="input-table", cursor_type="row")
                     with Vertical(classes="button-details"):
                         with Horizontal():
@@ -1462,7 +1512,16 @@ class VMDetailModal(ModalScreen):
                             yield Label("Attached to VM")
                             yield ListView(id="attached-usb-list")
                 with TabPane("PCI Host", id="detail-PCIhost-tab"):
-                    yield Label("PCI Host")
+                    with Horizontal(classes="boot-manager"):
+                        with Vertical(classes="boot-list-container"):
+                            yield Label("Available Host PCI Devices")
+                            yield ListView(id="available-pci-list")
+                        with Vertical(classes="boot-buttons"):
+                            yield Button("Attach >", id="attach-pci-btn", disabled=True)
+                            yield Button("< Detach", id="detach-pci-btn", disabled=True)
+                        with Vertical(classes="boot-list-container"):
+                            yield Label("Attached to VM")
+                            yield ListView(id="attached-pci-list")
                 with TabPane("PCIe", id="detail-pcie-tab"):
                     yield Label("PCIe")
                 with TabPane("SATA", id="detail-sata-tab"):
