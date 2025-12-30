@@ -459,6 +459,14 @@ Select:focus {
 .delete-button, .cancel-button { background: red; }
 .rename-button, .edit-button, .add-button { background: green; }
 .delete-button, .done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
+#add-usb2-controller-btn,
+#add-usb3-controller-btn, 
+#add-scsi-controller-btn,
+#remove-controller-btn {
+    height: 1;
+    width: 25%;
+    color: white;
+}
 .toggle-detail-button { width: 16%; height: 1; align: center top; }
 .clone-button { height: 1; color: black; background: pink; }
 .edit-detail-btn { width: auto; height: 1; background: $primary; min-height: 1; margin: 0 0 0 1; }

@@ -35,7 +35,8 @@ from vm_actions import (
         add_network_interface, remove_network_interface, set_boot_info, set_vm_rng, set_vm_tpm,
         check_for_other_spice_devices, remove_spice_devices, attach_usb_device,
         detach_usb_device, add_serial_console, remove_serial_console,
-        add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog
+        add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog,
+        add_usb_device, remove_usb_device, add_scsi_controller, remove_scsi_controller
 )
 from config import get_log_path
 from network_manager import (
@@ -93,6 +94,7 @@ class VMDetailModal(ModalScreen):
         self.selected_serial_port = None
         self.input_devices = []
         self.selected_input_device = None
+        self.selected_controller = None
         self.boot_order = self.vm_info.get('boot', {}).get('order', [])
         self.all_bootable_devices = [] # Initialize the new reactive list
         self.sev_caps = {'sev': False, 'sev-es': False}
@@ -173,6 +175,7 @@ class VMDetailModal(ModalScreen):
         self._populate_usb_lists()
         self._populate_serial_table()
         self._populate_input_table()
+        self._populate_controller_table()
 
     def _populate_disks_table(self):
         disks_table = self.query_one("#disks-table", DataTable)
@@ -1029,6 +1032,55 @@ class VMDetailModal(ModalScreen):
             self.selected_input_device = None
             self.query_one("#remove-input-btn").disabled = True
 
+    def _populate_controller_table(self):
+        """Populates the controller devices table."""
+        controller_table = self.query_one("#controller-table", DataTable)
+        controller_table.clear()
+        if not controller_table.columns:
+            controller_table.add_column("Type", key="type")
+            controller_table.add_column("Model", key="model")
+            controller_table.add_column("Index", key="index")
+
+        devices = self.vm_info.get("devices", {})
+        usb_controllers = devices.get("usb", [])
+        scsi_controllers = devices.get("scsi", [])
+        
+        all_controllers = []
+        for controller in usb_controllers:
+            if controller.get('type') == 'controller':
+                all_controllers.append({'type': 'USB', 'model': controller['model'], 'index': controller['index']})
+        for controller in scsi_controllers:
+             if controller.get('type') == 'controller':
+                all_controllers.append({'type': 'SCSI', 'model': controller['model'], 'index': controller['index']})
+
+        for i, device in enumerate(all_controllers):
+            row_key = f"{device['type']}-{device['model']}-{device['index']}"
+            controller_table.add_row(device['type'], device['model'], device['index'], key=row_key)
+
+    def _update_controller_table(self):
+        """Refreshes the controller table."""
+        new_xml = self.domain.XMLDesc(0)
+        self.vm_info['devices'] = get_vm_devices_info(new_xml)
+        self._populate_controller_table()
+
+    @on(DataTable.RowSelected, "#controller-table")
+    def on_controller_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        row_key = event.row_key.value
+        if row_key:
+            parts = row_key.split('-')
+            controller_type = parts[0]
+            controller_index = parts[-1]
+            controller_model = '-'.join(parts[1:-1])
+            self.selected_controller = {
+                'type': controller_type,
+                'model': controller_model,
+                'index': controller_index
+            }
+            self.query_one("#remove-controller-btn").disabled = not self.is_vm_stopped
+        else:
+            self.selected_controller = None
+            self.query_one("#remove-controller-btn").disabled = True
+
     def compose(self) -> ComposeResult:
         xml_root = ET.fromstring(self.xml_desc)
         with Vertical(id="vm-detail-container"):
@@ -1390,7 +1442,14 @@ class VMDetailModal(ModalScreen):
                             yield Button("Add Input", id="add-input-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove Input", id="remove-input-btn", variant="error", disabled=True)
                 with TabPane("Controller", id="detail-controler-tab"):
-                    yield Label("Controller")
+                    with ScrollableContainer(classes="info-details"):
+                        yield DataTable(id="controller-table", cursor_type="row")
+                    with Vertical(classes="button-details"):
+                        with Horizontal():
+                            yield Button("Add USB2", id="add-usb2-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button("Add USB3", id="add-usb3-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button("Add SCSI", id="add-scsi-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button("Remove", id="remove-controller-btn", variant="error", disabled=True)
                 with TabPane("USB Host", id="detail-usbhost-tab"):
                     with Horizontal(classes="boot-manager"):
                         with Vertical(classes="boot-list-container"):
@@ -1863,6 +1922,56 @@ class VMDetailModal(ModalScreen):
                 SelectPoolModal([p['name'] for p in active_pools], "Select a storage pool"),
                 select_pool_callback
             )
+
+        elif event.button.id == "add-usb2-controller-btn":
+            try:
+                add_usb_device(self.domain, 'usb', 'usb2')
+                self.app.show_success_message("USB 2.0 controller added successfully.")
+                self._update_controller_table()
+            except (libvirt.libvirtError, ValueError) as e:
+                self.app.show_error_message(f"Error adding USB 2.0 controller: {e}")
+        
+        elif event.button.id == "add-usb3-controller-btn":
+            try:
+                add_usb_device(self.domain, 'usb', 'usb3')
+                self.app.show_success_message("USB 3.0 controller added successfully.")
+                self._update_controller_table()
+            except (libvirt.libvirtError, ValueError) as e:
+                self.app.show_error_message(f"Error adding USB 3.0 controller: {e}")
+
+        elif event.button.id == "add-scsi-controller-btn":
+            try:
+                add_scsi_controller(self.domain, 'virtio-scsi')
+                self.app.show_success_message("SCSI controller added successfully.")
+                self._update_controller_table()
+            except (libvirt.libvirtError, ValueError) as e:
+                self.app.show_error_message(f"Error adding SCSI controller: {e}")
+        
+        elif event.button.id == "remove-controller-btn":
+            if self.selected_controller:
+                message = f"Are you sure you want to remove the {self.selected_controller['type']} controller (model: {self.selected_controller['model']})?"
+                def on_confirm(confirmed: bool) -> None:
+                    if confirmed:
+                        try:
+                            if self.selected_controller['type'] == 'USB':
+                                usb_model_arg = 'usb2' if 'uhci' in self.selected_controller['model'] else 'usb3'
+                                remove_usb_device(
+                                    self.domain,
+                                    usb_model_arg,
+                                    self.selected_controller['index']
+                                )
+                            elif self.selected_controller['type'] == 'SCSI':
+                                remove_scsi_controller(
+                                    self.domain,
+                                    self.selected_controller['model'],
+                                    self.selected_controller['index']
+                                )
+                            
+                            self.app.show_success_message("Controller removed successfully.")
+                            self._update_controller_table()
+                        except (libvirt.libvirtError, ValueError) as e:
+                            self.app.show_error_message(f"Error removing controller: {e}")
+                self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
         elif event.button.id == "detail_remove_disk":
             highlighted_index = self.query_one("#disks-table").cursor_row

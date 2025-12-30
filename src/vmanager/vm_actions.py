@@ -1877,3 +1877,152 @@ def remove_serial_console(domain: libvirt.virDomain, port: str):
                 f"Live detach failed: {e}. "
                 "The configuration has been saved and will apply on the next reboot."
             )
+
+def add_usb_device(domain: libvirt.virDomain, usb_type: str, model: str):
+    """
+    Adds a USB controller to a VM.
+    
+    Args:
+        domain: libvirt domain object
+        usb_type: Type of device ('usb' for USB controller)
+        model: Model of USB controller ('usb2' or 'usb3')
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    if usb_type != 'usb':
+        raise ValueError(f"Unsupported USB type: {usb_type}")
+
+    # Determine next available index for USB controllers
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    usb_controllers = root.findall(".//controller[@type='usb']")
+
+    indices = [int(c.get('index', '0')) for c in usb_controllers if c.get('index')]
+    next_index = max(indices) + 1 if indices else 0
+
+    if model == 'usb2':
+        # usb2 often needs multiple controllers (UHCI/EHCI) for full compatibility,
+        # but here we follow the existing pattern of adding one.
+        controller_model = 'piix3-uhci'
+    elif model == 'usb3':
+        controller_model = 'qemu-xhci'
+    else:
+        raise ValueError(f"Unsupported USB model: {model}")
+
+    controller_xml = f"<controller type='usb' index='{next_index}' model='{controller_model}'/>"
+
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
+    domain.attachDeviceFlags(controller_xml, flags)
+    invalidate_cache(domain.UUIDString())
+
+
+def add_scsi_controller(domain: libvirt.virDomain, model: str = 'virtio-scsi'):
+    """
+    Adds a SCSI controller to a VM.
+    
+    Args:
+        domain: libvirt domain object
+        model: SCSI controller model ('virtio-scsi')
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    if model != 'virtio-scsi':
+        raise ValueError(f"Unsupported SCSI model: {model}")
+
+    # Determine next available index for SCSI controllers
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    scsi_controllers = root.findall(".//controller[@type='scsi']")
+
+    indices = [int(c.get('index', '0')) for c in scsi_controllers if c.get('index')]
+    next_index = max(indices) + 1 if indices else 0
+
+    controller_xml = f"<controller type='scsi' index='{next_index}' model='virtio-scsi'/>"
+
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
+    domain.attachDeviceFlags(controller_xml, flags)
+    invalidate_cache(domain.UUIDString())
+
+
+def remove_usb_device(domain: libvirt.virDomain, model: str, index: str):
+    """
+    Removes a USB controller from a VM.
+
+    Args:
+        domain: libvirt domain object
+        model: Model of USB controller ('usb2' or 'usb3')
+        index: The index of the controller to remove.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+    controller_model_libvirt = 'piix3-uhci' if model == 'usb2' else 'qemu-xhci' if model == 'usb3' else None
+
+    if not controller_model_libvirt:
+        raise ValueError(f"Unsupported USB model: {model}")
+
+    # Find the controller in XML to get its full definition
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    target_controller = None
+
+    for c in root.findall(".//controller[@type='usb']"):
+        if c.get('model') == controller_model_libvirt and c.get('index') == index:
+            target_controller = c
+            break
+
+    if target_controller is None:
+        raise ValueError(f"USB controller with model '{controller_model_libvirt}' and index '{index}' not found.")
+
+    controller_xml = ET.tostring(target_controller, encoding='unicode')
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
+    domain.detachDeviceFlags(controller_xml, flags)
+    invalidate_cache(domain.UUIDString())
+
+def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
+    """
+    Removes a SCSI controller from a VM.
+
+    Args:
+        domain: libvirt domain object
+        model: SCSI controller model ('virtio-scsi')
+        index: The index of the controller to remove.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    if model != 'virtio-scsi':
+        raise ValueError(f"Unsupported SCSI model: {model}")
+
+    # Find the controller in XML to get its full definition
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    target_controller = None
+
+    for c in root.findall(".//controller[@type='scsi']"):
+        if c.get('model') == model and c.get('index') == index:
+            target_controller = c
+            break
+
+    if target_controller is None:
+        raise ValueError(f"SCSI controller with model '{model}' and index '{index}' not found.")
+
+    controller_xml = ET.tostring(target_controller, encoding='unicode')
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
+    domain.detachDeviceFlags(controller_xml, flags)
+    invalidate_cache(domain.UUIDString())

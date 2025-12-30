@@ -253,6 +253,7 @@ def get_vm_devices_info(xml_content: str) -> dict:
         'watchdog': [],
         'input': [],
         'sound': [],
+        'scsi': [],
     }
 
     try:
@@ -330,6 +331,14 @@ def get_vm_devices_info(xml_content: str) -> dict:
                     bus = address.get('bus')
                     device = address.get('device')
                     devices_info['usb'].append({'type': 'hostdev', 'bus': bus, 'device': device})
+
+            # scsi controllers
+            for controller_elem in devices.findall("./controller[@type='scsi']"):
+                devices_info['scsi'].append({
+                    'type': 'controller',
+                    'model': controller_elem.get('model'),
+                    'index': controller_elem.get('index')
+                })
 
             # video
             for video_elem in devices.findall('video'):
