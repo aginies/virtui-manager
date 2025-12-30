@@ -2,7 +2,7 @@
 
 A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM virtual machines using the libvirt python API.
 
-This is using Python Textual: https://github.com/Textualize/textual
+TUI is [Python Textual](https://github.com/Textualize/textual)
 
 ## Why
 
