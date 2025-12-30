@@ -201,6 +201,8 @@ Select:focus {
     margin: 0 1; /* Overrides default button margin */
 }
 
+#remove-serial-btn,
+#add-serial-btn,
 #filter-dialog Button {
     width: 50%;
     height: auto;

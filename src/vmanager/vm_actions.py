@@ -1714,3 +1714,89 @@ def detach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
     domain.detachDeviceFlags(xml, flags)
 
     invalidate_cache(domain.UUIDString())
+
+
+def add_serial_console(domain: libvirt.virDomain):
+    """Adds a PTY-based serial console to the VM."""
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
+
+    used_ports = [
+        int(target.get("port"))
+        for target in root.findall(".//serial/target")
+        if target.get("port") and target.get("port").isdigit()
+    ]
+    port = 0
+    while port in used_ports:
+        port += 1
+
+    serial_elem = ET.SubElement(devices, 'serial', type='pty')
+    ET.SubElement(serial_elem, 'target', port=str(port))
+
+    console_elem = ET.SubElement(devices, 'console', type='pty')
+    ET.SubElement(console_elem, 'target', type='serial', port=str(port))
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+    invalidate_cache(domain.UUIDString())
+
+    if domain.isActive():
+        serial_xml_str = ET.tostring(serial_elem, 'unicode')
+        console_xml_str = ET.tostring(console_elem, 'unicode')
+        try:
+            domain.attachDeviceFlags(serial_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+            domain.attachDeviceFlags(console_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+        except libvirt.libvirtError as e:
+            raise libvirt.libvirtError(
+                f"Live attach failed: {e}. "
+                "The configuration has been saved and will apply on the next reboot."
+            )
+    return port
+
+def remove_serial_console(domain: libvirt.virDomain, port: str):
+    """Removes a serial console from the VM based on its port."""
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    devices = root.find('devices')
+    if devices is None:
+        return
+
+    serial_elem = root.find(f".//devices/serial/target[@port='{port}']/..")
+    console_elem = root.find(f".//devices/console/target[@port='{port}']/..")
+
+    if serial_elem is None and console_elem is None:
+        raise ValueError(f"No serial or console device found on port {port}.")
+
+    serial_xml_str = ET.tostring(serial_elem, 'unicode') if serial_elem is not None else None
+    console_xml_str = ET.tostring(console_elem, 'unicode') if console_elem is not None else None
+
+    if serial_elem is not None:
+        devices.remove(serial_elem)
+    if console_elem is not None:
+        devices.remove(console_elem)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+    invalidate_cache(domain.UUIDString())
+
+    if domain.isActive():
+        try:
+            if console_xml_str:
+                domain.detachDeviceFlags(console_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+            if serial_xml_str:
+                domain.detachDeviceFlags(serial_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+        except libvirt.libvirtError as e:
+             raise libvirt.libvirtError(
+                f"Live detach failed: {e}. "
+                "The configuration has been saved and will apply on the next reboot."
+            )

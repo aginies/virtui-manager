@@ -24,7 +24,7 @@ from vm_queries import (
     get_supported_machine_types, get_vm_graphics_info,
     get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
     get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info,
-    get_attached_usb_devices
+    get_attached_usb_devices, get_serial_devices
     )
 from vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -33,7 +33,7 @@ from vm_actions import (
         set_vm_graphics, set_disk_properties, set_vm_sound_model,
         add_network_interface, remove_network_interface, set_boot_info, set_vm_rng, set_vm_tpm,
         check_for_other_spice_devices, remove_spice_devices, attach_usb_device,
-        detach_usb_device
+        detach_usb_device, add_serial_console, remove_serial_console
 )
 from config import get_log_path
 from network_manager import (
@@ -86,6 +86,8 @@ class VMDetailModal(ModalScreen):
         self.selected_virtiofs_target = None
         self.selected_virtiofs_info = None # Store full info for editing
         self.selected_network_interface = None
+        self.serial_devices = []
+        self.selected_serial_port = None
         self.boot_order = self.vm_info.get('boot', {}).get('order', [])
         self.all_bootable_devices = [] # Initialize the new reactive list
         self.sev_caps = {'sev': False, 'sev-es': False}
@@ -114,7 +116,6 @@ class VMDetailModal(ModalScreen):
             bool: True if VM is active, False otherwise
         """
         return self.domain.isActive()
-
 
 
     def on_mount(self) -> None:
@@ -164,6 +165,7 @@ class VMDetailModal(ModalScreen):
         self._populate_disks_table()
         self._populate_networks_table()
         self._populate_usb_lists()
+        self._populate_serial_table()
 
     def _populate_disks_table(self):
         disks_table = self.query_one("#disks-table", DataTable)
@@ -974,6 +976,29 @@ class VMDetailModal(ModalScreen):
             except libvirt.libvirtError as e:
                 self.app.show_error_message(f"Error detaching USB device: {e}")
 
+    def _populate_serial_table(self):
+        """Populates the serial devices table."""
+        serial_table = self.query_one("#serial-table", DataTable)
+        serial_table.clear()
+        if not serial_table.columns:
+            serial_table.add_column("Device", key="device")
+            serial_table.add_column("Details", key="details")
+
+        self.serial_devices = get_serial_devices(self.xml_desc)
+        for i, device in enumerate(self.serial_devices):
+            row_key = f"{device['device']}-{device['port']}-{i}"
+            serial_table.add_row(device['device'], device['details'], key=row_key)
+
+    @on(DataTable.RowSelected, "#serial-table")
+    def on_serial_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        row_index = event.cursor_row
+        if 0 <= row_index < len(self.serial_devices):
+            self.selected_serial_port = self.serial_devices[row_index]['port']
+            self.query_one("#remove-serial-btn").disabled = self.selected_serial_port == 'N/A'
+        else:
+            self.selected_serial_port = None
+            self.query_one("#remove-serial-btn").disabled = True
+
     def compose(self) -> ComposeResult:
         xml_root = ET.fromstring(self.xml_desc)
         with Vertical(id="vm-detail-container"):
@@ -1297,7 +1322,12 @@ class VMDetailModal(ModalScreen):
                         yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
         # TOFIX !
                 with TabPane("Serial", id="detail-serial-tab"):
-                    yield Label("Serial")
+                    with ScrollableContainer(classes="info-details"):
+                        yield DataTable(id="serial-table", cursor_type="row")
+                    with Vertical(classes="button-details"):
+                        with Horizontal():
+                            yield Button("Add PTY Console", id="add-serial-btn", variant="primary")
+                            yield Button("Remove Console", id="remove-serial-btn", variant="error", disabled=True)
                 with TabPane("Watchdog", id="detail-watchdog-tab"):
                     yield Label("Watchdog")
                 with TabPane("Input", id="detail-input-tab"):
@@ -1869,6 +1899,32 @@ class VMDetailModal(ModalScreen):
                         self.app.show_error_message(f"Error setting machine type: {e}")
 
             self.app.push_screen(SelectMachineTypeModal(machine_types, current_machine_type=self.vm_info.get('machine_type', '')), set_machine_type_callback)
+
+        elif event.button.id == "add-serial-btn":
+            try:
+                add_serial_console(self.domain)
+                self.app.show_success_message("Serial console added successfully.")
+                self.xml_desc = self.domain.XMLDesc(0)
+                self._populate_serial_table()
+            except (libvirt.libvirtError, ValueError) as e:
+                self.app.show_error_message(f"Error adding serial console: {e}")
+
+        elif event.button.id == "remove-serial-btn":
+            if self.selected_serial_port:
+                def on_confirm_remove(confirmed: bool):
+                    if confirmed:
+                        try:
+                            remove_serial_console(self.domain, self.selected_serial_port)
+                            self.app.show_success_message("Serial console removed successfully.")
+                            self.xml_desc = self.domain.XMLDesc(0)
+                            self._populate_serial_table()
+                        except (libvirt.libvirtError, ValueError) as e:
+                            self.app.show_error_message(f"Error removing serial console: {e}")
+
+                self.app.push_screen(
+                    ConfirmationDialog(f"Are you sure you want to remove console on port {self.selected_serial_port}?"),
+                    on_confirm_remove
+                )
 
     def action_close_modal(self) -> None:
         """Close the modal."""

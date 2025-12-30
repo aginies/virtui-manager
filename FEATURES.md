@@ -132,6 +132,14 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 - Set input device type and bus (usb, ps2, virtio)
 - Input configuration is disabled when VM is running
 
+### USB Host Configuration
+- Add/Remove USB host devices
+- Configure vendor ID, product ID, and address
+
+### Serial Configuration
+- Add/Remove serial devices
+- Configure serial device type (Pty)
+
 ### Additional Features
 - Tabbed interface for organized configuration
 - Toggle between main and extended configuration tabs

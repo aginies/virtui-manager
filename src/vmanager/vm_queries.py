@@ -907,3 +907,38 @@ def get_attached_usb_devices(xml_content: str) -> list[dict]:
     except Exception as e:
         logging.error(f"Unexpected error getting attached USB devices: {e}")
     return attached_devices
+
+
+def get_serial_devices(xml_content: str) -> list[dict]:
+    """
+    Extracts serial and console device information from a VM's XML definition.
+    """
+    devices = []
+    try:
+        root = ET.fromstring(xml_content)
+        # Find serial devices
+        for serial in root.findall(".//devices/serial"):
+            dev_type = serial.get('type')
+            target = serial.find('target')
+            port = target.get('port') if target is not None else 'N/A'
+            devices.append({
+                'device': 'serial',
+                'type': dev_type,
+                'port': port,
+                'details': f"Type: {dev_type}, Port: {port}"
+            })
+        # Find console devices
+        for console in root.findall(".//devices/console"):
+            dev_type = console.get('type')
+            target = console.find('target')
+            target_type = target.get('type') if target is not None else 'N/A'
+            port = target.get('port') if target is not None else 'N/A'
+            devices.append({
+                'device': 'console',
+                'type': dev_type,
+                'port': port,
+                'details': f"Type: {dev_type}, Target: {target_type} on port {port}"
+            })
+    except ET.ParseError as e:
+        logging.error(f"Error parsing XML for serial devices: {e}")
+    return devices
