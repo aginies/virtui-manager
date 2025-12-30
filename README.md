@@ -1,4 +1,4 @@
-# Virtui V Manager
+# Virtui Manager
 
 A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM virtual machines using the libvirt python API.
 
