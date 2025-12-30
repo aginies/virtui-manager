@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 import libvirt
 
+from constants import AppName
 from config import load_config, get_log_path
 from utils import find_free_port
 from vm_queries import get_vm_graphics_info
@@ -176,7 +177,7 @@ class WebConsoleManager:
         ]
 
         # Assume remote config directory for certs
-        remote_config_dir = "~/.config/vmanager"
+        remote_config_dir = "~/.config/" + AppName.name
         remote_cert_file = f"{remote_config_dir}/cert.pem"
         remote_key_file = f"{remote_config_dir}/key.pem"
         url_scheme = "http"
@@ -253,6 +254,7 @@ class WebConsoleManager:
             return vnc_target_host, vnc_port, {}
 
         self.app.call_from_thread(self.app.show_success_message, "Remote connection detected. Setting up SSH tunnel...")
+        parsed_uri = urlparse(conn.getURI())
         user = parsed_uri.username
         host = parsed_uri.hostname
         remote_user_host = f"{user}@{host}" if user else host
@@ -300,7 +302,7 @@ class WebConsoleManager:
             f"{host}:{port}", "--web", novnc_path
         ]
 
-        config_dir = Path.home() / '.config' / 'vmanager'
+        config_dir = Path.home() / '.config' / AppName.name
         cert_file = config_dir / 'cert.pem'
         key_file = config_dir / 'key.pem'
         url_scheme = "http"

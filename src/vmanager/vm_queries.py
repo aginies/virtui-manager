@@ -3,7 +3,7 @@ Module for retrieving information about virtual machines.
 """
 import xml.etree.ElementTree as ET
 import libvirt
-from libvirt_utils import _get_disabled_disks_elem, VMANAGER_NS
+from libvirt_utils import _get_disabled_disks_elem, VIRTUI_MANAGER_NS
 from vm_cache import get_from_cache, set_in_cache
 #from utils import log_function_call
 
@@ -415,7 +415,7 @@ def get_vm_disks_info(conn: libvirt.virConnect, xml_content: str) -> list[dict]:
         # Disabled disks from metadata
         metadata_elem = root.find('metadata')
         if metadata_elem is not None:
-            vmanager_meta_elem = metadata_elem.find(f'{{{VMANAGER_NS}}}vmanager')
+            vmanager_meta_elem = metadata_elem.find(f'{{{VIRTUI_MANAGER_NS}}}virtuimanager')
             if vmanager_meta_elem is not None:
                 # Use _get_disabled_disks_elem to get the element correctly
                 disabled_disks_elem = _get_disabled_disks_elem(root)

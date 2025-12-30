@@ -5,8 +5,8 @@ import xml.etree.ElementTree as ET
 import logging
 import libvirt
 
-VMANAGER_NS = "http://github.com/aginies/vmanager"
-ET.register_namespace("vmanager", VMANAGER_NS)
+VIRTUI_MANAGER_NS = "http://github.com/aginies/virtui-manager"
+ET.register_namespace("virtui-manager", VIRTUI_MANAGER_NS)
 
 def _find_vol_by_path(conn: libvirt.virConnect, vol_path):
     """Finds a storage volume by its path and returns the volume and its pool."""
@@ -38,17 +38,17 @@ def _get_vmanager_metadata(root):
     if metadata_elem is None:
         metadata_elem = ET.SubElement(root, 'metadata')
 
-    vmanager_meta_elem = metadata_elem.find(f'{{{VMANAGER_NS}}}vmanager')
+    vmanager_meta_elem = metadata_elem.find(f'{{{VIRTUI_MANAGER_NS}}}virtuimanager')
     if vmanager_meta_elem is None:
-        vmanager_meta_elem = ET.SubElement(metadata_elem, f'{{{VMANAGER_NS}}}vmanager')
+        vmanager_meta_elem = ET.SubElement(metadata_elem, f'{{{VIRTUI_MANAGER_NS}}}virtuimanager')
 
     return vmanager_meta_elem
 
 def _get_disabled_disks_elem(root):
     vmanager_meta_elem = _get_vmanager_metadata(root)
-    disabled_disks_elem = vmanager_meta_elem.find(f'{{{VMANAGER_NS}}}disabled-disks')
+    disabled_disks_elem = vmanager_meta_elem.find(f'{{{VIRTUI_MANAGER_NS}}}disabled-disks')
     if disabled_disks_elem is None:
-        disabled_disks_elem = ET.SubElement(vmanager_meta_elem, f'{{{VMANAGER_NS}}}disabled-disks')
+        disabled_disks_elem = ET.SubElement(vmanager_meta_elem, f'{{{VIRTUI_MANAGER_NS}}}disabled-disks')
     return disabled_disks_elem
 
 def _find_pool_by_path(conn: libvirt.virConnect, file_path: str):

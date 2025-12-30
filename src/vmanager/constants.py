@@ -2,6 +2,10 @@
 Shared constants for the application.
 """
 
+class AppName:
+    """Define app name"""
+    name = "virtui-manager"
+
 class VmAction:
     """Defines constants for VM action types."""
     START = "start"
