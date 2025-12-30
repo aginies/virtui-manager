@@ -20,42 +20,21 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
 
     pools_info = []
     try:
-        # Active pools
-        pool_names = conn.listStoragePools()
-        for name in pool_names:
+        pools = conn.listAllStoragePools(0)
+        for pool in pools:
             try:
-                pool = conn.storagePoolLookupByName(name)
-                if pool:
-                    info = pool.info() # state, capacity, allocation, available
-                    pools_info.append({
-                        'name': name,
-                        'pool': pool,
-                        'status': 'active',
-                        'autostart': pool.autostart() == 1,
-                        'capacity': info[1],
-                        'allocation': info[2],
-                    })
+                is_active = pool.isActive()
+                info = pool.info()
+                pools_info.append({
+                    'name': pool.name(),
+                    'pool': pool,
+                    'status': 'active' if is_active else 'inactive',
+                    'autostart': pool.autostart() == 1,
+                    'capacity': info[1],
+                    'allocation': info[2],
+                })
             except libvirt.libvirtError:
                 continue
-
-        # Inactive pools
-        defined_pool_names = conn.listDefinedStoragePools()
-        for name in defined_pool_names:
-            if name not in pool_names:
-                try:
-                    pool = conn.storagePoolLookupByName(name)
-                    if pool:
-                        info = pool.info()
-                        pools_info.append({
-                            'name': name,
-                            'pool': pool,
-                            'status': 'inactive',
-                            'autostart': pool.autostart() == 1,
-                            'capacity': info[1],
-                            'allocation': info[2],
-                        })
-                except libvirt.libvirtError:
-                    continue
     except libvirt.libvirtError:
         return []
 
@@ -593,83 +572,83 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
     if not source_conn or not dest_conn:
         return []
 
-        source_pools_list = list_storage_pools(source_conn)
-        dest_pools_map = {p['name']: p for p in list_storage_pools(dest_conn)}
+    source_pools_list = list_storage_pools(source_conn)
+    dest_pools_map = {p['name']: p for p in list_storage_pools(dest_conn)}
 
-        def _is_default_image_pool(pool: libvirt.virStoragePool) -> bool:
-            """Checks if the given pool is the default 'dir' type pool with path /var/lib/libvirt/images."""
-            if pool.name() == "default":
-                try:
-                    xml_desc = pool.XMLDesc(0)
-                    root = ET.fromstring(xml_desc)
-                    pool_type = root.get("type")
-                    path_element = root.find("target/path")
-
-                    if pool_type == "dir" and path_element is not None and path_element.text == "/var/lib/libvirt/images":
-                        return True
-                except (libvirt.libvirtError, ET.ParseError):
-                    pass
-            return False
-
-        def get_pool_details(pool: libvirt.virStoragePool) -> Dict[str, Any] | None:
-            """Parse pool XML to get its type and target details for comparison."""
+    def _is_default_image_pool(pool: libvirt.virStoragePool) -> bool:
+        """Checks if the given pool is the default 'dir' type pool with path /var/lib/libvirt/images."""
+        if pool.name() == "default":
             try:
                 xml_desc = pool.XMLDesc(0)
                 root = ET.fromstring(xml_desc)
                 pool_type = root.get("type")
+                path_element = root.find("target/path")
 
-                target_details = {}
-                if pool_type == 'dir':
-                    path_elem = root.find("target/path")
-                    if path_elem is not None:
-                        target_details['path'] = path_elem.text
-                elif pool_type == 'netfs':
-                    host_elem = root.find("source/host")
-                    dir_elem = root.find("source/dir")
-                    if host_elem is not None:
-                        target_details['host'] = host_elem.get('name')
-                    if dir_elem is not None:
-                        target_details['path'] = dir_elem.get('path')
-                # Other pool types can be added here (e.g., iscsi, rbd)
+                if pool_type == "dir" and path_element is not None and path_element.text == "/var/lib/libvirt/images":
+                    return True
+            except (libvirt.libvirtError, ET.ParseError):
+                pass
+        return False
 
-                return {"type": pool_type, "target": target_details}
-            except (libvirt.libvirtError, ET.ParseError) as e:
-                logging.warning(f"Could not parse XML for pool {pool.name()}: {e}")
-                return None
+    def get_pool_details(pool: libvirt.virStoragePool) -> Dict[str, Any] | None:
+        """Parse pool XML to get its type and target details for comparison."""
+        try:
+            xml_desc = pool.XMLDesc(0)
+            root = ET.fromstring(xml_desc)
+            pool_type = root.get("type")
 
-        shared_pools_info = []
-        for source_pool_info in source_pools_list:
-            source_name = source_pool_info['name']
-            source_pool = source_pool_info['pool']
+            target_details = {}
+            if pool_type == 'dir':
+                path_elem = root.find("target/path")
+                if path_elem is not None:
+                    target_details['path'] = path_elem.text
+            elif pool_type == 'netfs':
+                host_elem = root.find("source/host")
+                dir_elem = root.find("source/dir")
+                if host_elem is not None:
+                    target_details['host'] = host_elem.get('name')
+                if dir_elem is not None:
+                    target_details['path'] = dir_elem.get('path')
+            # Other pool types can be added here (e.g., iscsi, rbd)
 
-            if _is_default_image_pool(source_pool):
+            return {"type": pool_type, "target": target_details}
+        except (libvirt.libvirtError, ET.ParseError) as e:
+            logging.warning(f"Could not parse XML for pool {pool.name()}: {e}")
+            return None
+
+    shared_pools_info = []
+    for source_pool_info in source_pools_list:
+        source_name = source_pool_info['name']
+        source_pool = source_pool_info['pool']
+
+        if _is_default_image_pool(source_pool):
+            continue
+
+        if source_name in dest_pools_map:
+            dest_pool_info = dest_pools_map[source_name]
+            dest_pool = dest_pool_info['pool']
+
+            if _is_default_image_pool(dest_pool):
                 continue
 
-            if source_name in dest_pools_map:
-                dest_pool_info = dest_pools_map[source_name]
-                dest_pool = dest_pool_info['pool']
+            source_details = get_pool_details(source_pool)
+            dest_details = get_pool_details(dest_pool)
 
-                if _is_default_image_pool(dest_pool):
-                    continue
+            # A pool is shared if its name, type, and target are identical
+            if source_details and dest_details and source_details == dest_details:
+                warning = ""
+                if source_pool_info['status'] != 'active':
+                    warning += f"Source pool '{source_name}' is inactive. "
+                if dest_pool_info['status'] != 'active':
+                    warning += f"Destination pool '{source_name}' is inactive."
 
-                source_details = get_pool_details(source_pool)
-                dest_details = get_pool_details(dest_pool)
+                shared_pools_info.append({
+                    "name": source_name,
+                    "type": source_details.get('type'),
+                    "target": source_details.get('target'),
+                    "source_status": source_pool_info['status'],
+                    "dest_status": dest_pool_info['status'],
+                    "warning": warning.strip()
+                })
 
-                # A pool is shared if its name, type, and target are identical
-                if source_details and dest_details and source_details == dest_details:
-                    warning = ""
-                    if source_pool_info['status'] != 'active':
-                        warning += f"Source pool '{source_name}' is inactive. "
-                    if dest_pool_info['status'] != 'active':
-                        warning += f"Destination pool '{source_name}' is inactive."
-
-                    shared_pools_info.append({
-                        "name": source_name,
-                        "type": source_details.get('type'),
-                        "target": source_details.get('target'),
-                        "source_status": source_pool_info['status'],
-                        "dest_status": dest_pool_info['status'],
-                        "warning": warning.strip()
-                    })
-
-        return shared_pools_info
+    return shared_pools_info
