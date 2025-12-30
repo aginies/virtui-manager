@@ -82,6 +82,13 @@ Select:focus {
 #migration-dialog { width: 84; height: 34; }
 #select-one-server-container { height: 10; }
 
+#add-input-container { 
+    height: 13;
+    width: 50%;
+    border: round $primary;
+    content-align: center middle;
+    align: center middle;
+}
 
 /* Default width for many dialogs */
 #add-edit-network-dialog,
@@ -203,6 +210,8 @@ Select:focus {
 
 #remove-serial-btn,
 #add-serial-btn,
+#add-input-btn,
+#remove-input-btn,
 #filter-dialog Button {
     width: 50%;
     height: auto;
@@ -485,6 +494,8 @@ RadioButton { padding: 0 0 0 1; }
 #migration-dialog Select,
 #cpu-model-select Select,
 #remove-disk-dialog Select,
+#input-type-select Select,
+#input-bus-select Select,
 #uefi-file-select Select,
 #dest-server-select Select,
 #select-pool-dialog Select,
@@ -496,6 +507,8 @@ Select {
     margin-bottom: 0;
 }
 
+#input-type-select,
+#input-bus-select,
 #network-select,
 #model-select,
 #net-forward-input,
