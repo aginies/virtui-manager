@@ -33,10 +33,7 @@ from vmcard_dialog import (
         AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
         )
 from utils import extract_server_name_from_uri
-from config import load_config, save_config
-
-# Load configuration once at module level
-_config = load_config()
+from config import load_config
 
 class VMCard(Static):
     """
@@ -577,10 +574,6 @@ class VMCard(Static):
         else:
             # Local connection, so webconsole must be local.
             # No need to show config dialog.
-            config = load_config()
-            if config.get('REMOTE_WEBCONSOLE') is not False:
-                config['REMOTE_WEBCONSOLE'] = False
-                save_config(config)
             self.app.worker_manager.run(worker, name=f"start_console_{self.vm.name()}")
 
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
@@ -893,4 +886,9 @@ class VMCard(Static):
     @on(Click, "#cpu-mem-info")
     def on_click_cpu_mem_info(self) -> None:
         """Handle clicks on the CPU/Memory info part of the VM card."""
+        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+
+    @on(Click, "#vmname")
+    def on_click_vmname(self) -> None:
+        """Handle clicks on the VM name part of the VM card."""
         self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
