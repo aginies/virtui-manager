@@ -17,7 +17,7 @@ from textual.widgets import (
 from textual.worker import Worker, WorkerState
 
 from config import load_config, save_config, get_log_path
-from constants import VmAction, VmStatus, ButtonLabels, ButtonIds, StatusText, ErrorMessages
+from constants import VmAction, VmStatus, ButtonLabels, ButtonIds, StatusText, ErrorMessages, AppInfo
 from events import VmActionRequest, VMNameClicked, VMSelectionChanged
 from libvirt_error_handler import register_error_handler
 from libvirt_utils import _get_vm_names_from_uuids
@@ -178,7 +178,7 @@ class VMManagerTUI(App):
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}
         self._color_index = 0
-        self.devel = "(Devel v0.4.0)"
+        self.devel = "(Devel v" + AppInfo.version + ")"
         self.vm_cards: dict[str, VMCard] = {}
         self._resize_timer = None
 
@@ -256,7 +256,7 @@ class VMManagerTUI(App):
     def on_mount(self) -> None:
         """Called when the app is mounted."""
         register_error_handler()
-        self.title = f"Rainbow V Manager {self.devel}"
+        self.title = f"{AppInfo.namecase} {self.devel}"
 
         if not check_virt_viewer():
             self.show_error_message(

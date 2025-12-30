@@ -5,6 +5,7 @@ Shared constants for the application.
 class AppInfo:
     """Define app data"""
     name = "virtui-manager"
+    namecase = "Virtui Manager"
     version = "0.5.0"
 
 class VmAction:

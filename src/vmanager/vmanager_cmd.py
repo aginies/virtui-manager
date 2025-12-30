@@ -9,11 +9,12 @@ from libvirt_utils import find_all_vm
 from vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
 from vm_service import VMService
 from storage_manager import list_unused_volumes, list_storage_pools
+from constants import AppInfo
 
 class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""
-    prompt = '(virtui-manager) '
-    intro = "Welcome to the Virtui Manager command shell. Type help or ? to list commands.\n"
+    prompt = '(' + AppInfo.name + ') '
+    intro = f"Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.\n"
 
     def __init__(self):
         super().__init__()
@@ -38,7 +39,7 @@ class VManagerCMD(cmd.Cmd):
             else:
                 self.prompt = f"({server_names}) "
         else:
-            self.prompt = '(virtui-manager)> '
+            self.prompt = '(' + AppInfo.name +')> '
 
     def _get_vms_to_operate(self, args):
         vms_to_operate = {}
@@ -759,7 +760,7 @@ Usage: list_pool"""
         """Exit the virtui-manager shell."""
         # Disconnect all connections when quitting
         self.vm_service.disconnect_all()
-        print("\nExiting Virtui Manager.")
+        print(f"\nExiting {AppInfo.namecase}.")
         return True
 
 def main():
