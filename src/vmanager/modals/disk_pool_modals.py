@@ -53,7 +53,7 @@ class SelectDiskModal(BaseModal[str | None]):
         self.selected_disk = None
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="select-disk-dialog", classes="select-disk-dialog"):
+        with Vertical(id="select-disk-dialog"):
             yield Label(self.prompt)
             with ScrollableContainer():
                 yield ListView(
@@ -108,6 +108,10 @@ class AddDiskModal(BaseModal[dict | None]):
             yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2", classes="disk-format-select")
             yield Checkbox("CD-ROM", id="cdrom-checkbox")
+            yield Select(
+                [("virtio", "virtio"), ("sata", "sata"), ("scsi", "scsi"), ("ide", "ide"), ("usb", "usb")],
+                id="disk-bus-select", value="virtio"
+            )
             with Horizontal():
                 yield Button("Add", variant="primary", id="add-btn", classes="Buttonpage")
                 yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
@@ -120,9 +124,14 @@ class AddDiskModal(BaseModal[dict | None]):
     @on(Checkbox.Changed, "#cdrom-checkbox")
     def on_cdrom_checkbox_changed(self, event: Checkbox.Changed) -> None:
         self.query_one("#create-disk-checkbox").disabled = event.value
+        bus_select = self.query_one("#disk-bus-select", Select)
         if event.value:
             self.query_one("#create-disk-checkbox").value = False
-
+            bus_select.set_options([("sata", "sata"), ("ide", "ide"), ("scsi", "scsi"), ("usb", "usb")])
+            bus_select.value = "sata"
+        else:
+            bus_select.set_options([("virtio", "virtio"), ("sata", "sata"), ("scsi", "scsi"), ("ide", "ide"), ("usb", "usb")])
+            bus_select.value = "virtio"
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "add-btn":
@@ -132,6 +141,7 @@ class AddDiskModal(BaseModal[dict | None]):
             disk_size_str = self.query_one("#disk-size-input", Input).value
             disk_format = self.query_one("#disk-format-select", Select).value
             is_cdrom = self.query_one("#cdrom-checkbox", Checkbox).value
+            bus = self.query_one("#disk-bus-select", Select).value
 
             numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
             disk_size = int(numeric_part) if numeric_part else 10
@@ -142,6 +152,7 @@ class AddDiskModal(BaseModal[dict | None]):
                 "size_gb": disk_size,
                 "disk_format": disk_format,
                 "device_type": "cdrom" if is_cdrom else "disk",
+                "bus": bus,
             }
             self.dismiss(result)
         elif event.button.id == "cancel-btn":
@@ -327,9 +338,13 @@ class EditDiskModal(BaseModal[dict | None]):
     def compose(self) -> ComposeResult:
         cache_options = [("default", "default"), ("none", "none"), ("writethrough", "writethrough"), ("writeback", "writeback"), ("directsync", "directsync"), ("unsafe", "unsafe")]
         discard_options = [("unmap", "unmap"), ("ignore", "ignore")]
+        bus_options = [("virtio", "virtio"), ("sata", "sata"), ("scsi", "scsi"), ("ide", "ide"), ("usb", "usb")]
 
-        with Vertical(classes="modal-container"):
-            yield Label(f"Edit Disk: {self.disk_info['path']}")
+        with Vertical(id="edit-disk-dialog"):
+            yield Label(f"Edit Disk: {self.disk_info['path']}", id="edit-disk-title")
+
+            yield Label("Bus Type:")
+            yield Select(bus_options, value=self.disk_info.get('bus'), id="edit-bus-type", disabled=not self.is_stopped)
 
             yield Label("Cache Mode:")
             yield Select(cache_options, value=self.disk_info.get('cache_mode') or 'none', id="edit-cache-mode", disabled=not self.is_stopped)
@@ -347,6 +362,7 @@ class EditDiskModal(BaseModal[dict | None]):
     @on(Button.Pressed, "#apply-disk-edit")
     def on_apply(self):
         result = {
+            "bus": self.query_one("#edit-bus-type", Select).value,
             "cache": self.query_one("#edit-cache-mode", Select).value,
             "discard": self.query_one("#edit-discard-mode", Select).value
         }
