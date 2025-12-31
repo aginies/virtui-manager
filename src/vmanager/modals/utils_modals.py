@@ -30,15 +30,50 @@ class DirectorySelectionModal(BaseModal[str | None]):
         self.query_one(DirectoryTree).focus()
 
     def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
-        self._selected_path = event.path
+        self._selected_path = str(event.path)
         self.query_one("#select-btn").disabled = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "select-btn":
             if self._selected_path:
-                self.dismiss(str(self._selected_path))
+                self.dismiss(self._selected_path)
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
+
+class FileSelectionModal(BaseModal[str | None]):
+    """A modal screen for selecting a file."""
+
+    def __init__(self, path: str | None = None) -> None:
+        super().__init__()
+        start_dir = path if path and os.path.isdir(path) else os.path.dirname(path) if path else os.path.expanduser("/")
+        if not os.path.isdir(start_dir):
+             start_dir = os.path.expanduser("~")
+        self.start_path = start_dir
+        self._selected_path: str | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="file-selection-dialog"):
+            yield Label("Select a File")
+            yield DirectoryTree(self.start_path, id="file-tree")
+        with Vertical():
+            with Horizontal():
+                yield Button("Select", variant="primary", id="select-btn", disabled=True)
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_mount(self) -> None:
+        self.query_one(DirectoryTree).focus()
+
+    def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+        self._selected_path = str(event.path)
+        self.query_one("#select-btn").disabled = False
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "select-btn":
+            if self._selected_path:
+                self.dismiss(self._selected_path)
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
+
 
 class LoadingModal(BaseModal[None]):
     """A modal screen that displays a loading indicator."""
