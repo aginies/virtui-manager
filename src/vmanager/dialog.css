@@ -67,6 +67,7 @@ ConfirmationDialog > #dialog {
   height: 15; 
   border: $error; 
 }
+FileSelectionModal > #file-selection-dialog,
 ConfigModal #config-dialog,
 HowToSSHModal #howto-ssh-dialog {
     width: 80;
@@ -137,6 +138,7 @@ ChangeNetworkDialog Button,
 AddInputDeviceModal Button,
 WebConsoleDialog Button,
 SelectDiskModal Button,
+FileSelectionModal Button,
 SelectPoolModal Button,
 DeleteVMConfirmationDialog Button,
 ConfigModal Button,
@@ -292,7 +294,6 @@ SelectServerModal Checkbox {
 #vnc-compression-input,
 #cache-ttl-input,
 #add-pool-btn #cancel-pool-btn,
-FileSelectionModal #select-btn #cancel-btn,
 #port-range-label {
   width: 25%;
   height: 1;
