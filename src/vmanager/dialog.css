@@ -18,6 +18,7 @@ SelectPoolModal,
 VMDetailModal,
 VirshShellScreen,
 ProgressModal,
+AddPoolModal,
 MigrationModal,
 MoveVolumeModal,
 DeleteVMConfirmationDialog,
@@ -25,6 +26,7 @@ AdvancedCloneDialog,
 RenameVMDialog,
 AddInputDeviceModal,
 PasswordModal,
+FileSelectionModal,
 ConfigModal,
 HowToSSHModal {
   align: center middle;
@@ -46,6 +48,8 @@ RenameVMDialog > #dialog,
 ChangeNetworkDialog > #dialog,
 AddInputDeviceModal > #add-input-container,
 PasswordModal > #password-dialog,
+AddPoolModal > #add-pool-dialog,
+FileSelectionModal > #file-selection-dialog,
 ConfigModal > #config-dialog,
 HowToSSHModal > #howto-ssh-dialog {
   width: 60;
@@ -141,6 +145,12 @@ PasswordModal Button {
   margin: 1;
   margin-left: 1;
 }
+AddPoolModal #browse-dir-btn,
+AddDiskModal #browse-disk-btn, {
+  height: 3;
+  width: 25%;
+  background: $primary;
+}
 
 ConfirmationDialog Button { margin-right: 1; }
 
@@ -151,7 +161,10 @@ PasswordModal Input,
 AddInputDeviceModal Select {
   margin-bottom: 1;
 }
-
+AddPoolModal #dir-target-path-input,
+AddDiskModal #disk-path-input {
+  width: 75%;
+}
 /* === LISTS === */
 SelectSnapshotDialog > #snapshot-list,
 ProgressModal,
@@ -278,6 +291,8 @@ SelectServerModal Checkbox {
 #vnc-quality-input,
 #vnc-compression-input,
 #cache-ttl-input,
+#add-pool-btn #cancel-pool-btn,
+FileSelectionModal #select-btn #cancel-btn,
 #port-range-label {
   width: 25%;
   height: 1;
