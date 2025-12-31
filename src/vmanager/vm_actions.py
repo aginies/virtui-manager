@@ -24,7 +24,8 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
 
     msg_start = f"Setting up new VM {new_vm_name}, cleaning some paramaters..."
     logging.info(msg_start)
-    log_callback(msg_start)
+    if log_callback:
+        log_callback(msg_start)
     name_elem = root.find('name')
     if name_elem is not None:
         name_elem.text = new_vm_name
@@ -91,7 +92,8 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
         try:
             msg = f"Creating the new volume: {new_vol_name}"
             logging.info(msg)
-            log_callback(msg)
+            if log_callback:
+                log_callback(msg)
             new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
         except libvirt.libvirtError as e:
             # Re-raise the error with a more informative message.
@@ -105,8 +107,9 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
 
     new_xml = ET.tostring(root, encoding='unicode')
     msg_end = "Defining the VM..."
-    logging.info(msg)
-    log_callback(msg)
+    logging.info(msg_end)
+    if log_callback:
+        log_callback(msg_end)
     new_vm = conn.defineXML(new_xml)
 
     return new_vm
@@ -242,9 +245,28 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                     continue  # Some pools might not have paths, etc.
 
         if not pool:
-            msg = f"Could not find an active storage pool managing the path '{os.path.dirname(disk_path)}'."
+            # Enhanced diagnostics: list all active pools with types
+            active_pools_info = []
+            for p in pools:
+                if p.isActive():
+                    try:
+                        p_xml = p.XMLDesc(0)
+                        p_root = ET.fromstring(p_xml)
+                        pool_type = p_root.get('type', 'unknown')
+                        target_path = p_root.findtext("target/path")
+                        info = f"{p.name()} ({pool_type})"
+                        if target_path:
+                            info += f" at {target_path}"
+                        active_pools_info.append(info)
+                    except:
+                        active_pools_info.append(f"{p.name()} (no XML)")
+            
+            pools_list = ", ".join(active_pools_info) if active_pools_info else "none"
+            msg = (f"No dir-based pool found for '{os.path.dirname(disk_path)}'. "
+                   f"Available active pools: {pools_list}. "
+                   f"Use existing volume path or dir-based pool directory.")
             logging.error(msg)
-            raise Exception(msg)
+            raise Exception(msg) from None
 
         vol_name = os.path.basename(disk_path)
 
@@ -462,9 +484,9 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
     # Create the new virtiofs XML element
     fs_elem = ET.SubElement(devices, "filesystem", type="mount", accessmode="passthrough")
 
-    #driver_elem = ET.SubElement(fs_elem, "driver", type="virtiofs")
-    #source_elem = ET.SubElement(fs_elem, "source", dir=source_path)
-    #target_elem = ET.SubElement(fs_elem, "target", dir=target_path)
+    driver_elem = ET.SubElement(fs_elem, "driver", type="virtiofs")
+    source_elem = ET.SubElement(fs_elem, "source", dir=source_path)
+    target_elem = ET.SubElement(fs_elem, "target", dir=target_path)
 
     if readonly:
         ET.SubElement(fs_elem, "readonly")
@@ -1204,6 +1226,26 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
     The VM must be stopped.
     """
     invalidate_cache(domain.UUIDString())
+    # Password validation and sanitization
+    def _sanitize_password(pwd: str | None) -> str | None:
+        if not pwd:
+            return None
+        pwd = pwd.strip()
+        if len(pwd) < 6 or len(pwd) > 8:
+            raise ValueError("Password must be 6-8 characters long")
+        if not pwd.isprintable() or any(c in pwd for c in '\n\r\t'):
+            raise ValueError("Password contains invalid characters")
+        return pwd
+
+    def _log_password_safe(password: str | None) -> str:
+        """Returns '[redacted]' instead of actual password for logs"""
+        return '[redacted]' if password else 'none'
+
+    # Validate parameters
+    if password_enabled and not password:
+        raise ValueError("Password is required when password_enabled=True")
+    password_safe = _sanitize_password(password)
+
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change graphics settings.")
 
@@ -1257,11 +1299,10 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
                 graphics_elem.remove(listen_elem)
 
         # Set password
-        if password_enabled and password:
-            graphics_elem.set('passwd', password)
+        if password_enabled and password_safe:
+            graphics_elem.set('passwd', password_safe)
         elif 'passwd' in graphics_elem.attrib:
             del graphics_elem.attrib['passwd']
-
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
@@ -1829,7 +1870,7 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
     try:
         xml_desc = domain.XMLDesc(0)
         root = ET.fromstring(xml_desc)
-        issues.append({'severity': 'INFO', 'message': "Gettign VM XML description"})
+        issues.append({'severity': 'INFO', 'message': "Getting VM XML description"})
     except libvirt.libvirtError as e:
         issues.append({'severity': 'ERROR', 'message': f"Could not get VM XML description: {e}"})
         return issues
@@ -1877,7 +1918,7 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
         if root.find(".//devices/hostdev") is not None:
             issues.append({'severity': 'ERROR', 'message': "VM uses PCI or USB pass-through (hostdev), which is not supported for live migration."})
         else:
-            issues.append({'severity': 'INFO', 'message': "VM do not uses PCI or USB pass-through (hostdev)"})
+            issues.append({'severity': 'INFO', 'message': "VM dont uses PCI or USB pass-through (hostdev)"})
 
     disk_paths = []
     for disk in root.findall(".//devices/disk"):
