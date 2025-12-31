@@ -81,12 +81,13 @@ class VMDetailModal(ModalScreen):
     all_bootable_devices: reactive(list)
     graphics_info: reactive(dict) # New reactive variable
 
-    def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain, conn: libvirt.virConnect) -> None:
+    def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain, conn: libvirt.virConnect, invalidate_cache_callback=None) -> None:
         super().__init__()
         self.vm_name = vm_name
         self.vm_info = vm_info
         self.domain = domain
         self.conn = conn
+        self.invalidate_cache_callback = invalidate_cache_callback
         self.available_networks = []
         self.selected_virtiofs_target = None
         self.selected_virtiofs_info = None # Store full info for editing
@@ -112,6 +113,11 @@ class VMDetailModal(ModalScreen):
         # Initialize TPM info
         self.tpm_info = get_vm_tpm_info(root)
         self.watchdog_info = get_vm_watchdog_info(root)
+
+    def _invalidate_cache(self):
+        """Invalidates the VM cache if a callback is provided."""
+        if self.invalidate_cache_callback:
+            self.invalidate_cache_callback(self.vm_info['uuid'])
 
     @property
     def is_vm_stopped(self) -> bool:
@@ -411,6 +417,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_boot_info(self.domain, menu_enabled, new_boot_order)
+            self._invalidate_cache()
             self.app.show_success_message("Boot order saved successfully.")
             self.boot_order = new_boot_order
         except libvirt.libvirtError as e:
@@ -586,6 +593,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             change_vm_network(self.domain, mac_address, new_network)
+            self._invalidate_cache()
             self.app.show_success_message(f"Interface {mac_address} switched to {new_network}")
             for i in self.vm_info["networks"]:
                 if i["mac"] == mac_address:
@@ -607,6 +615,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_cpu_model(self.domain, new_cpu_model)
+            self._invalidate_cache()
             self.app.show_success_message(f"CPU model set to {new_cpu_model}")
             self.vm_info['cpu_model'] = new_cpu_model
             self.query_one("#cpu-model-label").update(f"CPU Model: {new_cpu_model}")
@@ -626,6 +635,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_uefi_file(self.domain, new_uefi_path, current_secure_boot)
+            self._invalidate_cache()
             if new_uefi_path:
                 self.app.show_success_message(f"UEFI file set to {os.path.basename(new_uefi_path)}")
                 self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
@@ -651,6 +661,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_vm_video_model(self.domain, new_model if new_model != "default" else None)
+            self._invalidate_cache()
             self.app.show_success_message(f"Video model set to {new_model}")
             self.query_one("#video-model-label").update(f"Video Model: {new_model}")
             self.vm_info['video_model'] = new_model if new_model != "default" else None
@@ -669,6 +680,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_vm_sound_model(self.domain, new_model if new_model != "none" else None)
+            self._invalidate_cache()
             self.app.show_success_message(f"Sound model set to {new_model}")
             self.query_one("#sound-model-label").update(f"Sound Model: {new_model}")
             self.vm_info['sound_model'] = new_model if new_model != "none" else None
@@ -690,6 +702,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_uefi_file(self.domain, current_uefi_path, event.value)
+            self._invalidate_cache()
             self.app.show_success_message(f"Secure Boot {'enabled' if event.value else 'disabled'}.")
             self.vm_info['firmware']['secure_boot'] = event.value
         except (libvirt.libvirtError, ValueError, Exception) as e:
@@ -705,6 +718,7 @@ class VMDetailModal(ModalScreen):
     def on_shared_memory_changed(self, event: Checkbox.Changed) -> None:
         try:
             set_shared_memory(self.domain, event.value)
+            self._invalidate_cache()
             self.app.show_success_message(f"Shared memory {'enabled' if event.value else 'disabled'}.")
             self.vm_info['shared_memory'] = event.value
         except (libvirt.libvirtError, ValueError, Exception) as e:
@@ -802,6 +816,7 @@ class VMDetailModal(ModalScreen):
                     password_enabled,
                     password
                 )
+                self._invalidate_cache()
                 self.app.show_success_message("Graphics settings applied successfully.")
                 try:
                     root = ET.fromstring(self.domain.XMLDesc(0))
@@ -823,6 +838,7 @@ class VMDetailModal(ModalScreen):
                 if confirmed:
                     try:
                         remove_spice_devices(self.domain)
+                        self._invalidate_cache()
                         self.app.show_success_message("Removed associated SPICE devices.")
                     except Exception as e:
                         self.app.show_error_message(f"Error removing SPICE devices: {e}")
@@ -851,6 +867,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_vm_rng(self.domain, "virtio", "random", rng_device)
+            self._invalidate_cache()
             self.app.show_success_message(f"RNG settings applied successfully. Device: {rng_device}")
         except Exception as e:
             self.app.show_error_message(f"Error applying RNG settings: {e}")
@@ -897,6 +914,7 @@ class VMDetailModal(ModalScreen):
                 backend_type=backend_type if tpm_type == 'passthrough' else None,
                 backend_path=backend_path if tpm_type == 'passthrough' else None
             )
+            self._invalidate_cache()
             self.app.show_success_message("TPM settings applied successfully.")
             try:
                 root = ET.fromstring(self.domain.XMLDesc(0))
@@ -992,6 +1010,7 @@ class VMDetailModal(ModalScreen):
             product_id = device_to_attach['product_id']
             try:
                 attach_usb_device(self.domain, vendor_id, product_id)
+                self._invalidate_cache()
                 self.app.show_success_message(f"Attached USB device: {device_to_attach['description']}")
                 self.xml_desc = self.domain.XMLDesc(0)
                 self._populate_usb_lists()
@@ -1007,6 +1026,7 @@ class VMDetailModal(ModalScreen):
             product_id = device_to_detach['product_id']
             try:
                 detach_usb_device(self.domain, vendor_id, product_id)
+                self._invalidate_cache()
                 self.app.show_success_message(f"Detached USB device: {device_to_detach['description']}")
                 self.xml_desc = self.domain.XMLDesc(0)
                 self._populate_usb_lists()
@@ -1197,12 +1217,14 @@ class VMDetailModal(ModalScreen):
 
     def compose(self) -> ComposeResult:
         xml_root = ET.fromstring(self.xml_desc)
+        status = self.vm_info.get("status", "N/A")
+        uuid_vm = self.vm_info.get('uuid', 'N/A')
         with Vertical(id="vm-detail-container"):
-            yield Label(f"VM Details: {self.vm_name}", id="title")
-            yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}")
-            status = self.vm_info.get("status", "N/A")
-            yield Label(f"Status: {status}", id=f"status-{status.lower().replace(' ', '-')}", classes="centered-status-label")
-            yield Button("Toggle Tab Content", id="toggle-detail-button", classes="toggle-detail-button")
+            with Horizontal(id="vm-details-title"):
+                yield Label(f"VM Details: {self.vm_name} ", id="title_vm")
+                yield Label(f"({status})", id=f"status-{status.lower().replace(' ', '-')}")
+            yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}", id="vm-details-uuid")
+            yield Button("Other Tabs", id="toggle-detail-button", classes="toggle-detail-button")
             with TabbedContent(id="detail-vm"):
                 with TabPane("CPU", id="detail-cpu-tab"):
                     with Vertical(classes="info-details"):
@@ -1556,6 +1578,7 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False
                         )
+                    with Vertical():
                         with Horizontal():
                             yield Button("Apply Watchdog Settings", id="apply-watchdog-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove Watchdog", id="remove-watchdog-btn", variant="error", disabled=not self.is_vm_stopped or watchdog_model == 'none')
@@ -1685,6 +1708,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             set_vm_watchdog(self.domain, model, action)
+            self._invalidate_cache()
             self.app.show_success_message("Watchdog settings applied successfully.")
             try:
                 root = ET.fromstring(self.domain.XMLDesc(0))
@@ -1705,6 +1729,7 @@ class VMDetailModal(ModalScreen):
             if confirmed:
                 try:
                     remove_vm_watchdog(self.domain)
+                    self._invalidate_cache()
                     self.app.show_success_message("Watchdog removed successfully.")
                     self.watchdog_info = {'model': 'none', 'action': 'reset'} # Reset to defaults
                     self._update_watchdog_ui()
@@ -1804,6 +1829,7 @@ class VMDetailModal(ModalScreen):
                             result["type"],
                             result["bus"]
                         )
+                        self._invalidate_cache()
                         self.app.show_success_message("Input device added successfully.")
                         self._update_input_table()
                     except (libvirt.libvirtError, ValueError) as e:
@@ -1823,6 +1849,7 @@ class VMDetailModal(ModalScreen):
                     if confirmed:
                         try:
                             remove_vm_input(self.domain, self.selected_input_device['type'], self.selected_input_device['bus'])
+                            self._invalidate_cache()
                             self.app.show_success_message("Input device removed successfully.")
                             self._update_input_table()
                         except (libvirt.libvirtError, ValueError) as e:
@@ -1843,6 +1870,7 @@ class VMDetailModal(ModalScreen):
                             result['target_path'],
                             result['readonly']
                         )
+                        self._invalidate_cache()
                         self.app.show_success_message(f"VirtIO-FS mount '{result['target_path']}' added successfully.")
                         self._update_virtiofs_table()
                     except libvirt.libvirtError as e:
@@ -1883,6 +1911,7 @@ class VMDetailModal(ModalScreen):
                                         remove_network_interface(self.domain, original_mac)
                                         add_network_interface(self.domain, new_network_name, new_model)
 
+                                        self._invalidate_cache()
                                         self.app.show_success_message(f"Network interface '{original_mac}' modified successfully. A new MAC address may have been assigned.")
                                         self._update_networks_table()
                                     except (libvirt.libvirtError, ValueError) as e:
@@ -1910,6 +1939,7 @@ class VMDetailModal(ModalScreen):
                             result["network"],
                             result["model"]
                         )
+                        self._invalidate_cache()
                         self.app.show_success_message("Network interface added successfully.")
                         self._update_networks_table()
                     except (libvirt.libvirtError, ValueError) as e:
@@ -1928,6 +1958,7 @@ class VMDetailModal(ModalScreen):
                     if confirmed:
                         try:
                             remove_network_interface(self.domain, self.selected_network_interface)
+                            self._invalidate_cache()
                             self.app.show_success_message(f"Network interface '{self.selected_network_interface}' removed successfully.")
                             self._update_networks_table()
                         except (libvirt.libvirtError, ValueError) as e:
@@ -1962,6 +1993,7 @@ class VMDetailModal(ModalScreen):
                                     result['target_path'],
                                     result['readonly']
                                 )
+                                self._invalidate_cache()
                                 self.app.show_success_message(f"VirtIO-FS mount '{current_target}' updated to '{result['target_path']}'.")
                                 self._update_virtiofs_table()
                             else:
@@ -1993,6 +2025,7 @@ class VMDetailModal(ModalScreen):
                                 return
 
                             remove_virtiofs(self.domain, self.selected_virtiofs_target)
+                            self._invalidate_cache()
                             self.app.show_success_message(f"VirtIO-FS mount '{self.selected_virtiofs_target}' deleted successfully.")
                             self._update_virtiofs_table()
                         except libvirt.libvirtError as e:
@@ -2006,6 +2039,7 @@ class VMDetailModal(ModalScreen):
                 if confirmed:
                     try:
                         set_uefi_file(self.domain, uefi_path=None, secure_boot=False)
+                        self._invalidate_cache()
                         self.app.show_success_message("Switched to BIOS successfully. Please reopen the dialog to see changes.")
                         self.dismiss()
                     except (libvirt.libvirtError, ValueError) as e:
@@ -2033,6 +2067,7 @@ class VMDetailModal(ModalScreen):
                 if uefi_path:
                     try:
                         set_uefi_file(self.domain, uefi_path=uefi_path, secure_boot=False)
+                        self._invalidate_cache()
                         self.app.show_success_message("Switched to UEFI successfully. Please reopen the dialog to see changes.")
                         self.dismiss()
                     except (libvirt.libvirtError, ValueError) as e:
@@ -2075,6 +2110,11 @@ class VMDetailModal(ModalScreen):
                                         self.app.call_from_thread(self.app.show_success_message, msg)
 
                                     migrate_vm_machine_type(self.domain, new_machine_type, log_callback=log_callback)
+                                    # Since this is in a worker, we need to call invalidate on the main thread if the callback is not thread-safe,
+                                    # but the callback is just a function. self.invalidate_cache_callback is usually bound to VMService method.
+                                    # VMService methods are generally thread-safe for cache operations (dict operations are atomic in Python).
+                                    # But let's wrap it in call_from_thread just in case.
+                                    self.app.call_from_thread(self._invalidate_cache)
                                     self.app.call_from_thread(self.app.show_success_message, f"VM '{self.vm_name}' successfully migrated to machine type '{new_machine_type}'.")
                                     # Refresh VM info and close modal
                                     self.app.call_from_thread(self.dismiss)
@@ -2092,6 +2132,7 @@ class VMDetailModal(ModalScreen):
                 else: # Use existing set_machine_type for other changes
                     try:
                         set_machine_type(self.domain, new_machine_type)
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Machine type set to {new_machine_type}")
                         self.vm_info['machine_type'] = new_machine_type
                         self.query_one("#machine-type-label").update(f"Machine Type: {new_machine_type}")
@@ -2114,6 +2155,7 @@ class VMDetailModal(ModalScreen):
                             size_gb=result["size_gb"],
                             disk_format=result["disk_format"],
                         )
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Disk added as {target_dev}")
                         self._update_disk_list()
                     except Exception as e:
@@ -2151,6 +2193,7 @@ class VMDetailModal(ModalScreen):
                                 disk_to_attach,
                                 device_type="disk",
                             )
+                            self._invalidate_cache()
                             self.app.show_success_message(f"Disk added as {target_dev}")
                             self._update_disk_list()
                         except Exception as e:
@@ -2169,6 +2212,7 @@ class VMDetailModal(ModalScreen):
         elif event.button.id == "add-usb2-controller-btn":
             try:
                 add_usb_device(self.domain, 'usb', 'usb2')
+                self._invalidate_cache()
                 self.app.show_success_message("USB 2.0 controller added successfully.")
                 self._update_controller_table()
             except (libvirt.libvirtError, ValueError) as e:
@@ -2177,6 +2221,7 @@ class VMDetailModal(ModalScreen):
         elif event.button.id == "add-usb3-controller-btn":
             try:
                 add_usb_device(self.domain, 'usb', 'usb3')
+                self._invalidate_cache()
                 self.app.show_success_message("USB 3.0 controller added successfully.")
                 self._update_controller_table()
             except (libvirt.libvirtError, ValueError) as e:
@@ -2185,6 +2230,7 @@ class VMDetailModal(ModalScreen):
         elif event.button.id == "add-scsi-controller-btn":
             try:
                 add_scsi_controller(self.domain, 'virtio-scsi')
+                self._invalidate_cache()
                 self.app.show_success_message("SCSI controller added successfully.")
                 self._update_controller_table()
             except (libvirt.libvirtError, ValueError) as e:
@@ -2210,6 +2256,7 @@ class VMDetailModal(ModalScreen):
                                     self.selected_controller['index']
                                 )
                             
+                            self._invalidate_cache()
                             self.app.show_success_message("Controller removed successfully.")
                             self._update_controller_table()
                         except (libvirt.libvirtError, ValueError) as e:
@@ -2238,6 +2285,7 @@ class VMDetailModal(ModalScreen):
                 if confirmed:
                     try:
                         remove_disk(self.domain, disk_path)
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Disk {disk_path} removed.")
                         self._update_disk_list()
                     except Exception as e:
@@ -2267,6 +2315,7 @@ class VMDetailModal(ModalScreen):
                 if confirmed:
                     try:
                         disable_disk(self.domain, disk_path)
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Disk {disk_path} disabled.")
                         self._update_disk_list()
                     except (libvirt.libvirtError, ValueError, Exception) as e:
@@ -2296,6 +2345,7 @@ class VMDetailModal(ModalScreen):
                 if confirmed:
                     try:
                         enable_disk(self.domain, disk_path)
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Disk {disk_path} enabled.")
                         self._update_disk_list()
                     except (libvirt.libvirtError, ValueError, Exception) as e:
@@ -2343,6 +2393,7 @@ class VMDetailModal(ModalScreen):
                             selected_disk.get('path'),
                             properties=disk_properties
                         )
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Disk {os.path.basename(selected_disk.get('path'))} properties updated.")
                         self._update_disk_list() # Refresh the disk list in the UI
                     except libvirt.libvirtError as e:
@@ -2363,6 +2414,7 @@ class VMDetailModal(ModalScreen):
                 if new_cpu_count is not None and new_cpu_count.isdigit():
                     try:
                         set_vcpu(self.domain, int(new_cpu_count))
+                        self._invalidate_cache()
                         self.app.show_success_message(f"CPU count set to {new_cpu_count}")
                         self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
                         self.vm_info['cpu'] = int(new_cpu_count)
@@ -2376,6 +2428,7 @@ class VMDetailModal(ModalScreen):
                 if new_memory_size is not None and new_memory_size.isdigit():
                     try:
                         set_memory(self.domain, int(new_memory_size))
+                        self._invalidate_cache()
                         self.app.show_success_message(f"Memory size set to {new_memory_size} MB")
                         self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
                         self.vm_info['memory'] = int(new_memory_size)
@@ -2387,6 +2440,7 @@ class VMDetailModal(ModalScreen):
         elif event.button.id == "add-serial-btn":
             try:
                 add_serial_console(self.domain)
+                self._invalidate_cache()
                 self.app.show_success_message("Serial console added successfully.")
                 self.xml_desc = self.domain.XMLDesc(0)
                 self._populate_serial_table()
@@ -2399,6 +2453,7 @@ class VMDetailModal(ModalScreen):
                     if confirmed:
                         try:
                             remove_serial_console(self.domain, self.selected_serial_port)
+                            self._invalidate_cache()
                             self.app.show_success_message("Serial console removed successfully.")
                             self.xml_desc = self.domain.XMLDesc(0)
                             self._populate_serial_table()

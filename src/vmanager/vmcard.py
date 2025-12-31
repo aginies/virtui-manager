@@ -478,6 +478,7 @@ class VMCard(Static):
                             conn.defineXML(modified_xml)
                             self.app.show_success_message(f"VM '{self.name}' configuration updated successfully.")
                             logging.info(f"Successfully updated XML for VM: {self.name}")
+                            self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
                             error_msg = f"Invalid XML for '{self.name}': {e}. Your changes have been discarded."
@@ -591,6 +592,7 @@ class VMCard(Static):
                 try:
                     self.vm.snapshotCreateXML(xml, 0)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
+                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                     self.app.refresh_vm_list()
                 except libvirt.libvirtError as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
@@ -610,6 +612,7 @@ class VMCard(Static):
                 try:
                     snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
                     self.vm.revertToSnapshot(snapshot, 0)
+                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                     self.app.refresh_vm_list()
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
@@ -634,6 +637,7 @@ class VMCard(Static):
                             snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
                             snapshot.delete(0)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
+                            self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                             self.app.refresh_vm_list()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except libvirt.libvirtError as e:
@@ -733,6 +737,7 @@ class VMCard(Static):
                     log_callback(f"ERROR: {msg}")
 
                 if success_clones:
+                    app.call_from_thread(app.vm_service.invalidate_domain_cache)
                     app.call_from_thread(app.refresh_vm_list)
                 app.call_from_thread(progress_modal.dismiss)
 
@@ -755,6 +760,7 @@ class VMCard(Static):
                     if delete_snapshots:
                         msg = f"Snapshots deleted and VM '{self.name}' renamed to '{new_name}' successfully."
                     self.app.show_success_message(msg)
+                    self.app.vm_service.invalidate_domain_cache()
                     self.app.refresh_vm_list()
                     logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
                 except Exception as e:

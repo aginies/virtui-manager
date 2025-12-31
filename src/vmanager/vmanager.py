@@ -552,7 +552,7 @@ class VMManagerTUI(App):
 
                 self.call_from_thread(
                     self.push_screen,
-                    VMDetailModal(message.vm_name, vm_info, domain, conn_for_domain),
+                    VMDetailModal(message.vm_name, vm_info, domain, conn_for_domain, self.vm_service.invalidate_vm_cache),
                     on_detail_modal_dismissed
                 )
             except libvirt.libvirtError as e:
