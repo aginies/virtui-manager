@@ -503,9 +503,9 @@ class VMService:
             # Propagate the error to be handled by the caller
             raise
 
-    def get_vms(self, active_uris: list[str], servers: list[dict], sort_by: str, search_text: str, selected_vm_uuids: list[str]) -> tuple:
+    def get_vms(self, active_uris: list[str], servers: list[dict], sort_by: str, search_text: str, selected_vm_uuids: list[str], force: bool = False) -> tuple:
         """Fetch, filter, and return VM data without creating UI components."""
-        self._update_domain_cache(active_uris)
+        self._update_domain_cache(active_uris, force=force)
 
         domains_with_conn = []
         for uuid, domain in self._domain_cache.items():
