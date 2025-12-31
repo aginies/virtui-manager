@@ -191,30 +191,55 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
+    def count_disks_on_bus(bus_name):
+        c = 0
+        for d in root.findall('.//disk'):
+            target = d.find('target')
+            if target is not None and target.get('bus') == bus_name:
+                c += 1
+        return c
+
+    # This logic is more robust as it mimics libvirt's own device naming by
+    # counting existing devices on a given bus, rather than relying on
+    # potentially absent 'dev' attributes in the XML.
     if bus == 'virtio':
         prefix = 'vd'
+        # Count virtio disks to determine the next index (e.g., if 1 exists, next is 'b')
+        next_index = count_disks_on_bus('virtio')
     elif bus == 'ide':
         prefix = 'hd'
+        next_index = count_disks_on_bus('ide')
     elif bus in ['sata', 'scsi', 'usb']:
         prefix = 'sd'
+        # SATA, SCSI, USB, etc., share the 'sd' prefix namespace
+        next_index = count_disks_on_bus('sata') + count_disks_on_bus('scsi') + count_disks_on_bus('usb')
     else:
-        # Fallback for any other bus types, though we control the list in UI
+        # Fallback for unknown bus types
         prefix = 'sd'
-    
-    dev_letters = string.ascii_lowercase
+        next_index = 0 # Cannot reliably count, start with 'a'
 
-    used_devs = [
-        target.get("dev")
-        for target in root.findall(".//disk/target")
-        if target.get("dev")
-    ]
+    all_used_devs = {t.get("dev") for t in root.findall(".//disk/target") if t.get("dev")}
 
-    target_dev = ""
-    for letter in dev_letters:
-        dev = f"{prefix}{letter}"
-        if dev not in used_devs:
-            target_dev = dev
+    # Generate device names like 'vda', 'vdb', ..., 'vdz', 'vdaa', 'vdab'
+    while True:
+        if next_index < 26:
+            suffix = chr(ord('a') + next_index)
+        else:
+            # From 26 onwards, use two letters: aa, ab, ...
+            major_index = (next_index - 26) // 26
+            minor_index = (next_index - 26) % 26
+            if major_index < 26: # Supports up to 'za' (701 devices)
+                suffix = f"{chr(ord('a') + major_index)}{chr(ord('a') + minor_index)}"
+            else: # Should be more than enough
+                raise Exception("Exceeded maximum number of supported disk devices.")
+
+        target_dev = f"{prefix}{suffix}"
+
+        if target_dev not in all_used_devs:
             break
+        
+        # If the generated name is somehow already in use, increment and try the next one.
+        next_index += 1
 
     if not target_dev:
         msg = "No available device slots for new disk."
@@ -755,17 +780,37 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
+    conn = domain.connect()
 
     disk_found = False
-    for disk in root.findall(".//disk[@device='disk']"):
+    for disk in root.findall(".//disk"):
         source = disk.find("source")
-        if source is not None and source.get("file") == disk_path:
+        current_path = None
+        if source is not None:
+            if "file" in source.attrib:
+                current_path = source.attrib["file"]
+            elif "dev" in source.attrib:
+                current_path = source.attrib["dev"]
+            elif "pool" in source.attrib and "volume" in source.attrib:
+                pool_name = source.attrib["pool"]
+                vol_name = source.attrib["volume"]
+                try:
+                    pool = conn.storagePoolLookupByName(pool_name)
+                    vol = pool.storageVolLookupByName(vol_name)
+                    current_path = vol.path()
+                except libvirt.libvirtError:
+                    pass
+
+        if current_path == disk_path:
             driver = disk.find("driver")
             if driver is None:
                 driver = ET.SubElement(disk, "driver", name="qemu", type="qcow2")
 
             for key, value in properties.items():
                 if key == "bus":
+                    continue
+                if key == "device":
+                    disk.set("device", value)
                     continue
                 if key == "cache" and value == "default":
                     if key in driver.attrib:
@@ -785,7 +830,6 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
         raise ValueError(f"Disk with path '{disk_path}' not found.")
 
     new_xml = ET.tostring(root, encoding='unicode')
-    conn = domain.connect()
     conn.defineXML(new_xml)
 
 def set_machine_type(domain, new_machine_type):
