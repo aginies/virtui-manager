@@ -67,6 +67,9 @@ ConfirmationDialog > #dialog {
   height: 15; 
   border: $error; 
 }
+#file-tree {
+   height: 90%;
+}
 FileSelectionModal > #file-selection-dialog,
 ConfigModal #config-dialog,
 HowToSSHModal #howto-ssh-dialog {
