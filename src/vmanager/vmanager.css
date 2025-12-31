@@ -221,6 +221,8 @@ Select:focus {
 #add-serial-btn,
 #add-input-btn,
 #remove-input-btn,
+#apply-watchdog-btn,
+#remove-watchdog-btn,
 #filter-dialog Button {
     width: 50%;
     height: auto;
@@ -454,11 +456,17 @@ Select:focus {
 }
 
 /* Status colors */
-#status-running { color: green; border: round green; }
-#status-stopped, #status-shut-off { color: red; border: round red; }
-#status-paused { color: yellow; border: round yellow; }
+#status-running { color: green; } /*border: round green; }*/
+#status-stopped, #status-shut-off { color: red; } /*border: round red; } */
+#status-paused { color: yellow; } /*border: round yellow; } */
 .error-message { text-align: center; color: red; height: 1; }
 
+#vm-details-uuid,
+#vm-details-title {
+   height: 2;
+   align: center middle;
+   content-align: center middle;
+}
 
 /* Specific button variants */
 .Buttonpage { height: auto; width: auto; margin: 0 0; padding: 1 1; color: white; background: black; border: round; }
@@ -518,6 +526,8 @@ RadioButton { padding: 0 0 0 1; }
 #uefi-file-select Select,
 #dest-server-select Select,
 #select-pool-dialog Select,
+#watchdog-model-select Select,
+#watchdog-action-select Select,
 Select {
     width: 50;
     height: 5;
