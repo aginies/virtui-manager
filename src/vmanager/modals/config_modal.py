@@ -7,6 +7,7 @@ from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static
 
 from config import save_config, get_user_config_path
+from constants import AppInfo
 from modals.base_modals import BaseModal
 
 class ConfigModal(BaseModal[None]):
@@ -18,7 +19,7 @@ class ConfigModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="config-dialog"):
-            yield Label("Application Configuration", id="config-title")
+            yield Label(f"{AppInfo.namecase} Configuration", id="config-title")
             yield Static(f"Editing: {get_user_config_path()}", classes="config-path-label")
             with ScrollableContainer():
                 # Autoconnect on startup
