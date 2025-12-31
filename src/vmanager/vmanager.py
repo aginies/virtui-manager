@@ -170,7 +170,6 @@ class VMManagerTUI(App):
     ]
 
     CSS_PATH = ["vmanager.css", "vmcard.css", "dialog.css"]
-    #CSS_PATH = ["d.css", ]
 
     def __init__(self):
         super().__init__()
@@ -549,7 +548,7 @@ class VMManagerTUI(App):
                 vm_info, domain, conn_for_domain = result
                 
                 def on_detail_modal_dismissed(result: None):
-                    self.refresh_vm_list()
+                    self.refresh_vm_list(force=True)
 
                 self.call_from_thread(
                     self.push_screen,
@@ -741,12 +740,12 @@ class VMManagerTUI(App):
 
         self.handle_select_server_result([uri])
 
-    def refresh_vm_list(self) -> None:
+    def refresh_vm_list(self, force: bool = False) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
         # Try to run the worker. If it's already running, this will do nothing.
-        self.worker_manager.run(self.list_vms_worker, name="list_vms")
+        self.worker_manager.run(lambda: self.list_vms_worker(force=force), name="list_vms")
 
-    def list_vms_worker(self):
+    def list_vms_worker(self, force: bool = False):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
             domains_to_display, total_vms, total_filtered_vms, server_names = self.vm_service.get_vms(
@@ -754,7 +753,8 @@ class VMManagerTUI(App):
                 self.servers,
                 self.sort_by,
                 self.search_text,
-                self.selected_vm_uuids
+                self.selected_vm_uuids,
+                force=force
             )
         except Exception as e:
             self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
