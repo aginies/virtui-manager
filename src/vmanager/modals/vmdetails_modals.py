@@ -36,7 +36,8 @@ from vm_actions import (
         check_for_other_spice_devices, remove_spice_devices, attach_usb_device,
         detach_usb_device, add_serial_console, remove_serial_console,
         add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog,
-        add_usb_device, remove_usb_device, add_scsi_controller, remove_scsi_controller
+        add_usb_device, remove_usb_device, add_scsi_controller, remove_scsi_controller,
+        migrate_vm_machine_type
 )
 from config import get_log_path
 from network_manager import (
@@ -1985,6 +1986,64 @@ class VMDetailModal(ModalScreen):
                 on_uefi_file_selected
             )
 
+        elif event.button.id == "edit-machine-type":
+            if not self.is_vm_stopped:
+                self.app.show_error_message("VM must be stopped to change machine type.")
+                return
+
+            current_machine_type = self.vm_info['machine_type']
+            try:
+                # get_supported_machine_types expects a domain object
+                supported_machine_types = get_supported_machine_types(self.conn, self.domain)
+            except libvirt.libvirtError as e:
+                self.app.show_error_message(f"Error getting supported machine types: {e}")
+                return
+
+            def on_machine_type_selected(new_machine_type: str | None):
+                original_machine_type = self.vm_info['machine_type']
+
+                # Check for i440fx to q35 migration case
+                if original_machine_type.startswith("pc-i440fx") and new_machine_type.startswith("pc-q35"):
+                    message = (f"Are you sure you want to change the machine type "
+                               f"from '{current_machine_type}' to '{new_machine_type}'?\n\n"
+                               "This operation is complex and may result in an unbootable VM.\n"
+                               "It will also remove some device configurations (e.g. PCI/USB addresses, watchdog)."
+                               "\n\nTHIS CANNOT BE UNDONE EASILY!")
+
+                    def on_confirm_migration(confirmed: bool):
+                        if confirmed:
+                            def migrate_worker():
+                                try:
+                                    def log_callback(msg):
+                                        self.app.call_from_thread(self.app.show_success_message, msg)
+
+                                    migrate_vm_machine_type(self.domain, new_machine_type, log_callback=log_callback)
+                                    self.app.call_from_thread(self.app.show_success_message, f"VM '{self.vm_name}' successfully migrated to machine type '{new_machine_type}'.")
+                                    # Refresh VM info and close modal
+                                    self.app.call_from_thread(self.dismiss)
+                                except libvirt.libvirtError as e:
+                                    self.app.call_from_thread(self.app.show_error_message, f"Libvirt error during machine type migration: {e}")
+                                except Exception as e:
+                                    self.app.call_from_thread(self.app.show_error_message, f"Unexpected error during machine type migration: {e}")
+                            self.app.run_worker(migrate_worker, name=f"migrate_machine_type_{self.domain.UUIDString()}", thread=True)
+                        else:
+                            self.app.show_success_message("Machine type migration cancelled.")
+
+                    self.app.push_screen(ConfirmationDialog(message), on_confirm_migration)
+                elif new_machine_type == current_machine_type:
+                    self.app.show_success_message("Machine type is already set to the selected value.")
+                else: # Use existing set_machine_type for other changes
+                    try:
+                        set_machine_type(self.domain, new_machine_type)
+                        self.app.show_success_message(f"Machine type set to {new_machine_type}")
+                        self.vm_info['machine_type'] = new_machine_type
+                        self.query_one("#machine-type-label").update(f"Machine Type: {new_machine_type}")
+                        self.xml_desc = self.domain.XMLDesc(0) # Refresh XML
+                    except (libvirt.libvirtError, ValueError, Exception) as e:
+                        self.app.show_error_message(f"Error setting machine type: {e}")
+
+            self.app.push_screen(SelectMachineTypeModal(supported_machine_types, current_machine_type), on_machine_type_selected)
+
         elif event.button.id == "detail_add_disk":
             def add_disk_callback(result):
                 if result:
@@ -2267,24 +2326,6 @@ class VMDetailModal(ModalScreen):
                         self.app.show_error_message(f"Error setting memory: {e}")
 
             self.app.push_screen(EditMemoryModal(current_memory=str(self.vm_info.get('memory', ''))), edit_memory_callback)
-
-        elif event.button.id == "edit-machine-type":
-            machine_types = get_supported_machine_types(self.conn, self.domain)
-            if not machine_types:
-                self.app.show_error_message("Could not retrieve machine types.")
-                return
-
-            def set_machine_type_callback(new_type):
-                if new_type:
-                    try:
-                        set_machine_type(self.domain, new_type)
-                        self.app.show_success_message(f"Machine type set to {new_type}")
-                        self.query_one("#machine-type-label").update(f"Machine Type: {new_type}")
-                        self.vm_info['machine_type'] = new_type
-                    except (libvirt.libvirtError, Exception) as e:
-                        self.app.show_error_message(f"Error setting machine type: {e}")
-
-            self.app.push_screen(SelectMachineTypeModal(machine_types, current_machine_type=self.vm_info.get('machine_type', '')), set_machine_type_callback)
 
         elif event.button.id == "add-serial-btn":
             try:

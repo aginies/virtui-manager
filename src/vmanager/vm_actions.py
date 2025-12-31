@@ -787,12 +787,147 @@ def set_machine_type(domain, new_machine_type):
         logging.error(msg)
         raise Exception(msg)
 
+    current_machine_type = type_elem.get('machine', '')
+
+    # Do nothing if machine type is not actually changing
+    if current_machine_type == new_machine_type:
+        return
+
     type_elem.set('machine', new_machine_type)
 
-    new_xml_desc = ET.tostring(root, encoding='unicode')
+    current_family = '-'.join(current_machine_type.split('-')[:2])
+    new_family = '-'.join(new_machine_type.split('-')[:2])
 
+    new_xml_desc = ET.tostring(root, encoding='unicode')
     conn = domain.connect()
     conn.defineXML(new_xml_desc)
+
+
+@log_function_call
+def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, log_callback=None):
+    """
+    Migrates a VM from its current machine type to a new one, specifically handling
+    changes from i440fx to q35. This involves creating a temporary VM with modified XML,
+    validating it, defining it, then undefining the original and renaming the new VM.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+    invalidate_cache(domain.UUIDString())
+
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change machine type.")
+
+    conn = domain.connect()
+    original_vm_name = domain.name()
+    original_xml_desc = domain.XMLDesc(0)
+    temp_xml_desc = "" # Initialize to prevent UnboundLocalError
+
+    # Prepare XML for the new VM
+    root = ET.fromstring(original_xml_desc)
+
+    # Generate a temporary new name for the VM
+    temp_vm_name = f"{original_vm_name}-MIGRATE-TEMP"
+    name_elem = root.find('name')
+    if name_elem is not None:
+        name_elem.text = temp_vm_name
+    else:
+        raise Exception("VM XML is missing the 'name' element.")
+
+    # Generate a new UUID for the temporary VM to avoid conflicts
+    uuid_elem = root.find('uuid')
+    if uuid_elem is not None:
+        uuid_elem.text = str(uuid.uuid4())
+    else:
+        ET.SubElement(root, 'uuid').text = str(uuid.uuid4())
+
+    # Remove all PCI devices and Watchdog, and chipset-dependent controllers as per `set_machine_type` logic
+    devices_elem = root.find('devices')
+    if devices_elem is not None:
+        # Remove all PCI and USB addresses from all devices
+        for device in list(devices_elem):
+            pci_address_elem = device.find("address[@type='pci']")
+            if pci_address_elem is not None:
+                device.remove(pci_address_elem)
+
+            usb_address_elem = device.find("address[@type='usb']")
+            if usb_address_elem is not None:
+                device.remove(usb_address_elem)
+
+        # Remove all chipset-dependent controllers (PCI, IDE, SATA, USB)
+        controllers_to_remove = []
+        for controller in devices_elem.findall('controller'):
+            ctype = controller.get('type')
+            if ctype in ['pci', 'ide', 'sata', 'usb']:
+                controllers_to_remove.append(controller)
+
+        for controller in controllers_to_remove:
+            devices_elem.remove(controller)
+
+        # Remove all watchdog devices
+        watchdog_elements = devices_elem.findall("watchdog")
+        for elem in watchdog_elements:
+            devices_elem.remove(elem)
+
+    # Change machine type
+    type_elem = root.find(".//os/type")
+    if type_elem is None:
+        raise Exception("Could not find OS type element in VM XML.")
+
+    current_machine_type = type_elem.get('machine', '')
+    if current_machine_type == new_machine_type:
+        if log_callback:
+            log_callback(f"Machine type is already {new_machine_type}. No migration needed.")
+        return
+
+    # Set the new machine type
+    type_elem.set('machine', new_machine_type)
+    temp_xml_desc = ET.tostring(root, encoding='unicode')
+
+    # Validate the XML config with libvirt (by defining transient)
+    temp_vm = None
+    try:
+        temp_vm = conn.defineXML(temp_xml_desc)
+        if temp_vm is None:
+            raise libvirt.libvirtError(f"Failed to define new VM '{temp_vm_name}'. XML was:\n{temp_xml_desc}")
+        domain.undefine()
+        rename_vm(temp_vm, original_vm_name)
+
+    except libvirt.libvirtError as e:
+        error_msg = f"Libvirt error during machine type migration for '{original_vm_name}': {e}"
+        logging.error(error_msg)
+        # Attempt to clean up the temporary VM if it was defined
+        if temp_vm:
+            try:
+                temp_vm.undefine()
+                logging.info(f"Cleaned up temporary VM '{temp_vm_name}'.")
+            except libvirt.libvirtError as cleanup_e:
+                logging.warning(f"Failed to clean up temporary VM '{temp_vm_name}': {cleanup_e}")
+        # Re-define original VM if it was undefined but migration failed
+        try:
+            conn.defineXML(original_xml_desc)
+            logging.info(f"Original VM '{original_vm_name}' restored after migration failure.")
+        except libvirt.libvirtError as restore_e:
+            logging.critical(f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}")
+            error_msg += f"\nCRITICAL: Original VM could not be restored. Manual intervention required."
+        raise libvirt.libvirtError(error_msg)
+    except Exception as e:
+        error_msg = f"Unexpected error during machine type migration for '{original_vm_name}': {e}"
+        logging.error(error_msg)
+        if temp_vm:
+            try:
+                temp_vm.undefine()
+                logging.info(f"Cleaned up temporary VM '{temp_vm_name}'.")
+            except libvirt.libvirtError as cleanup_e:
+                logging.warning(f"Failed to clean up temporary VM '{temp_vm_name}': {cleanup_e}")
+        try:
+            conn.defineXML(original_xml_desc)
+            logging.info(f"Original VM '{original_vm_name}' restored after migration failure.")
+        except libvirt.libvirtError as restore_e:
+            logging.critical(f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}")
+            error_msg += f"\nCRITICAL: Original VM could not be restored. Manual intervention required."
+        raise Exception(error_msg)
+    finally:
+        invalidate_cache(domain.UUIDString()) # Invalidate original VM cache in case it was renamed or recreated
 
 
 def set_shared_memory(domain: libvirt.virDomain, enable: bool):
@@ -995,7 +1130,7 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
     if not uefi_path:  # Switching to BIOS
         if 'firmware' in os_elem.attrib:
             del os_elem.attrib['firmware']
-        
+
         firmware_feature_elem = os_elem.find('firmware')
         if firmware_feature_elem is not None:
             os_elem.remove(firmware_feature_elem)
@@ -1009,7 +1144,7 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
             os_elem.remove(nvram_elem)
     else:  # Switching to UEFI
         os_elem.set('firmware', 'efi')
-        
+
         loader_elem = os_elem.find('loader')
         if loader_elem is None:
             loader_elem = ET.SubElement(os_elem, 'loader', type='pflash')
@@ -1355,7 +1490,7 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
         if elem.get('type') == input_type and elem.get('bus') == input_bus:
             input_to_remove = elem
             break
-    
+
     if input_to_remove is None:
         raise ValueError(f"Input device with type '{input_type}' and bus '{input_bus}' not found.")
 
