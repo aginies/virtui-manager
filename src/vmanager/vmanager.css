@@ -55,7 +55,6 @@ Select:focus {
 }
 
 /* Common centered alignment for various elements */
-.server-list,
 .close-button,
 #add-disk-dialog,
 #edit-disk-dialog,
@@ -71,6 +70,11 @@ Select:focus {
     align: center middle;
 }
 
+.server-list {
+    height: 10;
+}
+#server-list-title {
+}
 #select-disk-dialog,
 #edit-disk-dialog {
     height: 20;
@@ -89,6 +93,9 @@ Select:focus {
 #migration-dialog { width: 84; height: 34; }
 #select-one-server-container { height: 10; }
 
+#server-management-dialog {
+    height: 20;
+}
 #add-input-container { 
     height: 13;
     width: 50%;

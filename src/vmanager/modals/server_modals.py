@@ -6,7 +6,6 @@ from typing import Tuple
 from textual.app import ComposeResult
 from textual.widgets import Button, Label, DataTable, Input
 from textual.containers import ScrollableContainer, Horizontal, Vertical
-from textual.screen import ModalScreen
 from vmcard import ConfirmationDialog
 from modals.howto_ssh_modal import HowToSSHModal
 from modals.base_modals import BaseModal
@@ -78,10 +77,8 @@ class EditServerModal(BaseModal[Tuple[str, str] | None]):
             self.dismiss(None)
 
 
-class ServerManagementModal(ModalScreen):
+class ServerManagementModal(BaseModal [str | None]):
     """Modal screen for managing servers."""
-
-    BINDINGS = [("escape", "close_modal", "Close")]
 
     def __init__(self, servers: list) -> None:
         super().__init__()
@@ -89,8 +86,8 @@ class ServerManagementModal(ModalScreen):
         self.selected_row = None
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="server-management-dialog", classes="info-details"):
-            yield Label("Server List Management")
+        with Vertical(id="server-management-dialog"): #, classes="info-details"):
+            yield Label("Server List Management") #, id="server-list-title")
             with ScrollableContainer(classes="info-details"):
                 yield DataTable(id="server-table", classes="server-list")
             with Vertical(classes="server-list"):
@@ -102,7 +99,7 @@ class ServerManagementModal(ModalScreen):
                     yield Button("Connect", id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
                     yield Button("Custom URL", id="custom-conn-btn", classes="Buttonpage")
                     yield Button("SSH Help", id="ssh-help-btn", classes="Buttonpage")
-            #yield Button("Close", id="close-btn", classes="close-button")
+             #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
