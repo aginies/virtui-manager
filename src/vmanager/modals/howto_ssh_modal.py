@@ -79,8 +79,8 @@ class HowToSSHModal(BaseModal[None]):
         with Vertical(id="howto-ssh-dialog"):
             with ScrollableContainer(id="howto-ssh-content"):
                 yield Markdown(HOW_TO_SSH_TEXT, id="howto-ssh-markdown")
-            with Horizontal(id="dialog-buttons"):
-                yield Button("Close", id="close-btn", variant="primary")
+        with Horizontal(id="dialog-buttons"):
+            yield Button("Close", id="close-btn", variant="primary")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
