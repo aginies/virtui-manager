@@ -46,7 +46,7 @@ class ConfigModal(BaseModal[None]):
                         value=str(self.config.get("STATS_INTERVAL", 5)),
                         id="stats-interval-input",
                         type="integer",
-                        tooltip="Interval for updating VM statistics (CPU, Memory, I/O) in seconds."
+                        tooltip="Interval for updating VM Statusn, Statistics (CPU, Memory, I/O) in seconds."
                     )
 
                 # Logging settings
