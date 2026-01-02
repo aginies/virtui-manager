@@ -3,6 +3,7 @@ Manages multiple libvirt connections.
 """
 import libvirt
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 class ConnectionManager:
@@ -12,14 +13,18 @@ class ConnectionManager:
         """Initializes the ConnectionManager."""
         self.connections: dict[str, libvirt.virConnect] = {}  # uri -> virConnect object
         self.connection_errors: dict[str, str] = {}           # uri -> error message
+        self._lock = threading.RLock()
 
     def connect(self, uri: str) -> libvirt.virConnect | None:
         """
         Connects to a given URI. If already connected, returns the existing connection.
         If the existing connection is dead, it will attempt to reconnect.
         """
-        if uri in self.connections:
-            conn = self.connections[uri]
+        conn = None
+        with self._lock:
+            conn = self.connections.get(uri)
+
+        if conn:
             # Check if the connection is still alive and try to reconnect if not
             try:
                 # Test the connection by calling a simple libvirt function
@@ -61,79 +66,94 @@ class ConnectionManager:
                 # This case can happen if the URI is valid but the hypervisor is not running
                 raise libvirt.libvirtError(f"libvirt.open('{uri}') returned None")
             
-            self.connections[uri] = conn
-            if uri in self.connection_errors:
-                del self.connection_errors[uri]  # Clear previous error on successful connect
+            with self._lock:
+                self.connections[uri] = conn
+                if uri in self.connection_errors:
+                    del self.connection_errors[uri]  # Clear previous error on successful connect
             return conn
         except libvirt.libvirtError as e:
             error_message = f"Failed to connect to '{uri}': {e}"
             logging.error(error_message)
-            self.connection_errors[uri] = str(e)
-            if uri in self.connections:
-                del self.connections[uri]  # Clean up failed connection attempt
+            with self._lock:
+                self.connection_errors[uri] = str(e)
+                if uri in self.connections:
+                    del self.connections[uri]  # Clean up failed connection attempt
             return None
 
     def disconnect(self, uri: str) -> bool:
         """
         Closes and removes a specific connection from the manager.
         """
-        if uri in self.connections:
-            try:
-                self.connections[uri].close()
-                logging.info(f"Closed connection to {uri}")
-            except libvirt.libvirtError as e:
-                logging.error(f"Error closing connection to {uri}: {e}")
-            finally:
-                del self.connections[uri]
-                return True
+        with self._lock:
+            if uri in self.connections:
+                try:
+                    self.connections[uri].close()
+                    logging.info(f"Closed connection to {uri}")
+                except libvirt.libvirtError as e:
+                    logging.error(f"Error closing connection to {uri}: {e}")
+                finally:
+                    if uri in self.connections:
+                        del self.connections[uri]
+                    return True
         return False
 
     def disconnect_all(self) -> None:
         """Closes all active connections managed by this instance."""
         logging.info("Closing all active libvirt connections.")
-        for uri in list(self.connections.keys()):
+        with self._lock:
+            uris = list(self.connections.keys())
+        
+        for uri in uris:
             self.disconnect(uri)
 
     def get_connection(self, uri: str) -> libvirt.virConnect | None:
         """
         Retrieves an active connection object for a given URI.
         """
-        return self.connections.get(uri)
+        with self._lock:
+            return self.connections.get(uri)
 
     def get_all_connections(self) -> list[libvirt.virConnect]:
         """
         Returns a list of all active libvirt connection objects.
         """
-        return list(self.connections.values())
+        with self._lock:
+            return list(self.connections.values())
 
     def get_all_uris(self) -> list[str]:
         """
         Returns a list of all URIs with active connections.
         """
-        return list(self.connections.keys())
+        with self._lock:
+            return list(self.connections.keys())
 
     def get_connection_error(self, uri: str) -> str | None:
         """
         Returns the last error message for a given URI, or None if no error.
         """
-        return self.connection_errors.get(uri)
+        with self._lock:
+            return self.connection_errors.get(uri)
 
     def has_connection(self, uri: str) -> bool:
         """
         Checks if a connection to the given URI exists.
         """
-        return uri in self.connections
+        with self._lock:
+            return uri in self.connections
 
     def is_connection_alive(self, uri: str) -> bool:
         """
         Checks if a connection to the given URI is alive.
         """
-        if uri not in self.connections:
+        with self._lock:
+            conn = self.connections.get(uri)
+
+        if not conn:
             return False
         
         try:
             # Test the connection by calling a simple libvirt function
-            self.connections[uri].getLibVersion()
+            conn.getLibVersion()
             return True
         except libvirt.libvirtError:
             return False
