@@ -264,6 +264,10 @@ class VMCard(Static):
         top_sparkline.data = top_data
         bottom_sparkline.data = bottom_data
 
+    def watch_vm(self, old_value, new_value) -> None:
+        """Called when vm object changes."""
+        self.update_button_layout()
+
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
         if not self.ui:
@@ -399,6 +403,8 @@ class VMCard(Static):
             snapshot_tab_pane = tabbed_content.get_pane("snapshot-tab")
             if snapshot_tab_pane and self.is_mounted:
                 snapshot_tab_pane.title = self._get_snapshot_tab_title()
+                tabbed_content.refresh()
+
 
         self.ui[ButtonIds.START].display = is_stopped
         self.ui[ButtonIds.SHUTDOWN].display = is_running
@@ -424,6 +430,13 @@ class VMCard(Static):
             self.stats_view_mode = "resources" # Reset to default when stopped
         else:
             xml_button.label = "View XML"
+
+    def _refresh_snapshot_ui(self) -> None:
+        """Updates snapshot tab title and buttons, forcing a refresh."""
+        self.update_button_layout()
+        tabbed_content = self.ui.get("tabbed_content")
+        if tabbed_content:
+            tabbed_content.refresh()
 
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
@@ -623,8 +636,8 @@ class VMCard(Static):
                     create_vm_snapshot(self.vm, name, description)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
-                    self.app.refresh_vm_list()
-                    self.update_button_layout()
+                    self.app.refresh_vm_list(force=True)
+                    self._refresh_snapshot_ui()
                 except Exception as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
@@ -667,8 +680,8 @@ class VMCard(Static):
                             delete_vm_snapshot(self.vm, snapshot_name)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
                             self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
-                            self.app.refresh_vm_list()
-                            self.update_button_layout()
+                            self.app.refresh_vm_list(force=True)
+                            self._refresh_snapshot_ui()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except Exception as e:
                             self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
