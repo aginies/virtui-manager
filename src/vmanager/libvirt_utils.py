@@ -8,29 +8,39 @@ import libvirt
 VIRTUI_MANAGER_NS = "http://github.com/aginies/virtui-manager"
 ET.register_namespace("virtui-manager", VIRTUI_MANAGER_NS)
 
+
 def _find_vol_by_path(conn: libvirt.virConnect, vol_path):
     """Finds a storage volume by its path and returns the volume and its pool."""
-    # Slower but more compatible way to find a volume by path
     try:
-        all_pool_names = conn.listStoragePools() + conn.listDefinedStoragePools()
+        # Get only active pools first (faster)
+        active_pool_names = conn.listStoragePools()
+
+        # Check active pools first (most common case)
+        for pool_name in active_pool_names:
+            try:
+                pool = conn.storagePoolLookupByName(pool_name)
+                # listAllVolumes returns a list of virStorageVol objects
+                for vol in pool.listAllVolumes():
+                    if vol and vol.path() == vol_path:
+                        return vol, pool
+            except libvirt.libvirtError:
+                continue
+
+        # Only check inactive pools if needed (rare case)
+        inactive_pool_names = conn.listDefinedStoragePools()
+        for pool_name in inactive_pool_names:
+            try:
+                pool = conn.storagePoolLookupByName(pool_name)
+                # Only activate if we need to check volumes
+                if pool.isActive():
+                    for vol in pool.listAllVolumes():
+                        if vol and vol.path() == vol_path:
+                            return vol, pool
+            except libvirt.libvirtError:
+                continue
+
     except libvirt.libvirtError:
-        all_pool_names = []
-
-    for pool_name in all_pool_names:
-        try:
-            pool = conn.storagePoolLookupByName(pool_name)
-            if not pool.isActive():
-                try:
-                    pool.create(0)
-                except libvirt.libvirtError:
-                    continue  # Skip pools we can't start
-
-            # listAllVolumes returns a list of virStorageVol objects
-            for vol in pool.listAllVolumes():
-                if vol and vol.path() == vol_path:
-                    return vol, pool
-        except libvirt.libvirtError:
-            continue # Permissions issue or other problem, try next pool
+        pass
     return None, None
 
 def _get_vmanager_metadata(root):
@@ -184,6 +194,7 @@ def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: list[str]) -> l
             pass
     return vm_names
 
+
 def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
     """
     Get detailed information about a specific network based on its name.
@@ -194,75 +205,64 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
         xml_desc = network.XMLDesc(0)
         root = ET.fromstring(xml_desc)
 
-        info = {'name': network.name(), 'uuid': network.UUIDString()}
+        info = {
+            'name': network.name(),
+            'uuid': network.UUIDString(),
+            'forward_mode': 'isolated',  # Default
+            'bridge_name': None,
+            'ip_address': None,
+            'dhcp': False
+        }
 
-        # Forwarding info
+        # Extract forward info
         forward_elem = root.find('forward')
         if forward_elem is not None:
-            info['forward_mode'] = forward_elem.get('mode')
-            dev = forward_elem.get('dev')
-            if dev is None:
-                interface_elem = forward_elem.find('interface')
-                if interface_elem is not None:
-                    dev = interface_elem.get('dev')
-            info['forward_dev'] = dev
+            info['forward_mode'] = forward_elem.get('mode', 'isolated')
+            info['forward_dev'] = forward_elem.get('dev') or (
+                forward_elem.find('interface').get('dev') if forward_elem.find('interface') is not None else None
+            )
 
-            # NAT port range for forwarding
+            # NAT port range
             nat_elem = forward_elem.find('nat')
             if nat_elem is not None:
                 port_elem = nat_elem.find('port')
                 if port_elem is not None:
                     info['port_forward_start'] = port_elem.get('start')
                     info['port_forward_end'] = port_elem.get('end')
-        else:
-            info['forward_mode'] = 'isolated' # If no forward element, it's an isolated network
-            info['forward_dev'] = None
 
-        # Bridge info
+        # Extract bridge info
         bridge_elem = root.find('bridge')
         if bridge_elem is not None:
             info['bridge_name'] = bridge_elem.get('name')
-        else:
-            info['bridge_name'] = None
 
-        # IP addressing info
+        # Extract IP info
         ip_elem = root.find('ip')
         if ip_elem is not None:
-            info['ip_address'] = ip_elem.get('address')
-            info['netmask'] = ip_elem.get('netmask')
-            info['prefix'] = ip_elem.get('prefix')
+            info.update({
+                'ip_address': ip_elem.get('address'),
+                'netmask': ip_elem.get('netmask'),
+                'prefix': ip_elem.get('prefix'),
+                'dhcp': ip_elem.find('dhcp') is not None
+            })
+            
+            if info['dhcp']:
+                dhcp_elem = ip_elem.find('dhcp')
+                if dhcp_elem is not None:
+                    range_elem = dhcp_elem.find('range')
+                    if range_elem is not None:
+                        info.update({
+                            'dhcp_start': range_elem.get('start'),
+                            'dhcp_end': range_elem.get('end')
+                        })
 
-            # DHCP info
-            dhcp_elem = ip_elem.find('dhcp')
-            if dhcp_elem is not None:
-                info['dhcp'] = True
-                range_elem = dhcp_elem.find('range')
-                if range_elem is not None:
-                    info['dhcp_start'] = range_elem.get('start')
-                    info['dhcp_end'] = range_elem.get('end')
-                else:
-                    info['dhcp_start'] = None
-                    info['dhcp_end'] = None
-            else:
-                info['dhcp'] = False
-        else:
-            info['ip_address'] = None
-            info['netmask'] = None
-            info['prefix'] = None
-            info['dhcp'] = False
-
-        # Domain name
+        # Extract domain name
         domain_elem = root.find('domain')
         if domain_elem is not None:
             info['domain_name'] = domain_elem.get('name')
-        else:
-            info['domain_name'] = None
-
         return info
 
     except libvirt.libvirtError:
         return {}
-
 
 def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
     """Gets all USB devices from the host."""
