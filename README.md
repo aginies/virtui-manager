@@ -21,12 +21,14 @@ Virtui Manager solves these challenges with:
 
 ## Resource Usage Comparison
 
+Small improvement in the Virtual Memory usage compare to virt-manager:
+
 | Metric | virt-manager (GUI) | vmanager (TUI) | Difference |
 | :--- | :--- | :--- | :--- |
 | **Interface** | GTK3 (Graphical) | Textual (Terminal UI) | N/A |
 | **Physical Memory (RSS)** | ~129 MB | ~107 MB | **-22 MB** (vmanager is lighter) |
 | **Virtual Memory (VSZ)** | ~2.2 GB | ~414 MB | **-1.8 GB** (vmanager uses significantly less address space) |
-| **CPU Usage (Idle/Polling)** | ~3.4% | ~2.3% | **-1.1%** |
+| **CPU Usage (Idle/Polling)** | ~3.4% | ~3.3% | **-0.1%** | Similar | 
 
 ## Key Features
 
