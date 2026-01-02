@@ -743,7 +743,8 @@ class VMManagerTUI(App):
 
         finally:
             # Ensure these are called on the main thread
-            self.call_from_thread(self.refresh_vm_list)
+            force_refresh = action_type == VmAction.DELETE
+            self.call_from_thread(self.refresh_vm_list, force=force_refresh)
             self.call_from_thread(setattr, self, 'bulk_operation_in_progress', False) # Reset flag
 
 
