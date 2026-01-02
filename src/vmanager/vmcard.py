@@ -712,7 +712,7 @@ class VMCard(Static):
                     log_callback("INFO: No Conflicting Name")
 
                 success_clones, failed_clones = [], []
-                app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").set_total(count))
+                app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").update(total=count))
 
                 for i in range(1, count + 1):
                     new_name = f"{base_name}{suffix}{i}" if count > 1 else base_name
