@@ -1,8 +1,8 @@
-from vm_cache import invalidate_cache
-"Module for performing actions and modifications on virtual machines."
+"""
+Module for performing actions and modifications on virtual machines.
+"""
 import os
 import secrets
-import string
 import uuid
 import logging
 import xml.etree.ElementTree as ET
@@ -10,8 +10,8 @@ import libvirt
 from libvirt_utils import _find_vol_by_path, _get_disabled_disks_elem
 from utils import log_function_call
 from vm_queries import get_vm_disks_info
-from network_manager import get_host_network_info, list_networks
-
+from vm_cache import invalidate_cache
+from network_manager import list_networks
 
 @log_function_call
 def clone_vm(original_vm, new_vm_name, log_callback=None):
@@ -1998,24 +1998,79 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
 def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str):
     """
     Attaches a host USB device to the specified VM.
-    The device is identified by its vendor and product ID.
     """
-    if not domain:
-        raise ValueError("Invalid domain object.")
+    invalidate_cache(domain.UUIDString())
+    if domain.isActive():
+        pass 
 
-    xml = f"""
-<hostdev mode='subsystem' type='usb'>
-  <source>
-    <vendor id='{vendor_id}'/>
-    <product id='{product_id}'/>
-  </source>
-</hostdev>
-"""
-    flags = libvirt.VIR_DOMAIN_AFFECT_LIVE | libvirt.VIR_DOMAIN_AFFECT_CONFIG
-    domain.attachDeviceFlags(xml, flags)
+    # vendor/product ID in hostdev XML is for libvirt to find it.
 
+    device_xml = f"""
+    <hostdev mode='subsystem' type='usb' managed='yes'>
+      <source>
+        <vendor id='{vendor_id}'/>
+        <product id='{product_id}'/>
+      </source>
+    </hostdev>
+    """
+
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
+    try:
+        domain.attachDeviceFlags(device_xml, flags)
+    except libvirt.libvirtError as e:
+        msg = f"Failed to attach USB device {vendor_id}:{product_id}: {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+@log_function_call
+def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = ""):
+    """
+    Creates a snapshot for the VM.
+    """
     invalidate_cache(domain.UUIDString())
 
+    xml = f"<domainsnapshot><name>{name}</name>"
+    if description:
+        xml += f"<description>{description}</description>"
+    xml += "</domainsnapshot>"
+
+    try:
+        domain.snapshotCreateXML(xml, 0)
+    except libvirt.libvirtError as e:
+        msg = f"Failed to create snapshot '{name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+@log_function_call
+def restore_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
+    """
+    Restores the VM to a specific snapshot.
+    """
+    invalidate_cache(domain.UUIDString())
+    try:
+        snapshot = domain.snapshotLookupByName(snapshot_name, 0)
+        domain.revertToSnapshot(snapshot, 0)
+    except libvirt.libvirtError as e:
+        msg = f"Failed to restore snapshot '{snapshot_name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+@log_function_call
+def delete_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
+    """
+    Deletes a snapshot from the VM.
+    """
+    invalidate_cache(domain.UUIDString())
+    try:
+        snapshot = domain.snapshotLookupByName(snapshot_name, 0)
+        snapshot.delete(0)
+    except libvirt.libvirtError as e:
+        msg = f"Failed to delete snapshot '{snapshot_name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
 
 def detach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str):
     """

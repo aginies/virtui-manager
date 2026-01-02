@@ -18,7 +18,8 @@ from textual.events import Click
 from textual.css.query import NoMatches
 
 from events import VMNameClicked, VMSelectionChanged, VmActionRequest
-from vm_actions import clone_vm, rename_vm
+from vm_actions import clone_vm, rename_vm, create_vm_snapshot, restore_vm_snapshot, delete_vm_snapshot
+from vm_queries import get_vm_snapshots
 
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal
@@ -614,46 +615,46 @@ class VMCard(Static):
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot take button press."""
         logging.info(f"Attempting to take snapshot for VM: {self.name}")
-        def handle_snapshot_name(name: str | None) -> None:
-            if name:
-                xml = f"<domainsnapshot><name>{name}</name></domainsnapshot>"
+        def handle_snapshot_result(result: dict | None) -> None:
+            if result:
+                name = result["name"]
+                description = result["description"]
                 try:
-                    self.vm.snapshotCreateXML(xml, 0)
+                    create_vm_snapshot(self.vm, name, description)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                     self.app.refresh_vm_list()
-                except libvirt.libvirtError as e:
+                except Exception as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
-        self.app.push_screen(SnapshotNameDialog(), handle_snapshot_name)
+        self.app.push_screen(SnapshotNameDialog(), handle_snapshot_result)
 
     def _handle_snapshot_restore_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot restore button press."""
         logging.info(f"Attempting to restore snapshot for VM: {self.name}")
-        snapshots = self.vm.listAllSnapshots(0)
-        if not snapshots:
+        snapshots_info = get_vm_snapshots(self.vm)
+        if not snapshots_info:
             self.app.show_error_message("No snapshots to restore.")
             return
 
         def restore_snapshot(snapshot_name: str | None) -> None:
             if snapshot_name:
                 try:
-                    snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
-                    self.vm.revertToSnapshot(snapshot, 0)
+                    restore_vm_snapshot(self.vm, snapshot_name)
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                     self.app.refresh_vm_list()
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
-                except libvirt.libvirtError as e:
+                except Exception as e:
                     self.app.show_error_message(f"Error on VM {self.name} during 'snapshot restore': {e}")
 
-        self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to restore"), restore_snapshot)
+        self.app.push_screen(SelectSnapshotDialog(snapshots_info, "Select snapshot to restore"), restore_snapshot)
 
     def _handle_snapshot_delete_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot delete button press."""
         logging.info(f"Attempting to delete snapshot for VM: {self.name}")
-        snapshots = self.vm.listAllSnapshots(0)
-        if not snapshots:
+        snapshots_info = get_vm_snapshots(self.vm)
+        if not snapshots_info:
             self.app.show_error_message("No snapshots to delete.")
             return
 
@@ -662,20 +663,19 @@ class VMCard(Static):
                 def on_confirm(confirmed: bool) -> None:
                     if confirmed:
                         try:
-                            snapshot = self.vm.snapshotLookupByName(snapshot_name, 0)
-                            snapshot.delete(0)
+                            delete_vm_snapshot(self.vm, snapshot_name)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
                             self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                             self.app.refresh_vm_list()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
-                        except libvirt.libvirtError as e:
+                        except Exception as e:
                             self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
 
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
                 )
 
-        self.app.push_screen(SelectSnapshotDialog(snapshots, "Select snapshot to delete"), delete_snapshot)
+        self.app.push_screen(SelectSnapshotDialog(snapshots_info, "Select snapshot to delete"), delete_snapshot)
 
     def _handle_delete_button(self, event: Button.Pressed) -> None:
         """Handles the delete button press."""
