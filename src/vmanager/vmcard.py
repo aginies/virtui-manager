@@ -403,7 +403,7 @@ class VMCard(Static):
             snapshot_tab_pane = tabbed_content.get_pane("snapshot-tab")
             if snapshot_tab_pane and self.is_mounted:
                 snapshot_tab_pane.title = self._get_snapshot_tab_title()
-                tabbed_content.refresh()
+                #tabbed_content.refresh()
 
 
         self.ui[ButtonIds.START].display = is_stopped
