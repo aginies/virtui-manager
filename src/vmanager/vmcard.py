@@ -18,7 +18,10 @@ from textual.events import Click
 from textual.css.query import NoMatches
 
 from events import VMNameClicked, VMSelectionChanged, VmActionRequest
-from vm_actions import clone_vm, rename_vm, create_vm_snapshot, restore_vm_snapshot, delete_vm_snapshot
+from vm_actions import (
+        clone_vm, rename_vm, create_vm_snapshot,
+        restore_vm_snapshot, delete_vm_snapshot
+        )
 from vm_queries import get_vm_snapshots
 
 from modals.xml_modals import XMLDisplayModal
@@ -66,14 +69,22 @@ class VMCard(Static):
     def _get_snapshot_tab_title(self) -> str:
         if self.vm:
             try:
-                num_snapshots = self.vm.snapshotNum(0)
-                if num_snapshots > 0 and num_snapshots < 2:
-                    return f"Snapshot({num_snapshots})"
+                num_snapshots = len(self.vm.listAllSnapshots(0))
+                if num_snapshots == 0:
+                    return TabTitles.SNAPSHOT
+                elif num_snapshots > 0 and num_snapshots < 2:
+                    return TabTitles.SNAPSHOT + "(" + str(num_snapshots) + ")"
                 elif num_snapshots > 1:
-                    return f"Snapshots({num_snapshots})"
+                    return TabTitles.SNAPSHOT + "s(" + str(num_snapshots) + ")"
             except libvirt.libvirtError:
                 pass # Domain might be transient or invalid
-        return TabTitles.SNAPSHOT
+
+    def update_snapshot_tab_title(self) -> None:
+        """Updates the snapshot tab title."""
+        try:
+            self.query_one("#button-container", TabbedContent).get_tab("snapshot-tab").update(self._get_snapshot_tab_title())
+        except NoMatches:
+            logging.warning("Could not find snapshot tab to update title.")
 
     def _update_webc_status(self) -> None:
         """Updates the web console status indicator."""
@@ -380,6 +391,7 @@ class VMCard(Static):
         if self.status == StatusText.RUNNING:
              self.stats_view_mode = "io" if self.stats_view_mode == "resources" else "resources"
 
+
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
         rename_button = self.ui.get(ButtonIds.RENAME_BUTTON)
@@ -391,20 +403,12 @@ class VMCard(Static):
         has_snapshots = False
         try:
             if self.vm:
-                has_snapshots = self.vm.snapshotNum(0) > 0
+                has_snapshots = len(self.vm.listAllSnapshots(0)) > 0
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                 self.app.refresh_vm_list()
                 return
             logging.warning(f"Could not get snapshot count for {self.name}: {e}")
-
-        tabbed_content = self.ui.get("tabbed_content")
-        if tabbed_content and tabbed_content.is_mounted:
-            snapshot_tab_pane = tabbed_content.get_pane("snapshot-tab")
-            if snapshot_tab_pane and self.is_mounted:
-                snapshot_tab_pane.title = self._get_snapshot_tab_title()
-                #tabbed_content.refresh()
-
 
         self.ui[ButtonIds.START].display = is_stopped
         self.ui[ButtonIds.SHUTDOWN].display = is_running
@@ -430,13 +434,6 @@ class VMCard(Static):
             self.stats_view_mode = "resources" # Reset to default when stopped
         else:
             xml_button.label = "View XML"
-
-    def _refresh_snapshot_ui(self) -> None:
-        """Updates snapshot tab title and buttons, forcing a refresh."""
-        self.update_button_layout()
-        tabbed_content = self.ui.get("tabbed_content")
-        if tabbed_content:
-            tabbed_content.refresh()
 
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
@@ -636,11 +633,10 @@ class VMCard(Static):
                     create_vm_snapshot(self.vm, name, description)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
-                    self.app.refresh_vm_list(force=True)
-                    self._refresh_snapshot_ui()
                 except Exception as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
+            self.update_snapshot_tab_title()
         self.app.push_screen(SnapshotNameDialog(), handle_snapshot_result)
 
     def _handle_snapshot_restore_button(self, event: Button.Pressed) -> None:
@@ -656,7 +652,6 @@ class VMCard(Static):
                 try:
                     restore_vm_snapshot(self.vm, snapshot_name)
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
-                    self.app.refresh_vm_list()
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
                 except Exception as e:
@@ -680,12 +675,11 @@ class VMCard(Static):
                             delete_vm_snapshot(self.vm, snapshot_name)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
                             self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
-                            self.app.refresh_vm_list(force=True)
-                            self._refresh_snapshot_ui()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except Exception as e:
                             self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
 
+                    self.update_snapshot_tab_title()
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
                 )
