@@ -1058,3 +1058,40 @@ def get_attached_pci_devices(root: ET.Element) -> list[dict]:
     except Exception as e:
         logging.error(f"Unexpected error getting attached PCI devices: {e}")
     return attached_pci_devices
+
+def get_vm_snapshots(domain: libvirt.virDomain) -> list[dict]:
+    """
+    Get all snapshots for a VM with details.
+    """
+    snapshots_info = []
+    try:
+        snapshots = domain.listAllSnapshots(0)
+        for snapshot in snapshots:
+            xml_desc = snapshot.getXMLDesc(0)
+            root = ET.fromstring(xml_desc)
+
+            name = root.findtext("name")
+            description = root.findtext("description") or ""
+            creation_time = root.findtext("creationTime")
+            state = root.findtext("state")
+
+            # Convert timestamp to readable date
+            if creation_time:
+                try:
+                    import datetime
+                    ts = float(creation_time)
+                    creation_time = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    pass
+
+            snapshots_info.append({
+                "name": name,
+                "description": description,
+                "creation_time": creation_time,
+                "state": state,
+                "snapshot_object": snapshot # Keep the object for operations
+            })
+    except (libvirt.libvirtError, ET.ParseError) as e:
+        logging.error(f"Error getting snapshots: {e}")
+
+    return snapshots_info
