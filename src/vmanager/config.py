@@ -10,6 +10,7 @@ from constants import AppInfo
 DEFAULT_CONFIG = {
     'AUTOCONNECT_ON_STARTUP': False,
     'CACHE_TTL': 3,
+    'STATS_INTERVAL': 5,
     'WC_PORT_RANGE_START': 40000,
     'WC_PORT_RANGE_END': 40050,
     'websockify_path': '/usr/bin/websockify',
