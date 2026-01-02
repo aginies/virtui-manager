@@ -296,6 +296,7 @@ SelectServerModal Checkbox {
 #vnc-quality-input,
 #vnc-compression-input,
 #cache-ttl-input,
+#stats-interval-input,
 #add-pool-btn #cancel-pool-btn,
 #port-range-label {
   width: 25%;

@@ -35,10 +35,18 @@ class ConfigModal(BaseModal[None]):
                 with Horizontal():
                     yield Label("Cache TTL (seconds):")
                     yield Input(
-                        value=str(self.config.get("CACHE_TTL", 1)),
+                        value=str(self.config.get("CACHE_TTL", 3)),
                         id="cache-ttl-input",
                         type="integer",
                         tooltip="Time-to-live for VM metadata cache in seconds. Reduces libvirt calls."
+                    )
+                with Horizontal():
+                    yield Label("Stats Interval (seconds):")
+                    yield Input(
+                        value=str(self.config.get("STATS_INTERVAL", 5)),
+                        id="stats-interval-input",
+                        type="integer",
+                        tooltip="Interval for updating VM statistics (CPU, Memory, I/O) in seconds."
                     )
 
                 # Logging settings
@@ -119,6 +127,7 @@ class ConfigModal(BaseModal[None]):
                 self.config["VNC_QUALITY"] = int(self.query_one("#vnc-quality-input", Input).value)
                 self.config["VNC_COMPRESSION"] = int(self.query_one("#vnc-compression-input", Input).value)
                 self.config["CACHE_TTL"] = int(self.query_one("#cache-ttl-input", Input).value)
+                self.config["STATS_INTERVAL"] = int(self.query_one("#stats-interval-input", Input).value)
                 self.config["LOG_FILE_PATH"] = self.query_one("#log-file-path-input", Input).value
 
                 save_config(self.config)
