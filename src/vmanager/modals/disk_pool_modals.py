@@ -12,7 +12,7 @@ from textual.widgets import (
 from textual.app import ComposeResult
 from textual import on
 from storage_manager import create_storage_pool
-from modals.base_modals import BaseModal
+from modals.base_modals import BaseModal, ValueListItem
 from modals.utils_modals import DirectorySelectionModal, FileSelectionModal
 
 class SelectPoolModal(BaseModal[str | None]):
@@ -29,13 +29,13 @@ class SelectPoolModal(BaseModal[str | None]):
             yield Label(self.prompt)
             with ScrollableContainer():
                 yield ListView(
-                    *[ListItem(Label(pool)) for pool in self.pools],
+                    *[ValueListItem(Label(pool), value=pool) for pool in self.pools],
                     id="pool-selection-list"
                 )
             yield Button("Cancel", variant="error", id="cancel")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        self.selected_pool = str(event.item.query_one(Label).renderable)
+        self.selected_pool = event.item.value
         self.dismiss(self.selected_pool)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -57,13 +57,13 @@ class SelectDiskModal(BaseModal[str | None]):
             yield Label(self.prompt)
             with ScrollableContainer():
                 yield ListView(
-                    *[ListItem(Label(disk)) for disk in self.disks],
+                    *[ValueListItem(Label(disk), value=disk) for disk in self.disks],
                     id="disk-selection-list"
                 )
             yield Button("Cancel", variant="error", id="cancel")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        self.selected_disk = str(event.item.query_one(Label).renderable)
+        self.selected_disk = event.item.value
         self.dismiss(self.selected_disk)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -81,7 +81,7 @@ class RemoveDiskModal(BaseModal[str | None]):
         with Vertical(id="remove-disk-dialog"):
             yield Label("Select Disk to Remove")
             yield ListView(
-                *[ListItem(Label(disk)) for disk in self.disks],
+                *[ValueListItem(Label(disk), value=disk) for disk in self.disks],
                 id="remove-disk-list"
             )
             with Horizontal():
@@ -89,7 +89,7 @@ class RemoveDiskModal(BaseModal[str | None]):
                 yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        self.selected_disk = event.item.query_one(Label).renderable
+        self.selected_disk = event.item.value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "remove-btn" and hasattr(self, "selected_disk"):

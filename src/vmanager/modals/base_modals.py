@@ -1,11 +1,18 @@
 """
 Base Modal stuff
 """
-from typing import TypeVar
+from typing import TypeVar, Any
 import re
 from textual.screen import ModalScreen, Screen
+from textual.widgets import ListItem
 
 T = TypeVar("T")
+
+class ValueListItem(ListItem):
+    """ListItem that holds a value."""
+    def __init__(self, *children, value: Any = None, **kwargs) -> None:
+        super().__init__(*children, **kwargs)
+        self.value = value
 
 class BaseModal(ModalScreen[T]):
     BINDINGS = [("escape", "cancel_modal", "Cancel")]

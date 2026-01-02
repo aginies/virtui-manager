@@ -5,9 +5,9 @@ from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from textual.widgets import (
         Button, Input, Label,
-        ListView, ListItem,
+        ListView,
         )
-from modals.base_modals import BaseModal
+from modals.base_modals import BaseModal, ValueListItem
 
 class EditCpuModal(BaseModal[str | None]):
     """Modal screen for editing VCPU count."""
@@ -66,7 +66,7 @@ class SelectMachineTypeModal(BaseModal[str | None]):
             yield Label("Select Machine Type:")
             with ScrollableContainer():
                 yield ListView(
-                    *[ListItem(Label(mt)) for mt in self.machine_types],
+                    *[ValueListItem(Label(mt), value=mt) for mt in self.machine_types],
                     id="machine-type-list",
                     classes="machine-type-list"
                 )
@@ -83,7 +83,7 @@ class SelectMachineTypeModal(BaseModal[str | None]):
             pass
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        self.dismiss(str(event.item.query_one(Label).renderable))
+        self.dismiss(event.item.value)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
