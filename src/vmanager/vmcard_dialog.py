@@ -2,6 +2,7 @@
 Dialog box for VMcard
 """
 
+from datetime import datetime
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Horizontal, Vertical, Grid
 from textual.widgets import (
@@ -160,40 +161,55 @@ class RenameVMDialog(BaseDialog[str | None]):
         else:
             self.dismiss(None)
 
+class SnapshotListItem(ListItem):
+    """A ListItem that stores the snapshot name."""
+    def __init__(self, snapshot_name: str, label_text: str) -> None:
+        super().__init__(Label(label_text))
+        self.snapshot_name = snapshot_name
+
 class SelectSnapshotDialog(BaseDialog[str | None]):
     """A dialog to select a snapshot from a list."""
 
-    def __init__(self, snapshots: list, prompt: str) -> None:
+    def __init__(self, snapshots: list[dict], prompt: str) -> None:
         super().__init__()
         self.snapshots = snapshots
         self.prompt = prompt
 
     def compose(self):
+        items = []
+        for snap in self.snapshots:
+            label_text = f"{snap['name']} ({snap['creation_time']})"
+            if snap['description']:
+                label_text += f" - {snap['description']}"
+            items.append(SnapshotListItem(snap['name'], label_text))
+
         yield Vertical(
             Label(self.prompt),
-            ListView(
-                *[ListItem(Label(snap.getName())) for snap in self.snapshots],
-                id="snapshot-list",
-            ),
+            ListView(*items, id="snapshot-list"),
             Button("Cancel", variant="error", id="cancel"),
             id="dialog",
         )
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
-        snapshot_name = event.item.query_one(Label).renderable
-        self.dismiss(str(snapshot_name))
+        if isinstance(event.item, SnapshotListItem):
+            self.dismiss(event.item.snapshot_name)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel":
             self.dismiss(None)
 
-class SnapshotNameDialog(BaseDialog[str | None]):
+class SnapshotNameDialog(BaseDialog[dict | None]):
     """A dialog to ask for a snapshot name."""
 
     def compose(self):
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        default_name = datetime.now().strftime("snap_%Y%m%d_%H%M%S")
         yield Vertical(
+            Label(f"Current time: {now}", id="timestamp-label"),
             Label("Enter snapshot name", id="question"),
-            Input(placeholder="snapshot_name"),
+            Input(value=default_name, placeholder="snapshot_name", id="name-input"),
+            Label("Description (optional)"),
+            Input(placeholder="snapshot description", id="description-input"),
             Horizontal(
                 Button("Create", variant="success", id="create"),
                 Button("Cancel", variant="error", id="cancel"),
@@ -205,15 +221,17 @@ class SnapshotNameDialog(BaseDialog[str | None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create":
-            input_widget = self.query_one(Input)
-            snapshot_name = input_widget.value.strip()
+            name_input = self.query_one("#name-input", Input)
+            description_input = self.query_one("#description-input", Input)
+            snapshot_name = name_input.value.strip()
+            description = description_input.value.strip()
 
             error = self.validate_name(snapshot_name)
             if error:
                 self.app.show_error_message(error)
                 return
 
-            self.dismiss(snapshot_name)
+            self.dismiss({"name": snapshot_name, "description": description})
         else:
             self.dismiss(None)
 
