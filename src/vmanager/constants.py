@@ -52,6 +52,13 @@ class ButtonLabels:
     CONFIG = "Config"
     PREVIOUS_PAGE = "Previous Page"
     NEXT_PAGE = "Next Page"
+    YES = "Yes"
+    NO = "No"
+    CANCEL = "Cancel"
+    CREATE = "Create"
+    CHANGE = "Change"
+    STOP = "Stop"
+    CLOSE = "Close"
 
 class ButtonIds:
     """Constants for button IDs"""
@@ -80,6 +87,12 @@ class ButtonIds:
     CONFIG_BUTTON = "config_button"
     PREV_BUTTON = "prev-button"
     NEXT_BUTTON = "next-button"
+    YES = "yes"
+    NO = "no"
+    CANCEL = "cancel"
+    CREATE = "create"
+    CHANGE = "change"
+    CLOSE = "close"
 
 class TabTitles:
     """Constants for tab titles"""
