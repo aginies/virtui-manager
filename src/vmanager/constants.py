@@ -59,6 +59,9 @@ class ButtonLabels:
     CHANGE = "Change"
     STOP = "Stop"
     CLOSE = "Close"
+    CREATE_OVERLAY = "New Overlay"
+    COMMIT_DISK = "Commit Disk"
+    DISCARD_OVERLAY = "Discard Overlay"
 
 class ButtonIds:
     """Constants for button IDs"""
@@ -73,6 +76,9 @@ class ButtonIds:
     SNAPSHOT_TAKE = "snapshot_take"
     SNAPSHOT_RESTORE = "snapshot_restore"
     SNAPSHOT_DELETE = "snapshot_delete"
+    CREATE_OVERLAY = "create_overlay"
+    COMMIT_DISK = "commit_disk"
+    DISCARD_OVERLAY = "discard_overlay"
     DELETE = "delete"
     CLONE = "clone"
     MIGRATION = "migration"
