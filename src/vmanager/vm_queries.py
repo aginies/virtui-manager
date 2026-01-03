@@ -1116,3 +1116,25 @@ def get_vm_snapshots(domain: libvirt.virDomain) -> list[dict]:
         logging.error(f"Error getting snapshots: {e}")
 
     return snapshots_info
+
+def has_overlays(domain: libvirt.virDomain) -> bool:
+    """
+    Checks if the VM has any disks that are overlays (have a backing chain).
+    """
+    try:
+        xml_desc = domain.XMLDesc(0)
+        root = ET.fromstring(xml_desc)
+
+        for disk in root.findall(".//disk"):
+             # Check if backingStore exists and has a path or type
+             backing = disk.find("backingStore")
+             if backing is not None:
+                 # Check if it's not empty/none
+                 # Usually backingStore is present but might be empty if no backing file.
+                 # If type is not null or path is present.
+                 if backing.find("path") is not None or backing.get("type"):
+                     return True
+
+        return False
+    except Exception:
+        return False
