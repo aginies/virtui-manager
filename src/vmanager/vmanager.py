@@ -74,7 +74,7 @@ class WorkerManager:
         *,
         name: str,
         group: str | None = None,
-        exclusive: bool = False,
+        exclusive: bool = True,
         thread: bool = True,
         description: str | None = None,
         exit_on_error: bool = True,
@@ -82,7 +82,7 @@ class WorkerManager:
         """
         Runs and tracks a worker, preventing overlaps for workers with the same name.
         """
-        if self.is_running(name):
+        if not exclusive and self.is_running(name):
             logging.warning(f"Worker '{name}' is already running. Skipping new run.")
             return None
 
