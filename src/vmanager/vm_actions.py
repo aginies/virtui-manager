@@ -7,7 +7,10 @@ import uuid
 import logging
 import xml.etree.ElementTree as ET
 import libvirt
-from libvirt_utils import _find_vol_by_path, _get_disabled_disks_elem
+from libvirt_utils import (
+        _find_vol_by_path, _get_disabled_disks_elem,
+        _get_backing_chain_elem, VIRTUI_MANAGER_NS
+        )
 from utils import log_function_call
 from vm_queries import get_vm_disks_info
 from vm_cache import invalidate_cache
@@ -2515,6 +2518,19 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
                     if driver is None:
                         driver = ET.SubElement(disk, "driver", name="qemu")
                     driver.set("type", "qcow2")
+
+                    # Store backing chain info in metadata
+                    backing_chain_elem = _get_backing_chain_elem(root)
+                    new_vol_path = new_vol.path()
+
+                    # Check if entry already exists (cleanup if replacing - though rare for new overlay)
+                    for entry in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
+                         if entry.get('path') == new_vol_path:
+                             backing_chain_elem.remove(entry)
+
+                    overlay_elem = ET.SubElement(backing_chain_elem, f'{{{VIRTUI_MANAGER_NS}}}overlay')
+                    overlay_elem.set('path', new_vol_path)
+                    overlay_elem.set('backing', disk_path)
 
                     updated = True
                     break
