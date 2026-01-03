@@ -22,7 +22,7 @@ from vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
         restore_vm_snapshot, delete_vm_snapshot
         )
-from vm_queries import get_vm_snapshots
+from vm_queries import get_vm_snapshots, get_vm_cpu_details, _get_domain_root
 
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal
@@ -49,6 +49,7 @@ class VMCard(Static):
     conn = reactive(None)
     ip_addresses = reactive([])
     boot_device = reactive("")
+    cpu_model = reactive("")
 
     webc_status_indicator = reactive("")
     graphics_type = reactive("vnc")
@@ -232,14 +233,15 @@ class VMCard(Static):
             if ips:
                 ip_display = ", ".join(ips)
 
+        cpu_model_display = f" ({self.cpu_model})" if self.cpu_model else ""
+
         tooltip_md = (
             f"`{uuid}`  \n"
             f"**Hypervisor:** {hypervisor}  \n"
-            f"**Name:** {self.name}  \n"
             f"**Status:** {self.status}  \n"
             f"**IP:** {ip_display}  \n"
             f"**Boot:** {self.boot_device or 'N/A'}  \n"
-            f"**VCPUs:** {self.cpu}  \n"
+            f"**VCPUs:** {self.cpu}{cpu_model_display}  \n"
             f"**Memory:** {mem_display}"
         )
 
@@ -254,6 +256,13 @@ class VMCard(Static):
             self.styles.border = ("solid", self.server_border_color)
 
         self._cache_widgets()
+
+        if self.vm:
+            try:
+                _, root = _get_domain_root(self.vm)
+                self.cpu_model = get_vm_cpu_details(root) or ""
+            except (libvirt.libvirtError, Exception):
+                pass
 
         self.update_button_layout()
         self._update_status_styling()
@@ -328,7 +337,6 @@ class VMCard(Static):
             vmname_widget = self.ui.get("vmname")
             if vmname_widget:
                 vmname_widget.update(self._get_vm_display_name())
-        self._update_tooltip()
 
     def watch_cpu(self, value: int) -> None:
         """Called when cpu count changes."""
@@ -344,6 +352,10 @@ class VMCard(Static):
 
     def watch_boot_device(self, value: str) -> None:
         """Called when boot device changes."""
+        self._update_tooltip()
+
+    def watch_cpu_model(self, value: str) -> None:
+        """Called when cpu_model changes."""
         self._update_tooltip()
 
     def watch_status(self, old_value: str, new_value: str) -> None:
@@ -403,7 +415,7 @@ class VMCard(Static):
             return
 
         def update_worker():
-            from vm_queries import get_vm_network_ip, get_boot_info, _get_domain_root
+            from vm_queries import get_vm_network_ip, get_boot_info, _get_domain_root, get_vm_cpu_details
             try:
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
 
@@ -412,10 +424,12 @@ class VMCard(Static):
                 if self.status == StatusText.RUNNING:
                     ips = get_vm_network_ip(self.vm)
 
+                _, root = _get_domain_root(self.vm)
+                cpu_details = get_vm_cpu_details(root)
+
                 # Fetch boot info if not yet set or if we want to keep it fresh
                 boot_dev = self.boot_device
                 if not boot_dev:
-                    _, root = _get_domain_root(self.vm)
                     boot_info = get_boot_info(self.conn, root)
                     if boot_info['order']:
                         boot_dev = boot_info['order'][0]
@@ -425,6 +439,7 @@ class VMCard(Static):
                         self.app.call_from_thread(setattr, self, 'status', StatusText.STOPPED)
                     self.app.call_from_thread(setattr, self, 'ip_addresses', [])
                     self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
+                    self.app.call_from_thread(setattr, self, 'cpu_model', cpu_details or "")
                     return
 
                 def apply_stats_to_ui():
@@ -435,6 +450,7 @@ class VMCard(Static):
 
                     self.ip_addresses = ips
                     self.boot_device = boot_dev
+                    self.cpu_model = cpu_details or ""
 
                     self.latest_disk_read = stats.get('disk_read_kbps', 0)
                     self.latest_disk_write = stats.get('disk_write_kbps', 0)

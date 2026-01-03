@@ -817,7 +817,7 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
                         del driver.attrib[key]
                 else:
                     driver.set(key, value)
-            
+
             if 'bus' in properties:
                 target = disk.find("target")
                 if target is not None:
@@ -1169,9 +1169,29 @@ def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
+    # Remove existing cpu element to rebuild it
     cpu = root.find('.//cpu')
-    if cpu is None:
+    if cpu is not None:
+        root.remove(cpu)
+
+    if cpu_model == 'default':
+        # Default usually means no specific CPU config, or let libvirt decide.
+        pass
+    else:
         cpu = ET.SubElement(root, 'cpu')
+
+        if cpu_model == 'host-passthrough':
+            cpu.set('mode', 'host-passthrough')
+        elif cpu_model == 'host-model':
+            cpu.set('mode', 'host-model')
+        else:
+            # Assume custom model
+            cpu.set('mode', 'custom')
+            cpu.set('match', 'exact')
+            cpu.set('check', 'none')
+            model_elem = ET.SubElement(cpu, 'model')
+            model_elem.set('fallback', 'allow')
+            model_elem.text = cpu_model
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)

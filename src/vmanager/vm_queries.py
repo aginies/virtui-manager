@@ -706,7 +706,28 @@ def get_vm_cpu_model(root: ET.Element) -> str | None:
     try:
         cpu = root.find('.//cpu')
         if cpu is not None:
-            return cpu.get('mode')
+            mode = cpu.get('mode')
+            if mode == 'custom':
+                model_elem = cpu.find('model')
+                if model_elem is not None and model_elem.text:
+                    return model_elem.text
+            return mode
+    except Exception:
+        pass
+    return None
+
+def get_vm_cpu_details(root: ET.Element) -> str | None:
+    """Extracts the cpu mode and model from a VM's XML definition for display."""
+    if root is None:
+        return None
+    try:
+        cpu = root.find('.//cpu')
+        if cpu is not None:
+            mode = cpu.get('mode')
+            model_elem = cpu.find('model')
+            if model_elem is not None and model_elem.text:
+                return f"{mode} ({model_elem.text})"
+            return mode
     except Exception:
         pass
     return None
