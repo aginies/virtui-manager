@@ -28,6 +28,7 @@ AddInputDeviceModal,
 PasswordModal,
 FileSelectionModal,
 ConfigModal,
+HowToNetworkModal,
 HowToSSHModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
@@ -51,6 +52,7 @@ PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
 ConfigModal > #config-dialog,
+HowToNetworkModal > #howto-network-dialog,
 HowToSSHModal > #howto-ssh-dialog {
   width: 60;
   padding: 1;
@@ -72,6 +74,7 @@ ConfirmationDialog > #dialog {
 }
 FileSelectionModal > #file-selection-dialog,
 ConfigModal #config-dialog,
+HowToNetworkModal #howto-network-dialog,
 HowToSSHModal #howto-ssh-dialog {
     width: 80;
     height: 95%;

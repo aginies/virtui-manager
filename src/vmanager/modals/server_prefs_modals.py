@@ -33,6 +33,7 @@ from modals.disk_pool_modals import (
         )
 from modals.utils_modals import ConfirmationDialog, ProgressModal
 from modals.xml_modals import XMLDisplayModal
+from modals.howto_network_modal import HowToNetworkModal
 
 
 class ServerPrefModal(BaseModal[None]):
@@ -52,27 +53,28 @@ class ServerPrefModal(BaseModal[None]):
                         yield DataTable(id="networks-table", classes="networks-table", cursor_type="row")
                     with Vertical(classes="server-pref-button"):
                         with Horizontal():
-                            yield Button("Toggle Active", id="toggle-net-active-btn", classes="toggle-detail-button", variant="primary", disabled=True)
-                            yield Button("Toggle Autostart", id="toggle-net-autostart-btn", classes="toggle-detail-button", variant="primary", disabled=True)
+                            yield Button("De/Active", id="toggle-net-active-btn", classes="toggle-detail-button", variant="primary", disabled=True, tooltip="Activate or Deactivate the selected network.")
+                            yield Button("Autostart", id="toggle-net-autostart-btn", classes="toggle-detail-button", variant="primary", disabled=True, tooltip="Enable or Disable autostart for the selected network.")
                         with Horizontal():
-                            yield Button("Add", id="add-net-btn", variant="success", classes="toggle-detail-button")
-                            yield Button("Edit", id="edit-net-btn", variant="success", classes="toggle-detail-button", disabled=True)
-                            yield Button("View", id="view-net-btn", variant="success", classes="toggle-detail-button", disabled=True)
-                            yield Button("Delete", id="delete-net-btn", variant="error", classes="toggle-detail-button", disabled=True)
+                            yield Button("Add", id="add-net-btn", variant="success", classes="toggle-detail-button", tooltip="Add a new network.")
+                            yield Button("Edit", id="edit-net-btn", variant="success", classes="toggle-detail-button", disabled=True, tooltip="Edit the selected network.")
+                            yield Button("View", id="view-net-btn", variant="success", classes="toggle-detail-button", disabled=True, tooltip="View XML details of the selected network.")
+                            yield Button("Delete", id="delete-net-btn", variant="error", classes="toggle-detail-button", disabled=True, tooltip="Delete the selected network.")
+                            yield Button("Help", id="help-net-btn", variant="success", classes="toggle-detail-button", tooltip="Show network configuration help.")
                 with TabPane("Storage", id="tab-storage"):
                     with ScrollableContainer():
                         yield Tree("Storage Pools", id="storage-tree")
                     with Vertical(classes="server-pref-button"):
                         with Horizontal():
-                            yield Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button")
-                            yield Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button")
+                            yield Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button", tooltip="Activate or Deactivate the selected storage pool.")
+                            yield Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button", tooltip="Enable or Disable autostart for the selected storage pool.")
                             with Vertical():
-                                yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button")
-                                yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button")
-                            yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button")
-                            yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button")
-                            yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button")
-                            yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button")
+                                yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button", tooltip="Add a new storage pool.")
+                                yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected storage pool.")
+                            yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Create a new volume in the selected pool.")
+                            yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Move the selected volume to another pool.")
+                            yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected volume.")
+                            yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="View XML details of the selected pool or volume.")
             #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
@@ -609,3 +611,7 @@ class ServerPrefModal(BaseModal[None]):
             self.app.push_screen(
                 ConfirmationDialog(confirm_message), on_confirm
             )
+
+        elif event.button.id == "help-net-btn":
+            self.app.push_screen(HowToNetworkModal())
+

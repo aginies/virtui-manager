@@ -502,7 +502,7 @@ Select:focus {
     width: 25%;
     color: white;
 }
-.toggle-detail-button { width: 16%; height: 1; align: center top; }
+.toggle-detail-button { width: 17%; height: 1; align: center top; }
 .clone-button { height: 1; color: black; background: pink; }
 .edit-detail-btn { width: auto; height: 1; background: $primary; min-height: 1; margin: 0 0 0 1; }
 .create-net-btn { border: none; width: 50%; margin-top: 1; background: green; }
