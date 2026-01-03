@@ -93,7 +93,12 @@ class VMCard(Static):
     def update_snapshot_tab_title(self) -> None:
         """Updates the snapshot tab title."""
         try:
-            self.query_one("#button-container", TabbedContent).get_tab("snapshot-tab").update(self._get_snapshot_tab_title())
+            if not self.ui:
+                return
+            
+            tabbed_content = self.ui.get("tabbed_content")
+            if tabbed_content:
+                tabbed_content.get_tab("snapshot-tab").update(self._get_snapshot_tab_title())
         except NoMatches:
             logging.warning("Could not find snapshot tab to update title.")
 
@@ -413,11 +418,6 @@ class VMCard(Static):
             try:
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
 
-                # Fetch IPs if running
-                ips = []
-                if self.status == StatusText.RUNNING:
-                    ips = get_vm_network_ip(self.vm)
-
                 # Fetch boot info if not yet set. Only check once per lifecycle to save CPU.
                 boot_dev = self.boot_device
                 if not boot_dev and not getattr(self, "_boot_device_checked", False):
@@ -433,6 +433,11 @@ class VMCard(Static):
                     self.app.call_from_thread(setattr, self, 'ip_addresses', [])
                     self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
                     return
+
+                # Fetch IPs if running (check stats status, not UI status which might be stale)
+                ips = []
+                if stats.get("status") == StatusText.RUNNING:
+                    ips = get_vm_network_ip(self.vm)
 
                 def apply_stats_to_ui():
                     if not self.is_mounted:
