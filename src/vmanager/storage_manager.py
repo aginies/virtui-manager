@@ -10,6 +10,7 @@ import xml.etree.ElementTree as ET
 import libvirt
 import threading
 from vm_queries import get_vm_disks_info
+from libvirt_utils import _find_vol_by_path
 
 def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     """
@@ -141,6 +142,45 @@ def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_for
         pool.createXML(vol_xml, 0)
     except libvirt.libvirtError as e:
         msg = f"Error creating volume '{name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+def create_overlay_volume(pool: libvirt.virStoragePool, name: str, backing_vol_path: str, backing_vol_format: str = 'qcow2') -> libvirt.virStorageVol:
+    """
+    Creates a qcow2 overlay volume backed by another volume (backing file).
+    The new volume will record changes, while the backing file remains untouched.
+    """
+    if not pool.isActive():
+        msg = f"Pool '{pool.name()}' is not active."
+        logging.error(msg)
+        raise Exception(msg)
+
+    conn = pool.connect()
+    backing_vol, _ = _find_vol_by_path(conn, backing_vol_path)
+    
+    if not backing_vol:
+        raise Exception(f"Could not find backing volume for path '{backing_vol_path}' to determine capacity.")
+
+    capacity = backing_vol.info()[1]
+
+    vol_xml = f"""
+    <volume>
+        <name>{name}</name>
+        <capacity unit="bytes">{capacity}</capacity>
+        <target>
+            <format type='qcow2'/>
+        </target>
+        <backingStore>
+            <path>{backing_vol_path}</path>
+            <format type='{backing_vol_format}'/>
+        </backingStore>
+    </volume>
+    """
+    try:
+        vol = pool.createXML(vol_xml, 0)
+        return vol
+    except libvirt.libvirtError as e:
+        msg = f"Error creating overlay volume '{name}': {e}"
         logging.error(msg)
         raise Exception(msg) from e
 
