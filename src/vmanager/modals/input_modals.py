@@ -1,10 +1,31 @@
 """
 Modals for input device configuration.
 """
-from textual.widgets import Select, Button, Label
+from textual.widgets import Select, Button, Label, Input
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from modals.base_modals import BaseModal
+
+class InputModal(BaseModal[str | None]):
+    """A generic modal for getting text input from the user."""
+    def __init__(self, prompt: str, initial_value: str = ""):
+        super().__init__()
+        self.prompt = prompt
+        self.initial_value = initial_value
+
+    def compose(self) -> ComposeResult:
+         with Vertical(id="input-modal-container"):
+             yield Label(self.prompt)
+             yield Input(value=self.initial_value, id="text-input")
+             with Horizontal():
+                 yield Button("OK", variant="primary", id="ok-btn")
+                 yield Button("Cancel", variant="default", id="cancel-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "ok-btn":
+             self.dismiss(self.query_one(Input).value)
+        else:
+             self.dismiss(None)
 
 class AddInputDeviceModal(BaseModal[None]):
     """A modal for adding a new input device."""
