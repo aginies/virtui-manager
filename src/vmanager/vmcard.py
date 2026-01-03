@@ -68,6 +68,13 @@ class VMCard(Static):
         self.is_selected = is_selected
         self.timer = None
 
+    def _get_vm_display_name(self) -> str:
+        """Returns the formatted VM name including server name if available."""
+        if hasattr(self, 'conn') and self.conn:
+            server_display = extract_server_name_from_uri(self.conn.getURI())
+            return f"{self.name} ({server_display})"
+        return self.name
+
     def _get_snapshot_tab_title(self) -> str:
         if self.vm:
             try:
@@ -120,11 +127,7 @@ class VMCard(Static):
             with Horizontal(id="vm-header-row"):
                 yield Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected)
                 with Vertical(): # New Vertical container for name and status
-                    if hasattr(self, 'conn') and self.conn:
-                        server_display = extract_server_name_from_uri(self.conn.getURI())
-                        yield Static(f"{self.name} ({server_display})", id="vmname", classes="vmname")
-                    else:
-                        yield Static(self.name, id="vmname", classes="vmname")
+                    yield Static(self._get_vm_display_name(), id="vmname", classes="vmname")
                     status_class = self.status.lower()
                     yield Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=status_class)
             
@@ -319,13 +322,12 @@ class VMCard(Static):
         top_sparkline.data = top_data
         bottom_sparkline.data = bottom_data
 
-    def watch_vm(self, old_value, new_value) -> None:
-        """Called when vm object changes."""
-        self.call_later(self.update_button_layout)
-        self._update_tooltip()
-
     def watch_name(self, value: str) -> None:
         """Called when name changes."""
+        if self.ui:
+            vmname_widget = self.ui.get("vmname")
+            if vmname_widget:
+                vmname_widget.update(self._get_vm_display_name())
         self._update_tooltip()
 
     def watch_cpu(self, value: int) -> None:
