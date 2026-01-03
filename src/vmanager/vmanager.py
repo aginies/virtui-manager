@@ -188,20 +188,6 @@ class VMManagerTUI(App):
         self.vm_cards: dict[str, VMCard] = {}
         self._resize_timer = None
 
-    def _cache_widgets(self) -> None:
-        """Cache frequently accessed widgets."""
-        try:
-            self.ui = {
-                "vms_container": self.query_one("#vms-container"),
-                "error_footer": self.query_one("#error-footer"),
-                "page_info": self.query_one("#page-info"),
-                "pagination_controls": self.query_one("#pagination-controls"),
-                "prev_button": self.query_one(f"#{ButtonIds.PREV_BUTTON}"),
-                "next_button": self.query_one(f"#{ButtonIds.NEXT_BUTTON}"),
-            }
-        except Exception as e:
-            logging.error(f"Failed to cache widgets: {e}")
-
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
         if uri not in self.server_color_map:
@@ -214,6 +200,26 @@ class VMManagerTUI(App):
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
+        self.ui["vms_container"] = Vertical(id="vms-container")
+        self.ui["error_footer"] = Static(id="error-footer", classes="error-message")
+        self.ui["page_info"] = Label("", id="page-info", classes="")
+        self.ui["prev_button"] = Button(
+                ButtonLabels.PREVIOUS_PAGE, id=ButtonIds.PREV_BUTTON, variant="primary", classes="ctrlpage"
+            )
+        self.ui["next_button"] = Button(
+                ButtonLabels.NEXT_PAGE, id=ButtonIds.NEXT_BUTTON, variant="primary", classes="ctrlpage"
+            )
+        self.ui["pagination_controls"] = Horizontal(
+            self.ui["prev_button"],
+            self.ui["page_info"],
+            self.ui["next_button"],
+            id="pagination-controls"
+        )
+        self.ui["pagination_controls"].styles.display = "none"
+        self.ui["pagination_controls"].styles.align_horizontal = "center"
+        self.ui["pagination_controls"].styles.height = "auto"
+        self.ui["pagination_controls"].styles.padding_bottom = 0
+
         yield Header()
         with Horizontal(classes="top-controls"):
             yield Button(
@@ -230,23 +236,9 @@ class VMManagerTUI(App):
             yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
-        with Horizontal(id="pagination-controls") as pc:
-            pc.styles.display = "none"
-            pc.styles.align_horizontal = "center"
-            pc.styles.height = "auto"
-            pc.styles.padding_bottom = 0
-            yield Button(
-                ButtonLabels.PREVIOUS_PAGE, id=ButtonIds.PREV_BUTTON, variant="primary", classes="ctrlpage"
-            )
-            yield Label("", id="page-info", classes="")
-            yield Button(
-                ButtonLabels.NEXT_PAGE, id=ButtonIds.NEXT_BUTTON, variant="primary", classes="ctrlpage"
-            )
-
-        with Vertical(id="vms-container"):
-            pass
-
-        yield Static(id="error-footer", classes="error-message")
+        yield self.ui["pagination_controls"]
+        yield self.ui["vms_container"]
+        yield self.ui["error_footer"]
         yield Footer()
         self.show_success_message(
             "In some Terminal use 'Shift' key while selecting text with the mouse to copy it."
@@ -289,8 +281,6 @@ class VMManagerTUI(App):
 
         self.sparkline_data = {}
 
-        self._cache_widgets()
-
         error_footer = self.ui.get("error_footer")
         if error_footer:
             error_footer.styles.height = 0
@@ -315,11 +305,7 @@ class VMManagerTUI(App):
         """Update the layout based on the terminal size."""
         vms_container = self.ui.get("vms_container")
         if not vms_container:
-            # Fallback if UI not cached yet
-            try:
-                vms_container = self.query_one("#vms-container")
-            except Exception:
-                return
+            return
 
         width = self.size.width
         height = self.size.height

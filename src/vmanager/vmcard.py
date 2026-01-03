@@ -130,88 +130,81 @@ class VMCard(Static):
             status_widget.update(status_text)
 
     def compose(self):
+        self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected)
+        self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
+        self.ui["status"] = Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=self.status.lower())
+        
+        self.ui["top_label"] = Static("", id="top-sparkline-label", classes="sparkline-label")
+        self.ui["top_sparkline"] = Sparkline([], id="top-sparkline")
+        self.ui["bottom_label"] = Static("", id="bottom-sparkline-label", classes="sparkline-label")
+        self.ui["bottom_sparkline"] = Sparkline([], id="bottom-sparkline")
+
+        self.ui["cpu_container"] = Horizontal(self.ui["top_label"], self.ui["top_sparkline"], id="cpu-sparkline-container", classes="sparkline-container")
+        self.ui["mem_container"] = Horizontal(self.ui["bottom_label"], self.ui["bottom_sparkline"], id="mem-sparkline-container", classes="sparkline-container")
+
+        self.ui[ButtonIds.START] = Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
+        self.ui[ButtonIds.SHUTDOWN] = Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
+        self.ui[ButtonIds.STOP] = Button(ButtonLabels.STOP, id=ButtonIds.STOP, variant="error")
+        self.ui[ButtonIds.PAUSE] = Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
+        self.ui[ButtonIds.RESUME] = Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
+        self.ui[ButtonIds.CONFIGURE_BUTTON] = Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
+        self.ui[ButtonIds.WEB_CONSOLE] = Button(ButtonLabels.WEB_CONSOLE, id=ButtonIds.WEB_CONSOLE, variant="default")
+        self.ui[ButtonIds.CONNECT] = Button(ButtonLabels.CONNECT, id=ButtonIds.CONNECT, variant="default")
+        
+        self.ui[ButtonIds.SNAPSHOT_TAKE] = Button(ButtonLabels.SNAPSHOT, id=ButtonIds.SNAPSHOT_TAKE, variant="primary")
+        self.ui[ButtonIds.SNAPSHOT_RESTORE] = Button(ButtonLabels.RESTORE_SNAPSHOT, id=ButtonIds.SNAPSHOT_RESTORE, variant="primary")
+        self.ui[ButtonIds.SNAPSHOT_DELETE] = Button(ButtonLabels.DELETE_SNAPSHOT, id=ButtonIds.SNAPSHOT_DELETE, variant="error")
+
+        self.ui[ButtonIds.DELETE] = Button(ButtonLabels.DELETE, id=ButtonIds.DELETE, variant="success", classes="delete-button")
+        self.ui[ButtonIds.CLONE] = Button(ButtonLabels.CLONE, id=ButtonIds.CLONE, classes="clone-button")
+        self.ui[ButtonIds.MIGRATION] = Button(ButtonLabels.MIGRATION, id=ButtonIds.MIGRATION, variant="primary", classes="migration-button")
+        self.ui[ButtonIds.XML] = Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
+        self.ui[ButtonIds.RENAME_BUTTON] = Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
+
+        self.ui["tabbed_content"] = TabbedContent(id="button-container")
+
         with Vertical(id="info-container"):
             with Horizontal(id="vm-header-row"):
-                yield Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected)
-                with Vertical(): # New Vertical container for name and status
-                    yield Static(self._get_vm_display_name(), id="vmname", classes="vmname")
-                    status_class = self.status.lower()
-                    yield Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=status_class)
+                yield self.ui["checkbox"]
+                with Vertical():
+                    yield self.ui["vmname"]
+                    yield self.ui["status"]
             
-            with Horizontal(id="cpu-sparkline-container", classes="sparkline-container"):
-                yield Static("", id="top-sparkline-label", classes="sparkline-label")
-                yield Sparkline([], id="top-sparkline")
-            with Horizontal(id="mem-sparkline-container", classes="sparkline-container"):
-                yield Static("", id="bottom-sparkline-label", classes="sparkline-label")
-                yield Sparkline([], id="bottom-sparkline")
+            yield self.ui["cpu_container"]
+            yield self.ui["mem_container"]
 
-            with TabbedContent(id="button-container"):
+            with self.ui["tabbed_content"]:
                 with TabPane(TabTitles.MANAGE, id="manage-tab"):
                     with Horizontal():
                         with Vertical():
-                            yield Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
-                            yield Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
-                            yield Button(ButtonLabels.FORCE_OFF, id=ButtonIds.STOP, variant="error")
-                            yield Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
-                            yield Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
+                            yield self.ui[ButtonIds.START]
+                            yield self.ui[ButtonIds.SHUTDOWN]
+                            yield self.ui[ButtonIds.STOP]
+                            yield self.ui[ButtonIds.PAUSE]
+                            yield self.ui[ButtonIds.RESUME]
                         with Vertical():
-                            yield Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
-                            yield Button(ButtonLabels.WEB_CONSOLE, id=ButtonIds.WEB_CONSOLE, variant="default")
-                            yield Button(ButtonLabels.CONNECT, id=ButtonIds.CONNECT, variant="default")
+                            yield self.ui[ButtonIds.CONFIGURE_BUTTON]
+                            yield self.ui[ButtonIds.WEB_CONSOLE]
+                            yield self.ui[ButtonIds.CONNECT]
                 with TabPane(self._get_snapshot_tab_title(), id="snapshot-tab"):
                     with Horizontal():
                         with Vertical():
-                            yield Button(ButtonLabels.SNAPSHOT, id=ButtonIds.SNAPSHOT_TAKE, variant="primary")
+                            yield self.ui[ButtonIds.SNAPSHOT_TAKE]
                         with Vertical():
-                            yield Button(ButtonLabels.RESTORE_SNAPSHOT, id=ButtonIds.SNAPSHOT_RESTORE, variant="primary")
+                            yield self.ui[ButtonIds.SNAPSHOT_RESTORE]
                             yield Static(classes="button-separator")
-                            yield Button(ButtonLabels.DELETE_SNAPSHOT, id=ButtonIds.SNAPSHOT_DELETE, variant="error")
+                            yield self.ui[ButtonIds.SNAPSHOT_DELETE]
                 with TabPane(TabTitles.SPECIAL, id="special-tab"):
                     with Horizontal():
                         with Vertical():
-                            yield Button(ButtonLabels.DELETE, id=ButtonIds.DELETE, variant="success", classes="delete-button")
+                            yield self.ui[ButtonIds.DELETE]
                             yield Static(classes="button-separator")
-                            yield Button(ButtonLabels.CLONE, id=ButtonIds.CLONE, classes="clone-button")
-                            yield Button(ButtonLabels.MIGRATION, id=ButtonIds.MIGRATION, variant="primary", classes="migration-button")
+                            yield self.ui[ButtonIds.CLONE]
+                            yield self.ui[ButtonIds.MIGRATION]
                         with Vertical():
-                            yield Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
+                            yield self.ui[ButtonIds.XML]
                             yield Static(classes="button-separator")
-                            yield Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
-
-    def _cache_widgets(self) -> None:
-        """Cache widgets to avoid repeated queries."""
-        try:
-            self.ui = {
-                "vmname": self.query_one("#vmname"),
-                "status": self.query_one("#status"),
-                "checkbox": self.query_one("#vm-select-checkbox", Checkbox),
-                "top_label": self.query_one("#top-sparkline-label", Static),
-                "bottom_label": self.query_one("#bottom-sparkline-label", Static),
-                "top_sparkline": self.query_one("#top-sparkline", Sparkline),
-                "bottom_sparkline": self.query_one("#bottom-sparkline", Sparkline),
-                "cpu_container": self.query_one("#cpu-sparkline-container"),
-                "mem_container": self.query_one("#mem-sparkline-container"),
-                "tabbed_content": self.query_one(TabbedContent),
-                
-                # Buttons
-                ButtonIds.START: self.query_one(f"#{ButtonIds.START}", Button),
-                ButtonIds.SHUTDOWN: self.query_one(f"#{ButtonIds.SHUTDOWN}", Button),
-                ButtonIds.STOP: self.query_one(f"#{ButtonIds.STOP}", Button),
-                ButtonIds.PAUSE: self.query_one(f"#{ButtonIds.PAUSE}", Button),
-                ButtonIds.RESUME: self.query_one(f"#{ButtonIds.RESUME}", Button),
-                ButtonIds.DELETE: self.query_one(f"#{ButtonIds.DELETE}", Button),
-                ButtonIds.CONNECT: self.query_one(f"#{ButtonIds.CONNECT}", Button),
-                ButtonIds.WEB_CONSOLE: self.query_one(f"#{ButtonIds.WEB_CONSOLE}", Button),
-                ButtonIds.SNAPSHOT_RESTORE: self.query_one(f"#{ButtonIds.SNAPSHOT_RESTORE}", Button),
-                ButtonIds.SNAPSHOT_DELETE: self.query_one(f"#{ButtonIds.SNAPSHOT_DELETE}", Button),
-                ButtonIds.CONFIGURE_BUTTON: self.query_one(f"#{ButtonIds.CONFIGURE_BUTTON}", Button),
-                ButtonIds.CLONE: self.query_one(f"#{ButtonIds.CLONE}", Button),
-                ButtonIds.MIGRATION: self.query_one(f"#{ButtonIds.MIGRATION}", Button),
-                ButtonIds.RENAME_BUTTON: self.query_one(f"#{ButtonIds.RENAME_BUTTON}", Button),
-                ButtonIds.XML: self.query_one(f"#{ButtonIds.XML}", Button),
-            }
-        except NoMatches:
-            logging.warning("Failed to cache some widgets in VMCard.")
+                            yield self.ui[ButtonIds.RENAME_BUTTON]
 
     def _update_tooltip(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
@@ -260,8 +253,6 @@ class VMCard(Static):
             self.styles.border = ("panel", "white")
         else:
             self.styles.border = ("solid", self.server_border_color)
-
-        self._cache_widgets()
 
         self.update_button_layout()
         self._update_status_styling()
