@@ -12,6 +12,7 @@ from utils import log_function_call
 from vm_queries import get_vm_disks_info
 from vm_cache import invalidate_cache
 from network_manager import list_networks
+from storage_manager import create_overlay_volume
 
 @log_function_call
 def clone_vm(original_vm, new_vm_name, log_callback=None):
@@ -65,7 +66,7 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
                 except libvirt.libvirtError as e:
                     logging.warning(f"Could not find volume '{vol_name}' in pool '{pool_name}'. Skipping disk clone. Error: {e}")
                     continue
-        
+
         if not original_vol or not original_pool:
             logging.info(f"Skipping cloning for non-volume disk source: {ET.tostring(source_elem, encoding='unicode').strip()}")
             continue
@@ -237,7 +238,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
 
         if target_dev not in all_used_devs:
             break
-        
+
         # If the generated name is somehow already in use, increment and try the next one.
         next_index += 1
 
@@ -1809,8 +1810,8 @@ def check_for_other_spice_devices(domain: libvirt.virDomain) -> bool:
         elif channel.get('type') == 'spiceport':
             target = channel.find('target')
             if target is not None and target.get('name') == 'com.redhat.spice.0':
-                 logging.info("Found spiceport channel.")
-                 return True
+                logging.info("Found spiceport channel.")
+                return True
 
     for redirdev in devices.findall("redirdev"):
         if redirdev.get('bus') == 'usb':
@@ -2014,6 +2015,115 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
 
     return issues
 
+def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: int = 0):
+    """
+    Commits changes from the overlay image back to its backing file (base image).
+    This flattens the chain, merging the overlay content into the base.
+    Uses 'blockCommit' with active pivot.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    # We need to find the target device name (e.g. vda) from the disk path
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    disk_target = None
+
+    for disk in root.findall(".//disk"):
+        source = disk.find("source")
+        # Check 'file' attribute or 'dev' attribute or pool/vol
+        path = None
+        if source is not None:
+            if "file" in source.attrib:
+                path = source.attrib["file"]
+            elif "dev" in source.attrib:
+                path = source.attrib["dev"]
+            elif "pool" in source.attrib and "volume" in source.attrib:
+                # Resolve volume to path
+                pool_name = source.attrib["pool"]
+                vol_name = source.attrib["volume"]
+                try:
+                    pool = domain.connect().storagePoolLookupByName(pool_name)
+                    vol = pool.storageVolLookupByName(vol_name)
+                    path = vol.path()
+                except libvirt.libvirtError:
+                    pass
+
+        if path == disk_path:
+            target = disk.find("target")
+            if target is not None:
+                disk_target = target.get("dev")
+            break
+
+    if not disk_target:
+        raise ValueError(f"Could not find disk target device for path '{disk_path}'")
+
+    if not domain.isActive():
+        raise Exception("Domain must be running to perform block commit via libvirt API.")
+
+    # Find the backing store path to use as base
+    # We need the volume object for the current disk path
+    try:
+        conn = domain.connect()
+        # Locate volume from path
+        vol, _ = _find_vol_by_path(conn, disk_path)
+        if not vol:
+            raise Exception(f"Could not find volume for path '{disk_path}'")
+
+        # Get XML to find backingStore
+        vol_xml = vol.XMLDesc(0)
+        vol_root = ET.fromstring(vol_xml)
+        backing_store = vol_root.find("backingStore")
+        if backing_store is None:
+            raise Exception(f"Volume '{disk_path}' does not have a backing store (it is not an overlay).")
+        
+        backing_path_elem = backing_store.find("path")
+        if backing_path_elem is None or not backing_path_elem.text:
+            raise Exception(f"Could not determine backing file path for '{disk_path}'")
+
+        base_path = backing_path_elem.text
+
+        logging.info(f"Starting blockCommit for disk '{disk_target}' ({disk_path}) into base '{base_path}'...")
+        flags = libvirt.VIR_DOMAIN_BLOCK_COMMIT_ACTIVE
+        
+        domain.blockCommit(
+            disk_target,
+            base_path,
+            disk_path,
+            bandwidth,
+            flags
+        )
+
+        # Monitor the job
+        import time
+        while True:
+            job_info = domain.blockJobInfo(disk_target, 0)
+            if not job_info:
+                break
+
+            cur = job_info.get('cur', 0)
+            end = job_info.get('end', 0)
+
+            if cur == end and end > 0:
+                logging.info(f"Block commit synchronized. Pivoting '{disk_target}'...")
+                try:
+                    # VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT = 2
+                    domain.blockJobAbort(disk_target, libvirt.VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT)
+                    logging.info("Pivot successful.")
+                except libvirt.libvirtError as e:
+                     logging.error(f"Pivot failed: {e}")
+                     domain.blockJobAbort(disk_target, libvirt.VIR_DOMAIN_BLOCK_JOB_ABORT_ASYNC)
+                break
+
+            time.sleep(0.5)
+
+        logging.info(f"Block commit completed for '{disk_target}'.")
+
+    except libvirt.libvirtError as e:
+        raise Exception(f"Libvirt error during block commit: {e}")
+    except Exception as e:
+        raise Exception(f"Error during block commit: {e}")
+
 
 def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str):
     """
@@ -2021,10 +2131,9 @@ def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
     """
     invalidate_cache(domain.UUIDString())
     if domain.isActive():
-        pass 
+        pass
 
     # vendor/product ID in hostdev XML is for libvirt to find it.
-
     device_xml = f"""
     <hostdev mode='subsystem' type='usb' managed='yes'>
       <source>
@@ -2336,14 +2445,174 @@ def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
             target_controller = c
             break
 
-    if target_controller is None:
-        raise ValueError(f"SCSI controller with model '{model}' and index '{index}' not found.")
-
-    controller_xml = ET.tostring(target_controller, encoding='unicode')
-    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
-
-    if domain.isActive():
-        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
-
     domain.detachDeviceFlags(controller_xml, flags)
     invalidate_cache(domain.UUIDString())
+
+def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_name: str):
+    """
+    Creates an overlay for the given disk and updates the VM to use it.
+    The VM must be stopped.
+    """
+    if domain.isActive():
+        raise Exception("VM must be stopped to create a manual overlay.")
+
+    conn = domain.connect()
+    vol, pool = _find_vol_by_path(conn, disk_path)
+    if not vol:
+        raise Exception(f"Disk '{disk_path}' is not a managed volume or could not be found.")
+
+    # Create overlay
+    try:
+        new_vol = create_overlay_volume(pool, overlay_name, disk_path)
+    except Exception as e:
+        raise Exception(f"Failed to create overlay volume: {e}")
+
+    # Update VM XML
+    try:
+        xml_desc = domain.XMLDesc(0)
+        root = ET.fromstring(xml_desc)
+
+        updated = False
+        for disk in root.findall(".//disk"):
+            source = disk.find("source")
+            if source is not None:
+                path = None
+                if "file" in source.attrib:
+                    path = source.attrib["file"]
+                elif "dev" in source.attrib:
+                    path = source.attrib["dev"]
+                elif "pool" in source.attrib and "volume" in source.attrib:
+                    # We have pool and volume name
+                    # Retrieve pool/vol from XML
+                    p_name = source.attrib["pool"]
+                    v_name = source.attrib["volume"]
+                    if p_name == pool.name() and v_name == vol.name():
+                        path = disk_path # Effective match
+
+                # Check if this is the disk we want to update
+                match = False
+                if path and path == disk_path:
+                    match = True
+                elif source.get("pool") == pool.name() and source.get("volume") == vol.name():
+                    match = True
+
+                if match:
+                    # Update source to new volume
+                    # If it was file/dev, remove those attributes
+                    if "file" in source.attrib:
+                        del source.attrib["file"]
+                    if "dev" in source.attrib:
+                        del source.attrib["dev"]
+
+                    source.set("pool", pool.name())
+                    source.set("volume", new_vol.name())
+
+                    # Ensure disk type is volume
+                    disk.set("type", "volume")
+
+                    # Ensure driver type is qcow2
+                    driver = disk.find("driver")
+                    if driver is None:
+                        driver = ET.SubElement(disk, "driver", name="qemu")
+                    driver.set("type", "qcow2")
+
+                    updated = True
+                    break
+
+        if updated:
+             conn.defineXML(ET.tostring(root, encoding='unicode'))
+        else:
+             # Cleanup if we didn't find the disk in XML to update
+             new_vol.delete(0)
+             raise Exception(f"Could not find disk entry in VM XML for path '{disk_path}'")
+
+    except Exception as e:
+        # Try to cleanup overlay if XML update failed
+        try:
+            if 'new_vol' in locals():
+                new_vol.delete(0)
+        except:
+            pass
+        raise Exception(f"Failed to update VM configuration: {e}")
+
+def discard_overlay(domain: libvirt.virDomain, disk_path: str):
+    """
+    Updates the VM to use the backing file of the current overlay, 
+    and deletes the overlay volume.
+    The VM must be stopped.
+    """
+    if domain.isActive():
+        raise Exception("VM must be stopped to discard overlay.")
+
+    conn = domain.connect()
+    vol, pool = _find_vol_by_path(conn, disk_path)
+    if not vol:
+        raise Exception(f"Disk '{disk_path}' is not a managed volume.")
+
+    xml = vol.XMLDesc(0)
+    root = ET.fromstring(xml)
+    backing = root.find("backingStore")
+    if backing is None:
+        raise Exception("Disk is not an overlay (no backing store).")
+
+    backing_path_elem = backing.find("path")
+    if backing_path_elem is None or not backing_path_elem.text:
+        raise Exception("Could not determine backing file path.")
+
+    backing_path = backing_path_elem.text
+
+    # Check if backing path corresponds to a volume (to set pool/vol in XML properly)
+    backing_vol, backing_pool = _find_vol_by_path(conn, backing_path)
+
+    # Update VM XML
+    vm_xml = domain.XMLDesc(0)
+    vm_root = ET.fromstring(vm_xml)
+
+    updated = False
+    for disk in vm_root.findall(".//disk"):
+        source = disk.find("source")
+        if source is not None:
+            # Match logic
+            path = None
+            if "file" in source.attrib:
+                path = source.attrib["file"]
+            elif "dev" in source.attrib:
+                path = source.attrib["dev"]
+            elif "pool" in source.attrib and "volume" in source.attrib:
+                p_name = source.attrib["pool"]
+                v_name = source.attrib["volume"]
+                if pool and p_name == pool.name() and v_name == vol.name():
+                    path = disk_path
+
+            # Check match
+            match = False
+            if path and path == disk_path:
+                match = True
+            elif pool and source.get("pool") == pool.name() and source.get("volume") == vol.name():
+                match = True
+
+            if match:
+                # Update source to backing_path
+                if backing_pool and backing_vol:
+                    source.set("pool", backing_pool.name())
+                    source.set("volume", backing_vol.name())
+                    if "file" in source.attrib: del source.attrib["file"]
+                    if "dev" in source.attrib: del source.attrib["dev"]
+                else:
+                    # Just set file path
+                    source.set("file", backing_path)
+                    if "pool" in source.attrib: del source.attrib["pool"]
+                    if "volume" in source.attrib: del source.attrib["volume"]
+
+                updated = True
+                break
+
+    if updated:
+        domain.connect().defineXML(ET.tostring(vm_root, encoding='unicode'))
+        # Delete the old overlay volume
+        try:
+            vol.delete(0)
+        except Exception as e:
+            logging.warning(f"Failed to delete overlay volume '{disk_path}' after reverting: {e}")
+    else:
+        raise Exception("Could not find disk in VM configuration.")
