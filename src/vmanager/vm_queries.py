@@ -1126,14 +1126,10 @@ def has_overlays(domain: libvirt.virDomain) -> bool:
         root = ET.fromstring(xml_desc)
 
         for disk in root.findall(".//disk"):
-             # Check if backingStore exists and has a path or type
-             backing = disk.find("backingStore")
-             if backing is not None:
-                 # Check if it's not empty/none
-                 # Usually backingStore is present but might be empty if no backing file.
-                 # If type is not null or path is present.
-                 if backing.find("path") is not None or backing.get("type"):
-                     return True
+            backing = disk.find("backingStore")
+            if backing is not None:
+                if backing.find("source") is not None or backing.get("type"):
+                    return True
 
         return False
     except Exception:
