@@ -431,6 +431,15 @@ def get_vm_devices_info(root: ET.Element) -> dict:
     return devices_info
 
 
+def get_vm_disks(domain: libvirt.virDomain) -> list[dict]:
+    """
+    Retrieves disk information for a domain.
+    """
+    conn = domain.connect()
+    _, root = _get_domain_root(domain)
+    return get_vm_disks_info(conn, root)
+
+
 def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
     """
     Extracts disks info from a VM's XML definition.
