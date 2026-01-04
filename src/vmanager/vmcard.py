@@ -91,11 +91,11 @@ class VMCard(Static):
             try:
                 num_snapshots = len(self.vm.listAllSnapshots(0))
                 if num_snapshots == 0:
-                    return TabTitles.SNAPSHOT
+                    return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
                 elif num_snapshots > 0 and num_snapshots < 2:
-                    return TabTitles.SNAPSHOT + "(" + str(num_snapshots) + ")"
+                    return TabTitles.SNAPSHOT + "(" + str(num_snapshots) + ")" + "/" + TabTitles.OVERLAY
                 elif num_snapshots > 1:
-                    return TabTitles.SNAPSHOT + "s(" + str(num_snapshots) + ")"
+                    return TabTitles.SNAPSHOTS + "(" + str(num_snapshots) + ")" "/" + TabTitles.OVERLAY
             except libvirt.libvirtError:
                 pass # Domain might be transient or invalid
 
@@ -153,7 +153,7 @@ class VMCard(Static):
 
         self.ui[ButtonIds.START] = Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
         self.ui[ButtonIds.SHUTDOWN] = Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
-        self.ui[ButtonIds.STOP] = Button(ButtonLabels.STOP, id=ButtonIds.STOP, variant="error")
+        self.ui[ButtonIds.STOP] = Button(ButtonLabels.FORCE_OFF, id=ButtonIds.STOP, variant="error")
         self.ui[ButtonIds.PAUSE] = Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
         self.ui[ButtonIds.RESUME] = Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
         self.ui[ButtonIds.CONFIGURE_BUTTON] = Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
@@ -173,7 +173,7 @@ class VMCard(Static):
         self.ui[ButtonIds.CREATE_OVERLAY] = Button(ButtonLabels.CREATE_OVERLAY, id=ButtonIds.CREATE_OVERLAY, variant="primary")
         self.ui[ButtonIds.COMMIT_DISK] = Button(ButtonLabels.COMMIT_DISK, id=ButtonIds.COMMIT_DISK, variant="error")
         self.ui[ButtonIds.DISCARD_OVERLAY] = Button(ButtonLabels.DISCARD_OVERLAY, id=ButtonIds.DISCARD_OVERLAY, variant="error")
-        self.ui[ButtonIds.OVERLAY_HELP] = Button(ButtonLabels.OVERLAY_HELP, id=ButtonIds.OVERLAY_HELP, variant="default")
+        self.ui[ButtonIds.SNAP_OVERLAY_HELP] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id=ButtonIds.SNAP_OVERLAY_HELP, variant="default")
 
         self.ui["tabbed_content"] = TabbedContent(id="button-container")
 
@@ -204,21 +204,14 @@ class VMCard(Static):
                     with Horizontal():
                         with Vertical():
                             yield self.ui[ButtonIds.SNAPSHOT_TAKE]
-                        with Vertical():
                             yield self.ui[ButtonIds.SNAPSHOT_RESTORE]
-                            yield Static(classes="button-separator")
                             yield self.ui[ButtonIds.SNAPSHOT_DELETE]
-                with TabPane("Overlay", id="storage-tab"):
-                    with Horizontal():
                         with Vertical():
                             yield self.ui[ButtonIds.CREATE_OVERLAY]
-                            yield Static(classes="button-separator")
                             yield self.ui[ButtonIds.COMMIT_DISK]
-                        with Vertical():
                             yield self.ui[ButtonIds.DISCARD_OVERLAY]
-                            yield Static(classes="button-separator")
-                            yield self.ui[ButtonIds.OVERLAY_HELP]
-                with TabPane(TabTitles.SPECIAL, id="special-tab"):
+                            yield self.ui[ButtonIds.SNAP_OVERLAY_HELP]
+                with TabPane(TabTitles.OTHER, id="special-tab"):
                     with Horizontal():
                         with Vertical():
                             yield self.ui[ButtonIds.DELETE]
@@ -591,7 +584,7 @@ class VMCard(Static):
             ButtonIds.CREATE_OVERLAY: self._handle_create_overlay,
             ButtonIds.COMMIT_DISK: self._handle_commit_disk,
             ButtonIds.DISCARD_OVERLAY: self._handle_discard_overlay,
-            ButtonIds.OVERLAY_HELP: self._handle_overlay_help,
+            ButtonIds.SNAP_OVERLAY_HELP: self._handle_overlay_help,
         }
         handler = button_handlers.get(event.button.id)
         if handler:
@@ -1133,7 +1126,7 @@ class VMCard(Static):
             if confirmed:
                 self.app.push_screen(MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections))
 
-        self.app.push_screen(ConfirmationDialog(DialogMessages.MIGRATION_EXPERIMENTAL), on_confirm)
+        self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
 
     @on(Checkbox.Changed, "#vm-select-checkbox")
     def on_vm_select_checkbox_changed(self, event: Checkbox.Changed) -> None:

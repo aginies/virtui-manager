@@ -63,11 +63,11 @@ VMCard {
   padding: 0;
 }
 
-VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab, #storage-tab {
+VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab {
   border: none;
 }
 
-#manage-tab Vertical, #snapshot-tab Vertical, #storage-tab Vertical, #special-tab Vertical {
+#manage-tab Vertical, #snapshot-tab Vertical, #special-tab Vertical {
   width: 1fr;
 }
 
