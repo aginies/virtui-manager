@@ -7,6 +7,7 @@ import traceback
 import datetime
 from functools import partial
 import libvirt
+from rich.markdown import Markdown as RichMarkdown
 
 from textual.widgets import (
         Static, Button, TabbedContent,
@@ -78,6 +79,7 @@ class VMCard(Static):
         self.is_selected = is_selected
         self.timer = None
         self._boot_device_checked = False
+        self._tooltip_update_timer = None
 
     def _get_vm_display_name(self) -> str:
         """Returns the formatted VM name including server name if available."""
@@ -224,6 +226,12 @@ class VMCard(Static):
                             yield self.ui[ButtonIds.RENAME_BUTTON]
 
     def _update_tooltip(self) -> None:
+        """Schedules a tooltip update to debounce frequent calls."""
+        if self._tooltip_update_timer:
+            self._tooltip_update_timer.stop()
+        self._tooltip_update_timer = self.set_timer(0.2, self._perform_tooltip_update)
+
+    def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
         if not self.ui or "vmname" not in self.ui:
             return
@@ -261,7 +269,6 @@ class VMCard(Static):
             f"**Memory:** {mem_display}"
         )
 
-        from rich.markdown import Markdown as RichMarkdown
         self.ui["vmname"].tooltip = RichMarkdown(tooltip_md)
 
     def on_mount(self) -> None:
@@ -385,6 +392,8 @@ class VMCard(Static):
         """Stop the timer and cancel any running stat workers when the widget is removed."""
         if self.timer:
             self.timer.stop()
+        if self._tooltip_update_timer:
+            self._tooltip_update_timer.stop()
         if self.vm:
             try:
                 uuid = self.vm.UUIDString()
@@ -409,6 +418,10 @@ class VMCard(Static):
         """Schedules a worker to update statistics for the VM."""
         if not self.vm:
             return
+
+        # Cancel previous timer if it exists to prevent accumulation
+        if self.timer:
+            self.timer.stop()
 
         # Schedule next update
         interval = self.app.config.get('STATS_INTERVAL', 5)
@@ -516,8 +529,9 @@ class VMCard(Static):
                 self.app.call_from_thread(apply_stats_to_ui)
 
             except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN and self.timer:
-                    self.timer.stop()
+                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                    if self.timer:
+                        self.app.call_from_thread(self.timer.stop)
                 else:
                     logging.warning(f"Libvirt error during stat update for {self.name}: {e}")
             except Exception as e:
@@ -655,6 +669,7 @@ class VMCard(Static):
                     create_external_overlay(self.vm, target_disk, overlay_name)
                     self.app.show_success_message(f"Overlay '{overlay_name}' created and attached.")
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self._boot_device_checked = False
                     self.app.refresh_vm_list() # To update details
                     self.update_button_layout()
                 except Exception as e:
@@ -684,6 +699,7 @@ class VMCard(Static):
                             discard_overlay(self.vm, target_disk)
                             self.app.show_success_message(f"Overlay for '{target_disk}' discarded and reverted to base image.")
                             self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                            self._boot_device_checked = False
                             self.app.refresh_vm_list()
                             self.update_button_layout()
                         except Exception as e:
@@ -793,6 +809,7 @@ class VMCard(Static):
                             self.app.show_success_message(f"VM '{self.name}' configuration updated successfully.")
                             logging.info(f"Successfully updated XML for VM: {self.name}")
                             self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                            self._boot_device_checked = False
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
                             error_msg = f"Invalid XML for '{self.name}': {e}. Your changes have been discarded."
@@ -929,6 +946,7 @@ class VMCard(Static):
                 try:
                     restore_vm_snapshot(self.vm, snapshot_name)
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self._boot_device_checked = False
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
                 except Exception as e:
@@ -1075,6 +1093,7 @@ class VMCard(Static):
                         msg = f"Snapshots deleted and VM '{self.name}' renamed to '{new_name}' successfully."
                     self.app.show_success_message(msg)
                     self.app.vm_service.invalidate_domain_cache()
+                    self._boot_device_checked = False
                     self.app.refresh_vm_list()
                     logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
                 except Exception as e:
