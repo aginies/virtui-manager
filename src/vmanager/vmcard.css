@@ -56,13 +56,19 @@ VMCard {
 #cpu-sparkline { color: $success; }
 #mem-sparkline { color: $warning; }
 
-#status, Button, .Buttonpage, #xml, #snapshot_take, #snapshot_restore, #snapshot_delete, .button-separator, #connect {
+#status, Button, .Buttonpage, #xml, #snapshot_take,
+#snapshot_restore, #snapshot_delete, .button-separator,
+#connect, #create_overlay, #commit_disk, #discard_overlay {
   height: 1;
   padding: 0;
 }
 
-VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab {
+VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab, #storage-tab {
   border: none;
+}
+
+#manage-tab Vertical, #snapshot-tab Vertical, #storage-tab Vertical, #special-tab Vertical {
+  width: 1fr;
 }
 
 .hidden { display: none !important; }
@@ -122,6 +128,12 @@ Button {
 #pause:hover { background: #FFD700; }
 #connect { background: red; }
 #connect:hover { background: #FF4500; }
+#create_overlay { background: green; }
+#create_overlay:hover { background: lightgreen; }
+#commit_disk { background: #0000FF; }
+#commit_disk:hover { background: #1E90FF; }
+#discard_overlay { background: red; }
+#discard_overlay:hover { background: #FF4500; }
 
 .delete-button:hover { background: #FF4500; }
 .clone-button:hover { background: #FF69B4; }

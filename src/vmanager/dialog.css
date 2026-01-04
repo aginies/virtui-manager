@@ -29,6 +29,7 @@ PasswordModal,
 FileSelectionModal,
 ConfigModal,
 HowToNetworkModal,
+HowToOverlayModal,
 HowToSSHModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
@@ -52,6 +53,7 @@ PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
 ConfigModal > #config-dialog,
+HowToOverlayModal > #howto-overlay-dialog,
 HowToNetworkModal > #howto-network-dialog,
 HowToSSHModal > #howto-ssh-dialog {
   width: 60;
@@ -64,7 +66,7 @@ HowToSSHModal > #howto-ssh-dialog {
 
 /* === SPECIFIC HEIGHT === */
 SelectSnapshotDialog > #dialog,
-SnapshotNameDialog > #dialog { height: 18;}
+SnapshotNameDialog > #dialog { height: 20;}
 DeleteVMConfirmationDialog > #delete-vm-dialog,
 ConfirmationDialog > #dialog { 
   height: 15; 
@@ -75,6 +77,7 @@ ConfirmationDialog > #dialog {
 }
 FileSelectionModal > #file-selection-dialog,
 ConfigModal #config-dialog,
+HowToOverlayModal #howto-overlay-dialog,
 HowToNetworkModal #howto-network-dialog,
 HowToSSHModal #howto-ssh-dialog {
     width: 80;
@@ -83,6 +86,7 @@ HowToSSHModal #howto-ssh-dialog {
 
 RenameVMDialog > #dialog { height: 13; }
 ChangeNetworkDialog > #dialog { height: 20; }
+InputModal > #input-modal-container { height: 16; }
 AddInputDeviceModal > #add-input-container { height: 16; }
 PasswordModal > #password-dialog { height: 12; }
 XMLDisplayModal > #xml-display-dialog, #xml-textarea, { 
@@ -102,6 +106,7 @@ MoveVolumeModal,
 SelectDiskModal > #dialog,
 SelectPoolModal > #dialog,
 AddInputDeviceModal,
+InputModal,
 SelectOneServerModal,
 SelectServerModal {
   content-align: center middle;
@@ -115,6 +120,7 @@ SelectDiskModal > #question,
 SelectPoolModal > #question,
 DeleteVMConfirmationDialog > #question,
 SelectServerModal Label,
+InputModal Label,
 AddInputDeviceModal Label {
   margin-bottom: 1;
   content-align: center middle;
