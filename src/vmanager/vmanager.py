@@ -338,7 +338,7 @@ class VMManagerTUI(App):
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
 
-        if self.VMS_PER_PAGE > 6 and self.VMS_PER_PAGE != old_vms_per_page:
+        if self.VMS_PER_PAGE > 6 and old_vms_per_page <= 6:
             self.show_warning_message(
                 f"Displaying {self.VMS_PER_PAGE} VMs per page. CPU usage may increase; 6 is recommended for optimal performance."
             )
@@ -663,7 +663,24 @@ class VMManagerTUI(App):
   <memory unit='MiB'>{memory}</memory>
   <currentMemory unit='MiB'>{memory}</currentMemory>
   <vcpu placement='static'>{vcpu}</vcpu>
-  etc...
+  <os>
+    <type arch='x86_64' machine='pc-q35-4.2'>hvm</type>
+    <boot dev='hd'/>
+  </os>
+  <devices>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='qcow2'/>
+      <source file='{disk_path}'/>
+      <target dev='vda' bus='virtio'/>
+    </disk>
+    <graphics type='vnc' port='-1' autoport='yes'>
+      <listen type='address'/>
+    </graphics>
+    <video>
+      <model type='virtio' heads='1' primary='yes'/>
+    </video>
+  </devices>
+</domain>
 """
         try:
             conn.defineXML(xml)
@@ -788,7 +805,7 @@ class VMManagerTUI(App):
                     'is_selected': uuid in self.selected_vm_uuids,
                     'domain': domain,
                     'conn': conn,
-                    'server_color': self.get_server_color(conn.getURI())
+                    'uri': conn.getURI()
                 }
                 vm_data_list.append(vm_data)
                 
@@ -847,7 +864,7 @@ class VMManagerTUI(App):
                     vm_card.is_selected = data['is_selected']
                     vm_card.vm = data['domain']
                     vm_card.conn = data['conn']
-                    vm_card.server_border_color = data['server_color']
+                    vm_card.server_border_color = self.get_server_color(data['uri'])
                 else:
                     # Create new card
                     if uuid not in self.sparkline_data:
@@ -861,7 +878,7 @@ class VMManagerTUI(App):
                     vm_card.vm = data['domain']
                     vm_card.conn = data['conn']
                     vm_card.graphics_type = "vnc"
-                    vm_card.server_border_color = data['server_color']
+                    vm_card.server_border_color = self.get_server_color(data['uri'])
                     vm_card.cpu_model = ""
                     self.vm_cards[uuid] = vm_card
 
