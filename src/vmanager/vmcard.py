@@ -4,6 +4,7 @@ VMcard Interface
 import subprocess
 import logging
 import traceback
+import datetime
 from functools import partial
 import libvirt
 
@@ -20,13 +21,21 @@ from textual.css.query import NoMatches
 from events import VMNameClicked, VMSelectionChanged, VmActionRequest
 from vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
-        restore_vm_snapshot, delete_vm_snapshot
+        restore_vm_snapshot, delete_vm_snapshot,
+        create_external_overlay, commit_disk_changes,
+        discard_overlay
         )
-from vm_queries import get_vm_snapshots, get_vm_cpu_details, _get_domain_root
-
+from vm_queries import (
+        get_vm_snapshots, has_overlays, get_overlay_disks,
+        get_vm_network_ip, get_boot_info, _get_domain_root,
+        get_vm_disks,
+        )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal
 from modals.migration_modals import MigrationModal
+from modals.disk_pool_modals import SelectDiskModal
+from modals.howto_overlay_modal import HowToOverlayModal
+from modals.input_modals import InputModal
 from vmcard_dialog import (
         DeleteVMConfirmationDialog, WebConsoleConfigDialog,
         AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
@@ -34,7 +43,7 @@ from vmcard_dialog import (
 from utils import extract_server_name_from_uri
 from constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
-    SparklineLabels, ErrorMessages, DialogMessages,
+    SparklineLabels, ErrorMessages, DialogMessages, VmAction
 )
 
 class VMCard(Static):
@@ -95,7 +104,7 @@ class VMCard(Static):
         try:
             if not self.ui:
                 return
-            
+
             tabbed_content = self.ui.get("tabbed_content")
             if tabbed_content:
                 tabbed_content.get_tab("snapshot-tab").update(self._get_snapshot_tab_title())
@@ -161,6 +170,11 @@ class VMCard(Static):
         self.ui[ButtonIds.XML] = Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
         self.ui[ButtonIds.RENAME_BUTTON] = Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
 
+        self.ui[ButtonIds.CREATE_OVERLAY] = Button(ButtonLabels.CREATE_OVERLAY, id=ButtonIds.CREATE_OVERLAY, variant="primary")
+        self.ui[ButtonIds.COMMIT_DISK] = Button(ButtonLabels.COMMIT_DISK, id=ButtonIds.COMMIT_DISK, variant="error")
+        self.ui[ButtonIds.DISCARD_OVERLAY] = Button(ButtonLabels.DISCARD_OVERLAY, id=ButtonIds.DISCARD_OVERLAY, variant="error")
+        self.ui[ButtonIds.OVERLAY_HELP] = Button(ButtonLabels.OVERLAY_HELP, id=ButtonIds.OVERLAY_HELP, variant="default")
+
         self.ui["tabbed_content"] = TabbedContent(id="button-container")
 
         with Vertical(id="info-container"):
@@ -194,6 +208,16 @@ class VMCard(Static):
                             yield self.ui[ButtonIds.SNAPSHOT_RESTORE]
                             yield Static(classes="button-separator")
                             yield self.ui[ButtonIds.SNAPSHOT_DELETE]
+                with TabPane("Overlay", id="storage-tab"):
+                    with Horizontal():
+                        with Vertical():
+                            yield self.ui[ButtonIds.CREATE_OVERLAY]
+                            yield Static(classes="button-separator")
+                            yield self.ui[ButtonIds.COMMIT_DISK]
+                        with Vertical():
+                            yield self.ui[ButtonIds.DISCARD_OVERLAY]
+                            yield Static(classes="button-separator")
+                            yield self.ui[ButtonIds.OVERLAY_HELP]
                 with TabPane(TabTitles.SPECIAL, id="special-tab"):
                     with Horizontal():
                         with Vertical():
@@ -405,7 +429,6 @@ class VMCard(Static):
             return
 
         def update_worker():
-            from vm_queries import get_vm_network_ip, get_boot_info, _get_domain_root
             try:
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
 
@@ -516,6 +539,17 @@ class VMCard(Static):
         self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = True
 
+        has_overlay_disk = False
+        try:
+            if self.vm:
+                has_overlay_disk = has_overlays(self.vm)
+        except:
+            pass
+
+        self.ui[ButtonIds.COMMIT_DISK].display = is_running and has_overlay_disk
+        self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay_disk
+        self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay_disk
+
         self.ui["cpu_container"].display = not is_stopped
         self.ui["mem_container"].display = not is_stopped
 
@@ -534,7 +568,6 @@ class VMCard(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        from constants import VmAction
         if event.button.id == ButtonIds.START:
             self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.START))
             return
@@ -555,21 +588,145 @@ class VMCard(Static):
             ButtonIds.MIGRATION: self._handle_migration_button,
             ButtonIds.RENAME_BUTTON: self._handle_rename_button,
             ButtonIds.CONFIGURE_BUTTON: self._handle_configure_button,
+            ButtonIds.CREATE_OVERLAY: self._handle_create_overlay,
+            ButtonIds.COMMIT_DISK: self._handle_commit_disk,
+            ButtonIds.DISCARD_OVERLAY: self._handle_discard_overlay,
+            ButtonIds.OVERLAY_HELP: self._handle_overlay_help,
         }
         handler = button_handlers.get(event.button.id)
         if handler:
             handler(event)
 
+    def _handle_overlay_help(self, event: Button.Pressed) -> None:
+        """Handles the overlay help button press."""
+        self.app.push_screen(HowToOverlayModal())
+
+    def _handle_create_overlay(self, event: Button.Pressed) -> None:
+        """Handles the create overlay button press."""
+        try:
+            disks = get_vm_disks(self.vm)
+            # Filter for actual disks (exclude cdroms, etc)
+            valid_disks = [d['path'] for d in disks if d.get('device_type') == 'disk']
+
+            if not valid_disks:
+                self.app.show_error_message("No suitable disks found for overlay.")
+                return
+
+            target_disk = valid_disks[0]
+
+            vm_name = self.vm.name()
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_name = f"{vm_name}_overlay_{timestamp}.qcow2"
+
+            def on_name_input(overlay_name: str | None):
+                if not overlay_name:
+                    return
+
+                try:
+                    create_external_overlay(self.vm, target_disk, overlay_name)
+                    self.app.show_success_message(f"Overlay '{overlay_name}' created and attached.")
+                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self.app.refresh_vm_list() # To update details
+                    self.update_button_layout()
+                except Exception as e:
+                    self.app.show_error_message(f"Error creating overlay: {e}")
+
+            self.app.push_screen(InputModal("Enter name for new overlay volume:", default_name), on_name_input)
+
+        except Exception as e:
+            self.app.show_error_message(f"Error preparing overlay creation: {e}")
+
+    def _handle_discard_overlay(self, event: Button.Pressed) -> None:
+        """Handles the discard overlay button press."""
+        try:
+            overlay_disks = get_overlay_disks(self.vm)
+
+            if not overlay_disks:
+                  self.app.show_error_message("No overlay disks found.")
+                  return
+
+            def proceed_with_discard(target_disk: str | None):
+                if not target_disk:
+                    return
+
+                def on_confirm(confirmed: bool):
+                    if confirmed:
+                        try:
+                            discard_overlay(self.vm, target_disk)
+                            self.app.show_success_message(f"Overlay for '{target_disk}' discarded and reverted to base image.")
+                            self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                            self.app.refresh_vm_list()
+                            self.update_button_layout()
+                        except Exception as e:
+                            self.app.show_error_message(f"Error discarding overlay: {e}")
+
+                self.app.push_screen(
+                    ConfirmationDialog(f"Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."),
+                    on_confirm
+                )
+
+            if len(overlay_disks) == 1:
+                proceed_with_discard(overlay_disks[0])
+            else:
+                self.app.push_screen(
+                    SelectDiskModal(overlay_disks, "Select overlay disk to discard:"),
+                    proceed_with_discard
+                )
+
+        except Exception as e:
+             self.app.show_error_message(f"Error preparing discard overlay: {e}")
+
+
+    def _handle_commit_disk(self, event: Button.Pressed) -> None:
+        """Handles the commit disk changes button press."""
+        # This works on running VM.
+        try:
+            disks = get_vm_disks(self.vm)
+            # Filter for actual disks (exclude cdroms, etc)
+            target_disk = None
+            for d in disks:
+                if d.get('path'):
+                    target_disk = d['path']
+                    break
+
+            if not target_disk:
+                self.app.show_error_message("No disks found to commit.")
+                return
+
+            def on_confirm(confirmed: bool):
+                if confirmed:
+                    progress_modal = ProgressModal(title=f"Committing changes for {self.name}...")
+                    self.app.push_screen(progress_modal)
+
+                    def do_commit():
+                        try:
+                            commit_disk_changes(self.vm, target_disk)
+                            self.app.call_from_thread(self.app.show_success_message, "Disk changes committed successfully.")
+                            self.app.call_from_thread(self.app.refresh_vm_list)
+                            self.app.call_from_thread(self.update_button_layout)
+                        except Exception as e:
+                            self.app.call_from_thread(self.app.show_error_message, f"Error committing disk: {e}")
+                        finally:
+                            self.app.call_from_thread(progress_modal.dismiss)
+
+                    self.app.worker_manager.run(do_commit, name=f"commit_{self.name}")
+
+            self.app.push_screen(
+                ConfirmationDialog(f"Are you sure you want to merge changes from '{target_disk}' into its backing file?"),
+                on_confirm
+            )
+
+        except Exception as e:
+            self.app.show_error_message(f"Error preparing commit: {e}")
+
     def _handle_shutdown_button(self, event: Button.Pressed) -> None:
         """Handles the shutdown button press."""
-        from constants import VmAction
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.vm.isActive():
             self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.STOP))
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
-        from constants import VmAction
         logging.info(f"Attempting to stop VM: {self.name}")
 
         def on_confirm(confirmed: bool) -> None:
@@ -583,14 +740,12 @@ class VMCard(Static):
 
     def _handle_pause_button(self, event: Button.Pressed) -> None:
         """Handles the pause button press."""
-        from constants import VmAction
         logging.info(f"Attempting to pause VM: {self.name}")
         if self.vm.isActive():
             self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.PAUSE))
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
-        from constants import VmAction
         logging.info(f"Attempting to resume VM: {self.name}")
         self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.RESUME))
 
@@ -720,8 +875,9 @@ class VMCard(Static):
             if result:
                 name = result["name"]
                 description = result["description"]
+                quiesce = result.get("quiesce", False)
                 try:
-                    create_vm_snapshot(self.vm, name, description)
+                    create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
                     self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
                     self.update_button_layout()
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
@@ -781,7 +937,6 @@ class VMCard(Static):
 
     def _handle_delete_button(self, event: Button.Pressed) -> None:
         """Handles the delete button press."""
-        from constants import VmAction
         logging.info(f"Attempting to delete VM: {self.name}")
 
         def on_confirm(result: tuple[bool, bool]) -> None:
