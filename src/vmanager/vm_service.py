@@ -299,10 +299,7 @@ class VMService:
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                 # If domain disappears, remove it from cache
-                if uuid in self._cpu_time_cache:
-                    del self._cpu_time_cache[uuid]
-                if uuid in self._io_stats_cache:
-                    del self._io_stats_cache[uuid]
+                self.invalidate_vm_cache(uuid)
             return None
 
     def connect(self, uri: str) -> libvirt.virConnect | None:
