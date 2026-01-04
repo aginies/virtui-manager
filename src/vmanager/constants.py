@@ -62,6 +62,7 @@ class ButtonLabels:
     CREATE_OVERLAY = "New Overlay"
     COMMIT_DISK = "Commit Disk"
     DISCARD_OVERLAY = "Discard Overlay"
+    OVERLAY_HELP = "Help"
 
 class ButtonIds:
     """Constants for button IDs"""
@@ -79,6 +80,7 @@ class ButtonIds:
     CREATE_OVERLAY = "create_overlay"
     COMMIT_DISK = "commit_disk"
     DISCARD_OVERLAY = "discard_overlay"
+    OVERLAY_HELP = "overlay_help"
     DELETE = "delete"
     CLONE = "clone"
     MIGRATION = "migration"
