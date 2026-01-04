@@ -7,10 +7,12 @@ import os
 import shutil
 import tempfile
 import xml.etree.ElementTree as ET
-import libvirt
 import threading
+import libvirt
+from libvirt_utils import (
+        _find_vol_by_path,
+        )
 from vm_queries import get_vm_disks_info
-from libvirt_utils import _find_vol_by_path
 
 def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     """
@@ -157,7 +159,7 @@ def create_overlay_volume(pool: libvirt.virStoragePool, name: str, backing_vol_p
 
     conn = pool.connect()
     backing_vol, _ = _find_vol_by_path(conn, backing_vol_path)
-    
+
     if not backing_vol:
         raise Exception(f"Could not find backing volume for path '{backing_vol_path}' to determine capacity.")
 
@@ -585,10 +587,32 @@ def list_unused_volumes(conn: libvirt.virConnect, pool_name: str = None) -> List
         domains = conn.listAllDomains(0)
         for domain in domains:
             xml_content = domain.XMLDesc(0)
-            disks_info = get_vm_disks_info(conn, xml_content)
+            try:
+                root = ET.fromstring(xml_content)
+            except ET.ParseError:
+                continue
+
+            disks_info = get_vm_disks_info(conn, root)
             for disk in disks_info:
                 if disk.get('path'):
                     used_disk_paths.add(disk['path'])
+
+            # Check metadata for backing chains (overlays) to ensure backing files are marked as used
+            try:
+                metadata = root.find("metadata")
+                if metadata is not None:
+                    # Scan ALL descendants of metadata for 'overlay' tags
+                    # This bypasses potential structure/namespace issues in intermediate nodes
+                    # and avoids using helpers that might create new empty elements.
+                    for elem in metadata.iter():
+                        # Check for overlay tag (namespaced or not)
+                        if elem.tag.endswith("}overlay") or elem.tag == "overlay":
+                             backing_path = elem.get('backing')
+                             if backing_path:
+                                 used_disk_paths.add(backing_path)
+            except Exception:
+                pass
+
     except libvirt.libvirtError as e:
         print(f"Error retrieving VM disk information: {e}")
         return []

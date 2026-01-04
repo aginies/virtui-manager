@@ -15,7 +15,7 @@ from textual.widgets import (
         )
 from vm_queries import (
       get_all_vm_nvram_usage, get_all_vm_disk_usage,
-      get_all_network_usage
+      get_all_network_usage, get_all_vm_overlay_usage
       )
 from libvirt_utils import get_network_info
 from network_manager import (
@@ -104,7 +104,8 @@ class ServerPrefModal(BaseModal[None]):
         self._load_networks()
         disk_map = get_all_vm_disk_usage(self.conn)
         nvram_map = get_all_vm_nvram_usage(self.conn)
-        
+        overlay_map = get_all_vm_overlay_usage(self.conn)
+
         # Merge the two dictionaries correctly
         self.path_to_vm_list = disk_map.copy()
         for path, vm_names in nvram_map.items():
@@ -113,6 +114,13 @@ class ServerPrefModal(BaseModal[None]):
                 self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
             else:
                 self.path_to_vm_list[path] = vm_names
+
+        for path, vm_names in overlay_map.items():
+            if path in self.path_to_vm_list:
+                self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
+            else:
+                self.path_to_vm_list[path] = vm_names
+
         self._load_storage_pools()
 
         self.query_one("#toggle-active-pool-btn").display = False
