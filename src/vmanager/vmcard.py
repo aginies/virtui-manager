@@ -436,16 +436,32 @@ class VMCard(Static):
                     from vm_queries import get_boot_info, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
                     root = _parse_domain_xml(xml_content)
                     if root is not None:
-                        if not boot_dev:
+                        # Always update from cache if available
+                        boot_info = get_boot_info(self.conn, root)
+                        if boot_info['order']:
+                            boot_dev = boot_info['order'][0]
+                        cpu_model = get_vm_cpu_details(root) or ""
+                        graphics_info = get_vm_graphics_info(root)
+                        graphics_type = graphics_info.get("type", "vnc")
+                elif not getattr(self, "_boot_device_checked", False):
+                    # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
+                    try:
+                        from vm_queries import _get_domain_root, get_boot_info, get_vm_cpu_details, get_vm_graphics_info
+                        _, root = _get_domain_root(self.vm)
+                        if root is not None:
                             boot_info = get_boot_info(self.conn, root)
                             if boot_info['order']:
                                 boot_dev = boot_info['order'][0]
-
-                        if not cpu_model:
                             cpu_model = get_vm_cpu_details(root) or ""
+                            graphics_info = get_vm_graphics_info(root)
+                            graphics_type = graphics_info.get("type", "vnc")
 
-                        graphics_info = get_vm_graphics_info(root)
-                        graphics_type = graphics_info.get("type", "vnc")
+                            # Opportunistically populate cache to avoid future fetches
+                            # This is safe because we are in a worker thread
+                            self.app.vm_service._get_domain_info_and_xml(self.vm)
+                    except Exception:
+                        pass
+                    self._boot_device_checked = True
 
                 if not stats:
                     if self.status != StatusText.STOPPED:
