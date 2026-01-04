@@ -45,9 +45,6 @@ from utils import (
 from vm_queries import (
     check_for_spice_vms,
     get_status,
-    get_vm_graphics_info,
-    _get_domain_root,
-    get_vm_cpu_details,
 )
 from vm_service import VMService
 from vmcard import VMCard
@@ -334,10 +331,17 @@ class VMManagerTUI(App):
 
         vms_container.styles.grid_size_columns = cols
         vms_container.styles.width = container_width
+
+        old_vms_per_page = self.VMS_PER_PAGE
         self.VMS_PER_PAGE = cols * rows
 
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
+
+        if self.VMS_PER_PAGE > 6 and self.VMS_PER_PAGE != old_vms_per_page:
+            self.show_warning_message(
+                f"Displaying {self.VMS_PER_PAGE} VMs per page. CPU usage may increase; 6 is recommended for optimal performance."
+            )
 
         self.refresh_vm_list()
 
@@ -363,19 +367,10 @@ class VMManagerTUI(App):
                 self.show_error_message(f"Failed to open connection to {uri}")
 
     def connect_libvirt(self, uri: str) -> None:
-        """Connects to libvirt and runs slow checks in a worker."""
+        """Connects to libvirt."""
         conn = self.vm_service.connect(uri)
         if conn is None:
             self.show_error_message(f"Failed to connect to {uri}")
-        else:
-            if self.websockify_available and self.novnc_available:
-                def check_spice():
-                    """Worker to check for spice VMs without blocking."""
-                    spice_message = check_for_spice_vms(conn)
-                    if spice_message:
-                        self.call_from_thread(self.show_success_message, spice_message)
-
-                self.worker_manager.run(check_spice, name=f"check_spice_{uri}")
 
     def show_error_message(self, message: str):
         logging.error(message)
@@ -384,6 +379,10 @@ class VMManagerTUI(App):
     def show_success_message(self, message: str):
         logging.info(message)
         self.notify(message, timeout=10, title="Info")
+
+    def show_warning_message(self, message: str):
+        logging.warning(message)
+        self.notify(message, severity="warning", timeout=10, title="Warning")
 
     @on(Button.Pressed, "#select_server_button")
     def action_select_server(self) -> None:
@@ -783,16 +782,6 @@ class VMManagerTUI(App):
                 # Fetch info once
                 info = domain.info()
 
-                # Optimization: Only parse XML if strictly necessary (new card or forced refresh)
-                cpu_details = None
-                graphics_info = {}
-                need_xml_parsing = not vm_card or force
-
-                if need_xml_parsing:
-                    _, root = _get_domain_root(domain)
-                    cpu_details = get_vm_cpu_details(root)
-                    graphics_info = get_vm_graphics_info(root)
-
                 if vm_card:
                     # Update existing card
                     vm_card.name = domain.name() # Ensure name is updated
@@ -803,10 +792,6 @@ class VMManagerTUI(App):
                     vm_card.vm = domain
                     vm_card.conn = conn
                     vm_card.server_border_color = self.get_server_color(conn.getURI())
-                    
-                    if need_xml_parsing:
-                        vm_card.cpu_model = cpu_details or ""
-                        vm_card.graphics_type = graphics_info.get("type", "vnc")
                 else:
                     # Create new card
                     if uuid not in self.sparkline_data:
@@ -819,9 +804,9 @@ class VMManagerTUI(App):
                     vm_card.memory = info[1] // 1024
                     vm_card.vm = domain
                     vm_card.conn = conn
-                    vm_card.graphics_type = graphics_info.get("type", "vnc")
+                    vm_card.graphics_type = "vnc"
                     vm_card.server_border_color = self.get_server_color(conn.getURI())
-                    vm_card.cpu_model = cpu_details or ""
+                    vm_card.cpu_model = ""
                     self.vm_cards[uuid] = vm_card
 
                 cards_to_mount.append(vm_card)
