@@ -179,7 +179,8 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
     def compose(self):
         items = []
         for snap in self.snapshots:
-            label_text = f"{snap['name']} ({snap['creation_time']})"
+            state_info = f" [{snap['state']}]" if snap.get('state') else ""
+            label_text = f"{snap['name']}{state_info} ({snap['creation_time']})"
             if snap['description']:
                 label_text += f" - {snap['description']}"
             items.append(SnapshotListItem(snap['name'], label_text))
@@ -211,6 +212,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             Input(value=default_name, placeholder="snapshot_name", id="name-input"),
             Label("Description (optional)"),
             Input(placeholder="snapshot description", id="description-input"),
+            Checkbox("Quiesce guest (requires agent)", id="quiesce-checkbox", tooltip="Pause the guest filesystem to ensure a clean snapshot. Requires QEMU Guest Agent to be running in the VM."),
             Horizontal(
                 Button(ButtonLabels.CREATE, variant="success", id=ButtonIds.CREATE),
                 Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
@@ -224,15 +226,17 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         if event.button.id == ButtonIds.CREATE:
             name_input = self.query_one("#name-input", Input)
             description_input = self.query_one("#description-input", Input)
+            quiesce_checkbox = self.query_one("#quiesce-checkbox", Checkbox)
             snapshot_name = name_input.value.strip()
             description = description_input.value.strip()
+            quiesce = quiesce_checkbox.value
 
             error = self.validate_name(snapshot_name)
             if error:
                 self.app.show_error_message(error)
                 return
 
-            self.dismiss({"name": snapshot_name, "description": description})
+            self.dismiss({"name": snapshot_name, "description": description, "quiesce": quiesce})
         else:
             self.dismiss(None)
 
