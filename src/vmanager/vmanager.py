@@ -761,9 +761,10 @@ class VMManagerTUI(App):
     def refresh_vm_list(self, force: bool = False) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
         # Try to run the worker. If it's already running, this will do nothing.
-        self.worker_manager.run(lambda: self.list_vms_worker(force=force), name="list_vms")
+        selected_uuids = set(self.selected_vm_uuids)
+        self.worker_manager.run(lambda: self.list_vms_worker(selected_uuids, force=force), name="list_vms")
 
-    def list_vms_worker(self, force: bool = False):
+    def list_vms_worker(self, selected_uuids: set[str], force: bool = False):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
             domains_to_display, total_vms, total_filtered_vms, server_names = self.vm_service.get_vms(
@@ -771,7 +772,7 @@ class VMManagerTUI(App):
                 self.servers,
                 self.sort_by,
                 self.search_text,
-                self.selected_vm_uuids,
+                selected_uuids,
                 force=force
             )
         except Exception as e:
@@ -802,7 +803,7 @@ class VMManagerTUI(App):
                     'status': get_status(domain, state=info[0]),
                     'cpu': info[3],
                     'memory': info[1] // 1024,
-                    'is_selected': uuid in self.selected_vm_uuids,
+                    'is_selected': uuid in selected_uuids,
                     'domain': domain,
                     'conn': conn,
                     'uri': conn.getURI()
@@ -940,10 +941,12 @@ class VMManagerTUI(App):
             self.show_error_message("No VMs selected.")
             return
 
+        uuids_snapshot = list(self.selected_vm_uuids)
+
         def get_names_and_show_modal():
             """Worker to fetch VM names and display the bulk action modal."""
             all_names = set()
-            uuids = list(self.selected_vm_uuids)
+            uuids = uuids_snapshot
             connections = list(self._get_active_connections())
 
             for conn in connections:
