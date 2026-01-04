@@ -54,12 +54,29 @@ def _get_vmanager_metadata(root):
 
     return vmanager_meta_elem
 
-def _get_disabled_disks_elem(root):
+def _get_metadata_elem(root, elem_name):
     vmanager_meta_elem = _get_vmanager_metadata(root)
-    disabled_disks_elem = vmanager_meta_elem.find(f'{{{VIRTUI_MANAGER_NS}}}disabled-disks')
-    if disabled_disks_elem is None:
-        disabled_disks_elem = ET.SubElement(vmanager_meta_elem, f'{{{VIRTUI_MANAGER_NS}}}disabled-disks')
-    return disabled_disks_elem
+    elem = vmanager_meta_elem.find(f'{{{VIRTUI_MANAGER_NS}}}{elem_name}')
+    if elem is None:
+        elem = ET.SubElement(vmanager_meta_elem, f'{{{VIRTUI_MANAGER_NS}}}{elem_name}')
+    return elem
+
+def _get_disabled_disks_elem(root):
+    return _get_metadata_elem(root, 'disabled-disks')
+
+def _get_backing_chain_elem(root):
+    return _get_metadata_elem(root, 'backing-chain')
+
+def get_overlay_backing_path(root, overlay_path):
+    """
+    Retrieves the backing path for a given overlay path from the metadata.
+    """
+    backing_chain_elem = _get_backing_chain_elem(root)
+    if backing_chain_elem is not None:
+        for overlay in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
+            if overlay.get('path') == overlay_path:
+                return overlay.get('backing')
+    return None
 
 def _find_pool_by_path(conn: libvirt.virConnect, file_path: str):
     """
@@ -244,7 +261,7 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
                 'prefix': ip_elem.get('prefix'),
                 'dhcp': ip_elem.find('dhcp') is not None
             })
-            
+
             if info['dhcp']:
                 dhcp_elem = ip_elem.find('dhcp')
                 if dhcp_elem is not None:
