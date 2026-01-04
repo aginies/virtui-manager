@@ -5,7 +5,13 @@ import xml.etree.ElementTree as ET
 import logging
 from functools import lru_cache
 import libvirt
-from libvirt_utils import _get_disabled_disks_elem, VIRTUI_MANAGER_NS
+from libvirt_utils import (
+        VIRTUI_MANAGER_NS,
+        _find_vol_by_path,
+        _get_disabled_disks_elem,
+        get_overlay_backing_path,
+        _get_backing_chain_elem,
+        )
 from vm_cache import get_from_cache, set_in_cache
 #from utils import log_function_call
 
@@ -187,7 +193,7 @@ def get_vm_firmware_info(root: ET.Element) -> dict:
             else:
                 bootloader_elem = os_elem.find('bootloader')
                 if bootloader_elem is not None:
-                     firmware_info['type'] = 'BIOS'
+                    firmware_info['type'] = 'BIOS'
 
     except Exception:
         pass # Return default values if error
@@ -460,7 +466,7 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
                     driver = disk.find("driver")
                     cache_mode = driver.get("cache") if driver is not None else "default"
                     discard_mode = driver.get("discard") if driver is not None else "ignore"
-                    
+
                     target_elem = disk.find('target')
                     bus = target_elem.get('bus') if target_elem is not None else 'N/A'
 
@@ -504,7 +510,7 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
                             driver = disk.find("driver")
                             cache_mode = driver.get("cache") if driver is not None else "default"
                             discard_mode = driver.get("discard") if driver is not None else "ignore"
-                            
+
                             target_elem = disk.find('target')
                             bus = target_elem.get('bus') if target_elem is not None else 'N/A'
 
@@ -528,7 +534,7 @@ def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     disk_to_vms_map = {}
     if not conn:
         return disk_to_vms_map
-    
+
     try:
         domains = conn.listAllDomains(0)
     except libvirt.libvirtError:
@@ -551,6 +557,41 @@ def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
             continue
 
     return disk_to_vms_map
+
+def get_all_vm_overlay_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
+    """
+    Scans all VMs and returns a mapping of backing file path to a list of VM names
+    that use it via an overlay (checked via metadata).
+    """
+    backing_to_vms_map = {}
+    if not conn:
+        return backing_to_vms_map
+
+    try:
+        domains = conn.listAllDomains(0)
+    except libvirt.libvirtError:
+        return backing_to_vms_map
+
+    for domain in domains:
+        try:
+            _, root = _get_domain_root(domain)
+            if root is not None:
+                # Check all disks to see if they are overlays in metadata
+                disks = get_vm_disks_info(conn, root)
+                vm_name = domain.name()
+                for disk in disks:
+                    path = disk.get('path')
+                    if path:
+                        backing_path = get_overlay_backing_path(root, path)
+                        if backing_path:
+                            if backing_path not in backing_to_vms_map:
+                                backing_to_vms_map[backing_path] = []
+                            if vm_name not in backing_to_vms_map[backing_path]:
+                                backing_to_vms_map[backing_path].append(vm_name)
+        except Exception:
+            continue
+
+    return backing_to_vms_map
 
 def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
@@ -1117,20 +1158,78 @@ def get_vm_snapshots(domain: libvirt.virDomain) -> list[dict]:
 
     return snapshots_info
 
-def has_overlays(domain: libvirt.virDomain) -> bool:
+def get_overlay_disks(domain: libvirt.virDomain) -> list[str]:
     """
-    Checks if the VM has any disks that are overlays (have a backing chain).
+    Returns a list of disk paths that are overlays.
+    Checks both domain XML and underlying volume XML.
     """
+    overlay_disks = []
     try:
+        conn = domain.connect()
         xml_desc = domain.XMLDesc(0)
         root = ET.fromstring(xml_desc)
 
         for disk in root.findall(".//disk"):
+             # Get path first as we need it for return value and volume lookup
+            path = None
+            source = disk.find("source")
+            if source is not None:
+                if "file" in source.attrib:
+                    path = source.attrib["file"]
+                elif "dev" in source.attrib:
+                    path = source.attrib["dev"]
+                elif "pool" in source.attrib and "volume" in source.attrib:
+                    # Resolve pool/vol
+                    try:
+                        pool = conn.storagePoolLookupByName(source.attrib["pool"])
+                        vol = pool.storageVolLookupByName(source.attrib["volume"])
+                        path = vol.path()
+                    except:
+                        pass
+
+            if not path:
+                continue
+
+            is_overlay = False
+
+            # 1. Check Domain XML (Runtime or Explicit)
             backing = disk.find("backingStore")
             if backing is not None:
                 if backing.find("source") is not None or backing.get("type"):
-                    return True
+                    is_overlay = True
 
-        return False
+            # 2. Check Volume XML (Persistent/Storage level)
+            if not is_overlay:
+                # If we have a path, check the volume
+                vol, _ = _find_vol_by_path(conn, path)
+                if vol:
+                    try:
+                        vol_xml = vol.XMLDesc(0)
+                        vol_root = ET.fromstring(vol_xml)
+                        vol_backing = vol_root.find("backingStore")
+                        if vol_backing is not None and vol_backing.find("path") is not None:
+                            is_overlay = True
+                    except:
+                        pass
+
+            # 3. Check VM Metadata (Custom tracking)
+            if not is_overlay:
+                backing_chain_elem = _get_backing_chain_elem(root)
+                if backing_chain_elem is not None:
+                    for entry in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
+                        if entry.get('path') == path:
+                            is_overlay = True
+                            break
+
+            if is_overlay:
+                overlay_disks.append(path)
+
+        return overlay_disks
     except Exception:
-        return False
+        return []
+
+def has_overlays(domain: libvirt.virDomain) -> bool:
+    """
+    Checks if the VM has any disks that are overlays.
+    """
+    return len(get_overlay_disks(domain)) > 0
