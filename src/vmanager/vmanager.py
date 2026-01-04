@@ -399,6 +399,18 @@ class VMManagerTUI(App):
         # Disconnect from servers that are no longer selected
         uris_to_disconnect = [uri for uri in self.active_uris if uri not in selected_uris]
         for uri in uris_to_disconnect:
+            # Cleanup UI caches for VMs on this server
+            uuids_to_remove = [
+                uuid for uuid, card in self.vm_cards.items()
+                if card.conn and card.conn.getURI() == uri
+            ]
+            for uuid in uuids_to_remove:
+                if self.vm_cards[uuid].is_mounted:
+                    self.vm_cards[uuid].remove()
+                del self.vm_cards[uuid]
+                if uuid in self.sparkline_data:
+                    del self.sparkline_data[uuid]
+
             self.vm_service.disconnect(uri)
 
         self.active_uris = selected_uris
@@ -762,9 +774,18 @@ class VMManagerTUI(App):
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
         # Try to run the worker. If it's already running, this will do nothing.
         selected_uuids = set(self.selected_vm_uuids)
-        self.worker_manager.run(lambda: self.list_vms_worker(selected_uuids, force=force), name="list_vms")
+        current_page = self.current_page
+        vms_per_page = self.VMS_PER_PAGE
+        
+        if force:
+            self.worker_manager.cancel("list_vms")
 
-    def list_vms_worker(self, selected_uuids: set[str], force: bool = False):
+        self.worker_manager.run(
+            lambda: self.list_vms_worker(selected_uuids, current_page, vms_per_page, force=force), 
+            name="list_vms"
+        )
+
+    def list_vms_worker(self, selected_uuids: set[str], current_page: int, vms_per_page: int, force: bool = False):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
             domains_to_display, total_vms, total_filtered_vms, server_names = self.vm_service.get_vms(
@@ -779,11 +800,13 @@ class VMManagerTUI(App):
             self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
             return
 
-        if self.current_page > 0 and self.current_page * self.VMS_PER_PAGE >= total_filtered_vms:
-            self.current_page = 0
+        reset_page = False
+        if current_page > 0 and current_page * vms_per_page >= total_filtered_vms:
+            current_page = 0
+            reset_page = True
 
-        start_index = self.current_page * self.VMS_PER_PAGE
-        end_index = start_index + self.VMS_PER_PAGE
+        start_index = current_page * vms_per_page
+        end_index = start_index + vms_per_page
         paginated_domains = domains_to_display[start_index:end_index]
 
         # Collect data in worker thread
@@ -827,6 +850,9 @@ class VMManagerTUI(App):
         all_uuids_from_libvirt = {dom.UUIDString() for dom, conn in domains_to_display}
         
         def update_ui():
+            if reset_page:
+                self.current_page = 0
+
             # Perform cache cleanup on main thread to be safe with widget removal
             cached_uuids = set(self.vm_cards.keys())
             uuids_to_remove_from_cache = cached_uuids - all_uuids_from_libvirt
