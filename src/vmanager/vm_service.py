@@ -19,6 +19,7 @@ class VMService:
         self._uuid_to_conn_cache: dict[str, libvirt.virConnect] = {}
         self._cache_timestamp: float = 0.0
         self._cache_ttl: int = 5  # seconds
+        self._cached_active_uris: set[str] = set()
 
         self._vm_data_cache: dict[str, dict] = {}  # {uuid: {'info': (data), 'info_ts': ts, 'xml': 'data', 'xml_ts': ts}}
         self._info_cache_ttl: int = 5  # seconds
@@ -41,7 +42,10 @@ class VMService:
 
     def _update_domain_cache(self, active_uris: list[str], force: bool = False):
         """Updates the domain and connection cache."""
-        if not force and self._domain_cache and (time.time() - self._cache_timestamp < self._cache_ttl):
+        current_uris_set = set(active_uris)
+        uris_changed = current_uris_set != self._cached_active_uris
+
+        if not force and not uris_changed and self._domain_cache and (time.time() - self._cache_timestamp < self._cache_ttl):
             return
 
         self.invalidate_domain_cache()
@@ -58,6 +62,7 @@ class VMService:
             except libvirt.libvirtError:
                 pass  # Or log error
         self._cache_timestamp = time.time()
+        self._cached_active_uris = current_uris_set
 
     def _get_domain_info_and_xml(self, domain: libvirt.virDomain) -> tuple[tuple, str]:
         """Gets info and XML from cache or fetches them, fetching both if both are missing."""
