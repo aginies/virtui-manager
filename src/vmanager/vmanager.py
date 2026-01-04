@@ -79,7 +79,7 @@ class WorkerManager:
         """
         Runs and tracks a worker, preventing overlaps for workers with the same name.
         """
-        if not exclusive and self.is_running(name):
+        if exclusive and self.is_running(name):
             logging.warning(f"Worker '{name}' is already running. Skipping new run.")
             return None
 
