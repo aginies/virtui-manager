@@ -425,20 +425,35 @@ class VMCard(Static):
             try:
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
 
-                # Fetch boot info if not yet set. Only check once per lifecycle to save CPU.
+                # Update info from cache if XML has been fetched (e.g. via Configure)
+                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+                xml_content = vm_cache.get('xml')
                 boot_dev = self.boot_device
-                if not boot_dev and not getattr(self, "_boot_device_checked", False):
-                    _, root = _get_domain_root(self.vm)
-                    boot_info = get_boot_info(self.conn, root)
-                    if boot_info['order']:
-                        boot_dev = boot_info['order'][0]
-                    self._boot_device_checked = True
+                cpu_model = self.cpu_model
+                graphics_type = self.graphics_type
+
+                if xml_content:
+                    from vm_queries import get_boot_info, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
+                    root = _parse_domain_xml(xml_content)
+                    if root is not None:
+                        if not boot_dev:
+                            boot_info = get_boot_info(self.conn, root)
+                            if boot_info['order']:
+                                boot_dev = boot_info['order'][0]
+
+                        if not cpu_model:
+                            cpu_model = get_vm_cpu_details(root) or ""
+
+                        graphics_info = get_vm_graphics_info(root)
+                        graphics_type = graphics_info.get("type", "vnc")
 
                 if not stats:
                     if self.status != StatusText.STOPPED:
                         self.app.call_from_thread(setattr, self, 'status', StatusText.STOPPED)
                     self.app.call_from_thread(setattr, self, 'ip_addresses', [])
                     self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
+                    self.app.call_from_thread(setattr, self, 'cpu_model', cpu_model)
+                    self.app.call_from_thread(setattr, self, 'graphics_type', graphics_type)
                     return
 
                 # Fetch IPs if running (check stats status, not UI status which might be stale)
@@ -454,6 +469,8 @@ class VMCard(Static):
 
                     self.ip_addresses = ips
                     self.boot_device = boot_dev
+                    self.cpu_model = cpu_model
+                    self.graphics_type = graphics_type
 
                     self.latest_disk_read = stats.get('disk_read_kbps', 0)
                     self.latest_disk_write = stats.get('disk_write_kbps', 0)
@@ -535,7 +552,10 @@ class VMCard(Static):
         has_overlay_disk = False
         try:
             if self.vm:
-                has_overlay_disk = has_overlays(self.vm)
+                uuid = self.vm.UUIDString()
+                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+                if vm_cache.get('xml'):
+                    has_overlay_disk = has_overlays(self.vm)
         except:
             pass
 
