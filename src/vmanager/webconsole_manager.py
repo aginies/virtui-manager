@@ -8,6 +8,7 @@ import tempfile
 from datetime import datetime
 from functools import partial
 from pathlib import Path
+from threading import RLock
 from urllib.parse import urlparse
 
 import libvirt
@@ -26,6 +27,7 @@ class WebConsoleManager:
         self.app = app
         self.config = load_config()
         self.processes = {}  # Replaces app.websockify_processes
+        self._lock = RLock()
 
     @staticmethod
     def is_remote_connection(uri: str) -> bool:
@@ -41,14 +43,15 @@ class WebConsoleManager:
 
     def is_running(self, uuid: str) -> bool:
         """Check if a web console process is running for a given VM UUID."""
-        if uuid in self.processes:
-            proc, _, _, _, _ = self.processes[uuid]
-            if proc.poll() is None:
-                return True
-            else:
-                # Process has terminated, clean it up to prevent stale entries
-                del self.processes[uuid]
-                return False
+        with self._lock:
+            if uuid in self.processes:
+                proc, _, _, _, _ = self.processes[uuid]
+                if proc.poll() is None:
+                    return True
+                else:
+                    # Process has terminated, clean it up to prevent stale entries
+                    del self.processes[uuid]
+                    return False
         return False
 
     def start_console(self, vm, conn):
@@ -59,7 +62,8 @@ class WebConsoleManager:
         vm_name = vm.name()
 
         if self.is_running(uuid):
-            _, _, url, _, _ = self.processes[uuid]
+            with self._lock:
+                _, _, url, _, _ = self.processes[uuid]
 
             stopper_worker = partial(self.stop_console, uuid, vm_name)
             def on_dialog_dismiss(result):
@@ -100,24 +104,26 @@ class WebConsoleManager:
 
     def stop_console(self, uuid: str, vm_name: str):
         """Stops the websockify process and any associated SSH tunnel."""
-        if uuid not in self.processes:
-            return
+        with self._lock:
+            if uuid not in self.processes:
+                return
 
-        websockify_proc, _, _, ssh_info, _ = self.processes[uuid]
-        websockify_proc.terminate()
+            websockify_proc, _, _, ssh_info, _ = self.processes[uuid]
+            websockify_proc.terminate()
 
-        if ssh_info:
-            self._stop_ssh_tunnel(vm_name, ssh_info)
+            if ssh_info:
+                self._stop_ssh_tunnel(vm_name, ssh_info)
 
-        if uuid in self.processes:
-            del self.processes[uuid]
+            if uuid in self.processes:
+                del self.processes[uuid]
         self.app.call_from_thread(self.app.show_success_message, "Web console stopped.")
 
     def terminate_all(self):
         """Terminates all running websockify and SSH tunnel processes."""
-        for uuid, process_data in list(self.processes.items()):
-            vm_name = process_data[4]
-            self.stop_console(uuid, vm_name)
+        with self._lock:
+            for uuid, process_data in list(self.processes.items()):
+                vm_name = process_data[4]
+                self.stop_console(uuid, vm_name)
 
     def _monitor_and_kill_service(self, uuid: str, vm_name: str, proc: subprocess.Popen):
         """Monitors a process's stderr for a connection and then stops it."""
@@ -227,7 +233,8 @@ class WebConsoleManager:
         compression = self.config.get('VNC_COMPRESSION', 9)
         url = f"{url_scheme}://{host}:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
 
-        self.processes[uuid] = (proc, web_port, url, {}, vm_name)
+        with self._lock:
+            self.processes[uuid] = (proc, web_port, url, {}, vm_name)
 
         stopper_worker = partial(self.stop_console, uuid, vm_name)
         def on_dialog_dismiss(result):
@@ -317,7 +324,8 @@ class WebConsoleManager:
             proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
 
             url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
-            self.processes[uuid] = (proc, web_port, url, ssh_info, vm_name)
+            with self._lock:
+                self.processes[uuid] = (proc, web_port, url, ssh_info, vm_name)
 
             stopper_worker = partial(self.stop_console, uuid, vm_name)
             def on_dialog_dismiss(result):
