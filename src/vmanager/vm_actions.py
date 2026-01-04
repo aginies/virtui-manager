@@ -1726,7 +1726,8 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
         try:
             xml_desc = domain.XMLDesc(0)
             if delete_storage:
-                disks_to_delete = get_vm_disks_info(conn, xml_desc)
+                root = ET.fromstring(xml_desc)
+                disks_to_delete = get_vm_disks_info(conn, root)
         except libvirt.libvirtError as e:
             log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
             raise
