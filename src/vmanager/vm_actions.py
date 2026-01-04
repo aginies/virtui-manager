@@ -8,8 +8,10 @@ import logging
 import xml.etree.ElementTree as ET
 import libvirt
 from libvirt_utils import (
-        _find_vol_by_path, _get_disabled_disks_elem,
-        _get_backing_chain_elem, VIRTUI_MANAGER_NS
+        _find_vol_by_path,
+        VIRTUI_MANAGER_NS,
+        _get_disabled_disks_elem,
+        _get_backing_chain_elem,
         )
 from utils import log_function_call
 from vm_queries import get_vm_disks_info
@@ -2157,8 +2159,7 @@ def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
         logging.error(msg)
         raise Exception(msg) from e
 
-@log_function_call
-def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = ""):
+def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = "", quiesce: bool = False):
     """
     Creates a snapshot for the VM.
     """
@@ -2169,12 +2170,16 @@ def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = 
         xml += f"<description>{description}</description>"
     xml += "</domainsnapshot>"
 
+    flags = 0
+    if quiesce:
+        flags |= libvirt.VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE
+
     try:
-        domain.snapshotCreateXML(xml, 0)
+        domain.snapshotCreateXML(xml, flags)
     except libvirt.libvirtError as e:
         msg = f"Failed to create snapshot '{name}': {e}"
         logging.error(msg)
-        raise Exception(msg) from e
+        raise libvirt.libvirtError(msg) from e
 
 @log_function_call
 def restore_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
@@ -2525,8 +2530,8 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
 
                     # Check if entry already exists (cleanup if replacing - though rare for new overlay)
                     for entry in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
-                         if entry.get('path') == new_vol_path:
-                             backing_chain_elem.remove(entry)
+                        if entry.get('path') == new_vol_path:
+                            backing_chain_elem.remove(entry)
 
                     overlay_elem = ET.SubElement(backing_chain_elem, f'{{{VIRTUI_MANAGER_NS}}}overlay')
                     overlay_elem.set('path', new_vol_path)
@@ -2536,11 +2541,11 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
                     break
 
         if updated:
-             conn.defineXML(ET.tostring(root, encoding='unicode'))
+            conn.defineXML(ET.tostring(root, encoding='unicode'))
         else:
-             # Cleanup if we didn't find the disk in XML to update
-             new_vol.delete(0)
-             raise Exception(f"Could not find disk entry in VM XML for path '{disk_path}'")
+            # Cleanup if we didn't find the disk in XML to update
+            new_vol.delete(0)
+            raise Exception(f"Could not find disk entry in VM XML for path '{disk_path}'")
 
     except Exception as e:
         # Try to cleanup overlay if XML update failed
