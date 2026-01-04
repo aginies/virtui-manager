@@ -62,13 +62,13 @@ class ButtonLabels:
     CREATE_OVERLAY = "New Overlay"
     COMMIT_DISK = "Commit Disk"
     DISCARD_OVERLAY = "Discard Overlay"
-    OVERLAY_HELP = "Help"
+    SNAP_OVERLAY_HELP = "Help"
 
 class ButtonIds:
     """Constants for button IDs"""
     START = "start"
     SHUTDOWN = "shutdown"
-    STOP = "stop"
+    STOP = "stop" # FORCE OFF
     PAUSE = "pause"
     RESUME = "resume"
     CONFIGURE_BUTTON = "configure-button"
@@ -80,7 +80,7 @@ class ButtonIds:
     CREATE_OVERLAY = "create_overlay"
     COMMIT_DISK = "commit_disk"
     DISCARD_OVERLAY = "discard_overlay"
-    OVERLAY_HELP = "overlay_help"
+    SNAP_OVERLAY_HELP = "snap_overlay_help"
     DELETE = "delete"
     CLONE = "clone"
     MIGRATION = "migration"
@@ -105,9 +105,10 @@ class ButtonIds:
 class TabTitles:
     """Constants for tab titles"""
     MANAGE = "Manage"
-    SPECIAL = "Special"
+    OTHER = "Other"
     SNAPSHOT = "Snapshot"
     SNAPSHOTS = "Snapshots"
+    OVERLAY = "Overlay"
 
 class StatusText:
     """Constants for status text"""
@@ -139,4 +140,4 @@ class DialogMessages:
     DELETE_VM_CONFIRMATION = "Are you sure you want to delete '{name}'?"
     DELETE_SNAPSHOT_CONFIRMATION = "Are you sure you want to delete snapshot '{name}'?"
     DELETE_SNAPSHOTS_AND_RENAME = "VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"
-    MIGRATION_EXPERIMENTAL = "Experimental Features! not yet fully tested!"
+    EXPERIMENTAL = "Experimental Feature! not yet fully tested!"
