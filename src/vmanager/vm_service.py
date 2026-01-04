@@ -39,6 +39,10 @@ class VMService:
             del self._cpu_time_cache[uuid]
         if uuid in self._io_stats_cache:
             del self._io_stats_cache[uuid]
+        if uuid in self._domain_cache:
+            del self._domain_cache[uuid]
+        if uuid in self._uuid_to_conn_cache:
+            del self._uuid_to_conn_cache[uuid]
 
     def _update_domain_cache(self, active_uris: list[str], force: bool = False):
         """Updates the domain and connection cache."""
@@ -312,7 +316,15 @@ class VMService:
         return self.connection_manager.connect(uri)
 
     def disconnect(self, uri: str) -> None:
-        """Disconnects from a libvirt URI."""
+        """Disconnects from a libvirt URI and cleans up associated VM caches."""
+        # Find UUIDs associated with this URI before disconnecting to clean up caches
+        uuids_to_invalidate = [
+            uuid for uuid, conn in self._uuid_to_conn_cache.items()
+            if conn.getURI() == uri
+        ]
+        for uuid in uuids_to_invalidate:
+            self.invalidate_vm_cache(uuid)
+
         self.connection_manager.disconnect(uri)
 
     def disconnect_all(self):
