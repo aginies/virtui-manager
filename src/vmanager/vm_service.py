@@ -191,13 +191,20 @@ class VMService:
             net_rx_bytes = 0
             net_tx_bytes = 0
 
-            # Get XML to find devices
-            xml_content = self._get_domain_xml(domain)
-
-            # Use cached devices list if available and XML hasn't changed
+            # Use cached XML if available, otherwise skip I/O stats to avoid libvirt XMLDesc call
             self._vm_data_cache.setdefault(uuid, {})
             vm_cache = self._vm_data_cache[uuid]
+            xml_content = vm_cache.get('xml')
 
+            if not xml_content:
+                 # Skip I/O stats calculation if XML is not cached
+                 stats['disk_read_kbps'] = 0
+                 stats['disk_write_kbps'] = 0
+                 stats['net_rx_kbps'] = 0
+                 stats['net_tx_kbps'] = 0
+                 return stats
+
+            # Use cached devices list if available and XML hasn't changed
             # Check if we have a valid cached device list
             # We rely on xml_ts being updated when XML is refreshed
             current_xml_ts = vm_cache.get('xml_ts', 0)
