@@ -768,48 +768,30 @@ class VMManagerTUI(App):
         end_index = start_index + self.VMS_PER_PAGE
         paginated_domains = domains_to_display[start_index:end_index]
 
-        cards_to_mount = []
+        # Collect data in worker thread
+        vm_data_list = []
         page_uuids = set()
 
         for domain, conn in paginated_domains:
             try:
                 uuid = domain.UUIDString()
                 page_uuids.add(uuid)
-                is_vm_selected = uuid in self.selected_vm_uuids
                 
-                vm_card = self.vm_cards.get(uuid)
-
-                # Fetch info once
                 info = domain.info()
-
-                if vm_card:
-                    # Update existing card
-                    vm_card.name = domain.name() # Ensure name is updated
-                    vm_card.status = get_status(domain, state=info[0])
-                    vm_card.cpu = info[3]
-                    vm_card.memory = info[1] // 1024
-                    vm_card.is_selected = is_vm_selected
-                    vm_card.vm = domain
-                    vm_card.conn = conn
-                    vm_card.server_border_color = self.get_server_color(conn.getURI())
-                else:
-                    # Create new card
-                    if uuid not in self.sparkline_data:
-                        self.sparkline_data[uuid] = {"cpu": [], "mem": [], "disk": [], "net": []}
-
-                    vm_card = VMCard(is_selected=is_vm_selected)
-                    vm_card.name = domain.name()
-                    vm_card.status = get_status(domain, state=info[0])
-                    vm_card.cpu = info[3]
-                    vm_card.memory = info[1] // 1024
-                    vm_card.vm = domain
-                    vm_card.conn = conn
-                    vm_card.graphics_type = "vnc"
-                    vm_card.server_border_color = self.get_server_color(conn.getURI())
-                    vm_card.cpu_model = ""
-                    self.vm_cards[uuid] = vm_card
-
-                cards_to_mount.append(vm_card)
+                
+                vm_data = {
+                    'uuid': uuid,
+                    'name': domain.name(),
+                    'status': get_status(domain, state=info[0]),
+                    'cpu': info[3],
+                    'memory': info[1] // 1024,
+                    'is_selected': uuid in self.selected_vm_uuids,
+                    'domain': domain,
+                    'conn': conn,
+                    'server_color': self.get_server_color(conn.getURI())
+                }
+                vm_data_list.append(vm_data)
+                
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     logging.warning(f"Skipping display of non-existent VM during refresh.")
@@ -825,19 +807,20 @@ class VMManagerTUI(App):
 
         # Cleanup cache: remove cards for VMs that no longer exist at all
         all_uuids_from_libvirt = {dom.UUIDString() for dom, conn in domains_to_display}
-        cached_uuids = set(self.vm_cards.keys())
-        uuids_to_remove_from_cache = cached_uuids - all_uuids_from_libvirt
-
-        for uuid in uuids_to_remove_from_cache:
-            logging.info(f"Removing stale VM card from cache: {uuid}")
-            # Card might be active on screen, so remove it before deleting from cache
-            if self.vm_cards[uuid].is_mounted:
-                self.vm_cards[uuid].remove()
-            del self.vm_cards[uuid]
-            if uuid in self.sparkline_data:
-                del self.sparkline_data[uuid]
-
+        
         def update_ui():
+            # Perform cache cleanup on main thread to be safe with widget removal
+            cached_uuids = set(self.vm_cards.keys())
+            uuids_to_remove_from_cache = cached_uuids - all_uuids_from_libvirt
+
+            for uuid in uuids_to_remove_from_cache:
+                logging.info(f"Removing stale VM card from cache: {uuid}")
+                if self.vm_cards[uuid].is_mounted:
+                    self.vm_cards[uuid].remove()
+                del self.vm_cards[uuid]
+                if uuid in self.sparkline_data:
+                    del self.sparkline_data[uuid]
+
             vms_container = self.ui.get("vms_container")
             if not vms_container:
                 return
@@ -845,11 +828,44 @@ class VMManagerTUI(App):
             # Remove cards from container that are not in the new page layout
             for card in vms_container.query(VMCard):
                 try:
-                    # card.vm might be None if domain died
                     if not card.vm or card.vm.UUIDString() not in page_uuids:
                         card.remove()
                 except (libvirt.libvirtError, AttributeError):
-                    card.remove() # Stale/bad card
+                    card.remove()
+
+            cards_to_mount = []
+            for data in vm_data_list:
+                uuid = data['uuid']
+                vm_card = self.vm_cards.get(uuid)
+                
+                if vm_card:
+                    # Update existing card
+                    vm_card.name = data['name']
+                    vm_card.status = data['status']
+                    vm_card.cpu = data['cpu']
+                    vm_card.memory = data['memory']
+                    vm_card.is_selected = data['is_selected']
+                    vm_card.vm = data['domain']
+                    vm_card.conn = data['conn']
+                    vm_card.server_border_color = data['server_color']
+                else:
+                    # Create new card
+                    if uuid not in self.sparkline_data:
+                        self.sparkline_data[uuid] = {"cpu": [], "mem": [], "disk": [], "net": []}
+
+                    vm_card = VMCard(is_selected=data['is_selected'])
+                    vm_card.name = data['name']
+                    vm_card.status = data['status']
+                    vm_card.cpu = data['cpu']
+                    vm_card.memory = data['memory']
+                    vm_card.vm = data['domain']
+                    vm_card.conn = data['conn']
+                    vm_card.graphics_type = "vnc"
+                    vm_card.server_border_color = data['server_color']
+                    vm_card.cpu_model = ""
+                    self.vm_cards[uuid] = vm_card
+
+                cards_to_mount.append(vm_card)
 
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
