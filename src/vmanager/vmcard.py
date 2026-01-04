@@ -434,6 +434,12 @@ class VMCard(Static):
                 self.timer.stop()
             return
 
+        # Capture reactive values on main thread to avoid unsafe access in worker
+        current_status = self.status
+        current_boot_device = self.boot_device
+        current_cpu_model = self.cpu_model
+        current_graphics_type = self.graphics_type
+
         def update_worker():
             try:
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
@@ -441,9 +447,9 @@ class VMCard(Static):
                 # Update info from cache if XML has been fetched (e.g. via Configure)
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
                 xml_content = vm_cache.get('xml')
-                boot_dev = self.boot_device
-                cpu_model = self.cpu_model
-                graphics_type = self.graphics_type
+                boot_dev = current_boot_device
+                cpu_model = current_cpu_model
+                graphics_type = current_graphics_type
 
                 if xml_content:
                     from vm_queries import get_boot_info, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
@@ -477,7 +483,7 @@ class VMCard(Static):
                     self._boot_device_checked = True
 
                 if not stats:
-                    if self.status != StatusText.STOPPED:
+                    if current_status != StatusText.STOPPED:
                         self.app.call_from_thread(setattr, self, 'status', StatusText.STOPPED)
                     self.app.call_from_thread(setattr, self, 'ip_addresses', [])
                     self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
