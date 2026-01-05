@@ -279,7 +279,7 @@ class WebConsoleManager:
         remote_key_file = f"{remote_config_dir}/key.pem"
 
         # Fallback system directory
-        system_cert_dir = "/etc/virtui-manager/keys"
+        system_cert_dir = "/etc/" + AppInfo.name + "/keys"
         system_cert_file = f"{system_cert_dir}/cert.pem"
         system_key_file = f"{system_cert_dir}/key.pem"
         url_scheme = "http"
@@ -306,7 +306,7 @@ class WebConsoleManager:
                 url_scheme = "https"
                 self.app.call_from_thread(self.app.show_success_message, "Remote system cert/key found, using secure wss connection.")
             else:
-                self.app.call_from_thread(self.app.show_success_message, "No remote cert/key found, using insecure ws connection.")
+                self.app.call_from_thread(self.app.show_success_message, f"No remote cert/key found, using insecure ws connection. Create cert and key into /etc/{AppInfo.name}/keys directory (IE: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj /CN=localhost")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
             logging.warning(f"Could not check for remote certs: {e}. Proceeding without SSL options.")
             self.app.call_from_thread(self.app.show_success_message, "Could not check for remote cert/key, using insecure ws connection.")
