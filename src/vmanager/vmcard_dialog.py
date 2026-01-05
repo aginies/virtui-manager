@@ -9,9 +9,12 @@ from textual.widgets import (
         Button, Label, Checkbox, Select, Input, ListView, ListItem,
         Switch, Markdown,
         )
-from modals.base_modals import BaseDialog
+from modals.utils_modals import (
+    BaseModal, BaseDialog, show_warning_message
+)
 from config import load_config, save_config
 from constants import ButtonLabels, ButtonIds
+from vm_queries import is_qemu_agent_running
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     """A dialog to confirm VM deletion with an option to delete storage."""
@@ -203,16 +206,32 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
 class SnapshotNameDialog(BaseDialog[dict | None]):
     """A dialog to ask for a snapshot name."""
 
+    def __init__(self, domain=None) -> None:
+        super().__init__()
+        self.domain = domain
+
     def compose(self):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         default_name = datetime.now().strftime("snap_%Y%m%d_%H%M%S")
+        agent_running = is_qemu_agent_running(self.domain) if self.domain else False
+
+        if not agent_running and self.domain:
+            show_warning_message(self.app, "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot.")
+        else:
+            import logging
+            logging.info(f"HERE?? WHy {agent_running} {self.domain} {self.domain.isActive()}")
+
         yield Vertical(
             Label(f"Current time: {now}", id="timestamp-label"),
             Label("Enter snapshot name", id="question"),
             Input(value=default_name, placeholder="snapshot_name", id="name-input"),
             Label("Description (optional)"),
             Input(placeholder="snapshot description", id="description-input"),
-            Checkbox("Quiesce guest (requires agent)", id="quiesce-checkbox", tooltip="Pause the guest filesystem to ensure a clean snapshot. Requires QEMU Guest Agent to be running in the VM."),
+            Checkbox("Quiesce guest (requires agent)",
+                     value=agent_running,
+                     disabled=not agent_running,
+                     id="quiesce-checkbox",
+                     tooltip="Pause the guest filesystem to ensure a clean snapshot. Requires QEMU Guest Agent to be running in the VM."),
             Horizontal(
                 Button(ButtonLabels.CREATE, variant="success", id=ButtonIds.CREATE),
                 Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
