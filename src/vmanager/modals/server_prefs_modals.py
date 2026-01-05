@@ -77,7 +77,9 @@ class ServerPrefModal(BaseModal[None]):
                                 yield Button("Attach Vol", id="attach-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Attach an existing disk file as a volume.")
                                 yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Move the selected volume to another pool.")
                                 yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected volume.")
-                            yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="View XML details of the selected pool or volume.")
+                            with Vertical():
+                                yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="View XML details of the selected pool or volume.")
+                                yield Button("Edit XML", id="edit-pool-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="Edit XML of the selected pool.")
             #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
@@ -135,6 +137,7 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#move-vol-btn").display = False
         self.query_one("#del-vol-btn").display = False
         self.query_one("#view-storage-xml-btn").display = False
+        self.query_one("#edit-pool-xml-btn").display = False
 
 
     def _load_storage_pools(self, expand_pools: list[str] | None = None) -> None:
@@ -238,6 +241,7 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#del-vol-btn").display = is_volume
         self.query_one("#move-vol-btn").display = is_volume
         self.query_one("#view-storage-xml-btn").display = is_pool or is_volume
+        self.query_one("#edit-pool-xml-btn").display = is_pool
 
         if is_pool:
             is_active = node_data.get('status') == 'active'
@@ -275,6 +279,59 @@ class ServerPrefModal(BaseModal[None]):
             self.app.push_screen(XMLDisplayModal(xml_content, read_only=True))
         except libvirt.libvirtError as e:
             self.app.show_error_message(f"Error getting XML for {node_type}: {e}")
+
+    @on(Button.Pressed, "#edit-pool-xml-btn")
+    def on_edit_pool_xml_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle the Edit Pool XML button press."""
+        tree: Tree[dict] = self.query_one("#storage-tree")
+        if not tree.cursor_node or not tree.cursor_node.data:
+            return
+
+        node_data = tree.cursor_node.data
+        if node_data.get("type") != "pool":
+            return
+
+        pool = node_data.get('pool')
+        if not pool:
+            self.app.show_error_message("Could not find pool object to edit.")
+            return
+
+        if pool.isActive():
+            self.app.show_error_message("Pool must be inactive to edit its XML definition.")
+            return
+
+        def on_edit_confirm(confirmed: bool) -> None:
+            if not confirmed:
+                return
+
+            try:
+                xml_content = pool.XMLDesc(0)
+            except libvirt.libvirtError as e:
+                self.app.show_error_message(f"Error getting XML for pool: {e}")
+                return
+
+            def on_xml_save(new_xml: str | None) -> None:
+                if new_xml is None:
+                    return  # User cancelled
+
+                try:
+                    # Redefine the pool with the new XML
+                    self.conn.storagePoolDefineXML(new_xml, 0)
+                    self.app.show_success_message(f"Storage pool '{pool.name()}' updated successfully.")
+                    self._load_storage_pools()  # Refresh the tree
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error updating pool XML: {e}")
+                except Exception as e:
+                    self.app.show_error_message(f"An unexpected error occurred: {e}")
+
+            self.app.push_screen(XMLDisplayModal(xml_content, read_only=False), on_xml_save)
+
+        warning_message = (
+            "Editing a pool's XML definition is an advanced operation.\n"
+            "An invalid configuration may make its volumes inaccessible to VMs.\n\n"
+            "Are you sure you want to proceed?"
+        )
+        self.app.push_screen(ConfirmationDialog(warning_message), on_edit_confirm)
 
     @on(Button.Pressed, "#toggle-active-pool-btn")
     def on_toggle_active_pool_button_pressed(self, event: Button.Pressed) -> None:
