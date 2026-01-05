@@ -47,7 +47,8 @@ Select:focus {
 #server-pref-dialog,
 #edit-disk-dialog,
 #migration-dialog,
-#move-volume-dialog {
+#move-volume-dialog,
+#attach-volume-dialog {
     height: auto;
     border: round $primary;
     background: $surface;
@@ -57,6 +58,7 @@ Select:focus {
 /* Common centered alignment for various elements */
 .close-button,
 #add-disk-dialog,
+#attach-volume-dialog,
 #edit-disk-dialog,
 #remove-disk-dialog,
 #select-machine-type-dialog,
@@ -77,7 +79,7 @@ Select:focus {
 }
 #select-disk-dialog,
 #edit-disk-dialog {
-    height: 20;
+    height: 22;
     width: 50%;
     padding: 1 2;
 }
@@ -85,6 +87,7 @@ Select:focus {
 #connection-dialog { width: 60; }
 #filter-dialog { height: 20; }
 #move-volume-dialog { height: 20; }
+#attach-volume-dialog,
 #add-disk-dialog,
 #remove-disk-dialog,
 #select-machine-type-dialog,
@@ -120,7 +123,8 @@ Select:focus {
 #edit-memory-dialog,
 #directory-selection-dialog,
 #filter-dialog,
-#server-management-dialog {
+#server-management-dialog,
+#attach-volume-dialog {
     width: 64;
 }
 
@@ -144,6 +148,7 @@ Select:focus {
 #edit-server-dialog Label,
 #add-server-dialog Label,
 #add-disk-dialog Label,
+#attach-volume-dialog Label,
 #edit-disk-title Label,
 #create-network-dialog Label,
 #remove-disk-dialog Label,
@@ -162,6 +167,7 @@ Select:focus {
 #edit-server-dialog Input,
 #add-server-dialog Input,
 #add-disk-dialog Input,
+#attach-volume-dialog Input,
 #add-pool-dialog Input,
 #create-vm-dialog Input,
 #create-volume-dialog Input,
@@ -169,6 +175,7 @@ Select:focus {
 #remove-disk-dialog Input,
 #edit-cpu-dialog Input,
 #add-disk-dialog Select,
+#attach-volume-dialog Select,
 #remove-disk-dialog Select,
 #edit-memory-dialog Input {
     width: 100%;
@@ -191,6 +198,7 @@ Select:focus {
 #add-edit-virtiofs-dialog Horizontal,
 #add-pool-dialog Horizontal,
 #add-disk-dialog Horizontal,
+#attach-volume-dialog Horizontal,
 #remove-disk-dialog Horizontal,
 #edit-cpu-dialog Horizontal,
 #edit-memory-dialog Horizontal,
@@ -215,6 +223,7 @@ Select:focus {
 #create-vm-dialog Button,
 #add-edit-virtiofs-dialog Button,
 #add-disk-dialog Button,
+#attach-volume-dialog Button,
 #edit-disk-dialog Button,
 #create-volume-dialog Button,
 #remove-disk-dialog Button,
@@ -562,6 +571,7 @@ Select {
 #vol-format-select,
 #edit-bus-type,
 #edit-cache-mode,
+#edit-device-type,
 #edit-discard-mode,
 #server-select,
 #pool-type-select,
