@@ -1113,6 +1113,7 @@ class VMCard(Static):
                     else:
                         self.app.show_success_message("VM rename cancelled.")
 
+                    self.update_snapshot_tab_title()
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOTS_AND_RENAME.format(count=num_snapshots)),
                     on_confirm_delete
