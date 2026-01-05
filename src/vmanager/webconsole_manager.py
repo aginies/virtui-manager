@@ -188,12 +188,18 @@ class WebConsoleManager:
         remote_config_dir = "~/.config/" + AppInfo.name
         remote_cert_file = f"{remote_config_dir}/cert.pem"
         remote_key_file = f"{remote_config_dir}/key.pem"
+
+        # Fallback system directory
+        system_cert_dir = "/etc/virtui-manager/keys"
+        system_cert_file = f"{system_cert_dir}/cert.pem"
+        system_key_file = f"{system_cert_dir}/key.pem"
         url_scheme = "http"
 
-        # Check for remote certs and keys by attempting to add them to the command
+        # Check for remote certs and keys in both locations
         remote_config_check_cmd = (
-            f"if [ -f {remote_cert_file} ] && [ -f {remote_key_file} ]; then "
-            f"echo 'cert_exists'; else echo 'no_cert'; fi"
+            f"if [ -f {remote_cert_file} ] && [ -f {remote_key_file} ]; then echo 'user_cert'; "
+            f"elif [ -f {system_cert_file} ] && [ -f {system_key_file} ]; then echo 'system_cert'; "
+            "else echo 'no_cert'; fi"
         )
 
         try:
@@ -201,10 +207,15 @@ class WebConsoleManager:
                 ["ssh", remote_user_host, remote_config_check_cmd], 
                 capture_output=True, text=True, check=True, timeout=5
             )
-            if "cert_exists" in check_result.stdout:
+            stdout = check_result.stdout.strip()
+            if "user_cert" in stdout:
                 remote_websockify_cmd_list.extend(["--cert", remote_cert_file, "--key", remote_key_file])
                 url_scheme = "https"
-                self.app.call_from_thread(self.app.show_success_message, "Remote cert/key found, using secure wss connection.")
+                self.app.call_from_thread(self.app.show_success_message, "Remote user cert/key found, using secure wss connection.")
+            elif "system_cert" in stdout:
+                remote_websockify_cmd_list.extend(["--cert", system_cert_file, "--key", system_key_file])
+                url_scheme = "https"
+                self.app.call_from_thread(self.app.show_success_message, "Remote system cert/key found, using secure wss connection.")
             else:
                 self.app.call_from_thread(self.app.show_success_message, "No remote cert/key found, using insecure ws connection.")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
