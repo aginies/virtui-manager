@@ -1119,8 +1119,8 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
     new_xml = ET.tostring(root, encoding='unicode')
     conn.defineXML(new_xml)
 
-def set_vm_video_model(domain: libvirt.virDomain, model: str | None):
-    """Sets the video model for a VM."""
+def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bool | None = None):
+    """Sets the video model and 3D acceleration for a VM."""
     invalidate_cache(domain.UUIDString())
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change the video model.")
@@ -1130,37 +1130,52 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None):
 
     devices = root.find('devices')
     if devices is None:
-        if model is None:
-            return
+        if model is None or model == 'none':
+            return # No devices and no model to set, so nothing to do.
         devices = ET.SubElement(root, 'devices')
 
     video = devices.find('video')
+
+    # If model is being set to none, remove the entire video tag.
+    if model is None or model == 'none':
+        if video is not None:
+            devices.remove(video)
+        new_xml = ET.tostring(root, encoding='unicode')
+        domain.connect().defineXML(new_xml)
+        return
+
     if video is None:
-        if model is None:
-            return
         video = ET.SubElement(devices, 'video')
 
     model_elem = video.find('model')
+    if model_elem is None:
+        model_elem = ET.SubElement(video, 'model')
 
-    if model is None:
-        if model_elem is not None:
-            video.remove(model_elem)
-    else:
-        if model_elem is None:
-            model_elem = ET.SubElement(video, 'model')
+    # Check for existing acceleration before clearing (correct location)
+    existing_accel = False
+    existing_accel_node = model_elem.find('acceleration')
+    if existing_accel_node is not None and existing_accel_node.get('accel3d') == 'yes':
+        existing_accel = True
 
-        old_attribs = model_elem.attrib.copy()
-        model_elem.clear()
-        model_elem.set('type', model)
+    old_attribs = model_elem.attrib.copy()
+    model_elem.clear()
+    model_elem.set('type', model)
 
-        if model == 'virtio':
-            model_elem.set('heads', '1')
-            model_elem.set('primary', 'yes')
-        elif model == 'qxl':
-            model_elem.set('vram', old_attribs.get('vram', '65536'))
-            model_elem.set('ram', old_attribs.get('ram', '65536'))
-        else: # vga, cirrus etc.
-             model_elem.set('vram', old_attribs.get('vram', '16384'))
+    if model == 'virtio':
+        model_elem.set('heads', old_attribs.get('heads', '1'))
+        model_elem.set('primary', old_attribs.get('primary', 'yes'))
+    elif model == 'qxl':
+        model_elem.set('vram', old_attribs.get('vram', '65536'))
+        model_elem.set('ram', old_attribs.get('ram', '65536'))
+    else:  # vga, cirrus etc.
+        model_elem.set('vram', old_attribs.get('vram', '16384'))
+
+    # Handle 3D acceleration
+    final_accel = accel3d if accel3d is not None else existing_accel
+
+    if model in ['virtio', 'qxl'] and final_accel:
+        accel_elem = ET.SubElement(model_elem, 'acceleration')
+        accel_elem.set('accel3d', 'yes')
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
