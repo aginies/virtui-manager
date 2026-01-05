@@ -2,7 +2,7 @@
 Server pref modal
 Main interface
 """
-
+import os
 import libvirt
 from textual.app import ComposeResult
 from textual import on
@@ -17,7 +17,7 @@ from vm_queries import (
       get_all_vm_nvram_usage, get_all_vm_disk_usage,
       get_all_network_usage, get_all_vm_overlay_usage
       )
-from libvirt_utils import get_network_info
+from libvirt_utils import get_network_info, _find_pool_by_path
 from network_manager import (
       list_networks, get_vms_using_network, delete_network,
       set_network_active, set_network_autostart
@@ -30,6 +30,7 @@ from modals.disk_pool_modals import (
         AddPoolModal,
         CreateVolumeModal,
         MoveVolumeModal,
+        AttachVolumeModal,
         )
 from modals.utils_modals import ConfirmationDialog, ProgressModal
 from modals.xml_modals import XMLDisplayModal
@@ -71,9 +72,11 @@ class ServerPrefModal(BaseModal[None]):
                             with Vertical():
                                 yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button", tooltip="Add a new storage pool.")
                                 yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected storage pool.")
-                            yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Create a new volume in the selected pool.")
-                            yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Move the selected volume to another pool.")
-                            yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected volume.")
+                            with Vertical():
+                                yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Create a new volume in the selected pool.")
+                                yield Button("Attach Vol", id="attach-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Attach an existing disk file as a volume.")
+                                yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Move the selected volume to another pool.")
+                                yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected volume.")
                             yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="View XML details of the selected pool or volume.")
             #yield Button("Close", id="close-btn", classes="close-button")
 
@@ -128,6 +131,7 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#add-pool-btn").display = False
         self.query_one("#del-pool-btn").display = False
         self.query_one("#add-vol-btn").display = False
+        self.query_one("#attach-vol-btn").display = False
         self.query_one("#move-vol-btn").display = False
         self.query_one("#del-vol-btn").display = False
         self.query_one("#view-storage-xml-btn").display = False
@@ -242,6 +246,7 @@ class ServerPrefModal(BaseModal[None]):
             toggle_autostart_btn.label = "Autostart Off" if has_autostart else "Autostart On"
 
         self.query_one("#add-vol-btn").display = is_pool and is_active
+        self.query_one("#attach-vol-btn").display = is_pool and is_active
 
     @on(Button.Pressed, "#view-storage-xml-btn")
     def on_view_storage_xml_button_pressed(self, event: Button.Pressed) -> None:
@@ -343,6 +348,52 @@ class ServerPrefModal(BaseModal[None]):
                     self.app.show_error_message(str(e))
 
         self.app.push_screen(CreateVolumeModal(), on_create)
+
+    @on(Button.Pressed, "#attach-vol-btn")
+    def on_attach_volume_button_pressed(self, event: Button.Pressed) -> None:
+        def on_attach(result: dict | None) -> None:
+            if not result:
+                return
+
+            volume_path = result.get('path')
+            if not volume_path or not os.path.exists(volume_path):
+                self.app.show_error_message(f"Invalid or non-existent path: {volume_path}")
+                return
+
+            volume_dir = os.path.dirname(volume_path)
+            existing_pool = _find_pool_by_path(self.conn, volume_dir)
+
+            if existing_pool:
+                self.app.show_error_message(
+                    f"A pool named '{existing_pool.name()}' already manages this directory.\n\n"
+                    "The volume should already be listed in the pool."
+                    "If this is not the case deactivate and reactivate the pool to refresh the content."
+                )
+                self._load_storage_pools(expand_pools=[existing_pool.name()])
+                return
+
+            new_pool_name = f"pool_{os.path.basename(volume_dir)}".replace(" ", "_").replace(".", "_")
+
+            def on_confirm_create(confirmed: bool) -> None:
+                if confirmed:
+                    try:
+                        storage_manager.create_storage_pool(self.conn, new_pool_name, 'dir', volume_dir)
+                        self.app.show_success_message(
+                            f"Storage pool '{new_pool_name}' created for directory:\n{volume_dir}"
+                        )
+                        self._load_storage_pools(expand_pools=[new_pool_name])
+                    except Exception as e:
+                        self.app.show_error_message(f"Error creating storage pool: {e}")
+
+            self.app.push_screen(
+                ConfirmationDialog(
+                    f"No storage pool exists for the directory:\n'{volume_dir}'.\n\n"
+                    f"Create a new pool named '{new_pool_name}'?"
+                ),
+                on_confirm_create
+            )
+
+        self.app.push_screen(AttachVolumeModal(), on_attach)
 
     @on(Button.Pressed, "#add-pool-btn")
     def on_add_pool_button_pressed(self, event: Button.Pressed) -> None:
