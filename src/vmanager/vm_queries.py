@@ -1256,3 +1256,27 @@ def has_overlays(domain: libvirt.virDomain) -> bool:
     Checks if the VM has any disks that are overlays.
     """
     return len(get_overlay_disks(domain)) > 0
+
+
+def is_qemu_agent_running(domain: libvirt.virDomain) -> bool:
+    """
+    Checks if the QEMU guest agent is configured and likely running (VM is active).
+    This doesn't guarantee the agent inside the guest is actually up, but that the channel exists
+    and the VM is on.
+    """
+    if domain.isActive() == 0:
+        return False
+
+    try:
+        _, root = _get_domain_root(domain)
+        if root is None:
+            return False
+
+        devices_info = get_vm_devices_info(root)
+        if devices_info.get('qemu_guest_agent'):
+            return True
+
+    except Exception:
+        pass
+
+    return False
