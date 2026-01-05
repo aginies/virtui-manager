@@ -111,14 +111,12 @@ class WorkerManager:
     def cancel(self, name: str) -> bool:
         """Cancel a running worker by name. Returns True if cancelled, False otherwise."""
         if name in self.workers:
-            logging.info(f"Cancelling worker '{name}'.")
             self.workers[name].cancel()
             return True
         return False
 
     def cancel_all(self) -> None:
         """Cancel all running workers."""
-        logging.info("Cancelling all running workers.")
         for worker in list(self.workers.values()):
             worker.cancel()
         self.workers.clear()
