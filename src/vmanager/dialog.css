@@ -161,6 +161,7 @@ PasswordModal Button {
   margin-left: 1;
 }
 AddPoolModal #browse-dir-btn,
+AttachVolumeModal #browse-vol-btn,
 AddDiskModal #browse-disk-btn, {
   height: 3;
   width: 25%;
@@ -177,6 +178,7 @@ AddInputDeviceModal Select {
   margin-bottom: 1;
 }
 AddPoolModal #dir-target-path-input,
+AttachVolumeModal #vol-path-input,
 AddDiskModal #disk-path-input {
   width: 75%;
 }
@@ -308,6 +310,7 @@ SelectServerModal Checkbox {
 #cache-ttl-input,
 #stats-interval-input,
 #add-pool-btn #cancel-pool-btn,
+#attach-btn, #cancel-btn,
 #port-range-label {
   width: 25%;
   height: 1;

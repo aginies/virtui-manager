@@ -473,3 +473,66 @@ class MoveVolumeModal(BaseModal[dict]):
                 })
             else:
                 self.app.show_error_message("Destination pool and new name are required.")
+
+
+class AttachVolumeModal(BaseModal[dict | None]):
+    """Modal screen for attaching an existing disk file as a storage volume."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.detected_format: str | None = None
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="attach-volume-dialog"):
+            yield Label("Attach Existing Disk as Volume")
+            yield Input(placeholder="Volume Name (e.g., existing_disk.qcow2)", id="vol-name-input", disabled=True)
+            with Horizontal():
+                yield Input(placeholder="Path to disk image", id="vol-path-input")
+                yield Button("Browse", id="browse-vol-btn")
+            with Horizontal():
+                yield Button("Attach", variant="primary", id="attach-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
+
+    @on(Input.Changed, "#vol-path-input")
+    def on_vol_path_input_changed(self, event: Input.Changed) -> None:
+        if event.value:
+            # Set the volume name from the file name
+            vol_name_input = self.query_one("#vol-name-input", Input)
+            vol_name_input.value = os.path.basename(event.value)
+
+            # Autodetect format based on extension
+            ext = os.path.splitext(event.value)[1].lower()
+            if ext == ".qcow2":
+                self.detected_format = "qcow2"
+            elif ext in [".img", ".raw"]:
+                self.detected_format = "raw"
+            elif ext == ".iso":
+                self.detected_format = "iso"
+            else:
+                self.detected_format = "raw" # Default to raw if unknown
+        else:
+            self.detected_format = None
+            self.query_one("#vol-name-input", Input).value = ""
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "browse-vol-btn":
+            input_to_update = self.query_one("#vol-path-input", Input)
+            def on_file_selected(path: str | None) -> None:
+                if path:
+                    input_to_update.value = path
+
+            self.app.push_screen(FileSelectionModal(path=input_to_update.value), on_file_selected)
+            return
+
+        if event.button.id == "attach-btn":
+            name = self.query_one("#vol-name-input", Input).value
+            path = self.query_one("#vol-path-input", Input).value
+            vol_format = self.detected_format
+
+            if not name or not path or not vol_format:
+                self.app.show_error_message("Name, path, and format are required. Ensure a file is selected.")
+                return
+
+            self.dismiss({'name': name, 'path': path, 'format': vol_format})
+        elif event.button.id == "cancel-btn":
+            self.dismiss(None)
