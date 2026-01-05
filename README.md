@@ -34,13 +34,13 @@ Small improvement in the Virtual Memory usage compare to virt-manager:
 
 ### VM Management
 - **Complete Lifecycle Control**: Start, shutdown, force off, pause, resume, and delete VMs
-- **Advanced Operations**: Clone VMs with custom suffixes, bulk operations, snapshot management
+- **Advanced Operations**: Clone VMs with custom suffixes, bulk operations, snapshot management, disk overlays (external snapshots)
 - **Detailed Monitoring**: Real-time CPU, memory, disk, and network usage sparklines
-- **Flexible Configuration**: Edit CPU, memory, firmware, boot, disk, network, and graphics settings and more
+- **Flexible Configuration**: Edit CPU, memory, firmware, boot, disk, network, graphics settings (including 3D acceleration), and more
 
 ### Network & Storage Management
 - **Network Operations**: Create, edit, and manage virtual networks
-- **Storage Management**: Handle storage pools, volumes, and perform storage operations
+- **Storage Management**: Handle storage pools, volumes, perform storage operations, attach existing volumes, and edit pool paths
 - **VirtIO-FS Support**: Configure shared filesystems for enhanced VM performance
 
 ### Advanced Capabilities

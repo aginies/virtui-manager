@@ -25,12 +25,20 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 - View/Edit XML configuration
 - Connect to VM via virt-viewer
 - Web console access via novnc (when available)
+  - **Multi-session Support**: Support for multiple concurrent remote web console sessions via automatic port allocation/checking on the remote server.
   - When connecting to a remote libvirt server via SSH, the web console can be configured to run either locally (default) or directly on the remote server.
   - To enable running the web console on the remote server, set `REMOTE_WEBCONSOLE: True` in your `config.yaml`.
   - When `REMOTE_WEBCONSOLE` is enabled, `websockify` and `novnc` assets must be installed on the remote server at the paths specified in `config.yaml` (default: `/usr/bin/websockify` and `/usr/share/novnc/`).
   - For secure (HTTPS) remote web console access, `cert.pem` and `key.pem` files must also be present on the remote server in `~/.config/virtui-manager/`.
 - Bulk actions on selected VMs (start, stop, force off, pause, delete)
 - VM Migration (Live and Offline)
+
+### Disk Overlay Management (External Snapshots)
+- **Create Overlay**: Create a new QCOW2 overlay on top of the current disk (freezes base image).
+- **Discard Overlay**: Revert to the backing file and delete the overlay (discard changes).
+- **Commit Disk**: Merge changes from the overlay back into the base image (make changes permanent).
+- Visual management of overlay state.
+- Comparison guide between Internal Snapshots and External Overlays included in the UI.
 
 ### Advanced Features
 - Filter VMs by status (All, Running, Paused, Stopped) and search by name
@@ -69,6 +77,8 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 ### Disk Management
 - View all disks in a table format
 - Add new disk (create new or attach existing)
+- Create new disk in specific storage pool
+- Attach existing volume to VM
 - Attach existing disk from storage pools
 - Remove disk
 - Disable disk
@@ -95,6 +105,7 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 
 ### Video Configuration
 - Select video model (virtio, qxl, vga, cirrus, bochs, ramfb, none, default)
+- Enable/disable 3D acceleration (virtio only)
 - Video model selection is disabled when VM is running
 
 ### Graphics Configuration
@@ -170,6 +181,7 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 ### Storage Management
 - View storage pools in a tree format
 - Create new storage pool (directory or network file system)
+- Edit storage pool properties (path)
 - Delete storage pool with confirmation
 - Create new storage volume
 - Delete storage volume with confirmation
