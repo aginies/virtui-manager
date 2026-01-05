@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import signal
+import socket
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -18,7 +19,6 @@ import libvirt
 
 from constants import AppInfo
 from config import load_config, get_log_path
-from utils import find_free_port
 from vm_queries import get_vm_graphics_info
 from vmcard_dialog import WebConsoleDialog
 
@@ -81,7 +81,7 @@ class WebConsoleManager:
         sessions = self.load_sessions()
         if uuid not in sessions:
             return False
-        
+
         session = sessions[uuid]
         pid = session.get('pid')
         if not pid:
@@ -95,7 +95,7 @@ class WebConsoleManager:
             # Process is dead
             self.remove_session(uuid)
             return False
-            
+
         return True
 
     def start_console(self, vm, conn):
@@ -110,7 +110,7 @@ class WebConsoleManager:
             sessions = self.load_sessions()
             session = sessions[uuid]
             url = session.get('url')
-            
+
             # Simple stop callback (manual stop)
             stopper_worker = partial(self.stop_console, uuid, vm_name)
             def on_dialog_dismiss(result):
@@ -118,7 +118,7 @@ class WebConsoleManager:
                     self.app.worker_manager.run(
                         stopper_worker, name=f"stop_console_{uuid}"
                     )
-            
+
             self.app.call_from_thread(self.app.push_screen, WebConsoleDialog(url), on_dialog_dismiss)
             return
 
@@ -161,7 +161,7 @@ class WebConsoleManager:
         session = sessions[uuid]
         pid = session.get('pid')
         ssh_info = session.get('ssh_info', {})
-        
+
         # Kill local process (websockify or ssh tunnel leader)
         if pid:
             try:
@@ -191,10 +191,57 @@ class WebConsoleManager:
         self.remove_session(uuid)
         self.app.call_from_thread(self.app.show_success_message, "Web console stopped.")
 
-    def terminate_all(self):
-        """Terminates all running websockify and SSH tunnel processes (cleanup on exit if desired)."""
-        # User requested persistence, so we do NOT terminate all on app exit anymore.
-        pass
+    def _get_next_available_port(self, remote_host: str | None = None) -> int | None:
+        """
+        Finds the next available port by checking active sessions and OS availability.
+
+        Args:
+            remote_host: "user@host" for remote connections, or None for local connections.
+
+        Returns:
+            int: The next available port number, or None if no port is available.
+        """
+        sessions = self.load_sessions()
+        used_ports = set()
+
+        # Identify ports already reserved by our sessions
+        for session in sessions.values():
+            stype = session.get('type')
+
+            if remote_host:
+                # For remote: only care about ports used on THAT specific remote host
+                if stype == 'remote':
+                    ssh_info = session.get('ssh_info', {})
+                    if ssh_info.get('remote_host') == remote_host:
+                        port = session.get('port')
+                        if port:
+                            used_ports.add(int(port))
+            else:
+                if stype == 'local':
+                    port = session.get('port')
+                    if port:
+                        used_ports.add(int(port))
+
+        start_port = int(self.app.WC_PORT_RANGE_START)
+        end_port = int(self.app.WC_PORT_RANGE_END)
+
+        for port in range(start_port, end_port + 1):
+            if port in used_ports:
+                continue
+
+            if remote_host:
+                # Remote: We can't easily check OS availability without an extra SSH call per port.
+                return port
+            else:
+                # Local: Check OS availability
+                try:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.bind(('', port))
+                        return port
+                except OSError:
+                    continue
+
+        return None
 
     def _launch_remote_websockify(self, uuid: str, vm_name: str, conn, vnc_port: int, graphics_info: dict):
         """Launches websockify on the remote server via SSH and shows the console dialog."""
@@ -212,9 +259,9 @@ class WebConsoleManager:
             vnc_target_host = '127.0.0.1'
 
         # Find a free port for websockify on the remote server.
-        web_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
+        web_port = self._get_next_available_port(remote_user_host)
         if not web_port:
-            self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the web console.")
+            self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the web console (all ports in range used by other sessions).")
             return
 
         remote_websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
@@ -246,7 +293,7 @@ class WebConsoleManager:
 
         try:
             check_result = subprocess.run(
-                ["ssh", remote_user_host, remote_config_check_cmd], 
+                ["ssh", remote_user_host, remote_config_check_cmd],
                 capture_output=True, text=True, check=True, timeout=5
             )
             stdout = check_result.stdout.strip()
@@ -279,11 +326,11 @@ class WebConsoleManager:
 
         # Start detached process
         proc = subprocess.Popen(
-            ssh_command_list, 
-            stdout=subprocess.PIPE, 
-            stderr=subprocess.DEVNULL, 
+            ssh_command_list,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
-            text=True, 
+            text=True,
             encoding='utf-8',
             start_new_session=True  # Detach from parent
         )
@@ -311,7 +358,7 @@ class WebConsoleManager:
         url = f"{url_scheme}://{host}:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
 
         ssh_info = {"remote_pid": remote_pid, "remote_host": remote_user_host} if remote_pid else {}
-        
+
         # Save session
         session_data = {
             "pid": proc.pid,  # Local SSH PID
@@ -356,7 +403,7 @@ class WebConsoleManager:
         socket_name = f"vmanager_ssh_{uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
         control_socket = os.path.join(temp_dir, socket_name)
 
-        tunnel_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
+        tunnel_port = self._get_next_available_port(None)
         if not tunnel_port:
             self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the SSH tunnel.")
             return None, None, {}
@@ -370,8 +417,8 @@ class WebConsoleManager:
         try:
             # Detach SSH tunnel process
             subprocess.run(
-                ssh_cmd, 
-                check=True, 
+                ssh_cmd,
+                check=True,
                 timeout=10,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
@@ -390,7 +437,7 @@ class WebConsoleManager:
 
     def _launch_websockify(self, uuid: str, vm_name: str, host: str, port: int, ssh_info: dict):
         """Launches the websockify process and shows the console dialog."""
-        web_port = find_free_port(int(self.app.WC_PORT_RANGE_START), int(self.app.WC_PORT_RANGE_END))
+        web_port = self._get_next_available_port(None)
         if not web_port:
             self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the web console.")
             return
@@ -417,15 +464,15 @@ class WebConsoleManager:
 
             # Detach local process
             proc = subprocess.Popen(
-                websockify_cmd, 
-                stdout=subprocess.DEVNULL, 
+                websockify_cmd,
+                stdout=subprocess.DEVNULL,
                 stderr=log_file_handle,
                 stdin=subprocess.DEVNULL,
                 start_new_session=True # Detach from parent
             )
 
             url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
-            
+
             # Save session
             session_data = {
                 "pid": proc.pid,
