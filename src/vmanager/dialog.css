@@ -30,6 +30,8 @@ FileSelectionModal,
 ConfigModal,
 HowToNetworkModal,
 HowToOverlayModal,
+HowToVirtIOFSModal,
+HowToDiskModal,
 HowToSSHModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
@@ -55,6 +57,8 @@ FileSelectionModal > #file-selection-dialog,
 ConfigModal > #config-dialog,
 HowToOverlayModal > #howto-overlay-dialog,
 HowToNetworkModal > #howto-network-dialog,
+HowToDiskModal > #howto-disk-dialog,
+HowToVirtIOFSModal > #howto-virtiofs-dialog,
 HowToSSHModal > #howto-ssh-dialog {
   width: 60;
   padding: 1;
@@ -78,6 +82,8 @@ ConfirmationDialog > #dialog {
 FileSelectionModal > #file-selection-dialog,
 ConfigModal #config-dialog,
 HowToOverlayModal #howto-overlay-dialog,
+HowToDiskModal > #howto-disk-dialog,
+HowToVirtIOFSModal #howto-virtiofs-dialog,
 HowToNetworkModal #howto-network-dialog,
 HowToSSHModal #howto-ssh-dialog {
     width: 80;

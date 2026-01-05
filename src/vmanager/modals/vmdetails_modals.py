@@ -60,6 +60,8 @@ from modals.disk_pool_modals import (
           SelectPoolModal, AddDiskModal,
           SelectDiskModal, EditDiskModal
           )
+from modals.howto_disk_modal import HowToDiskModal
+from modals.howto_virtiofs_modal import HowToVirtIOFSModal
 from modals.network_modals import AddEditNetworkInterfaceModal
 from modals.input_modals import AddInputDeviceModal
 
@@ -1335,6 +1337,7 @@ class VMDetailModal(ModalScreen):
                             yield Button("Attach Existing Disk", id="detail_attach_disk", classes="detail-disks")
                             yield Button("Edit Disk", id="detail_edit_disk", classes="detail-disks", disabled=True)
                             yield remove_button
+                            yield Button("Help", id="detail_disk_help", classes="detail-disks")
 
                     with Horizontal(classes="button-details"):
                         yield disable_button
@@ -1380,6 +1383,7 @@ class VMDetailModal(ModalScreen):
                                 yield Button("Add", variant="primary", id="add-virtiofs-btn", classes="detail-disks")
                                 yield Button("Edit", variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")
                                 yield Button("Delete", variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
+                                yield Button("Help", id="detail_virtiofs_help", classes="detail-disks")
 
                 with TabPane("Video", id="detail-video-tab"):
                     with Vertical(classes="info-details"):
@@ -1860,6 +1864,9 @@ class VMDetailModal(ModalScreen):
                         except (libvirt.libvirtError, ValueError) as e:
                             self.app.show_error_message(f"Error removing input device: {e}")
                 self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+        elif event.button.id == "detail_virtiofs_help":
+            self.app.push_screen(HowToVirtIOFSModal())
 
         elif event.button.id == "add-virtiofs-btn":
             def add_virtiofs_callback(result):
@@ -2466,6 +2473,9 @@ class VMDetailModal(ModalScreen):
                 ),
                 edit_disk_callback
             )
+
+        elif event.button.id == "detail_disk_help":
+            self.app.push_screen(HowToDiskModal())
 
         elif event.button.id == "edit-cpu":
             def edit_cpu_callback(new_cpu_count):
