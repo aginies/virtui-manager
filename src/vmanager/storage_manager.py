@@ -147,6 +147,90 @@ def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_for
         logging.error(msg)
         raise Exception(msg) from e
 
+
+def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format: str):
+    """
+    Attaches an existing file as a storage volume in a pool.
+    """
+    if not pool.isActive():
+        msg = f"Pool '{pool.name()}' is not active."
+        logging.error(msg)
+        raise Exception(msg)
+
+    if not os.path.exists(path):
+        msg = f"File not found at path: {path}"
+        logging.error(msg)
+        raise Exception(msg)
+
+    capacity = os.path.getsize(path)
+    pool_xml = pool.XMLDesc(0)
+    root = ET.fromstring(pool_xml)
+    pool_type = root.get("type")
+
+    if pool_type == 'dir':
+        target_path_elem = root.find("target/path")
+        if target_path_elem is None:
+            raise Exception("Could not determine target path for 'dir' pool.")
+        pool_target_path = target_path_elem.text
+
+        # The destination path for the volume inside the pool's directory
+        dest_path = os.path.join(pool_target_path, name)
+
+        if os.path.abspath(path) != os.path.abspath(dest_path):
+            # If the source file is not already in the target directory with the correct name, copy it.
+            logging.info(f"Copying file from {path} to {dest_path}")
+            try:
+                shutil.copy(path, dest_path)
+            except Exception as e:
+                msg = f"Failed to copy file from {path} to {dest_path}: {e}"
+                logging.error(msg)
+                raise Exception(msg) from e
+        
+        vol_xml = f"""
+        <volume>
+            <name>{name}</name>
+            <capacity unit="bytes">{capacity}</capacity>
+            <target>
+                <format type='{vol_format}'/>
+            </target>
+        </volume>
+        """
+    else:
+        vol_xml = f"""
+        <volume>
+            <name>{name}</name>
+            <capacity unit="bytes">{capacity}</capacity>
+            <target>
+                <path>{path}</path>
+                <format type='{vol_format}'/>
+            </target>
+        </volume>
+        """
+    
+    try:
+        # Refresh the pool to make sure libvirt knows about the file if it was just copied.
+        pool.refresh(0)
+        vol = pool.storageVolLookupByName(name)
+        if vol:
+            logging.warning(f"Volume '{name}' already exists in pool '{pool.name()}'. Not creating.")
+            return
+    except libvirt.libvirtError:
+        pass
+
+    try:
+        pool.createXML(vol_xml, 0)
+        # Refresh again after creating the volume from XML
+        pool.refresh(0)
+    except libvirt.libvirtError as e:
+        # If creation fails, attempt to clean up the copied file
+        if pool_type == 'dir' and 'dest_path' in locals() and os.path.exists(dest_path):
+             if os.path.abspath(path) != os.path.abspath(dest_path):
+                os.remove(dest_path)
+        msg = f"Error attaching volume '{name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+
 def create_overlay_volume(pool: libvirt.virStoragePool, name: str, backing_vol_path: str, backing_vol_format: str = 'qcow2') -> libvirt.virStorageVol:
     """
     Creates a qcow2 overlay volume backed by another volume (backing file).
@@ -327,7 +411,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         raise Exception(msg)
 
     if vms_using_volume:
-        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}. Their configuration will be updated after the move.")
+        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}.\nTheir configuration will be updated after the move.\nWait Until the process is finished (can take a lot of time).")
 
     source_info = source_vol.info()
     source_capacity = source_info[1]
