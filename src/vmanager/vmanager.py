@@ -30,6 +30,11 @@ from modals.log_modal import LogModal
 from modals.server_modals import ServerManagementModal
 from modals.server_prefs_modals import ServerPrefModal
 from modals.select_server_modals import SelectOneServerModal, SelectServerModal
+from modals.utils_modals import (
+    show_error_message,
+    show_success_message,
+    show_warning_message,
+)
 from modals.vmanager_modals import (
     CreateVMModal,
     FilterModal,
@@ -43,7 +48,6 @@ from utils import (
     generate_webconsole_keys_if_needed,
 )
 from vm_queries import (
-    check_for_spice_vms,
     get_status,
 )
 from vm_service import VMService
@@ -375,16 +379,13 @@ class VMManagerTUI(App):
             self.show_error_message(f"Failed to connect to {uri}")
 
     def show_error_message(self, message: str):
-        logging.error(message)
-        self.notify(message, severity="error", timeout=10, title="Error!")
+        show_error_message(self, message)
 
     def show_success_message(self, message: str):
-        logging.info(message)
-        self.notify(message, timeout=10, title="Info")
+        show_success_message(self, message)
 
     def show_warning_message(self, message: str):
-        logging.warning(message)
-        self.notify(message, severity="warning", timeout=10, title="Warning")
+        show_warning_message(self, message)
 
     @on(Button.Pressed, "#select_server_button")
     def action_select_server(self) -> None:
