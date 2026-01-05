@@ -26,10 +26,11 @@ from vm_actions import (
         create_external_overlay, commit_disk_changes,
         discard_overlay
         )
+
 from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
-        get_vm_disks,
+        get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
         )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal
@@ -452,7 +453,6 @@ class VMCard(Static):
                 graphics_type = current_graphics_type
 
                 if xml_content:
-                    from vm_queries import get_boot_info, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
                     root = _parse_domain_xml(xml_content)
                     if root is not None:
                         # Always update from cache if available
@@ -465,7 +465,6 @@ class VMCard(Static):
                 elif not getattr(self, "_boot_device_checked", False):
                     # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
                     try:
-                        from vm_queries import _get_domain_root, get_boot_info, get_vm_cpu_details, get_vm_graphics_info
                         _, root = _get_domain_root(self.vm)
                         if root is not None:
                             boot_info = get_boot_info(self.conn, root)
@@ -923,6 +922,7 @@ class VMCard(Static):
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot take button press."""
         logging.info(f"Attempting to take snapshot for VM: {self.name}")
+
         def handle_snapshot_result(result: dict | None) -> None:
             if result:
                 name = result["name"]
@@ -937,7 +937,7 @@ class VMCard(Static):
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
             self.update_snapshot_tab_title()
-        self.app.push_screen(SnapshotNameDialog(), handle_snapshot_result)
+        self.app.push_screen(SnapshotNameDialog(self.vm), handle_snapshot_result)
 
     def _handle_snapshot_restore_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot restore button press."""
