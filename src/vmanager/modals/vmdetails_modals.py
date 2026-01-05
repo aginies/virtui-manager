@@ -11,7 +11,7 @@ from textual.widgets import (
         Select, Button, Input, Label,
         DataTable, Checkbox, RadioButton,
         RadioSet, TabbedContent, TabPane,
-        ListView, ListItem
+        ListView, ListItem, Static
         )
 from textual.containers import ScrollableContainer, Horizontal, Vertical, VerticalScroll
 from textual.reactive import reactive
@@ -22,7 +22,7 @@ from vm_queries import (
     get_vm_networks_info,
     get_vm_disks_info, get_vm_devices_info,
     get_supported_machine_types, get_vm_graphics_info,
-    get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
+    get_vm_sound_model,
     get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info, get_vm_video_info,
     get_attached_usb_devices, get_serial_devices, get_vm_input_info,
     get_vm_watchdog_info, get_attached_pci_devices
@@ -1281,10 +1281,11 @@ class VMDetailModal(ModalScreen):
                     with Vertical(classes="info-details"):
                         yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label", classes="tabd")
                         yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
+                        yield Static(classes="button-separator")
 
                         # CPU Model Selection
                         current_cpu_model = self.vm_info.get('cpu_model', 'default')
-                        yield Label(f"CPU Model: {current_cpu_model}", id="cpu-model-label", classes="tabd")
+                        yield Label(f"CPU Model:", id="cpu-model-label", classes="tabd")
 
                         arch_elem = xml_root.find(".//os/type")
                         arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64'
@@ -1309,6 +1310,7 @@ class VMDetailModal(ModalScreen):
                     with Vertical(classes="info-details"):
                         yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label", classes="tabd")
                         yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
+                        yield Static(classes="button-separator")
                         yield Checkbox("Shared Memory", value=self.vm_info.get('shared_memory', False), id="shared-memory-checkbox", classes="shared-memory", disabled=not self.is_vm_stopped)
                 with TabPane("Firmware", id="detail-firmware-tab"):
                     with Vertical(classes="info-details"):
@@ -1317,8 +1319,8 @@ class VMDetailModal(ModalScreen):
                         firmware_path = firmware_info.get('path')
 
                         yield Label(f"Firmware: {firmware_type}", id="firmware-type-label")
-                        if firmware_path:
-                            yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
+                        #if firmware_path:
+                        #    yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
 
                         if firmware_type == 'UEFI':
                             yield Checkbox(
@@ -1335,12 +1337,14 @@ class VMDetailModal(ModalScreen):
                                 disabled=not self.is_vm_stopped,
                                 allow_blank=True,
                             )
+                            yield Static(classes="button-separator")
                             yield Button("Switch to BIOS", id="switch-to-bios", disabled=not self.is_vm_stopped)
                         else:
                             yield Button("Switch to UEFI", id="switch-to-uefi", disabled=not self.is_vm_stopped)
 
 
                         if "machine_type" in self.vm_info:
+                            yield Static(classes="button-separator")
                             yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
                             yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
 
@@ -1468,7 +1472,7 @@ class VMDetailModal(ModalScreen):
 
                         video_model_options = [(model, model) for model in video_models]
 
-                        yield Label(f"Video Model: {current_model}", id="video-model-label")
+                        yield Label(f"Video Model:", id="video-model-label")
                         yield Select(
                             video_model_options,
                             value=current_model,
@@ -1476,6 +1480,7 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
                         )
+                        yield Static(classes="button-separator")
                         yield Checkbox(
                             "3D Acceleration",
                             id="video-3d-accel-checkbox",
@@ -1493,7 +1498,7 @@ class VMDetailModal(ModalScreen):
 
                         sound_model_options = [(model, model) for model in sound_models]
 
-                        yield Label(f"Sound Model: {current_sound_model}", id="sound-model-label")
+                        yield Label(f"Sound Model:", id="sound-model-label")
                         yield Select(
                             sound_model_options,
                             value=current_sound_model if current_sound_model in sound_models else "none",
@@ -1605,7 +1610,7 @@ class VMDetailModal(ModalScreen):
                         yield Label("Host device")
                         yield Input(value=current_path, id="rng-host-device")
                         yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
-        # TOFIX !
+
                 with TabPane("Serial", id="detail-serial-tab"):
                     with ScrollableContainer(classes="info-details"):
                         yield DataTable(id="serial-table", cursor_type="row")
@@ -1621,7 +1626,7 @@ class VMDetailModal(ModalScreen):
                         yield Label("Watchdog Model:")
                         
                         watchdog_models = [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")]
-                        
+
                         # Add current model if not in list to prevent crash
                         known_models = [m[1] for m in watchdog_models]
                         if watchdog_model not in known_models:

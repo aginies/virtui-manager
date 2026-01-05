@@ -521,8 +521,9 @@ Select:focus {
 ListView > ListItem { height: 1; padding: 0 0; content-align-vertical: middle; border: none; }
 ListView > ListItem:hover { height: 1; background: $primary-darken-2; border: none; }
 #disks-table,
+#detail-virtiofs-tab,
 #networks-table { 
-   height: 12; margin: 1 1; border: none; 
+   height: 10; margin: 1 1; border: none;
 }
 .existing-networks-list { background: $surface; height: 5; border: round $primary; }
 #machine-type-list, #disk-selection-list { background: $surface; height: 25; border: round $primary; }
