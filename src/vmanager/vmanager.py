@@ -347,6 +347,8 @@ class VMManagerTUI(App):
 
     def on_resize(self, event):
         """Handle terminal resize events."""
+        if not self.is_mounted:
+            return
         if self._resize_timer:
             self._resize_timer.stop()
         self._resize_timer = self.set_timer(0.5, self._update_layout_for_size)
