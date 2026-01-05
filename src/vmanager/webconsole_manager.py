@@ -28,6 +28,22 @@ class WebConsoleManager:
 
     SESSION_FILE = Path.home() / ".config" / AppInfo.name / "console_sessions.json"
 
+    # Optimized websockify wrapper to limit TCP buffers for high concurrency/slow connections
+    _OPTIMIZED_WEBSOCKIFY_WRAPPER = """
+import socket, sys
+from websockify import websocketproxy as wp
+class O(wp.ProxyRequestHandler):
+    def do_proxy(self, t):
+        for s in [self.request, t]:
+            try: s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            except: pass
+            try: s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+            except: pass
+        super().do_proxy(t)
+wp.ProxyRequestHandler = O
+wp.websockify_init()
+"""
+
     def __init__(self, app):
         self.app = app
         self.config = load_config()
@@ -267,9 +283,11 @@ class WebConsoleManager:
         remote_websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
         remote_novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
 
-        # Construct the websockify command to run on the remote server
+        # Construct the websockify command to run on the remote server using the optimized wrapper
+        # remote_websockify_path, "--run-once", "--verbose", str(web_port),
         remote_websockify_cmd_list = [
-            remote_websockify_path, "--run-once", "--verbose", str(web_port),
+            "python3", "-c", f"'{self._OPTIMIZED_WEBSOCKIFY_WRAPPER}'",
+            "--run-once", "--verbose", str(web_port),
             f"{vnc_target_host}:{vnc_port}", "--web", remote_novnc_path
         ]
 
@@ -445,8 +463,10 @@ class WebConsoleManager:
         websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
         novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
 
+        #websockify_path, "--run-once", str(web_port),
         websockify_cmd = [
-            websockify_path, "--run-once", str(web_port),
+            "python3", "-c", self._OPTIMIZED_WEBSOCKIFY_WRAPPER,
+            "--run-once", str(web_port),
             f"{host}:{port}", "--web", novnc_path
         ]
 
