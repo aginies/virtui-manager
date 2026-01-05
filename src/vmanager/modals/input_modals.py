@@ -14,18 +14,18 @@ class InputModal(BaseModal[str | None]):
         self.initial_value = initial_value
 
     def compose(self) -> ComposeResult:
-         with Vertical(id="input-modal-container"):
-             yield Label(self.prompt)
-             yield Input(value=self.initial_value, id="text-input")
-             with Horizontal():
-                 yield Button("OK", variant="primary", id="ok-btn")
-                 yield Button("Cancel", variant="default", id="cancel-btn")
+        with Vertical(id="add-input-container"):
+            yield Label(self.prompt)
+            yield Input(value=self.initial_value, id="text-input")
+            with Horizontal():
+                yield Button("OK", variant="primary", id="ok-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ok-btn":
-             self.dismiss(self.query_one(Input).value)
+            self.dismiss(self.query_one(Input).value)
         else:
-             self.dismiss(None)
+            self.dismiss(None)
 
 class AddInputDeviceModal(BaseModal[None]):
     """A modal for adding a new input device."""
