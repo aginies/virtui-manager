@@ -1,8 +1,10 @@
 """
 Main Webconsole management functions
 """
+import json
 import logging
 import os
+import signal
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
@@ -24,11 +26,43 @@ from vmcard_dialog import WebConsoleDialog
 class WebConsoleManager:
     """Manages websockify processes and SSH tunnels for web console access."""
 
+    SESSION_FILE = Path.home() / ".config" / AppInfo.name / "console_sessions.json"
+
     def __init__(self, app):
         self.app = app
         self.config = load_config()
-        self.processes = {}  # Replaces app.websockify_processes
         self._lock = RLock()
+        self._ensure_session_file()
+
+    def _ensure_session_file(self):
+        if not self.SESSION_FILE.parent.exists():
+            self.SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if not self.SESSION_FILE.exists():
+            with open(self.SESSION_FILE, 'w') as f:
+                json.dump({}, f)
+
+    def load_sessions(self):
+        with self._lock:
+            try:
+                with open(self.SESSION_FILE, 'r') as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, FileNotFoundError):
+                return {}
+
+    def save_session(self, uuid, data):
+        with self._lock:
+            sessions = self.load_sessions()
+            sessions[uuid] = data
+            with open(self.SESSION_FILE, 'w') as f:
+                json.dump(sessions, f, indent=4)
+
+    def remove_session(self, uuid):
+        with self._lock:
+            sessions = self.load_sessions()
+            if uuid in sessions:
+                del sessions[uuid]
+                with open(self.SESSION_FILE, 'w') as f:
+                    json.dump(sessions, f, indent=4)
 
     @staticmethod
     def is_remote_connection(uri: str) -> bool:
@@ -43,38 +77,52 @@ class WebConsoleManager:
 
 
     def is_running(self, uuid: str) -> bool:
-        """Check if a web console process is running for a given VM UUID."""
-        with self._lock:
-            if uuid in self.processes:
-                proc, _, _, _, _ = self.processes[uuid]
-                if proc.poll() is None:
-                    return True
-                else:
-                    # Process has terminated, clean it up to prevent stale entries
-                    del self.processes[uuid]
-                    return False
-        return False
+        """Check if a web console process is running for a given VM UUID using stored session."""
+        sessions = self.load_sessions()
+        if uuid not in sessions:
+            return False
+        
+        session = sessions[uuid]
+        pid = session.get('pid')
+        if not pid:
+            self.remove_session(uuid)
+            return False
+
+        # Check if process exists (for local process ID)
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            # Process is dead
+            self.remove_session(uuid)
+            return False
+            
+        return True
 
     def start_console(self, vm, conn):
         """Starts a web console for a given VM."""
-        self.config = load_config()  # Reload config to get latest settings
+        self.config = load_config()
         logging.info(f"Web console requested for VM: {vm.name()}")
         uuid = vm.UUIDString()
         vm_name = vm.name()
 
+        # Check for existing valid session
         if self.is_running(uuid):
-            with self._lock:
-                _, _, url, _, _ = self.processes[uuid]
-
+            sessions = self.load_sessions()
+            session = sessions[uuid]
+            url = session.get('url')
+            
+            # Simple stop callback (manual stop)
             stopper_worker = partial(self.stop_console, uuid, vm_name)
             def on_dialog_dismiss(result):
                 if result == "stop":
                     self.app.worker_manager.run(
                         stopper_worker, name=f"stop_console_{uuid}"
                     )
+            
             self.app.call_from_thread(self.app.push_screen, WebConsoleDialog(url), on_dialog_dismiss)
             return
 
+        # Start new session
         try:
             xml_content = vm.XMLDesc(0)
             root = ET.fromstring(xml_content)
@@ -106,53 +154,47 @@ class WebConsoleManager:
 
     def stop_console(self, uuid: str, vm_name: str):
         """Stops the websockify process and any associated SSH tunnel."""
-        with self._lock:
-            if uuid not in self.processes:
-                return
+        sessions = self.load_sessions()
+        if uuid not in sessions:
+            return
 
-            websockify_proc, _, _, ssh_info, _ = self.processes[uuid]
-            websockify_proc.terminate()
+        session = sessions[uuid]
+        pid = session.get('pid')
+        ssh_info = session.get('ssh_info', {})
+        
+        # Kill local process (websockify or ssh tunnel leader)
+        if pid:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                logging.info(f"Terminated local process {pid} for {vm_name}")
+            except OSError as e:
+                logging.warning(f"Failed to terminate process {pid} for {vm_name}: {e}")
 
-            if ssh_info:
-                self._stop_ssh_tunnel(vm_name, ssh_info)
+        # Handle remote cleanup if needed
+        remote_pid = ssh_info.get("remote_pid")
+        remote_host = ssh_info.get("remote_host")
+        if remote_pid and remote_host:
+            try:
+                logging.info(f"Killing remote websockify process {remote_pid} on {remote_host}")
+                subprocess.run(
+                    ["ssh", remote_host, f"kill {remote_pid}"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                )
+            except Exception as e:
+                logging.warning(f"Failed to kill remote websockify {remote_pid} on {remote_host}: {e}")
 
-            if uuid in self.processes:
-                del self.processes[uuid]
+        # Stop SSH tunnel if exists
+        self._stop_ssh_tunnel(vm_name, ssh_info)
+
+        self.remove_session(uuid)
         self.app.call_from_thread(self.app.show_success_message, "Web console stopped.")
 
     def terminate_all(self):
-        """Terminates all running websockify and SSH tunnel processes."""
-        with self._lock:
-            for uuid, process_data in list(self.processes.items()):
-                vm_name = process_data[4]
-                self.stop_console(uuid, vm_name)
-
-    def _monitor_and_kill_service(self, uuid: str, vm_name: str, proc: subprocess.Popen):
-        """Monitors a process's stderr for a connection and then stops it."""
-        if not proc.stderr:
-            return
-
-        try:
-            for line in iter(proc.stderr.readline, ''):
-                line = line.strip()
-                logging.debug(f"websockify[{vm_name}]: {line}")
-
-                if "INFO: connection from" in line:
-                    logging.info(f"Web console client connected for {vm_name}. Scheduling service stop in 2 seconds.")
-
-                    stopper_worker = partial(self.stop_console, uuid, vm_name)
-                    self.app.call_later(
-                        2,
-                        lambda: self.app.worker_manager.run(
-                            stopper_worker, name=f"stop_console_{uuid}"
-                        ),
-                    )
-                    break
-        except Exception as e:
-            logging.error(f"Error monitoring websockify for {vm_name}: {e}")
-        finally:
-            if proc.stderr:
-                proc.stderr.close()
+        """Terminates all running websockify and SSH tunnel processes (cleanup on exit if desired)."""
+        # User requested persistence, so we do NOT terminate all on app exit anymore.
+        pass
 
     def _launch_remote_websockify(self, uuid: str, vm_name: str, conn, vnc_port: int, graphics_info: dict):
         """Launches websockify on the remote server via SSH and shows the console dialog."""
@@ -224,30 +266,61 @@ class WebConsoleManager:
 
         remote_websockify_cmd_str = " ".join(remote_websockify_cmd_list)
 
+        # Wrap command to capture PID and redirect stderr to stdout
+        # "exec" replaces the shell, so $$ is the shell's PID which becomes websockify's PID
+        remote_cmd = f"echo $$; exec {remote_websockify_cmd_str} 2>&1"
+
         ssh_command_list = [
             "ssh", remote_user_host,
-            remote_websockify_cmd_str
+            remote_cmd
         ]
 
-        logging.info(f"Executing remote websockify command: {' '.join(ssh_command_list)}")
+        logging.info(f"Executing remote websockify command: {remote_cmd}")
 
-        proc = subprocess.Popen(ssh_command_list, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding='utf-8')
+        # Start detached process
+        proc = subprocess.Popen(
+            ssh_command_list, 
+            stdout=subprocess.PIPE, 
+            stderr=subprocess.DEVNULL, 
+            stdin=subprocess.DEVNULL,
+            text=True, 
+            encoding='utf-8',
+            start_new_session=True  # Detach from parent
+        )
 
-        monitor_callable = partial(
-            self._monitor_and_kill_service, uuid, vm_name, proc
-        )
-        self.app.worker_manager.run(
-            monitor_callable,
-            name=f"monitor_{vm_name}",
-            group="webconsole_monitors",
-        )
+        # Read the first line to get the remote PID
+        remote_pid = None
+        try:
+            pid_line = proc.stdout.readline()
+            if pid_line:
+                try:
+                    remote_pid = int(pid_line.strip())
+                    logging.info(f"Remote websockify PID: {remote_pid}")
+                except ValueError:
+                    logging.warning(f"Failed to parse remote PID, got: {pid_line.strip()}")
+            else:
+                logging.warning("Failed to get remote PID: stdout is empty")
+        except Exception as e:
+            logging.error(f"Error reading remote PID: {e}")
+        finally:
+            # Close output stream to allow full detachment
+            proc.stdout.close()
 
         quality = self.config.get('VNC_QUALITY', 0)
         compression = self.config.get('VNC_COMPRESSION', 9)
         url = f"{url_scheme}://{host}:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
 
-        with self._lock:
-            self.processes[uuid] = (proc, web_port, url, {}, vm_name)
+        ssh_info = {"remote_pid": remote_pid, "remote_host": remote_user_host} if remote_pid else {}
+        
+        # Save session
+        session_data = {
+            "pid": proc.pid,  # Local SSH PID
+            "url": url,
+            "ssh_info": ssh_info,
+            "port": web_port,
+            "type": "remote"
+        }
+        self.save_session(uuid, session_data)
 
         stopper_worker = partial(self.stop_console, uuid, vm_name)
         def on_dialog_dismiss(result):
@@ -295,7 +368,15 @@ class WebConsoleManager:
         ]
 
         try:
-            subprocess.run(ssh_cmd, check=True, timeout=10)
+            # Detach SSH tunnel process
+            subprocess.run(
+                ssh_cmd, 
+                check=True, 
+                timeout=10,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
             logging.info(f"SSH tunnel created for VM {vm_name} via {control_socket}")
             return '127.0.0.1', tunnel_port, {"control_socket": control_socket}
         except FileNotFoundError:
@@ -334,11 +415,26 @@ class WebConsoleManager:
                 url_scheme = "https"
                 self.app.call_from_thread(self.app.show_success_message, "Found cert/key, using secure wss connection.")
 
-            proc = subprocess.Popen(websockify_cmd, stdout=subprocess.DEVNULL, stderr=log_file_handle)
+            # Detach local process
+            proc = subprocess.Popen(
+                websockify_cmd, 
+                stdout=subprocess.DEVNULL, 
+                stderr=log_file_handle,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True # Detach from parent
+            )
 
             url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
-            with self._lock:
-                self.processes[uuid] = (proc, web_port, url, ssh_info, vm_name)
+            
+            # Save session
+            session_data = {
+                "pid": proc.pid,
+                "url": url,
+                "ssh_info": ssh_info,
+                "port": web_port,
+                "type": "local"
+            }
+            self.save_session(uuid, session_data)
 
             stopper_worker = partial(self.stop_console, uuid, vm_name)
             def on_dialog_dismiss(result):
