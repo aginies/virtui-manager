@@ -5,6 +5,7 @@ import logging
 import os
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -76,7 +77,8 @@ class WebConsoleManager:
 
         try:
             xml_content = vm.XMLDesc(0)
-            graphics_info = get_vm_graphics_info(xml_content)
+            root = ET.fromstring(xml_content)
+            graphics_info = get_vm_graphics_info(root)
 
             if graphics_info.get('type') != 'vnc':
                 self.app.call_from_thread(self.app.show_error_message, "Web console only supports VNC graphics.")
