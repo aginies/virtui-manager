@@ -4,13 +4,29 @@ Usefull Modal screen
 import os
 import pathlib
 from typing import Iterable
+import logging
+from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
         Label, Button, DirectoryTree, LoadingIndicator,
         Markdown, ProgressBar, Log
         )
-from textual.app import ComposeResult
 from modals.base_modals import BaseModal, BaseDialog
+
+def show_error_message(app, message: str):
+    """Shows an error notification."""
+    logging.error(message)
+    app.notify(message, severity="error", timeout=10, title="Error!")
+
+def show_success_message(app, message: str):
+    """Shows a success notification."""
+    logging.info(message)
+    app.notify(message, timeout=10, title="Info")
+
+def show_warning_message(app, message: str):
+    """Shows a warning notification."""
+    logging.warning(message)
+    app.notify(message, severity="warning", timeout=10, title="Warning")
 
 class SafeDirectoryTree(DirectoryTree):
     """
