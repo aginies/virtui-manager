@@ -217,9 +217,6 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
 
         if not agent_running and self.domain:
             show_warning_message(self.app, "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot.")
-        else:
-            import logging
-            logging.info(f"HERE?? WHy {agent_running} {self.domain} {self.domain.isActive()}")
 
         yield Vertical(
             Label(f"Current time: {now}", id="timestamp-label"),
