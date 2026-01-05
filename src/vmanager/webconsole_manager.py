@@ -350,7 +350,8 @@ wp.websockify_init()
             stdin=subprocess.DEVNULL,
             text=True,
             encoding='utf-8',
-            start_new_session=True  # Detach from parent
+            start_new_session=True,  # Detach from parent
+            close_fds=True
         )
 
         # Read the first line to get the remote PID
@@ -488,7 +489,8 @@ wp.websockify_init()
                 stdout=subprocess.DEVNULL,
                 stderr=log_file_handle,
                 stdin=subprocess.DEVNULL,
-                start_new_session=True # Detach from parent
+                start_new_session=True, # Detach from parent
+                close_fds=True
             )
 
             url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
