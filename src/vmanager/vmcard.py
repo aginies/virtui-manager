@@ -63,7 +63,7 @@ class VMCard(Static):
     cpu_model = reactive("")
 
     webc_status_indicator = reactive("")
-    graphics_type = reactive("vnc")
+    graphics_type = reactive(None)
     server_border_color = reactive("green")
     is_selected = reactive(False)
     stats_view_mode = reactive("resources") # "resources" or "io"
@@ -461,7 +461,8 @@ class VMCard(Static):
                             boot_dev = boot_info['order'][0]
                         cpu_model = get_vm_cpu_details(root) or ""
                         graphics_info = get_vm_graphics_info(root)
-                        graphics_type = graphics_info.get("type", "vnc")
+                        graphics_type = graphics_info.get("type")
+                        logging.info(f"{graphics_type}")
                 elif not getattr(self, "_boot_device_checked", False):
                     # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
                     try:
@@ -472,23 +473,24 @@ class VMCard(Static):
                                 boot_dev = boot_info['order'][0]
                             cpu_model = get_vm_cpu_details(root) or ""
                             graphics_info = get_vm_graphics_info(root)
-                            graphics_type = graphics_info.get("type", "vnc")
+                            graphics_type = graphics_info.get("type")
 
                             # Opportunistically populate cache to avoid future fetches
                             # This is safe because we are in a worker thread
                             self.app.vm_service._get_domain_info_and_xml(self.vm)
+                            self._boot_device_checked = True
                     except Exception:
                         pass
-                    self._boot_device_checked = True
 
                 if not stats:
                     if current_status != StatusText.STOPPED:
                         self.app.call_from_thread(setattr, self, 'status', StatusText.STOPPED)
-                    self.app.call_from_thread(setattr, self, 'ip_addresses', [])
-                    self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
-                    self.app.call_from_thread(setattr, self, 'cpu_model', cpu_model)
-                    self.app.call_from_thread(setattr, self, 'graphics_type', graphics_type)
-                    return
+                        self.app.call_from_thread(setattr, self, 'ip_addresses', [])
+                        self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
+                        self.app.call_from_thread(setattr, self, 'cpu_model', cpu_model)
+                        self.app.call_from_thread(setattr, self, 'graphics_type', graphics_type)
+                    else:
+                        return
 
                 # Fetch IPs if running (check stats status, not UI status which might be stale)
                 ips = []
@@ -579,6 +581,7 @@ class VMCard(Static):
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
         self.ui[ButtonIds.CONNECT].display = (is_running or is_paused) and self.app.virt_viewer_available
+        logging.info(f"graphics_type: {self.graphics_type}")
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused) and self.graphics_type == "vnc" and self.app.websockify_available and self.app.novnc_available
         self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
         self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
