@@ -905,7 +905,6 @@ class VMManagerTUI(App):
                     vm_card.memory = data['memory']
                     vm_card.vm = data['domain']
                     vm_card.conn = data['conn']
-                    vm_card.graphics_type = "vnc"
                     vm_card.server_border_color = self.get_server_color(data['uri'])
                     vm_card.cpu_model = ""
                     self.vm_cards[uuid] = vm_card

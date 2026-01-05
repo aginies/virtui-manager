@@ -373,6 +373,10 @@ class VMCard(Static):
         """Called when cpu_model changes."""
         self._update_tooltip()
 
+    def watch_graphics_type(self, old_value: str, new_value: str) -> None:
+        """Called when graphics_type changes."""
+        self.update_button_layout()
+
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
         if not self.ui:
@@ -452,35 +456,37 @@ class VMCard(Static):
                 cpu_model = current_cpu_model
                 graphics_type = current_graphics_type
 
-                if xml_content:
-                    root = _parse_domain_xml(xml_content)
-                    if root is not None:
-                        # Always update from cache if available
-                        boot_info = get_boot_info(self.conn, root)
-                        if boot_info['order']:
-                            boot_dev = boot_info['order'][0]
-                        cpu_model = get_vm_cpu_details(root) or ""
-                        graphics_info = get_vm_graphics_info(root)
-                        graphics_type = graphics_info.get("type")
-                        logging.info(f"{graphics_type}")
-                elif not getattr(self, "_boot_device_checked", False):
-                    # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
-                    try:
-                        _, root = _get_domain_root(self.vm)
+
+                if not getattr(self, "_boot_device_checked", False):
+                    if xml_content:
+                        root = _parse_domain_xml(xml_content)
                         if root is not None:
+                            # Always update from cache if available
                             boot_info = get_boot_info(self.conn, root)
                             if boot_info['order']:
                                 boot_dev = boot_info['order'][0]
                             cpu_model = get_vm_cpu_details(root) or ""
                             graphics_info = get_vm_graphics_info(root)
                             graphics_type = graphics_info.get("type")
-
-                            # Opportunistically populate cache to avoid future fetches
-                            # This is safe because we are in a worker thread
-                            self.app.vm_service._get_domain_info_and_xml(self.vm)
                             self._boot_device_checked = True
-                    except Exception:
-                        pass
+                    else:
+                        # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
+                        try:
+                            _, root = _get_domain_root(self.vm)
+                            if root is not None:
+                                boot_info = get_boot_info(self.conn, root)
+                                if boot_info['order']:
+                                    boot_dev = boot_info['order'][0]
+                                cpu_model = get_vm_cpu_details(root) or ""
+                                graphics_info = get_vm_graphics_info(root)
+                                graphics_type = graphics_info.get("type")
+
+                                # Opportunistically populate cache to avoid future fetches
+                                # This is safe because we are in a worker thread
+                                self.app.vm_service._get_domain_info_and_xml(self.vm)
+                                self._boot_device_checked = True
+                        except Exception:
+                            pass
 
                 if not stats:
                     if current_status != StatusText.STOPPED:
@@ -694,8 +700,8 @@ class VMCard(Static):
             overlay_disks = get_overlay_disks(self.vm)
 
             if not overlay_disks:
-                  self.app.show_error_message("No overlay disks found.")
-                  return
+                self.app.show_error_message("No overlay disks found.")
+                return
 
             def proceed_with_discard(target_disk: str | None):
                 if not target_disk:
@@ -727,7 +733,7 @@ class VMCard(Static):
                 )
 
         except Exception as e:
-             self.app.show_error_message(f"Error preparing discard overlay: {e}")
+            self.app.show_error_message(f"Error preparing discard overlay: {e}")
 
 
     def _handle_commit_disk(self, event: Button.Pressed) -> None:
@@ -1129,6 +1135,7 @@ class VMCard(Static):
     def _handle_configure_button(self, event: Button.Pressed) -> None:
         """Handles the configure button press."""
         try:
+            self._boot_device_checked = False
             self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
