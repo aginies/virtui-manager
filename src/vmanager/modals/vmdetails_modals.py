@@ -23,7 +23,7 @@ from vm_queries import (
     get_vm_disks_info, get_vm_devices_info,
     get_supported_machine_types, get_vm_graphics_info,
     get_all_vm_nvram_usage, get_all_vm_disk_usage, get_vm_sound_model,
-    get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info,
+    get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info, get_vm_video_info,
     get_attached_usb_devices, get_serial_devices, get_vm_input_info,
     get_vm_watchdog_info, get_attached_pci_devices
     )
@@ -109,10 +109,12 @@ class VMDetailModal(ModalScreen):
         except ET.ParseError:
             root = None
 
-        self.graphics_info = get_vm_graphics_info(root)
         self.vm_info['sound_model'] = get_vm_sound_model(root)
+        video_info = get_vm_video_info(root)
+        self.vm_info['video_model'] = video_info.get('model', 'none')
+        self.vm_info['video'] = video_info
+        self.graphics_info = get_vm_graphics_info(root)
         self.rng_info = get_vm_rng_info(root)
-        # Initialize TPM info
         self.tpm_info = get_vm_tpm_info(root)
         self.watchdog_info = get_vm_watchdog_info(root)
 
@@ -179,6 +181,9 @@ class VMDetailModal(ModalScreen):
                     pass
 
             self._update_uefi_options()
+
+        # Initialize Video tab
+        self._update_video_tab_state()
 
         # Initialize Graphics tab values
         self._update_graphics_ui()
@@ -657,24 +662,64 @@ class VMDetailModal(ModalScreen):
             else:
                 event.control.clear()
 
+    def _update_video_tab_state(self) -> None:
+        """Updates the state of widgets in the Video tab based on current selections."""
+        try:
+            model_select = self.query_one("#video-model-select", Select)
+            accel_checkbox = self.query_one("#video-3d-accel-checkbox", Checkbox)
+
+            current_model = model_select.value
+            supports_accel = current_model in ['virtio', 'qxl']
+
+            accel_checkbox.display = supports_accel
+            accel_checkbox.disabled = not self.is_vm_stopped or not supports_accel
+        except Exception as e:
+            logging.error(f"Error updating video tab state: {e}")
+
     @on(Select.Changed, "#video-model-select")
     def on_video_model_changed(self, event: Select.Changed) -> None:
+        self._update_video_tab_state()
         new_model = event.value
-        current_model = self.vm_info.get('video_model') or "default"
+        current_model = self.vm_info['video_model']
 
         if new_model == current_model:
             return
 
+        accel_checkbox = self.query_one("#video-3d-accel-checkbox", Checkbox)
+        accel3d_enabled = accel_checkbox.display and accel_checkbox.value
+
         try:
-            set_vm_video_model(self.domain, new_model if new_model != "default" else None)
+            set_vm_video_model(self.domain, new_model if new_model != "default" else None, accel3d=accel3d_enabled)
             self._invalidate_cache()
             self.app.show_success_message(f"Video model set to {new_model}")
             self.query_one("#video-model-label").update(f"Video Model: {new_model}")
-            self.vm_info['video_model'] = new_model if new_model != "default" else None
+            if 'video' not in self.vm_info:
+                self.vm_info['video'] = {}
+            self.vm_info['video']['model'] = new_model if new_model != "default" else None
+            self.vm_info['video']['accel3d'] = accel3d_enabled
+            self.vm_info['video_model'] = new_model
         except (libvirt.libvirtError, Exception) as e:
             self.app.show_error_message(f"Error setting video model: {e}")
             # Revert selection
-            event.control.value = current_model
+            event.control.value = self.vm_info.get('video', {}).get('model', 'none')
+            self._update_video_tab_state()
+
+    @on(Checkbox.Changed, "#video-3d-accel-checkbox")
+    def on_video_3d_accel_changed(self, event: Checkbox.Changed) -> None:
+        current_model = self.query_one("#video-model-select", Select).value
+        accel3d_enabled = event.value
+
+        try:
+            set_vm_video_model(self.domain, current_model, accel3d=accel3d_enabled)
+            self._invalidate_cache()
+            self.app.show_success_message(f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}.")
+            if 'video' not in self.vm_info:
+                self.vm_info['video'] = {}
+            self.vm_info['video']['accel3d'] = accel3d_enabled
+        except (libvirt.libvirtError, Exception) as e:
+            self.app.show_error_message(f"Error setting 3D acceleration: {e}")
+            event.checkbox.value = not accel3d_enabled # Revert on failure
+
 
     @on(Select.Changed, "#sound-model-select")
     def on_sound_model_changed(self, event: Select.Changed) -> None:
@@ -1387,7 +1432,7 @@ class VMDetailModal(ModalScreen):
 
                 with TabPane("Video", id="detail-video-tab"):
                     with Vertical(classes="info-details"):
-                        current_model = self.vm_info.get('video_model') or "default"
+                        current_model = self.vm_info.get('video_model') or "none"
 
                         video_models = []
                         try:
@@ -1417,15 +1462,25 @@ class VMDetailModal(ModalScreen):
                         if 'none' not in video_models:
                             video_models.append('none')
 
+                        # Ensure current model is in the list
+                        if current_model and current_model not in video_models:
+                            video_models.append(current_model)
+
                         video_model_options = [(model, model) for model in video_models]
 
                         yield Label(f"Video Model: {current_model}", id="video-model-label")
                         yield Select(
                             video_model_options,
-                            value=current_model if current_model in video_models else "default",
+                            value=current_model,
                             id="video-model-select",
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
+                        )
+                        yield Checkbox(
+                            "3D Acceleration",
+                            id="video-3d-accel-checkbox",
+                            value=self.vm_info.get('video', {}).get('accel3d', False),
+                            disabled=True
                         )
 
                 with TabPane("Sound", id="detail-sound-tab"):
