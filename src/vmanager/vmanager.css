@@ -520,7 +520,10 @@ Select:focus {
 /* List & Table styles */
 ListView > ListItem { height: 1; padding: 0 0; content-align-vertical: middle; border: none; }
 ListView > ListItem:hover { height: 1; background: $primary-darken-2; border: none; }
-.networks-table { height: 18; margin: 1 1; border: round $primary; }
+#disks-table,
+#networks-table { 
+   height: 12; margin: 1 1; border: none; 
+}
 .existing-networks-list { background: $surface; height: 5; border: round $primary; }
 #machine-type-list, #disk-selection-list { background: $surface; height: 25; border: round $primary; }
 
