@@ -75,6 +75,7 @@ def get_vm_info(conn):
                 'watchdog': get_vm_watchdog_info(root),
                 'tpm': get_vm_tpm_info(root),
                 'input': get_vm_input_info(root),
+                'video': get_vm_video_info(root),
                 'boot': get_boot_info(conn, root),
                 'detail_network': get_vm_network_ip(domain),
                 'network_dns_gateway': get_vm_network_dns_gateway_info(domain, root=root),
@@ -385,15 +386,6 @@ def get_vm_devices_info(root: ET.Element) -> dict:
                     'index': controller_elem.get('index')
                 })
 
-            # video
-            for video_elem in devices.findall('video'):
-                model_elem = video_elem.find('model')
-                if model_elem is not None:
-                    devices_info['video'].append({
-                        'type': model_elem.get('type'),
-                        'vram': model_elem.get('vram'),
-                        'heads': model_elem.get('heads'),
-                    })
             # watchdog
             for watchdog_elem in devices.findall('watchdog'):
                 devices_info['watchdog'].append({
@@ -793,6 +785,28 @@ def get_vm_sound_model(root: ET.Element) -> str | None:
     except Exception:
         pass
     return None
+
+def get_vm_video_info(root: ET.Element) -> dict:
+    """
+    Extracts video model and 3D acceleration info from a VM's XML definition.
+    """
+    video_info = {
+        'model': 'none',
+        'accel3d': False,
+    }
+    if root is None:
+        return video_info
+    try:
+        model_elem = root.find('.//devices/video/model')
+        if model_elem is not None:
+            video_info['model'] = model_elem.get('type', 'none')
+
+            accel_elem = model_elem.find('acceleration')
+            if accel_elem is not None:
+                video_info['accel3d'] = accel_elem.get('accel3d') == 'yes'
+    except Exception:
+        pass # Return default info on error
+    return video_info
 
 def get_vm_tpm_info(root: ET.Element) -> list[dict]:
     """
