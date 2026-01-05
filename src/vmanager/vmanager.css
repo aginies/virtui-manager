@@ -589,6 +589,7 @@ Select {
     border: none;
 }
 .net-forward-input,
+#pool-select,
 .disk-format-select {
     border: hidden;
     height: 4;

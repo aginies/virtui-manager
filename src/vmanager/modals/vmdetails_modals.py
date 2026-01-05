@@ -2154,24 +2154,69 @@ class VMDetailModal(ModalScreen):
             self.app.push_screen(SelectMachineTypeModal(supported_machine_types, current_machine_type), on_machine_type_selected)
 
         elif event.button.id == "detail_add_disk":
-            def add_disk_callback(result):
-                if result:
-                    try:
+            all_pools = storage_manager.list_storage_pools(self.conn)
+            active_pools = [p['name'] for p in all_pools if p['status'] == 'active']
+
+            if not active_pools:
+                self.app.show_error_message("No active storage pools available to create a new disk.")
+                # Allow proceeding if they want to attach an existing file not in a pool
+                # but for creation, it's a dead-end. We let the AddDiskModal handle the UX.
+
+            def add_disk_callback(result: dict | None) -> None:
+                if not result:
+                    return
+
+                try:
+                    target_dev = None
+                    # Case 1: Create a new volume in a selected pool
+                    if result.get("create"):
+                        pool_name = result.get("pool")
+                        vol_name = result.get("disk_path") # This holds the volume name
+
+                        pool_obj = next((p['pool'] for p in all_pools if p['name'] == pool_name), None)
+
+                        if not pool_obj:
+                            raise ValueError(f"Storage pool '{pool_name}' not found.")
+
+                        # Create the volume in the selected pool
+                        storage_manager.create_volume(
+                            pool_obj,
+                            vol_name,
+                            result["size_gb"],
+                            result["disk_format"]
+                        )
+                        self.app.show_success_message(f"Volume '{vol_name}' created in pool '{pool_name}'.")
+
+                        # Get the path of the newly created volume for attaching
+                        new_vol = pool_obj.storageVolLookupByName(vol_name)
+                        disk_path_to_attach = new_vol.path()
+
+                        # Attach the newly created volume to the VM
+                        target_dev = add_disk(
+                            self.domain,
+                            disk_path_to_attach,
+                            device_type=result["device_type"],
+                            bus=result["bus"],
+                            create=False  # Set to False as the volume is already created
+                        )
+                    # Case 2: Attach an existing disk from a file path
+                    else:
                         target_dev = add_disk(
                             self.domain,
                             result["disk_path"],
                             device_type=result["device_type"],
                             bus=result["bus"],
-                            create=result["create"],
-                            size_gb=result["size_gb"],
-                            disk_format=result["disk_format"],
+                            create=False # It's an existing file
                         )
-                        self._invalidate_cache()
-                        self.app.show_success_message(f"Disk added as {target_dev}")
-                        self._update_disk_list()
-                    except Exception as e:
-                        self.app.show_error_message(f"Error adding disk: {e}")
-            self.app.push_screen(AddDiskModal(), add_disk_callback)
+
+                    self._invalidate_cache()
+                    self.app.show_success_message(f"Disk successfully added as {target_dev}.")
+                    self._update_disk_list()
+
+                except (libvirt.libvirtError, ValueError, KeyError, Exception) as e:
+                    self.app.show_error_message(f"Error adding disk: {e}")
+
+            self.app.push_screen(AddDiskModal(pools=active_pools), add_disk_callback)
         elif event.button.id == "detail_attach_disk":
             all_pools = storage_manager.list_storage_pools(self.conn)
             active_pools = [p for p in all_pools if p['status'] == 'active']

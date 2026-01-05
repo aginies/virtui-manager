@@ -100,15 +100,29 @@ class RemoveDiskModal(BaseModal[str | None]):
 class AddDiskModal(BaseModal[dict | None]):
     """Modal screen for adding a new disk."""
 
+    def __init__(self, pools: list[str] | None = None) -> None:
+        super().__init__()
+        self.pools = pools or []
+
     def compose(self) -> ComposeResult:
-        with Vertical(id="add-disk-dialog"):
+        with ScrollableContainer(id="add-disk-dialog"):
             yield Label("Add New Disk")
             with Horizontal():
-                yield Input(placeholder="Path to disk image or ISO", id="disk-path-input")
+                yield Input(placeholder="Path to existing disk image or ISO", id="disk-path-input")
                 yield Button("Browse", id="browse-disk-btn")
             yield Checkbox("Create new disk image", id="create-disk-checkbox")
+
+            # Fields for creating a new disk
+            yield Select(
+                [(pool, pool) for pool in self.pools],
+                id="pool-select",
+                disabled=True,
+                prompt="Select Storage Pool"
+            )
+            yield Input(placeholder="Volume Name (e.g., new-disk.qcow2)", id="volume-name-input", disabled=True)
             yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
-            yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2", classes="disk-format-select")
+            yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2")
+
             yield Checkbox("CD-ROM", id="cdrom-checkbox")
             yield Select(
                 [("virtio", "virtio"), ("sata", "sata"), ("scsi", "scsi"), ("ide", "ide"), ("usb", "usb")],
@@ -150,15 +164,22 @@ class AddDiskModal(BaseModal[dict | None]):
 
     @on(Checkbox.Changed, "#create-disk-checkbox")
     def on_create_disk_checkbox_changed(self, event: Checkbox.Changed) -> None:
-        self.query_one("#disk-size-input", Input).disabled = not event.value
-        self.query_one("#disk-format-select", Select).disabled = not event.value
+        is_creating = event.value
+        self.query_one("#pool-select", Select).disabled = not is_creating
+        self.query_one("#volume-name-input", Input).disabled = not is_creating
+        self.query_one("#disk-size-input", Input).disabled = not is_creating
+        self.query_one("#disk-format-select", Select).disabled = not is_creating
+
+        # When creating a new disk, the path input is for the name, not a path
+        self.query_one("#disk-path-input", Input).disabled = is_creating
+        self.query_one("#browse-disk-btn", Button).disabled = is_creating
+        
         # If creating a disk, it cannot be a CD-ROM
-        if event.value:
+        if is_creating:
             cdrom_checkbox = self.query_one("#cdrom-checkbox", Checkbox)
             if cdrom_checkbox.value:
                  cdrom_checkbox.value = False
                  self.on_cdrom_checkbox_changed(Checkbox.Changed(cdrom_checkbox, value=False)) # Trigger its handler
-
 
     @on(Checkbox.Changed, "#cdrom-checkbox")
     def on_cdrom_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -184,24 +205,42 @@ class AddDiskModal(BaseModal[dict | None]):
 
         if event.button.id == "add-btn":
             import re
-            disk_path = self.query_one("#disk-path-input", Input).value
             create_disk = self.query_one("#create-disk-checkbox", Checkbox).value
-            disk_size_str = self.query_one("#disk-size-input", Input).value
-            disk_format = self.query_one("#disk-format-select", Select).value
             is_cdrom = self.query_one("#cdrom-checkbox", Checkbox).value
             bus = self.query_one("#disk-bus-select", Select).value
 
-            numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
-            disk_size = int(numeric_part) if numeric_part else 10
-
             result = {
-                "disk_path": disk_path,
                 "create": create_disk,
-                "size_gb": disk_size,
-                "disk_format": disk_format,
                 "device_type": "cdrom" if is_cdrom else "disk",
                 "bus": bus,
             }
+
+            if create_disk:
+                pool = self.query_one("#pool-select", Select).value
+                vol_name = self.query_one("#volume-name-input", Input).value
+                disk_size_str = self.query_one("#disk-size-input", Input).value
+                disk_format = self.query_one("#disk-format-select", Select).value
+
+                if not all([pool, vol_name, disk_size_str]):
+                    self.app.show_error_message("Pool, Volume Name, and Size are required to create a new disk.")
+                    return
+                
+                numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
+                disk_size = int(numeric_part) if numeric_part else 10
+
+                result.update({
+                    "pool": pool,
+                    "disk_path": vol_name, # For creation, path is the name
+                    "size_gb": disk_size,
+                    "disk_format": disk_format,
+                })
+            else:
+                disk_path = self.query_one("#disk-path-input", Input).value
+                if not disk_path:
+                    self.app.show_error_message("Path to disk image is required.")
+                    return
+                result["disk_path"] = disk_path
+            
             self.dismiss(result)
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
