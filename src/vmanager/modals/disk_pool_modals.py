@@ -272,7 +272,7 @@ class AddPoolModal(BaseModal[bool | None]):
                 yield Label("Target Path (for volumes)")
                 with Vertical():
                     with Horizontal():
-                        yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/<pool_name>")
+                        yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/>")
                         yield Button("Browse", id="browse-dir-btn")
 
             # Fields for `netfs` type
@@ -293,8 +293,8 @@ class AddPoolModal(BaseModal[bool | None]):
                     yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
 
             with Horizontal():
-                yield Button("Add", variant="primary", id="add-pool-btn")
-                yield Button("Cancel", variant="default", id="cancel-pool-btn")
+                yield Button("Add", variant="primary", id="add-btn")
+                yield Button("Cancel", variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:
         self.query_one("#netfs-fields").display = False
