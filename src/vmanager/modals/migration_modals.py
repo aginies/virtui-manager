@@ -280,7 +280,7 @@ class MigrationModal(ModalScreen):
                         flags |= libvirt.VIR_MIGRATE_NON_SHARED_DISK
                         params = {libvirt.VIR_MIGRATE_PARAM_MIGRATE_DISKS: "*"}
                         write_log("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
-                        vm.migrateToURI3(self.dest_conn, params, flags)
+                        vm.migrateToURI3(self.dest_conn.getURI(), params, flags)
                     else:
                         write_log("[dim]Using migrate for offline migration without storage copy.[/dim]")
                         vm.migrate(self.dest_conn, flags, None, None, 0)
