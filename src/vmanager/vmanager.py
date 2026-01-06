@@ -142,6 +142,8 @@ class VMManagerTUI(App):
     virt_viewer_available = reactive(True)
     websockify_available = reactive(True)
     novnc_available = reactive(True)
+    initial_cache_loading = reactive(False)
+    initial_cache_complete = reactive(False)
 
     @staticmethod
     def _get_initial_active_uris(servers_list, autoconnect=False):
@@ -301,10 +303,56 @@ class VMManagerTUI(App):
             self.show_success_message(
                 "No servers configured. Please add one via 'Servers List'."
             )
+        else:
+            # Launch initial cache loading before displaying VMs
+            for uri in self.active_uris:
+                self.connect_libvirt(uri)
+            
+            if self.active_uris:
+                self.initial_cache_loading = True
+                self.show_success_message("Loading VM data from remote server(s)...")
+                self.worker_manager.run(
+                    self._initial_cache_worker, 
+                    name="initial_cache_load"
+                )
 
-        for uri in self.active_uris:
-            self.connect_libvirt(uri)
-        # self.refresh_vm_list()
+    def _initial_cache_worker(self):
+        """Pre-loads VM cache before displaying the UI."""
+        try:
+            # Force cache update and fetch all VM data
+            domains_to_display, total_vms, total_filtered_vms, server_names = self.vm_service.get_vms(
+                self.active_uris,
+                self.servers,
+                self.sort_by,
+                self.search_text,
+                set(),
+                force=True
+            )
+            
+            # Pre-cache info and XML for all VMs
+            for domain, conn in domains_to_display:
+                try:
+                    # This will populate the cache
+                    self.vm_service._get_domain_info_and_xml(domain)
+                except libvirt.libvirtError:
+                    pass  # Skip VMs that fail
+            
+            # Mark initial cache as complete
+            self.call_from_thread(self._on_initial_cache_complete)
+            
+        except Exception as e:
+            self.call_from_thread(
+                self.show_error_message, 
+                f"Error during initial cache loading: {e}"
+            )
+            self.call_from_thread(self._on_initial_cache_complete)
+
+    def _on_initial_cache_complete(self):
+        """Called when initial cache loading is complete."""
+        self.initial_cache_loading = False
+        self.initial_cache_complete = True
+        self.show_success_message("VM data loaded. Displaying VMs...")
+        self.refresh_vm_list()
 
     def _update_layout_for_size(self):
         """Update the layout based on the terminal size."""
@@ -779,6 +827,10 @@ class VMManagerTUI(App):
 
     def refresh_vm_list(self, force: bool = False) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
+        # Don't display VMs until initial cache is complete
+        if self.initial_cache_loading and not self.initial_cache_complete:
+            return
+
         # Try to run the worker. If it's already running, this will do nothing.
         selected_uuids = set(self.selected_vm_uuids)
         current_page = self.current_page

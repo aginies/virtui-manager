@@ -168,6 +168,51 @@ class VMService:
             if uuid in self._uuid_to_conn_cache:
                 del self._uuid_to_conn_cache[uuid]
 
+    def _update_domain_cache(self, active_uris: list[str], force: bool = False, preload: bool = False):
+        """Updates the domain and connection cache."""
+        with self._active_uris_lock:
+            current_set = set(self._active_uris)
+            new_set = set(active_uris)
+            if current_set != new_set:
+                self._active_uris = list(active_uris)
+                force = True
+
+        if force:
+            # Synchronous update of domain list
+            active_connections = []
+            for uri in active_uris:
+                conn = self.connect(uri)
+                if conn:
+                    active_connections.append(conn)
+
+            new_domain_cache = {}
+            new_uuid_to_conn = {}
+
+            for conn in active_connections:
+                try:
+                    domains = conn.listAllDomains(0) or []
+                    for domain in domains:
+                        uuid = domain.UUIDString()
+                        new_domain_cache[uuid] = domain
+                        new_uuid_to_conn[uuid] = conn
+                except libvirt.libvirtError:
+                    pass
+
+            with self._cache_lock:
+                self._domain_cache = new_domain_cache
+                self._uuid_to_conn_cache = new_uuid_to_conn
+
+        if preload:
+            # Pre-load info for all domains to warm up the cache
+            with self._cache_lock:
+                 domains = list(self._domain_cache.values())
+
+            for domain in domains:
+                try:
+                    self._get_domain_info_and_xml(domain)
+                except libvirt.libvirtError:
+                    pass
+
     def _update_target_uris(self, active_uris: list[str], force: bool = False):
         with self._active_uris_lock:
             current_set = set(self._active_uris)
@@ -709,7 +754,7 @@ class VMService:
 
     def get_vms(self, active_uris: list[str], servers: list[dict], sort_by: str, search_text: str, selected_vm_uuids: set[str], force: bool = False) -> tuple:
         """Fetch, filter, and return VM data without creating UI components."""
-        self._update_target_uris(active_uris, force=force)
+        self._update_domain_cache(active_uris, force=force, preload=force)
 
         with self._cache_lock:
              domains_map = self._domain_cache.copy()
