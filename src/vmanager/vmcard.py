@@ -35,7 +35,8 @@ from vm_queries import (
         get_status
         )
 from modals.xml_modals import XMLDisplayModal
-from modals.utils_modals import ConfirmationDialog, ProgressModal
+from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
+from modals.vmdetails_modals import VMDetailModal
 from modals.migration_modals import MigrationModal
 from modals.disk_pool_modals import SelectDiskModal
 from modals.howto_overlay_modal import HowToOverlayModal
@@ -1214,7 +1215,44 @@ class VMCard(Static):
         """Handles the configure button press."""
         try:
             self._boot_device_checked = False
-            self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+            
+            uuid = self.vm.UUIDString()
+            vm_name = self.name
+            active_uris = list(self.app.active_uris)
+
+            loading_modal = LoadingModal()
+            self.app.push_screen(loading_modal)
+
+            def get_details_worker():
+                try:
+                    result = self.app.vm_service.get_vm_details(active_uris, uuid)
+                    
+                    def show_details():
+                        loading_modal.dismiss()
+                        if not result:
+                            self.app.show_error_message(f"VM {vm_name} with UUID {uuid} not found on any active server.")
+                            return
+                        
+                        vm_info, domain, conn_for_domain = result
+                        
+                        def on_detail_modal_dismissed(res):
+                            self.app.refresh_vm_list(force=True)
+
+                        self.app.push_screen(
+                            VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_cache),
+                            on_detail_modal_dismissed
+                        )
+                    
+                    self.app.call_from_thread(show_details)
+
+                except Exception as e:
+                    def show_error():
+                        loading_modal.dismiss()
+                        self.app.show_error_message(f"Error getting details for {vm_name}: {e}")
+                    self.app.call_from_thread(show_error)
+
+            self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
+
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                 self.app.refresh_vm_list()
