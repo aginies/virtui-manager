@@ -1393,14 +1393,14 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
     domain.connect().defineXML(new_xml)
 
 
-def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str, tpm_type: str = 'emulated', device_path: str = None, backend_type: str = None, backend_path: str = None):
+def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str | None, tpm_type: str = 'emulated', device_path: str = None, backend_type: str = None, backend_path: str = None):
     """
-    Sets TPM configuration for a VM.
+    Sets TPM configuration for a VM. If tpm_model is None, removes the TPM device.
     The VM must be stopped.
     
     Args:
         domain: libvirt domain object
-        tpm_model: TPM model (e.g., 'tpm-crb', 'tpm-tis')
+        tpm_model: TPM model (e.g., 'tpm-crb', 'tpm-tis') or None to remove.
         tpm_type: Type of TPM ('emulated' or 'passthrough')
         device_path: Path to TPM device (required for passthrough)
         backend_type: Backend type (e.g., 'emulator', 'passthrough')
@@ -1415,6 +1415,8 @@ def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str, tpm_type: str = 'emula
 
     devices = root.find('devices')
     if devices is None:
+        if tpm_model is None:
+            return # Nothing to do
         devices = ET.SubElement(root, 'devices')
 
     # Remove existing TPM elements
@@ -1422,16 +1424,18 @@ def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str, tpm_type: str = 'emula
     for elem in existing_tpm_elements:
         devices.remove(elem)
 
-    # Create new TPM element
-    tpm_elem = ET.SubElement(devices, 'tpm', model=tpm_model)
+    # If model is None, we are just removing the device.
+    if tpm_model is not None:
+        # Create new TPM element
+        tpm_elem = ET.SubElement(devices, 'tpm', model=tpm_model)
 
-    if tpm_type == 'passthrough':
-        backend_elem = ET.SubElement(tpm_elem, 'backend', type='passthrough')
-        if device_path:
-            ET.SubElement(backend_elem, 'device', path=device_path)
-    elif tpm_type == 'emulated':
-        # For emulated TPM, add a backend of type 'emulator'
-        ET.SubElement(tpm_elem, 'backend', type='emulator')
+        if tpm_type == 'passthrough':
+            backend_elem = ET.SubElement(tpm_elem, 'backend', type='passthrough')
+            if device_path:
+                ET.SubElement(backend_elem, 'device', path=device_path)
+        elif tpm_type == 'emulated':
+            # For emulated TPM, add a backend of type 'emulator'
+            ET.SubElement(tpm_elem, 'backend', type='emulator')
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
