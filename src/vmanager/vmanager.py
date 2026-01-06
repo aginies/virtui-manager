@@ -34,6 +34,7 @@ from modals.utils_modals import (
     show_error_message,
     show_success_message,
     show_warning_message,
+    LoadingModal,
 )
 from modals.vmanager_modals import (
     CreateVMModal,
@@ -554,7 +555,22 @@ class VMManagerTUI(App):
     def action_server_preferences(self) -> None:
         """Show server preferences modal, prompting for a server if needed."""
         def launch_server_prefs(uri: str):
-            self.push_screen(ServerPrefModal(uri=uri))
+            if WebConsoleManager.is_remote_connection(uri):
+                loading = LoadingModal()
+                self.push_screen(loading)
+                
+                def show_prefs():
+                    try:
+                        modal = ServerPrefModal(uri=uri)
+                        self.call_from_thread(loading.dismiss)
+                        self.call_from_thread(self.push_screen, modal)
+                    except Exception as e:
+                        self.call_from_thread(loading.dismiss)
+                        self.call_from_thread(self.show_error_message, f"Error launching preferences: {e}")
+
+                self.worker_manager.run(show_prefs, name="launch_server_prefs")
+            else:
+                self.push_screen(ServerPrefModal(uri=uri))
 
         self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
 

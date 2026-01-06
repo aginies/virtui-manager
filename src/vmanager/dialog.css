@@ -32,6 +32,7 @@ HowToNetworkModal,
 HowToOverlayModal,
 HowToVirtIOFSModal,
 HowToDiskModal,
+LoadingModal,
 HowToSSHModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
@@ -321,4 +322,25 @@ SelectServerModal Checkbox {
   width: 25%;
   height: 1;
   border: none;
+}
+
+
+LoadingModal > Vertical {
+    width: auto;
+    height: auto;
+    min-width: 30;
+    background: $surface;
+    border: round $primary;
+    padding: 1 2;
+}
+
+LoadingModal Label {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+LoadingModal LoadingIndicator {
+    height: 1;
+    color: $accent;
 }
