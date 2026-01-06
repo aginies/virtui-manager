@@ -145,13 +145,7 @@ To enable secure connections:
 
 2.  **Place the generated files in the correct directory on the remote server:**
 
-    `virtui-manager` will automatically detect `cert.pem` and `key.pem` in one of two locations:
-
-    -   **User-specific path**: `~/.config/virtui-manager/`
-        ```bash
-        mkdir -p ~/.config/virtui-manager/
-        mv cert.pem key.pem ~/.config/virtui-manager/
-        ```
+    `virtui-manager` will automatically detect `cert.pem` and `key.pem` but for remote server the file must be in: 
 
     -   **System-wide path**: `/etc/virtui-manager/keys/`
         ```bash
