@@ -127,6 +127,39 @@ The configuration file supports the following options:
 - **WC_PORT_RANGE_END**: End port for websockify (default: 40050)
 - **websockify_path**: Path to the websockify binary (default: `/usr/bin/websockify`)
 - **novnc_path**: Path to noVNC files (default: `/usr/share/novnc/`)
+- **WEBSOCKIFY_BUF_SIZE**: Sets the send and receive buffer size for websockify connections, affecting network performance. (default: `4096`)
+
+#### Secure Remote Web Console (WSS)
+
+When `REMOTE_WEBCONSOLE` is enabled, Virtui Manager can use a secure WebSocket connection (`wss://`) if an SSL certificate is available on the remote server. This is highly recommended for security.
+
+To enable secure connections:
+
+1.  **Generate a self-signed certificate and key on the remote server:**
+
+    Log in to your remote libvirt server and run the following command. Replace `your.remote.host.com` with the server's actual hostname or IP address. This is important for the browser to trust the certificate.
+
+    ```bash
+    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj "/CN=your.remote.host.com"
+    ```
+
+2.  **Place the generated files in the correct directory on the remote server:**
+
+    `virtui-manager` will automatically detect `cert.pem` and `key.pem` in one of two locations:
+
+    -   **User-specific path**: `~/.config/virtui-manager/`
+        ```bash
+        mkdir -p ~/.config/virtui-manager/
+        mv cert.pem key.pem ~/.config/virtui-manager/
+        ```
+
+    -   **System-wide path**: `/etc/virtui-manager/keys/`
+        ```bash
+        sudo mkdir -p /etc/virtui-manager/keys/
+        sudo mv cert.pem key.pem /etc/virtui-manager/keys/
+        ```
+
+If the certificate and key are found, `virtui-manager` will automatically start `websockify` with SSL/TLS encryption and use a `wss://` URL. If not, it will default to an unencrypted `ws://` connection.
 
 ### VNC Settings
 - **VNC_QUALITY**: VNC quality setting (0-10, default: 0)
