@@ -583,7 +583,7 @@ class VMManagerTUI(App):
                 )
 
         self.worker_manager.run(
-            get_details_and_show_modal, name=f"get_details_{message.vm_uuid}"
+            get_details_and_show_modal, name=f"get_details_{message.vm_name}"
         )
 
     @on(VmActionRequest)
