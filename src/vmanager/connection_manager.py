@@ -1,9 +1,9 @@
 """
 Manages multiple libvirt connections.
 """
-import libvirt
 import logging
 import threading
+import libvirt
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 class ConnectionManager:
@@ -46,26 +46,38 @@ class ConnectionManager:
             logging.info(f"Opening new libvirt connection to {uri}")
 
             def open_connection():
-                return libvirt.open(uri)
+                connect_uri = uri
+                # Append no_tty=1 to prevent interactive password prompts
+                if 'ssh' in uri.lower() and 'no_tty=' not in uri:
+                    sep = '&' if '?' in uri else '?'
+                    connect_uri += f"{sep}no_tty=1"
+                return libvirt.open(connect_uri)
 
-            with ThreadPoolExecutor(max_workers=1) as executor:
+            executor = ThreadPoolExecutor(max_workers=1)
+            try:
                 future = executor.submit(open_connection)
                 try:
                     # Wait for 10 seconds for the connection to establish
                     conn = future.result(timeout=10)
+                    executor.shutdown(wait=True)
                 except TimeoutError:
                     # If it times out, we raise a libvirtError to be caught by the existing error handling.
+                    executor.shutdown(wait=False)
                     msg = "Connection timed out after 10 seconds."
                     # Check if the URI suggests an SSH connection
                     if 'ssh' in uri.lower(): # Use .lower() for robustness
                         msg += " If using SSH, this can happen if a password or SSH key passphrase is required."
                         msg += " Please use an SSH agent or a key without a passphrase, as interactive prompts are not supported."
                     raise libvirt.libvirtError(msg)
+            except Exception:
+                # Ensure executor is shut down in case of other errors during submission/execution
+                executor.shutdown(wait=False)
+                raise
 
             if conn is None:
                 # This case can happen if the URI is valid but the hypervisor is not running
                 raise libvirt.libvirtError(f"libvirt.open('{uri}') returned None")
-            
+
             with self._lock:
                 self.connections[uri] = conn
                 if uri in self.connection_errors:
