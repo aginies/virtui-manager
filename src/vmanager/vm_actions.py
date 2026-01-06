@@ -1940,6 +1940,7 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
     # Add informational notes for manual checks
     issues.append({'severity': 'INFO', 'message': "For a successful migration, please also manually verify the following:"})
     issues.append({'severity': 'INFO', 'message': "  - Firewalls on both hosts allow migration traffic (usually TCP ports 49152-49215)."})
+    issues.append({'severity': 'INFO', 'message': "  - The source host's root user (if system session) must have SSH keys set up to connect to the destination host's root user without a password."})
     issues.append({'severity': 'INFO', 'message': "  - The 'qemu' user and 'kvm'/'libvirt' groups have the same UID/GIDs on both hosts."})
 
     return issues
