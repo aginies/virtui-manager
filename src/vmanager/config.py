@@ -18,6 +18,7 @@ DEFAULT_CONFIG = {
     'REMOTE_WEBCONSOLE': False,
     'VNC_QUALITY': 0,
     'VNC_COMPRESSION': 9,
+    'WEBSOCKIFY_BUF_SIZE': 4096,
     'network_models': ["virtio", "e1000", "e1000e", "rtl8139", "ne2k_pci", "pcnet"],
     'sound_models': ["none", "ich6", "ich9", "ac97", "sb16", "usb"],
     'servers': [

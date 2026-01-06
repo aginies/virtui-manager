@@ -34,10 +34,11 @@ import socket, sys
 from websockify import websocketproxy as wp
 class O(wp.ProxyRequestHandler):
     def do_proxy(self, t):
+        buf_size = {buf_size}
         for s in [self.request, t]:
-            try: s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            try: s.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, buf_size)
             except: pass
-            try: s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+            try: s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, buf_size)
             except: pass
         super().do_proxy(t)
 wp.ProxyRequestHandler = O
@@ -282,11 +283,12 @@ wp.websockify_init()
 
         remote_websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
         remote_novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
+        buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
         # Construct the websockify command to run on the remote server using the optimized wrapper
         # remote_websockify_path, "--run-once", "--verbose", str(web_port),
         remote_websockify_cmd_list = [
-            "python3", "-c", f"'{self._OPTIMIZED_WEBSOCKIFY_WRAPPER}'",
+            "python3", "-c", f"'{self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size)}'",
             "--run-once", "--verbose", str(web_port),
             f"{vnc_target_host}:{vnc_port}", "--web", remote_novnc_path
         ]
@@ -463,10 +465,11 @@ wp.websockify_init()
 
         websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
         novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
+        buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
         #websockify_path, "--run-once", str(web_port),
         websockify_cmd = [
-            "python3", "-c", self._OPTIMIZED_WEBSOCKIFY_WRAPPER,
+            "python3", "-c", self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size),
             "--run-once", str(web_port),
             f"{host}:{port}", "--web", novnc_path
         ]
