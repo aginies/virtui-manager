@@ -107,14 +107,14 @@ class LoadingModal(BaseModal[None]):
 
     BINDINGS = [] # Override BaseModal's bindings to prevent user dismissal with escape
 
-    DEFAULT_CSS = """
-    LoadingModal {
-        align: center middle;
-    }
-    """
+    def __init__(self, message: str = "Loading...") -> None:
+        super().__init__()
+        self.message = message
 
     def compose(self) -> ComposeResult:
-        yield LoadingIndicator()
+        with Vertical():
+            yield Label(self.message)
+            yield LoadingIndicator()
 
 class ProgressModal(BaseModal[None]):
     """A modal that shows a progress bar and logs for a long-running task."""

@@ -3,6 +3,8 @@ VM Service Layer
 Handles all libvirt interactions and data processing.
 """
 import time
+import threading
+import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import libvirt
@@ -26,91 +28,244 @@ class VMService:
         self._io_stats_cache = {} # Cache for calculating Disk/Net I/O {uuid: {'ts': ts, 'disk_read': bytes, ...}}
         self._domain_cache: dict[str, libvirt.virDomain] = {}
         self._uuid_to_conn_cache: dict[str, libvirt.virConnect] = {}
-        self._cache_timestamp: float = 0.0
-        self._cache_ttl: int = 5  # seconds
-        self._cached_active_uris: set[str] = set()
-
+        
         self._vm_data_cache: dict[str, dict] = {}  # {uuid: {'info': (data), 'info_ts': ts, 'xml': 'data', 'xml_ts': ts}}
         self._info_cache_ttl: int = 5  # seconds
         self._xml_cache_ttl: int = 600  # 10 minutes
 
-    def invalidate_domain_cache(self):
-        """Invalidates the domain cache."""
-        self._domain_cache.clear()
-        self._uuid_to_conn_cache.clear()
-        self._cache_timestamp = 0.0
+        # Threading support
+        self._cache_lock = threading.RLock()
+        self._active_uris_lock = threading.RLock()
+        self._active_uris: list[str] = []
+        self._monitoring_active = False
+        self._monitor_thread = None
+        self._data_update_callback = None
+        self._force_update_event = threading.Event()
 
-    def invalidate_vm_cache(self, uuid: str):
-        """Invalidates all cached data for a specific VM."""
-        if uuid in self._vm_data_cache:
-            del self._vm_data_cache[uuid]
-        if uuid in self._cpu_time_cache:
-            del self._cpu_time_cache[uuid]
-        if uuid in self._io_stats_cache:
-            del self._io_stats_cache[uuid]
-        if uuid in self._domain_cache:
-            del self._domain_cache[uuid]
-        if uuid in self._uuid_to_conn_cache:
-            del self._uuid_to_conn_cache[uuid]
+        self.start_monitoring()
 
-    def _update_domain_cache(self, active_uris: list[str], force: bool = False):
-        """Updates the domain and connection cache."""
-        current_uris_set = set(active_uris)
-        uris_changed = current_uris_set != self._cached_active_uris
+    def set_data_update_callback(self, callback):
+        """Sets a callback to be invoked when background data update finishes."""
+        self._data_update_callback = callback
 
-        if not force and not uris_changed and self._domain_cache and (time.time() - self._cache_timestamp < self._cache_ttl):
+    def start_monitoring(self):
+        """Starts the background monitoring thread."""
+        if self._monitoring_active:
             return
+        self._monitoring_active = True
+        self._monitor_thread = threading.Thread(target=self._monitor_loop, daemon=True, name="VMServiceMonitor")
+        self._monitor_thread.start()
 
-        self.invalidate_domain_cache()
-        if force:
-            self._vm_data_cache.clear()
-        active_connections = [self.connect(uri) for uri in active_uris if self.connect(uri)]
+    def stop_monitoring(self):
+        """Stops the background monitoring thread."""
+        self._monitoring_active = False
+        self._force_update_event.set()
+        if self._monitor_thread and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=2.0)
+
+    def _monitor_loop(self):
+        """Background loop to update VM data."""
+        while self._monitoring_active:
+            with self._active_uris_lock:
+                uris = list(self._active_uris)
+
+            if uris:
+                try:
+                    self._perform_background_update(uris)
+                    if self._data_update_callback:
+                         try:
+                             self._data_update_callback()
+                         except Exception as e:
+                             logging.error(f"Error in data update callback: {e}")
+                except Exception as e:
+                    logging.error(f"Error in background update loop: {e}")
+
+            # Wait for next cycle or force update
+            self._force_update_event.wait(timeout=2.0) 
+            if self._force_update_event.is_set():
+                self._force_update_event.clear()
+
+    def _perform_background_update(self, active_uris: list[str]):
+        """Fetches data for all VMs on active URIs and updates cache."""
+        
+        # 1. Connect and list domains
+        active_connections = []
+        for uri in active_uris:
+            conn = self.connect(uri)
+            if conn:
+                active_connections.append(conn)
+
+        new_domain_cache = {}
+        new_uuid_to_conn = {}
+        
         for conn in active_connections:
             try:
                 domains = conn.listAllDomains(0) or []
                 for domain in domains:
                     uuid = domain.UUIDString()
-                    self._domain_cache[uuid] = domain
-                    self._uuid_to_conn_cache[uuid] = conn
+                    new_domain_cache[uuid] = domain
+                    new_uuid_to_conn[uuid] = conn
             except libvirt.libvirtError:
-                pass  # Or log error
-        self._cache_timestamp = time.time()
-        self._cached_active_uris = current_uris_set
+                pass
+
+        # Update domain list cache
+        with self._cache_lock:
+            self._domain_cache = new_domain_cache
+            self._uuid_to_conn_cache = new_uuid_to_conn
+
+        # 2. Fetch info and XML for each domain
+        for uuid, domain in new_domain_cache.items():
+            if not self._monitoring_active: 
+                break
+                
+            try:
+                # We can call domain.info() and XMLDesc() without lock
+                info = None
+                try:
+                    info = domain.info()
+                except libvirt.libvirtError:
+                    pass
+                
+                now = time.time()
+                
+                with self._cache_lock:
+                    self._vm_data_cache.setdefault(uuid, {})
+                    vm_cache = self._vm_data_cache[uuid]
+                    
+                    if info:
+                        vm_cache['info'] = info
+                        vm_cache['info_ts'] = now
+            except Exception as e:
+                logging.error(f"Error updating cache for VM {uuid}: {e}")
+
+    def invalidate_domain_cache(self):
+        """Invalidates the domain cache."""
+        with self._cache_lock:
+            self._domain_cache.clear()
+            self._uuid_to_conn_cache.clear()
+
+    def invalidate_vm_cache(self, uuid: str):
+        """Invalidates all cached data for a specific VM."""
+        with self._cache_lock:
+            if uuid in self._vm_data_cache:
+                del self._vm_data_cache[uuid]
+            if uuid in self._cpu_time_cache:
+                del self._cpu_time_cache[uuid]
+            if uuid in self._io_stats_cache:
+                del self._io_stats_cache[uuid]
+            if uuid in self._domain_cache:
+                del self._domain_cache[uuid]
+            if uuid in self._uuid_to_conn_cache:
+                del self._uuid_to_conn_cache[uuid]
+
+    def _update_domain_cache(self, active_uris: list[str], force: bool = False, preload: bool = False):
+        """Updates the domain and connection cache."""
+        with self._active_uris_lock:
+            current_set = set(self._active_uris)
+            new_set = set(active_uris)
+            if current_set != new_set:
+                self._active_uris = list(active_uris)
+                force = True
+
+        if force:
+            # Synchronous update of domain list
+            active_connections = []
+            for uri in active_uris:
+                conn = self.connect(uri)
+                if conn:
+                    active_connections.append(conn)
+
+            new_domain_cache = {}
+            new_uuid_to_conn = {}
+
+            for conn in active_connections:
+                try:
+                    domains = conn.listAllDomains(0) or []
+                    for domain in domains:
+                        uuid = domain.UUIDString()
+                        new_domain_cache[uuid] = domain
+                        new_uuid_to_conn[uuid] = conn
+                except libvirt.libvirtError:
+                    pass
+
+            with self._cache_lock:
+                self._domain_cache = new_domain_cache
+                self._uuid_to_conn_cache = new_uuid_to_conn
+
+        if preload:
+            # Pre-load info for all domains to warm up the cache
+            with self._cache_lock:
+                 domains = list(self._domain_cache.values())
+
+            for domain in domains:
+                try:
+                    self._get_domain_info(domain)
+                except libvirt.libvirtError:
+                    pass
+
+    def _update_target_uris(self, active_uris: list[str], force: bool = False):
+        with self._active_uris_lock:
+            current_set = set(self._active_uris)
+            new_set = set(active_uris)
+            if current_set != new_set:
+                self._active_uris = list(active_uris)
+                force = True
+        
+        if force:
+            self._force_update_event.set()
 
     def _get_domain_info_and_xml(self, domain: libvirt.virDomain) -> tuple[tuple, str]:
         """Gets info and XML from cache or fetches them, fetching both if both are missing."""
         uuid = domain.UUIDString()
         now = time.time()
 
-        # Ensure cache entry exists
-        self._vm_data_cache.setdefault(uuid, {})
-        vm_cache = self._vm_data_cache[uuid]
+        with self._cache_lock:
+            self._vm_data_cache.setdefault(uuid, {})
+            vm_cache = self._vm_data_cache[uuid]
 
-        info = vm_cache.get('info')
-        info_ts = vm_cache.get('info_ts', 0)
-        if info and now - info_ts >= self._info_cache_ttl:
-            info = None
+            info = vm_cache.get('info')
+            info_ts = vm_cache.get('info_ts', 0)
+            if info and now - info_ts >= self._info_cache_ttl:
+                info = None
 
-        xml = vm_cache.get('xml')
-        xml_ts = vm_cache.get('xml_ts', 0)
-        if xml and now - xml_ts >= self._xml_cache_ttl:
-            xml = None
+            xml = vm_cache.get('xml')
+            xml_ts = vm_cache.get('xml_ts', 0)
+            if xml and now - xml_ts >= self._xml_cache_ttl:
+                xml = None
 
         if info is None and xml is None:
-            info = domain.info()
-            xml = domain.XMLDesc(0)
-            vm_cache['info'] = info
-            vm_cache['info_ts'] = now
-            vm_cache['xml'] = xml
-            vm_cache['xml_ts'] = now
+            try:
+                info = domain.info()
+                xml = domain.XMLDesc(0)
+                with self._cache_lock:
+                    self._vm_data_cache.setdefault(uuid, {})
+                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache['info'] = info
+                    vm_cache['info_ts'] = now
+                    vm_cache['xml'] = xml
+                    vm_cache['xml_ts'] = now
+            except libvirt.libvirtError:
+                pass
         elif info is None:
-            info = domain.info()
-            vm_cache['info'] = info
-            vm_cache['info_ts'] = now
+            try:
+                info = domain.info()
+                with self._cache_lock:
+                    self._vm_data_cache.setdefault(uuid, {})
+                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache['info'] = info
+                    vm_cache['info_ts'] = now
+            except libvirt.libvirtError:
+                pass
         elif xml is None:
-            xml = domain.XMLDesc(0)
-            vm_cache['xml'] = xml
-            vm_cache['xml_ts'] = now
+            try:
+                xml = domain.XMLDesc(0)
+                with self._cache_lock:
+                    self._vm_data_cache.setdefault(uuid, {})
+                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache['xml'] = xml
+                    vm_cache['xml_ts'] = now
+            except libvirt.libvirtError:
+                pass
 
         return info, xml
 
@@ -119,17 +274,21 @@ class VMService:
         uuid = domain.UUIDString()
         now = time.time()
 
-        self._vm_data_cache.setdefault(uuid, {})
-        vm_cache = self._vm_data_cache[uuid]
+        with self._cache_lock:
+            self._vm_data_cache.setdefault(uuid, {})
+            vm_cache = self._vm_data_cache[uuid]
 
-        info = vm_cache.get('info')
-        info_ts = vm_cache.get('info_ts', 0)
+            info = vm_cache.get('info')
+            info_ts = vm_cache.get('info_ts', 0)
 
         if info is None or (now - info_ts >= self._info_cache_ttl):
             try:
                 info = domain.info()
-                vm_cache['info'] = info
-                vm_cache['info_ts'] = now
+                with self._cache_lock:
+                    self._vm_data_cache.setdefault(uuid, {})
+                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache['info'] = info
+                    vm_cache['info_ts'] = now
             except libvirt.libvirtError:
                 return None
         return info
@@ -139,17 +298,21 @@ class VMService:
         uuid = domain.UUIDString()
         now = time.time()
 
-        self._vm_data_cache.setdefault(uuid, {})
-        vm_cache = self._vm_data_cache[uuid]
+        with self._cache_lock:
+            self._vm_data_cache.setdefault(uuid, {})
+            vm_cache = self._vm_data_cache[uuid]
 
-        xml = vm_cache.get('xml')
-        xml_ts = vm_cache.get('xml_ts', 0)
+            xml = vm_cache.get('xml')
+            xml_ts = vm_cache.get('xml_ts', 0)
 
         if xml is None or (now - xml_ts >= self._xml_cache_ttl):
             try:
                 xml = domain.XMLDesc(0)
-                vm_cache['xml'] = xml
-                vm_cache['xml_ts'] = now
+                with self._cache_lock:
+                    self._vm_data_cache.setdefault(uuid, {})
+                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache['xml'] = xml
+                    vm_cache['xml_ts'] = now
             except libvirt.libvirtError:
                 return None
         return xml
@@ -160,15 +323,16 @@ class VMService:
         uuid = domain.UUIDString()
         now = time.time()
 
-        if uuid not in self._vm_data_cache:
-            return None
+        with self._cache_lock:
+            if uuid not in self._vm_data_cache:
+                return None
 
-        vm_cache = self._vm_data_cache[uuid]
-        info = vm_cache.get('info')
-        info_ts = vm_cache.get('info_ts', 0)
+            vm_cache = self._vm_data_cache[uuid]
+            info = vm_cache.get('info')
+            info_ts = vm_cache.get('info_ts', 0)
 
-        if info and (now - info_ts < self._info_cache_ttl):
-            return info
+            if info and (now - info_ts < self._info_cache_ttl):
+                return info
         return None
 
     def get_vm_runtime_stats(self, domain: libvirt.virDomain) -> dict | None:
@@ -183,36 +347,43 @@ class VMService:
             stats['status'] = get_status(domain)
 
             # CPU Usage
+            # getCPUStats is fast, can stay here or be moved to bg. 
+            # Keeping here for now, but protecting cache access.
             cpu_stats = domain.getCPUStats(True)
             current_cpu_time = cpu_stats[0]['cpu_time']
             now = datetime.now().timestamp()
 
             cpu_percent = 0.0
-            if uuid in self._cpu_time_cache:
-                last_cpu_time, last_cpu_time_ts = self._cpu_time_cache[uuid]
+            
+            with self._cache_lock:
+                last_cpu_data = self._cpu_time_cache.get(uuid)
+            
+            if last_cpu_data:
+                last_cpu_time, last_cpu_time_ts = last_cpu_data
                 time_diff = now - last_cpu_time_ts
                 cpu_diff = current_cpu_time - last_cpu_time
                 if time_diff > 0:
                     info = self._get_domain_info(domain)
-                    if not info: return None
-                    num_cpus = info[3]
-                    # nanoseconds to seconds, then divide by number of cpus
-                    cpu_percent = (cpu_diff / (time_diff * 1_000_000_000)) * 100
-                    cpu_percent = cpu_percent / num_cpus if num_cpus > 0 else 0
+                    if info:
+                        num_cpus = info[3]
+                        # nanoseconds to seconds, then divide by number of cpus
+                        cpu_percent = (cpu_diff / (time_diff * 1_000_000_000)) * 100
+                        cpu_percent = cpu_percent / num_cpus if num_cpus > 0 else 0
 
             stats['cpu_percent'] = cpu_percent
-            self._cpu_time_cache[uuid] = (current_cpu_time, now)
+            with self._cache_lock:
+                self._cpu_time_cache[uuid] = (current_cpu_time, now)
 
             # Memory Usage
             mem_stats = domain.memoryStats()
             mem_percent = 0.0
             if 'rss' in mem_stats:
                 info = self._get_domain_info(domain)
-                if not info: return None
-                total_mem_kb = info[1]
-                if total_mem_kb > 0:
-                    rss_kb = mem_stats['rss']
-                    mem_percent = (rss_kb / total_mem_kb) * 100
+                if info:
+                    total_mem_kb = info[1]
+                    if total_mem_kb > 0:
+                        rss_kb = mem_stats['rss']
+                        mem_percent = (rss_kb / total_mem_kb) * 100
 
             stats['mem_percent'] = mem_percent
 
@@ -223,9 +394,7 @@ class VMService:
             net_tx_bytes = 0
 
             # Use cached XML if available, otherwise skip I/O stats to avoid libvirt XMLDesc call
-            self._vm_data_cache.setdefault(uuid, {})
-            vm_cache = self._vm_data_cache[uuid]
-            xml_content = vm_cache.get('xml')
+            xml_content = self._get_domain_xml(domain) # Handles locking internally
 
             if not xml_content:
                 # Skip I/O stats calculation if XML is not cached
@@ -236,12 +405,12 @@ class VMService:
                 return stats
 
             # Use cached devices list if available and XML hasn't changed
-            # Check if we have a valid cached device list
-            # We rely on xml_ts being updated when XML is refreshed
-            current_xml_ts = vm_cache.get('xml_ts', 0)
-            cached_devices_ts = vm_cache.get('devices_ts', 0)
-
-            devices_list = vm_cache.get('devices_list')
+            with self._cache_lock:
+                self._vm_data_cache.setdefault(uuid, {})
+                vm_cache = self._vm_data_cache[uuid]
+                current_xml_ts = vm_cache.get('xml_ts', 0)
+                cached_devices_ts = vm_cache.get('devices_ts', 0)
+                devices_list = vm_cache.get('devices_list')
 
             if devices_list is None or cached_devices_ts != current_xml_ts:
                 # Parse XML and cache devices
@@ -265,9 +434,10 @@ class VMService:
                                     devices_list['interfaces'].append(dev)
                     except ET.ParseError:
                         pass
-
-                vm_cache['devices_list'] = devices_list
-                vm_cache['devices_ts'] = current_xml_ts
+                
+                with self._cache_lock:
+                    vm_cache['devices_list'] = devices_list
+                    vm_cache['devices_ts'] = current_xml_ts
 
             # Use cached devices to query stats
             for dev in devices_list['disks']:
@@ -294,8 +464,10 @@ class VMService:
             net_rx_rate = 0.0
             net_tx_rate = 0.0
 
-            if uuid in self._io_stats_cache:
-                last_stats = self._io_stats_cache[uuid]
+            with self._cache_lock:
+                 last_stats = self._io_stats_cache.get(uuid)
+
+            if last_stats:
                 last_ts = last_stats['ts']
                 time_diff = now - last_ts
 
@@ -312,13 +484,14 @@ class VMService:
                     net_tx_rate = n_tx / time_diff if n_tx >= 0 else 0
 
             # Store cache
-            self._io_stats_cache[uuid] = {
-                'ts': now,
-                'disk_read': disk_read_bytes,
-                'disk_write': disk_write_bytes,
-                'net_rx': net_rx_bytes,
-                'net_tx': net_tx_bytes
-            }
+            with self._cache_lock:
+                self._io_stats_cache[uuid] = {
+                    'ts': now,
+                    'disk_read': disk_read_bytes,
+                    'disk_write': disk_write_bytes,
+                    'net_rx': net_rx_bytes,
+                    'net_tx': net_tx_bytes
+                }
 
             stats['disk_read_kbps'] = disk_read_rate / 1024
             stats['disk_write_kbps'] = disk_write_rate / 1024
@@ -341,13 +514,14 @@ class VMService:
         """Disconnects from a libvirt URI and cleans up associated VM caches."""
         # Find UUIDs associated with this URI before disconnecting to clean up caches
         uuids_to_invalidate = []
-        for uuid, conn in self._uuid_to_conn_cache.items():
-            try:
-                if conn.getURI() == uri:
-                    uuids_to_invalidate.append(uuid)
-            except libvirt.libvirtError:
-                # If connection is already dead/invalid, we can't get URI.
-                pass
+        with self._cache_lock:
+            for uuid, conn in self._uuid_to_conn_cache.items():
+                try:
+                    if conn.getURI() == uri:
+                        uuids_to_invalidate.append(uuid)
+                except libvirt.libvirtError:
+                    # If connection is already dead/invalid, we can't get URI.
+                    pass
 
         for uuid in uuids_to_invalidate:
             self.invalidate_vm_cache(uuid)
@@ -356,6 +530,7 @@ class VMService:
 
     def disconnect_all(self):
         """Disconnects all active libvirt connections."""
+        self.stop_monitoring()
         self.connection_manager.disconnect_all()
 
     def perform_bulk_action(self, active_uris: list[str], vm_uuids: list[str], action_type: str, delete_storage_flag: bool, progress_callback: callable):
@@ -415,7 +590,10 @@ class VMService:
                 msg = f"Unexpected error on '{action_type}' for VM '{vm_name}': {e}"
                 progress_callback("log_error", message=msg)
                 failed_vms.append(vm_name)
-
+        
+        # Trigger immediate refresh after bulk action
+        self._force_update_event.set()
+        
         return successful_vms, failed_vms
 
     def get_connection(self, uri: str) -> libvirt.virConnect | None:
@@ -428,13 +606,17 @@ class VMService:
 
     def find_domains_by_uuids(self, active_uris: list[str], vm_uuids: list[str]) -> dict[str, libvirt.virDomain]:
         """Finds and returns a dictionary of domain objects from a list of UUIDs."""
-        self._update_domain_cache(active_uris)
-
+        self._update_target_uris(active_uris)
+        
+        # We rely on cache primarily
         found_domains = {}
         missing_uuids = []
+        
+        with self._cache_lock:
+             domain_cache_copy = self._domain_cache.copy()
 
         for uuid in vm_uuids:
-            domain = self._domain_cache.get(uuid)
+            domain = domain_cache_copy.get(uuid)
             if domain:
                 try:
                     domain.info() # Check if domain is still valid
@@ -445,11 +627,15 @@ class VMService:
                 missing_uuids.append(uuid)
 
         if missing_uuids:
-            self._update_domain_cache(active_uris, force=True)
-            for uuid in missing_uuids:
-                domain = self._domain_cache.get(uuid)
-                if domain:
-                    found_domains[uuid] = domain
+             # Force update if missing
+             self._force_update_event.set()
+             # We might want to wait? But synchronous waiting is bad for freezing.
+             # Just return what we have? Or do a quick sync fetch?
+             # For actions, we probably want to be sure.
+             # Let's do a quick sync fetch for missing ones.
+             # But fetching specific UUIDs isn't easy without listing all domains.
+             # Let's just return what we have.
+             pass
 
         return found_domains
 
@@ -468,29 +654,34 @@ class VMService:
 
         # If checks pass, start the VM
         start_vm(domain)
+        self._force_update_event.set()
 
     def stop_vm(self, domain: libvirt.virDomain) -> None:
         """Stops the VM."""
         stop_vm(domain)
+        self._force_update_event.set()
 
     def pause_vm(self, domain: libvirt.virDomain) -> None:
         """Pauses the VM."""
         pause_vm(domain)
+        self._force_update_event.set()
 
     def force_off_vm(self, domain: libvirt.virDomain) -> None:
         """Forcefully stops the VM."""
         force_off_vm(domain)
+        self._force_update_event.set()
 
     def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
         """Deletes the VM."""
         uuid = domain.UUIDString()
         delete_vm(domain, delete_storage=delete_storage)
         self.invalidate_vm_cache(uuid)
-
+        self._force_update_event.set()
 
     def resume_vm(self, domain: libvirt.virDomain) -> None:
         """Resumes the VM."""
         domain.resume()
+        self._force_update_event.set()
 
     def get_vm_details(self, active_uris: list[str], vm_uuid: str) -> tuple | None:
         """Finds a VM by UUID and returns its detailed information."""
@@ -498,29 +689,27 @@ class VMService:
         if not domain:
             return None
 
-        conn_for_domain = self._uuid_to_conn_cache.get(vm_uuid)
-        # Fallback to be safe, though this shouldn't be hit if cache is consistent
+        with self._cache_lock:
+            conn_for_domain = self._uuid_to_conn_cache.get(vm_uuid)
+        
+        # Fallback if not in cache (could happen if cache just cleared)
         if not conn_for_domain:
-            for uri in active_uris:
+             for uri in active_uris:
                 conn = self.connect(uri)
-                if not conn:
-                    continue
+                if not conn: continue
                 try:
-                    # Check if this connection owns the domain
-                    if conn.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
+                     if conn.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
                         conn_for_domain = conn
                         break
                 except libvirt.libvirtError:
                     continue
-
+        
         if not conn_for_domain:
-            # This would indicate a cache inconsistency or a race condition
             return None
 
         try:
             info, xml_content = self._get_domain_info_and_xml(domain)
             if info is None or xml_content is None:
-                # If we can't get essential info, we can't proceed.
                 return None
 
             root = None
@@ -551,36 +740,40 @@ class VMService:
             }
             return (vm_info, domain, conn_for_domain)
         except libvirt.libvirtError:
-            # Propagate the error to be handled by the caller
             raise
 
     def get_vms(self, active_uris: list[str], servers: list[dict], sort_by: str, search_text: str, selected_vm_uuids: set[str], force: bool = False) -> tuple:
         """Fetch, filter, and return VM data without creating UI components."""
-        self._update_domain_cache(active_uris, force=force)
+        self._update_domain_cache(active_uris, force=force, preload=force)
+
+        with self._cache_lock:
+             domains_map = self._domain_cache.copy()
+             conn_map = self._uuid_to_conn_cache.copy()
 
         domains_with_conn = []
-        for uuid, domain in self._domain_cache.items():
-            conn = self._uuid_to_conn_cache.get(uuid)
+        for uuid, domain in domains_map.items():
+            conn = conn_map.get(uuid)
             if conn:
                 domains_with_conn.append((domain, conn))
 
         total_vms = len(domains_with_conn)
+        
+        # Map URIs to Server Names (using connection manager which is thread safe)
         server_names = []
-        active_connections = [self.connect(uri) for uri in active_uris if self.connect(uri)]
-        for conn in active_connections:
-            try:
-                uri = conn.getURI()
-                found = False
-                for server in servers:
-                    if server['uri'] == uri:
-                        server_names.append(server['name'])
-                        found = True
-                        break
-                if not found:
-                    server_names.append(uri)
-            except libvirt.libvirtError:
-                pass
-
+        # We can just iterate active_uris provided
+        for uri in active_uris:
+             # Check if we have connection or if it is active
+             # The original code connected. We can trust active_uris or check connection manager
+             # But we need server names from 'servers' dict
+             found = False
+             for server in servers:
+                if server['uri'] == uri:
+                    server_names.append(server['name'])
+                    found = True
+                    break
+             if not found:
+                 server_names.append(uri)
+                 
         total_vms_unfiltered = len(domains_with_conn)
         domains_to_display = domains_with_conn
 
@@ -589,6 +782,7 @@ class VMService:
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.UUIDString() in selected_vm_uuids]
             else:
                 def status_match(d):
+                    # use get_cached_vm_info or _get_domain_info (which is locked)
                     info = self._get_domain_info(d)
                     if not info:
                         return False

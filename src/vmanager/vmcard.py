@@ -6,6 +6,7 @@ import logging
 import traceback
 import datetime
 from functools import partial
+from urllib.parse import urlparse
 import libvirt
 from rich.markdown import Markdown as RichMarkdown
 
@@ -30,10 +31,12 @@ from vm_actions import (
 from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
-        get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
+        get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
+        get_status
         )
 from modals.xml_modals import XMLDisplayModal
-from modals.utils_modals import ConfirmationDialog, ProgressModal
+from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
+from modals.vmdetails_modals import VMDetailModal
 from modals.migration_modals import MigrationModal
 from modals.disk_pool_modals import SelectDiskModal
 from modals.howto_overlay_modal import HowToOverlayModal
@@ -230,11 +233,26 @@ class VMCard(Static):
         """Schedules a tooltip update to debounce frequent calls."""
         if self._tooltip_update_timer:
             self._tooltip_update_timer.stop()
-        self._tooltip_update_timer = self.set_timer(0.2, self._perform_tooltip_update)
+        self._tooltip_update_timer = self.set_timer(2, self._perform_tooltip_update)
+
+    def _is_remote_server(self) -> bool:
+        """Checks if the VM is on a remote server."""
+        if not self.conn:
+            return False
+        try:
+            uri = self.conn.getURI()
+            parsed = urlparse(uri)
+            return parsed.hostname not in (None, "localhost", "127.0.0.1") and parsed.scheme == "qemu+ssh"
+        except Exception:
+            return False
 
     def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
         if not self.ui or "vmname" not in self.ui:
+            return
+        
+        if self._is_remote_server():
+            self.ui["vmname"].tooltip = None
             return
 
         try:
@@ -444,10 +462,28 @@ class VMCard(Static):
         current_boot_device = self.boot_device
         current_cpu_model = self.cpu_model
         current_graphics_type = self.graphics_type
+        is_remote = self._is_remote_server()
 
         def update_worker():
             try:
-                stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
+                if is_remote:
+                    # Minimal fetch for remote servers: ONLY status
+                    try:
+                        state, _ = self.vm.state()
+                        status = get_status(self.vm, state=state)
+                        stats = {
+                            "status": status,
+                            "cpu_percent": 0.0,
+                            "mem_percent": 0.0,
+                            "disk_read_kbps": 0.0,
+                            "disk_write_kbps": 0.0,
+                            "net_rx_kbps": 0.0,
+                            "net_tx_kbps": 0.0
+                        }
+                    except libvirt.libvirtError:
+                        stats = None
+                else:
+                    stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
 
                 # Update info from cache if XML has been fetched (e.g. via Configure)
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
@@ -469,8 +505,9 @@ class VMCard(Static):
                             graphics_info = get_vm_graphics_info(root)
                             graphics_type = graphics_info.get("type")
                             self._boot_device_checked = True
-                    else:
+                    elif not is_remote:
                         # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
+                        # Skipped for remote servers
                         try:
                             _, root = _get_domain_root(self.vm)
                             if root is not None:
@@ -1178,7 +1215,44 @@ class VMCard(Static):
         """Handles the configure button press."""
         try:
             self._boot_device_checked = False
-            self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+            
+            uuid = self.vm.UUIDString()
+            vm_name = self.name
+            active_uris = list(self.app.active_uris)
+
+            loading_modal = LoadingModal()
+            self.app.push_screen(loading_modal)
+
+            def get_details_worker():
+                try:
+                    result = self.app.vm_service.get_vm_details(active_uris, uuid)
+                    
+                    def show_details():
+                        loading_modal.dismiss()
+                        if not result:
+                            self.app.show_error_message(f"VM {vm_name} with UUID {uuid} not found on any active server.")
+                            return
+                        
+                        vm_info, domain, conn_for_domain = result
+                        
+                        def on_detail_modal_dismissed(res):
+                            self.app.refresh_vm_list(force=True)
+
+                        self.app.push_screen(
+                            VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_cache),
+                            on_detail_modal_dismissed
+                        )
+                    
+                    self.app.call_from_thread(show_details)
+
+                except Exception as e:
+                    def show_error():
+                        loading_modal.dismiss()
+                        self.app.show_error_message(f"Error getting details for {vm_name}: {e}")
+                    self.app.call_from_thread(show_error)
+
+            self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
+
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                 self.app.refresh_vm_list()
