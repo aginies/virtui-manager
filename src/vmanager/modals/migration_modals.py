@@ -27,6 +27,7 @@ class MigrationModal(ModalScreen):
         self.connections = connections
         self.source_conn = vms[0].connect()
         self.dest_conn = None
+        self.dest_uri = None
         self.compatibility_checked = False
         self.checks_passed = False
         self.log_content = ""
@@ -66,6 +67,7 @@ class MigrationModal(ModalScreen):
         if dest_servers:
             default_dest_uri = dest_servers[0][1]
             self.dest_conn = self.connections[default_dest_uri]
+            self.dest_uri = default_dest_uri
 
         with Vertical(id="migration-dialog",):
             with Vertical(id="migration-content-wrapper"):
@@ -119,8 +121,10 @@ class MigrationModal(ModalScreen):
         dest_uri = event.value
         if dest_uri:
             self.dest_conn = self.connections[dest_uri]
+            self.dest_uri = dest_uri
         else:
             self.dest_conn = None
+            self.dest_uri = None
 
         self.query_one("#start", Button).disabled = True
         self.compatibility_checked = False
@@ -269,7 +273,8 @@ class MigrationModal(ModalScreen):
                         flags |= libvirt.VIR_MIGRATE_TUNNELLED
 
                     write_log(f"[dim]Using live migration flags: {flags}[/dim]")
-                    vm.migrate(self.dest_conn, flags, None, None, 0)
+                    # Pass self.dest_uri as the uri argument to ensure correct port/transport is used
+                    vm.migrate(self.dest_conn, flags, None, self.dest_uri, 0)
                 else:  # Offline migration
                     flags = libvirt.VIR_MIGRATE_OFFLINE | libvirt.VIR_MIGRATE_PEER2PEER
                     if persistent:
@@ -280,10 +285,10 @@ class MigrationModal(ModalScreen):
                         flags |= libvirt.VIR_MIGRATE_NON_SHARED_DISK
                         params = {libvirt.VIR_MIGRATE_PARAM_MIGRATE_DISKS: "*"}
                         write_log("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
-                        vm.migrateToURI3(self.dest_conn.getURI(), params, flags)
+                        vm.migrateToURI3(self.dest_uri, params, flags)
                     else:
                         write_log("[dim]Using migrate for offline migration without storage copy.[/dim]")
-                        vm.migrate(self.dest_conn, flags, None, None, 0)
+                        vm.migrate(self.dest_conn, flags, None, self.dest_uri, 0)
 
 
                 write_log(f"[green]✓ Successfully migrated {vm.name()}.[/]")
