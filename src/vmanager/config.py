@@ -24,7 +24,7 @@ DEFAULT_CONFIG = {
     'servers': [
         {'name': 'Localhost', 'uri': 'qemu:///system'},
     ],
-    'LOG_FILE_PATH': str(Path.home() / ".local" / AppInfo.name / "vm_manager.log"),
+    'LOG_FILE_PATH': str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
 }
 
 def get_log_path() -> Path:
