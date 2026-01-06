@@ -37,7 +37,7 @@ from modals.utils_modals import ConfirmationDialog, ProgressModal
 from modals.migration_modals import MigrationModal
 from modals.disk_pool_modals import SelectDiskModal
 from modals.howto_overlay_modal import HowToOverlayModal
-from modals.input_modals import InputModal
+from modals.input_modals import InputModal, _sanitize_input
 from vmcard_dialog import (
         DeleteVMConfirmationDialog, WebConsoleConfigDialog,
         AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
@@ -542,9 +542,14 @@ class VMCard(Static):
                 self.app.call_from_thread(apply_stats_to_ui)
 
             except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                error_code = e.get_error_code()
+                if error_code == libvirt.VIR_ERR_NO_DOMAIN:
                     if self.timer:
                         self.app.call_from_thread(self.timer.stop)
+                    self.app.call_from_thread(self.app.refresh_vm_list)
+                elif error_code in [libvirt.VIR_ERR_SYSTEM_ERROR, libvirt.VIR_ERR_RPC, libvirt.VIR_ERR_NO_CONNECT, libvirt.VIR_ERR_INVALID_CONN]:
+                    logging.warning(f"Connection error for {self.name}: {e}. Triggering refresh.")
+                    self.app.call_from_thread(self.app.refresh_vm_list, force=True)
                 else:
                     logging.warning(f"Libvirt error during stat update for {self.name}: {e}")
             except Exception as e:
@@ -677,8 +682,21 @@ class VMCard(Static):
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             default_name = f"{vm_name}_overlay_{timestamp}.qcow2"
 
-            def on_name_input(overlay_name: str | None):
+            def on_name_input(overlay_name_raw: str | None):
+                if not overlay_name_raw:
+                    return
+
+                try:
+                    overlay_name, was_modified = _sanitize_input(overlay_name_raw)
+                except ValueError as e:
+                    self.app.show_error_message(str(e))
+                    return
+
+                if was_modified:
+                    self.app.show_success_message(f"Input sanitized: '{overlay_name_raw}' changed to '{overlay_name}'")
+
                 if not overlay_name:
+                    self.app.show_error_message("Overlay volume name cannot be empty after sanitization.")
                     return
 
                 try:
@@ -1098,8 +1116,24 @@ class VMCard(Static):
         """Handles the rename button press."""
         logging.info(f"Attempting to rename VM: {self.name}")
 
-        def handle_rename(new_name: str | None) -> None:
+        def handle_rename(new_name_raw: str | None) -> None:
+            if not new_name_raw:
+                return
+
+            try:
+                new_name, was_modified = _sanitize_input(new_name_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{new_name_raw}' changed to '{new_name}'")
+            
             if not new_name:
+                self.app.show_error_message("VM name cannot be empty after sanitization.")
+                return
+            if new_name == self.name:
+                self.app.show_success_message("New VM name is the same as the old name. No rename performed.")
                 return
 
             def do_rename(delete_snapshots=False):

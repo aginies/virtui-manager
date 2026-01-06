@@ -14,6 +14,7 @@ from textual import on
 from storage_manager import create_storage_pool
 from modals.base_modals import BaseModal, ValueListItem
 from modals.utils_modals import DirectorySelectionModal, FileSelectionModal
+from modals.input_modals import _sanitize_input
 
 class SelectPoolModal(BaseModal[str | None]):
     """Modal screen for selecting a storage pool from a list."""
@@ -317,8 +318,17 @@ class AddPoolModal(BaseModal[bool | None]):
             return
 
         if event.button.id == "add-btn":
-            pool_name = self.query_one("#pool-name-input", Input).value
+            pool_name_raw = self.query_one("#pool-name-input", Input).value
             pool_type = self.query_one("#pool-type-select", Select).value
+
+            try:
+                pool_name, was_modified = _sanitize_input(pool_name_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{pool_name_raw}' changed to '{pool_name}'")
 
             if not pool_name:
                 self.app.show_error_message("Pool name is required.")
@@ -399,9 +409,18 @@ class CreateVolumeModal(BaseModal[dict | None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create-btn":
-            name = self.query_one("#vol-name-input", Input).value
+            name_raw = self.query_one("#vol-name-input", Input).value
             size = self.query_one("#vol-size-input", Input).value
             vol_format = self.query_one("#vol-format-select", Select).value
+
+            try:
+                name, was_modified = _sanitize_input(name_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{name_raw}' changed to '{name}'")
 
             if not name or not size:
                 self.app.show_error_message("Name and size are required.")
@@ -504,11 +523,21 @@ class MoveVolumeModal(BaseModal[dict]):
             self.dismiss(None)
         elif event.button.id == "move-btn":
             dest_pool_select = self.query_one("#dest-pool-select", Select)
-            new_name_input = self.query_one("#new-volume-name-input", Input)
-            if dest_pool_select.value and new_name_input.value:
+            new_name_input_raw = self.query_one("#new-volume-name-input", Input).value
+
+            try:
+                new_name, was_modified = _sanitize_input(new_name_input_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{new_name_input_raw}' changed to '{new_name}'")
+
+            if dest_pool_select.value and new_name:
                 self.dismiss({
                     "dest_pool": dest_pool_select.value,
-                    "new_name": new_name_input.value
+                    "new_name": new_name
                 })
             else:
                 self.app.show_error_message("Destination pool and new name are required.")
@@ -537,7 +566,15 @@ class AttachVolumeModal(BaseModal[dict | None]):
         if event.value:
             # Set the volume name from the file name
             vol_name_input = self.query_one("#vol-name-input", Input)
-            vol_name_input.value = os.path.basename(event.value)
+            try:
+                sanitized_name, was_modified = _sanitize_input(os.path.basename(event.value))
+                if was_modified:
+                    self.app.show_success_message(f"Input sanitized: '{os.path.basename(event.value)}' changed to '{sanitized_name}'")
+                
+                vol_name_input.value = sanitized_name
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                vol_name_input.value = "" # Clear if sanitized name is invalid
 
             # Autodetect format based on extension
             ext = os.path.splitext(event.value)[1].lower()
@@ -564,9 +601,18 @@ class AttachVolumeModal(BaseModal[dict | None]):
             return
 
         if event.button.id == "attach-btn":
-            name = self.query_one("#vol-name-input", Input).value
+            name_raw = self.query_one("#vol-name-input", Input).value
             path = self.query_one("#vol-path-input", Input).value
             vol_format = self.detected_format
+
+            try:
+                name, was_modified = _sanitize_input(name_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+            
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{name_raw}' changed to '{name}'")
 
             if not name or not path or not vol_format:
                 self.app.show_error_message("Name, path, and format are required. Ensure a file is selected.")

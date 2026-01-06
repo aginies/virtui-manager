@@ -261,7 +261,13 @@ wp.websockify_init()
         return None
 
     def _launch_remote_websockify(self, uuid: str, vm_name: str, conn, vnc_port: int, graphics_info: dict):
-        """Launches websockify on the remote server via SSH and shows the console dialog."""
+        """
+        Launches websockify on the remote server via SSH and shows the console dialog.
+
+        For secure WSS connections, this function checks for `cert.pem` and `key.pem` on the
+        remote host in `~/.config/virtui-manager/` and `/etc/virtui-manager/keys/`.
+        Refer to README.md for instructions on generating these files.
+        """
         logging.info(f"Launching remote websockify for VM: {vm_name}")
 
         # Parse SSH connection details

@@ -15,6 +15,7 @@ from modals.utils_modals import (
 from config import load_config, save_config
 from constants import ButtonLabels, ButtonIds
 from vm_queries import is_qemu_agent_running
+from modals.input_modals import _sanitize_input
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     """A dialog to confirm VM deletion with an option to delete storage."""
@@ -105,13 +106,32 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             clone_count_input = self.query_one("#clone_count_input", Input)
             clone_suffix_input = self.query_one("#clone_suffix_input", Input)
 
-            base_name = base_name_input.value.strip()
+            base_name_raw = base_name_input.value
             clone_count_str = clone_count_input.value.strip()
-            clone_suffix = clone_suffix_input.value.strip()
+            clone_suffix_raw = clone_suffix_input.value
+
+            try:
+                base_name, base_name_modified = _sanitize_input(base_name_raw)
+                if base_name_modified:
+                    self.app.show_success_message(f"Base name sanitized: '{base_name_raw}' changed to '{base_name}'")
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
 
             if not base_name:
                 self.app.show_error_message("Base name cannot be empty.")
                 return
+            
+            # Sanitize suffix only if it's provided, otherwise keep it empty string
+            clone_suffix = ""
+            if clone_suffix_raw:
+                try:
+                    clone_suffix, suffix_modified = _sanitize_input(clone_suffix_raw)
+                    if suffix_modified:
+                        self.app.show_success_message(f"Suffix sanitized: '{clone_suffix_raw}' changed to '{clone_suffix}'")
+                except ValueError as e:
+                    self.app.show_error_message(f"Invalid characters in suffix: {e}")
+                    return
 
             try:
                 clone_count = int(clone_count_str)
@@ -154,7 +174,20 @@ class RenameVMDialog(BaseDialog[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == ButtonIds.RENAME_BUTTON:
             input_widget = self.query_one(Input)
-            new_name = input_widget.value.strip()
+            new_name_raw = input_widget.value
+
+            try:
+                new_name, was_modified = _sanitize_input(new_name_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{new_name_raw}' changed to '{new_name}'")
+
+            if not new_name:
+                self.app.show_error_message("VM name cannot be empty.")
+                return
 
             error = self.validate_name(new_name)
             if error:
@@ -243,9 +276,23 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             name_input = self.query_one("#name-input", Input)
             description_input = self.query_one("#description-input", Input)
             quiesce_checkbox = self.query_one("#quiesce-checkbox", Checkbox)
-            snapshot_name = name_input.value.strip()
+            
+            snapshot_name_raw = name_input.value
             description = description_input.value.strip()
             quiesce = quiesce_checkbox.value
+
+            try:
+                snapshot_name, was_modified = _sanitize_input(snapshot_name_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+
+            if was_modified:
+                self.app.show_success_message(f"Input sanitized: '{snapshot_name_raw}' changed to '{snapshot_name}'")
+
+            if not snapshot_name:
+                self.app.show_error_message("Snapshot name cannot be empty.")
+                return
 
             error = self.validate_name(snapshot_name)
             if error:

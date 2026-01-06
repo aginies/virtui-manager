@@ -12,6 +12,7 @@ from modals.base_modals import BaseModal, BaseDialog
 from network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
 )
+from modals.input_modals import _sanitize_input, _sanitize_domain_name
 
 class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
     """A dialog to add or edit a VM's network interface."""
@@ -256,7 +257,7 @@ class AddEditNetworkModal(BaseModal[None]):
         if event.button.id == "close-btn":
             self.dismiss(None)
         elif event.button.id == "create-net-btn":
-            name = self.query_one("#net-name-input", Input).value
+            name_raw = self.query_one("#net-name-input", Input).value
             typenet_id = self.query_one("#type-network", RadioSet).pressed_button.id
             typenet = "nat" if typenet_id == "type-network-nat" else "route"
             forward_select = self.query_one("#net-forward-input", Select)
@@ -269,7 +270,29 @@ class AddEditNetworkModal(BaseModal[None]):
             dhcp_end = self.query_one("#dhcp-end-input", Input).value
 
             domain_radio = self.query_one("#dns-domain-radioset", RadioSet).pressed_button.id
-            domain_name = self.query_one("#dns-custom-domain-input", Input).value if domain_radio == "dns-use-custom" else name
+            
+            try:
+                name, name_modified = _sanitize_input(name_raw)
+                if name_modified:
+                    self.app.show_success_message(f"Network name sanitized: '{name_raw}' changed to '{name}'")
+            except ValueError as e:
+                self.app.show_error_message(f"Invalid Network Name: {e}")
+                return
+
+            domain_name_raw = self.query_one("#dns-custom-domain-input", Input).value
+            domain_name = name # Default to sanitized network name
+            if domain_radio == "dns-use-custom":
+                try:
+                    domain_name, domain_name_modified = _sanitize_domain_name(domain_name_raw)
+                    if domain_name_modified:
+                        self.app.show_success_message(f"Custom DNS Domain sanitized: '{domain_name_raw}' changed to '{domain_name}'")
+                except ValueError as e:
+                    self.app.show_error_message(f"Invalid Custom DNS Domain: {e}")
+                    return
+
+            if not name:
+                self.app.show_error_message("Network Name cannot be empty.")
+                return
 
             if ip:
                 try:

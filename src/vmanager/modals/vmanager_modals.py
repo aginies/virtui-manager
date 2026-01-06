@@ -10,6 +10,7 @@ from textual.widgets import (
         )
 from constants import VmStatus
 from modals.base_modals import BaseModal
+from modals.input_modals import _sanitize_input
 
 
 class FilterModal(BaseModal[None]):
@@ -46,7 +47,16 @@ class FilterModal(BaseModal[None]):
         if event.button.id == "cancel-btn":
             self.app.pop_screen()
         elif event.button.id == "apply-btn":
-            search_text = self.query_one("#search-input", Input).value
+            search_text_raw = self.query_one("#search-input", Input).value
+            try:
+                search_text, was_modified = _sanitize_input(search_text_raw)
+            except ValueError as e:
+                self.app.show_error_message(str(e))
+                return
+            
+            if was_modified and search_text_raw != search_text: # Only show if actual chars were removed, not just empty
+                self.app.show_success_message(f"Input sanitized: '{search_text_raw}' changed to '{search_text}'")
+            
             radioset = self.query_one(RadioSet)
             status_button = radioset.pressed_button
             status = VmStatus.DEFAULT
@@ -59,7 +69,16 @@ class FilterModal(BaseModal[None]):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handles Enter key press in the search input."""
         # This implicitly acts as an "Apply" button press
-        search_text = self.query_one("#search-input", Input).value
+        search_text_raw = self.query_one("#search-input", Input).value
+        try:
+            search_text, was_modified = _sanitize_input(search_text_raw)
+        except ValueError as e:
+            self.app.show_error_message(str(e))
+            return
+        
+        if was_modified and search_text_raw != search_text: # Only show if actual chars were removed, not just empty
+            self.app.show_success_message(f"Input sanitized: '{search_text_raw}' changed to '{search_text}'")
+        
         radioset = self.query_one(RadioSet)
         status_button = radioset.pressed_button
         status = VmStatus.DEFAULT
