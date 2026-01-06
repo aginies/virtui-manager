@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import os
 from typing import List, Tuple, Union
+from urllib.parse import urlparse
 from constants import AppInfo
 
 
@@ -252,18 +253,37 @@ def extract_server_name_from_uri(server_name: str) -> str:
     if not server_name:
         return "Unknown"
 
-    if server_name.startswith('qemu+ssh://'):
-        if '@' in server_name:
-            server_display = server_name.split('@')[1].split(':')[0]
-        else:
-            server_display = server_name.split('://')[1].split(':')[0]
-        if server_display.endswith('/system'):
-            server_display = server_display[:-7]  # Remove "/system"
-    elif server_name.startswith('qemu+tcp://') or server_name.startswith('qemu+tls://'):
-        server_display = server_name.split('://')[1].split(':')[0]
-    elif server_name == 'qemu:///system':
-        server_display = 'Local'
-    else:
-        server_display = server_name.split('://')[1].split(':')[0] if '://' in server_name else server_name
+    if server_name == 'qemu:///system':
+        return 'Local'
 
-    return server_display if server_display else "Unknown"
+    try:
+        parsed_uri = urlparse(server_name)
+        # netloc contains user:pass@host:port
+        netloc = parsed_uri.netloc
+        if not netloc:
+            # Fallback for simple names without a scheme
+            return server_name
+
+        # Strip user info if it exists
+        if '@' in netloc:
+            netloc = netloc.split('@', 1)[1]
+
+        # Strip port if it exists
+        if ':' in netloc:
+            netloc = netloc.split(':', 1)[0]
+
+        return netloc if netloc else "Unknown"
+
+    except Exception:
+        # Fallback to original logic if parsing fails for any reason
+        if server_name.startswith('qemu+ssh://'):
+            if '@' in server_name:
+                server_display = server_name.split('@')[1].split('/')[0]
+            else:
+                server_display = server_name.split('://')[1].split('/')[0]
+        elif server_name.startswith('qemu+tcp://') or server_name.startswith('qemu+tls://'):
+            server_display = server_name.split('://')[1].split('/')[0]
+        else:
+            server_display = server_name
+
+        return server_display if server_display else "Unknown"
