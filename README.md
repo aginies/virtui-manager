@@ -81,9 +81,15 @@ git clone https://github.com/aginies/virtui-manager.git
 cd virtui-manager
 ```
 
+### Zypper
+
+```bash
+zypper in libvirt-python python3-textual python3-pyaml python3-markdown-it-py
+```
+
 ### Install Python Dependencies
 ```bash
-pip install libvirt-python textual pyaml
+pip install libvirt-python textual pyaml markdown-it-py
 ```
 
 ### Run the Application
