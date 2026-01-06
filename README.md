@@ -135,7 +135,7 @@ When `REMOTE_WEBCONSOLE` is enabled, Virtui Manager can use a secure WebSocket c
 
 To enable secure connections:
 
-1. ** Install needed packages **
+1. **Install needed packages**
 
 * [python websockify](https://pypi.org/project/websockify/)
 * [novnc](https://novnc.com/info.html)
