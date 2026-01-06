@@ -179,6 +179,7 @@ class VMManagerTUI(App):
     def __init__(self):
         super().__init__()
         self.vm_service = VMService()
+        self.vm_service.set_data_update_callback(self.on_vm_data_update)
         self.worker_manager = WorkerManager(self)
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}
@@ -187,6 +188,10 @@ class VMManagerTUI(App):
         self.devel = "(Devel v" + AppInfo.version + ")"
         self.vm_cards: dict[str, VMCard] = {}
         self._resize_timer = None
+
+    def on_vm_data_update(self):
+        """Callback from VMService when data is updated."""
+        self.call_from_thread(self.refresh_vm_list)
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
