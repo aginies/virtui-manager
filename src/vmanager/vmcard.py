@@ -233,7 +233,7 @@ class VMCard(Static):
         """Schedules a tooltip update to debounce frequent calls."""
         if self._tooltip_update_timer:
             self._tooltip_update_timer.stop()
-        self._tooltip_update_timer = self.set_timer(0.2, self._perform_tooltip_update)
+        self._tooltip_update_timer = self.set_timer(2, self._perform_tooltip_update)
 
     def _is_remote_server(self) -> bool:
         """Checks if the VM is on a remote server."""
