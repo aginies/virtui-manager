@@ -595,7 +595,7 @@ class VMCard(Static):
         logging.info(f"graphics_type: {self.graphics_type}")
         # TOFIX
         #self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused) and self.graphics_type == "vnc" and self.app.websockify_available and self.app.novnc_available
-        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused) and self.app.websockify_available and self.app.novnc_available
+        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)# and self.app.websockify_available and self.app.novnc_available
         self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
         self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = True
