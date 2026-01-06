@@ -495,8 +495,7 @@ class VMCard(Static):
                         self.app.call_from_thread(setattr, self, 'boot_device', boot_dev)
                         self.app.call_from_thread(setattr, self, 'cpu_model', cpu_model)
                         self.app.call_from_thread(setattr, self, 'graphics_type', graphics_type)
-                    else:
-                        return
+                    return
 
                 # Fetch IPs if running (check stats status, not UI status which might be stale)
                 ips = []
@@ -569,12 +568,13 @@ class VMCard(Static):
         rename_button = self.ui.get(ButtonIds.RENAME_BUTTON)
         if not rename_button: return # Assume if one is missing, others might be too or we are not cached yet.
 
+        is_loading = self.status == StatusText.LOADING
         is_stopped = self.status == StatusText.STOPPED
         is_running = self.status == StatusText.RUNNING
         is_paused = self.status == StatusText.PAUSED
         has_snapshots = False
         try:
-            if self.vm:
+            if self.vm and not is_loading:
                 has_snapshots = len(self.vm.listAllSnapshots(0)) > 0
         except libvirt.libvirtError as e:
             if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
@@ -587,7 +587,7 @@ class VMCard(Static):
         self.ui[ButtonIds.STOP].display = is_running or is_paused
         self.ui[ButtonIds.DELETE].display = is_running or is_paused or is_stopped
         self.ui[ButtonIds.CLONE].display = is_stopped
-        self.ui[ButtonIds.MIGRATION].display = True
+        self.ui[ButtonIds.MIGRATION].display = not is_loading
         self.ui[ButtonIds.RENAME_BUTTON].display = is_stopped
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
@@ -598,11 +598,11 @@ class VMCard(Static):
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)# and self.app.websockify_available and self.app.novnc_available
         self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
         self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
-        self.ui[ButtonIds.CONFIGURE_BUTTON].display = True
+        self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
 
         has_overlay_disk = False
         try:
-            if self.vm:
+            if self.vm and not is_loading:
                 uuid = self.vm.UUIDString()
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
                 if vm_cache.get('xml'):
@@ -613,9 +613,11 @@ class VMCard(Static):
         self.ui[ButtonIds.COMMIT_DISK].display = is_running and has_overlay_disk
         self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay_disk
         self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay_disk
+        self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
+        self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading
 
-        self.ui["cpu_container"].display = not is_stopped
-        self.ui["mem_container"].display = not is_stopped
+        self.ui["cpu_container"].display = not is_stopped and not is_loading
+        self.ui["mem_container"].display = not is_stopped and not is_loading
 
         xml_button = self.ui[ButtonIds.XML]
         if is_stopped:
@@ -623,12 +625,16 @@ class VMCard(Static):
             self.stats_view_mode = "resources" # Reset to default when stopped
         else:
             xml_button.label = "View XML"
+        xml_button.display = not is_loading
 
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
         if status_widget:
-            status_widget.remove_class("stopped", "running", "paused")
-            status_widget.add_class(self.status.lower())
+            status_widget.remove_class("stopped", "running", "paused", "loading")
+            if self.status == StatusText.LOADING:
+                status_widget.add_class("loading")
+            else:
+                status_widget.add_class(self.status.lower())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
@@ -1181,6 +1187,10 @@ class VMCard(Static):
 
     def _handle_migration_button(self, event: Button.Pressed) -> None:
         """Handles the migration button press."""
+        if len(self.app.active_uris) < 2:
+            self.app.show_error_message("Please select at least two servers in 'Select Servers' to enable migration.")
+            return
+
         selected_vm_uuids = self.app.selected_vm_uuids
         selected_vms = []
         if selected_vm_uuids:

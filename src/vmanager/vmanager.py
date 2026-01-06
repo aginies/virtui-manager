@@ -19,7 +19,7 @@ from textual.worker import Worker, WorkerState
 from config import load_config, save_config, get_log_path
 from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
-        ErrorMessages, AppInfo
+        ErrorMessages, AppInfo, StatusText
         )
 from events import VmActionRequest, VMNameClicked, VMSelectionChanged
 from libvirt_error_handler import register_error_handler
@@ -46,6 +46,7 @@ from utils import (
     check_virt_viewer,
     check_websockify,
     generate_webconsole_keys_if_needed,
+    extract_server_name_from_uri, # Import the function
 )
 from vm_queries import (
     get_status,
@@ -819,14 +820,24 @@ class VMManagerTUI(App):
                 uuid = domain.UUIDString()
                 page_uuids.add(uuid)
                 
-                info = domain.info()
+                # Try to get info from cache to avoid blocking if possible
+                info = self.vm_service.get_cached_vm_info(domain)
+                
+                if info:
+                    status = get_status(domain, state=info[0])
+                    cpu = info[3]
+                    memory = info[1] // 1024
+                else:
+                    status = StatusText.LOADING
+                    cpu = 0
+                    memory = 0
                 
                 vm_data = {
                     'uuid': uuid,
                     'name': domain.name(),
-                    'status': get_status(domain, state=info[0]),
-                    'cpu': info[3],
-                    'memory': info[1] // 1024,
+                    'status': status,
+                    'cpu': cpu,
+                    'memory': memory,
                     'is_selected': uuid in selected_uuids,
                     'domain': domain,
                     'conn': conn,
@@ -914,7 +925,8 @@ class VMManagerTUI(App):
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
 
-            self.sub_title = f"Servers: {', '.join(server_names)} | Total VMs: {total_vms}"
+            display_server_names = [extract_server_name_from_uri(uri) for uri in server_names]
+            self.sub_title = f"Servers: {', '.join(display_server_names)} | Total VMs: {total_vms}"
             self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
 
         self.call_from_thread(update_ui)

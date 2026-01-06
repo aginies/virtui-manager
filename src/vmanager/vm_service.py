@@ -4,9 +4,18 @@ Handles all libvirt interactions and data processing.
 """
 import time
 import xml.etree.ElementTree as ET
+from datetime import datetime
 import libvirt
 from connection_manager import ConnectionManager
-from constants import VmStatus
+from constants import VmStatus, VmAction
+from storage_manager import check_domain_volumes_in_use
+from vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
+from vm_queries import (
+    get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
+    get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
+    get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
+    get_boot_info, get_vm_video_model, get_vm_cpu_model
+)
 
 class VMService:
     """A service class to abstract libvirt operations."""
@@ -146,11 +155,24 @@ class VMService:
         return xml
 
 
+    def get_cached_vm_info(self, domain: libvirt.virDomain) -> tuple | None:
+        """Gets domain info ONLY from cache, returning None if not present or expired."""
+        uuid = domain.UUIDString()
+        now = time.time()
+
+        if uuid not in self._vm_data_cache:
+            return None
+
+        vm_cache = self._vm_data_cache[uuid]
+        info = vm_cache.get('info')
+        info_ts = vm_cache.get('info_ts', 0)
+
+        if info and (now - info_ts < self._info_cache_ttl):
+            return info
+        return None
+
     def get_vm_runtime_stats(self, domain: libvirt.virDomain) -> dict | None:
         """Gets live statistics for a given, active VM domain."""
-        from vm_queries import get_status
-        from datetime import datetime
-
         if not domain or not domain.isActive():
             return None
 
@@ -206,12 +228,12 @@ class VMService:
             xml_content = vm_cache.get('xml')
 
             if not xml_content:
-                 # Skip I/O stats calculation if XML is not cached
-                 stats['disk_read_kbps'] = 0
-                 stats['disk_write_kbps'] = 0
-                 stats['net_rx_kbps'] = 0
-                 stats['net_tx_kbps'] = 0
-                 return stats
+                # Skip I/O stats calculation if XML is not cached
+                stats['disk_read_kbps'] = 0
+                stats['disk_write_kbps'] = 0
+                stats['net_rx_kbps'] = 0
+                stats['net_tx_kbps'] = 0
+                return stats
 
             # Use cached devices list if available and XML hasn't changed
             # Check if we have a valid cached device list
@@ -318,10 +340,15 @@ class VMService:
     def disconnect(self, uri: str) -> None:
         """Disconnects from a libvirt URI and cleans up associated VM caches."""
         # Find UUIDs associated with this URI before disconnecting to clean up caches
-        uuids_to_invalidate = [
-            uuid for uuid, conn in self._uuid_to_conn_cache.items()
-            if conn.getURI() == uri
-        ]
+        uuids_to_invalidate = []
+        for uuid, conn in self._uuid_to_conn_cache.items():
+            try:
+                if conn.getURI() == uri:
+                    uuids_to_invalidate.append(uuid)
+            except libvirt.libvirtError:
+                # If connection is already dead/invalid, we can't get URI.
+                pass
+
         for uuid in uuids_to_invalidate:
             self.invalidate_vm_cache(uuid)
 
@@ -333,8 +360,6 @@ class VMService:
 
     def perform_bulk_action(self, active_uris: list[str], vm_uuids: list[str], action_type: str, delete_storage_flag: bool, progress_callback: callable):
         """Performs a bulk action on a list of VMs, reporting progress via a callback."""
-        from vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
-        from constants import VmAction
 
         action_dispatcher = {
             VmAction.START: start_vm,
@@ -435,9 +460,6 @@ class VMService:
 
     def start_vm(self, domain: libvirt.virDomain) -> None:
         """Performs pre-flight checks and starts the VM."""
-        from vm_actions import start_vm as start_action
-        from storage_manager import check_domain_volumes_in_use
-
         if domain.isActive():
             return # Already running, do nothing
 
@@ -445,32 +467,24 @@ class VMService:
         check_domain_volumes_in_use(domain)
 
         # If checks pass, start the VM
-        start_action(domain)
+        start_vm(domain)
 
     def stop_vm(self, domain: libvirt.virDomain) -> None:
         """Stops the VM."""
-        from vm_actions import stop_vm as stop_action
-
-        stop_action(domain)
+        stop_vm(domain)
 
     def pause_vm(self, domain: libvirt.virDomain) -> None:
         """Pauses the VM."""
-        from vm_actions import pause_vm as pause_action
-
-        pause_action(domain)
+        pause_vm(domain)
 
     def force_off_vm(self, domain: libvirt.virDomain) -> None:
         """Forcefully stops the VM."""
-        from vm_actions import force_off_vm as force_off_action
-
-        force_off_action(domain)
+        force_off_vm(domain)
 
     def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
         """Deletes the VM."""
-        from vm_actions import delete_vm as delete_action
-
         uuid = domain.UUIDString()
-        delete_action(domain, delete_storage=delete_storage)
+        delete_vm(domain, delete_storage=delete_storage)
         self.invalidate_vm_cache(uuid)
 
 
@@ -480,13 +494,6 @@ class VMService:
 
     def get_vm_details(self, active_uris: list[str], vm_uuid: str) -> tuple | None:
         """Finds a VM by UUID and returns its detailed information."""
-        from vm_queries import (
-            get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
-            get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
-            get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
-            get_boot_info, get_vm_video_model, get_vm_cpu_model
-        )
-
         domain = self.find_domain_by_uuid(active_uris, vm_uuid)
         if not domain:
             return None
@@ -501,8 +508,8 @@ class VMService:
                 try:
                     # Check if this connection owns the domain
                     if conn.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
-                         conn_for_domain = conn
-                         break
+                        conn_for_domain = conn
+                        break
                 except libvirt.libvirtError:
                     continue
 
@@ -515,7 +522,7 @@ class VMService:
             if info is None or xml_content is None:
                 # If we can't get essential info, we can't proceed.
                 return None
-            
+
             root = None
             try:
                 root = ET.fromstring(xml_content)

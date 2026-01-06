@@ -115,6 +115,7 @@ class StatusText:
     STOPPED = "Stopped"
     RUNNING = "Running"
     PAUSED = "Paused"
+    LOADING = "Loading"
 
 class SparklineLabels:
     """Constants for sparkline labels"""

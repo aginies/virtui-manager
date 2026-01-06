@@ -84,10 +84,11 @@ VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab {
   margin-bottom: 1;
 }
 
-#status.running, #status.stopped, #status.paused { color: black; }
+#status.running, #status.stopped, #status.paused, #status.loading { color: black; }
 #status.running { background: lightgreen; }
 #status.stopped { background: red; }
 #status.paused { background: yellow; }
+#status.loading { background: grey; }
 
 Button {
   width: 100%;
@@ -144,4 +145,3 @@ Button {
   height: 2;
   border: none;
 }
-
