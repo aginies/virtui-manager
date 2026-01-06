@@ -6,6 +6,7 @@ import logging
 import traceback
 import datetime
 from functools import partial
+from urllib.parse import urlparse
 import libvirt
 from rich.markdown import Markdown as RichMarkdown
 
@@ -30,7 +31,8 @@ from vm_actions import (
 from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
-        get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml
+        get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
+        get_status
         )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal
@@ -232,9 +234,24 @@ class VMCard(Static):
             self._tooltip_update_timer.stop()
         self._tooltip_update_timer = self.set_timer(0.2, self._perform_tooltip_update)
 
+    def _is_remote_server(self) -> bool:
+        """Checks if the VM is on a remote server."""
+        if not self.conn:
+            return False
+        try:
+            uri = self.conn.getURI()
+            parsed = urlparse(uri)
+            return parsed.hostname not in (None, "localhost", "127.0.0.1") and parsed.scheme == "qemu+ssh"
+        except Exception:
+            return False
+
     def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
         if not self.ui or "vmname" not in self.ui:
+            return
+        
+        if self._is_remote_server():
+            self.ui["vmname"].tooltip = None
             return
 
         try:
@@ -444,10 +461,28 @@ class VMCard(Static):
         current_boot_device = self.boot_device
         current_cpu_model = self.cpu_model
         current_graphics_type = self.graphics_type
+        is_remote = self._is_remote_server()
 
         def update_worker():
             try:
-                stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
+                if is_remote:
+                    # Minimal fetch for remote servers: ONLY status
+                    try:
+                        state, _ = self.vm.state()
+                        status = get_status(self.vm, state=state)
+                        stats = {
+                            "status": status,
+                            "cpu_percent": 0.0,
+                            "mem_percent": 0.0,
+                            "disk_read_kbps": 0.0,
+                            "disk_write_kbps": 0.0,
+                            "net_rx_kbps": 0.0,
+                            "net_tx_kbps": 0.0
+                        }
+                    except libvirt.libvirtError:
+                        stats = None
+                else:
+                    stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
 
                 # Update info from cache if XML has been fetched (e.g. via Configure)
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
@@ -469,8 +504,9 @@ class VMCard(Static):
                             graphics_info = get_vm_graphics_info(root)
                             graphics_type = graphics_info.get("type")
                             self._boot_device_checked = True
-                    else:
+                    elif not is_remote:
                         # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
+                        # Skipped for remote servers
                         try:
                             _, root = _get_domain_root(self.vm)
                             if root is not None:

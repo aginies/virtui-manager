@@ -333,7 +333,7 @@ class VMManagerTUI(App):
             for domain, conn in domains_to_display:
                 try:
                     # This will populate the cache
-                    self.vm_service._get_domain_info_and_xml(domain)
+                    self.vm_service._get_domain_info(domain)
                 except libvirt.libvirtError:
                     pass  # Skip VMs that fail
             

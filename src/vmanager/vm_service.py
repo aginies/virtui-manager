@@ -121,14 +121,8 @@ class VMService:
             try:
                 # We can call domain.info() and XMLDesc() without lock
                 info = None
-                xml = None
                 try:
                     info = domain.info()
-                except libvirt.libvirtError:
-                    pass
-                
-                try:
-                    xml = domain.XMLDesc(0)
                 except libvirt.libvirtError:
                     pass
                 
@@ -141,10 +135,6 @@ class VMService:
                     if info:
                         vm_cache['info'] = info
                         vm_cache['info_ts'] = now
-                    
-                    if xml:
-                        vm_cache['xml'] = xml
-                        vm_cache['xml_ts'] = now
             except Exception as e:
                 logging.error(f"Error updating cache for VM {uuid}: {e}")
 
@@ -209,7 +199,7 @@ class VMService:
 
             for domain in domains:
                 try:
-                    self._get_domain_info_and_xml(domain)
+                    self._get_domain_info(domain)
                 except libvirt.libvirtError:
                     pass
 
