@@ -1,6 +1,7 @@
 """
 Modals for input device configuration.
 """
+import re
 from textual.widgets import Select, Button, Label, Input
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
@@ -63,3 +64,48 @@ class AddInputDeviceModal(BaseModal[None]):
                 self.dismiss()
         else:
             self.dismiss()
+
+def _sanitize_input(input_string: str) -> tuple[str, bool]:
+    """
+    Sanitise input to alphanumeric, underscore, hyphen only.
+    Returns a tuple: (sanitized_string, was_modified).
+    `was_modified` is True if any characters were removed/changed or input was empty.
+    """
+    original_stripped = input_string.strip()
+    was_modified = False
+
+    if not original_stripped:
+        return "", True # Empty input is considered modified
+
+    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '', original_stripped)
+    
+    if len(sanitized) > 64:
+        raise ValueError("Sanitized input is too long (max 64 characters)")
+    
+    if sanitized != original_stripped:
+        was_modified = True
+
+    return sanitized, was_modified
+
+def _sanitize_domain_name(input_string: str) -> tuple[str, bool]:
+    """
+    Sanitise domain name input to alphanumeric, hyphen, and period only.
+    Returns a tuple: (sanitized_string, was_modified).
+    `was_modified` is True if any characters were removed/changed or input was empty.
+    """
+    original_stripped = input_string.strip()
+    was_modified = False
+
+    if not original_stripped:
+        return "", True # Empty input is considered modified
+
+    # Allow alphanumeric, hyphens, and periods
+    sanitized = re.sub(r'[^a-zA-Z0-9.-]', '', original_stripped)
+    
+    if len(sanitized) > 64: # Common domain name length limit
+        raise ValueError("Sanitized domain name is too long (max 64 characters)")
+    
+    if sanitized != original_stripped:
+        was_modified = True
+
+    return sanitized, was_modified
