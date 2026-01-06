@@ -302,7 +302,9 @@ class MigrationModal(ModalScreen):
 
             except libvirt.libvirtError as e:
                 write_log(f"[red]ERROR: Failed to migrate {vm.name()}: {e}[/]")
-            
+                if "Host key verification failed" in str(e):
+                    write_log("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
+
             self.app.call_from_thread(progress_bar.advance, 1)
 
         def final_ui_state():
