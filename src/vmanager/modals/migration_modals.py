@@ -2,8 +2,8 @@
 Modals for handling VM migration.
 """
 from typing import List, Dict
-import libvirt
 import threading
+import libvirt
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
@@ -77,7 +77,7 @@ class MigrationModal(ModalScreen):
                 yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
                 yield Static("Select destination server:")
                 yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
-                
+
                 yield Static("Migration Options:")
                 with Horizontal(classes="checkbox-container"):
                     yield Checkbox("Copy storage all", id="copy-storage-all", tooltip="Copy all disk files during migration", value=False)
@@ -101,7 +101,7 @@ class MigrationModal(ModalScreen):
                     ),
                     id="migration-summary-grid"
                 )
-            
+
             with Horizontal(classes="modal-buttons"):
                 yield Button("Check Compatibility", variant="primary", id="check", classes="Buttonpage")
                 yield Button("Start Migration", variant="success", id="start", disabled=True, classes="Buttonpage")
@@ -118,6 +118,7 @@ class MigrationModal(ModalScreen):
         log = self.query_one("#results-log", Static)
         log.wrap = True
         self.query_one("#migration-progress").styles.display = "none"
+        self.query_one("#migration-summary-grid").styles.display = "none"
 
 
     @on(Select.Changed, "#dest-server-select")
@@ -239,6 +240,7 @@ class MigrationModal(ModalScreen):
             cannot_migrate_text = "\n".join(f"- {name}" for name in self.cannot_migrate_vms)
             self.query_one("#can-migrate-list").update(can_migrate_text)
             self.query_one("#cannot-migrate-list").update(cannot_migrate_text)
+            self.query_one("#migration-summary-grid").styles.display = "block"
         self.app.call_from_thread(update_ui_after_check)
 
     @work(exclusive=True, thread=True)
@@ -252,9 +254,23 @@ class MigrationModal(ModalScreen):
         self.app.call_from_thread(self._lock_controls, True)
 
         progress_bar = self.query_one("#migration-progress", ProgressBar)
+
         self.app.call_from_thread(lambda: setattr(progress_bar, "total", len(self.vms_to_migrate)))
         self.app.call_from_thread(lambda: setattr(progress_bar, "progress", 0))
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "block"))
+
+        last_log_percentage = -1
+
+        def log_progress(p):
+            p = p*10
+            nonlocal last_log_percentage
+            # Log at 0 (start), then every 5%, then 100%
+            if p == 0 or p >= last_log_percentage + 20:
+                write_log(f"  ... {int(p)}%")
+                last_log_percentage = int(p)
+            if p >= 100:
+                last_log_percentage = -1
+
         # Hide the migration summary grid when migration starts
         self.query_one("#migration-summary-grid").styles.display = "none"
 
@@ -272,7 +288,7 @@ class MigrationModal(ModalScreen):
             if custom_migration:
                 try:
                     actions = custom_migrate_vm(self.source_conn, self.dest_conn, vm, log_callback=write_log)
-                    
+
                     migration_confirmed = threading.Event()
                     user_selections = {}
 
@@ -282,22 +298,29 @@ class MigrationModal(ModalScreen):
                         migration_confirmed.set()
 
                     self.app.call_from_thread(self.app.push_screen, CustomMigrationModal(actions), on_custom_migration_confirm)
-                    
+
                     # Wait for the user to interact with the modal
                     migration_confirmed.wait()
 
                     if user_selections:
-                         write_log("[bold]User confirmed custom migration. Executing...[/bold]")
-                         execute_custom_migration(self.source_conn, self.dest_conn, actions, user_selections, log_callback=write_log)
+                        write_log("[bold]User confirmed custom migration. Executing...[/bold]")
+                        execute_custom_migration(
+                            self.source_conn,
+                            self.dest_conn,
+                            actions,
+                            user_selections,
+                            log_callback=write_log,
+                            progress_callback=log_progress
+                         )
                     else:
                         write_log("[yellow]Custom migration cancelled by user.[/yellow]")
 
                 except Exception as e:
                     write_log(f"[red]ERROR: Custom migration failed for {vm.name()}: {e}[/red]")
-                
+
                 self.app.call_from_thread(progress_bar.advance, 1)
                 continue
-            
+
             try:
                 if self.is_live:
                     flags = libvirt.VIR_MIGRATE_LIVE | libvirt.VIR_MIGRATE_PEER2PEER
