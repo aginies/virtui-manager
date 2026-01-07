@@ -1225,6 +1225,9 @@ def get_vm_snapshots(domain: libvirt.virDomain) -> list[dict]:
     except (libvirt.libvirtError, ET.ParseError) as e:
         logging.error(f"Error getting snapshots: {e}")
 
+    # Sort by creation time descending (newest first)
+    snapshots_info.sort(key=lambda x: x.get('creation_time', ''), reverse=True)
+
     return snapshots_info
 
 def get_overlay_disks(domain: libvirt.virDomain) -> list[str]:

@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import ScrollableContainer, Horizontal, Vertical, Grid
 from textual.widgets import (
         Button, Label, Checkbox, Select, Input, ListView, ListItem,
-        Switch, Markdown,
+        Switch, Markdown, DataTable
         )
 from modals.utils_modals import (
     BaseModal, BaseDialog, show_warning_message
@@ -198,12 +198,6 @@ class RenameVMDialog(BaseDialog[str | None]):
         else:
             self.dismiss(None)
 
-class SnapshotListItem(ListItem):
-    """A ListItem that stores the snapshot name."""
-    def __init__(self, snapshot_name: str, label_text: str) -> None:
-        super().__init__(Label(label_text))
-        self.snapshot_name = snapshot_name
-
 class SelectSnapshotDialog(BaseDialog[str | None]):
     """A dialog to select a snapshot from a list."""
 
@@ -213,24 +207,30 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
         self.prompt = prompt
 
     def compose(self):
-        items = []
-        for snap in self.snapshots:
-            state_info = f" [{snap['state']}]" if snap.get('state') else ""
-            label_text = f"{snap['name']}{state_info} ({snap['creation_time']})"
-            if snap['description']:
-                label_text += f" - {snap['description']}"
-            items.append(SnapshotListItem(snap['name'], label_text))
-
         yield Vertical(
-            Label(self.prompt),
-            ListView(*items, id="snapshot-list"),
+            Label(self.prompt, id="prompt-label"),
+            DataTable(id="snapshot-table"),
             Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
             id="dialog",
+            classes="snapshot-select-dialog"
         )
 
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        if isinstance(event.item, SnapshotListItem):
-            self.dismiss(event.item.snapshot_name)
+    def on_mount(self) -> None:
+        table = self.query_one("#snapshot-table", DataTable)
+        table.cursor_type = "row"
+        table.add_columns("Name", "State", "Created", "Description")
+        
+        for snap in self.snapshots:
+            table.add_row(
+                snap['name'],
+                snap.get('state', 'N/A'),
+                snap['creation_time'],
+                snap['description'],
+                key=snap['name']
+            )
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        self.dismiss(str(event.row_key.value))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == ButtonIds.CANCEL:

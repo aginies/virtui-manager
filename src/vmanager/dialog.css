@@ -40,7 +40,6 @@ HowToSSHModal {
 
 /* === BASE DIALOGUE === */
 SnapshotNameDialog > #dialog,
-SelectSnapshotDialog > #dialog,
 ConfirmationDialog > #dialog,
 WebConsoleDialog > #dialog,
 SelectDiskModal > #dialog,
@@ -69,6 +68,9 @@ HowToSSHModal > #howto-ssh-dialog {
   height: auto;
 }
 
+SelectSnapshotDialog > #dialog, {
+  width: 68;
+}
 /* === SPECIFIC HEIGHT === */
 SelectSnapshotDialog > #dialog,
 SnapshotNameDialog > #dialog { height: 20;}
@@ -189,13 +191,15 @@ AttachVolumeModal #vol-path-input,
 AddDiskModal #disk-path-input {
   width: 75%;
 }
-/* === LISTS === */
-SelectSnapshotDialog > #snapshot-list,
-ProgressModal,
-SelectServerModal {
+SelectSnapshotDialog.snapshot-select-dialog > #dialog {
+  width: 90;
+  height: 25;
+}
+
+#snapshot-table {
+  height: 15;
   margin-bottom: 1;
   border: round $primary;
-  height: 10;
 }
 
 /* === NETWORK === */
