@@ -393,7 +393,8 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     try:
         tmp_free_space = shutil.disk_usage(tmp_dir).free
         if tmp_free_space < source_capacity:
-            msg = (f"Not enough space in temporary directory '{tmp_dir}'. "
+            msg = (
+                   f"Not enough space in temporary directory '{tmp_dir}'. "
                    f"Required: {source_capacity // 1024**2} MB, "
                    f"Available: {tmp_free_space // 1024**2} MB.")
             log_and_callback(f"ERROR: {msg}")
@@ -411,7 +412,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         raise Exception(msg)
 
     if vms_using_volume:
-        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}.\nTheir configuration will be updated after the move.\nWait Until the process is finished (can take a lot of time).")
+        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}.  Their configuration will be updated after the move.  Wait Until the process is finished (can take a lot of time).")
 
     source_info = source_vol.info()
     source_capacity = source_info[1]
@@ -800,3 +801,136 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
                 })
 
     return shared_pools_info
+
+def copy_volume_across_hosts(source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, source_pool_name: str, dest_pool_name: str, volume_name: str, new_volume_name: str = None, progress_callback=None, log_callback=None) -> dict:
+    """
+    Copies a storage volume from a source host to a destination host.
+    This involves downloading and uploading the volume.
+    """
+    def log_and_callback(message):
+        logging.info(message)
+        if log_callback:
+            log_callback(message)
+
+    if not new_volume_name:
+        new_volume_name = volume_name
+
+    try:
+        source_pool = source_conn.storagePoolLookupByName(source_pool_name)
+        dest_pool = dest_conn.storagePoolLookupByName(dest_pool_name)
+        source_vol = source_pool.storageVolLookupByName(volume_name)
+    except libvirt.libvirtError as e:
+        log_and_callback(f"[red]ERROR:[/ ] Could not find source/destination resources: {e}")
+        raise
+
+    source_info = source_vol.info()
+    source_capacity = source_info[1]
+    source_format = "qcow2"
+    try:
+        source_format = ET.fromstring(source_vol.XMLDesc(0)).findtext("target/format[@type]", "qcow2")
+    except (ET.ParseError, libvirt.libvirtError):
+        pass
+
+    # Check if volume already exists on destination
+    try:
+        dest_pool.storageVolLookupByName(new_volume_name)
+        raise Exception(f"A volume named '{new_volume_name}' already exists in the destination pool '{dest_pool_name}'.")
+    except libvirt.libvirtError as e:
+        if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
+            raise
+
+    # Create new volume definition on destination
+    new_vol_xml = f"""
+    <volume>
+        <name>{new_volume_name}</name>
+        <capacity>{source_capacity}</capacity>
+        <target>
+            <format type='{source_format}'/>
+        </target>
+    </volume>
+    """
+    log_and_callback(f"Creating new volume '{new_volume_name}' on destination pool '{dest_pool_name}'.")
+    dest_vol = dest_pool.createXML(new_vol_xml, 0)
+
+    download_stream = None
+    upload_stream = None
+    tmp_file = None
+    try:
+        # Create a temporary file to hold the volume data
+        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            tmp_file = tmp.name
+        log_and_callback(f"Using temporary file for transfer: {tmp_file}")
+
+        # Download from source
+        log_and_callback(f"Downloading '{volume_name}' from source...")
+        download_stream = source_conn.newStream(0)
+        source_vol.download(download_stream, 0, source_capacity)
+        with open(tmp_file, "wb") as f:
+            downloaded_bytes = 0
+            while True:
+                try:
+                    data = download_stream.recv(1024 * 1024) # 1MB chunks
+                    if not data:
+                        break
+                    f.write(data)
+                    downloaded_bytes += len(data)
+                    if progress_callback:
+                        progress_callback((downloaded_bytes / source_capacity) * 50)
+                except libvirt.libvirtError as e:
+                    if e.get_error_code() == libvirt.VIR_ERR_EOF:
+                        break
+                    raise
+        download_stream.finish()
+        log_and_callback("Download complete.")
+
+        # Upload to destination
+        log_and_callback(f"Uploading to '{new_volume_name}' on destination...")
+        upload_stream = dest_conn.newStream(0)
+        dest_vol.upload(upload_stream, 0, source_capacity)
+        with open(tmp_file, "rb") as f:
+            uploaded_bytes = 0
+            while True:
+                data = f.read(1024 * 1024)
+                if not data:
+                    break
+                upload_stream.send(data)
+                uploaded_bytes += len(data)
+                if progress_callback:
+                    progress_callback(50 + (uploaded_bytes / source_capacity) * 50)
+        upload_stream.finish()
+        log_and_callback("Upload complete.")
+
+        # Refresh destination pool
+        dest_pool.refresh(0)
+
+        # Return information needed for updating the VM XML
+        return {
+            "old_disk_path": source_vol.path(),
+            "new_pool_name": dest_pool.name(),
+            "new_volume_name": dest_vol.name(),
+            "new_disk_path": dest_vol.path(),
+        }
+
+    except Exception as e:
+        log_and_callback(f"[red]ERROR:[/ ] Failed to move volume: {e}")
+        # Cleanup failed destination volume
+        if dest_vol:
+            try:
+                dest_vol.delete(0)
+            except libvirt.libvirtError as del_e:
+                log_and_callback(f"[yellow]Warning:[/ ] Failed to cleanup destination volume: {del_e}")
+        raise
+    finally:
+        if download_stream:
+            try:
+                download_stream.abort()
+            except:
+                pass
+        if upload_stream:
+            try:
+                upload_stream.abort()
+            except:
+                pass
+        if tmp_file and os.path.exists(tmp_file):
+            os.remove(tmp_file)
+            log_and_callback(f"Removed temporary file: {tmp_file}")
