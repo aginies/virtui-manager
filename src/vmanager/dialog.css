@@ -29,6 +29,7 @@ PasswordModal,
 FileSelectionModal,
 ConfigModal,
 HowToNetworkModal,
+CustomMigrationModal,
 HowToOverlayModal,
 HowToVirtIOFSModal,
 HowToDiskModal,
@@ -41,6 +42,7 @@ HowToSSHModal {
 /* === BASE DIALOGUE === */
 SnapshotNameDialog > #dialog,
 ConfirmationDialog > #dialog,
+CustomMigrationModal > #custom-migration-dialog,
 WebConsoleDialog > #dialog,
 SelectDiskModal > #dialog,
 MoveVolumeModal > #move-volume-dialog,
@@ -70,6 +72,9 @@ HowToSSHModal > #howto-ssh-dialog {
 
 SelectSnapshotDialog > #dialog, {
   width: 68;
+}
+CustomMigrationModal Select {
+  border: none;
 }
 /* === SPECIFIC HEIGHT === */
 SelectSnapshotDialog > #dialog,

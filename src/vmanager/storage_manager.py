@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import xml.etree.ElementTree as ET
 import threading
+import subprocess
 import libvirt
 from libvirt_utils import (
         _find_vol_by_path,
@@ -185,7 +186,7 @@ def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format
                 msg = f"Failed to copy file from {path} to {dest_path}: {e}"
                 logging.error(msg)
                 raise Exception(msg) from e
-        
+
         vol_xml = f"""
         <volume>
             <name>{name}</name>
@@ -206,7 +207,7 @@ def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format
             </target>
         </volume>
         """
-    
+
     try:
         # Refresh the pool to make sure libvirt knows about the file if it was just copied.
         pool.refresh(0)
@@ -224,7 +225,7 @@ def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format
     except libvirt.libvirtError as e:
         # If creation fails, attempt to clean up the copied file
         if pool_type == 'dir' and 'dest_path' in locals() and os.path.exists(dest_path):
-             if os.path.abspath(path) != os.path.abspath(dest_path):
+            if os.path.abspath(path) != os.path.abspath(dest_path):
                 os.remove(dest_path)
         msg = f"Error attaching volume '{name}': {e}"
         logging.error(msg)
@@ -341,7 +342,7 @@ def check_domain_volumes_in_use(domain: libvirt.virDomain) -> None:
     for disk in root.findall(".//devices/disk"):
         if disk.get("device") != "disk":
             continue
-        
+
         source_elem = disk.find("source")
         if source_elem is None or "pool" not in source_elem.attrib or "volume" not in source_elem.attrib:
             continue
@@ -353,7 +354,7 @@ def check_domain_volumes_in_use(domain: libvirt.virDomain) -> None:
             for other_domain in conn.listAllDomains(libvirt.VIR_DOMAIN_RUNNING):
                 if other_domain.UUIDString() == domain.UUIDString():
                     continue
-                
+
                 other_xml = other_domain.XMLDesc(0)
                 other_root = ET.fromstring(other_xml)
                 for other_disk in other_root.findall(".//devices/disk"):
@@ -393,7 +394,8 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     try:
         tmp_free_space = shutil.disk_usage(tmp_dir).free
         if tmp_free_space < source_capacity:
-            msg = (f"Not enough space in temporary directory '{tmp_dir}'. "
+            msg = (
+                   f"Not enough space in temporary directory '{tmp_dir}'. "
                    f"Required: {source_capacity // 1024**2} MB, "
                    f"Available: {tmp_free_space // 1024**2} MB.")
             log_and_callback(f"ERROR: {msg}")
@@ -411,7 +413,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         raise Exception(msg)
 
     if vms_using_volume:
-        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}.\nTheir configuration will be updated after the move.\nWait Until the process is finished (can take a lot of time).")
+        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}.  Their configuration will be updated after the move.  Wait Until the process is finished (can take a lot of time).")
 
     source_info = source_vol.info()
     source_capacity = source_info[1]
@@ -487,6 +489,8 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
             nonlocal upload_error
             try:
                 log_and_callback(f"Uploading to '{new_volume_name}'...")
+                if callback:
+                    callback(0)
                 uploaded_bytes = 0
 
                 def stream_reader_pipe(st, nbytes, opaque_fd):
@@ -543,7 +547,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         new_path = new_vol.path()
         old_pool_name = source_pool.name()
         new_pool_name = dest_pool.name()
-        
+
         if vms_using_volume:
             log_and_callback(f"Updating configurations for {len(vms_using_volume)} VM(s)...")
             for vm in vms_using_volume:
@@ -569,7 +573,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
                             source_element.set('pool', new_pool_name)
                             source_element.set('volume', new_volume_name)
                             updated = True
-                
+
                 if updated:
                     log_and_callback(f"Updating VM '{vm.name()}' configuration...")
                     conn.defineXML(ET.tostring(root, encoding='unicode'))
@@ -691,9 +695,9 @@ def list_unused_volumes(conn: libvirt.virConnect, pool_name: str = None) -> List
                     for elem in metadata.iter():
                         # Check for overlay tag (namespaced or not)
                         if elem.tag.endswith("}overlay") or elem.tag == "overlay":
-                             backing_path = elem.get('backing')
-                             if backing_path:
-                                 used_disk_paths.add(backing_path)
+                            backing_path = elem.get('backing')
+                            if backing_path:
+                                used_disk_paths.add(backing_path)
             except Exception:
                 pass
 
@@ -800,3 +804,228 @@ def find_shared_storage_pools(source_conn: libvirt.virConnect, dest_conn: libvir
                 })
 
     return shared_pools_info
+
+
+def copy_volume_across_hosts(source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, source_pool_name: str, dest_pool_name: str, volume_name: str, new_volume_name: str = None, new_backing_path: str = None, backing_format: str = 'qcow2', progress_callback=None, log_callback=None) -> dict:
+    """
+    Copies a storage volume from a source host to a destination host using direct streaming.
+    If new_backing_path is provided, it downloads to a temp file, rebases, and then uploads.
+    """
+    def log_and_callback(message):
+        if log_callback:
+            log_callback(message)
+        else:
+            logging.info(message)
+
+    if not new_volume_name:
+        new_volume_name = volume_name
+
+    try:
+        source_pool = source_conn.storagePoolLookupByName(source_pool_name)
+        dest_pool = dest_conn.storagePoolLookupByName(dest_pool_name)
+        source_vol = source_pool.storageVolLookupByName(volume_name)
+    except libvirt.libvirtError as e:
+        log_and_callback(f"[red]ERROR:[/ ] Could not find source/destination resources: {e}")
+        raise
+
+    source_info = source_vol.info()
+    source_capacity = source_info[1]
+    source_format = "qcow2"
+    try:
+        source_format = ET.fromstring(source_vol.XMLDesc(0)).findtext("target/format[@type]", "qcow2")
+    except (ET.ParseError, libvirt.libvirtError):
+        pass
+
+    # Check if volume already exists on destination
+    try:
+        dest_pool.storageVolLookupByName(new_volume_name)
+        raise Exception(f"A volume named '{new_volume_name}' already exists in the destination pool '{dest_pool_name}'.")
+    except libvirt.libvirtError as e:
+        if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
+            raise
+
+    # Create new volume definition on destination
+    # Ensure qcow2 if backing store is present, as raw doesn't support it
+    target_format = 'qcow2' if new_backing_path else source_format
+
+    new_vol_xml = f"""
+    <volume>
+        <name>{new_volume_name}</name>
+        <capacity>{source_capacity}</capacity>
+        <target>
+            <format type='{target_format}'/>
+        </target>
+    """
+    if new_backing_path:
+        new_vol_xml += f"""
+        <backingStore>
+            <path>{new_backing_path}</path>
+            <format type='{backing_format}'/>
+        </backingStore>
+        """
+    new_vol_xml += "</volume>"
+
+    log_and_callback(f"Creating new volume '{new_volume_name}' on destination pool '{dest_pool_name}'.")
+    dest_vol = dest_pool.createXML(new_vol_xml, 0)
+
+    download_stream = None
+    upload_stream = None
+
+    # Pipe for direct streaming
+    r_fd, w_fd = os.pipe()
+
+    download_error = None
+    upload_error = None
+    tmp_file = None
+
+    try:
+        if new_backing_path:
+            # We need to rebase, so we must download to a temp file
+            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+                tmp_file = tmp.name
+            log_and_callback(f"Using temporary file for rebase: {tmp_file}")
+
+            # Download
+            log_and_callback(f"Downloading '{volume_name}' for rebase...")
+            download_stream = source_conn.newStream(0)
+            source_vol.download(download_stream, 0, source_capacity)
+
+            with open(tmp_file, "wb") as f:
+                def writer(st, data, opaque):
+                    f.write(data)
+                    return len(data)
+
+                downloaded_bytes = 0
+                while True:
+                    data = download_stream.recv(1024*1024)
+                    if not data: break
+                    f.write(data)
+                    downloaded_bytes += len(data)
+                    if progress_callback:
+                        progress_callback((downloaded_bytes / source_capacity) * 100)
+
+            download_stream.finish()
+
+            # Rebase
+            log_and_callback(f"Rebasing volume to new backing path: {new_backing_path}")
+            try:
+                # qemu-img rebase -u -b backing_file -F backing_fmt filename
+                cmd = ["qemu-img", "rebase", "-u", "-b", new_backing_path, "-F", backing_format, tmp_file]
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+            except subprocess.CalledProcessError as e:
+                raise Exception(f"qemu-img rebase failed: {e.stderr}")
+            except FileNotFoundError:
+                raise Exception("qemu-img not found. Please install qemu-img to migrate overlays.")
+
+            # Upload
+            log_and_callback(f"Uploading rebased volume to '{new_volume_name}'...")
+            upload_stream = dest_conn.newStream(0)
+            dest_vol.upload(upload_stream, 0, source_capacity)
+
+            with open(tmp_file, "rb") as f:
+                total_sent = 0
+                while True:
+                    data = f.read(1024*1024)
+                    if not data: break
+                    upload_stream.send(data)
+                    total_sent += len(data)
+                    if progress_callback:
+                        progress_callback((total_sent / source_capacity) * 100)
+
+            upload_stream.finish()
+
+        else:
+            # Direct streaming
+            log_and_callback(f"Starting direct stream copy for '{volume_name}'...")
+            download_stream = source_conn.newStream(0)
+            upload_stream = dest_conn.newStream(0)
+
+            # --- Download Thread ---
+            def download_task(stream, fd, capacity):
+                nonlocal download_error
+                try:
+                    def writer(st, data, opaque):
+                        try:
+                            os.write(opaque, data)
+                            return 0
+                        except Exception as e:
+                            nonlocal download_error
+                            download_error = e
+                            return -1
+
+                    source_vol.download(stream, 0, capacity)
+                    stream.recvAll(writer, fd)
+                    stream.finish()
+                except Exception as e:
+                    download_error = e
+                    try: stream.abort()
+                    except: pass
+                finally:
+                    os.close(fd)
+
+            # --- Upload Thread ---
+            def upload_task(stream, fd, capacity, callback):
+                nonlocal upload_error
+                try:
+                    if callback:
+                        callback(0)
+                    uploaded_bytes = 0
+                    def reader(st, nbytes, opaque):
+                        nonlocal uploaded_bytes
+                        try:
+                            chunk = os.read(opaque, nbytes)
+                            uploaded_bytes += len(chunk)
+                            if callback and capacity > 0:
+                                callback((uploaded_bytes / capacity) * 100)
+                            return chunk
+                        except Exception as e:
+                            nonlocal upload_error
+                            upload_error = e
+                            raise e
+
+                    dest_vol.upload(stream, 0, capacity)
+                    stream.sendAll(reader, fd)
+                    stream.finish()
+                except Exception as e:
+                    upload_error = e
+                    try: stream.abort()
+                    except: pass
+                finally:
+                    os.close(fd)
+
+            d_thread = threading.Thread(target=download_task, args=(download_stream, w_fd, source_capacity))
+            u_thread = threading.Thread(target=upload_task, args=(upload_stream, r_fd, source_capacity, progress_callback))
+
+            d_thread.start()
+            u_thread.start()
+            d_thread.join()
+            u_thread.join()
+
+            if download_error: raise download_error
+            if upload_error: raise upload_error
+
+        log_and_callback("Transfer complete.")
+        dest_pool.refresh(0)
+
+        return {
+            "old_disk_path": source_vol.path(),
+            "new_pool_name": dest_pool.name(),
+            "new_volume_name": dest_vol.name(),
+            "new_disk_path": dest_vol.path(),
+        }
+
+    except Exception as e:
+        log_and_callback(f"[red]ERROR:[/ ] Failed to copy volume: {e}")
+        if dest_vol:
+            try: dest_vol.delete(0)
+            except: pass
+        raise
+    finally:
+        try:
+            if download_stream: download_stream.abort()
+        except: pass
+        try:
+            if upload_stream: upload_stream.abort()
+        except: pass
+        if tmp_file and os.path.exists(tmp_file):
+            os.remove(tmp_file)

@@ -74,62 +74,91 @@ def log_function_call(func) -> callable:
     return wrapper
 
 
-def generate_webconsole_keys_if_needed() -> List[Tuple[str, str]]:
+def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str = None) -> List[Tuple[str, str]]:
     """
     Checks for WebConsole TLS key and certificate and generates them if not found.
+    Can generate locally or on a remote host via SSH.
+
+    Args:
+        config_dir (Path, optional): Directory to check/generate keys in. Defaults to ~/.config/virtui-manager.
+        remote_host (str, optional): SSH host string (user@host) for remote generation.
 
     Returns:
         list: A list of tuples containing (level, message) for display
-        Each tuple has:
-        - level (str): 'info' or 'error'
-        - message (str): The message to display
-
-    Raises:
-        Exception: For unexpected errors during key generation
     """
     messages = []
-    config_dir = Path.home() / '.config' / AppInfo.name
-    key_path = config_dir / 'key.pem'
-    cert_path = config_dir / 'cert.pem'
+    if config_dir is None:
+        config_dir = Path.home() / '.config' / AppInfo.name
 
-    # Only proceed if required tools are available
-    if not (check_virt_viewer() and check_websockify() and check_novnc_path()):
-        messages.append(('info', "WebConsole tools not available. Skipping key generation."))
+    # If remote, we treat config_dir as a string path on the remote
+    if remote_host:
+        key_path = f"{config_dir}/key.pem"
+        cert_path = f"{config_dir}/cert.pem"
+    else:
+        key_path = config_dir / 'key.pem'
+        cert_path = config_dir / 'cert.pem'
+
+    # Only proceed if required tools are available (local check only makes sense for local gen)
+    if not remote_host and not (check_websockify() and check_novnc_path()):
+        messages.append(('info', "WebConsole tools not available locally. Skipping key generation."))
         return messages
 
-    if not key_path.exists() or not cert_path.exists():
-        messages.append(('info', "WebConsole TLS key/cert not found. Generating. .."))
+    # Check existence
+    exists = False
+    if remote_host:
         try:
-            config_dir.mkdir(parents=True, exist_ok=True)
-            command = [
-                "openssl", "req", "-x509", "-newkey", "rsa:4096",
-                "-keyout", str(key_path),
-                "-out", str(cert_path),
-                "-sha256", "-days", "365", "-nodes",
-                "-subj", "/CN=localhost"
-            ]
-            try:
+            subprocess.run(
+                ["ssh", remote_host, f"test -f {key_path} && test -f {cert_path}"],
+                check=True, timeout=5
+            )
+            exists = True
+        except:
+            exists = False
+    else:
+        exists = key_path.exists() and cert_path.exists()
+
+    if not exists:
+        messages.append(('info', f"WebConsole TLS key/cert not found on {'remote' if remote_host else 'local'}. Generating..."))
+
+        gen_cmd = [
+            "openssl", "req", "-x509", "-newkey", "rsa:4096",
+            "-keyout", str(key_path),
+            "-out", str(cert_path),
+            "-sha256", "-days", "365", "-nodes",
+            "-subj", "/CN=localhost"
+        ]
+
+        try:
+            if remote_host:
+                # Ensure directory exists first
+                subprocess.run(["ssh", remote_host, f"mkdir -p {config_dir}"], check=True, timeout=5)
+                # Run openssl remotely
+                # We need to quote the command for ssh
+                remote_cmd = " ".join(gen_cmd)
                 subprocess.run(
-                    command,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                    timeout=30
+                    ["ssh", remote_host, remote_cmd],
+                    check=True, capture_output=True, text=True, timeout=30
                 )
-                messages.append(('info', f"Successfully generated WebConsole TLS key and certificate in {config_dir}."))
-            except subprocess.TimeoutExpired:
-                error_message = "Failed to generate WebConsole TLS key/cert: Operation timed out"
-                messages.append(('error', error_message))
-            except subprocess.CalledProcessError as e:
-                error_message = f"Failed to generate WebConsole TLS key/cert: {e.stderr.strip() if e.stderr else str(e)}"
-                messages.append(('error', error_message))
-            except FileNotFoundError:
-                messages.append(('error', "openssl command not found. Please install openssl."))
+            else:
+                config_dir.mkdir(parents=True, exist_ok=True)
+                subprocess.run(
+                    gen_cmd,
+                    check=True, capture_output=True, text=True, timeout=30
+                )
+
+            messages.append(('info', f"Successfully generated WebConsole TLS key and certificate in {config_dir} on {'remote' if remote_host else 'local'}."))
+
+        except subprocess.TimeoutExpired:
+            error_message = "Failed to generate WebConsole TLS key/cert: Operation timed out"
+            messages.append(('error', error_message))
+        except subprocess.CalledProcessError as e:
+            error_message = f"Failed to generate WebConsole TLS key/cert: {e.stderr.strip() if e.stderr else str(e)}"
+            messages.append(('error', error_message))
+        except FileNotFoundError:
+            messages.append(('error', "openssl command not found. Please install openssl."))
         except Exception as e:
             error_message = f"Unexpected error generating WebConsole keys: {str(e)}"
             messages.append(('error', error_message))
-    #else:
-    #    messages.append(('info', "WebConsole TLS keys already exist."))
 
     return messages
 
@@ -179,7 +208,7 @@ def check_novnc_path() -> bool:
         Exception: For unexpected errors during check
     """
     try:
-        return os.path.exists("/usr/share/novnc")
+        return os.path.exists("/usr/share/novnc") or os.path.exists("/usr/share/webapps/novnc")
     except Exception as e:
         logging.error(f"Error checking novnc path: {e}")
         return False

@@ -2,6 +2,7 @@
 Modals for handling VM migration.
 """
 from typing import List, Dict
+import threading
 import libvirt
 
 from textual.app import ComposeResult
@@ -13,6 +14,8 @@ from textual import on, work
 from vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
 from storage_manager import find_shared_storage_pools
 from utils import extract_server_name_from_uri
+from vm_migration import custom_migrate_vm, execute_custom_migration
+from modals.custom_migration_modal import CustomMigrationModal
 #from pprint import pprint # pprint(vars(object))
 
 class MigrationModal(ModalScreen):
@@ -74,7 +77,7 @@ class MigrationModal(ModalScreen):
                 yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
                 yield Static("Select destination server:")
                 yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
-                
+
                 yield Static("Migration Options:")
                 with Horizontal(classes="checkbox-container"):
                     yield Checkbox("Copy storage all", id="copy-storage-all", tooltip="Copy all disk files during migration", value=False)
@@ -83,6 +86,7 @@ class MigrationModal(ModalScreen):
                 with Horizontal(classes="checkbox-container"):
                     yield Checkbox("Compress data", id="compress", tooltip="Compress data during migration", disabled=not self.is_live)
                     yield Checkbox("Tunnelled migration", id="tunnelled", tooltip="Tunnel migration data through libvirt daemon", disabled=not self.is_live)
+                    yield Checkbox("Custom migration", id="custom", tooltip="Use custom migration workflow", value=False)
                 yield Static("Compatibility Check Results / Migration Log:")
                 yield ProgressBar(total=100, show_eta=False, id="migration-progress")
                 yield Static(id="results-log")
@@ -97,7 +101,7 @@ class MigrationModal(ModalScreen):
                     ),
                     id="migration-summary-grid"
                 )
-            
+
             with Horizontal(classes="modal-buttons"):
                 yield Button("Check Compatibility", variant="primary", id="check", classes="Buttonpage")
                 yield Button("Start Migration", variant="success", id="start", disabled=True, classes="Buttonpage")
@@ -114,6 +118,7 @@ class MigrationModal(ModalScreen):
         log = self.query_one("#results-log", Static)
         log.wrap = True
         self.query_one("#migration-progress").styles.display = "none"
+        self.query_one("#migration-summary-grid").styles.display = "none"
 
 
     @on(Select.Changed, "#dest-server-select")
@@ -144,11 +149,14 @@ class MigrationModal(ModalScreen):
         self.query_one("#results-log", Static).update(self.log_content)
 
     @work(exclusive=True, thread=True)
-    async def run_compatibility_checks(self):
+    def run_compatibility_checks(self):
         self.app.call_from_thread(self._lock_controls, True)
 
         def write_log(line):
-            self.app.call_from_thread(self._write_log_line, line)
+            if threading.current_thread() is threading.main_thread():
+                self._write_log_line(line)
+            else:
+                self.app.call_from_thread(self._write_log_line, line)
 
         all_checks_ok = True
         shared_pools = find_shared_storage_pools(self.source_conn, self.dest_conn)
@@ -232,19 +240,37 @@ class MigrationModal(ModalScreen):
             cannot_migrate_text = "\n".join(f"- {name}" for name in self.cannot_migrate_vms)
             self.query_one("#can-migrate-list").update(can_migrate_text)
             self.query_one("#cannot-migrate-list").update(cannot_migrate_text)
+            self.query_one("#migration-summary-grid").styles.display = "block"
         self.app.call_from_thread(update_ui_after_check)
 
     @work(exclusive=True, thread=True)
-    async def run_migration(self):
+    def run_migration(self):
         def write_log(line):
-            self.app.call_from_thread(self._write_log_line, line)
+            if threading.current_thread() is threading.main_thread():
+                self._write_log_line(line)
+            else:
+                self.app.call_from_thread(self._write_log_line, line)
 
         self.app.call_from_thread(self._lock_controls, True)
 
         progress_bar = self.query_one("#migration-progress", ProgressBar)
+
         self.app.call_from_thread(lambda: setattr(progress_bar, "total", len(self.vms_to_migrate)))
         self.app.call_from_thread(lambda: setattr(progress_bar, "progress", 0))
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "block"))
+
+        last_log_percentage = -1
+
+        def log_progress(p):
+            p = p*10
+            nonlocal last_log_percentage
+            # Log at 0 (start), then every 5%, then 100%
+            if p == 0 or p >= last_log_percentage + 20:
+                write_log(f"  ... {int(p)}%")
+                last_log_percentage = int(p)
+            if p >= 100:
+                last_log_percentage = -1
+
         # Hide the migration summary grid when migration starts
         self.query_one("#migration-summary-grid").styles.display = "none"
 
@@ -254,8 +280,46 @@ class MigrationModal(ModalScreen):
         compress = self.query_one("#compress", Checkbox).value
         tunnelled = self.query_one("#tunnelled", Checkbox).value
 
+        custom_migration = self.query_one("#custom", Checkbox).value
+
         for vm in self.vms_to_migrate:
             write_log(f"\n[bold]--- Migrating {vm.name()} ---[/]")
+
+            if custom_migration:
+                try:
+                    actions = custom_migrate_vm(self.source_conn, self.dest_conn, vm, log_callback=write_log)
+
+                    migration_confirmed = threading.Event()
+                    user_selections = {}
+
+                    def on_custom_migration_confirm(selections: dict | None):
+                        if selections:
+                            user_selections.update(selections)
+                        migration_confirmed.set()
+
+                    self.app.call_from_thread(self.app.push_screen, CustomMigrationModal(actions), on_custom_migration_confirm)
+
+                    # Wait for the user to interact with the modal
+                    migration_confirmed.wait()
+
+                    if user_selections:
+                        write_log("[bold]User confirmed custom migration. Executing...[/bold]")
+                        execute_custom_migration(
+                            self.source_conn,
+                            self.dest_conn,
+                            actions,
+                            user_selections,
+                            log_callback=write_log,
+                            progress_callback=log_progress
+                         )
+                    else:
+                        write_log("[yellow]Custom migration cancelled by user.[/yellow]")
+
+                except Exception as e:
+                    write_log(f"[red]ERROR: Custom migration failed for {vm.name()}: {e}[/red]")
+
+                self.app.call_from_thread(progress_bar.advance, 1)
+                continue
 
             try:
                 if self.is_live:
@@ -323,6 +387,16 @@ class MigrationModal(ModalScreen):
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "none"))
         self.app.call_from_thread(self.app.refresh_vm_list)
         self.app.call_from_thread(final_ui_state)
+
+    @on(Checkbox.Changed, "#custom")
+    def on_custom_migration_changed(self, event: Checkbox.Changed):
+        """Enable or disable other migration options when custom migration is selected."""
+        is_custom = event.value
+        self.query_one("#copy-storage-all").disabled = is_custom
+        self.query_one("#unsafe").disabled = is_custom or not self.is_live
+        self.query_one("#persistent").disabled = is_custom
+        self.query_one("#compress").disabled = is_custom or not self.is_live
+        self.query_one("#tunnelled").disabled = is_custom or not self.is_live
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed):

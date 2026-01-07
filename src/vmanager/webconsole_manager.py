@@ -21,6 +21,7 @@ from constants import AppInfo
 from config import load_config, get_log_path
 from vm_queries import get_vm_graphics_info
 from vmcard_dialog import WebConsoleDialog
+from utils import generate_webconsole_keys_if_needed
 
 
 class WebConsoleManager:
@@ -119,7 +120,7 @@ wp.websockify_init()
         """Starts a web console for a given VM."""
         self.config = load_config()
         logging.info(f"Web console requested for VM: {vm.name()}")
-        uuid = vm.UUIDString()
+        uuid = f"{vm.UUIDString()}@{conn.getURI()}"
         vm_name = vm.name()
 
         # Check for existing valid session
@@ -288,16 +289,7 @@ wp.websockify_init()
             return
 
         remote_websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
-        remote_novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
-
-        # Construct the websockify command to run on the remote server using the optimized wrapper
-        # remote_websockify_path, "--run-once", "--verbose", str(web_port),
-        remote_websockify_cmd_list = [
-            "python3", "-c", f"'{self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size)}'",
-            "--run-once", "--verbose", str(web_port),
-            f"{vnc_target_host}:{vnc_port}", "--web", remote_novnc_path
-        ]
 
         # Assume remote config directory for certs
         remote_config_dir = "~/.config/" + AppInfo.name
@@ -310,11 +302,23 @@ wp.websockify_init()
         system_key_file = f"{system_cert_dir}/key.pem"
         url_scheme = "http"
 
-        # Check for remote certs and keys in both locations
+        remote_novnc_path = self.config.get("novnc_path") # Use config as Default
+
+        # Initialize variable to avoid UnboundLocalError
+        remote_websockify_cmd_list = [
+            "python3", "-c", f"\"{self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size)}\"",
+            "--run-once", "--verbose", str(web_port),
+            f"{vnc_target_host}:{vnc_port}", "--web", remote_novnc_path
+        ]
+        cert_status = ""
+
         remote_config_check_cmd = (
             f"if [ -f {remote_cert_file} ] && [ -f {remote_key_file} ]; then echo 'user_cert'; "
             f"elif [ -f {system_cert_file} ] && [ -f {system_key_file} ]; then echo 'system_cert'; "
-            "else echo 'no_cert'; fi"
+            "else echo 'no_cert'; fi; "
+            "if [ -d /usr/share/novnc ]; then echo '/usr/share/novnc'; "
+            "elif [ -d /usr/share/webapps/novnc ]; then echo '/usr/share/webapps/novnc'; "
+            "else echo '/usr/share/novnc'; fi"
         )
 
         try:
@@ -322,19 +326,50 @@ wp.websockify_init()
                 ["ssh", remote_user_host, remote_config_check_cmd],
                 capture_output=True, text=True, check=True, timeout=5
             )
-            stdout = check_result.stdout.strip()
-            if "user_cert" in stdout:
-                remote_websockify_cmd_list.extend(["--cert", remote_cert_file, "--key", remote_key_file])
-                url_scheme = "https"
-                self.app.call_from_thread(self.app.show_success_message, "Remote user cert/key found, using secure wss connection.")
-            elif "system_cert" in stdout:
-                remote_websockify_cmd_list.extend(["--cert", system_cert_file, "--key", system_key_file])
-                url_scheme = "https"
-                self.app.call_from_thread(self.app.show_success_message, "Remote system cert/key found, using secure wss connection.")
-            else:
-                self.app.call_from_thread(self.app.show_success_message, f"No remote cert/key found, using insecure ws connection. Create cert and key into /etc/{AppInfo.name}/keys directory (IE: openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj /CN=localhost")
+            stdout_lines = check_result.stdout.strip().split('\n')
+            if stdout_lines:
+                cert_status = stdout_lines[0]
+                if "user_cert" in cert_status:
+                    url_scheme = "https"
+                    self.app.call_from_thread(self.app.show_success_message, "Remote user cert/key found, using secure wss connection.")
+                    remote_websockify_cmd_list.extend(["--cert", remote_cert_file, "--key", remote_key_file])
+                elif "system_cert" in cert_status:
+                    url_scheme = "https"
+                    self.app.call_from_thread(self.app.show_success_message, "Remote system cert/key found, using secure wss connection.")
+                    remote_websockify_cmd_list.extend(["--cert", system_cert_file, "--key", system_key_file])
+                else:
+                    # Attempt to generate keys remotely
+                    self.app.call_from_thread(self.app.show_success_message, "No remote cert/key found. Attempting to generate in system directory...")
+                    gen_msgs = generate_webconsole_keys_if_needed(config_dir="/etc/" + AppInfo.name + "/keys", remote_host=remote_user_host)
+
+                    failed_gen = False
+                    for level, msg in gen_msgs:
+                        if level == 'error':
+                            self.app.call_from_thread(self.app.show_error_message, msg)
+                            failed_gen = True
+                        else:
+                            self.app.call_from_thread(self.app.show_success_message, msg)
+
+                    if not failed_gen:
+                        # Re-check or assume success and use the path
+                        url_scheme = "https"
+                        remote_websockify_cmd_list.extend(["--cert", system_cert_file, "--key", system_key_file])
+                    else:
+                        self.app.call_from_thread(self.app.show_error_message, f"Remote key generation failed. Falling back to insecure ws connection.")
+
+                if len(stdout_lines) > 1:
+                    remote_novnc_path = stdout_lines[1]
+                    # Update the novnc path in the command list
+                    # We need to find the '--web' argument index and update the next one
+                    try:
+                        web_arg_index = remote_websockify_cmd_list.index("--web")
+                        if web_arg_index + 1 < len(remote_websockify_cmd_list):
+                            remote_websockify_cmd_list[web_arg_index + 1] = remote_novnc_path
+                    except ValueError:
+                        pass 
+
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logging.warning(f"Could not check for remote certs: {e}. Proceeding without SSL options.")
+            logging.warning(f"Could not check for remote certs/novnc: {e}. Proceeding without SSL options and default novnc path.")
             self.app.call_from_thread(self.app.show_success_message, "Could not check for remote cert/key, using insecure ws connection.")
 
         remote_websockify_cmd_str = " ".join(remote_websockify_cmd_list)
@@ -379,6 +414,14 @@ wp.websockify_init()
         finally:
             # Close output stream to allow full detachment
             proc.stdout.close()
+
+        if remote_pid is None:
+            self.app.call_from_thread(self.app.show_error_message, f"Failed to start remote websockify for {vm_name}. Check logs.")
+            try:
+                proc.terminate()
+            except:
+                pass
+            return
 
         quality = self.config.get('VNC_QUALITY', 0)
         compression = self.config.get('VNC_COMPRESSION', 9)
@@ -462,6 +505,17 @@ wp.websockify_init()
         return None, None, {}
 
 
+    def _get_local_novnc_path(self) -> str:
+        """Returns the local novnc path, checking fallbacks."""
+        path = self.config.get("novnc_path")
+        if path and os.path.exists(path):
+            return path
+        if os.path.exists("/usr/share/novnc"):
+            return "/usr/share/novnc"
+        if os.path.exists("/usr/share/webapps/novnc"):
+            return "/usr/share/webapps/novnc"
+        return "/usr/share/novnc" # Default fallback
+
     def _launch_websockify(self, uuid: str, vm_name: str, host: str, port: int, ssh_info: dict):
         """Launches the websockify process and shows the console dialog."""
         web_port = self._get_next_available_port(None)
@@ -470,7 +524,7 @@ wp.websockify_init()
             return
 
         websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
-        novnc_path = self.config.get("novnc_path", "/usr/share/novnc/")
+        novnc_path = self._get_local_novnc_path()
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
         #websockify_path, "--run-once", str(web_port),

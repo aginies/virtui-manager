@@ -796,7 +796,7 @@ class VMManagerTUI(App):
 
         for domain, conn in paginated_domains:
             try:
-                uuid = domain.UUIDString()
+                uuid = self.vm_service._get_internal_id(domain, conn)
                 page_uuids.add(uuid)
                 
                 # Try to get info from cache to avoid blocking if possible
@@ -882,7 +882,7 @@ class VMManagerTUI(App):
             # Remove cards from container that are not in the new page layout
             for card in vms_container.query(VMCard):
                 try:
-                    if not card.vm or card.vm.UUIDString() not in page_uuids:
+                    if not card.vm or card.internal_id not in page_uuids:
                         card.remove()
                 except (libvirt.libvirtError, AttributeError):
                     card.remove()
@@ -902,6 +902,7 @@ class VMManagerTUI(App):
                     vm_card.is_selected = data['is_selected']
                     vm_card.server_border_color = self.get_server_color(data['uri'])
                     vm_card.status = data['status']
+                    vm_card.internal_id = uuid
                 else:
                     # Create new card
                     if uuid not in self.sparkline_data:
@@ -916,6 +917,7 @@ class VMManagerTUI(App):
                     vm_card.conn = data['conn']
                     vm_card.server_border_color = self.get_server_color(data['uri'])
                     vm_card.cpu_model = ""
+                    vm_card.internal_id = uuid
                     self.vm_cards[uuid] = vm_card
 
                 cards_to_mount.append(vm_card)
