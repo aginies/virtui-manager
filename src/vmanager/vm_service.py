@@ -135,6 +135,9 @@ class VMService:
                     if info:
                         vm_cache['info'] = info
                         vm_cache['info_ts'] = now
+
+                # Proactively update info and XML in the background cache, respecting TTLs
+                #self._get_domain_info_and_xml(domain)
             except Exception as e:
                 logging.error(f"Error updating cache for VM {uuid}: {e}")
 
@@ -193,13 +196,14 @@ class VMService:
                 self._uuid_to_conn_cache = new_uuid_to_conn
 
         if preload:
-            # Pre-load info for all domains to warm up the cache
+            # Pre-load info and XML for all domains to warm up the cache
             with self._cache_lock:
                  domains = list(self._domain_cache.values())
 
             for domain in domains:
                 try:
                     self._get_domain_info(domain)
+                    #self._get_domain_info_and_xml(domain)
                 except libvirt.libvirtError:
                     pass
 
@@ -337,18 +341,28 @@ class VMService:
 
     def get_vm_runtime_stats(self, domain: libvirt.virDomain) -> dict | None:
         """Gets live statistics for a given, active VM domain."""
-        if not domain or not domain.isActive():
+        if not domain:
             return None
 
-        uuid = domain.UUIDString()
-        stats = {}
         try:
-            # Status
-            stats['status'] = get_status(domain)
+            state, _ = domain.state()
+            status = get_status(domain, state=state)
+
+            if state not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                return {
+                    "status": status,
+                    "cpu_percent": 0.0,
+                    "mem_percent": 0.0,
+                    "disk_read_kbps": 0.0,
+                    "disk_write_kbps": 0.0,
+                    "net_rx_kbps": 0.0,
+                    "net_tx_kbps": 0.0
+                }
+
+            uuid = domain.UUIDString()
+            stats = {'status': status}
 
             # CPU Usage
-            # getCPUStats is fast, can stay here or be moved to bg. 
-            # Keeping here for now, but protecting cache access.
             cpu_stats = domain.getCPUStats(True)
             current_cpu_time = cpu_stats[0]['cpu_time']
             now = datetime.now().timestamp()
@@ -627,14 +641,7 @@ class VMService:
                 missing_uuids.append(uuid)
 
         if missing_uuids:
-             # Force update if missing
              self._force_update_event.set()
-             # We might want to wait? But synchronous waiting is bad for freezing.
-             # Just return what we have? Or do a quick sync fetch?
-             # For actions, we probably want to be sure.
-             # Let's do a quick sync fetch for missing ones.
-             # But fetching specific UUIDs isn't easy without listing all domains.
-             # Let's just return what we have.
              pass
 
         return found_domains
