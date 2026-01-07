@@ -847,8 +847,8 @@ class VMService:
                     found = True
                     break
 
-                if not found:
-                    server_names.append(uri)
+            if not found:
+                server_names.append(uri)
 
         total_vms_unfiltered = len(domains_with_conn)
         domains_to_display = domains_with_conn
