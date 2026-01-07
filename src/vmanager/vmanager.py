@@ -192,6 +192,7 @@ class VMManagerTUI(App):
         self.devel = "(Devel v" + AppInfo.version + ")"
         self.vm_cards: dict[str, VMCard] = {}
         self._resize_timer = None
+        self.filtered_server_uris = None
 
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
@@ -308,7 +309,7 @@ class VMManagerTUI(App):
             # Launch initial cache loading before displaying VMs
             for uri in self.active_uris:
                 self.connect_libvirt(uri)
-            
+
             if self.active_uris:
                 self.initial_cache_loading = True
                 self.show_success_message("Loading VM data from remote server(s)...")
@@ -329,7 +330,7 @@ class VMManagerTUI(App):
                 set(),
                 force=True
             )
-            
+
             # Pre-cache info and XML for all VMs
             for domain, conn in domains_to_display:
                 try:
@@ -337,10 +338,10 @@ class VMManagerTUI(App):
                     self.vm_service._get_domain_info(domain)
                 except libvirt.libvirtError:
                     pass  # Skip VMs that fail
-            
+
             # Mark initial cache as complete
             self.call_from_thread(self._on_initial_cache_complete)
-            
+
         except Exception as e:
             self.call_from_thread(
                 self.show_error_message, 
@@ -444,7 +445,13 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#select_server_button")
     def action_select_server(self) -> None:
         """Select servers to connect to."""
-        self.push_screen(SelectServerModal(self.servers, self.active_uris, self.vm_service), self.handle_select_server_result)
+        servers_with_colors = []
+        for s in self.servers:
+            s_copy = s.copy()
+            s_copy['color'] = self.get_server_color(s['uri'])
+            servers_with_colors.append(s_copy)
+
+        self.push_screen(SelectServerModal(servers_with_colors, self.active_uris, self.vm_service), self.handle_select_server_result)
 
     def handle_select_server_result(self, selected_uris: list[str] | None) -> None:
         """Handle the result from the SelectServer screen."""
@@ -459,7 +466,7 @@ class VMManagerTUI(App):
             # Cleanup UI caches for VMs on this server
             uuids_to_remove = [
                 uuid for uuid, card in self.vm_cards.items()
-                if card.conn and card.conn.getURI() == uri
+                if card.conn and (self.vm_service.get_uri_for_connection(card.conn) == uri)
             ]
             for uuid in uuids_to_remove:
                 if self.vm_cards[uuid].is_mounted:
@@ -471,6 +478,7 @@ class VMManagerTUI(App):
             self.vm_service.disconnect(uri)
 
         self.active_uris = selected_uris
+        self.filtered_server_uris = None
         self.current_page = 0
 
         self.refresh_vm_list()
@@ -478,22 +486,38 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#filter_button")
     def action_filter_view(self) -> None:
         """Filter the VM list."""
-        self.push_screen(FilterModal(current_search=self.search_text, current_status=self.sort_by))
+        available_servers = []
+        for uri in self.active_uris:
+            name = uri
+            for s in self.servers:
+                if s['uri'] == uri:
+                    name = s['name']
+                    break
+            available_servers.append({'name': name, 'uri': uri, 'color': self.get_server_color(uri)})
+
+        selected_servers = self.filtered_server_uris if self.filtered_server_uris is not None else list(self.active_uris)
+
+        self.push_screen(FilterModal(current_search=self.search_text, current_status=self.sort_by, available_servers=available_servers, selected_servers=selected_servers))
 
     @on(FilterModal.FilterChanged)
     def on_filter_changed(self, message: FilterModal.FilterChanged) -> None:
         """Handle the FilterChanged message from the filter modal."""
         new_status = message.status
         new_search = message.search
+        new_selected_servers = message.selected_servers
 
-        logging.info(f"Filter changed to status={new_status}, search='{new_search}'")
+        logging.info(f"Filter changed to status={new_status}, search='{new_search}', servers={new_selected_servers}")
 
         status_changed = self.sort_by != new_status
         search_changed = self.search_text != new_search
 
-        if status_changed or search_changed:
+        current_filtered = self.filtered_server_uris if self.filtered_server_uris is not None else list(self.active_uris)
+        servers_changed = set(current_filtered) != set(new_selected_servers)
+
+        if status_changed or search_changed or servers_changed:
             self.sort_by = new_status
             self.search_text = new_search
+            self.filtered_server_uris = new_selected_servers
             self.current_page = 0
             self.refresh_vm_list()
 
@@ -551,7 +575,7 @@ class VMManagerTUI(App):
             if WebConsoleManager.is_remote_connection(uri):
                 loading = LoadingModal()
                 self.push_screen(loading)
-                
+
                 def show_prefs():
                     try:
                         modal = ServerPrefModal(uri=uri)
@@ -757,20 +781,22 @@ class VMManagerTUI(App):
         selected_uuids = set(self.selected_vm_uuids)
         current_page = self.current_page
         vms_per_page = self.VMS_PER_PAGE
-        
+
+        uris_to_query = self.filtered_server_uris if self.filtered_server_uris is not None else list(self.active_uris)
+
         if force:
             self.worker_manager.cancel("list_vms")
 
         self.worker_manager.run(
-            lambda: self.list_vms_worker(selected_uuids, current_page, vms_per_page, force=force), 
+            lambda: self.list_vms_worker(selected_uuids, current_page, vms_per_page, uris_to_query, force=force), 
             name="list_vms"
         )
 
-    def list_vms_worker(self, selected_uuids: set[str], current_page: int, vms_per_page: int, force: bool = False):
+    def list_vms_worker(self, selected_uuids: set[str], current_page: int, vms_per_page: int, uris_to_query: list[str], force: bool = False):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
             domains_to_display, total_vms, total_filtered_vms, server_names, all_active_uuids = self.vm_service.get_vms(
-                self.active_uris,
+                uris_to_query,
                 self.servers,
                 self.sort_by,
                 self.search_text,
@@ -798,11 +824,11 @@ class VMManagerTUI(App):
             try:
                 uuid = self.vm_service._get_internal_id(domain, conn)
                 page_uuids.add(uuid)
-                
+
                 # Try to get info from cache to avoid blocking if possible
                 info = self.vm_service.get_cached_vm_info(domain)
                 cached_details = self.vm_service.get_cached_vm_details(uuid)
-                
+
                 if info:
                     status = get_status(domain, state=info[0])
                     cpu = info[3]
@@ -815,7 +841,7 @@ class VMManagerTUI(App):
                     status = StatusText.LOADING
                     cpu = 0
                     memory = 0
-                
+
                 vm_data = {
                     'uuid': uuid,
                     'name': domain.name(),
@@ -825,10 +851,10 @@ class VMManagerTUI(App):
                     'is_selected': uuid in selected_uuids,
                     'domain': domain,
                     'conn': conn,
-                    'uri': conn.getURI()
+                    'uri': self.vm_service.get_uri_for_connection(conn) or conn.getURI()
                 }
                 vm_data_list.append(vm_data)
-                
+
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     logging.warning(f"Skipping display of non-existent VM during refresh.")
@@ -844,7 +870,7 @@ class VMManagerTUI(App):
 
         # Cleanup cache: remove cards for VMs that no longer exist at all
         all_uuids_from_libvirt = set(all_active_uuids)
-        
+
         def update_ui():
             if reset_page:
                 self.current_page = 0
@@ -891,7 +917,7 @@ class VMManagerTUI(App):
             for data in vm_data_list:
                 uuid = data['uuid']
                 vm_card = self.vm_cards.get(uuid)
-                
+
                 if vm_card:
                     # Update existing card
                     vm_card.vm = data['domain']

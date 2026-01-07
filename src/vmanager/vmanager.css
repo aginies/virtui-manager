@@ -87,7 +87,7 @@ Select:focus {
 #connection-dialog { width: 60; }
 #filter-dialog {
     height: 32;
-    width: 40;
+    width: 64;
 }
 #move-volume-dialog { height: 20; }
 #attach-volume-dialog,

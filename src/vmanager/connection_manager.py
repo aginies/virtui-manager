@@ -125,6 +125,16 @@ class ConnectionManager:
         with self._lock:
             return self.connections.get(uri)
 
+    def get_uri_for_connection(self, conn: libvirt.virConnect) -> str | None:
+        """
+        Returns the URI string associated with a given connection object.
+        """
+        with self._lock:
+            for uri, stored_conn in self.connections.items():
+                if stored_conn == conn:
+                    return uri
+        return None
+
     def get_all_connections(self) -> list[libvirt.virConnect]:
         """
         Returns a list of all active libvirt connection objects.
