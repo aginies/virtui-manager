@@ -41,7 +41,6 @@ class VMService:
         self._monitor_thread = None
         self._data_update_callback = None
         self._force_update_event = threading.Event()
-
         self.start_monitoring()
 
     def set_data_update_callback(self, callback):
@@ -61,7 +60,7 @@ class VMService:
         self._monitoring_active = False
         self._force_update_event.set()
         if self._monitor_thread and self._monitor_thread.is_alive():
-            self._monitor_thread.join(timeout=2.0)
+            self._monitor_thread.join(timeout=1.0)
 
     def _monitor_loop(self):
         """Background loop to update VM data."""
@@ -73,21 +72,21 @@ class VMService:
                 try:
                     self._perform_background_update(uris)
                     if self._data_update_callback:
-                         try:
-                             self._data_update_callback()
-                         except Exception as e:
-                             logging.error(f"Error in data update callback: {e}")
+                        try:
+                            self._data_update_callback()
+                        except Exception as e:
+                            logging.error(f"Error in data update callback: {e}")
                 except Exception as e:
                     logging.error(f"Error in background update loop: {e}")
 
             # Wait for next cycle or force update
-            self._force_update_event.wait(timeout=2.0) 
+            self._force_update_event.wait(timeout=5.0)
             if self._force_update_event.is_set():
                 self._force_update_event.clear()
 
     def _perform_background_update(self, active_uris: list[str]):
         """Fetches data for all VMs on active URIs and updates cache."""
-        
+
         # 1. Connect and list domains
         active_connections = []
         for uri in active_uris:
@@ -97,7 +96,7 @@ class VMService:
 
         new_domain_cache = {}
         new_uuid_to_conn = {}
-        
+
         for conn in active_connections:
             try:
                 domains = conn.listAllDomains(0) or []
@@ -117,7 +116,7 @@ class VMService:
         for uuid, domain in new_domain_cache.items():
             if not self._monitoring_active: 
                 break
-                
+
             try:
                 # We can call domain.info() and XMLDesc() without lock
                 info = None
@@ -125,13 +124,13 @@ class VMService:
                     info = domain.info()
                 except libvirt.libvirtError:
                     pass
-                
+
                 now = time.time()
-                
+
                 with self._cache_lock:
                     self._vm_data_cache.setdefault(uuid, {})
                     vm_cache = self._vm_data_cache[uuid]
-                    
+
                     if info:
                         vm_cache['info'] = info
                         vm_cache['info_ts'] = now
@@ -199,7 +198,7 @@ class VMService:
         if preload:
             # Pre-load info and XML for all domains to warm up the cache
             with self._cache_lock:
-                 domains = list(self._domain_cache.values())
+                domains = list(self._domain_cache.values())
 
             for domain in domains:
                 try:
@@ -215,7 +214,7 @@ class VMService:
             if current_set != new_set:
                 self._active_uris = list(active_uris)
                 force = True
-        
+
         if force:
             self._force_update_event.set()
 
@@ -400,14 +399,13 @@ class VMService:
                 current_cpu_time = 0
             else:
                 current_cpu_time = cpu_stats[0]['cpu_time']
-            
-            now = datetime.now().timestamp()
 
+            now = datetime.now().timestamp()
             cpu_percent = 0.0
-            
+
             with self._cache_lock:
                 last_cpu_data = self._cpu_time_cache.get(uuid)
-            
+
             if last_cpu_data:
                 last_cpu_time, last_cpu_time_ts = last_cpu_data
                 time_diff = now - last_cpu_time_ts
@@ -484,7 +482,7 @@ class VMService:
                                     devices_list['interfaces'].append(dev)
                     except ET.ParseError:
                         pass
-                
+
                 with self._cache_lock:
                     vm_cache['devices_list'] = devices_list
                     vm_cache['devices_ts'] = current_xml_ts
@@ -677,8 +675,8 @@ class VMService:
                 missing_uuids.append(uuid)
 
         if missing_uuids:
-             self._force_update_event.set()
-             pass
+            self._force_update_event.set()
+            pass
 
         return found_domains
 
@@ -730,20 +728,20 @@ class VMService:
         """Finds a VM by UUID and returns its detailed information."""
         if not domain:
             domain = self.find_domain_by_uuid(active_uris, vm_uuid)
-        
+
         if not domain:
             return None
 
         with self._cache_lock:
             conn_for_domain = conn or self._uuid_to_conn_cache.get(vm_uuid)
-            
+
             # Check for cached details
             vm_cache = self._vm_data_cache.get(vm_uuid)
             if vm_cache:
                 details = vm_cache.get('vm_details')
                 details_ts = vm_cache.get('vm_details_ts', 0)
                 now = time.time()
-                
+
                 # Use XML TTL for details cache as well
                 if details and (now - details_ts < self._xml_cache_ttl) and conn_for_domain:
                     try:
@@ -751,7 +749,7 @@ class VMService:
                         details['status'] = get_status(domain)
                         # Update IPs if provided and fresh
                         if cached_ips is not None:
-                             details['detail_network'] = cached_ips
+                            details['detail_network'] = cached_ips
                         logging.info(f"Cache HIT for VM details: {vm_uuid}")
                         return (details, domain, conn_for_domain)
                     except libvirt.libvirtError:
@@ -759,19 +757,19 @@ class VMService:
 
         # Fallback if not in cache (could happen if cache just cleared)
         if not conn_for_domain:
-             if conn:
-                 conn_for_domain = conn
-             else:
-                 for uri in active_uris:
+            if conn:
+                conn_for_domain = conn
+            else:
+                for uri in active_uris:
                     c = self.connect(uri)
                     if not c: continue
                     try:
-                         if c.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
+                        if c.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
                             conn_for_domain = c
                             break
                     except libvirt.libvirtError:
                         continue
-        
+
         if not conn_for_domain:
             return None
 
@@ -826,8 +824,8 @@ class VMService:
         self._update_domain_cache(active_uris, force=force, preload=force)
 
         with self._cache_lock:
-             domains_map = self._domain_cache.copy()
-             conn_map = self._uuid_to_conn_cache.copy()
+            domains_map = self._domain_cache.copy()
+            conn_map = self._uuid_to_conn_cache.copy()
 
         domains_with_conn = []
         for uuid, domain in domains_map.items():
@@ -836,23 +834,22 @@ class VMService:
                 domains_with_conn.append((domain, conn))
 
         total_vms = len(domains_with_conn)
-        
+
         # Map URIs to Server Names (using connection manager which is thread safe)
         server_names = []
         # We can just iterate active_uris provided
         for uri in active_uris:
-             # Check if we have connection or if it is active
-             # The original code connected. We can trust active_uris or check connection manager
-             # But we need server names from 'servers' dict
-             found = False
-             for server in servers:
+            # Check if we have connection or if it is active
+            found = False
+            for server in servers:
                 if server['uri'] == uri:
                     server_names.append(server['name'])
                     found = True
                     break
-             if not found:
-                 server_names.append(uri)
-                 
+
+                if not found:
+                    server_names.append(uri)
+
         total_vms_unfiltered = len(domains_with_conn)
         domains_to_display = domains_with_conn
 
