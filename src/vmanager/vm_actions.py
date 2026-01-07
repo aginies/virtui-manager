@@ -1647,13 +1647,7 @@ def start_vm(domain):
         if source_elem is None:
             continue
 
-        if 'file' in source_elem.attrib:
-            disk_path = source_elem.get('file')
-            if not os.path.exists(disk_path):
-                msg = f"Disk image file not found: {disk_path}"
-                logging.error(msg)
-                raise FileNotFoundError(msg)
-        elif 'pool' in source_elem.attrib and 'volume' in source_elem.attrib:
+        if 'pool' in source_elem.attrib and 'volume' in source_elem.attrib:
             pool_name = source_elem.get('pool')
             vol_name = source_elem.get('volume')
             try:
