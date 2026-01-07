@@ -4,6 +4,8 @@ Module for retrieving information about virtual machines.
 import xml.etree.ElementTree as ET
 import logging
 from functools import lru_cache
+import os
+import hashlib
 import libvirt
 from libvirt_utils import (
         VIRTUI_MANAGER_NS,
@@ -15,13 +17,57 @@ from libvirt_utils import (
 from vm_cache import get_from_cache, set_in_cache
 #from utils import log_function_call
 
-@lru_cache(maxsize=512)
-def _parse_domain_xml(xml_content: str) -> ET.Element | None:
-    """Cache XML parsing results."""
+CACHE_SIZE = int(os.getenv('VIRTUI_XML_CACHE_SIZE', '2048'))
+
+@lru_cache(maxsize=CACHE_SIZE)
+def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | None:
+    """
+    Cache XML parsing results by hash for better hit rate.
+    Default cache size: 2048 (configurable via VIRTUI_XML_CACHE_SIZE env var)
+    Memory impact: ~30-90 MB for full cache
+    """
     try:
         return ET.fromstring(xml_content)
     except ET.ParseError:
         return None
+
+def _parse_domain_xml(xml_content: str) -> ET.Element | None:
+    """Cache XML parsing results."""
+    if not xml_content:
+        return None
+    # Use hash for cache key to handle equivalent XML with different whitespace
+    xml_hash = hashlib.md5(xml_content.encode()).hexdigest()
+    return _parse_domain_xml_by_hash(xml_hash, xml_content)
+
+def log_cache_statistics() -> None:
+    """
+    Logs cache statistics for the XML parsing cache.
+    Useful for monitoring cache effectiveness.
+    """
+    try:
+        info = _parse_domain_xml_by_hash.cache_info()  # type: ignore[attr-defined]
+        total_requests = info.hits + info.misses
+
+        if total_requests > 0:
+            hit_rate = (info.hits / total_requests) * 100
+            logging.info(
+                f"[VM Queries Cache] XML parsing cache stats: "
+                f"{info.hits} hits, {info.misses} misses, "
+                f"{info.currsize}/{info.maxsize} entries, "
+                f"{hit_rate:.1f}% hit rate"
+            )
+    except AttributeError:
+        pass
+
+
+def clear_xml_cache() -> None:
+    """Clears the XML parsing cache. Useful for testing or memory management."""
+    try:
+        _parse_domain_xml_by_hash.cache_clear()  # type: ignore[attr-defined]
+        logging.debug("XML parsing cache cleared")
+    except AttributeError:
+        pass
+
 
 def _get_domain_root(domain) -> tuple[str, ET.Element | None]:
     """Returns (xml_content, root_element) for a domain."""

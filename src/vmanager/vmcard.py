@@ -12,7 +12,7 @@ from rich.markdown import Markdown as RichMarkdown
 
 from textual.widgets import (
         Static, Button, TabbedContent,
-        TabPane, Sparkline, Checkbox
+        TabPane, Sparkline, Checkbox, Collapsible
         )
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
@@ -32,7 +32,7 @@ from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
         get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
-        get_status
+        get_status, log_cache_statistics
         )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
@@ -50,6 +50,75 @@ from constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction
 )
+
+class VMCardActions(Static):
+    def __init__(self, card) -> None:
+        self.card = card
+        super().__init__()
+
+    def compose(self):
+        self.card.ui[ButtonIds.START] = Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
+        self.card.ui[ButtonIds.SHUTDOWN] = Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
+        self.card.ui[ButtonIds.STOP] = Button(ButtonLabels.FORCE_OFF, id=ButtonIds.STOP, variant="error")
+        self.card.ui[ButtonIds.PAUSE] = Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
+        self.card.ui[ButtonIds.RESUME] = Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
+        self.card.ui[ButtonIds.CONFIGURE_BUTTON] = Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
+        self.card.ui[ButtonIds.WEB_CONSOLE] = Button(ButtonLabels.WEB_CONSOLE, id=ButtonIds.WEB_CONSOLE, variant="default")
+        self.card.ui[ButtonIds.CONNECT] = Button(ButtonLabels.CONNECT, id=ButtonIds.CONNECT, variant="default")
+        
+        self.card.ui[ButtonIds.SNAPSHOT_TAKE] = Button(ButtonLabels.SNAPSHOT, id=ButtonIds.SNAPSHOT_TAKE, variant="primary")
+        self.card.ui[ButtonIds.SNAPSHOT_RESTORE] = Button(ButtonLabels.RESTORE_SNAPSHOT, id=ButtonIds.SNAPSHOT_RESTORE, variant="primary")
+        self.card.ui[ButtonIds.SNAPSHOT_DELETE] = Button(ButtonLabels.DELETE_SNAPSHOT, id=ButtonIds.SNAPSHOT_DELETE, variant="error")
+
+        self.card.ui[ButtonIds.DELETE] = Button(ButtonLabels.DELETE, id=ButtonIds.DELETE, variant="success", classes="delete-button")
+        self.card.ui[ButtonIds.CLONE] = Button(ButtonLabels.CLONE, id=ButtonIds.CLONE, classes="clone-button")
+        self.card.ui[ButtonIds.MIGRATION] = Button(ButtonLabels.MIGRATION, id=ButtonIds.MIGRATION, variant="primary", classes="migration-button")
+        self.card.ui[ButtonIds.XML] = Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
+        self.card.ui[ButtonIds.RENAME_BUTTON] = Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
+
+        self.card.ui[ButtonIds.CREATE_OVERLAY] = Button(ButtonLabels.CREATE_OVERLAY, id=ButtonIds.CREATE_OVERLAY, variant="primary")
+        self.card.ui[ButtonIds.COMMIT_DISK] = Button(ButtonLabels.COMMIT_DISK, id=ButtonIds.COMMIT_DISK, variant="error")
+        self.card.ui[ButtonIds.DISCARD_OVERLAY] = Button(ButtonLabels.DISCARD_OVERLAY, id=ButtonIds.DISCARD_OVERLAY, variant="error")
+        self.card.ui[ButtonIds.SNAP_OVERLAY_HELP] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id=ButtonIds.SNAP_OVERLAY_HELP, variant="default")
+
+        self.card.ui["tabbed_content"] = TabbedContent(id="button-container")
+
+        with self.card.ui["tabbed_content"]:
+            with TabPane(TabTitles.MANAGE, id="manage-tab"):
+                with Horizontal():
+                    with Vertical():
+                        yield self.card.ui[ButtonIds.START]
+                        yield self.card.ui[ButtonIds.SHUTDOWN]
+                        yield self.card.ui[ButtonIds.STOP]
+                        yield self.card.ui[ButtonIds.PAUSE]
+                        yield self.card.ui[ButtonIds.RESUME]
+                    with Vertical():
+                        yield self.card.ui[ButtonIds.CONFIGURE_BUTTON]
+                        yield self.card.ui[ButtonIds.WEB_CONSOLE]
+                        yield self.card.ui[ButtonIds.CONNECT]
+            with TabPane(self.card._get_snapshot_tab_title(), id="snapshot-tab"):
+                with Horizontal():
+                    with Vertical():
+                        yield self.card.ui[ButtonIds.SNAPSHOT_TAKE]
+                        yield self.card.ui[ButtonIds.SNAPSHOT_RESTORE]
+                        yield self.card.ui[ButtonIds.SNAPSHOT_DELETE]
+                    with Vertical():
+                        yield self.card.ui[ButtonIds.CREATE_OVERLAY]
+                        yield self.card.ui[ButtonIds.COMMIT_DISK]
+                        yield self.card.ui[ButtonIds.DISCARD_OVERLAY]
+                        yield self.card.ui[ButtonIds.SNAP_OVERLAY_HELP]
+            with TabPane(TabTitles.OTHER, id="special-tab"):
+                with Horizontal():
+                    with Vertical():
+                        yield self.card.ui[ButtonIds.DELETE]
+                        yield Static(classes="button-separator")
+                        yield self.card.ui[ButtonIds.CLONE]
+                        yield self.card.ui[ButtonIds.MIGRATION]
+                    with Vertical():
+                        yield self.card.ui[ButtonIds.XML]
+                        yield Static(classes="button-separator")
+                        yield self.card.ui[ButtonIds.RENAME_BUTTON]
+
 
 class VMCard(Static):
     """
@@ -83,7 +152,6 @@ class VMCard(Static):
         self.is_selected = is_selected
         self.timer = None
         self._boot_device_checked = False
-        self._tooltip_update_timer = None
 
     def _get_vm_display_name(self) -> str:
         """Returns the formatted VM name including server name if available."""
@@ -157,31 +225,7 @@ class VMCard(Static):
         self.ui["cpu_container"] = Horizontal(self.ui["top_label"], self.ui["top_sparkline"], id="cpu-sparkline-container", classes="sparkline-container")
         self.ui["mem_container"] = Horizontal(self.ui["bottom_label"], self.ui["bottom_sparkline"], id="mem-sparkline-container", classes="sparkline-container")
 
-        self.ui[ButtonIds.START] = Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
-        self.ui[ButtonIds.SHUTDOWN] = Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
-        self.ui[ButtonIds.STOP] = Button(ButtonLabels.FORCE_OFF, id=ButtonIds.STOP, variant="error")
-        self.ui[ButtonIds.PAUSE] = Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
-        self.ui[ButtonIds.RESUME] = Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
-        self.ui[ButtonIds.CONFIGURE_BUTTON] = Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
-        self.ui[ButtonIds.WEB_CONSOLE] = Button(ButtonLabels.WEB_CONSOLE, id=ButtonIds.WEB_CONSOLE, variant="default")
-        self.ui[ButtonIds.CONNECT] = Button(ButtonLabels.CONNECT, id=ButtonIds.CONNECT, variant="default")
-        
-        self.ui[ButtonIds.SNAPSHOT_TAKE] = Button(ButtonLabels.SNAPSHOT, id=ButtonIds.SNAPSHOT_TAKE, variant="primary")
-        self.ui[ButtonIds.SNAPSHOT_RESTORE] = Button(ButtonLabels.RESTORE_SNAPSHOT, id=ButtonIds.SNAPSHOT_RESTORE, variant="primary")
-        self.ui[ButtonIds.SNAPSHOT_DELETE] = Button(ButtonLabels.DELETE_SNAPSHOT, id=ButtonIds.SNAPSHOT_DELETE, variant="error")
-
-        self.ui[ButtonIds.DELETE] = Button(ButtonLabels.DELETE, id=ButtonIds.DELETE, variant="success", classes="delete-button")
-        self.ui[ButtonIds.CLONE] = Button(ButtonLabels.CLONE, id=ButtonIds.CLONE, classes="clone-button")
-        self.ui[ButtonIds.MIGRATION] = Button(ButtonLabels.MIGRATION, id=ButtonIds.MIGRATION, variant="primary", classes="migration-button")
-        self.ui[ButtonIds.XML] = Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
-        self.ui[ButtonIds.RENAME_BUTTON] = Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
-
-        self.ui[ButtonIds.CREATE_OVERLAY] = Button(ButtonLabels.CREATE_OVERLAY, id=ButtonIds.CREATE_OVERLAY, variant="primary")
-        self.ui[ButtonIds.COMMIT_DISK] = Button(ButtonLabels.COMMIT_DISK, id=ButtonIds.COMMIT_DISK, variant="error")
-        self.ui[ButtonIds.DISCARD_OVERLAY] = Button(ButtonLabels.DISCARD_OVERLAY, id=ButtonIds.DISCARD_OVERLAY, variant="error")
-        self.ui[ButtonIds.SNAP_OVERLAY_HELP] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id=ButtonIds.SNAP_OVERLAY_HELP, variant="default")
-
-        self.ui["tabbed_content"] = TabbedContent(id="button-container")
+        self.ui["collapsible"] = Collapsible(title="Actions", id="actions-collapsible")
 
         with Vertical(id="info-container"):
             with Horizontal(id="vm-header-row"):
@@ -189,51 +233,40 @@ class VMCard(Static):
                 with Vertical():
                     yield self.ui["vmname"]
                     yield self.ui["status"]
-            
+
             yield self.ui["cpu_container"]
             yield self.ui["mem_container"]
 
-            with self.ui["tabbed_content"]:
-                with TabPane(TabTitles.MANAGE, id="manage-tab"):
-                    with Horizontal():
-                        with Vertical():
-                            yield self.ui[ButtonIds.START]
-                            yield self.ui[ButtonIds.SHUTDOWN]
-                            yield self.ui[ButtonIds.STOP]
-                            yield self.ui[ButtonIds.PAUSE]
-                            yield self.ui[ButtonIds.RESUME]
-                        with Vertical():
-                            yield self.ui[ButtonIds.CONFIGURE_BUTTON]
-                            yield self.ui[ButtonIds.WEB_CONSOLE]
-                            yield self.ui[ButtonIds.CONNECT]
-                with TabPane(self._get_snapshot_tab_title(), id="snapshot-tab"):
-                    with Horizontal():
-                        with Vertical():
-                            yield self.ui[ButtonIds.SNAPSHOT_TAKE]
-                            yield self.ui[ButtonIds.SNAPSHOT_RESTORE]
-                            yield self.ui[ButtonIds.SNAPSHOT_DELETE]
-                        with Vertical():
-                            yield self.ui[ButtonIds.CREATE_OVERLAY]
-                            yield self.ui[ButtonIds.COMMIT_DISK]
-                            yield self.ui[ButtonIds.DISCARD_OVERLAY]
-                            yield self.ui[ButtonIds.SNAP_OVERLAY_HELP]
-                with TabPane(TabTitles.OTHER, id="special-tab"):
-                    with Horizontal():
-                        with Vertical():
-                            yield self.ui[ButtonIds.DELETE]
-                            yield Static(classes="button-separator")
-                            yield self.ui[ButtonIds.CLONE]
-                            yield self.ui[ButtonIds.MIGRATION]
-                        with Vertical():
-                            yield self.ui[ButtonIds.XML]
-                            yield Static(classes="button-separator")
-                            yield self.ui[ButtonIds.RENAME_BUTTON]
+            yield self.ui["collapsible"]
 
-    def _update_tooltip(self) -> None:
-        """Schedules a tooltip update to debounce frequent calls."""
-        if self._tooltip_update_timer:
-            self._tooltip_update_timer.stop()
-        self._tooltip_update_timer = self.set_timer(2, self._perform_tooltip_update)
+    @on(Collapsible.Expanded, "#actions-collapsible")
+    async def on_collapsible_expanded(self, event: Collapsible.Expanded) -> None:
+        if not self.ui.get("tabbed_content"):
+            actions_view = VMCardActions(self)
+            await self.ui["collapsible"].mount(actions_view)
+            self.update_button_layout()
+            self.update_snapshot_tab_title()
+
+    @on(Collapsible.Collapsed, "#actions-collapsible")
+    async def on_collapsible_collapsed(self, event: Collapsible.Collapsed) -> None:
+        self._cleanup_actions()
+
+    def _cleanup_actions(self):
+        try:
+            for child in self.query(VMCardActions):
+                child.remove()
+        except NoMatches:
+            pass
+
+        # Clean up dynamic UI references to avoid memory leaks and stale state
+        keys_to_keep = {
+            "checkbox", "vmname", "status", "top_label", "top_sparkline",
+            "bottom_label", "bottom_sparkline", "cpu_container",
+            "mem_container", "collapsible"
+        }
+        for key in list(self.ui.keys()):
+            if key not in keys_to_keep:
+                self.ui.pop(key, None)
 
     def _is_remote_server(self) -> bool:
         """Checks if the VM is on a remote server."""
@@ -251,14 +284,27 @@ class VMCard(Static):
         if not self.ui or "vmname" not in self.ui:
             return
         
-        if self._is_remote_server():
+        uuid = None
+        try:
+            if self.vm:
+                uuid = self.vm.UUIDString()
+        except libvirt.libvirtError:
+            pass
+
+        has_cached_xml = False
+        if uuid:
+            with self.app.vm_service._cache_lock:
+                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+                has_cached_xml = vm_cache.get('xml') is not None
+
+        if self._is_remote_server() and not has_cached_xml:
             self.ui["vmname"].tooltip = None
             return
 
         try:
-            uuid = self.vm.UUIDString() if self.vm else "Unknown"
-        except libvirt.libvirtError:
-            uuid = "Unknown"
+            uuid_display = uuid if uuid else "Unknown"
+        except Exception:
+            uuid_display = "Unknown"
 
         hypervisor = "Unknown"
         if self.conn:
@@ -301,7 +347,7 @@ class VMCard(Static):
         self._update_status_styling()
         self._update_webc_status()
         self.update_sparkline_display()
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
         if self.vm:
             try:
@@ -373,27 +419,27 @@ class VMCard(Static):
 
     def watch_cpu(self, value: int) -> None:
         """Called when cpu count changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_memory(self, value: int) -> None:
         """Called when memory changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_ip_addresses(self, value: list) -> None:
         """Called when IP addresses change."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_boot_device(self, value: str) -> None:
         """Called when boot device changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_cpu_model(self, value: str) -> None:
         """Called when cpu_model changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_graphics_type(self, old_value: str, new_value: str) -> None:
         """Called when graphics_type changes."""
-        self.update_button_layout()
+        self._perform_tooltip_update()
 
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
@@ -401,7 +447,7 @@ class VMCard(Static):
             return
         self._update_status_styling()
         self.update_button_layout()
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
         status_widget = self.ui.get("status")
         if status_widget:
@@ -415,14 +461,19 @@ class VMCard(Static):
         """Stop the timer and cancel any running stat workers when the widget is removed."""
         if self.timer:
             self.timer.stop()
-        if self._tooltip_update_timer:
-            self._tooltip_update_timer.stop()
         if self.vm:
             try:
                 uuid = self.vm.UUIDString()
                 self.app.worker_manager.cancel(f"update_stats_{uuid}")
             except libvirt.libvirtError:
                 pass
+
+        # Reset collapsible state for next mount
+        collapsible = self.ui.get("collapsible")
+        if collapsible and not collapsible.collapsed:
+            collapsible.collapsed = True
+
+        self._cleanup_actions()
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
@@ -442,6 +493,15 @@ class VMCard(Static):
         if not self.vm:
             return
 
+        # Skip unnecessary updates for stopped VMs ---
+        if self.status == StatusText.STOPPED:
+            logging.debug(f"VM {self.name} is stopped, stopping stats updates.")
+            # Ensure any existing timer is cancelled
+            if hasattr(self, 'timer') and self.timer is not None:
+                self.timer.stop()
+                self.timer = None # Clear the timer reference
+            return
+
         # Cancel previous timer if it exists to prevent accumulation
         if self.timer:
             self.timer.stop()
@@ -455,6 +515,7 @@ class VMCard(Static):
         except libvirt.libvirtError:
             if self.timer:
                 self.timer.stop()
+                self.timer = None
             return
 
         # Capture reactive values on main thread to avoid unsafe access in worker
@@ -466,6 +527,7 @@ class VMCard(Static):
 
         def update_worker():
             try:
+                logging.debug(f"Starting update_stats worker for {self.name} (UUID: {uuid})")
                 if is_remote:
                     # Minimal fetch for remote servers: ONLY status
                     try:
@@ -484,6 +546,8 @@ class VMCard(Static):
                         stats = None
                 else:
                     stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
+                
+                logging.debug(f"Stats received for {self.name}: {stats}")
 
                 # Update info from cache if XML has been fetched (e.g. via Configure)
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
@@ -496,6 +560,7 @@ class VMCard(Static):
                 if not getattr(self, "_boot_device_checked", False):
                     if xml_content:
                         root = _parse_domain_xml(xml_content)
+                        log_cache_statistics()
                         if root is not None:
                             # Always update from cache if available
                             boot_info = get_boot_info(self.conn, root)
@@ -524,6 +589,7 @@ class VMCard(Static):
                                 self._boot_device_checked = True
                         except Exception:
                             pass
+                        #log_cache_statistics()
 
                 if not stats:
                     if current_status != StatusText.STOPPED:
@@ -558,22 +624,27 @@ class VMCard(Static):
                     # Update web console status here instead of every cycle
                     self._update_webc_status()
 
-                    if hasattr(self.app, "sparkline_data") and uuid in self.app.sparkline_data:
-                        storage = self.app.sparkline_data[uuid]
+                    if hasattr(self.app, "sparkline_data"):
+                        if uuid in self.app.sparkline_data:
+                            storage = self.app.sparkline_data[uuid]
 
-                        def update_history(key, value):
-                            history = storage.get(key, [])
-                            history.append(value)
-                            if len(history) > 20:
-                                history.pop(0)
-                            storage[key] = history
+                            def update_history(key, value):
+                                history = storage.get(key, [])
+                                history.append(value)
+                                if len(history) > 20:
+                                    history.pop(0)
+                                storage[key] = history
 
-                        update_history("cpu", stats["cpu_percent"])
-                        update_history("mem", stats["mem_percent"])
-                        update_history("disk", self.latest_disk_read + self.latest_disk_write)
-                        update_history("net", self.latest_net_rx + self.latest_net_tx)
+                            update_history("cpu", stats["cpu_percent"])
+                            update_history("mem", stats["mem_percent"])
+                            update_history("disk", self.latest_disk_read + self.latest_disk_write)
+                            update_history("net", self.latest_net_rx + self.latest_net_tx)
 
-                        self.update_sparkline_display()
+                            self.update_sparkline_display()
+                        else:
+                            logging.warning(f"UUID {uuid} not found in sparkline_data")
+                    else:
+                        logging.error("app does not have sparkline_data attribute")
 
                 self.app.call_from_thread(apply_stats_to_ui)
 
@@ -602,13 +673,19 @@ class VMCard(Static):
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
-        rename_button = self.ui.get(ButtonIds.RENAME_BUTTON)
-        if not rename_button: return # Assume if one is missing, others might be too or we are not cached yet.
-
         is_loading = self.status == StatusText.LOADING
         is_stopped = self.status == StatusText.STOPPED
         is_running = self.status == StatusText.RUNNING
         is_paused = self.status == StatusText.PAUSED
+
+        if "cpu_container" in self.ui:
+            self.ui["cpu_container"].display = is_running
+        if "mem_container" in self.ui:
+            self.ui["mem_container"].display = is_running
+
+        rename_button = self.ui.get(ButtonIds.RENAME_BUTTON)
+        if not rename_button: return # Assume if one is missing, others might be too or we are not cached yet.
+
         has_snapshots = False
         try:
             if self.vm and not is_loading:
@@ -629,7 +706,7 @@ class VMCard(Static):
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
         self.ui[ButtonIds.CONNECT].display = (is_running or is_paused) and self.app.virt_viewer_available
-        logging.info(f"graphics_type: {self.graphics_type}")
+        #logging.info(f"graphics_type: {self.graphics_type}")
         # TOFIX
         #self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused) and self.graphics_type == "vnc" and self.app.websockify_available and self.app.novnc_available
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)# and self.app.websockify_available and self.app.novnc_available
@@ -652,9 +729,6 @@ class VMCard(Static):
         self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay_disk
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
         self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading
-
-        self.ui["cpu_container"].display = not is_stopped and not is_loading
-        self.ui["mem_container"].display = not is_stopped and not is_loading
 
         xml_button = self.ui[ButtonIds.XML]
         if is_stopped:
@@ -1219,13 +1293,24 @@ class VMCard(Static):
             uuid = self.vm.UUIDString()
             vm_name = self.name
             active_uris = list(self.app.active_uris)
+            
+            # Capture variables for thread safety
+            vm_obj = self.vm
+            conn_obj = self.conn
+            cached_ips = list(self.ip_addresses) if self.ip_addresses else None
 
             loading_modal = LoadingModal()
             self.app.push_screen(loading_modal)
 
             def get_details_worker():
                 try:
-                    result = self.app.vm_service.get_vm_details(active_uris, uuid)
+                    result = self.app.vm_service.get_vm_details(
+                        active_uris, 
+                        uuid, 
+                        domain=vm_obj, 
+                        conn=conn_obj, 
+                        cached_ips=cached_ips
+                    )
                     
                     def show_details():
                         loading_modal.dismiss()
@@ -1237,6 +1322,7 @@ class VMCard(Static):
                         
                         def on_detail_modal_dismissed(res):
                             self.app.refresh_vm_list(force=True)
+                            self._perform_tooltip_update()
 
                         self.app.push_screen(
                             VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_cache),

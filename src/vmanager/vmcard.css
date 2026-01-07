@@ -37,6 +37,7 @@ VMCard {
 
 .sparkline-container {
   align-horizontal: left;
+  height: 1;
   margin: 0 1;
 }
 
@@ -104,9 +105,9 @@ Button {
 
 #button-container, #status-cpu-mem {
   width: 100%;
-  height: 100%;
-  margin: 1;
-  padding: 0 1;
+  height: auto;
+  margin: 0;
+  padding: 0 0;
 }
 
 #xml, #snapshot_take, #snapshot_restore, #snapshot_delete {
@@ -144,4 +145,10 @@ Button {
   width: 5;
   height: 2;
   border: none;
+}
+#actions-collapsible {
+  height: auto;
+  border: none;
+  margin: 0 0;
+  padding: 0 0;
 }

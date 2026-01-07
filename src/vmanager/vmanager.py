@@ -156,6 +156,7 @@ class VMManagerTUI(App):
     current_page = reactive(0)
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
+    MAX_VM_CARDS = config.get('MAX_VM_CARDS', 250)
     WC_PORT_RANGE_START = config.get('WC_PORT_RANGE_START')
     WC_PORT_RANGE_END = config.get('WC_PORT_RANGE_END')
     sort_by = reactive(VmStatus.DEFAULT)
@@ -298,7 +299,6 @@ class VMManagerTUI(App):
         vms_container = self.ui.get("vms_container")
         if vms_container:
             vms_container.styles.grid_size_columns = 2
-        # self._update_layout_for_size()
 
         if not self.servers:
             self.show_success_message(
@@ -321,7 +321,7 @@ class VMManagerTUI(App):
         """Pre-loads VM cache before displaying the UI."""
         try:
             # Force cache update and fetch all VM data
-            domains_to_display, total_vms, total_filtered_vms, server_names = self.vm_service.get_vms(
+            domains_to_display, total_vms, total_filtered_vms, server_names, all_active_uuids = self.vm_service.get_vms(
                 self.active_uris,
                 self.servers,
                 self.sort_by,
@@ -408,11 +408,12 @@ class VMManagerTUI(App):
             return
         if self._resize_timer:
             self._resize_timer.stop()
-        self._resize_timer = self.set_timer(0.5, self._update_layout_for_size)
+        self._resize_timer = self.set_timer(1, self._update_layout_for_size)
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
-        self.webconsole_manager.terminate_all()
+        # TOFIX
+        #self.webconsole_manager.terminate_all()
         self.worker_manager.cancel_all()
         self.vm_service.disconnect_all()
 
@@ -530,14 +531,6 @@ class VMManagerTUI(App):
         """Manage the list of servers."""
         self.push_screen(ServerManagementModal(self.servers), self.on_server_management)
 
-    @on(Button.Pressed, "#create_vm_button")
-    def on_create_vm_button_pressed(self, event: Button.Pressed) -> None:
-        logging.info("Create VM button clicked")
-        if len(self.active_uris) > 1:
-            self.show_error_message("VM creation is only supported when connected to a single server.")
-            return
-        self.push_screen(CreateVMModal(), self.handle_create_vm_result)
-
     @on(Button.Pressed, "#view_log_button")
     def action_view_log(self) -> None:
         """View the application log file."""
@@ -614,42 +607,6 @@ class VMManagerTUI(App):
         """Callback for the virsh shell button."""
         self.action_virsh_shell()
 
-    @on(VMNameClicked)
-    async def on_vm_name_clicked(self, message: VMNameClicked) -> None:
-        """Callback when a VM's name is clicked. Fetches details via the VMService."""
-
-        def get_details_and_show_modal():
-            """Worker function to fetch VM details via the service."""
-            try:
-                result = self.vm_service.get_vm_details(self.active_uris, message.vm_uuid)
-
-                if not result:
-                    self.call_from_thread(
-                        self.show_error_message,
-                        f"VM {message.vm_name} with UUID {message.vm_uuid} not found on any active server."
-                    )
-                    return
-
-                vm_info, domain, conn_for_domain = result
-
-                def on_detail_modal_dismissed(result: None):
-                    self.refresh_vm_list(force=True)
-
-                self.call_from_thread(
-                    self.push_screen,
-                    VMDetailModal(message.vm_name, vm_info, domain, conn_for_domain, self.vm_service.invalidate_vm_cache),
-                    on_detail_modal_dismissed
-                )
-            except libvirt.libvirtError as e:
-                self.call_from_thread(
-                    self.show_error_message,
-                    f"Error getting details for {message.vm_name}: {e}",
-                )
-
-        self.worker_manager.run(
-            get_details_and_show_modal, name=f"get_details_{message.vm_uuid}"
-        )
-
     @on(VmActionRequest)
     def on_vm_action_request(self, message: VmActionRequest) -> None:
         """Handles a request to perform an action on a VM."""
@@ -720,57 +677,6 @@ class VMManagerTUI(App):
             self.selected_vm_uuids.add(message.vm_uuid)
         else:
             self.selected_vm_uuids.discard(message.vm_uuid)
-
-    def handle_create_vm_result(self, result: dict | None) -> None:
-        """Handle the result from the CreateVMModal and create the VM."""
-        if not result:
-            return
-
-        conn = self.vm_service.connect(self.active_uris[0])
-        if not conn:
-            self.show_error_message("Not connected to libvirt. Cannot create VM.")
-            return
-
-        vm_name = result.get('name')
-        memory = int(result.get('memory', 0))
-        vcpu = int(result.get('vcpu', 0))
-        disk_path = result.get('disk')
-
-        if not all([vm_name, memory, vcpu, disk_path]):
-            self.show_error_message("Missing VM details for creation.")
-            return
-
-        xml = f"""
-<domain type='kvm'>
-  <name>{vm_name}</name>
-  <memory unit='MiB'>{memory}</memory>
-  <currentMemory unit='MiB'>{memory}</currentMemory>
-  <vcpu placement='static'>{vcpu}</vcpu>
-  <os>
-    <type arch='x86_64' machine='pc-q35-4.2'>hvm</type>
-    <boot dev='hd'/>
-  </os>
-  <devices>
-    <disk type='file' device='disk'>
-      <driver name='qemu' type='qcow2'/>
-      <source file='{disk_path}'/>
-      <target dev='vda' bus='virtio'/>
-    </disk>
-    <graphics type='vnc' port='-1' autoport='yes'>
-      <listen type='address'/>
-    </graphics>
-    <video>
-      <model type='virtio' heads='1' primary='yes'/>
-    </video>
-  </devices>
-</domain>
-"""
-        try:
-            conn.defineXML(xml)
-            self.show_success_message(f"VM '{vm_name}' created successfully.")
-            self.refresh_vm_list()
-        except libvirt.libvirtError as e:
-            self.show_error_message(f"Error creating VM '{vm_name}': {e}")
 
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""
@@ -863,7 +769,7 @@ class VMManagerTUI(App):
     def list_vms_worker(self, selected_uuids: set[str], current_page: int, vms_per_page: int, force: bool = False):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
-            domains_to_display, total_vms, total_filtered_vms, server_names = self.vm_service.get_vms(
+            domains_to_display, total_vms, total_filtered_vms, server_names, all_active_uuids = self.vm_service.get_vms(
                 self.active_uris,
                 self.servers,
                 self.sort_by,
@@ -895,11 +801,16 @@ class VMManagerTUI(App):
                 
                 # Try to get info from cache to avoid blocking if possible
                 info = self.vm_service.get_cached_vm_info(domain)
+                cached_details = self.vm_service.get_cached_vm_details(uuid)
                 
                 if info:
                     status = get_status(domain, state=info[0])
                     cpu = info[3]
                     memory = info[1] // 1024
+                elif cached_details:
+                    status = cached_details['status']
+                    cpu = cached_details['cpu']
+                    memory = cached_details['memory']
                 else:
                     status = StatusText.LOADING
                     cpu = 0
@@ -932,7 +843,7 @@ class VMManagerTUI(App):
                     continue
 
         # Cleanup cache: remove cards for VMs that no longer exist at all
-        all_uuids_from_libvirt = {dom.UUIDString() for dom, conn in domains_to_display}
+        all_uuids_from_libvirt = set(all_active_uuids)
         
         def update_ui():
             if reset_page:
@@ -949,6 +860,20 @@ class VMManagerTUI(App):
                 del self.vm_cards[uuid]
                 if uuid in self.sparkline_data:
                     del self.sparkline_data[uuid]
+
+            # Enforce MAX_VM_CARDS limit
+            if len(self.vm_cards) > self.MAX_VM_CARDS:
+                # Get UUIDs that are NOT on the current page and remove them until we are under the limit
+                off_page_uuids = [uuid for uuid in self.vm_cards.keys() if uuid not in page_uuids]
+                # Sort by something? For now just take the first ones
+                while len(self.vm_cards) > self.MAX_VM_CARDS and off_page_uuids:
+                    uuid_to_remove = off_page_uuids.pop(0)
+                    logging.info(f"Removing card from cache (limit reached): {uuid_to_remove}")
+                    if self.vm_cards[uuid_to_remove].is_mounted:
+                        self.vm_cards[uuid_to_remove].remove()
+                    del self.vm_cards[uuid_to_remove]
+                    if uuid_to_remove in self.sparkline_data:
+                        del self.sparkline_data[uuid_to_remove]
 
             vms_container = self.ui.get("vms_container")
             if not vms_container:
@@ -998,7 +923,7 @@ class VMManagerTUI(App):
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
 
-            display_server_names = [extract_server_name_from_uri(uri) for uri in server_names]
+            display_server_names = sorted(list(set(extract_server_name_from_uri(uri) for uri in server_names)))
             self.sub_title = f"Servers: {', '.join(display_server_names)} | Total VMs: {total_vms}"
             self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
 
