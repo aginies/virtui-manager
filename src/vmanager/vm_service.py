@@ -62,6 +62,17 @@ class VMService:
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=1.0)
 
+    def _get_internal_id(self, domain: libvirt.virDomain, conn: libvirt.virConnect = None) -> str:
+        """Generates a unique internal ID for a VM (UUID@URI)."""
+        uuid = domain.UUIDString()
+        try:
+            if not conn:
+                conn = domain.connect()
+            uri = conn.getURI()
+            return f"{uuid}@{uri}"
+        except libvirt.libvirtError:
+            return uuid
+
     def _monitor_loop(self):
         """Background loop to update VM data."""
         while self._monitoring_active:
@@ -101,9 +112,9 @@ class VMService:
             try:
                 domains = conn.listAllDomains(0) or []
                 for domain in domains:
-                    uuid = domain.UUIDString()
-                    new_domain_cache[uuid] = domain
-                    new_uuid_to_conn[uuid] = conn
+                    internal_id = self._get_internal_id(domain, conn)
+                    new_domain_cache[internal_id] = domain
+                    new_uuid_to_conn[internal_id] = conn
             except libvirt.libvirtError:
                 pass
 
@@ -185,9 +196,9 @@ class VMService:
                 try:
                     domains = conn.listAllDomains(0) or []
                     for domain in domains:
-                        uuid = domain.UUIDString()
-                        new_domain_cache[uuid] = domain
-                        new_uuid_to_conn[uuid] = conn
+                        internal_id = self._get_internal_id(domain, conn)
+                        new_domain_cache[internal_id] = domain
+                        new_uuid_to_conn[internal_id] = conn
                 except libvirt.libvirtError:
                     pass
 
@@ -220,7 +231,7 @@ class VMService:
 
     def _get_domain_info_and_xml(self, domain: libvirt.virDomain) -> tuple[tuple, str]:
         """Gets info and XML from cache or fetches them, fetching both if both are missing."""
-        uuid = domain.UUIDString()
+        uuid = self._get_internal_id(domain)
         now = time.time()
 
         with self._cache_lock:
@@ -280,7 +291,7 @@ class VMService:
 
     def _get_domain_info(self, domain: libvirt.virDomain) -> tuple | None:
         """Gets domain info from cache or fetches it."""
-        uuid = domain.UUIDString()
+        uuid = self._get_internal_id(domain)
         now = time.time()
 
         with self._cache_lock:
@@ -307,7 +318,7 @@ class VMService:
 
     def _get_domain_xml(self, domain: libvirt.virDomain) -> str | None:
         """Gets domain XML from cache or fetches it."""
-        uuid = domain.UUIDString()
+        uuid = self._get_internal_id(domain)
         now = time.time()
 
         with self._cache_lock:
@@ -335,7 +346,7 @@ class VMService:
 
     def get_cached_vm_info(self, domain: libvirt.virDomain) -> tuple | None:
         """Gets domain info ONLY from cache, returning None if not present or expired."""
-        uuid = domain.UUIDString()
+        uuid = self._get_internal_id(domain)
         now = time.time()
 
         with self._cache_lock:
@@ -384,7 +395,7 @@ class VMService:
                     "net_tx_kbps": 0.0
                 }
 
-            uuid = domain.UUIDString()
+            uuid = self._get_internal_id(domain)
             stats = {'status': status}
 
             # CPU Usage
@@ -715,7 +726,7 @@ class VMService:
 
     def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
         """Deletes the VM."""
-        uuid = domain.UUIDString()
+        uuid = self._get_internal_id(domain)
         delete_vm(domain, delete_storage=delete_storage)
         self.invalidate_vm_cache(uuid)
         self._force_update_event.set()

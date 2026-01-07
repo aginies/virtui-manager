@@ -139,6 +139,7 @@ class VMCard(Static):
     server_border_color = reactive("green")
     is_selected = reactive(False)
     stats_view_mode = reactive("resources") # "resources" or "io"
+    internal_id = reactive("")
 
     # To store the latest raw stat values for display
     latest_disk_read = reactive(0.0)
@@ -189,16 +190,13 @@ class VMCard(Static):
         """Updates the web console status indicator."""
         if hasattr(self.app, 'webconsole_manager') and self.vm:
             try:
-                uuid = self.vm.UUIDString()
+                uuid = self.internal_id
                 if self.app.webconsole_manager.is_running(uuid):
                     if self.webc_status_indicator != " (WebC On)":
                         self.webc_status_indicator = " (WebC On)"
                     return
-            except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                    pass # The VM is gone, let other parts handle the refresh.
-                else:
-                    logging.warning(f"Error getting UUID for webconsole status: {e}")
+            except Exception as e:
+                logging.warning(f"Error getting internal_id for webconsole status: {e}")
 
         if self.webc_status_indicator != "":
             self.webc_status_indicator = ""
@@ -284,25 +282,21 @@ class VMCard(Static):
         if not self.ui or "vmname" not in self.ui:
             return
         
-        uuid = None
-        try:
-            if self.vm:
-                uuid = self.vm.UUIDString()
-        except libvirt.libvirtError:
-            pass
+        uuid = self.internal_id
+        if not uuid:
+            return
 
         has_cached_xml = False
-        if uuid:
-            with self.app.vm_service._cache_lock:
-                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
-                has_cached_xml = vm_cache.get('xml') is not None
+        with self.app.vm_service._cache_lock:
+            vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+            has_cached_xml = vm_cache.get('xml') is not None
 
         if self._is_remote_server() and not has_cached_xml:
             self.ui["vmname"].tooltip = None
             return
 
         try:
-            uuid_display = uuid if uuid else "Unknown"
+            uuid_display = self.vm.UUIDString() if self.vm else "Unknown"
         except Exception:
             uuid_display = "Unknown"
 
@@ -325,7 +319,7 @@ class VMCard(Static):
         cpu_model_display = f" ({self.cpu_model})" if self.cpu_model else ""
 
         tooltip_md = (
-            f"`{uuid}`  \n"
+            f"`{uuid_display}`  \n"
             f"**Hypervisor:** {hypervisor}  \n"
             f"**Status:** {self.status}  \n"
             f"**IP:** {ip_display}  \n"
@@ -349,13 +343,9 @@ class VMCard(Static):
         self.update_sparkline_display()
         self._perform_tooltip_update()
 
-        if self.vm:
-            try:
-                uuid = self.vm.UUIDString()
-                if uuid in self.app.sparkline_data:
-                    self.update_sparkline_display()
-            except (libvirt.libvirtError, NoMatches):
-                pass
+        uuid = self.internal_id
+        if uuid and uuid in self.app.sparkline_data:
+            self.update_sparkline_display()
 
         self.update_stats()
         # Timer is now managed within update_stats for dynamic intervals
@@ -377,7 +367,7 @@ class VMCard(Static):
         if not all([top_label, bottom_label, top_sparkline, bottom_sparkline]):
             return
 
-        uuid = self.vm.UUIDString() if self.vm else None
+        uuid = self.internal_id
 
         # Determine data source
         storage = {}
@@ -458,7 +448,7 @@ class VMCard(Static):
             # This prevents cache thrashing if status flickers (e.g. Unknown -> Running)
             if old_value == StatusText.STOPPED:
                 try:
-                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
                 except Exception:
                     pass
             self.update_stats()
@@ -473,9 +463,9 @@ class VMCard(Static):
             self.timer.stop()
         if self.vm:
             try:
-                uuid = self.vm.UUIDString()
+                uuid = self.internal_id
                 self.app.worker_manager.cancel(f"update_stats_{uuid}")
-            except libvirt.libvirtError:
+            except Exception:
                 pass
 
         # Reset collapsible state for next mount
@@ -520,9 +510,8 @@ class VMCard(Static):
         interval = self.app.config.get('STATS_INTERVAL', 5)
         self.timer = self.set_timer(interval, self.update_stats)
 
-        try:
-            uuid = self.vm.UUIDString()
-        except libvirt.libvirtError:
+        uuid = self.internal_id
+        if not uuid:
             if self.timer:
                 self.timer.stop()
                 self.timer = None
@@ -711,7 +700,7 @@ class VMCard(Static):
         has_overlay_disk = False
         try:
             if self.vm and not is_loading:
-                uuid = self.vm.UUIDString()
+                uuid = self.internal_id
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
                 if vm_cache.get('xml'):
                     has_overlay_disk = has_overlays(self.vm)
@@ -744,7 +733,7 @@ class VMCard(Static):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == ButtonIds.START:
-            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.START))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.START))
             return
 
         button_handlers = {
@@ -813,7 +802,7 @@ class VMCard(Static):
                 try:
                     create_external_overlay(self.vm, target_disk, overlay_name)
                     self.app.show_success_message(f"Overlay '{overlay_name}' created and attached.")
-                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
                     self.app.refresh_vm_list() # To update details
                     self.update_button_layout()
@@ -843,7 +832,7 @@ class VMCard(Static):
                         try:
                             discard_overlay(self.vm, target_disk)
                             self.app.show_success_message(f"Overlay for '{target_disk}' discarded and reverted to base image.")
-                            self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                            self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.app.refresh_vm_list()
                             self.update_button_layout()
@@ -913,7 +902,7 @@ class VMCard(Static):
         """Handles the shutdown button press."""
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.vm.isActive():
-            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.STOP))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
@@ -923,7 +912,7 @@ class VMCard(Static):
             if not confirmed:
                 return
             if self.vm.isActive():
-                self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.FORCE_OFF))
+                self.post_message(VmActionRequest(self.internal_id, VmAction.FORCE_OFF))
 
         message = f"{ErrorMessages.HARD_STOP_WARNING}\nAre you sure you want to stop '{self.name}'?"
         self.app.push_screen(ConfirmationDialog(message), on_confirm)
@@ -932,12 +921,12 @@ class VMCard(Static):
         """Handles the pause button press."""
         logging.info(f"Attempting to pause VM: {self.name}")
         if self.vm.isActive():
-            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.PAUSE))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.PAUSE))
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
         logging.info(f"Attempting to resume VM: {self.name}")
-        self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.RESUME))
+        self.post_message(VmActionRequest(self.internal_id, VmAction.RESUME))
 
     def _handle_xml_button(self, event: Button.Pressed) -> None:
         """Handles the xml button press."""
@@ -953,7 +942,7 @@ class VMCard(Static):
                             conn.defineXML(modified_xml)
                             self.app.show_success_message(f"VM '{self.name}' configuration updated successfully.")
                             logging.info(f"Successfully updated XML for VM: {self.name}")
-                            self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                            self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
@@ -1030,16 +1019,13 @@ class VMCard(Static):
         worker = partial(self.app.webconsole_manager.start_console, self.vm, self.conn)
 
         try:
-            uuid = self.vm.UUIDString()
+            uuid = self.internal_id
             if self.app.webconsole_manager.is_running(uuid):
                 self.app.worker_manager.run(
                     worker, name=f"show_console_{self.vm.name()}"
                 )
                 return
-        except libvirt.libvirtError as e:
-            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                self.app.refresh_vm_list()
-                return
+        except Exception as e:
             self.app.show_error_message(f"Error checking web console status for {self.name}: {e}")
             return
 
@@ -1070,7 +1056,7 @@ class VMCard(Static):
                 quiesce = result.get("quiesce", False)
                 try:
                     create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
-                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self.update_button_layout()
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                 except Exception as e:
@@ -1091,7 +1077,7 @@ class VMCard(Static):
             if snapshot_name:
                 try:
                     restore_vm_snapshot(self.vm, snapshot_name)
-                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
@@ -1115,7 +1101,7 @@ class VMCard(Static):
                         try:
                             delete_vm_snapshot(self.vm, snapshot_name)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
-                            self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                            self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self.update_button_layout()
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except Exception as e:
@@ -1136,7 +1122,7 @@ class VMCard(Static):
             confirmed, delete_storage = result
             if not confirmed:
                 return
-            self.post_message(VmActionRequest(self.vm.UUIDString(), VmAction.DELETE, delete_storage=delete_storage))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.DELETE, delete_storage=delete_storage))
 
         self.app.push_screen(
             DeleteVMConfirmationDialog(self.name), on_confirm
@@ -1284,7 +1270,7 @@ class VMCard(Static):
         try:
             self._boot_device_checked = False
             
-            uuid = self.vm.UUIDString()
+            uuid = self.internal_id
             vm_name = self.name
             active_uris = list(self.app.active_uris)
             
@@ -1309,7 +1295,7 @@ class VMCard(Static):
                     def show_details():
                         loading_modal.dismiss()
                         if not result:
-                            self.app.show_error_message(f"VM {vm_name} with UUID {uuid} not found on any active server.")
+                            self.app.show_error_message(f"VM {vm_name} with internal ID {uuid} not found on any active server.")
                             return
                         
                         vm_info, domain, conn_for_domain = result
@@ -1333,11 +1319,8 @@ class VMCard(Static):
 
             self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
 
-        except libvirt.libvirtError as e:
-            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                self.app.refresh_vm_list()
-                return
-            self.app.show_error_message(f"Error getting UUID for {self.name}: {e}")
+        except Exception as e:
+            self.app.show_error_message(f"Error getting ID for {self.name}: {e}")
 
     def _handle_migration_button(self, event: Button.Pressed) -> None:
         """Handles the migration button press."""
@@ -1354,14 +1337,18 @@ class VMCard(Static):
                     conn = self.app.vm_service.connect(uri)
                     if conn:
                         try:
-                            domain = conn.lookupByUUIDString(uuid)
-                            selected_vms.append(domain)
-                            found_domain = True
-                            break
+                            # Try lookup by UUID first
+                            raw_uuid = uuid.split('@')[0]
+                            domain = conn.lookupByUUIDString(raw_uuid)
+                            # Verify it matches the composite ID if it's one
+                            if self.app.vm_service._get_internal_id(domain, conn) == uuid:
+                                selected_vms.append(domain)
+                                found_domain = True
+                                break
                         except libvirt.libvirtError:
                             continue
                 if not found_domain:
-                    self.app.show_error_message(f"Selected VM with UUID {uuid} not found on any active server.")
+                    self.app.show_error_message(f"Selected VM with ID {uuid} not found on any active server.")
 
         if not selected_vms:
             selected_vms = [self.vm]
@@ -1404,14 +1391,14 @@ class VMCard(Static):
     def on_vm_select_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handles when the VM selection checkbox is changed."""
         self.is_selected = event.value
-        self.post_message(VMSelectionChanged(vm_uuid=self.vm.UUIDString(), is_selected=event.value))
+        self.post_message(VMSelectionChanged(vm_uuid=self.internal_id, is_selected=event.value))
 
     @on(Click, "#vmname")
     def on_click_vmname(self) -> None:
         """Handle clicks on the VM name part of the VM card."""
-        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.internal_id))
 
     @on(Click, "#cpu-mem-info")
     def on_click_cpu_mem_info(self) -> None:
         """Handle clicks on the CPU/Memory info part of the VM card."""
-        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.vm.UUIDString()))
+        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.internal_id))

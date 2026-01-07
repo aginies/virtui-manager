@@ -119,7 +119,7 @@ wp.websockify_init()
         """Starts a web console for a given VM."""
         self.config = load_config()
         logging.info(f"Web console requested for VM: {vm.name()}")
-        uuid = vm.UUIDString()
+        uuid = f"{vm.UUIDString()}@{conn.getURI()}"
         vm_name = vm.name()
 
         # Check for existing valid session
