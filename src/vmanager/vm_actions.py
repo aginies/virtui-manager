@@ -12,6 +12,7 @@ from libvirt_utils import (
         VIRTUI_MANAGER_NS,
         _get_disabled_disks_elem,
         _get_backing_chain_elem,
+        get_overlay_backing_path
         )
 from utils import log_function_call
 from vm_queries import get_vm_disks_info
@@ -291,7 +292,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                         active_pools_info.append(info)
                     except:
                         active_pools_info.append(f"{p.name()} (no XML)")
-            
+
             pools_list = ", ".join(active_pools_info) if active_pools_info else "none"
             msg = (f"No dir-based pool found for '{os.path.dirname(disk_path)}'. "
                    f"Available active pools: {pools_list}. "
@@ -1787,12 +1788,32 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                 continue
 
             log(f"Attempting to delete volume: {disk_path}")
+
+            # Check for backing file (overlay) before deletion, as we need the XML metadata
+            backing_path = None
+            if root is not None:
+                backing_path = get_overlay_backing_path(root, disk_path)
+
             try:
                 vol, pool = _find_vol_by_path(conn, disk_path)
 
                 if vol:
                     vol.delete(0)
                     log(f"  - Deleted: {disk_path} from pool {pool.name()}")
+
+                    # Delete backing file if it existed
+                    if backing_path:
+                        log(f"  - Found backing file for overlay: {backing_path}")
+                        try:
+                            backing_vol, backing_pool = _find_vol_by_path(conn, backing_path)
+                            if backing_vol:
+                                backing_vol.delete(0)
+                                log(f"  - Deleted backing file: {backing_path} from pool {backing_pool.name()}")
+                            else:
+                                log(f"  - [yellow]Warning:[/] Backing file '{backing_path}' not found as a managed volume.")
+                        except Exception as e:
+                            log(f"  - [red]ERROR:[/] Failed to delete backing file '{backing_path}': {e}")
+
                 else:
                     log(f"  - [yellow]Skipped:[/] Disk '{disk_path}' is not a managed libvirt volume.")
 
@@ -1964,6 +1985,7 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
     if cpu_elem is not None:
         if cpu_elem.get('mode') in ['host-passthrough', 'host-model']:
             issues.append({'severity': 'WARNING', 'message': "VM CPU is set to 'host-passthrough' or 'host-model'. This requires highly compatible CPUs on source and destination."})
+            issues.append({'severity': 'WARNING', 'message': "IE: snapshots maybe be not usable after migration as the CPU register could be different on the destination host."})
         cpu_xml = ET.tostring(cpu_elem, encoding='unicode')
         try:
             compare_result = dest_conn.compareCPU(cpu_xml, 0)
