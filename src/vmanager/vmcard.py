@@ -244,14 +244,27 @@ class VMCard(Static):
         if not self.ui or "vmname" not in self.ui:
             return
         
-        if self._is_remote_server():
+        uuid = None
+        try:
+            if self.vm:
+                uuid = self.vm.UUIDString()
+        except libvirt.libvirtError:
+            pass
+
+        has_cached_xml = False
+        if uuid:
+            with self.app.vm_service._cache_lock:
+                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+                has_cached_xml = vm_cache.get('xml') is not None
+
+        if self._is_remote_server() and not has_cached_xml:
             self.ui["vmname"].tooltip = None
             return
 
         try:
-            uuid = self.vm.UUIDString() if self.vm else "Unknown"
-        except libvirt.libvirtError:
-            uuid = "Unknown"
+            uuid_display = uuid if uuid else "Unknown"
+        except Exception:
+            uuid_display = "Unknown"
 
         hypervisor = "Unknown"
         if self.conn:
@@ -467,6 +480,7 @@ class VMCard(Static):
 
         def update_worker():
             try:
+                logging.debug(f"Starting update_stats worker for {self.name} (UUID: {uuid})")
                 if is_remote:
                     # Minimal fetch for remote servers: ONLY status
                     try:
@@ -485,6 +499,8 @@ class VMCard(Static):
                         stats = None
                 else:
                     stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
+                
+                logging.debug(f"Stats received for {self.name}: {stats}")
 
                 # Update info from cache if XML has been fetched (e.g. via Configure)
                 vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
@@ -561,22 +577,27 @@ class VMCard(Static):
                     # Update web console status here instead of every cycle
                     self._update_webc_status()
 
-                    if hasattr(self.app, "sparkline_data") and uuid in self.app.sparkline_data:
-                        storage = self.app.sparkline_data[uuid]
+                    if hasattr(self.app, "sparkline_data"):
+                        if uuid in self.app.sparkline_data:
+                            storage = self.app.sparkline_data[uuid]
 
-                        def update_history(key, value):
-                            history = storage.get(key, [])
-                            history.append(value)
-                            if len(history) > 20:
-                                history.pop(0)
-                            storage[key] = history
+                            def update_history(key, value):
+                                history = storage.get(key, [])
+                                history.append(value)
+                                if len(history) > 20:
+                                    history.pop(0)
+                                storage[key] = history
 
-                        update_history("cpu", stats["cpu_percent"])
-                        update_history("mem", stats["mem_percent"])
-                        update_history("disk", self.latest_disk_read + self.latest_disk_write)
-                        update_history("net", self.latest_net_rx + self.latest_net_tx)
+                            update_history("cpu", stats["cpu_percent"])
+                            update_history("mem", stats["mem_percent"])
+                            update_history("disk", self.latest_disk_read + self.latest_disk_write)
+                            update_history("net", self.latest_net_rx + self.latest_net_tx)
 
-                        self.update_sparkline_display()
+                            self.update_sparkline_display()
+                        else:
+                            logging.warning(f"UUID {uuid} not found in sparkline_data")
+                    else:
+                        logging.error("app does not have sparkline_data attribute")
 
                 self.app.call_from_thread(apply_stats_to_ui)
 
