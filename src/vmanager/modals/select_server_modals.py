@@ -33,7 +33,7 @@ class SelectServerModal(BaseModal[None]):
                 is_active = server['uri'] in self.active_uris
                 cb_id = f"server_cb_{i}"
                 self.id_to_uri_map[cb_id] = server['uri']
-                cb = Checkbox(server['name'], value=is_active, id=cb_id)
+                cb = Checkbox(server['name'], value=is_active, id=cb_id, tooltip=server['uri'])
                 cb.styles.border = ("solid", server.get('color', "white"))
                 checkboxes.append(cb)
 
