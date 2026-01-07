@@ -121,8 +121,7 @@ SelectDiskModal > #dialog,
 SelectPoolModal > #dialog,
 AddInputDeviceModal,
 InputModal,
-SelectOneServerModal,
-SelectServerModal {
+SelectOneServerModal {
   content-align: center middle;
 }
 
@@ -281,9 +280,18 @@ ProgressModal .progress-log {
 }
 
 /* === MISC === */
-SelectServerModal Checkbox { 
-  padding: 0 1; 
-  margin-bottom: 1; 
+SelectServerModal,
+FilterModal {
+    align: center middle;
+}
+
+SelectServerModal Checkbox,
+FilterModal Checkbox {
+  height: 6;
+  width: 100%;
+  padding: 0 0;
+  margin-bottom: 0;
+  color: $text;
 }
 
 #tab-storage { layout: vertical; }

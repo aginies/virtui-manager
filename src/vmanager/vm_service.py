@@ -660,6 +660,10 @@ class VMService:
         """Gets an existing connection object from the manager."""
         return self.connection_manager.get_connection(uri)
 
+    def get_uri_for_connection(self, conn: libvirt.virConnect) -> str | None:
+        """Returns the URI string associated with a given connection object."""
+        return self.connection_manager.get_uri_for_connection(conn)
+
     def get_all_uris(self) -> list[str]:
         """Gets all URIs currently held by the connection manager."""
         return self.connection_manager.get_all_uris()

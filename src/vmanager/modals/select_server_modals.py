@@ -6,7 +6,7 @@ from textual.widgets import (
         Button, Label,
         Checkbox, Select
         )
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, Grid
 from textual.screen import ModalScreen
 
 from modals.base_modals import BaseModal
@@ -24,30 +24,24 @@ class SelectServerModal(BaseModal[None]):
         self.id_to_uri_map = {}
         self.connection_manager = connection_manager
 
-    def sanitize_for_id(self, text: str) -> str:
-        """Create a valid Textual ID from a string."""
-        sanitized = 'server_' + ''.join(c if c.isalnum() else '_' for c in text)
-        return sanitized
-
     def compose(self) -> ComposeResult:
         with Vertical(id="select-server-container", classes="info-details"):
             yield Label("Select Servers to Display")
-            server_iter = iter(self.servers)
-            with Vertical(classes="info-details"):
-                for server1 in server_iter:
-                    with Horizontal():
-                        is_active1 = server1['uri'] in self.active_uris
-                        sanitized_id1 = self.sanitize_for_id(server1['uri'])
-                        self.id_to_uri_map[sanitized_id1] = server1['uri']
-                        yield Checkbox(server1['name'], value=is_active1, id=sanitized_id1)
-                        try:
-                            server2 = next(server_iter)
-                            is_active2 = server2['uri'] in self.active_uris
-                            sanitized_id2 = self.sanitize_for_id(server2['uri'])
-                            self.id_to_uri_map[sanitized_id2] = server2['uri']
-                            yield Checkbox(server2['name'], value=is_active2, id=sanitized_id2)
-                        except StopIteration:
-                            pass # Handle odd number of servers
+            
+            checkboxes = []
+            for i, server in enumerate(self.servers):
+                is_active = server['uri'] in self.active_uris
+                cb_id = f"server_cb_{i}"
+                self.id_to_uri_map[cb_id] = server['uri']
+                cb = Checkbox(server['name'], value=is_active, id=cb_id, tooltip=server['uri'])
+                cb.styles.border = ("solid", server.get('color', "white"))
+                checkboxes.append(cb)
+
+            grid = Grid(*checkboxes, id="server-checkboxes-grid")
+            grid.styles.grid_size_columns = 2
+            grid.styles.height = "auto"
+            grid.styles.grid_gutter_horizontal = 1
+            yield grid
 
             with Horizontal(classes="button-details"):
                 yield Button("Done", id="done-servers", variant="primary", classes="done-button")

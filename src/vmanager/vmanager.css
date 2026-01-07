@@ -85,7 +85,10 @@ Select:focus {
 }
 /* --- Dialog Width & Height Overrides --- */
 #connection-dialog { width: 60; }
-#filter-dialog { height: 20; }
+#filter-dialog {
+    height: 32;
+    width: 64;
+}
 #move-volume-dialog { height: 20; }
 #attach-volume-dialog,
 #add-disk-dialog,
