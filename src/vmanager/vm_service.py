@@ -402,6 +402,7 @@ class VMService:
 
             now = datetime.now().timestamp()
             cpu_percent = 0.0
+            last_cpu_time = None
 
             with self._cache_lock:
                 last_cpu_data = self._cpu_time_cache.get(uuid)

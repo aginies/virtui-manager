@@ -453,6 +453,16 @@ class VMCard(Static):
         if status_widget:
             status_widget.update(f"Status: {new_value}{self.webc_status_indicator}")
 
+        if new_value == StatusText.RUNNING:
+            # Only invalidate cache if transitioning from STOPPED (clean boot)
+            # This prevents cache thrashing if status flickers (e.g. Unknown -> Running)
+            if old_value == StatusText.STOPPED:
+                try:
+                    self.app.vm_service.invalidate_vm_cache(self.vm.UUIDString())
+                except Exception:
+                    pass
+            self.update_stats()
+
     def watch_server_border_color(self, old_color: str, new_color: str) -> None:
         """Called when server_border_color changes."""
         self.styles.border = ("solid", new_color)
@@ -528,24 +538,8 @@ class VMCard(Static):
         def update_worker():
             try:
                 logging.debug(f"Starting update_stats worker for {self.name} (UUID: {uuid})")
-                if is_remote:
-                    # Minimal fetch for remote servers: ONLY status
-                    try:
-                        state, _ = self.vm.state()
-                        status = get_status(self.vm, state=state)
-                        stats = {
-                            "status": status,
-                            "cpu_percent": 0.0,
-                            "mem_percent": 0.0,
-                            "disk_read_kbps": 0.0,
-                            "disk_write_kbps": 0.0,
-                            "net_rx_kbps": 0.0,
-                            "net_tx_kbps": 0.0
-                        }
-                    except libvirt.libvirtError:
-                        stats = None
-                else:
-                    stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
+                
+                stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
                 
                 logging.debug(f"Stats received for {self.name}: {stats}")
 

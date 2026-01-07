@@ -894,14 +894,14 @@ class VMManagerTUI(App):
                 
                 if vm_card:
                     # Update existing card
+                    vm_card.vm = data['domain']
+                    vm_card.conn = data['conn']
                     vm_card.name = data['name']
-                    vm_card.status = data['status']
                     vm_card.cpu = data['cpu']
                     vm_card.memory = data['memory']
                     vm_card.is_selected = data['is_selected']
-                    vm_card.vm = data['domain']
-                    vm_card.conn = data['conn']
                     vm_card.server_border_color = self.get_server_color(data['uri'])
+                    vm_card.status = data['status']
                 else:
                     # Create new card
                     if uuid not in self.sparkline_data:
