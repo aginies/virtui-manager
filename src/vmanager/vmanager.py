@@ -800,11 +800,16 @@ class VMManagerTUI(App):
                 
                 # Try to get info from cache to avoid blocking if possible
                 info = self.vm_service.get_cached_vm_info(domain)
+                cached_details = self.vm_service.get_cached_vm_details(uuid)
                 
                 if info:
                     status = get_status(domain, state=info[0])
                     cpu = info[3]
                     memory = info[1] // 1024
+                elif cached_details:
+                    status = cached_details['status']
+                    cpu = cached_details['cpu']
+                    memory = cached_details['memory']
                 else:
                     status = StatusText.LOADING
                     cpu = 0
