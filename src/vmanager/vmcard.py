@@ -32,7 +32,7 @@ from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
         get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
-        get_status
+        get_status, log_cache_statistics
         )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
@@ -83,7 +83,6 @@ class VMCard(Static):
         self.is_selected = is_selected
         self.timer = None
         self._boot_device_checked = False
-        self._tooltip_update_timer = None
 
     def _get_vm_display_name(self) -> str:
         """Returns the formatted VM name including server name if available."""
@@ -229,12 +228,6 @@ class VMCard(Static):
                             yield Static(classes="button-separator")
                             yield self.ui[ButtonIds.RENAME_BUTTON]
 
-    def _update_tooltip(self) -> None:
-        """Schedules a tooltip update to debounce frequent calls."""
-        if self._tooltip_update_timer:
-            self._tooltip_update_timer.stop()
-        self._tooltip_update_timer = self.set_timer(0.2, self._perform_tooltip_update)
-
     def _is_remote_server(self) -> bool:
         """Checks if the VM is on a remote server."""
         if not self.conn:
@@ -301,7 +294,7 @@ class VMCard(Static):
         self._update_status_styling()
         self._update_webc_status()
         self.update_sparkline_display()
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
         if self.vm:
             try:
@@ -373,27 +366,27 @@ class VMCard(Static):
 
     def watch_cpu(self, value: int) -> None:
         """Called when cpu count changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_memory(self, value: int) -> None:
         """Called when memory changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_ip_addresses(self, value: list) -> None:
         """Called when IP addresses change."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_boot_device(self, value: str) -> None:
         """Called when boot device changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_cpu_model(self, value: str) -> None:
         """Called when cpu_model changes."""
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
     def watch_graphics_type(self, old_value: str, new_value: str) -> None:
         """Called when graphics_type changes."""
-        self.update_button_layout()
+        self._perform_tooltip_update()
 
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
@@ -401,7 +394,7 @@ class VMCard(Static):
             return
         self._update_status_styling()
         self.update_button_layout()
-        self._update_tooltip()
+        self._perform_tooltip_update()
 
         status_widget = self.ui.get("status")
         if status_widget:
@@ -415,8 +408,6 @@ class VMCard(Static):
         """Stop the timer and cancel any running stat workers when the widget is removed."""
         if self.timer:
             self.timer.stop()
-        if self._tooltip_update_timer:
-            self._tooltip_update_timer.stop()
         if self.vm:
             try:
                 uuid = self.vm.UUIDString()
@@ -442,6 +433,15 @@ class VMCard(Static):
         if not self.vm:
             return
 
+        # Skip unnecessary updates for stopped VMs ---
+        if self.status == StatusText.STOPPED:
+            logging.debug(f"VM {self.name} is stopped, stopping stats updates.")
+            # Ensure any existing timer is cancelled
+            if hasattr(self, 'timer') and self.timer is not None:
+                self.timer.stop()
+                self.timer = None # Clear the timer reference
+            return
+
         # Cancel previous timer if it exists to prevent accumulation
         if self.timer:
             self.timer.stop()
@@ -455,6 +455,7 @@ class VMCard(Static):
         except libvirt.libvirtError:
             if self.timer:
                 self.timer.stop()
+                self.timer = None
             return
 
         # Capture reactive values on main thread to avoid unsafe access in worker
@@ -496,6 +497,7 @@ class VMCard(Static):
                 if not getattr(self, "_boot_device_checked", False):
                     if xml_content:
                         root = _parse_domain_xml(xml_content)
+                        log_cache_statistics()
                         if root is not None:
                             # Always update from cache if available
                             boot_info = get_boot_info(self.conn, root)
@@ -524,6 +526,7 @@ class VMCard(Static):
                                 self._boot_device_checked = True
                         except Exception:
                             pass
+                        #log_cache_statistics()
 
                 if not stats:
                     if current_status != StatusText.STOPPED:
@@ -629,7 +632,7 @@ class VMCard(Static):
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
         self.ui[ButtonIds.CONNECT].display = (is_running or is_paused) and self.app.virt_viewer_available
-        logging.info(f"graphics_type: {self.graphics_type}")
+        #logging.info(f"graphics_type: {self.graphics_type}")
         # TOFIX
         #self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused) and self.graphics_type == "vnc" and self.app.websockify_available and self.app.novnc_available
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)# and self.app.websockify_available and self.app.novnc_available
@@ -1237,6 +1240,7 @@ class VMCard(Static):
                         
                         def on_detail_modal_dismissed(res):
                             self.app.refresh_vm_list(force=True)
+                            self._perform_tooltip_update()
 
                         self.app.push_screen(
                             VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_cache),
