@@ -85,6 +85,8 @@ class WorkerManager:
         """
         Runs and tracks a worker, preventing overlaps for workers with the same name.
         """
+        self._cleanup_finished_workers() # Clean up before running
+
         if exclusive and self.is_running(name):
             logging.warning(f"Worker '{name}' is already running. Skipping new run.")
             return None
@@ -102,8 +104,20 @@ class WorkerManager:
         self.workers[name] = worker
         return worker
 
+    def _cleanup_finished_workers(self) -> None:
+        """Removes finished workers from the tracking dictionary."""
+        finished_worker_names = [
+            name for name, worker in self.workers.items()
+            if worker.state in (WorkerState.SUCCESS, WorkerState.CANCELLED, WorkerState.ERROR)
+        ]
+        for name in finished_worker_names:
+            del self.workers[name]
+
+
+
     def is_running(self, name: str) -> bool:
         """Check if a worker with the given name is currently running."""
+        self._cleanup_finished_workers() # Clean up before checking
         return name in self.workers and self.workers[name].state not in (
             WorkerState.SUCCESS,
             WorkerState.CANCELLED,
@@ -197,6 +211,7 @@ class VMManagerTUI(App):
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
         self.call_from_thread(self.refresh_vm_list)
+        self.call_from_thread(self.worker_manager._cleanup_finished_workers)
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
@@ -463,18 +478,9 @@ class VMManagerTUI(App):
         # Disconnect from servers that are no longer selected
         uris_to_disconnect = [uri for uri in self.active_uris if uri not in selected_uris]
         for uri in uris_to_disconnect:
-            # Cleanup UI caches for VMs on this server
-            uuids_to_remove = [
-                uuid for uuid, card in self.vm_cards.items()
-                if card.conn and (self.vm_service.get_uri_for_connection(card.conn) == uri)
-            ]
-            for uuid in uuids_to_remove:
-                if self.vm_cards[uuid].is_mounted:
-                    self.vm_cards[uuid].remove()
-                del self.vm_cards[uuid]
-                if uuid in self.sparkline_data:
-                    del self.sparkline_data[uuid]
-
+            # We no longer explicitly remove VM cards from the cache here.
+            # Instead, the list_vms_worker will naturally not display them,
+            # and they will eventually be cleaned up if stale or by MAX_VM_CARDS limit.
             self.vm_service.disconnect(uri)
 
         self.active_uris = selected_uris
