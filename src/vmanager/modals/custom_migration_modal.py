@@ -1,7 +1,7 @@
 
 from textual.app import ComposeResult
 from textual.screen import ModalScreen
-from textual.widgets import Button, Static, Select
+from textual.widgets import Button, Static, Select, Checkbox
 from textual.containers import Vertical
 
 class CustomMigrationModal(ModalScreen[dict | None]):
@@ -15,7 +15,7 @@ class CustomMigrationModal(ModalScreen[dict | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="custom-migration-dialog"):
             yield Static("[bold]Custom Migration Plan[/bold]")
-            
+
             for i, action in enumerate(self.actions):
                 if action["type"] == "move_volume":
                     yield Static(f"Disk: [b]{action['volume_name']}[/b]")
@@ -32,8 +32,8 @@ class CustomMigrationModal(ModalScreen[dict | None]):
                 elif action["type"] == "manual_copy":
                     yield Static(f"Disk: [b]{action['disk_path']}[/b]")
                     yield Static(f"  Action: {action['message']}")
-                elif action["type"] == "undefine_source":
-                    yield Static(action['message'])
+
+            yield Checkbox("Undefine source VM", value=True, id="undefine-checkbox")
 
             with Vertical(classes="modal-buttons"):
                 yield Button("Confirm", variant="primary", id="confirm")
@@ -45,6 +45,8 @@ class CustomMigrationModal(ModalScreen[dict | None]):
                 if action["type"] == "move_volume":
                     select = self.query_one(f"#pool-select-{i}", Select)
                     self.selections[i] = select.value
+
+            self.selections['undefine_source'] = self.query_one("#undefine-checkbox").value
             self.dismiss(self.selections)
         else:
             self.dismiss(None)
