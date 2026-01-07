@@ -923,7 +923,7 @@ class VMManagerTUI(App):
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
 
-            display_server_names = [extract_server_name_from_uri(uri) for uri in server_names]
+            display_server_names = sorted(list(set(extract_server_name_from_uri(uri) for uri in server_names)))
             self.sub_title = f"Servers: {', '.join(display_server_names)} | Total VMs: {total_vms}"
             self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
 
