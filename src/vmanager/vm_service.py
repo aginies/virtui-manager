@@ -135,6 +135,7 @@ class VMService:
                     if info:
                         vm_cache['info'] = info
                         vm_cache['info_ts'] = now
+                        logging.debug(f"Background Cache WRITE for VM info: {uuid}")
 
                 # Proactively update info and XML in the background cache, respecting TTLs
                 #self._get_domain_info_and_xml(domain)
@@ -248,6 +249,7 @@ class VMService:
                     vm_cache['info_ts'] = now
                     vm_cache['xml'] = xml
                     vm_cache['xml_ts'] = now
+                    logging.info(f"Cache WRITE for VM info and XML: {uuid}")
             except libvirt.libvirtError:
                 pass
         elif info is None:
@@ -258,6 +260,7 @@ class VMService:
                     vm_cache = self._vm_data_cache[uuid]
                     vm_cache['info'] = info
                     vm_cache['info_ts'] = now
+                    logging.info(f"Cache WRITE for VM info: {uuid}")
             except libvirt.libvirtError:
                 pass
         elif xml is None:
@@ -268,8 +271,11 @@ class VMService:
                     vm_cache = self._vm_data_cache[uuid]
                     vm_cache['xml'] = xml
                     vm_cache['xml_ts'] = now
+                    logging.info(f"Cache WRITE for VM XML: {uuid}")
             except libvirt.libvirtError:
                 pass
+        else:
+            logging.debug(f"Cache HIT for VM info and XML: {uuid}")
 
         return info, xml
 
@@ -293,8 +299,11 @@ class VMService:
                     vm_cache = self._vm_data_cache[uuid]
                     vm_cache['info'] = info
                     vm_cache['info_ts'] = now
+                    logging.info(f"Cache WRITE for VM info: {uuid}")
             except libvirt.libvirtError:
                 return None
+        else:
+            logging.debug(f"Cache HIT for VM info: {uuid}")
         return info
 
     def _get_domain_xml(self, domain: libvirt.virDomain) -> str | None:
@@ -317,8 +326,11 @@ class VMService:
                     vm_cache = self._vm_data_cache[uuid]
                     vm_cache['xml'] = xml
                     vm_cache['xml_ts'] = now
+                    logging.info(f"Cache WRITE for VM XML: {uuid}")
             except libvirt.libvirtError:
                 return None
+        else:
+            logging.debug(f"Cache HIT for VM XML: {uuid}")
         return xml
 
 
@@ -336,7 +348,21 @@ class VMService:
             info_ts = vm_cache.get('info_ts', 0)
 
             if info and (now - info_ts < self._info_cache_ttl):
+                logging.debug(f"Cache HIT for VM info: {uuid}")
                 return info
+        return None
+
+    def get_cached_vm_details(self, uuid: str) -> dict | None:
+        """Returns cached VM details if available and not expired."""
+        now = time.time()
+        with self._cache_lock:
+            vm_cache = self._vm_data_cache.get(uuid)
+            if vm_cache:
+                details = vm_cache.get('vm_details')
+                details_ts = vm_cache.get('vm_details_ts', 0)
+                if details and (now - details_ts < self._xml_cache_ttl):
+                    logging.debug(f"Cache HIT for VM details (cached method): {uuid}")
+                    return details
         return None
 
     def get_vm_runtime_stats(self, domain: libvirt.virDomain) -> dict | None:
@@ -698,7 +724,24 @@ class VMService:
 
         with self._cache_lock:
             conn_for_domain = self._uuid_to_conn_cache.get(vm_uuid)
-        
+            
+            # Check for cached details
+            vm_cache = self._vm_data_cache.get(vm_uuid)
+            if vm_cache:
+                details = vm_cache.get('vm_details')
+                details_ts = vm_cache.get('vm_details_ts', 0)
+                now = time.time()
+                
+                # Use XML TTL for details cache as well
+                if details and (now - details_ts < self._xml_cache_ttl) and conn_for_domain:
+                    try:
+                        # Update dynamic fields
+                        details['status'] = get_status(domain)
+                        logging.info(f"Cache HIT for VM details: {vm_uuid}")
+                        return (details, domain, conn_for_domain)
+                    except libvirt.libvirtError:
+                        pass # If we can't get status, maybe domain is gone or invalid, drop through to refresh
+
         # Fallback if not in cache (could happen if cache just cleared)
         if not conn_for_domain:
              for uri in active_uris:
@@ -745,6 +788,14 @@ class VMService:
                 'video_model': get_vm_video_model(root),
                 'xml': xml_content,
             }
+
+            # Cache the constructed details
+            with self._cache_lock:
+                self._vm_data_cache.setdefault(vm_uuid, {})
+                self._vm_data_cache[vm_uuid]['vm_details'] = vm_info
+                self._vm_data_cache[vm_uuid]['vm_details_ts'] = time.time()
+                logging.info(f"Cache WRITE for VM details: {vm_uuid}")
+
             return (vm_info, domain, conn_for_domain)
         except libvirt.libvirtError:
             raise
