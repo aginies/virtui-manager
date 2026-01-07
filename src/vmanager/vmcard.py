@@ -1243,13 +1243,24 @@ class VMCard(Static):
             uuid = self.vm.UUIDString()
             vm_name = self.name
             active_uris = list(self.app.active_uris)
+            
+            # Capture variables for thread safety
+            vm_obj = self.vm
+            conn_obj = self.conn
+            cached_ips = list(self.ip_addresses) if self.ip_addresses else None
 
             loading_modal = LoadingModal()
             self.app.push_screen(loading_modal)
 
             def get_details_worker():
                 try:
-                    result = self.app.vm_service.get_vm_details(active_uris, uuid)
+                    result = self.app.vm_service.get_vm_details(
+                        active_uris, 
+                        uuid, 
+                        domain=vm_obj, 
+                        conn=conn_obj, 
+                        cached_ips=cached_ips
+                    )
                     
                     def show_details():
                         loading_modal.dismiss()

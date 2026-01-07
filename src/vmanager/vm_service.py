@@ -726,14 +726,16 @@ class VMService:
         domain.resume()
         self._force_update_event.set()
 
-    def get_vm_details(self, active_uris: list[str], vm_uuid: str) -> tuple | None:
+    def get_vm_details(self, active_uris: list[str], vm_uuid: str, domain: libvirt.virDomain = None, conn: libvirt.virConnect = None, cached_ips: list = None) -> tuple | None:
         """Finds a VM by UUID and returns its detailed information."""
-        domain = self.find_domain_by_uuid(active_uris, vm_uuid)
+        if not domain:
+            domain = self.find_domain_by_uuid(active_uris, vm_uuid)
+        
         if not domain:
             return None
 
         with self._cache_lock:
-            conn_for_domain = self._uuid_to_conn_cache.get(vm_uuid)
+            conn_for_domain = conn or self._uuid_to_conn_cache.get(vm_uuid)
             
             # Check for cached details
             vm_cache = self._vm_data_cache.get(vm_uuid)
@@ -747,6 +749,9 @@ class VMService:
                     try:
                         # Update dynamic fields
                         details['status'] = get_status(domain)
+                        # Update IPs if provided and fresh
+                        if cached_ips is not None:
+                             details['detail_network'] = cached_ips
                         logging.info(f"Cache HIT for VM details: {vm_uuid}")
                         return (details, domain, conn_for_domain)
                     except libvirt.libvirtError:
@@ -754,15 +759,18 @@ class VMService:
 
         # Fallback if not in cache (could happen if cache just cleared)
         if not conn_for_domain:
-             for uri in active_uris:
-                conn = self.connect(uri)
-                if not conn: continue
-                try:
-                     if conn.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
-                        conn_for_domain = conn
-                        break
-                except libvirt.libvirtError:
-                    continue
+             if conn:
+                 conn_for_domain = conn
+             else:
+                 for uri in active_uris:
+                    c = self.connect(uri)
+                    if not c: continue
+                    try:
+                         if c.lookupByUUIDString(vm_uuid).UUID() == domain.UUID():
+                            conn_for_domain = c
+                            break
+                    except libvirt.libvirtError:
+                        continue
         
         if not conn_for_domain:
             return None
@@ -778,6 +786,9 @@ class VMService:
             except ET.ParseError:
                 pass
 
+            # Use cached IPs if provided, otherwise fetch them
+            detail_network_info = cached_ips if cached_ips is not None else get_vm_network_ip(domain)
+
             vm_info = {
                 'name': domain.name(),
                 'uuid': domain.UUIDString(),
@@ -790,7 +801,7 @@ class VMService:
                 'firmware': get_vm_firmware_info(root),
                 'shared_memory': get_vm_shared_memory_info(root),
                 'networks': get_vm_networks_info(root),
-                'detail_network': get_vm_network_ip(domain),
+                'detail_network': detail_network_info,
                 'network_dns_gateway': get_vm_network_dns_gateway_info(domain, root=root),
                 'disks': get_vm_disks_info(conn_for_domain, root),
                 'devices': get_vm_devices_info(root),
@@ -871,4 +882,4 @@ class VMService:
 
         total_filtered_vms = len(domains_to_display)
 
-        return domains_to_display, total_vms, total_filtered_vms, server_names
+        return domains_to_display, total_vms, total_filtered_vms, server_names, list(domains_map.keys())
