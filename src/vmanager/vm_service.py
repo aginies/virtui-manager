@@ -138,7 +138,7 @@ class VMService:
                         logging.debug(f"Background Cache WRITE for VM info: {uuid}")
 
                 # Proactively update info and XML in the background cache, respecting TTLs
-                #self._get_domain_info_and_xml(domain)
+                # self._get_domain_info_and_xml(domain)
             except Exception as e:
                 logging.error(f"Error updating cache for VM {uuid}: {e}")
 
@@ -389,8 +389,18 @@ class VMService:
             stats = {'status': status}
 
             # CPU Usage
-            cpu_stats = domain.getCPUStats(True)
-            current_cpu_time = cpu_stats[0]['cpu_time']
+            try:
+                cpu_stats = domain.getCPUStats(True)
+                logging.debug(f"Raw CPU Stats for {uuid}: {cpu_stats}")
+            except Exception as e:
+                logging.error(f"Error getting CPU stats for {uuid}: {e}")
+                cpu_stats = []
+
+            if not cpu_stats:
+                current_cpu_time = 0
+            else:
+                current_cpu_time = cpu_stats[0]['cpu_time']
+            
             now = datetime.now().timestamp()
 
             cpu_percent = 0.0
