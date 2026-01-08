@@ -45,6 +45,7 @@ class ServerPrefModal(BaseModal[None]):
         self.uri = uri
         self.storage_loaded = False
         self.network_loaded = False
+        self.path_to_vm_list = {}
 
     def compose(self) -> ComposeResult:
         with Vertical(id="server-pref-dialog",):
@@ -83,20 +84,6 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#server-pref-title", Label).update(f"Server Preferences ({server_hostname})")
         # Load network content by default (first tab)
         self._load_network_content()
-
-        # Prepare disk/nvram/overlay maps for storage (but don't load UI yet)
-        disk_map = get_all_vm_disk_usage(self.conn)
-        nvram_map = get_all_vm_nvram_usage(self.conn)
-        overlay_map = get_all_vm_overlay_usage(self.conn)
-
-        # Merge the two dictionaries correctly
-        self.path_to_vm_list = disk_map.copy()
-        for path, vm_names in nvram_map.items():
-            if path in self.path_to_vm_list:
-                # Combine lists and remove duplicates
-                self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
-            else:
-                self.path_to_vm_list[path] = vm_names
 
     def _load_network_content(self) -> None:
         """Load network tab content."""
@@ -146,6 +133,22 @@ class ServerPrefModal(BaseModal[None]):
         if self.storage_loaded:
             return
 
+        # Prepare disk/nvram/overlay maps for storage (only when loading Storage tab)
+        # This is done here to avoid slowing down the initial modal load
+        if not self.path_to_vm_list:
+            disk_map = get_all_vm_disk_usage(self.conn)
+            nvram_map = get_all_vm_nvram_usage(self.conn)
+            overlay_map = get_all_vm_overlay_usage(self.conn)
+
+            # Merge the dictionaries
+            self.path_to_vm_list = disk_map.copy()
+            for path, vm_names in nvram_map.items():
+                if path in self.path_to_vm_list:
+                    # Combine lists and remove duplicates
+                    self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
+                else:
+                    self.path_to_vm_list[path] = vm_names
+
         storage_pane = self.query_one("#tab-storage", TabPane)
 
         # Clear existing content
@@ -189,21 +192,7 @@ class ServerPrefModal(BaseModal[None]):
 
         storage_pane.mount(scroll_container, button_container)
 
-        # Hide buttons initially (after refresh so they exist)
-        def init_storage():
-            self._load_storage_pools()
-            self.query_one("#toggle-active-pool-btn").display = False
-            self.query_one("#toggle-autostart-pool-btn").display = False
-            self.query_one("#add-pool-btn").display = False
-            self.query_one("#del-pool-btn").display = False
-            self.query_one("#add-vol-btn").display = False
-            self.query_one("#attach-vol-btn").display = False
-            self.query_one("#move-vol-btn").display = False
-            self.query_one("#del-vol-btn").display = False
-            self.query_one("#view-storage-xml-btn").display = False
-            self.query_one("#edit-pool-xml-btn").display = False
-
-        self.call_after_refresh(init_storage)
+        self.call_after_refresh(self._load_storage_pools)
         self.storage_loaded = True
 
     def _unload_network_content(self) -> None:
