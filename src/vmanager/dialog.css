@@ -319,7 +319,7 @@ FilterModal Checkbox {
   grid-gutter: 0 1;
   border: round $primary;
   width: 55;
-  height: 15;
+  height: 20;
 }
 
 .log-view {

@@ -1139,6 +1139,7 @@ class VMCard(Static):
             base_name = result["base_name"]
             count = result["count"]
             suffix = result["suffix"]
+            clone_storage = result.get("clone_storage", True)
 
             progress_modal = ProgressModal(title=f"Cloning {self.name}...")
             app.push_screen(progress_modal)
@@ -1174,6 +1175,8 @@ class VMCard(Static):
                     return
                 else:
                     log_callback("INFO: No Conflicting Name")
+                    storage_msg = "with storage cloning" if clone_storage else "without storage cloning (linked clone)"
+                    log_callback(f"INFO: No Conflicting Name - proceeding {storage_msg}")
 
                 success_clones, failed_clones = [], []
                 app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").update(total=count))
@@ -1182,7 +1185,7 @@ class VMCard(Static):
                     new_name = f"{base_name}{suffix}{i}" if count > 1 else base_name
                     try:
                         log_callback(f"Cloning '{self.name}' to '{new_name}'...")
-                        clone_vm(self.vm, new_name, log_callback=log_callback)
+                        clone_vm(self.vm, new_name, clone_storage=clone_storage, log_callback=log_callback)
                         success_clones.append(new_name)
                         log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
                     except Exception as e:

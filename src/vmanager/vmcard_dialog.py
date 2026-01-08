@@ -95,6 +95,8 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             Input(placeholder="e.g., -clone", id="clone_suffix_input"),
             Label("Number of clones to create"),
             Input(value="1", id="clone_count_input", type="integer"),
+            Label("Do Not Clone storage"),
+            Checkbox("", id="skip_storage_checkbox", value=False),
             Button(ButtonLabels.CLONE, variant="success", id=ButtonIds.CLONE),
             Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
             id="clone-dialog"
@@ -105,6 +107,7 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             base_name_input = self.query_one("#base_name_input", Input)
             clone_count_input = self.query_one("#clone_count_input", Input)
             clone_suffix_input = self.query_one("#clone_suffix_input", Input)
+            skip_storage_checkbox = self.query_one("#skip_storage_checkbox", Checkbox)
 
             base_name_raw = base_name_input.value
             clone_count_str = clone_count_input.value.strip()
@@ -145,7 +148,14 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
                 self.app.show_error_message("Suffix is mandatory when creating multiple clones.")
                 return
 
-            self.dismiss({"base_name": base_name, "count": clone_count, "suffix": clone_suffix})
+            clone_storage = not skip_storage_checkbox.value
+
+            self.dismiss({
+                "base_name": base_name,
+                "count": clone_count,
+                "suffix": clone_suffix,
+                "clone_storage": clone_storage
+                })
         else:
             self.dismiss(None)
 

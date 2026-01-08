@@ -21,9 +21,10 @@ from network_manager import list_networks
 from storage_manager import create_overlay_volume
 
 @log_function_call
-def clone_vm(original_vm, new_vm_name, log_callback=None):
+def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
     """
     Clones a VM, including its storage using libvirt's storage pool API.
+    If clone_storage is False, the new VM will reference the same storage volumes.
     """
     conn = original_vm.connect()
     original_xml = original_vm.XMLDesc(0)
@@ -46,12 +47,23 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
         if mac_elem is not None:
             interface.remove(mac_elem)
 
+    if not clone_storage:
+        msg_skip = f"Skipping storage cloning for VM {new_vm_name} (clone_storage=False)"
+        logging.info(msg_skip)
+        if log_callback:
+            log_callback(msg_skip)
+
     for disk in root.findall('.//devices/disk'):
         if disk.get('device') != 'disk':
             continue
 
         source_elem = disk.find('source')
         if source_elem is None:
+            continue
+
+        # Skip storage cloning if clone_storage is False
+        if not clone_storage:
+            logging.info(f"Keeping original storage reference for disk: {ET.tostring(source_elem, encoding='unicode').strip()}")
             continue
 
         original_vol = None
@@ -85,7 +97,7 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
         vol_root.find('name').text = new_vol_name
 
         # Libvirt will handle capacity, allocation, and backing store when cloning.
-        # Clear old path/key info just in case.
+        # Clear old path/key info for the new volume
         if vol_root.find('key') is not None:
              vol_root.remove(vol_root.find('key'))
         target_elem = vol_root.find('target')
@@ -95,15 +107,15 @@ def clone_vm(original_vm, new_vm_name, log_callback=None):
 
         new_vol_xml = ET.tostring(vol_root, encoding='unicode')
 
-        # Clone the volume. A flag of 0 indicates a full (deep) clone.
+        # Clone the volume using libvirt's storage pool API
         try:
             msg = f"Creating the new volume: {new_vol_name}"
             logging.info(msg)
             if log_callback:
                 log_callback(msg)
+            # Flag 0 indicates a full (deep) clone
             new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
         except libvirt.libvirtError as e:
-            # Re-raise the error with a more informative message.
             raise libvirt.libvirtError(f"Failed to perform a full clone of volume '{original_vol.name()}': {e}")
 
         disk.set('type', 'volume')
