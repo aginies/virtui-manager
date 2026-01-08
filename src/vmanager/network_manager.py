@@ -6,11 +6,12 @@ import secrets
 import ipaddress
 import logging
 import xml.etree.ElementTree as ET
+from functools import lru_cache
 import libvirt
 from utils import log_function_call
 
 
-@log_function_call
+@lru_cache(maxsize=64)
 def list_networks(conn):
     """
     Lists all networks.
@@ -34,7 +35,6 @@ def list_networks(conn):
         })
     return networks
 
-@log_function_call
 def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, dhcp_start, dhcp_end, domain_name, uuid=None):
     """
     Creates a new NAT/Routed network.
@@ -81,7 +81,6 @@ def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, d
     net.create()
     net.setAutostart(True)
 
-@log_function_call
 def delete_network(conn, network_name):
     """
     Deletes a network.
@@ -100,7 +99,7 @@ def delete_network(conn, network_name):
         raise Exception(msg) from e
 
 
-@log_function_call
+@lru_cache(maxsize=64)
 def get_vms_using_network(conn, network_name):
     """
     Get a list of VMs using a specific network.
@@ -121,7 +120,6 @@ def get_vms_using_network(conn, network_name):
                     break
     return vm_names
 
-@log_function_call
 def set_network_active(conn, network_name, active):
     """
     Sets a network to active or inactive.
@@ -240,7 +238,7 @@ def get_existing_subnets(conn: libvirt.virConnect) -> list[ipaddress.IPv4Network
             continue # Ignore networks we can't get XML for
     return subnets
 
-@log_function_call
+@lru_cache(maxsize=32)
 def get_host_network_info(conn: libvirt.virConnect):
     """
     Parses host capabilities XML to extract IP addresses and their subnet prefixes.

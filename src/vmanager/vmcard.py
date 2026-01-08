@@ -5,7 +5,7 @@ import subprocess
 import logging
 import traceback
 import datetime
-from functools import partial
+from functools import partial, lru_cache
 from urllib.parse import urlparse
 import libvirt
 from rich.markdown import Markdown as RichMarkdown
@@ -50,6 +50,39 @@ from constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction
 )
+
+@lru_cache(maxsize=256)
+def format_memory_display(memory_mib: int) -> str:
+    """Format memory with MiB/GiB conversion."""
+    mem_str = f"{memory_mib} MiB"
+    if memory_mib >= 1024:
+        mem_str += f" ({memory_mib / 1024:.2f} GiB)"
+    return mem_str
+
+@lru_cache(maxsize=512)
+def generate_tooltip_markdown(
+    uuid: str,
+    hypervisor: str,
+    status: str,
+    ip: str,
+    boot: str,
+    cpu: int,
+    cpu_model: str,
+    memory: int
+) -> str:
+    """Generate tooltip markdown (pure function, cacheable)."""
+    mem_display = format_memory_display(memory)
+    cpu_display = f"{cpu} ({cpu_model})" if cpu_model else str(cpu)
+
+    return (
+        f"`{uuid}`  \n"
+        f"**Hypervisor:** {hypervisor}  \n"
+        f"**Status:** {status}  \n"
+        f"**IP:** {ip}  \n"
+        f"**Boot:** {boot}  \n"
+        f"**VCPUs:** {cpu_display}  \n"
+        f"**Memory:** {mem_display}"
+    )
 
 class VMCardActions(Static):
     def __init__(self, card) -> None:
@@ -320,14 +353,15 @@ class VMCard(Static):
 
         cpu_model_display = f" ({self.cpu_model})" if self.cpu_model else ""
 
-        tooltip_md = (
-            f"`{uuid_display}`  \n"
-            f"**Hypervisor:** {hypervisor}  \n"
-            f"**Status:** {self.status}  \n"
-            f"**IP:** {ip_display}  \n"
-            f"**Boot:** {self.boot_device or 'N/A'}  \n"
-            f"**VCPUs:** {self.cpu}{cpu_model_display}  \n"
-            f"**Memory:** {mem_display}"
+        tooltip_md = generate_tooltip_markdown(
+            uuid=uuid,
+            hypervisor=hypervisor,
+            status=self.status,
+            ip=ip_display,
+            boot=self.boot_device or "N/A",
+            cpu=self.cpu,
+            cpu_model=self.cpu_model or "",
+            memory=self.memory
         )
 
         self.ui["vmname"].tooltip = RichMarkdown(tooltip_md)

@@ -2,7 +2,7 @@
 Utils functions
 """
 import logging
-from functools import wraps
+from functools import wraps, lru_cache
 import socket
 import subprocess
 from pathlib import Path
@@ -262,7 +262,7 @@ def check_is_firewalld_running() -> Union[str, bool]:
         logging.error(f"Error checking firewalld status: {e}")
         return False
 
-
+@lru_cache(maxsize=128)
 def extract_server_name_from_uri(server_name: str) -> str:
     """
     Extract server name from URI for display.
@@ -318,6 +318,7 @@ def extract_server_name_from_uri(server_name: str) -> str:
 
         return server_display if server_display else "Unknown"
 
+@lru_cache(maxsize=128)
 def natural_sort_key(text):
     """
     Convert a string into a list for natural sorting.
@@ -331,3 +332,30 @@ def natural_sort_key(text):
             return s.lower()
 
     return [tryint(c) for c in re.split('([0-9]+)', text)]
+
+@lru_cache(maxsize=128)
+def format_server_names(server_uris: tuple[str]) -> str:
+    """
+    Format server URIs into display names.
+    Takes tuple (immutable) for caching.
+    """
+    names = [extract_server_name_from_uri(uri) for uri in server_uris]
+    return ", ".join(sorted(set(names)))
+
+_server_color_cache = {}
+_color_index = 0
+
+@lru_cache(maxsize=64)
+def get_server_color_cached(uri: str, palette: tuple) -> str:
+    """
+    Get consistent color for a server URI.
+    Uses global cache to avoid instance issues.
+    """
+    global _server_color_cache, _color_index
+
+    if uri not in _server_color_cache:
+        color = palette[_color_index % len(palette)]
+        _server_color_cache[uri] = color
+        _color_index += 1
+
+    return _server_color_cache[uri]

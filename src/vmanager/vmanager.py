@@ -46,7 +46,8 @@ from utils import (
     check_virt_viewer,
     check_websockify,
     generate_webconsole_keys_if_needed,
-    extract_server_name_from_uri, # Import the function
+    get_server_color_cached,
+    format_server_names,
 )
 from vm_queries import (
     get_status,
@@ -61,7 +62,6 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
-
 
 class WorkerManager:
     """A class to manage and track Textual workers."""
@@ -211,13 +211,7 @@ class VMManagerTUI(App):
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
-        if uri not in self.server_color_map:
-            color = self.SERVER_COLOR_PALETTE[
-                self._color_index % len(self.SERVER_COLOR_PALETTE)
-            ]
-            self.server_color_map[uri] = color
-            self._color_index += 1
-        return self.server_color_map[uri]
+        return get_server_color_cached(uri, tuple(self.SERVER_COLOR_PALETTE))
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -1011,8 +1005,7 @@ class VMManagerTUI(App):
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
 
-            display_server_names = sorted(list(set(extract_server_name_from_uri(uri) for uri in server_names)))
-            self.sub_title = f"Servers: {', '.join(display_server_names)} | Total VMs: {total_vms}"
+            self.sub_title = f"Servers: {format_server_names(tuple(server_names))}"
             self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
 
         self.call_from_thread(update_ui)

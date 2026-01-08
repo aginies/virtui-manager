@@ -206,6 +206,7 @@ def get_status(domain, state=None):
     else:
         return 'Stopped'
 
+@lru_cache(maxsize=16)
 def get_vm_description(domain):
     """
     desc of the VM
@@ -468,7 +469,7 @@ def get_vm_devices_info(root: ET.Element) -> dict:
 
     return devices_info
 
-
+@lru_cache(maxsize=32)
 def get_vm_disks(domain: libvirt.virDomain) -> list[dict]:
     """
     Retrieves disk information for a domain.
@@ -478,6 +479,7 @@ def get_vm_disks(domain: libvirt.virDomain) -> list[dict]:
     return get_vm_disks_info(conn, root)
 
 
+@lru_cache(maxsize=32)
 def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
     """
     Extracts disks info from a VM's XML definition.
@@ -574,6 +576,7 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
 
     return disks
 
+@lru_cache(maxsize=32)
 def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of disk path to a list of VM names.
@@ -671,6 +674,7 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     return nvram_to_vms_map
 
 
+@lru_cache(maxsize=32)
 def get_supported_machine_types(conn, domain):
     """
     Returns a list of supported machine types for the domain's architecture.
@@ -715,6 +719,7 @@ def get_vm_shared_memory_info(root: ET.Element) -> bool:
     return False
 
 
+@lru_cache(maxsize=32)
 def get_boot_info(conn: libvirt.virConnect, root: ET.Element) -> dict:
     """Extracts boot information from the VM's XML."""
     if root is None:
