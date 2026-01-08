@@ -279,6 +279,8 @@ class VMCard(Static):
 
     def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
+        if not self.display:
+            return
         if not self.ui or "vmname" not in self.ui:
             return
         
@@ -353,12 +355,16 @@ class VMCard(Static):
 
     def watch_stats_view_mode(self, old_mode: str, new_mode: str) -> None:
         """Update sparklines when view mode changes."""
+        if not self.display:
+            return
         if not self.ui:
             return
         self.update_sparkline_display()
 
     def update_sparkline_display(self) -> None:
         """Updates the labels and data of the sparklines based on the current view mode."""
+        if not self.is_mounted or not self.display:
+            return
         top_label = self.ui.get("top_label")
         bottom_label = self.ui.get("bottom_label")
         top_sparkline = self.ui.get("top_sparkline")
@@ -490,6 +496,8 @@ class VMCard(Static):
 
     def update_stats(self) -> None:
         """Schedules a worker to update statistics for the VM."""
+        if not self.display:
+            return
         if not self.vm:
             return
 
