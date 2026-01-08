@@ -232,61 +232,8 @@ class VMService:
 
     def _get_domain_info_and_xml(self, domain: libvirt.virDomain) -> tuple[tuple, str]:
         """Gets info and XML from cache or fetches them, fetching both if both are missing."""
-        uuid = self._get_internal_id(domain)
-        now = time.time()
-
-        with self._cache_lock:
-            self._vm_data_cache.setdefault(uuid, {})
-            vm_cache = self._vm_data_cache[uuid]
-
-            info = vm_cache.get('info')
-            info_ts = vm_cache.get('info_ts', 0)
-            if info and now - info_ts >= self._info_cache_ttl:
-                info = None
-
-            xml = vm_cache.get('xml')
-            xml_ts = vm_cache.get('xml_ts', 0)
-            if xml and now - xml_ts >= self._xml_cache_ttl:
-                xml = None
-
-        if info is None and xml is None:
-            try:
-                info = domain.info()
-                xml = domain.XMLDesc(0)
-                with self._cache_lock:
-                    self._vm_data_cache.setdefault(uuid, {})
-                    vm_cache = self._vm_data_cache[uuid]
-                    vm_cache['info'] = info
-                    vm_cache['info_ts'] = now
-                    vm_cache['xml'] = xml
-                    vm_cache['xml_ts'] = now
-                    logging.info(f"Cache WRITE for VM info and XML: {uuid}")
-            except libvirt.libvirtError:
-                pass
-        elif info is None:
-            try:
-                info = domain.info()
-                with self._cache_lock:
-                    self._vm_data_cache.setdefault(uuid, {})
-                    vm_cache = self._vm_data_cache[uuid]
-                    vm_cache['info'] = info
-                    vm_cache['info_ts'] = now
-                    logging.info(f"Cache WRITE for VM info: {uuid}")
-            except libvirt.libvirtError:
-                pass
-        elif xml is None:
-            try:
-                xml = domain.XMLDesc(0)
-                with self._cache_lock:
-                    self._vm_data_cache.setdefault(uuid, {})
-                    vm_cache = self._vm_data_cache[uuid]
-                    vm_cache['xml'] = xml
-                    vm_cache['xml_ts'] = now
-                    logging.info(f"Cache WRITE for VM XML: {uuid}")
-            except libvirt.libvirtError:
-                pass
-        else:
-            logging.debug(f"Cache HIT for VM info and XML: {uuid}")
+        info = self._get_domain_info(domain)
+        xml = self._get_domain_xml(domain)
 
         return info, xml
 
