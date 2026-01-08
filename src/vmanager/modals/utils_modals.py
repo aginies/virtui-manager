@@ -2,7 +2,6 @@
 Usefull Modal screen
 """
 import os
-import re
 import pathlib
 from typing import Iterable
 import logging
@@ -23,6 +22,11 @@ def show_success_message(app, message: str):
     """Shows a success notification."""
     logging.info(message)
     app.notify(message, timeout=10, title="Info")
+
+def show_quick_message(app, message: str):
+    """Shows a quick notification."""
+    logging.info(message)
+    app.notify(message, timeout=2, title="Info")
 
 def show_warning_message(app, message: str):
     """Shows a warning notification."""

@@ -34,13 +34,12 @@ from modals.utils_modals import (
     show_error_message,
     show_success_message,
     show_warning_message,
+    show_quick_message,
     LoadingModal,
 )
 from modals.vmanager_modals import (
-    CreateVMModal,
     FilterModal,
 )
-from modals.vmdetails_modals import VMDetailModal
 from modals.virsh_modals import VirshShellScreen
 from utils import (
     check_novnc_path,
@@ -88,7 +87,7 @@ class WorkerManager:
         self._cleanup_finished_workers() # Clean up before running
 
         if exclusive and self.is_running(name):
-            logging.warning(f"Worker '{name}' is already running. Skipping new run.")
+            #logging.warning(f"Worker '{name}' is already running. Skipping new run.")
             return None
 
         worker = self.app.run_worker(
@@ -322,14 +321,15 @@ class VMManagerTUI(App):
             )
         else:
             # Launch initial cache loading before displaying VMs
-            for uri in self.active_uris:
-                self.connect_libvirt(uri)
+            if len(self.active_uris) > 1:
+                for uri in self.active_uris:
+                    self.connect_libvirt(uri)
 
-            if self.active_uris:
+                # Always attempt to pre-load cache for selected servers
                 self.initial_cache_loading = True
-                self.show_success_message("Loading VM data from remote server(s)...")
+                self.show_quick_message("Loading VM data from remote server(s)...")
                 self.worker_manager.run(
-                    self._initial_cache_worker, 
+                    self._initial_cache_worker,
                     name="initial_cache_load"
                 )
 
@@ -337,7 +337,7 @@ class VMManagerTUI(App):
         """Pre-loads VM cache before displaying the UI."""
         try:
             # Force cache update and fetch all VM data
-            domains_to_display, total_vms, total_filtered_vms, server_names, all_active_uuids = self.vm_service.get_vms(
+            domains_to_display, total_vms, _, _, _ = self.vm_service.get_vms(
                 self.active_uris,
                 self.servers,
                 self.sort_by,
@@ -346,18 +346,25 @@ class VMManagerTUI(App):
                 force=True
             )
 
-            # Pre-cache info and XML for all VMs
-            for domain, conn in domains_to_display:
-                try:
-                    # This will populate the cache
-                    self.vm_service._get_domain_info(domain)
-                except libvirt.libvirtError:
-                    pass  # Skip VMs that fail
+            batch_size = 5
+            for i in range(0, len(domains_to_display), batch_size):
+                batch = domains_to_display[i:i+batch_size]
+                for domain, conn in batch:
+                    try:
+                        self.vm_service._get_domain_info_and_xml(domain)
+                    except libvirt.libvirtError:
+                        pass
 
-            # Mark initial cache as complete
+                # Mise à jour progressive
+                progress = min(100, int((i + batch_size) / len(domains_to_display) * 100))
+                self.call_from_thread(
+                    self.show_quick_message, 
+                    f"Loading VM data... {progress}%"
+                )
+
             self.call_from_thread(self._on_initial_cache_complete)
-
         except Exception as e:
+            self.call_from_thread(self.show_error_message, f"Cache error: {e}")
             self.call_from_thread(
                 self.show_error_message, 
                 f"Error during initial cache loading: {e}"
@@ -454,6 +461,9 @@ class VMManagerTUI(App):
     def show_success_message(self, message: str):
         show_success_message(self, message)
 
+    def show_quick_message(self, message: str):
+        show_quick_message(self, message)
+
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
 
@@ -486,6 +496,12 @@ class VMManagerTUI(App):
         self.active_uris = selected_uris
         self.filtered_server_uris = None
         self.current_page = 0
+
+        self.show_quick_message("Loading VM data from remote server(s)...")
+        self.worker_manager.run(
+            self._initial_cache_worker,
+            name="initial_cache_load"
+        )
 
         self.refresh_vm_list()
 
