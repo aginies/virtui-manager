@@ -479,7 +479,7 @@ def get_vm_disks(domain: libvirt.virDomain) -> list[dict]:
     return get_vm_disks_info(conn, root)
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=1024)
 def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
     """
     Extracts disks info from a VM's XML definition.
