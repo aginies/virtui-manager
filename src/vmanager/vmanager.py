@@ -375,7 +375,7 @@ class VMManagerTUI(App):
         """Called when initial cache loading is complete."""
         self.initial_cache_loading = False
         self.initial_cache_complete = True
-        self.show_success_message("VM data loaded. Displaying VMs...")
+        self.show_quick_message("VM data loaded. Displaying VMs...")
         self.refresh_vm_list()
 
     def _update_layout_for_size(self):
