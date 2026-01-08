@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 import shutil
 import os
+import re
 from typing import List, Tuple, Union
 from urllib.parse import urlparse
 from constants import AppInfo
@@ -316,3 +317,17 @@ def extract_server_name_from_uri(server_name: str) -> str:
             server_display = server_name
 
         return server_display if server_display else "Unknown"
+
+def natural_sort_key(text):
+    """
+    Convert a string into a list for natural sorting.
+    'A10' becomes ['A', 10], 'A2' becomes ['A', 2]
+    This ensures A2 comes before A10.
+    """
+    def tryint(s):
+        try:
+            return int(s)
+        except ValueError:
+            return s.lower()
+
+    return [tryint(c) for c in re.split('([0-9]+)', text)]
