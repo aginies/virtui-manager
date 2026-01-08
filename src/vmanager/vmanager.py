@@ -559,10 +559,17 @@ class VMManagerTUI(App):
     def handle_config_result(self, result: dict | None) -> None:
         """Handle the result from the ConfigModal."""
         if result:
+            old_cache_ttl = self.config.get("CACHE_TTL")
+            old_stats_interval = self.config.get("STATS_INTERVAL")
+
             self.config = result
-            # Potentially re-initiate connections or refresh UI if needed
-            self.show_success_message("Configuration updated.")
-            self.refresh_vm_list()
+
+            if (self.config.get("CACHE_TTL") != old_cache_ttl or
+                self.config.get("STATS_INTERVAL") != old_stats_interval):
+                self.show_success_message("Configuration updated. Refreshing VM list...")
+                self.refresh_vm_list(force=False, optimize_for_current_page=True)
+            else:
+                self.show_success_message("Configuration updated.")
 
     @on(Button.Pressed, "#config_button")
     def on_config_button_pressed(self, event: Button.Pressed) -> None:
@@ -802,7 +809,7 @@ class VMManagerTUI(App):
 
         self.handle_select_server_result([uri])
 
-    def refresh_vm_list(self, force: bool = False) -> None:
+    def refresh_vm_list(self, force: bool = False, optimize_for_current_page: bool = False) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
         # Don't display VMs until initial cache is complete
         if self.initial_cache_loading and not self.initial_cache_complete:
@@ -819,20 +826,42 @@ class VMManagerTUI(App):
             self.worker_manager.cancel("list_vms")
 
         self.worker_manager.run(
-            lambda: self.list_vms_worker(selected_uuids, current_page, vms_per_page, uris_to_query, force=force), 
+            lambda: self.list_vms_worker(
+                selected_uuids,
+                current_page,
+                vms_per_page,
+                uris_to_query,
+                force=force,
+                optimize_for_current_page=current_page
+            ),
             name="list_vms"
         )
 
-    def list_vms_worker(self, selected_uuids: set[str], current_page: int, vms_per_page: int, uris_to_query: list[str], force: bool = False):
+    def list_vms_worker(
+            self,
+            selected_uuids: set[str],
+            current_page: int,
+            vms_per_page: int,
+            uris_to_query: list[str],
+            force: bool = False,
+            optimize_for_current_page: bool = False
+            ):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
+            start_index = current_page * vms_per_page
+            end_index = start_index + vms_per_page
+            page_start = start_index if optimize_for_current_page else None
+            page_end = end_index if optimize_for_current_page else None
+
             domains_to_display, total_vms, total_filtered_vms, server_names, all_active_uuids = self.vm_service.get_vms(
                 uris_to_query,
                 self.servers,
                 self.sort_by,
                 self.search_text,
                 selected_uuids,
-                force=force
+                force=force,
+                page_start=page_start,
+                page_end=page_end
             )
         except Exception as e:
             self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")

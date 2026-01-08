@@ -783,9 +783,20 @@ class VMService:
         except libvirt.libvirtError:
             raise
 
-    def get_vms(self, active_uris: list[str], servers: list[dict], sort_by: str, search_text: str, selected_vm_uuids: set[str], force: bool = False) -> tuple:
+    def get_vms(
+            self,
+            active_uris: list[str],
+            servers: list[dict],
+            sort_by: str,
+            search_text: str,
+            selected_vm_uuids: set[str],
+            force: bool = False,
+            page_start: int = None,
+            page_end: int = None
+            ) -> tuple:
         """Fetch, filter, and return VM data without creating UI components."""
-        self._update_domain_cache(active_uris, force=force, preload=force)
+        should_preload = force and (page_start is None or page_end is None)
+        self._update_domain_cache(active_uris, force=force, preload=should_preload)
 
         with self._cache_lock:
             domains_map = self._domain_cache.copy()
@@ -844,5 +855,14 @@ class VMService:
             domains_to_display = [(d, c) for d, c in domains_to_display if search_lower in d.name().lower()]
 
         total_filtered_vms = len(domains_to_display)
+        if page_start is not None and page_end is not None and force:
+            paginated_domains = domains_to_display[page_start:page_end]
+            logging.info(f"Optimized cache refresh: updating only {len(paginated_domains)} VMs (page {page_start}-{page_end})")
+
+            for domain, _ in paginated_domains:
+                try:
+                    self._get_domain_info(domain)
+                except libvirt.libvirtError as e:
+                    logging.debug(f"Error refreshing cache for VM {domain.name()}: {e}")
 
         return domains_to_display, total_vms, total_filtered_vms, server_names, list(domains_map.keys())
