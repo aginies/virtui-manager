@@ -4,7 +4,7 @@ Server management
 import logging
 from typing import Tuple
 from textual.app import ComposeResult
-from textual.widgets import Button, Label, DataTable, Input
+from textual.widgets import Button, Label, DataTable, Input, Checkbox
 from textual.containers import ScrollableContainer, Horizontal, Vertical
 from vmcard import ConfirmationDialog
 from modals.howto_ssh_modal import HowToSSHModal
@@ -34,12 +34,14 @@ class ConnectionModal(BaseModal[str | None]):
 
 
 class AddServerModal(BaseModal[Tuple[str, str] | None]):
-
+    """Modal for adding a new server with autoconnect option."""
     def compose(self) -> ComposeResult:
         with Vertical(id="add-server-dialog"):
             yield Label("Add New Server")
             yield Input(placeholder="Server Name", id="server-name-input")
             yield Input(placeholder="qemu+ssh://user@host/system", id="server-uri-input")
+            yield Label("")
+            yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=False)
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
                 yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
@@ -48,22 +50,30 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
         if event.button.id == "save-btn":
             name_input = self.query_one("#server-name-input", Input)
             uri_input = self.query_one("#server-uri-input", Input)
-            self.dismiss((name_input.value, uri_input.value))
+            autoconnect_checkbox = self.query_one("#autoconnect-checkbox", Checkbox)
+            self.dismiss((
+                name_input.value,
+                uri_input.value,
+                autoconnect_checkbox.value,
+                ))
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
-class EditServerModal(BaseModal[Tuple[str, str] | None]):
+class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
 
-    def __init__(self, server_name: str, server_uri: str) -> None:
+    def __init__(self, server_name: str, server_uri: str, autoconnect: bool = False) -> None:
         super().__init__()
         self.server_name = server_name
         self.server_uri = server_uri
+        self.autoconnect = autoconnect
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-server-dialog"):
             yield Label("Edit Server")
             yield Input(value=self.server_name, id="server-name-input")
             yield Input(value=self.server_uri, id="server-uri-input")
+            yield Label("")
+            yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=self.autoconnect)
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
                 yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
@@ -72,7 +82,12 @@ class EditServerModal(BaseModal[Tuple[str, str] | None]):
         if event.button.id == "save-btn":
             name_input = self.query_one("#server-name-input", Input)
             uri_input = self.query_one("#server-uri-input", Input)
-            self.dismiss((name_input.value, uri_input.value))
+            autoconnect_checkbox = self.query_one("#autoconnect-checkbox", Checkbox)
+            self.dismiss((
+                name_input.value,
+                uri_input.value,
+                autoconnect_checkbox.value
+                ))
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
@@ -106,8 +121,10 @@ class ServerManagementModal(BaseModal [str | None]):
         table.cursor_type = "row"
         table.add_column("Name", key="name")
         table.add_column("URI", key="uri")
-        for server in self.servers:
-            table.add_row(server['name'], server['uri'], key=server['uri'])
+        table.add_column("Autoconnect", key="autoconnect")
+        for idx, server in enumerate(self.servers):
+            autoconnect_display = "✓" if server.get('autoconnect', False) else ""
+            table.add_row(server['name'], server['uri'], autoconnect_display, key=str(idx))
         table.focus()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -119,8 +136,9 @@ class ServerManagementModal(BaseModal [str | None]):
     def _reload_table(self):
         table = self.query_one(DataTable)
         table.clear()
-        for server in self.servers:
-            table.add_row(server['name'], server['uri'], key=server['uri'])
+        for idx, server in enumerate(self.servers):
+            autoconnect_display = "✓" if server.get('autoconnect', False) else ""
+            table.add_row(server['name'], server['uri'], autoconnect_display, key=str(idx))
         table.focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -133,8 +151,12 @@ class ServerManagementModal(BaseModal [str | None]):
         elif event.button.id == "add-server-btn":
             def add_server_callback(result):
                 if result:
-                    name, uri = result
-                    self.servers.append({'name': name, 'uri': uri})
+                    name, uri, autoconnect = result
+                    self.servers.append({
+                        'name': name,
+                        'uri': uri,
+                        'autoconnect': autoconnect
+                        })
                     self.app.config['servers'] = self.servers
                     save_config(self.app.config)
                     self._reload_table()
@@ -143,13 +165,19 @@ class ServerManagementModal(BaseModal [str | None]):
             server_to_edit = self.servers[self.selected_row]
             def edit_server_callback(result):
                 if result:
-                    new_name, new_uri = result
+                    new_name, new_uri, autoconnect = result
                     self.servers[self.selected_row]['name'] = new_name
                     self.servers[self.selected_row]['uri'] = new_uri
+                    self.servers[self.selected_row]['autoconnect'] = autoconnect
                     self.app.config['servers'] = self.servers
                     save_config(self.app.config)
                     self._reload_table()
-            self.app.push_screen(EditServerModal(server_to_edit['name'], server_to_edit['uri']), edit_server_callback)
+            self.app.push_screen(EditServerModal(
+                server_to_edit['name'],
+                server_to_edit['uri'],
+                server_to_edit.get('autoconnect', False)
+                ),
+                edit_server_callback)
         elif event.button.id == "delete-server-btn" and self.selected_row is not None:
             server_to_delete = self.servers[self.selected_row]
             server_name_to_delete = server_to_delete['name']
@@ -174,11 +202,11 @@ class ServerManagementModal(BaseModal [str | None]):
                 ConfirmationDialog(f"Are you sure you want to delete Server;\n'{server_name_to_delete}'\nfrom list?"), on_confirm)
 
         elif event.button.id == "custom-conn-btn":
-             def connection_callback(uri: str | None):
-                 if uri:
-                     self.dismiss(uri)
-             self.app.push_screen(ConnectionModal(), connection_callback)
-        
+            def connection_callback(uri: str | None):
+                if uri:
+                    self.dismiss(uri)
+            self.app.push_screen(ConnectionModal(), connection_callback)
+
         elif event.button.id == "ssh-help-btn":
             self.app.push_screen(HowToSSHModal())
 
