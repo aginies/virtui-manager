@@ -156,12 +156,24 @@ class VMManagerTUI(App):
     initial_cache_complete = reactive(False)
 
     @staticmethod
-    def _get_initial_active_uris(servers_list, autoconnect=False):
-        if autoconnect and servers_list:
-            return [servers_list[0]['uri']]
+    def _get_initial_active_uris(servers_list):
+        if not servers_list:
+            return []
+
+        autoconnect_uris = []
+        for server in servers_list:
+            if server.get('autoconnect', False):
+                autoconnect_uris.append(server['uri'])
+                logging.info(f"Autoconnect enabled for server: {server.get('name', server['uri'])}")
+
+        if autoconnect_uris:
+            logging.info(f"Autoconnecting to {len(autoconnect_uris)} server(s)")
+            return autoconnect_uris
+
+        logging.info("No autoconnect servers configured")
         return []
 
-    active_uris = reactive(_get_initial_active_uris(servers, config.get('AUTOCONNECT_ON_STARTUP', False)))
+    active_uris = reactive(_get_initial_active_uris(servers))
     current_page = reactive(0)
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
@@ -334,12 +346,28 @@ class VMManagerTUI(App):
             # Pre-cache info and XML for all VMs
             for domain, conn in domains_to_display:
                 try:
-                    # This will populate the cache
                     self.vm_service._get_domain_info(domain)
                 except libvirt.libvirtError:
-                    pass  # Skip VMs that fail
+                    pass
 
-            # Mark initial cache as complete
+#            batch_size = 5
+#            for i in range(0, len(domains_to_display), batch_size):
+#                batch = domains_to_display[i:i+batch_size]
+#                for domain, _ in batch:
+#                    try:
+#                        self.vm_service._get_domain_info_and_xml(domain)
+#                        #self.vm_service._get_domain_info(domain)
+#                    except libvirt.libvirtError:
+#                        pass
+
+                # Progressive update
+#                progress = min(100, int((i + batch_size) / len(domains_to_display) * 100))
+#                if progress % 10 == 0:
+#                    self.call_from_thread(
+#                        self.show_quick_message,
+#                        f"Loading VM data... {progress}%"
+#                    )
+
             self.call_from_thread(self._on_initial_cache_complete)
 
         except Exception as e:
@@ -347,7 +375,6 @@ class VMManagerTUI(App):
                 self.show_error_message, 
                 f"Error during initial cache loading: {e}"
             )
-            self.call_from_thread(self._on_initial_cache_complete)
 
     def _on_initial_cache_complete(self):
         """Called when initial cache loading is complete."""
@@ -523,10 +550,6 @@ class VMManagerTUI(App):
             self.filtered_server_uris = new_selected_servers
             self.current_page = 0
             self.show_quick_message("Loading VM data from remote server(s)...")
-            self.worker_manager.run(
-                self._initial_cache_worker,
-                name="initial_cache_load"
-            )
             self.refresh_vm_list()
 
     def action_config(self) -> None:
