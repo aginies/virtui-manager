@@ -523,17 +523,17 @@ class VMCard(Static):
         current_cpu_model = self.cpu_model
         current_graphics_type = self.graphics_type
         is_remote = self._is_remote_server()
+        app_ref = self.app
+        vm_service = app_ref.vm_service
 
         def update_worker():
             try:
                 logging.debug(f"Starting update_stats worker for {self.name} (UUID: {uuid})")
-                
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
-                
                 logging.debug(f"Stats received for {self.name}: {stats}")
-
                 # Update info from cache if XML has been fetched (e.g. via Configure)
-                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+                #vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+                vm_cache = vm_service._vm_data_cache.get(uuid, {})
                 xml_content = vm_cache.get('xml')
                 boot_dev = current_boot_device
                 cpu_model = current_cpu_model
