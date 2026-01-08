@@ -11,6 +11,7 @@ import libvirt
 from connection_manager import ConnectionManager
 from constants import VmStatus, VmAction
 from storage_manager import check_domain_volumes_in_use
+from utils import natural_sort_key
 from vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
 from vm_queries import (
     get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
@@ -867,7 +868,9 @@ class VMService:
                 server_names.append(uri)
 
         total_vms_unfiltered = len(domains_with_conn)
-        domains_to_display = domains_with_conn
+        #domains_to_display = domains_with_conn
+        domains_to_display = sorted(domains_with_conn, key=lambda x: natural_sort_key(x[0].name()))
+
 
         if sort_by != VmStatus.DEFAULT:
             if sort_by == VmStatus.SELECTED:
