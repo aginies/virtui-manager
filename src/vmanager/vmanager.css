@@ -128,7 +128,7 @@ Select:focus {
 #filter-dialog,
 #server-management-dialog,
 #attach-volume-dialog {
-    width: 64;
+    width: 72;
 }
 
 /* --- Common Elements Inside Dialogs --- */
