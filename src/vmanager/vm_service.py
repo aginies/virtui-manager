@@ -32,7 +32,7 @@ class VMService:
         
         self._vm_data_cache: dict[str, dict] = {}  # {uuid: {'info': (data), 'info_ts': ts, 'xml': 'data', 'xml_ts': ts}}
         self._info_cache_ttl: int = 5  # seconds
-        self._xml_cache_ttl: int = 600  # 10 minutes
+        self._xml_cache_ttl: int = 300  # 5 minutes
 
         # Threading support
         self._cache_lock = threading.RLock()

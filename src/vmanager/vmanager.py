@@ -322,13 +322,13 @@ class VMManagerTUI(App):
                 for uri in self.active_uris:
                     self.connect_libvirt(uri)
 
-            if self.active_uris:
-                self.initial_cache_loading = True
-                self.show_quick_message("Loading VM data from remote server(s)...")
-                self.worker_manager.run(
-                    self._initial_cache_worker, 
-                    name="initial_cache_load"
-                )
+            #if self.active_uris:
+            #    self.initial_cache_loading = True
+            #    self.show_quick_message("Loading VM data from remote server(s)...")
+            #    self.worker_manager.run(
+            #        self._initial_cache_worker, 
+            #        name="initial_cache_load"
+            #    )
 
     def _initial_cache_worker(self):
         """Pre-loads VM cache before displaying the UI."""

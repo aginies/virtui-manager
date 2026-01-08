@@ -9,7 +9,7 @@ from config import load_config
 _cache: Dict[str, Dict[str, Any]] = {}
 _lock = threading.Lock()
 config = load_config()
-TTL = config.get('CACHE_TTL', 1)  # Cache time-to-live in seconds
+TTL = config.get('CACHE_TTL', 30)  # Cache time-to-live in seconds
 
 def get_from_cache(uuid: str) -> Optional[Dict[str, Any]]:
     """
