@@ -43,6 +43,8 @@ class ServerPrefModal(BaseModal[None]):
     def __init__(self, uri: str | None = None) -> None:
         super().__init__()
         self.uri = uri
+        self.storage_loaded = False
+        self.network_loaded = False
 
     def compose(self) -> ComposeResult:
         with Vertical(id="server-pref-dialog",):
@@ -50,37 +52,11 @@ class ServerPrefModal(BaseModal[None]):
             yield Static(classes="button-separator")
             with TabbedContent(id="server-pref-tabs"):
                 with TabPane("Network", id="tab-network"):
-                    with ScrollableContainer():
-                        yield DataTable(id="networks-table", classes="networks-table", cursor_type="row")
-                    with Vertical(classes="server-pref-button"):
-                        with Horizontal():
-                            yield Button("De/Active", id="toggle-net-active-btn", classes="toggle-detail-button", variant="primary", disabled=True, tooltip="Activate or Deactivate the selected network.")
-                            yield Button("Autostart", id="toggle-net-autostart-btn", classes="toggle-detail-button", variant="primary", disabled=True, tooltip="Enable or Disable autostart for the selected network.")
-                        with Horizontal():
-                            yield Button("Add", id="add-net-btn", variant="success", classes="toggle-detail-button", tooltip="Add a new network.")
-                            yield Button("Edit", id="edit-net-btn", variant="success", classes="toggle-detail-button", disabled=True, tooltip="Edit the selected network.")
-                            yield Button("View", id="view-net-btn", variant="success", classes="toggle-detail-button", disabled=True, tooltip="View XML details of the selected network.")
-                            yield Button("Delete", id="delete-net-btn", variant="error", classes="toggle-detail-button", disabled=True, tooltip="Delete the selected network.")
-                            yield Button("Help", id="help-net-btn", variant="success", classes="toggle-detail-button", tooltip="Show network configuration help.")
+                    # Network content will be loaded on mount
+                    pass
                 with TabPane("Storage", id="tab-storage"):
-                    with ScrollableContainer():
-                        yield Tree("Storage Pools", id="storage-tree")
-                    with Vertical(classes="server-pref-button"):
-                        with Horizontal():
-                            yield Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button", tooltip="Activate or Deactivate the selected storage pool.")
-                            yield Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button", tooltip="Enable or Disable autostart for the selected storage pool.")
-                            with Vertical():
-                                yield Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button", tooltip="Add a new storage pool.")
-                                yield Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected storage pool.")
-                            with Vertical():
-                                yield Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Create a new volume in the selected pool.")
-                                yield Button("Attach Vol", id="attach-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Attach an existing disk file as a volume.")
-                                yield Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button", tooltip="Move the selected volume to another pool.")
-                                yield Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button", tooltip="Delete the selected volume.")
-                            with Vertical():
-                                yield Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="View XML details of the selected pool or volume.")
-                                yield Button("Edit XML", id="edit-pool-xml-btn", variant="primary", classes="toggle-detail-button", tooltip="Edit XML of the selected pool.")
-            #yield Button("Close", id="close-btn", classes="close-button")
+                    # Storage content will be loaded on demand
+                    pass
 
     def on_mount(self) -> None:
         uri_to_connect = self.uri
@@ -105,8 +81,10 @@ class ServerPrefModal(BaseModal[None]):
         # Get server hostname and update the title
         server_hostname = self.conn.getHostname()
         self.query_one("#server-pref-title", Label).update(f"Server Preferences ({server_hostname})")
+        # Load network content by default (first tab)
+        self._load_network_content()
 
-        self._load_networks()
+        # Prepare disk/nvram/overlay maps for storage (but don't load UI yet)
         disk_map = get_all_vm_disk_usage(self.conn)
         nvram_map = get_all_vm_nvram_usage(self.conn)
         overlay_map = get_all_vm_overlay_usage(self.conn)
@@ -120,25 +98,146 @@ class ServerPrefModal(BaseModal[None]):
             else:
                 self.path_to_vm_list[path] = vm_names
 
-        for path, vm_names in overlay_map.items():
-            if path in self.path_to_vm_list:
-                self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
-            else:
-                self.path_to_vm_list[path] = vm_names
+    def _load_network_content(self) -> None:
+        """Load network tab content."""
+        if self.network_loaded:
+            return
 
-        self._load_storage_pools()
+        network_pane = self.query_one("#tab-network", TabPane)
 
-        self.query_one("#toggle-active-pool-btn").display = False
-        self.query_one("#toggle-autostart-pool-btn").display = False
-        self.query_one("#add-pool-btn").display = False
-        self.query_one("#del-pool-btn").display = False
-        self.query_one("#add-vol-btn").display = False
-        self.query_one("#attach-vol-btn").display = False
-        self.query_one("#move-vol-btn").display = False
-        self.query_one("#del-vol-btn").display = False
-        self.query_one("#view-storage-xml-btn").display = False
-        self.query_one("#edit-pool-xml-btn").display = False
+        # Clear existing content
+        network_pane.remove_children()
 
+        # Build network UI
+        table = DataTable(id="networks-table", classes="networks-table", cursor_type="row")
+        scroll_container = ScrollableContainer(table)
+
+        button_container = Vertical(
+            Horizontal(
+                Button("De/Active", id="toggle-net-active-btn", classes="toggle-detail-button",
+                       variant="primary", disabled=True, tooltip="Activate or Deactivate the selected network."),
+                Button("Autostart", id="toggle-net-autostart-btn", classes="toggle-detail-button",
+                       variant="primary", disabled=True, tooltip="Enable or Disable autostart for the selected network."),
+            ),
+            Horizontal(
+                Button("Add", id="add-net-btn", variant="success", classes="toggle-detail-button",
+                       tooltip="Add a new network."),
+                Button("Edit", id="edit-net-btn", variant="success", classes="toggle-detail-button",
+                       disabled=True, tooltip="Edit the selected network."),
+                Button("View", id="view-net-btn", variant="success", classes="toggle-detail-button",
+                       disabled=True, tooltip="View XML details of the selected network."),
+                Button("Delete", id="delete-net-btn", variant="error", classes="toggle-detail-button",
+                       disabled=True, tooltip="Delete the selected network."),
+                Button("Help", id="help-net-btn", variant="success", classes="toggle-detail-button",
+                       tooltip="Show network configuration help."),
+            ),
+            classes="server-pref-button"
+        )
+
+        # Mount everything together
+        network_pane.mount(scroll_container, button_container)
+
+        # Load data after widgets are mounted
+        self.call_after_refresh(self._load_networks)
+        self.network_loaded = True
+
+    def _load_storage_content(self) -> None:
+        """Load storage tab content."""
+        if self.storage_loaded:
+            return
+
+        storage_pane = self.query_one("#tab-storage", TabPane)
+
+        # Clear existing content
+        storage_pane.remove_children()
+
+        # Build storage UI
+        tree = Tree("Storage Pools", id="storage-tree")
+        scroll_container = ScrollableContainer(tree)
+
+        button_container = Vertical(
+            Horizontal(
+                Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button",
+                       tooltip="Activate or Deactivate the selected storage pool."),
+                Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button",
+                       tooltip="Enable or Disable autostart for the selected storage pool."),
+                Vertical(
+                    Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button",
+                           tooltip="Add a new storage pool."),
+                    Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button",
+                           tooltip="Delete the selected storage pool."),
+                ),
+                Vertical(
+                    Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button",
+                           tooltip="Create a new volume in the selected pool."),
+                    Button("Attach Vol", id="attach-vol-btn", variant="success", classes="toggle-detail-button",
+                           tooltip="Attach an existing disk file as a volume."),
+                    Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button",
+                           tooltip="Move the selected volume to another pool."),
+                    Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button",
+                           tooltip="Delete the selected volume."),
+                ),
+                Vertical(
+                    Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button",
+                           tooltip="View XML details of the selected pool or volume."),
+                    Button("Edit XML", id="edit-pool-xml-btn", variant="primary", classes="toggle-detail-button",
+                           tooltip="Edit XML of the selected pool."),
+                ),
+            ),
+            classes="server-pref-button"
+        )
+
+        storage_pane.mount(scroll_container, button_container)
+
+        # Hide buttons initially (after refresh so they exist)
+        def init_storage():
+            self._load_storage_pools()
+            self.query_one("#toggle-active-pool-btn").display = False
+            self.query_one("#toggle-autostart-pool-btn").display = False
+            self.query_one("#add-pool-btn").display = False
+            self.query_one("#del-pool-btn").display = False
+            self.query_one("#add-vol-btn").display = False
+            self.query_one("#attach-vol-btn").display = False
+            self.query_one("#move-vol-btn").display = False
+            self.query_one("#del-vol-btn").display = False
+            self.query_one("#view-storage-xml-btn").display = False
+            self.query_one("#edit-pool-xml-btn").display = False
+
+        self.call_after_refresh(init_storage)
+        self.storage_loaded = True
+
+    def _unload_network_content(self) -> None:
+        """Remove network tab content."""
+        if not self.network_loaded:
+            return
+
+        network_pane = self.query_one("#tab-network", TabPane)
+        network_pane.remove_children()
+        self.network_loaded = False
+
+    def _unload_storage_content(self) -> None:
+        """Remove storage tab content."""
+        if not self.storage_loaded:
+            return
+
+        storage_pane = self.query_one("#tab-storage", TabPane)
+        storage_pane.remove_children()
+        self.storage_loaded = False
+
+    @on(TabbedContent.TabActivated)
+    def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        """Handle tab changes to load/unload content dynamically."""
+        active_pane = event.pane
+        active_tab_id = active_pane.id if active_pane else None
+
+        if active_tab_id == "tab-network":
+            # Load network content, unload storage
+            self._load_network_content()
+            self._unload_storage_content()
+        elif active_tab_id == "tab-storage":
+            # Load storage content, unload network
+            self._load_storage_content()
+            self._unload_network_content()
 
     def _load_storage_pools(self, expand_pools: list[str] | None = None) -> None:
         """Load storage pools into the tree view."""
