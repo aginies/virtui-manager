@@ -8,7 +8,6 @@ from constants import AppInfo
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
-    'AUTOCONNECT_ON_STARTUP': False,
     'CACHE_TTL': 3,
     'MAX_VM_CARDS': 250,
     'STATS_INTERVAL': 5,
