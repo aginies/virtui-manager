@@ -26,7 +26,7 @@ def show_success_message(app, message: str):
 def show_quick_message(app, message: str):
     """Shows a quick notification."""
     logging.info(message)
-    app.notify(message, timeout=2, title="Info")
+    app.notify(message, timeout=2, title="Quick Info")
 
 def show_warning_message(app, message: str):
     """Shows a warning notification."""
