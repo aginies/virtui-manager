@@ -532,7 +532,6 @@ class VMCard(Static):
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
                 logging.debug(f"Stats received for {self.name}: {stats}")
                 # Update info from cache if XML has been fetched (e.g. via Configure)
-                #vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
                 vm_cache = vm_service._vm_data_cache.get(uuid, {})
                 xml_content = vm_cache.get('xml')
                 boot_dev = current_boot_device
@@ -555,7 +554,6 @@ class VMCard(Static):
                             self._boot_device_checked = True
                     elif not is_remote:
                         # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
-                        # Skipped for remote servers
                         try:
                             _, root = _get_domain_root(self.vm)
                             if root is not None:
