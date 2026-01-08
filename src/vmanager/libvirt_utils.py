@@ -123,7 +123,7 @@ def find_all_vm(conn: libvirt.virConnect):
             allvm_list.append(vmdomain)
     return allvm_list
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=4)
 def get_domain_capabilities_xml(
     conn: libvirt.virConnect,
     emulatorbin: str,
@@ -200,7 +200,6 @@ def get_sound_domain_capabilities(xml_content: str) -> dict:
 
     return supported_models
 
-@lru_cache(maxsize=32)
 def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: list[str]) -> list[str]:
     """
     Get VM name from their vm_uuids
@@ -284,7 +283,7 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
     except libvirt.libvirtError:
         return {}
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=4)
 def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
     """Gets all USB devices from the host."""
     usb_devices = []
@@ -327,7 +326,7 @@ def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
         logging.error(f"Error getting host USB devices: {e}")
     return usb_devices
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=4)
 def get_host_pci_devices(conn: libvirt.virConnect) -> list[dict]:
     """Gets all PCI devices from the host that are available for passthrough."""
     pci_devices = []

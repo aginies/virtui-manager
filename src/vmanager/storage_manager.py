@@ -16,7 +16,7 @@ from libvirt_utils import (
         )
 from vm_queries import get_vm_disks_info
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=16)
 def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     """
     Lists all storage pools with their status and details.
@@ -46,7 +46,7 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
 
     return pools_info
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=32)
 def list_storage_volumes(pool: libvirt.virStoragePool) -> List[Dict[str, Any]]:
     """
     Lists all storage volumes in a given pool.
@@ -287,7 +287,7 @@ def delete_volume(vol: libvirt.virStorageVol):
         logging.error(msg)
         raise Exception(msg) from e
 
-@lru_cache(maxsize=256)
+@lru_cache(maxsize=32)
 def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str, vol_name: str) -> List[libvirt.virDomain]:
     """Finds VMs that are using a specific storage volume path by checking different disk types."""
     vms_using_volume = []
@@ -635,7 +635,7 @@ def delete_storage_pool(pool: libvirt.virStoragePool):
         logging.error(msg)
         raise Exception(msg) from e
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=16)
 def get_all_storage_volumes(conn: libvirt.virConnect) -> List[libvirt.virStorageVol]:
     """
     Retrieves all storage volumes across all active storage pools.
