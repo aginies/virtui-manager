@@ -32,7 +32,7 @@ from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
         get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
-        get_status, log_cache_statistics
+        log_cache_statistics
         )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
