@@ -34,13 +34,12 @@ from modals.utils_modals import (
     show_error_message,
     show_success_message,
     show_warning_message,
+    show_quick_message,
     LoadingModal,
 )
 from modals.vmanager_modals import (
-    CreateVMModal,
     FilterModal,
 )
-from modals.vmdetails_modals import VMDetailModal
 from modals.virsh_modals import VirshShellScreen
 from utils import (
     check_novnc_path,
@@ -86,7 +85,7 @@ class WorkerManager:
         Runs and tracks a worker, preventing overlaps for workers with the same name.
         """
         if exclusive and self.is_running(name):
-            logging.warning(f"Worker '{name}' is already running. Skipping new run.")
+            #logging.warning(f"Worker '{name}' is already running. Skipping new run.")
             return None
 
         worker = self.app.run_worker(
@@ -102,8 +101,18 @@ class WorkerManager:
         self.workers[name] = worker
         return worker
 
+    def _cleanup_finished_workers(self) -> None:
+        """Removes finished workers from the tracking dictionary."""
+        finished_worker_names = [
+            name for name, worker in self.workers.items()
+            if worker.state in (WorkerState.SUCCESS, WorkerState.CANCELLED, WorkerState.ERROR)
+        ]
+        for name in finished_worker_names:
+            del self.workers[name]
+
     def is_running(self, name: str) -> bool:
         """Check if a worker with the given name is currently running."""
+        self._cleanup_finished_workers()
         return name in self.workers and self.workers[name].state not in (
             WorkerState.SUCCESS,
             WorkerState.CANCELLED,
@@ -194,9 +203,11 @@ class VMManagerTUI(App):
         self._resize_timer = None
         self.filtered_server_uris = None
 
+
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
         self.call_from_thread(self.refresh_vm_list)
+        self.call_from_thread(self.worker_manager._cleanup_finished_workers)
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
@@ -307,12 +318,13 @@ class VMManagerTUI(App):
             )
         else:
             # Launch initial cache loading before displaying VMs
-            for uri in self.active_uris:
-                self.connect_libvirt(uri)
+            if len(self.active_uris) > 1:
+                for uri in self.active_uris:
+                    self.connect_libvirt(uri)
 
             if self.active_uris:
                 self.initial_cache_loading = True
-                self.show_success_message("Loading VM data from remote server(s)...")
+                self.show_quick_message("Loading VM data from remote server(s)...")
                 self.worker_manager.run(
                     self._initial_cache_worker, 
                     name="initial_cache_load"
@@ -353,7 +365,7 @@ class VMManagerTUI(App):
         """Called when initial cache loading is complete."""
         self.initial_cache_loading = False
         self.initial_cache_complete = True
-        self.show_success_message("VM data loaded. Displaying VMs...")
+        self.show_quick_message("VM data loaded. Displaying VMs...")
         self.refresh_vm_list()
 
     def _update_layout_for_size(self):
@@ -439,6 +451,9 @@ class VMManagerTUI(App):
     def show_success_message(self, message: str):
         show_success_message(self, message)
 
+    def show_quick_message(self, message: str):
+        show_quick_message(self, message)
+
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
 
@@ -519,6 +534,11 @@ class VMManagerTUI(App):
             self.search_text = new_search
             self.filtered_server_uris = new_selected_servers
             self.current_page = 0
+            self.show_quick_message("Loading VM data from remote server(s)...")
+            self.worker_manager.run(
+                self._initial_cache_worker,
+                name="initial_cache_load"
+            )
             self.refresh_vm_list()
 
     def action_config(self) -> None:
