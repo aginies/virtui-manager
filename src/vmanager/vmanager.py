@@ -19,7 +19,7 @@ from textual.worker import Worker, WorkerState
 from config import load_config, save_config, get_log_path
 from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
-        ErrorMessages, AppInfo, StatusText
+        ErrorMessages, AppInfo, StatusText, ServerPallette
         )
 from events import VmActionRequest, VMNameClicked, VMSelectionChanged
 from libvirt_error_handler import register_error_handler
@@ -174,19 +174,7 @@ class VMManagerTUI(App):
     selected_vm_uuids: reactive[set[str]] = reactive(set)
     bulk_operation_in_progress = reactive(False)
 
-    SERVER_COLOR_PALETTE = [
-        "#33FF57",  # Green
-        "#F333FF",  # Magenta
-        "#3357FF",  # Blue
-        "#FF8C33",  # Orange
-        "#FF33A1",  # Pink
-        "#F3FF33",  # Yellow
-        "#33FF8C",  # Mint
-        "#FF5733",  # Red-Orange
-        "#33FFF3",  # Cyan
-        "#A133FF",  # Purple
-    ]
-
+    SERVER_COLOR_PALETTE = ServerPallette.COLOR
     CSS_PATH = ["vmanager.css", "vmcard.css", "dialog.css"]
 
     def __init__(self):

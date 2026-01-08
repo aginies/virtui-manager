@@ -2,6 +2,21 @@
 Shared constants for the application.
 """
 
+class ServerPallette:
+    """ Color for server"""
+    COLOR = [
+        "#33FF57",  # Green
+        "#F333FF",  # Magenta
+        "#3357FF",  # Blue
+        "#FF8C33",  # Orange
+        "#FF33A1",  # Pink
+        "#F3FF33",  # Yellow
+        "#33FF8C",  # Mint
+        "#FF5733",  # Red-Orange
+        "#33FFF3",  # Cyan
+        "#A133FF",  # Purple
+    ]
+
 class AppInfo:
     """Define app data"""
     name = "virtui-manager"
