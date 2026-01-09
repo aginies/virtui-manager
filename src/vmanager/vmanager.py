@@ -358,7 +358,7 @@ class VMManagerTUI(App):
                 if previous_total > 0:
                     increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
-                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} {previous_how_many_more} ({increase_pct:.1f}%)")
+                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
                 previous_how_many_more = how_many_more
 
                 # Initialize previous method calls dict for this URI if needed
