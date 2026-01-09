@@ -1103,7 +1103,7 @@ class VMDetailModal(ModalScreen):
                 on_confirm_spice_removal
             )
         else:
-            logging.info("Condition NOT met for SPICE removal, applying settings directly.")
+            logging.info("No SPICE devices to remove, applying settings directly.")
             do_apply_graphics_settings()
 
     @on(Button.Pressed, "#apply-rng-btn")
