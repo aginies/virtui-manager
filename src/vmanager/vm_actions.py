@@ -1283,9 +1283,9 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
 
-def set_vm_sound_model(domain: libvirt.virDomain, model: str):
+def set_vm_sound_model(domain: libvirt.virDomain, model: str | None):
     """
-    Sets the sound model for a VM.
+    Sets the sound model for a VM. If model is None or 'none', the sound device is removed.
     The VM must be stopped.
     """
     invalidate_cache(domain.UUIDString())
@@ -1297,22 +1297,21 @@ def set_vm_sound_model(domain: libvirt.virDomain, model: str):
 
     devices = root.find("devices")
     if devices is None:
+        if model is None or model == 'none':
+            return
         devices = ET.SubElement(root, "devices")
 
     sound = devices.find("sound")
-    if sound is None:
-        sound = ET.SubElement(devices, "sound")
 
-    model_elem = sound.find("model")
-
-    if model is None:
-        if model_elem is not None:
-            sound.remove(model_elem)
+    # If the desired model is None or 'none', remove the sound device.
+    if model is None or model == 'none':
+        if sound is not None:
+            devices.remove(sound)
     else:
-        if model_elem is None:
-            model_elem = ET.SubElement(sound, "model")
+        if sound is None:
+            sound = ET.SubElement(devices, "sound")
 
-        model_elem.set("type", model)
+        sound.set('model', model)
 
     new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
