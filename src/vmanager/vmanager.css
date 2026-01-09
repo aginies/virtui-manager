@@ -509,6 +509,9 @@ Select:focus {
 #add-usb2-controller-btn,
 #add-usb3-controller-btn, 
 #add-scsi-controller-btn,
+#refresh-btn,
+#clear-btn,
+#close-btn,
 #remove-controller-btn {
     height: 1;
     width: 25%;

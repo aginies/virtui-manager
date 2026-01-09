@@ -9,10 +9,9 @@ from pathlib import Path
 import shutil
 import os
 import re
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Callable
 from urllib.parse import urlparse
 from constants import AppInfo
-
 
 def find_free_port(start: int, end: int) -> int:
     """
@@ -262,7 +261,7 @@ def check_is_firewalld_running() -> Union[str, bool]:
         logging.error(f"Error checking firewalld status: {e}")
         return False
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=8)
 def extract_server_name_from_uri(server_name: str) -> str:
     """
     Extract server name from URI for display.
@@ -318,7 +317,7 @@ def extract_server_name_from_uri(server_name: str) -> str:
 
         return server_display if server_display else "Unknown"
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=512)
 def natural_sort_key(text):
     """
     Convert a string into a list for natural sorting.
@@ -333,7 +332,7 @@ def natural_sort_key(text):
 
     return [tryint(c) for c in re.split('([0-9]+)', text)]
 
-@lru_cache(maxsize=128)
+@lru_cache(maxsize=8)
 def format_server_names(server_uris: tuple[str]) -> str:
     """
     Format server URIs into display names.
@@ -345,7 +344,7 @@ def format_server_names(server_uris: tuple[str]) -> str:
 _server_color_cache = {}
 _color_index = 0
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=8)
 def get_server_color_cached(uri: str, palette: tuple) -> str:
     """
     Get consistent color for a server URI.
@@ -359,3 +358,141 @@ def get_server_color_cached(uri: str, palette: tuple) -> str:
         _color_index += 1
 
     return _server_color_cache[uri]
+
+class CacheMonitor:
+    """Monitor for tracking LRU cache performance."""
+
+    def __init__(self):
+        self.tracked_functions = {}
+
+    def track(self, func: Callable) -> None:
+        """Register a function for monitoring."""
+        self.tracked_functions[func.__name__] = func
+
+    def get_all_stats(self) -> dict[str, dict]:
+        """Get statistics for all tracked caches."""
+        stats = {}
+        for name, func in self.tracked_functions.items():
+            if hasattr(func, 'cache_info'):
+                info = func.cache_info()
+                total = info.hits + info.misses
+                hit_rate = (info.hits / total * 100) if total > 0 else 0.0
+
+                stats[name] = {
+                    'hits': info.hits,
+                    'misses': info.misses,
+                    'hit_rate': hit_rate,
+                    'current_size': info.currsize,
+                    'max_size': info.maxsize,
+                    'efficiency': 'good' if hit_rate > 70 else 'poor'
+                }
+        return stats
+
+    def log_stats(self) -> None:
+        """Log cache statistics."""
+        stats = self.get_all_stats()
+        logging.info("=== Cache Statistics ===")
+        for name, data in stats.items():
+            logging.info(
+                f"{name}: {data['hit_rate']:.1f}% hit rate "
+                f"({data['hits']} hits, {data['misses']} misses, "
+                f"{data['current_size']}/{data['max_size']} entries)"
+            )
+
+    def clear_all_caches(self) -> None:
+        """Clear all tracked caches."""
+        for func in self.tracked_functions.values():
+            if hasattr(func, 'cache_clear'):
+                func.cache_clear()
+        logging.info("All caches cleared")
+
+@lru_cache(maxsize=128)
+def format_memory_display(memory_mib: int) -> str:
+    """Format memory with MiB/GiB conversion."""
+    mem_str = f"{memory_mib} MiB"
+    if memory_mib >= 1024:
+        mem_str += f" ({memory_mib / 1024:.2f} GiB)"
+    return mem_str
+
+@lru_cache(maxsize=128)
+def generate_tooltip_markdown(
+    uuid: str,
+    hypervisor: str,
+    status: str,
+    ip: str,
+    boot: str,
+    cpu: int,
+    cpu_model: str,
+    memory: int
+) -> str:
+    """Generate tooltip markdown (pure function, cacheable)."""
+    mem_display = format_memory_display(memory)
+    cpu_display = f"{cpu} ({cpu_model})" if cpu_model else str(cpu)
+
+    return (
+        f"`{uuid}`  \n"
+        f"**Hypervisor:** {hypervisor}  \n"
+        f"**Status:** {status}  \n"
+        f"**IP:** {ip}  \n"
+        f"**Boot:** {boot}  \n"
+        f"**VCPUs:** {cpu_display}  \n"
+        f"**Memory:** {mem_display}"
+)
+
+cache_monitor = CacheMonitor()
+cache_monitor.track(format_server_names)
+cache_monitor.track(extract_server_name_from_uri)
+cache_monitor.track(get_server_color_cached)
+cache_monitor.track(natural_sort_key)
+cache_monitor.track(format_memory_display)
+cache_monitor.track(generate_tooltip_markdown)
+
+from libvirt_utils import (
+        get_host_pci_devices, get_host_usb_devices,
+        _get_vm_names_from_uuids, get_domain_capabilities_xml
+        )
+cache_monitor.track(_get_vm_names_from_uuids)
+cache_monitor.track(get_host_pci_devices)
+cache_monitor.track(get_host_usb_devices)
+cache_monitor.track(get_domain_capabilities_xml)
+#cache_monitor.track(
+from vm_queries import (
+    _parse_domain_xml_by_hash,
+    get_vm_network_dns_gateway_info,
+    get_vm_description,
+    get_vm_disks,
+    get_vm_disks_info,
+    get_boot_info,
+    get_all_vm_disk_usage,
+    get_supported_machine_types,
+)
+cache_monitor.track(_parse_domain_xml_by_hash)
+cache_monitor.track(get_vm_description)
+cache_monitor.track(get_vm_disks_info)
+cache_monitor.track(get_vm_network_dns_gateway_info)
+cache_monitor.track(get_vm_disks)
+cache_monitor.track(get_boot_info)
+cache_monitor.track(get_all_vm_disk_usage)
+cache_monitor.track(get_supported_machine_types)
+
+from storage_manager import (
+    list_storage_pools,
+    list_storage_volumes,
+    find_vms_using_volume,
+    get_all_storage_volumes,
+)
+cache_monitor.track(list_storage_pools)
+cache_monitor.track(list_storage_volumes)
+cache_monitor.track(find_vms_using_volume)
+cache_monitor.track(get_all_storage_volumes)
+
+from network_manager import (
+    list_networks,
+    get_vms_using_network,
+    get_host_network_info,
+)
+cache_monitor.track(list_networks)
+cache_monitor.track(get_vms_using_network)
+cache_monitor.track(get_host_network_info)
+
+

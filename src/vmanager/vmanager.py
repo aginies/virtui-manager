@@ -30,6 +30,7 @@ from modals.log_modal import LogModal
 from modals.server_modals import ServerManagementModal
 from modals.server_prefs_modals import ServerPrefModal
 from modals.select_server_modals import SelectOneServerModal, SelectServerModal
+from modals.cache_stats_modal import CacheStatsModal
 from modals.utils_modals import (
     show_error_message,
     show_success_message,
@@ -48,6 +49,7 @@ from utils import (
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
     format_server_names,
+    cache_monitor,
 )
 from vm_queries import (
     get_status,
@@ -143,6 +145,7 @@ class VMManagerTUI(App):
         ("c", "config", "Config"),
         ("m", "manage_server", "ServList"),
         ("s", "select_server", "SelServers"),
+        ("ctrl+s", "show_cache_stats", "Cache Stats"),
         ("ctrl+a", "toggle_select_all", "Sel/Des All"),
         ("q", "quit", "Quit"),
     ]
@@ -316,6 +319,7 @@ class VMManagerTUI(App):
                 for uri in self.active_uris:
                     self.connect_libvirt(uri)
 
+        self.set_interval(300, self._log_cache_statistics)
             #if self.active_uris:
             #    self.initial_cache_loading = True
             #    self.show_quick_message("Loading VM data from remote server(s)...")
@@ -323,6 +327,14 @@ class VMManagerTUI(App):
             #        self._initial_cache_worker, 
             #        name="initial_cache_load"
             #    )
+
+    def _log_cache_statistics(self) -> None:
+        """Log cache statistics periodically."""
+        cache_monitor.log_stats()
+
+    def action_show_cache_stats(self) -> None:
+        """Show cache statistics in a modal."""
+        self.app.push_screen(CacheStatsModal(cache_monitor))
 
     def _initial_cache_worker(self):
         """Pre-loads VM cache before displaying the UI."""
@@ -436,6 +448,7 @@ class VMManagerTUI(App):
         """Called when the app is about to be unloaded."""
         # TOFIX
         #self.webconsole_manager.terminate_all()
+        cache_monitor.log_stats()
         self.worker_manager.cancel_all()
         self.vm_service.disconnect_all()
 

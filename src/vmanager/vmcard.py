@@ -45,44 +45,15 @@ from vmcard_dialog import (
         DeleteVMConfirmationDialog, WebConsoleConfigDialog,
         AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
         )
-from utils import extract_server_name_from_uri
+from utils import (
+        extract_server_name_from_uri,
+        generate_tooltip_markdown,
+        format_memory_display
+)
 from constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction
 )
-
-@lru_cache(maxsize=256)
-def format_memory_display(memory_mib: int) -> str:
-    """Format memory with MiB/GiB conversion."""
-    mem_str = f"{memory_mib} MiB"
-    if memory_mib >= 1024:
-        mem_str += f" ({memory_mib / 1024:.2f} GiB)"
-    return mem_str
-
-@lru_cache(maxsize=512)
-def generate_tooltip_markdown(
-    uuid: str,
-    hypervisor: str,
-    status: str,
-    ip: str,
-    boot: str,
-    cpu: int,
-    cpu_model: str,
-    memory: int
-) -> str:
-    """Generate tooltip markdown (pure function, cacheable)."""
-    mem_display = format_memory_display(memory)
-    cpu_display = f"{cpu} ({cpu_model})" if cpu_model else str(cpu)
-
-    return (
-        f"`{uuid}`  \n"
-        f"**Hypervisor:** {hypervisor}  \n"
-        f"**Status:** {status}  \n"
-        f"**IP:** {ip}  \n"
-        f"**Boot:** {boot}  \n"
-        f"**VCPUs:** {cpu_display}  \n"
-        f"**Memory:** {mem_display}"
-    )
 
 class VMCardActions(Static):
     def __init__(self, card) -> None:
