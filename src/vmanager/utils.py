@@ -261,7 +261,7 @@ def check_is_firewalld_running() -> Union[str, bool]:
         logging.error(f"Error checking firewalld status: {e}")
         return False
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=16)
 def extract_server_name_from_uri(server_name: str) -> str:
     """
     Extract server name from URI for display.
@@ -344,7 +344,7 @@ def format_server_names(server_uris: tuple[str]) -> str:
 _server_color_cache = {}
 _color_index = 0
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=16)
 def get_server_color_cached(uri: str, palette: tuple) -> str:
     """
     Get consistent color for a server URI.
