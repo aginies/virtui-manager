@@ -167,10 +167,9 @@ class VMCard(Static):
 
     def _get_snapshot_tab_title(self, num_snapshots: int = -1) -> str:
         if num_snapshots == -1:
-             # If no count provided, don't fetch it here to avoid blocking. 
-             # Return generic title or handle in worker.
+             # If no count provided, don't fetch it here to avoid blocking.
              # For now, return default if we can't get it cheaply.
-             return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+             return TabTitles.SNAP_OVER_UPDATE # TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
 
         if self.vm:
             try:

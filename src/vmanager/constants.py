@@ -124,6 +124,7 @@ class TabTitles:
     SNAPSHOT = "Snapshot"
     SNAPSHOTS = "Snapshots"
     OVERLAY = "Overlay"
+    SNAP_OVER_UPDATE = "Updating Data..."
 
 class StatusText:
     """Constants for status text"""
