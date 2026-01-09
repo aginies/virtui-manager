@@ -30,6 +30,7 @@ class BulkActionModal(BaseModal[None]):
                 yield RadioButton("Force Off VMs", id="action_force_off")
                 yield RadioButton("Pause VMs", id="action_pause")
                 yield RadioButton("Delete VMs", id="action_delete")
+                yield RadioButton("Edit Configuration", id="action_edit_config")
 
             yield Checkbox("Delete associated storage", id="delete-storage-checkbox")
 
