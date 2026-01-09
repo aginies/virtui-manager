@@ -325,7 +325,7 @@ class VMCard(Static):
         cpu_model_display = f" ({self.cpu_model})" if self.cpu_model else ""
 
         tooltip_md = generate_tooltip_markdown(
-            uuid=uuid,
+            uuid=uuid_display,
             hypervisor=hypervisor,
             status=self.status,
             ip=ip_display,

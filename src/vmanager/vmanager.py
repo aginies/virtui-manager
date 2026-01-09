@@ -320,13 +320,6 @@ class VMManagerTUI(App):
                     self.connect_libvirt(uri)
 
         self.set_interval(300, self._log_cache_statistics)
-            #if self.active_uris:
-            #    self.initial_cache_loading = True
-            #    self.show_quick_message("Loading VM data from remote server(s)...")
-            #    self.worker_manager.run(
-            #        self._initial_cache_worker, 
-            #        name="initial_cache_load"
-            #    )
 
     def _log_cache_statistics(self) -> None:
         """Log cache statistics periodically."""
@@ -349,30 +342,13 @@ class VMManagerTUI(App):
                 force=True
             )
 
-            # Pre-cache info and XML for all VMs
-            for domain, conn in domains_to_display:
+            # Pre-cache info and XML only for the first page of VMs
+            vms_per_page = self.VMS_PER_PAGE
+            for domain, conn in domains_to_display[:vms_per_page]:
                 try:
                     self.vm_service._get_domain_info(domain)
                 except libvirt.libvirtError:
                     pass
-
-#            batch_size = 5
-#            for i in range(0, len(domains_to_display), batch_size):
-#                batch = domains_to_display[i:i+batch_size]
-#                for domain, _ in batch:
-#                    try:
-#                        self.vm_service._get_domain_info_and_xml(domain)
-#                        #self.vm_service._get_domain_info(domain)
-#                    except libvirt.libvirtError:
-#                        pass
-
-                # Progressive update
-#                progress = min(100, int((i + batch_size) / len(domains_to_display) * 100))
-#                if progress % 10 == 0:
-#                    self.call_from_thread(
-#                        self.show_quick_message,
-#                        f"Loading VM data... {progress}%"
-#                    )
 
             self.call_from_thread(self._on_initial_cache_complete)
 
@@ -941,6 +917,9 @@ class VMManagerTUI(App):
         def update_ui():
             if reset_page:
                 self.current_page = 0
+
+            # Update visible UUIDs in service
+            self.vm_service.update_visible_uuids(page_uuids)
 
             # Perform cache cleanup on main thread to be safe with widget removal
             cached_uuids = set(self.vm_cards.keys())

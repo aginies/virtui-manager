@@ -33,6 +33,7 @@ class VMService:
         self._vm_data_cache: dict[str, dict] = {}  # {uuid: {'info': (data), 'info_ts': ts, 'xml': 'data', 'xml_ts': ts}}
         self._info_cache_ttl: int = 5  # seconds
         self._xml_cache_ttl: int = 300  # 5 minutes
+        self._visible_uuids: set[str] = set()
 
         # Threading support
         self._cache_lock = threading.RLock()
@@ -47,6 +48,11 @@ class VMService:
     def set_data_update_callback(self, callback):
         """Sets a callback to be invoked when background data update finishes."""
         self._data_update_callback = callback
+
+    def update_visible_uuids(self, uuids: set[str]):
+        """Updates the set of UUIDs currently visible in the UI."""
+        with self._cache_lock:
+            self._visible_uuids = uuids
 
     def start_monitoring(self):
         """Starts the background monitoring thread."""
@@ -123,11 +129,16 @@ class VMService:
         with self._cache_lock:
             self._domain_cache = new_domain_cache
             self._uuid_to_conn_cache = new_uuid_to_conn
+            visible_uuids = self._visible_uuids.copy()
 
         # 2. Fetch info and XML for each domain
         for uuid, domain in new_domain_cache.items():
             if not self._monitoring_active: 
                 break
+
+            # ONLY update info for visible VMs in background
+            if uuid not in visible_uuids:
+                continue
 
             try:
                 # We can call domain.info() and XMLDesc() without lock
@@ -795,8 +806,8 @@ class VMService:
             page_end: int = None
             ) -> tuple:
         """Fetch, filter, and return VM data without creating UI components."""
-        should_preload = force and (page_start is None or page_end is None)
-        self._update_domain_cache(active_uris, force=force, preload=should_preload)
+        # Never preload everything
+        self._update_domain_cache(active_uris, force=force, preload=False)
 
         with self._cache_lock:
             domains_map = self._domain_cache.copy()
@@ -835,17 +846,22 @@ class VMService:
                 domains_to_display = [(d, c) for d, c in domains_to_display if d.UUIDString() in selected_vm_uuids]
             else:
                 def status_match(d):
-                    # use get_cached_vm_info or _get_domain_info (which is locked)
-                    info = self._get_domain_info(d)
-                    if not info:
-                        return False
-                    status = info[0]
+                    # Use cache if available, otherwise use domain.state() which is cheaper than domain.info()
+                    info = self.get_cached_vm_info(d)
+                    if info:
+                        state = info[0]
+                    else:
+                        try:
+                            state, _ = d.state()
+                        except libvirt.libvirtError:
+                            return False
+
                     if sort_by == VmStatus.RUNNING:
-                        return status == libvirt.VIR_DOMAIN_RUNNING
+                        return state == libvirt.VIR_DOMAIN_RUNNING
                     if sort_by == VmStatus.PAUSED:
-                        return status == libvirt.VIR_DOMAIN_PAUSED
+                        return state == libvirt.VIR_DOMAIN_PAUSED
                     if sort_by == VmStatus.STOPPED:
-                        return status not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]
+                        return state not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]
                     return True
 
                 domains_to_display = [(d, c) for d, c in domains_to_display if status_match(d)]
@@ -857,7 +873,7 @@ class VMService:
         total_filtered_vms = len(domains_to_display)
         if page_start is not None and page_end is not None and force:
             paginated_domains = domains_to_display[page_start:page_end]
-            logging.info(f"Optimized cache refresh: updating only {len(paginated_domains)} VMs (page {page_start}-{page_end})")
+            logging.info(f"Optimized cache refresh: updating only {len(paginated_domains)} VMs ({page_start}-{page_end})")
 
             for domain, _ in paginated_domains:
                 try:
