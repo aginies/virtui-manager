@@ -439,60 +439,72 @@ def generate_tooltip_markdown(
         f"**Memory:** {mem_display}"
 )
 
-cache_monitor = CacheMonitor()
-cache_monitor.track(format_server_names)
-cache_monitor.track(extract_server_name_from_uri)
-cache_monitor.track(get_server_color_cached)
-cache_monitor.track(natural_sort_key)
-cache_monitor.track(format_memory_display)
-cache_monitor.track(generate_tooltip_markdown)
 
-from libvirt_utils import (
-        get_host_pci_devices, get_host_usb_devices,
-        _get_vm_names_from_uuids, get_domain_capabilities_xml
-        )
-cache_monitor.track(_get_vm_names_from_uuids)
-cache_monitor.track(get_host_pci_devices)
-cache_monitor.track(get_host_usb_devices)
-cache_monitor.track(get_domain_capabilities_xml)
-#cache_monitor.track(
-from vm_queries import (
-    _parse_domain_xml,
-    get_vm_network_dns_gateway_info,
-    get_vm_description,
-    get_vm_disks,
-    get_vm_disks_info,
-    get_boot_info,
-    get_all_vm_disk_usage,
-    get_supported_machine_types,
-)
-cache_monitor.track(_parse_domain_xml)
-cache_monitor.track(get_vm_description)
-cache_monitor.track(get_vm_disks_info)
-cache_monitor.track(get_vm_network_dns_gateway_info)
-cache_monitor.track(get_vm_disks)
-cache_monitor.track(get_boot_info)
-cache_monitor.track(get_all_vm_disk_usage)
-cache_monitor.track(get_supported_machine_types)
+def setup_cache_monitoring(enable: bool = True):
+    """Initialize or clear the cache monitor and track relevant functions."""
+    cache_monitor = CacheMonitor()
+    cache_monitor.tracked_functions.clear()
+    if not enable:
+        logging.info("Cache monitoring disabled.")
+        return
 
-from storage_manager import (
-    list_storage_pools,
-    list_storage_volumes,
-    find_vms_using_volume,
-    get_all_storage_volumes,
-)
-cache_monitor.track(list_storage_pools)
-cache_monitor.track(list_storage_volumes)
-cache_monitor.track(find_vms_using_volume)
-cache_monitor.track(get_all_storage_volumes)
+    logging.info("Cache monitoring enabled.")
+    cache_monitor.track(format_server_names)
+    cache_monitor.track(extract_server_name_from_uri)
+    cache_monitor.track(get_server_color_cached)
+    cache_monitor.track(natural_sort_key)
+    cache_monitor.track(format_memory_display)
+    cache_monitor.track(generate_tooltip_markdown)
 
-from network_manager import (
-    list_networks,
-    get_vms_using_network,
-    get_host_network_info,
-)
-cache_monitor.track(list_networks)
-cache_monitor.track(get_vms_using_network)
-cache_monitor.track(get_host_network_info)
+    from libvirt_utils import (
+            get_host_pci_devices, get_host_usb_devices,
+            _get_vm_names_from_uuids, get_domain_capabilities_xml
+            )
+    cache_monitor.track(_get_vm_names_from_uuids)
+    cache_monitor.track(get_host_pci_devices)
+    cache_monitor.track(get_host_usb_devices)
+    cache_monitor.track(get_domain_capabilities_xml)
 
+    from vm_queries import (
+        _parse_domain_xml,
+        get_vm_network_dns_gateway_info,
+        get_vm_description,
+        get_vm_disks,
+        get_vm_disks_info,
+        get_boot_info,
+        get_all_vm_disk_usage,
+        get_supported_machine_types,
+    )
+    cache_monitor.track(_parse_domain_xml)
+    cache_monitor.track(get_vm_description)
+    cache_monitor.track(get_vm_disks_info)
+    cache_monitor.track(get_vm_network_dns_gateway_info)
+    cache_monitor.track(get_vm_disks)
+    cache_monitor.track(get_boot_info)
+    cache_monitor.track(get_all_vm_disk_usage)
+    cache_monitor.track(get_supported_machine_types)
 
+    from storage_manager import (
+        list_storage_pools,
+        list_storage_volumes,
+        find_vms_using_volume,
+        get_all_storage_volumes,
+    )
+    cache_monitor.track(list_storage_pools)
+    cache_monitor.track(list_storage_volumes)
+    cache_monitor.track(find_vms_using_volume)
+    cache_monitor.track(get_all_storage_volumes)
+
+    from network_manager import (
+        list_networks,
+        get_vms_using_network,
+        get_host_network_info,
+    )
+    cache_monitor.track(list_networks)
+    cache_monitor.track(get_vms_using_network)
+    cache_monitor.track(get_host_network_info)
+
+    return cache_monitor
+
+# Disabled by default
+#setup_cache_monitoring(enable=False)
