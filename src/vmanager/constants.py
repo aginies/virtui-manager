@@ -15,13 +15,23 @@ class ServerPallette:
         "#FF5733",  # Red-Orange
         "#33FFF3",  # Cyan
         "#A133FF",  # Purple
+        "#FF3333",  # Bright Red
+        "#33FFDA",  # Aqua
+        "#FFB833",  # Amber
+        "#8C33FF",  # Violet
+        "#33A1FF",  # Sky Blue
+        "#33FFB8",  # Spearmint
+        "#FFD133",  # Golden Yellow
+        "#33FFA5",  # Light Green
+        "#C70039",  # Deep Red
+        "#00B8FF",  # Electric Blue
     ]
 
 class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "Virtui Manager"
-    version = "0.6.0"
+    version = "0.7.0"
 
 class VmAction:
     """Defines constants for VM action types."""
