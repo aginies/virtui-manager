@@ -32,7 +32,6 @@ from vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
         get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
-        log_cache_statistics
         )
 from modals.xml_modals import XMLDisplayModal
 from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
@@ -602,7 +601,6 @@ class VMCard(Static):
                 if not getattr(self, "_boot_device_checked", False):
                     if xml_content:
                         root = _parse_domain_xml(xml_content)
-                        log_cache_statistics()
                         if root is not None:
                             # Always update from cache if available
                             boot_info = get_boot_info(self.conn, root)
@@ -630,7 +628,6 @@ class VMCard(Static):
                                 self._boot_device_checked = True
                         except Exception:
                             pass
-                        #log_cache_statistics()
 
                 if not stats:
                     if current_status != StatusText.STOPPED:
