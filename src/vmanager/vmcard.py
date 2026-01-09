@@ -165,10 +165,15 @@ class VMCard(Static):
             return f"{self.name} ({server_display})"
         return self.name
 
-    def _get_snapshot_tab_title(self) -> str:
+    def _get_snapshot_tab_title(self, num_snapshots: int = -1) -> str:
+        if num_snapshots == -1:
+             # If no count provided, don't fetch it here to avoid blocking. 
+             # Return generic title or handle in worker.
+             # For now, return default if we can't get it cheaply.
+             return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+
         if self.vm:
             try:
-                num_snapshots = len(self.vm.listAllSnapshots(0))
                 if num_snapshots == 0:
                     return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
                 elif num_snapshots > 0 and num_snapshots < 2:
@@ -177,8 +182,9 @@ class VMCard(Static):
                     return TabTitles.SNAPSHOTS + "(" + str(num_snapshots) + ")" "/" + TabTitles.OVERLAY
             except libvirt.libvirtError:
                 pass # Domain might be transient or invalid
+        return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
 
-    def update_snapshot_tab_title(self) -> None:
+    def update_snapshot_tab_title(self, num_snapshots: int = -1) -> None:
         """Updates the snapshot tab title."""
         try:
             if not self.ui:
@@ -186,7 +192,7 @@ class VMCard(Static):
 
             tabbed_content = self.ui.get("tabbed_content")
             if tabbed_content:
-                tabbed_content.get_tab("snapshot-tab").update(self._get_snapshot_tab_title())
+                tabbed_content.get_tab("snapshot-tab").update(self._get_snapshot_tab_title(num_snapshots))
         except NoMatches:
             logging.warning("Could not find snapshot tab to update title.")
 
@@ -263,7 +269,6 @@ class VMCard(Static):
             actions_view = VMCardActions(self)
             await self.ui["collapsible"].mount(actions_view)
             self.update_button_layout()
-            self.update_snapshot_tab_title()
 
     @on(Collapsible.Collapsed, "#actions-collapsible")
     async def on_collapsible_collapsed(self, event: Collapsible.Collapsed) -> None:
@@ -711,23 +716,24 @@ class VMCard(Static):
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
+        self._update_fast_buttons()
+
+        # Trigger background fetch for heavy data (snapshots, overlays)
+        if self.ui.get(ButtonIds.RENAME_BUTTON):
+            self.app.worker_manager.run(
+                self._fetch_actions_state_worker,
+                name=f"actions_state_{self.internal_id}"
+            )
+
+    def _update_fast_buttons(self):
+        """Updates buttons that rely on cached/fast state."""
         is_loading = self.status == StatusText.LOADING
         is_stopped = self.status == StatusText.STOPPED
         is_running = self.status == StatusText.RUNNING
         is_paused = self.status == StatusText.PAUSED
 
-        rename_button = self.ui.get(ButtonIds.RENAME_BUTTON)
-        if not rename_button: return # Assume if one is missing, others might be too or we are not cached yet.
-
-        has_snapshots = False
-        try:
-            if self.vm and not is_loading:
-                has_snapshots = len(self.vm.listAllSnapshots(0)) > 0
-        except libvirt.libvirtError as e:
-            if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                self.app.refresh_vm_list()
-                return
-            logging.warning(f"Could not get snapshot count for {self.name}: {e}")
+        if not self.ui.get(ButtonIds.RENAME_BUTTON):
+            return
 
         self.ui[ButtonIds.START].display = is_stopped
         self.ui[ButtonIds.SHUTDOWN].display = is_running
@@ -739,37 +745,70 @@ class VMCard(Static):
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
         self.ui[ButtonIds.CONNECT].display = (is_running or is_paused) and self.app.virt_viewer_available
-        #logging.info(f"graphics_type: {self.graphics_type}")
-        # TOFIX
-        #self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused) and self.graphics_type == "vnc" and self.app.websockify_available and self.app.novnc_available
-        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)# and self.app.websockify_available and self.app.novnc_available
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
-        self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
-
-        has_overlay_disk = False
-        try:
-            if self.vm and not is_loading:
-                uuid = self.internal_id
-                vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
-                if vm_cache.get('xml'):
-                    has_overlay_disk = has_overlays(self.vm)
-        except:
-            pass
-
-        self.ui[ButtonIds.COMMIT_DISK].display = is_running and has_overlay_disk
-        self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay_disk
-        self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay_disk
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
         self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading
 
         xml_button = self.ui[ButtonIds.XML]
         if is_stopped:
             xml_button.label = "Edit XML"
-            self.stats_view_mode = "resources" # Reset to default when stopped
+            self.stats_view_mode = "resources"
         else:
             xml_button.label = "View XML"
         xml_button.display = not is_loading
+
+    def _fetch_actions_state_worker(self):
+        """Worker to fetch heavy state for actions."""
+        try:
+            snapshot_count = 0
+            domain_missing = False
+            try:
+                if self.vm:
+                    snapshot_count = self.vm.snapshotNum(0)
+            except libvirt.libvirtError as e:
+                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                    domain_missing = True
+                else:
+                    logging.warning(f"Could not get snapshot count for {self.name}: {e}")
+
+            has_overlay = False
+            try:
+                if self.vm and not domain_missing:
+                    has_overlay = has_overlays(self.vm)
+            except Exception:
+                pass
+
+            if domain_missing:
+                self.app.call_from_thread(self.app.refresh_vm_list)
+                return
+
+            def update_ui():
+                self._update_slow_buttons(snapshot_count, has_overlay)
+
+            self.app.call_from_thread(update_ui)
+
+        except Exception as e:
+            logging.error(f"Error in actions state worker for {self.name}: {e}")
+
+    def _update_slow_buttons(self, snapshot_count: int, has_overlay: bool):
+        """Updates buttons that rely on heavy state."""
+        if not self.ui.get(ButtonIds.RENAME_BUTTON):
+            return
+
+        is_running = self.status == StatusText.RUNNING
+        is_stopped = self.status == StatusText.STOPPED
+
+        has_snapshots = snapshot_count > 0
+
+        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
+        self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+
+        self.ui[ButtonIds.COMMIT_DISK].display = is_running and has_overlay
+        self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay
+        self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay
+
+        self.update_snapshot_tab_title(snapshot_count)
 
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
