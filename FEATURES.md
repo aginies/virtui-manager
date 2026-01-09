@@ -31,7 +31,9 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
   - When `REMOTE_WEBCONSOLE` is enabled, `websockify` and `novnc` assets must be installed on the remote server at the paths specified in `config.yaml` (default: `/usr/bin/websockify` and `/usr/share/novnc/`).
   - For secure (HTTPS) remote web console access, `cert.pem` and `key.pem` files must also be present on the remote server in `~/.config/virtui-manager/`.
 - Bulk actions on selected VMs (start, stop, force off, pause, delete)
-- VM Migration (Live and Offline)
+- Edit Configuration Bulk action available
+- VM Migration (Live and Offline) with pre checking server and VM configuration
+- Custom migration can migrate offline VMs with their volumesn, snapshots and overlay, allowing users to select where to place volumes on the destination server pool
 
 ### Disk Overlay Management (External Snapshots)
 - **Create Overlay**: Create a new QCOW2 overlay on top of the current disk (freezes base image).
@@ -42,6 +44,7 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 
 ### Advanced Features
 - Filter VMs by status (All, Running, Paused, Stopped) and search by name
+- Filter VMs to show only VMs from a specific hypervisor
 - Server preferences configuration
 - Virsh shell access
 - Detailed VM information view
@@ -49,6 +52,8 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 - Configuration file management for server lists
 - Create new VMs (with single server connection)
 - Bulk operations on multiple VMs
+- VMs sorted in human-readable order
+- Select which server to autoconnect at startup
 
 ## Configure VM Features
 
@@ -215,12 +220,12 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 ## Technical Capabilities
 
 ### Connection Management
-- Support for multiple libvirt connection types (local, SSH, etc.)
+- Support for multiple libvirt connection types (local, SSH)
 - Automatic detection of virt-viewer, websockify, and novnc availability
 - Error handling and logging
 - Responsive UI that adapts to terminal size
 - Command-line mode support (--cmd flag)
-- Configurable caching for VM metadata with a time-to-live (TTL) to reduce `libvirt` calls and improve performance.
+- Improved cache invalidation mechanism using UUID@URI for better accuracy
 
 ## User Experience
 - Visual feedback through notifications
