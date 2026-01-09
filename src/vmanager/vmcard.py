@@ -218,14 +218,32 @@ class VMCard(Static):
         self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected)
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=self.status.lower())
-        
-        self.ui["top_label"] = Static("", id="top-sparkline-label", classes="sparkline-label")
-        self.ui["top_sparkline"] = Sparkline([], id="top-sparkline")
-        self.ui["bottom_label"] = Static("", id="bottom-sparkline-label", classes="sparkline-label")
-        self.ui["bottom_sparkline"] = Sparkline([], id="bottom-sparkline")
 
-        self.ui["cpu_container"] = Horizontal(self.ui["top_label"], self.ui["top_sparkline"], id="cpu-sparkline-container", classes="sparkline-container")
-        self.ui["mem_container"] = Horizontal(self.ui["bottom_label"], self.ui["bottom_sparkline"], id="mem-sparkline-container", classes="sparkline-container")
+        # Create all sparkline components
+        self.ui["cpu_label"] = Static("", classes="sparkline-label")
+        self.ui["cpu_sparkline"] = Sparkline([], id="cpu-sparkline")
+        self.ui["cpu_sparkline_container"] = Horizontal(self.ui["cpu_label"], self.ui["cpu_sparkline"], id="cpu_sparkline_container", classes="sparkline-container resources-sparkline")
+
+        self.ui["mem_label"] = Static("", classes="sparkline-label")
+        self.ui["mem_sparkline"] = Sparkline([], id="mem-sparkline")
+        self.ui["mem_sparkline_container"] = Horizontal(self.ui["mem_label"], self.ui["mem_sparkline"], id="mem_sparkline_container", classes="sparkline-container resources-sparkline")
+
+        self.ui["disk_label"] = Static("", classes="sparkline-label")
+        self.ui["disk_sparkline"] = Sparkline([], id="disk-sparkline")
+        self.ui["disk_sparkline_container"] = Horizontal(self.ui["disk_label"], self.ui["disk_sparkline"], id="disk_sparkline_container", classes="sparkline-container io-sparkline")
+
+        self.ui["net_label"] = Static("", classes="sparkline-label")
+        self.ui["net_sparkline"] = Sparkline([], id="net-sparkline")
+        self.ui["net_sparkline_container"] = Horizontal(self.ui["net_label"], self.ui["net_sparkline"], id="net_sparkline_container", classes="sparkline-container io-sparkline")
+
+        # A single container for all sparklines that will handle clicks
+        self.ui["sparklines_container"] = Vertical(
+            self.ui["cpu_sparkline_container"],
+            self.ui["mem_sparkline_container"],
+            self.ui["disk_sparkline_container"],
+            self.ui["net_sparkline_container"],
+            id="sparklines-container-group"
+        )
 
         self.ui["collapsible"] = Collapsible(title="Actions", id="actions-collapsible")
 
@@ -236,9 +254,7 @@ class VMCard(Static):
                     yield self.ui["vmname"]
                     yield self.ui["status"]
 
-            yield self.ui["cpu_container"]
-            yield self.ui["mem_container"]
-
+            yield self.ui["sparklines_container"]
             yield self.ui["collapsible"]
 
     @on(Collapsible.Expanded, "#actions-collapsible")
@@ -262,9 +278,14 @@ class VMCard(Static):
 
         # Clean up dynamic UI references to avoid memory leaks and stale state
         keys_to_keep = {
-            "checkbox", "vmname", "status", "top_label", "top_sparkline",
-            "bottom_label", "bottom_sparkline", "cpu_container",
-            "mem_container", "collapsible"
+            "checkbox", "vmname", "status", "collapsible",
+            "sparklines_container",
+            # Resource Sparklines
+            "cpu_label", "cpu_sparkline", "cpu_sparkline_container",
+            "mem_label", "mem_sparkline", "mem_sparkline_container",
+            # IO Sparklines
+            "disk_label", "disk_sparkline", "disk_sparkline_container",
+            "net_label", "net_sparkline", "net_sparkline_container",
         }
         for key in list(self.ui.keys()):
             if key not in keys_to_keep:
@@ -347,69 +368,90 @@ class VMCard(Static):
         self.update_button_layout()
         self._update_status_styling()
         self._update_webc_status()
-        self.update_sparkline_display()
+        self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode) # Initial setup
         self._perform_tooltip_update()
 
         uuid = self.internal_id
         if uuid and uuid in self.app.sparkline_data:
-            self.update_sparkline_display()
+            self.update_sparkline_data()
 
         self.update_stats()
-        # Timer is now managed within update_stats for dynamic intervals
-        # self.timer = self.set_interval(stats_interval, self.update_stats)
 
     def watch_stats_view_mode(self, old_mode: str, new_mode: str) -> None:
         """Update sparklines when view mode changes."""
-        if not self.display:
+        if not self.display or not self.ui:
             return
-        if not self.ui:
-            return
-        self.update_sparkline_display()
 
-    def update_sparkline_display(self) -> None:
+        is_active = self.status in (StatusText.RUNNING, StatusText.PAUSED)
+        is_resources_mode = new_mode == "resources"
+
+        sparklines_container = self.ui.get("sparklines_container")
+        if sparklines_container:
+            sparklines_container.display = is_active
+
+        # Toggle individual rows
+        for widget in self.query(".resources-sparkline"):
+            widget.display = is_resources_mode
+        for widget in self.query(".io-sparkline"):
+            widget.display = not is_resources_mode
+
+        # If the VM is active, update the data for the newly visible sparklines
+        if is_active:
+            self.update_sparkline_data()
+
+    def update_sparkline_data(self) -> None:
         """Updates the labels and data of the sparklines based on the current view mode."""
         if not self.is_mounted or not self.display:
             return
-        top_label = self.ui.get("top_label")
-        bottom_label = self.ui.get("bottom_label")
-        top_sparkline = self.ui.get("top_sparkline")
-        bottom_sparkline = self.ui.get("bottom_sparkline")
-
-        if not all([top_label, bottom_label, top_sparkline, bottom_sparkline]):
-            return
 
         uuid = self.internal_id
-
-        # Determine data source
         storage = {}
         if uuid and hasattr(self.app, 'sparkline_data') and uuid in self.app.sparkline_data:
             storage = self.app.sparkline_data[uuid]
 
         if self.stats_view_mode == "resources":
-            mem_gb = round(self.memory / 1024, 1)
-            top_text = SparklineLabels.VCPU.format(cpu=self.cpu)
-            bottom_text = SparklineLabels.MEMORY_GB.format(mem=mem_gb)
-            top_data = list(storage.get("cpu", []))
-            bottom_data = list(storage.get("mem", []))
-        else: # io mode
-            disk_read_mb = self.latest_disk_read / 1024
-            disk_write_mb = self.latest_disk_write / 1024
-            net_rx_mb = self.latest_net_rx / 1024
-            net_tx_mb = self.latest_net_tx / 1024
+            cpu_label = self.ui.get("cpu_label")
+            mem_label = self.ui.get("mem_label")
+            cpu_sparkline = self.ui.get("cpu_sparkline")
+            mem_sparkline = self.ui.get("mem_sparkline")
 
-            top_text = SparklineLabels.DISK_RW.format(read=disk_read_mb, write=disk_write_mb)
-            bottom_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
-            top_data = list(storage.get("disk", []))
-            bottom_data = list(storage.get("net", []))
+            if all([cpu_label, mem_label, cpu_sparkline, mem_sparkline]):
+                if self.cpu > 0:
+                    cpu_text = SparklineLabels.VCPU.format(cpu=self.cpu)
+                else:
+                    cpu_text = SparklineLabels.VCPU.split("}", 1)[1].strip()
 
-        # Update UI
-        top_label.update(top_text)
-        bottom_label.update(bottom_text)
+                if self.memory > 0:
+                    mem_gb = round(self.memory / 1024, 1)
+                    mem_text = SparklineLabels.MEMORY_GB.format(mem=mem_gb)
+                else:
+                    mem_text = SparklineLabels.MEMORY_GB.split("}", 1)[1].strip()
 
-        # Only update data if we have storage (avoids clearing if not needed, though empty list is fine)
-        # Actually existing logic updated data even if empty, which clears the sparkline.
-        top_sparkline.data = top_data
-        bottom_sparkline.data = bottom_data
+                cpu_label.update(cpu_text)
+                mem_label.update(mem_text)
+
+                cpu_sparkline.data = list(storage.get("cpu", []))
+                mem_sparkline.data = list(storage.get("mem", []))
+        else:  # io mode
+            disk_label = self.ui.get("disk_label")
+            net_label = self.ui.get("net_label")
+            disk_sparkline = self.ui.get("disk_sparkline")
+            net_sparkline = self.ui.get("net_sparkline")
+
+            if all([disk_label, net_label, disk_sparkline, net_sparkline]):
+                disk_read_mb = self.latest_disk_read / 1024
+                disk_write_mb = self.latest_disk_write / 1024
+                net_rx_mb = self.latest_net_rx / 1024
+                net_tx_mb = self.latest_net_tx / 1024
+
+                disk_text = SparklineLabels.DISK_RW.format(read=disk_read_mb, write=disk_write_mb)
+                net_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
+
+                disk_label.update(disk_text)
+                net_label.update(net_text)
+
+                disk_sparkline.data = list(storage.get("disk", []))
+                net_sparkline.data = list(storage.get("net", []))
 
     def watch_name(self, value: str) -> None:
         """Called when name changes."""
@@ -447,6 +489,7 @@ class VMCard(Static):
         if not self.ui:
             return
         self._update_status_styling()
+        self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode) # Re-evaluate sparkline visibility
         self.update_button_layout()
         self._perform_tooltip_update()
 
@@ -629,12 +672,14 @@ class VMCard(Static):
                                     history.pop(0)
                                 storage[key] = history
 
-                            update_history("cpu", stats["cpu_percent"])
-                            update_history("mem", stats["mem_percent"])
-                            update_history("disk", self.latest_disk_read + self.latest_disk_write)
-                            update_history("net", self.latest_net_rx + self.latest_net_tx)
+                            if self.stats_view_mode == "resources":
+                                update_history("cpu", stats["cpu_percent"])
+                                update_history("mem", stats["mem_percent"])
+                            else: # io
+                                update_history("disk", self.latest_disk_read + self.latest_disk_write)
+                                update_history("net", self.latest_net_rx + self.latest_net_tx)
 
-                            self.update_sparkline_display()
+                            self.update_sparkline_data()
                         else:
                             logging.warning(f"UUID {uuid} not found in sparkline_data")
                     else:
@@ -658,12 +703,11 @@ class VMCard(Static):
 
         self.app.worker_manager.run(update_worker, name=f"update_stats_{uuid}")
 
-    @on(Click, "#top-sparkline, #bottom-sparkline")
+    @on(Click, ".sparkline-container, #cpu-sparkline, #mem-sparkline, #disk-sparkline, #net-sparkline")
     def toggle_stats_view(self) -> None:
         """Toggle between resource and I/O stat views."""
-        if self.status == StatusText.RUNNING:
+        if self.status in (StatusText.RUNNING, StatusText.PAUSED):
              self.stats_view_mode = "io" if self.stats_view_mode == "resources" else "resources"
-
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
@@ -671,11 +715,6 @@ class VMCard(Static):
         is_stopped = self.status == StatusText.STOPPED
         is_running = self.status == StatusText.RUNNING
         is_paused = self.status == StatusText.PAUSED
-
-        if "cpu_container" in self.ui:
-            self.ui["cpu_container"].display = is_running
-        if "mem_container" in self.ui:
-            self.ui["mem_container"].display = is_running
 
         rename_button = self.ui.get(ButtonIds.RENAME_BUTTON)
         if not rename_button: return # Assume if one is missing, others might be too or we are not cached yet.
@@ -1410,9 +1449,4 @@ class VMCard(Static):
     @on(Click, "#vmname")
     def on_click_vmname(self) -> None:
         """Handle clicks on the VM name part of the VM card."""
-        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.internal_id))
-
-    @on(Click, "#cpu-mem-info")
-    def on_click_cpu_mem_info(self) -> None:
-        """Handle clicks on the CPU/Memory info part of the VM card."""
         self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.internal_id))

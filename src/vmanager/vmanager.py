@@ -942,8 +942,8 @@ class VMManagerTUI(App):
                 uuid = self.vm_service._get_internal_id(domain, conn)
                 page_uuids.add(uuid)
 
-                # Try to get info from cache to avoid blocking if possible
-                info = self.vm_service.get_cached_vm_info(domain)
+                # Get info from cache or fetch if not present. This is safe as we are in a worker.
+                info = self.vm_service._get_domain_info(domain)
                 cached_details = self.vm_service.get_cached_vm_details(uuid)
 
                 if info:

@@ -769,7 +769,7 @@ class VMService:
                 'description': get_vm_description(domain),
                 'cpu': info[3],
                 'cpu_model': get_vm_cpu_model(root),
-                'memory': info[2] // 1024,
+                'memory': info[1] // 1024,
                 'machine_type': get_vm_machine_info(root),
                 'firmware': get_vm_firmware_info(root),
                 'shared_memory': get_vm_shared_memory_info(root),

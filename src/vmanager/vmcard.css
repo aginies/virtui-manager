@@ -35,9 +35,11 @@ VMCard {
   width: 50%;
 }
 
-.sparkline-container {
+#io-sparkline,
+#resources-sparkline,
+#sparklines-container-group, {
   align-horizontal: left;
-  height: 1;
+  height: 2;
   margin: 0 1;
 }
 
