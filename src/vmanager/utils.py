@@ -457,7 +457,7 @@ cache_monitor.track(get_host_usb_devices)
 cache_monitor.track(get_domain_capabilities_xml)
 #cache_monitor.track(
 from vm_queries import (
-    _parse_domain_xml_by_hash,
+    _parse_domain_xml,
     get_vm_network_dns_gateway_info,
     get_vm_description,
     get_vm_disks,
@@ -466,7 +466,7 @@ from vm_queries import (
     get_all_vm_disk_usage,
     get_supported_machine_types,
 )
-cache_monitor.track(_parse_domain_xml_by_hash)
+cache_monitor.track(_parse_domain_xml)
 cache_monitor.track(get_vm_description)
 cache_monitor.track(get_vm_disks_info)
 cache_monitor.track(get_vm_network_dns_gateway_info)

@@ -16,7 +16,6 @@ from libvirt_utils import (
 from vm_cache import get_from_cache, set_in_cache
 #from utils import log_function_call
 
-@lru_cache(maxsize=256)
 def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | None:
     """
     Cache XML parsing results by hash for better hit rate.
@@ -28,6 +27,7 @@ def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | N
     except ET.ParseError:
         return None
 
+@lru_cache(maxsize=256)
 def _parse_domain_xml(xml_content: str) -> ET.Element | None:
     """Cache XML parsing results."""
     if not xml_content:
