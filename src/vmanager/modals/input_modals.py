@@ -9,15 +9,16 @@ from modals.base_modals import BaseModal
 
 class InputModal(BaseModal[str | None]):
     """A generic modal for getting text input from the user."""
-    def __init__(self, prompt: str, initial_value: str = ""):
+    def __init__(self, prompt: str, initial_value: str = "", restrict: str | None = None):
         super().__init__()
         self.prompt = prompt
         self.initial_value = initial_value
+        self.restrict = restrict
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-input-container"):
             yield Label(self.prompt)
-            yield Input(value=self.initial_value, id="text-input")
+            yield Input(value=self.initial_value, id="text-input", restrict=self.restrict)
             with Horizontal():
                 yield Button("OK", variant="primary", id="ok-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
