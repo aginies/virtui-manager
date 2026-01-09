@@ -36,6 +36,7 @@ from modals.utils_modals import (
     show_warning_message,
     show_quick_message,
     LoadingModal,
+    ConfirmationDialog,
 )
 from modals.vmanager_modals import (
     FilterModal,
@@ -738,7 +739,7 @@ class VMManagerTUI(App):
 
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""
-        if result is None:  # User cancelled or no action selected
+        if result is None:
             return
 
         action_type = result.get('action')
@@ -750,11 +751,71 @@ class VMManagerTUI(App):
 
         selected_uuids_copy = list(self.selected_vm_uuids)  # Take a copy for the worker
 
-        # Clear selection immediately and set bulk operation flag
+        # Handle 'Edit Configuration' separately as it's a UI interaction
+        if action_type == 'edit_config':
+            # Find domains for the selected UUIDs
+            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, selected_uuids_copy)
+            selected_domains = list(found_domains_map.values())
+
+            if not selected_domains:
+                self.show_error_message("Could not find any of the selected VMs for editing.")
+                return
+
+            # Check if all selected VMs are stopped
+            active_vms = []
+            for domain in selected_domains:
+                if domain.isActive():
+                    active_vms.append(domain.name())
+
+            if active_vms:
+                self.show_error_message(f"All VMs must be stopped for bulk editing. Running VMs: {', '.join(active_vms)}")
+                # Restore selection since we are aborting
+                self.selected_vm_uuids = set(selected_uuids_copy)
+                return
+
+            def on_confirm(confirmed: bool) -> None:
+                if not confirmed:
+                    self.selected_vm_uuids = set(selected_uuids_copy) # Restore selection
+                    return
+
+                # Use the first VM as a reference for the UI (e.g. current settings)
+                reference_domain = selected_domains[0]
+                try:
+                    reference_uuid = self.vm_service._get_internal_id(reference_domain)
+                    result = self.vm_service.get_vm_details(
+                        self.active_uris,
+                        reference_uuid,
+                        domain=reference_domain
+                    )
+
+                    if result:
+                        vm_info, domain, conn = result
+                        from modals.vmdetails_modals import VMDetailModal # Import here to avoid circular dep if any
+
+                        self.push_screen(
+                            VMDetailModal(
+                                vm_name=vm_info['name'],
+                                vm_info=vm_info,
+                                domain=domain,
+                                conn=conn,
+                                invalidate_cache_callback=self.vm_service.invalidate_vm_cache,
+                                selected_domains=selected_domains
+                            )
+                        )
+                        # Clear selection after launching modal
+                        self.selected_vm_uuids.clear()
+                    else:
+                        self.show_error_message("Could not load details for reference VM.")
+                except Exception as e:
+                    self.app.show_error_message(f"Error preparing bulk edit: {e}")
+
+            warning_message = "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
+            self.app.push_screen(ConfirmationDialog(warning_message), on_confirm)
+            return
+
         self.selected_vm_uuids.clear()
         self.bulk_operation_in_progress = True
 
-        # Perform the action in a worker to avoid blocking the UI
         self.worker_manager.run(
             lambda: self._perform_bulk_action_worker(
                 action_type, selected_uuids_copy, delete_storage_flag
