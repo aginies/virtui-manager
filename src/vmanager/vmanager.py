@@ -50,7 +50,7 @@ from utils import (
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
     format_server_names,
-    cache_monitor,
+    setup_cache_monitoring,
 )
 from vm_queries import (
     get_status,
@@ -150,6 +150,7 @@ class VMManagerTUI(App):
         ("ctrl+a", "toggle_select_all", "Sel/Des All"),
         ("ctrl+u", "unselect_all", "Unselect All"),
         ("ctrl+v", "virsh_shell", "Virsh"),
+        ("ctrl+l", "toggle_stats_logging", "Log Stats"),
         ("q", "quit", "Quit"),
     ]
 
@@ -208,6 +209,10 @@ class VMManagerTUI(App):
         self.vm_cards: dict[str, VMCard] = {}
         self._resize_timer = None
         self.filtered_server_uris = None
+        self.last_total_calls = {}
+        self.last_method_calls = {}
+        self._stats_logging_active = False
+        self._stats_interval_timer = None
 
 
     def on_vm_data_update(self):
@@ -322,19 +327,72 @@ class VMManagerTUI(App):
             if self.active_uris:
                 for uri in self.active_uris:
                     self.connect_libvirt(uri)
-                
+
                 self.initial_cache_loading = True
                 self.worker_manager.run(self._initial_cache_worker, name="initial_cache")
 
-        self.set_interval(600, self._log_cache_statistics)
-
     def _log_cache_statistics(self) -> None:
-        """Log cache statistics periodically."""
+        """Log cache and libvirt call statistics periodically."""
+        cache_monitor = setup_cache_monitoring()
         cache_monitor.log_stats()
+
+        # Log libvirt call statistics
+        call_stats = self.vm_service.connection_manager.get_stats()
+        if call_stats:
+            logging.info("=== Libvirt Call Statistics ===")
+            for uri, methods in sorted(call_stats.items()):
+                server_name = uri
+                for s in self.servers:
+                    if s['uri'] == uri:
+                        server_name = s['name']
+                        break
+
+                total_calls = sum(methods.values())
+
+                # Calculate % increase
+                previous_total = self.last_total_calls.get(uri, 0)
+                increase_pct = 0.0
+                if previous_total > 0:
+                    increase_pct = ((total_calls - previous_total) / previous_total) * 100
+
+                self.last_total_calls[uri] = total_calls
+
+                logging.info(f"{server_name} ({uri}): Total {total_calls} calls (+{increase_pct:.1f}%)")
+
+                # Initialize previous method calls dict for this URI if needed
+                if uri not in self.last_method_calls:
+                    self.last_method_calls[uri] = {}
+
+                # Sort methods by frequency
+                sorted_methods = sorted(methods.items(), key=lambda x: x[1], reverse=True)
+                for method, count in sorted_methods:
+                    prev_method_count = self.last_method_calls[uri].get(method, 0)
+                    method_increase_pct = 0.0
+                    if prev_method_count > 0:
+                        method_increase_pct = ((count - prev_method_count) / prev_method_count) * 100
+
+                    self.last_method_calls[uri][method] = count
+                    logging.info(f"  - {method}: {count} (+{method_increase_pct:.1f}%)")
 
     def action_show_cache_stats(self) -> None:
         """Show cache statistics in a modal."""
-        self.app.push_screen(CacheStatsModal(cache_monitor))
+        self.app.push_screen(CacheStatsModal(setup_cache_monitoring()))
+
+    def action_toggle_stats_logging(self) -> None:
+        """Toggle periodic statistics logging."""
+        if self._stats_logging_active:
+            if self._stats_interval_timer:
+                self._stats_interval_timer.stop()
+                self._stats_interval_timer = None
+            self._stats_logging_active = False
+            setup_cache_monitoring(enable=False)
+            self.show_success_message("Statistics logging and monitoring disabled.")
+        else:
+            setup_cache_monitoring(enable=True)
+            self._log_cache_statistics()
+            self._stats_interval_timer = self.set_interval(10, self._log_cache_statistics)
+            self._stats_logging_active = True
+            self.show_success_message("Statistics logging and monitoring enabled (every 10s).")
 
     def _initial_cache_worker(self):
         """Pre-loads VM cache before displaying the UI."""
@@ -442,7 +500,8 @@ class VMManagerTUI(App):
         """Called when the app is about to be unloaded."""
         # TOFIX
         #self.webconsole_manager.terminate_all()
-        cache_monitor.log_stats()
+        #if self._stats_logging_active:
+        #    cache_monitor.log_stats()
         self.worker_manager.cancel_all()
         self.vm_service.disconnect_all()
 
@@ -955,7 +1014,8 @@ class VMManagerTUI(App):
 
         for domain, conn in paginated_domains:
             try:
-                uuid = self.vm_service._get_internal_id(domain, conn)
+                uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
+                uuid, vm_name = self.vm_service.get_vm_identity(domain, conn, known_uri=uri)
                 page_uuids.add(uuid)
 
                 # Get info from cache or fetch if not present. This is safe as we are in a worker.
@@ -977,14 +1037,14 @@ class VMManagerTUI(App):
 
                 vm_data = {
                     'uuid': uuid,
-                    'name': domain.name(),
+                    'name': vm_name,
                     'status': status,
                     'cpu': cpu,
                     'memory': memory,
                     'is_selected': uuid in selected_uuids,
                     'domain': domain,
                     'conn': conn,
-                    'uri': self.vm_service.get_uri_for_connection(conn) or conn.getURI()
+                    'uri': uri
                 }
                 vm_data_list.append(vm_data)
 
@@ -993,12 +1053,11 @@ class VMManagerTUI(App):
                     logging.warning(f"Skipping display of non-existent VM during refresh.")
                     continue
                 else:
-                    vm_name = "Unknown"
                     try:
-                        vm_name = domain.name()
-                    except libvirt.libvirtError:
-                        pass
-                    self.call_from_thread(self.show_error_message, f"Error getting info for VM '{vm_name}': {e}")
+                        name_for_error = vm_name if 'vm_name' in locals() else domain.name()
+                    except:
+                        name_for_error = "Unknown"
+                    self.call_from_thread(self.show_error_message, f"Error getting info for VM '{name_for_error}': {e}")
                     continue
 
         # Cleanup cache: remove cards for VMs that no longer exist at all
