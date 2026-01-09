@@ -66,7 +66,7 @@ Virtui Manager is ideal for:
 
 ## Requirements
 
-- **Recommended Minimal Terminal Size**: 34x92
+- **Recommended Minimal Terminal Size**: 34x92. **34x128** is the recommended Size
 - **Remote Connection**: SSH access to libvirt server (ssh-agent recommended)
 - **Python 3.7+**
 - **libvirt** with Python bindings
