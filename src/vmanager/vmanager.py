@@ -23,7 +23,6 @@ from constants import (
         )
 from events import VmActionRequest, VMNameClicked, VMSelectionChanged
 from libvirt_error_handler import register_error_handler
-from libvirt_utils import _get_vm_names_from_uuids
 from modals.bulk_modals import BulkActionModal
 from modals.config_modal import ConfigModal
 from modals.log_modal import LogModal
@@ -315,9 +314,12 @@ class VMManagerTUI(App):
             )
         else:
             # Launch initial cache loading before displaying VMs
-            if len(self.active_uris) > 1:
+            if self.active_uris:
                 for uri in self.active_uris:
                     self.connect_libvirt(uri)
+                
+                self.initial_cache_loading = True
+                self.worker_manager.run(self._initial_cache_worker, name="initial_cache")
 
         self.set_interval(300, self._log_cache_statistics)
 
@@ -344,11 +346,22 @@ class VMManagerTUI(App):
 
             # Pre-cache info and XML only for the first page of VMs
             vms_per_page = self.VMS_PER_PAGE
-            for domain, conn in domains_to_display[:vms_per_page]:
+            vms_to_cache = domains_to_display[:vms_per_page]
+
+            active_vms_on_page = []
+            for domain, conn in vms_to_cache:
                 try:
+                    state, _ = domain.state()
+                    if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                        active_vms_on_page.append(domain.name())
+
                     self.vm_service._get_domain_info(domain)
                 except libvirt.libvirtError:
                     pass
+
+            if active_vms_on_page:
+                vms_list_str = ", ".join(active_vms_on_page)
+                self.call_from_thread(self.show_quick_message, f"Fetching and caching VM info and XML config for: {vms_list_str}")
 
             self.call_from_thread(self._on_initial_cache_complete)
 
@@ -1054,15 +1067,16 @@ class VMManagerTUI(App):
 
         def get_names_and_show_modal():
             """Worker to fetch VM names and display the bulk action modal."""
-            all_names = set()
             uuids = uuids_snapshot
-            connections = list(self._get_active_connections())
 
-            for conn in connections:
+            # Use the service to find specific domains by their internal ID (UUID@URI)
+            # This correctly handles cases where identical UUIDs exist on different servers
+            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, uuids)
+
+            all_names = set()
+            for domain in found_domains_map.values():
                 try:
-                    names = _get_vm_names_from_uuids(conn, uuids)
-                    if names:
-                        all_names.update(names)
+                    all_names.add(domain.name())
                 except libvirt.libvirtError:
                     pass
 
