@@ -22,14 +22,6 @@ class ConfigModal(BaseModal[None]):
             yield Label(f"{AppInfo.namecase} Configuration", id="config-title")
             yield Static(f"(Editing: {get_user_config_path()})", id="config-title-file") #classes="config-path-label")
             with ScrollableContainer():
-                # Autoconnect on startup
-                yield Checkbox(
-                    "Autoconnect on startup",
-                    self.config.get("AUTOCONNECT_ON_STARTUP", False),
-                    id="autoconnect-checkbox",
-                    tooltip="Automatically connect to the first configured server on application startup"
-                )
-
                 # Performance settings
                 yield Label("Performance", classes="config-section-label")
                 with Horizontal():
@@ -118,7 +110,6 @@ class ConfigModal(BaseModal[None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-config-btn":
             try:
-                self.config["AUTOCONNECT_ON_STARTUP"] = self.query_one("#autoconnect-checkbox", Checkbox).value
                 self.config["REMOTE_WEBCONSOLE"] = self.query_one("#remote-webconsole-checkbox", Checkbox).value
                 self.config["websockify_path"] = self.query_one("#websockify-path-input", Input).value
                 self.config["novnc_path"] = self.query_one("#novnc-path-input", Input).value
