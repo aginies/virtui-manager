@@ -894,7 +894,7 @@ class VMCard(Static):
                 except Exception as e:
                     self.app.show_error_message(f"Error creating overlay: {e}")
 
-            self.app.push_screen(InputModal("Enter name for new overlay volume:", default_name), on_name_input)
+            self.app.push_screen(InputModal("Enter name for new overlay volume:", default_name, restrict=r"[a-zA-Z0-9_-]*"), on_name_input)
 
         except Exception as e:
             self.app.show_error_message(f"Error preparing overlay creation: {e}")

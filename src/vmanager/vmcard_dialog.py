@@ -90,9 +90,9 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
     def compose(self):
         yield Grid(
             Label("Enter base name for new VM(s)"),
-            Input(placeholder="new_vm_base_name", id="base_name_input"),
+            Input(placeholder="new_vm_base_name", id="base_name_input", restrict=r"[a-zA-Z0-9_-]*"),
             Label("Suffix for clone names (e.g., _C)"),
-            Input(placeholder="e.g., -clone", id="clone_suffix_input"),
+            Input(placeholder="e.g., -clone", id="clone_suffix_input", restrict=r"[a-zA-Z0-9_-]*"),
             Label("Number of clones to create"),
             Input(value="1", id="clone_count_input", type="integer"),
             Label("Do Not Clone storage"),
@@ -171,7 +171,7 @@ class RenameVMDialog(BaseDialog[str | None]):
         yield Vertical(
             Label(f"Current name: {self.current_name}"),
             Label("Enter new VM name", id="question"),
-            Input(placeholder="new_vm_name"),
+            Input(placeholder="new_vm_name", restrict=r"[a-zA-Z0-9_-]*"),
             Horizontal(
                 Button(ButtonLabels.RENAME, variant="success", id=ButtonIds.RENAME_BUTTON),
                 Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
@@ -264,7 +264,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         yield Vertical(
             Label(f"Current time: {now}", id="timestamp-label"),
             Label("Enter snapshot name", id="question"),
-            Input(value=default_name, placeholder="snapshot_name", id="name-input"),
+            Input(value=default_name, placeholder="snapshot_name", id="name-input", restrict=r"[a-zA-Z0-9_-]*"),
             Label("Description (optional)"),
             Input(placeholder="snapshot description", id="description-input"),
             Checkbox("Quiesce guest (requires agent)",
