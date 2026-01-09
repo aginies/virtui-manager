@@ -173,16 +173,39 @@ class VMService:
     def invalidate_vm_cache(self, uuid: str):
         """Invalidates all cached data for a specific VM."""
         with self._cache_lock:
-            if uuid in self._vm_data_cache:
-                del self._vm_data_cache[uuid]
-            if uuid in self._cpu_time_cache:
-                del self._cpu_time_cache[uuid]
-            if uuid in self._io_stats_cache:
-                del self._io_stats_cache[uuid]
-            if uuid in self._domain_cache:
-                del self._domain_cache[uuid]
-            if uuid in self._uuid_to_conn_cache:
-                del self._uuid_to_conn_cache[uuid]
+            # Determine which keys to invalidate
+            if "@" in uuid:
+                # Explicit composite ID provided
+                keys_to_invalidate = [uuid]
+            else:
+                # Plain UUID provided, find all composite IDs that start with it
+                # or match it exactly (in case of failed URI lookup during creation)
+                keys_to_invalidate = [
+                    k for k in self._vm_data_cache.keys() 
+                    if k == uuid or k.startswith(f"{uuid}@")
+                ]
+                # Also check other caches
+                other_caches = [
+                    self._cpu_time_cache, self._io_stats_cache,
+                    self._domain_cache, self._uuid_to_conn_cache
+                ]
+                for cache in other_caches:
+                    for k in cache.keys():
+                        if (k == uuid or k.startswith(f"{uuid}@")) and k not in keys_to_invalidate:
+                            keys_to_invalidate.append(k)
+
+            for k in keys_to_invalidate:
+                if k in self._vm_data_cache:
+                    del self._vm_data_cache[k]
+                if k in self._cpu_time_cache:
+                    del self._cpu_time_cache[k]
+                if k in self._io_stats_cache:
+                    del self._io_stats_cache[k]
+                if k in self._domain_cache:
+                    del self._domain_cache[k]
+                if k in self._uuid_to_conn_cache:
+                    del self._uuid_to_conn_cache[k]
+                logging.info(f"Invalidated VM cache for: {k}")
 
     def _update_domain_cache(self, active_uris: list[str], force: bool = False, preload: bool = False):
         """Updates the domain and connection cache."""
