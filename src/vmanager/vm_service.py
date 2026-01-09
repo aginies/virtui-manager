@@ -31,6 +31,8 @@ class VMService:
         self._uuid_to_conn_cache: dict[str, libvirt.virConnect] = {}
         
         self._vm_data_cache: dict[str, dict] = {}  # {uuid: {'info': (data), 'info_ts': ts, 'xml': 'data', 'xml_ts': ts}}
+        self._name_to_uuid_cache: dict[str, dict[str, str]] = {} # {uri: {name: uuid}}
+        self._uuid_to_name_cache: dict[str, dict[str, str]] = {} # {uri: {uuid: name}}
         self._info_cache_ttl: int = 5  # seconds
         self._xml_cache_ttl: int = 300  # 5 minutes
         self._visible_uuids: set[str] = set()
@@ -69,16 +71,40 @@ class VMService:
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=1.0)
 
-    def _get_internal_id(self, domain: libvirt.virDomain, conn: libvirt.virConnect = None) -> str:
-        """Generates a unique internal ID for a VM (UUID@URI)."""
-        uuid = domain.UUIDString()
+    def get_vm_identity(self, domain: libvirt.virDomain, conn: libvirt.virConnect = None, known_uri: str = None) -> tuple[str, str]:
+        """
+        Returns (internal_id, name) for a domain.
+        High-performance method using bidirectional caching to avoid libvirt calls.
+        """
         try:
-            if not conn:
-                conn = domain.connect()
-            uri = conn.getURI()
-            return f"{uuid}@{uri}"
+            if known_uri:
+                uri = known_uri
+            else:
+                if not conn:
+                    conn = domain.connect()
+                uri = conn.getURI()
+
+            name = domain.name()
+
+            with self._cache_lock:
+                if uri in self._name_to_uuid_cache:
+                    uuid = self._name_to_uuid_cache[uri].get(name)
+                    if uuid:
+                        return f"{uuid}@{uri}", name
+
+                uuid = domain.UUIDString()
+
+                self._name_to_uuid_cache.setdefault(uri, {})[name] = uuid
+                self._uuid_to_name_cache.setdefault(uri, {})[uuid] = name
+
+            return f"{uuid}@{uri}", name
         except libvirt.libvirtError:
-            return uuid
+            return "unknown", "unknown"
+
+    def _get_internal_id(self, domain: libvirt.virDomain, conn: libvirt.virConnect = None, known_uri: str = None) -> str:
+        """Generates a unique internal ID for a VM (UUID@URI). Uses name-to-UUID caching."""
+        internal_id, _ = self.get_vm_identity(domain, conn, known_uri)
+        return internal_id
 
     def _monitor_loop(self):
         """Background loop to update VM data."""
@@ -116,10 +142,13 @@ class VMService:
         new_uuid_to_conn = {}
 
         for conn in active_connections:
+            # Optimization: Get URI from manager instead of making a libvirt call
+            conn_uri = self.connection_manager.get_uri_for_connection(conn)
             try:
                 domains = conn.listAllDomains(0) or []
                 for domain in domains:
-                    internal_id = self._get_internal_id(domain, conn)
+                    # Pass the known URI to avoid another libvirt call inside
+                    internal_id, _ = self.get_vm_identity(domain, conn, known_uri=conn_uri)
                     new_domain_cache[internal_id] = domain
                     new_uuid_to_conn[internal_id] = conn
             except libvirt.libvirtError:
@@ -169,6 +198,7 @@ class VMService:
         with self._cache_lock:
             self._domain_cache.clear()
             self._uuid_to_conn_cache.clear()
+            self._name_to_uuid_cache.clear()
 
     def invalidate_vm_cache(self, uuid: str):
         """Invalidates all cached data for a specific VM."""
@@ -205,6 +235,17 @@ class VMService:
                     del self._domain_cache[k]
                 if k in self._uuid_to_conn_cache:
                     del self._uuid_to_conn_cache[k]
+
+                # Invalidate bidirectional identity cache
+                raw_uuid = k.split('@')[0]
+                for uri in list(self._name_to_uuid_cache.keys()):
+                    # Remove from UUID -> Name
+                    if uri in self._uuid_to_name_cache and raw_uuid in self._uuid_to_name_cache[uri]:
+                        name = self._uuid_to_name_cache[uri].pop(raw_uuid)
+                        # Remove from Name -> UUID
+                        if uri in self._name_to_uuid_cache and name in self._name_to_uuid_cache[uri]:
+                            del self._name_to_uuid_cache[uri][name]
+
                 logging.info(f"Invalidated VM cache for: {k}")
 
     def _update_domain_cache(self, active_uris: list[str], force: bool = False, preload: bool = False):
@@ -891,7 +932,14 @@ class VMService:
 
         if search_text:
             search_lower = search_text.lower()
-            domains_to_display = [(d, c) for d, c in domains_to_display if search_lower in d.name().lower()]
+            # Optimization: Use cached name from identity to avoid libvirt call in loop
+            filtered_domains = []
+            for d, c in domains_to_display:
+                conn_uri = self.connection_manager.get_uri_for_connection(c)
+                _, vm_name = self.get_vm_identity(d, c, known_uri=conn_uri)
+                if search_lower in vm_name.lower():
+                    filtered_domains.append((d, c))
+            domains_to_display = filtered_domains
 
         total_filtered_vms = len(domains_to_display)
         if page_start is not None and page_end is not None and force:
