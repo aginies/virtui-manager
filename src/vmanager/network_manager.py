@@ -11,7 +11,7 @@ import libvirt
 from utils import log_function_call
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=16)
 def list_networks(conn):
     """
     Lists all networks.
@@ -99,7 +99,7 @@ def delete_network(conn, network_name):
         raise Exception(msg) from e
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=16)
 def get_vms_using_network(conn, network_name):
     """
     Get a list of VMs using a specific network.
