@@ -213,7 +213,8 @@ class VMManagerTUI(App):
         self.last_method_calls = {}
         self._stats_logging_active = False
         self._stats_interval_timer = None
-
+        self.last_increase = {}  # Dict {uri: last_how_many_more}
+        self.last_method_increase = {}  # Dict {(uri, method): last_increase}
 
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
@@ -349,15 +350,16 @@ class VMManagerTUI(App):
 
                 total_calls = sum(methods.values())
 
-                # Calculate % increase
                 previous_total = self.last_total_calls.get(uri, 0)
+                previous_how_many_more = self.last_increase.get(uri, 0)
+                total_increase = total_calls - previous_total
                 increase_pct = 0.0
+                how_many_more = total_calls - previous_total
                 if previous_total > 0:
-                    increase_pct = ((total_calls - previous_total) / previous_total) * 100
+                    increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
-                self.last_total_calls[uri] = total_calls
-
-                logging.info(f"{server_name} ({uri}): Total {total_calls} calls (+{increase_pct:.1f}%)")
+                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} {previous_how_many_more} ({increase_pct:.1f}%)")
+                previous_how_many_more = how_many_more
 
                 # Initialize previous method calls dict for this URI if needed
                 if uri not in self.last_method_calls:
@@ -367,12 +369,13 @@ class VMManagerTUI(App):
                 sorted_methods = sorted(methods.items(), key=lambda x: x[1], reverse=True)
                 for method, count in sorted_methods:
                     prev_method_count = self.last_method_calls[uri].get(method, 0)
-                    method_increase_pct = 0.0
-                    if prev_method_count > 0:
-                        method_increase_pct = ((count - prev_method_count) / prev_method_count) * 100
 
                     self.last_method_calls[uri][method] = count
-                    logging.info(f"  - {method}: {count} (+{method_increase_pct:.1f}%)")
+                    how_many_more_count = count - prev_method_count
+                    logging.info(f"  - {method}: {count} calls (+{how_many_more_count})")
+
+                self.last_increase[uri] = how_many_more
+                self.last_total_calls[uri] = total_calls
 
     def action_show_cache_stats(self) -> None:
         """Show cache statistics in a modal."""
