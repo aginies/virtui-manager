@@ -9,11 +9,65 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 class ConnectionManager:
     """A class to manage opening, closing, and storing multiple libvirt connections."""
 
+    class BaseWrapper:
+        """Base class for proxying libvirt objects to track statistics."""
+        def __init__(self, obj, uri, manager):
+            self._obj = obj
+            self._uri = uri
+            self._manager = manager
+
+        def __getattr__(self, name):
+            attr = getattr(self._obj, name)
+            if callable(attr):
+                def wrapped(*args, **kwargs):
+                    self._manager._record_call(self._uri, name)
+                    res = attr(*args, **kwargs)
+
+                    # Wrap returned domain objects to track their calls too
+                    if isinstance(res, libvirt.virDomain):
+                        return ConnectionManager.DomainWrapper(res, self._uri, self._manager)
+                    if isinstance(res, list) and res and isinstance(res[0], libvirt.virDomain):
+                        return [ConnectionManager.DomainWrapper(d, self._uri, self._manager) for d in res]
+                    return res
+                return wrapped
+            return attr
+
+        def __dir__(self):
+            return dir(self._obj)
+
+    class ConnectionWrapper(BaseWrapper):
+        """Proxies libvirt connection calls."""
+        pass
+
+    class DomainWrapper(BaseWrapper):
+        """Proxies libvirt domain calls."""
+        pass
+
     def __init__(self):
         """Initializes the ConnectionManager."""
         self.connections: dict[str, libvirt.virConnect] = {}  # uri -> virConnect object
         self.connection_errors: dict[str, str] = {}           # uri -> error message
+        self.call_stats: dict[str, dict[str, int]] = {}       # uri -> {method -> count}
         self._lock = threading.RLock()
+
+    def _record_call(self, uri: str, method_name: str):
+        """Increments the call counter for a URI and method."""
+        with self._lock:
+            if uri not in self.call_stats:
+                self.call_stats[uri] = {}
+            stats = self.call_stats[uri]
+            stats[method_name] = stats.get(method_name, 0) + 1
+
+    def get_stats(self) -> dict[str, dict[str, int]]:
+        """Returns the call statistics."""
+        with self._lock:
+            # Return a deep copy
+            return {uri: methods.copy() for uri, methods in self.call_stats.items()}
+
+    def reset_stats(self):
+        """Resets all call statistics."""
+        with self._lock:
+            self.call_stats.clear()
 
     def connect(self, uri: str) -> libvirt.virConnect | None:
         """
@@ -28,15 +82,19 @@ class ConnectionManager:
             # Check if the connection is still alive and try to reconnect if not
             try:
                 # Test the connection by calling a simple libvirt function
+                # Note: This call itself will be recorded if we use the wrapper, 
+                # but here we use the raw conn to test.
                 conn.getLibVersion()
-                return conn
+                return self.ConnectionWrapper(conn, uri, self)
             except libvirt.libvirtError:
                 # Connection is dead, remove it and create a new one
                 logging.warning(f"Connection to {uri} is dead, reconnecting...")
                 self.disconnect(uri)
-                return self._create_connection(uri)
+                new_conn = self._create_connection(uri)
+                return self.ConnectionWrapper(new_conn, uri, self) if new_conn else None
 
-        return self._create_connection(uri)
+        new_conn = self._create_connection(uri)
+        return self.ConnectionWrapper(new_conn, uri, self) if new_conn else None
 
     def _create_connection(self, uri: str) -> libvirt.virConnect | None:
         """
@@ -123,12 +181,19 @@ class ConnectionManager:
         Retrieves an active connection object for a given URI.
         """
         with self._lock:
-            return self.connections.get(uri)
+            conn = self.connections.get(uri)
+            if conn:
+                return self.ConnectionWrapper(conn, uri, self)
+            return None
 
     def get_uri_for_connection(self, conn: libvirt.virConnect) -> str | None:
         """
         Returns the URI string associated with a given connection object.
         """
+        # Handle wrapped connection
+        if isinstance(conn, self.ConnectionWrapper):
+            return conn._uri
+
         with self._lock:
             for uri, stored_conn in self.connections.items():
                 if stored_conn == conn:
