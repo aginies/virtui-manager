@@ -21,7 +21,7 @@ from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
         ErrorMessages, AppInfo, StatusText, ServerPallette
         )
-from events import VmActionRequest, VMNameClicked, VMSelectionChanged
+from events import VmActionRequest, VMSelectionChanged #,VMNameClicked
 from libvirt_error_handler import register_error_handler
 from modals.bulk_modals import BulkActionModal
 from modals.config_modal import ConfigModal
@@ -29,6 +29,7 @@ from modals.log_modal import LogModal
 from modals.server_modals import ServerManagementModal
 from modals.server_prefs_modals import ServerPrefModal
 from modals.select_server_modals import SelectOneServerModal, SelectServerModal
+from modals.selection_modals import PatternSelectModal
 from modals.cache_stats_modal import CacheStatsModal
 from modals.utils_modals import (
     show_error_message,
@@ -138,15 +139,17 @@ class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = [
-        #("v", "view_log", "Log"),
-        ("ctrl+v", "virsh_shell", "Virsh"),
+        ("ctrl+s", "show_cache_stats", ""),
+        ("v", "view_log", "Log"),
         ("f", "filter_view", "Filter"),
-        ("p", "server_preferences", "ServerPrefs"),
+        #("p", "server_preferences", "ServerPrefs"),
         ("c", "config", "Config"),
-        ("m", "manage_server", "ServList"),
         ("s", "select_server", "SelServers"),
-        ("ctrl+s", "show_cache_stats", "Cache Stats"),
+        ("m", "manage_server", "ServList"),
+        ("p", "pattern_select", "PatternSel"),
         ("ctrl+a", "toggle_select_all", "Sel/Des All"),
+        ("ctrl+u", "unselect_all", "Unselect All"),
+        ("ctrl+v", "virsh_shell", "Virsh"),
         ("q", "quit", "Quit"),
     ]
 
@@ -248,9 +251,10 @@ class VMManagerTUI(App):
                 ButtonLabels.SERVER_PREFERENCES, id=ButtonIds.SERVER_PREFERENCES_BUTTON, classes="Buttonpage"
             )
             yield Button(ButtonLabels.FILTER_VM, id=ButtonIds.FILTER_BUTTON, classes="Buttonpage")
-            yield Button(ButtonLabels.VIEW_LOG, id=ButtonIds.VIEW_LOG_BUTTON, classes="Buttonpage")
+            #yield Button(ButtonLabels.VIEW_LOG, id=ButtonIds.VIEW_LOG_BUTTON, classes="Buttonpage")
             # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button(ButtonLabels.BULK_CMD, id=ButtonIds.BULK_SELECTED_VMS, classes="Buttonpage")
+            yield Button(ButtonLabels.PATTERN_SELECT, id=ButtonIds.PATTERN_SELECT_BUTTON, classes="Buttonpage")
             yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
@@ -729,6 +733,18 @@ class VMManagerTUI(App):
         for card in visible_cards:
             card.is_selected = target_selection_state
 
+    def action_unselect_all(self) -> None:
+        """Unselects all VMs across all pages."""
+        if not self.selected_vm_uuids:
+            return
+
+        self.selected_vm_uuids.clear()
+        # Update UI for visible cards
+        for card in self.query(VMCard):
+            card.is_selected = False
+
+        self.show_quick_message("All VMs unselected.")
+
     @on(VMSelectionChanged)
     def on_vm_selection_changed(self, message: VMSelectionChanged) -> None:
         """Handles when a VM's selection state changes."""
@@ -1116,6 +1132,57 @@ class VMManagerTUI(App):
         if self.current_page < self.num_pages - 1:
             self.current_page += 1
             self.refresh_vm_list()
+
+    @on(Button.Pressed, "#pattern_select_button")
+    def action_pattern_select(self) -> None:
+        """Handles the 'Pattern Sel' button press."""
+        if not self.active_uris:
+            self.show_error_message("No active servers.")
+            return
+
+        # Gather all known VMs from cache
+        available_vms = []
+        with self.vm_service._cache_lock:
+            for uuid, domain in self.vm_service._domain_cache.items():
+                try:
+                    conn = self.vm_service._uuid_to_conn_cache.get(uuid)
+                    uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
+                    available_vms.append({
+                        'uuid': uuid,
+                        'name': domain.name(),
+                        'uri': uri
+                    })
+                except Exception:
+                    continue
+
+        if not available_vms:
+            self.show_error_message("No VMs found in cache. Try refreshing first.")
+            return
+
+        # Prepare server list for the modal, matching FilterModal logic
+        available_servers = []
+        for uri in self.active_uris:
+            name = uri
+            for s in self.servers:
+                if s['uri'] == uri:
+                    name = s['name']
+                    break
+            available_servers.append({
+                'name': name, 
+                'uri': uri, 
+                'color': self.get_server_color(uri)
+            })
+
+        selected_servers = self.filtered_server_uris if self.filtered_server_uris is not None else list(self.active_uris)
+
+        def handle_result(selected_uuids: set[str] | None):
+            if selected_uuids:
+                # Add found UUIDs to current selection
+                self.selected_vm_uuids.update(selected_uuids)
+                self.show_success_message(f"Selected {len(selected_uuids)} VMs matching pattern.")
+                self.refresh_vm_list()
+
+        self.push_screen(PatternSelectModal(available_vms, available_servers, selected_servers), handle_result)
 
     @on(Button.Pressed, "#bulk_selected_vms")
     def on_bulk_selected_vms_button_pressed(self) -> None:

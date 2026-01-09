@@ -34,6 +34,7 @@ HowToOverlayModal,
 HowToVirtIOFSModal,
 HowToDiskModal,
 LoadingModal,
+PatternSelectModal,
 HowToSSHModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
@@ -50,6 +51,7 @@ SelectPoolModal > #dialog,
 SelectOneServerModal > #select-one-server-container,
 DeleteVMConfirmationDialog > #delete-vm-dialog,
 SelectServerModal > #select-server-container,
+PatternSelectModal > #pattern-select-container,
 RenameVMDialog > #dialog,
 ChangeNetworkDialog > #dialog,
 AddInputDeviceModal > #add-input-container,
@@ -341,6 +343,71 @@ FilterModal Checkbox {
   border: none;
 }
 
+
+PatternSelectModal > #pattern-select-container {
+    width: 80;
+    height: 80%;
+    padding: 1;
+    border: round $primary;
+}
+
+#pattern-select-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.pattern-input-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+#pattern-input {
+    width: 1fr;
+}
+
+#regex-checkbox {
+    width: auto;
+    margin-left: 1;
+}
+
+.checkbox-list {
+    height: auto;
+    overflow-x: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: round $surface;
+}
+
+#search-vms-btn {
+    width: 100%;
+    margin-bottom: 1;
+}
+
+#results-label {
+    margin-bottom: 1;
+}
+
+#results-container {
+    height: 1fr;
+    border: round $primary;
+    margin-bottom: 1;
+}
+
+#results-table {
+    height: auto;
+}
+
+#pattern-action-buttons {
+    height: auto;
+    align: center middle;
+}
+
+#pattern-action-buttons Button {
+    margin: 0 1;
+    width: 1fr;
+}
 
 LoadingModal > Vertical {
     width: auto;
