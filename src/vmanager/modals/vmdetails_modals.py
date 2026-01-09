@@ -84,8 +84,10 @@ class VMDetailModal(ModalScreen):
     all_bootable_devices: reactive(list)
     graphics_info: reactive(dict) # New reactive variable
 
-    def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain, conn: libvirt.virConnect, invalidate_cache_callback=None) -> None:
+    def __init__(self, vm_name: str, vm_info: dict, domain: libvirt.virDomain, conn: libvirt.virConnect, invalidate_cache_callback=None, selected_domains: list[libvirt.virDomain] = None) -> None:
         super().__init__()
+        self.selected_domains = selected_domains
+        self.is_bulk = selected_domains is not None and len(selected_domains) > 0
         self.vm_name = vm_name
         self.vm_info = vm_info
         self.domain = domain
@@ -126,7 +128,16 @@ class VMDetailModal(ModalScreen):
     def _invalidate_cache(self):
         """Invalidates the VM cache if a callback is provided."""
         if self.invalidate_cache_callback:
-            self.invalidate_cache_callback(self.vm_info['uuid'])
+            if self.is_bulk and self.selected_domains:
+                for domain in self.selected_domains:
+                    try:
+                        # We need to get the internal ID which might not be stored on the object itself
+                        internal_id = self.vm_service._get_internal_id(domain)
+                        self.invalidate_cache_callback(internal_id)
+                    except Exception:
+                        pass # Ignore if we can't invalidate one
+            else:
+                self.invalidate_cache_callback(self.vm_info['uuid'])
 
     @property
     def is_vm_stopped(self) -> bool:
@@ -154,16 +165,24 @@ class VMDetailModal(ModalScreen):
         except (libvirt.libvirtError, Exception) as e:
             self.app.show_error_message(f"Could not load networks: {e}")
             self.available_networks = []
-        self.query_one("#detail2-vm").add_class("hidden")
 
-        # Populate Boot tab
-        boot_menu_enabled = self.vm_info.get('boot', {}).get('menu_enabled', False)
-        self.query_one("#boot-menu-enable", Checkbox).value = boot_menu_enabled
-        self._populate_boot_lists()
-        self.query_one("#boot-up", Button).disabled = True
-        self.query_one("#boot-down", Button).disabled = True
-        self.query_one("#boot-add", Button).disabled = True
-        self.query_one("#boot-remove", Button).disabled = True
+        try:
+            self.query_one("#detail2-vm").add_class("hidden")
+        except Exception:
+            pass # Might not exist or failed to query
+
+        if not self.is_bulk:
+            # Populate Boot tab
+            boot_menu_enabled = self.vm_info.get('boot', {}).get('menu_enabled', False)
+            try:
+                self.query_one("#boot-menu-enable", Checkbox).value = boot_menu_enabled
+                self._populate_boot_lists()
+                self.query_one("#boot-up", Button).disabled = True
+                self.query_one("#boot-down", Button).disabled = True
+                self.query_one("#boot-add", Button).disabled = True
+                self.query_one("#boot-remove", Button).disabled = True
+            except Exception:
+                pass
 
         # SEV capabilities
         firmware_type = self.vm_info['firmware'].get('type', 'BIOS')
@@ -178,10 +197,12 @@ class VMDetailModal(ModalScreen):
                 sev_checkbox.disabled = not self.vm_info.get("status") == "Stopped"
                 sev_es_checkbox.disabled = not self.vm_info.get("status") == "Stopped"
             except Exception as e:
-                self.app.show_error_message(f"Could not get SEV capabilities: {e}")
                 try:
-                    self.query_one("#sev-checkbox", Checkbox).display = False
-                    self.query_one("#sev-es-checkbox", Checkbox).display = False
+                    # If getting caps failed, hide checkboxes if they exist
+                    if self.query("#sev-checkbox"):
+                        self.query_one("#sev-checkbox", Checkbox).display = False
+                    if self.query("#sev-es-checkbox"):
+                        self.query_one("#sev-es-checkbox", Checkbox).display = False
                 except Exception:
                     pass
 
@@ -193,17 +214,22 @@ class VMDetailModal(ModalScreen):
         # Initialize Graphics tab values
         self._update_graphics_ui()
         self._update_tpm_ui()
+
+        # Populate other tables only if they exist (which they might not in bulk mode)
         try:
             root = ET.fromstring(self.xml_desc)
         except ET.ParseError:
             root = None
-        self.vm_info['disks'] = get_vm_disks_info(self.conn, root)
-        self._populate_disks_table()
-        self._populate_networks_table()
-        self._populate_usb_lists()
-        self._populate_pci_lists()
-        self._populate_serial_table()
-        self._populate_input_table()
+
+        if not self.is_bulk:
+            self.vm_info['disks'] = get_vm_disks_info(self.conn, root)
+            self._populate_disks_table()
+            self._populate_networks_table()
+            self._populate_usb_lists()
+            self._populate_pci_lists()
+            self._populate_serial_table()
+            self._populate_input_table()
+
         self._populate_controller_table()
 
     def _populate_disks_table(self):
@@ -629,15 +655,33 @@ class VMDetailModal(ModalScreen):
         if new_cpu_model == original_cpu_model:
             return
 
-        try:
-            set_cpu_model(self.domain, new_cpu_model)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_cpu_model(d, new_cpu_model)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, ValueError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
-            self.app.show_success_message(f"CPU model set to {new_cpu_model}")
-            self.vm_info['cpu_model'] = new_cpu_model
-            self.query_one("#cpu-model-label").update(f"CPU Model: {new_cpu_model}")
-        except (libvirt.libvirtError, ValueError, Exception) as e:
-            self.app.show_error_message(f"Error setting CPU model: {e}")
-            event.control.value = original_cpu_model
+            msg = f"CPU model set to {new_cpu_model}"
+            if self.is_bulk:
+                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+            self.app.show_success_message(msg)
+            if not self.is_bulk: # Only update UI for single VM mode or reference
+                self.vm_info['cpu_model'] = new_cpu_model
+                self.query_one("#cpu-model-label").update(f"CPU Model: {new_cpu_model}")
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                event.control.value = original_cpu_model
 
     @on(Select.Changed, "#uefi-file-select")
     def on_uefi_file_changed(self, event: Select.Changed) -> None:
@@ -649,23 +693,47 @@ class VMDetailModal(ModalScreen):
         if new_uefi_path == original_uefi_path:
             return
 
-        try:
-            set_uefi_file(self.domain, new_uefi_path, current_secure_boot)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_uefi_file(d, new_uefi_path, current_secure_boot)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, ValueError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
             if new_uefi_path:
-                self.app.show_success_message(f"UEFI file set to {os.path.basename(new_uefi_path)}")
-                self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
+                msg = f"UEFI file set to {os.path.basename(new_uefi_path)}"
+                if self.is_bulk:
+                    msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+                self.app.show_success_message(msg)
+                if not self.is_bulk:
+                    self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
             else:
-                self.app.show_success_message("Firmware set to BIOS.")
-                self.query_one("#firmware-path-label").update("File: ")
-            self.vm_info['firmware']['path'] = new_uefi_path
-        except (libvirt.libvirtError, ValueError, Exception) as e:
-            self.app.show_error_message(f"Error setting UEFI file: {e}")
-            original_basename = os.path.basename(original_uefi_path) if original_uefi_path else None
-            if original_basename and original_basename in self.uefi_path_map:
-                event.control.value = original_basename
-            else:
-                event.control.clear()
+                msg = "Firmware set to BIOS."
+                if self.is_bulk:
+                    msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+                self.app.show_success_message(msg)
+                if not self.is_bulk:
+                    self.query_one("#firmware-path-label").update("File: ")
+
+            if not self.is_bulk:
+                self.vm_info['firmware']['path'] = new_uefi_path
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                original_basename = os.path.basename(original_uefi_path) if original_uefi_path else None
+                if original_basename and original_basename in self.uefi_path_map:
+                    event.control.value = original_basename
+                else:
+                    event.control.clear()
 
     def _update_video_tab_state(self) -> None:
         """Updates the state of widgets in the Video tab based on current selections."""
@@ -693,37 +761,72 @@ class VMDetailModal(ModalScreen):
         accel_checkbox = self.query_one("#video-3d-accel-checkbox", Checkbox)
         accel3d_enabled = accel_checkbox.display and accel_checkbox.value
 
-        try:
-            set_vm_video_model(self.domain, new_model if new_model != "default" else None, accel3d=accel3d_enabled)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_vm_video_model(d, new_model if new_model != "default" else None, accel3d=accel3d_enabled)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
-            self.app.show_success_message(f"Video model set to {new_model}")
-            self.query_one("#video-model-label").update(f"Video Model: {new_model}")
-            if 'video' not in self.vm_info:
-                self.vm_info['video'] = {}
-            self.vm_info['video']['model'] = new_model if new_model != "default" else None
-            self.vm_info['video']['accel3d'] = accel3d_enabled
-            self.vm_info['video_model'] = new_model
-        except (libvirt.libvirtError, Exception) as e:
-            self.app.show_error_message(f"Error setting video model: {e}")
-            # Revert selection
-            event.control.value = self.vm_info.get('video', {}).get('model', 'none')
-            self._update_video_tab_state()
+            msg = f"Video model set to {new_model}"
+            if self.is_bulk:
+                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+            self.app.show_success_message(msg)
+            if not self.is_bulk:
+                self.query_one("#video-model-label").update(f"Video Model: {new_model}")
+                if 'video' not in self.vm_info:
+                    self.vm_info['video'] = {}
+                self.vm_info['video']['model'] = new_model if new_model != "default" else None
+                self.vm_info['video']['accel3d'] = accel3d_enabled
+                self.vm_info['video_model'] = new_model
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                event.control.value = self.vm_info.get('video', {}).get('model', 'none')
+                self._update_video_tab_state()
 
     @on(Checkbox.Changed, "#video-3d-accel-checkbox")
     def on_video_3d_accel_changed(self, event: Checkbox.Changed) -> None:
         current_model = self.query_one("#video-model-select", Select).value
         accel3d_enabled = event.value
 
-        try:
-            set_vm_video_model(self.domain, current_model, accel3d=accel3d_enabled)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_vm_video_model(d, current_model, accel3d=accel3d_enabled)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
-            self.app.show_success_message(f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}.")
-            if 'video' not in self.vm_info:
-                self.vm_info['video'] = {}
-            self.vm_info['video']['accel3d'] = accel3d_enabled
-        except (libvirt.libvirtError, Exception) as e:
-            self.app.show_error_message(f"Error setting 3D acceleration: {e}")
-            event.checkbox.value = not accel3d_enabled # Revert on failure
+            msg = f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}"
+            if self.is_bulk:
+                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+            self.app.show_success_message(msg)
+            if not self.is_bulk:
+                if 'video' not in self.vm_info:
+                    self.vm_info['video'] = {}
+                self.vm_info['video']['accel3d'] = accel3d_enabled
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                event.checkbox.value = not accel3d_enabled # Revert on failure
 
 
     @on(Select.Changed, "#sound-model-select")
@@ -734,16 +837,33 @@ class VMDetailModal(ModalScreen):
         if new_model == current_model:
             return
 
-        try:
-            set_vm_sound_model(self.domain, new_model if new_model != "none" else None)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_vm_sound_model(d, new_model if new_model != "none" else None)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
-            self.app.show_success_message(f"Sound model set to {new_model}")
-            self.query_one("#sound-model-label").update(f"Sound Model: {new_model}")
-            self.vm_info['sound_model'] = new_model if new_model != "none" else None
-        except (libvirt.libvirtError, Exception) as e:
-            self.app.show_error_message(f"Error setting sound model: {e}")
-            # Revert selection
-            event.control.value = current_model
+            msg = f"Sound model set to {new_model}"
+            if self.is_bulk:
+                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+            self.app.show_success_message(msg)
+            if not self.is_bulk:
+                self.query_one("#sound-model-label").update(f"Sound Model: {new_model}")
+                self.vm_info['sound_model'] = new_model if new_model != "none" else None
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                event.control.value = current_model
 
     @on(Checkbox.Changed, "#secure-boot-checkbox")
     def on_secure_boot_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -756,15 +876,33 @@ class VMDetailModal(ModalScreen):
             self._update_uefi_options() # Revert options
             return
 
-        try:
-            set_uefi_file(self.domain, current_uefi_path, event.value)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_uefi_file(d, current_uefi_path, event.value)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, ValueError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
-            self.app.show_success_message(f"Secure Boot {'enabled' if event.value else 'disabled'}.")
-            self.vm_info['firmware']['secure_boot'] = event.value
-        except (libvirt.libvirtError, ValueError, Exception) as e:
-            self.app.show_error_message(f"Error setting Secure Boot: {e}")
-            event.checkbox.value = not event.value # Revert checkbox
-            self._update_uefi_options() # Revert options
+            msg = f"Secure Boot {'enabled' if event.value else 'disabled'}"
+            if self.is_bulk:
+                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+            self.app.show_success_message(msg)
+            if not self.is_bulk:
+                self.vm_info['firmware']['secure_boot'] = event.value
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                event.checkbox.value = not event.value # Revert checkbox
+                self._update_uefi_options() # Revert options
 
     @on(Checkbox.Changed, "#sev-checkbox, #sev-es-checkbox")
     def on_sev_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -772,15 +910,32 @@ class VMDetailModal(ModalScreen):
 
     @on(Checkbox.Changed, "#shared-memory-checkbox")
     def on_shared_memory_changed(self, event: Checkbox.Changed) -> None:
-        try:
-            set_shared_memory(self.domain, event.value)
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        successful_names = []
+
+        for d in targets:
+            try:
+                set_shared_memory(d, event.value)
+                success_count += 1
+                successful_names.append(d.name())
+            except (libvirt.libvirtError, ValueError, Exception) as e:
+                errors.append(f"{d.name()}: {e}")
+
+        if success_count > 0:
             self._invalidate_cache()
-            self.app.show_success_message(f"Shared memory {'enabled' if event.value else 'disabled'}.")
-            self.vm_info['shared_memory'] = event.value
-        except (libvirt.libvirtError, ValueError, Exception) as e:
-            self.app.show_error_message(f"Error setting shared memory: {e}")
-            # Revert checkbox state on failure
-            event.checkbox.value = not event.value
+            msg = f"Shared memory {'enabled' if event.value else 'disabled'}"
+            if self.is_bulk:
+                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
+            self.app.show_success_message(msg)
+            if not self.is_bulk:
+                self.vm_info['shared_memory'] = event.value
+
+        if errors:
+            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            if not success_count:
+                event.checkbox.value = not event.value
 
     # --- Graphics Tab Event Handlers ---
     @on(Select.Changed, "#graphics-type-select")
@@ -841,7 +996,7 @@ class VMDetailModal(ModalScreen):
         original_graphics_type = self.graphics_info.get('type')
         new_graphics_type = self.query_one("#graphics-type-select", Select).value
         listen_type = self.query_one("#graphics-listen-type-select", Select).value
-        
+
         logging.info(f"Attempting to change graphics from '{original_graphics_type}' to '{new_graphics_type}'.")
 
         address = None
@@ -860,34 +1015,58 @@ class VMDetailModal(ModalScreen):
         password_input = self.query_one("#graphics-password-input", Input)
         password = password_input.value if password_enabled else None
 
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+
         def do_apply_graphics_settings():
-            try:
-                set_vm_graphics(
-                    self.domain,
-                    new_graphics_type if new_graphics_type != "" else None,
-                    listen_type,
-                    address,
-                    port,
-                    autoport,
-                    password_enabled,
-                    password
-                )
+            errors = []
+            success_count = 0
+            successful_names = []
+            for d in targets:
+                try:
+                    set_vm_graphics(
+                        d,
+                        new_graphics_type if new_graphics_type != "" else None,
+                        listen_type,
+                        address,
+                        port,
+                        autoport,
+                        password_enabled,
+                        password
+                    )
+                    success_count += 1
+                    successful_names.append(d.name())
+                except (libvirt.libvirtError, Exception) as e:
+                    errors.append(f"{d.name()}: {e}")
+
+            if success_count > 0:
                 self._invalidate_cache()
-                self.app.show_success_message("Graphics settings applied successfully.")
-                xml_content = self.vm_service._get_domain_xml(self.domain)
-                root = None
-                if xml_content:
-                    try:
-                        root = ET.fromstring(xml_content)
-                    except ET.ParseError:
-                        root = None
-                self.graphics_info = get_vm_graphics_info(root)
-                self._update_graphics_ui()
-            except (libvirt.libvirtError, Exception) as e:
-                self.app.show_error_message(f"Error applying graphics settings: {e}")
+                msg = "Graphics settings applied successfully."
+                if self.is_bulk:
+                    msg += f" (Applied to {success_count} VMs ({', '.join(successful_names)}))"
+                self.app.show_success_message(msg)
+
+                if not self.is_bulk:
+                    xml_content = self.vm_service._get_domain_xml(self.domain)
+                    root = None
+                    if xml_content:
+                        try:
+                            root = ET.fromstring(xml_content)
+                        except ET.ParseError:
+                            root = None
+                    self.graphics_info = get_vm_graphics_info(root)
+                    self._update_graphics_ui()
+
+            if errors:
+                self.app.show_error_message(f"Errors: {'; '.join(errors)}")
 
         # Check if switching from SPICE to VNC and other SPICE devices exist
-        has_other_spice_devices = check_for_other_spice_devices(self.domain)
+        has_other_spice_devices = False
+        if new_graphics_type == 'vnc':
+            for d in targets:
+                if check_for_other_spice_devices(d):
+                    has_other_spice_devices = True
+                    break
+
         logging.info(f"Checking for other SPICE devices... Found: {has_other_spice_devices}")
 
         if new_graphics_type == 'vnc' and has_other_spice_devices:
@@ -895,18 +1074,32 @@ class VMDetailModal(ModalScreen):
 
             def on_confirm_spice_removal(confirmed: bool):
                 if confirmed:
-                    try:
-                        remove_spice_devices(self.domain)
+                    removal_errors = []
+                    removal_successful_names = []
+                    for d in targets:
+                        try:
+                            remove_spice_devices(d)
+                            removal_successful_names.append(d.name())
+                        except Exception as e:
+                            removal_errors.append(f"{d.name()}: {e}")
+
+                    if removal_errors:
+                         self.app.show_error_message(f"Error removing SPICE devices: {'; '.join(removal_errors)}")
+                    else:
                         self._invalidate_cache()
-                        self.app.show_success_message("Removed associated SPICE devices.")
-                    except Exception as e:
-                        self.app.show_error_message(f"Error removing SPICE devices: {e}")
-                        return # Abort on failure
+                        msg = "Removed associated SPICE devices."
+                        if self.is_bulk:
+                            msg += f" (from {len(removal_successful_names)} VMs ({', '.join(removal_successful_names)}))"
+                        self.app.show_success_message(msg)
 
                 do_apply_graphics_settings()
 
+            msg = "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
+            if self.is_bulk:
+                msg = "Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?"
+
             self.app.push_screen(
-                ConfirmationDialog("This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"),
+                ConfirmationDialog(msg),
                 on_confirm_spice_removal
             )
         else:
@@ -1295,11 +1488,20 @@ class VMDetailModal(ModalScreen):
         xml_root = ET.fromstring(self.xml_desc)
         status = self.vm_info.get("status", "N/A")
         uuid_vm = self.vm_info.get('uuid', 'N/A')
+
+        title = f"VM Details: {self.vm_name} "
+        if self.is_bulk:
+            title = f"Bulk Edit: {len(self.selected_domains)} VMs (Reference: {self.vm_name}) "
+
         with Vertical(id="vm-detail-container"):
             with Horizontal(id="vm-details-title"):
-                yield Label(f"VM Details: {self.vm_name} ", id="title_vm")
-                yield Label(f"({status})", id=f"status-{status.lower().replace(' ', '-')}")
-            yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}", id="vm-details-uuid")
+                yield Label(title, id="title_vm")
+                if not self.is_bulk:
+                    yield Label(f"({status})", id=f"status-{status.lower().replace(' ', '-')}")
+
+            if not self.is_bulk:
+                yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}", id="vm-details-uuid")
+
             yield Button("Other Tabs", id="toggle-detail-button", classes="toggle-detail-button")
             with TabbedContent(id="detail-vm"):
                 with TabPane("CPU", id="detail-cpu-tab"):
@@ -1337,127 +1539,129 @@ class VMDetailModal(ModalScreen):
                         yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
                         yield Static(classes="button-separator")
                         yield Checkbox("Shared Memory", value=self.vm_info.get('shared_memory', False), id="shared-memory-checkbox", classes="shared-memory", disabled=not self.is_vm_stopped)
-                with TabPane("Firmware", id="detail-firmware-tab"):
-                    with Vertical(classes="info-details"):
-                        firmware_info = self.vm_info.get('firmware', {'type': 'BIOS'})
-                        firmware_type = firmware_info.get('type', 'BIOS')
-                        firmware_path = firmware_info.get('path')
+                if not self.is_bulk:
+                    with TabPane("Firmware", id="detail-firmware-tab"):
+                        with Vertical(classes="info-details"):
+                            firmware_info = self.vm_info.get('firmware', {'type': 'BIOS'})
+                            firmware_type = firmware_info.get('type', 'BIOS')
+                            firmware_path = firmware_info.get('path')
 
-                        yield Label(f"Firmware: {firmware_type}", id="firmware-type-label")
-                        #if firmware_path:
-                        #    yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
+                            yield Label(f"Firmware: {firmware_type}", id="firmware-type-label")
+                            #if firmware_path:
+                            #    yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
 
-                        if firmware_type == 'UEFI':
-                            yield Checkbox(
-                                "Secure Boot",
-                                value=firmware_info.get('secure_boot', False),
-                                id="secure-boot-checkbox",
-                                disabled=not self.is_vm_stopped,
-                            )
-                            yield Checkbox("AMD-SEV", id="sev-checkbox", disabled=not self.is_vm_stopped)
-                            yield Checkbox("AMD-SEV-ES", id="sev-es-checkbox", disabled=not self.is_vm_stopped)
-                            yield Select(
-                                [], # Will be populated in on_mount
-                                id="uefi-file-select",
-                                disabled=not self.is_vm_stopped,
-                                allow_blank=True,
-                            )
-                            yield Static(classes="button-separator")
-                            yield Button("Switch to BIOS", id="switch-to-bios", disabled=not self.is_vm_stopped)
-                        else:
-                            yield Button("Switch to UEFI", id="switch-to-uefi", disabled=not self.is_vm_stopped)
-
-
-                        if "machine_type" in self.vm_info:
-                            yield Static(classes="button-separator")
-                            yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
-                            yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
-
-                with TabPane("Boot", id="detail-boot-tab"):
-                    with Vertical():
-                        yield Checkbox("Enable boot menu", id="boot-menu-enable", disabled=not self.is_vm_stopped)
-                        with Horizontal(classes="boot-manager"):
-                            with Vertical(classes="boot-main-container"):
-                                yield Label("Boot Order")
-                                yield ListView(id="boot-order-list", classes="boot-list-container")
-                            with Vertical(classes="boot-buttons-container"):
-                                yield Label("")
-                                yield Button("<", id="boot-add", disabled=not self.is_vm_stopped)
-                                yield Button(">", id="boot-remove", disabled=not self.is_vm_stopped)
-                                yield Button("Up", id="boot-up", disabled=not self.is_vm_stopped)
-                                yield Button("Down", id="boot-down", disabled=not self.is_vm_stopped)
-                            with Vertical(classes="boot-main-container"):
-                                yield Label("Available Devices")
-                                yield ListView(id="available-devices-list", classes="boot-list-container")
-                        yield Button("Save Boot Order", id="save-boot-order", disabled=not self.is_vm_stopped, variant="primary")
-
-                with TabPane("Disks", id="detail-disk-tab"):
-                    with ScrollableContainer(classes="info-details"):
-                        yield DataTable(id="disks-table", cursor_type="row")
-
-                    disks_info = self.vm_info.get("disks", [])
-                    has_enabled_disks = any(d['status'] == 'enabled' for d in disks_info)
-                    has_disabled_disks = any(d['status'] == 'disabled' for d in disks_info)
-                    remove_button = Button("Remove Disk", id="detail_remove_disk", classes="detail-disks")
-                    disable_button = Button("Disable Disk", id="detail_disable_disk", classes="detail-disks")
-                    enable_button = Button("Enable Disk", id="detail_enable_disk", classes="detail-disks")
-                    remove_button.display = has_enabled_disks
-                    disable_button.display = has_enabled_disks
-                    enable_button.display = has_disabled_disks
-
-                    with Vertical(classes="button-details"):
-                        with Horizontal():
-                            yield Button("Add Disk", id="detail_add_disk", classes="detail-disks")
-                            yield Button("Attach Existing Disk", id="detail_attach_disk", classes="detail-disks")
-                            yield Button("Edit Disk", id="detail_edit_disk", classes="detail-disks", disabled=True)
-                            yield remove_button
-                            yield Button("Help", id="detail_disk_help", classes="detail-disks")
-
-                    with Horizontal(classes="button-details"):
-                        yield disable_button
-                        yield enable_button
-
-                with TabPane("Networks", id="networks"):
-                    with ScrollableContainer(classes="info-details"):
-                        networks_table = DataTable(id="networks-table", cursor_type="row")
-                        networks_table.add_column("MAC", key="mac")
-                        networks_table.add_column("Network", key="network")
-                        networks_table.add_column("Model", key="model")
-                        networks_table.add_column("IP Address", key="ip")
-                        networks_table.add_column("Gateway", key="gateway")
-                        networks_table.add_column("DNS", key="dns")
-                        yield networks_table
-
-                    with Vertical(classes="button-details"):
-                        with Horizontal():
-                            yield Button("Edit Interface", id="edit-network-interface-button", classes="detail-disks", variant="primary", disabled=True)
-                            yield Button("Add Interface", id="add-network-interface-button", classes="detail-disks", variant="primary")
-                            yield Button("Remove Interface", id="remove-network-interface-button", classes="detail-disks", variant="error", disabled=True)
-
-                if self.vm_info.get("devices"):
-                    with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
-                        if not self.vm_info.get('shared_memory'):
-                            yield Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", classes="tabd-warning")
-                        with ScrollableContainer(classes="info-details"):
-                            virtiofs_table = DataTable(id="virtiofs-table")
-                            virtiofs_table.cursor_type = "row"
-                            virtiofs_table.add_column("Source Path", key="source")
-                            virtiofs_table.add_column("Target Path", key="target")
-                            virtiofs_table.add_column("Readonly", key="readonly")
-                            for fs in self.vm_info["devices"]["virtiofs"]:
-                                virtiofs_table.add_row(
-                                    fs.get('source', 'N/A'),
-                                    fs.get('target', 'N/A'),
-                                    str(fs.get('readonly', False)),
-                                    key=fs.get('target')
+                            if firmware_type == 'UEFI':
+                                yield Checkbox(
+                                    "Secure Boot",
+                                    value=firmware_info.get('secure_boot', False),
+                                    id="secure-boot-checkbox",
+                                    disabled=not self.is_vm_stopped,
                                 )
-                            yield virtiofs_table
+                                yield Checkbox("AMD-SEV", id="sev-checkbox", disabled=not self.is_vm_stopped)
+                                yield Checkbox("AMD-SEV-ES", id="sev-es-checkbox", disabled=not self.is_vm_stopped)
+                                yield Select(
+                                    [], # Will be populated in on_mount
+                                    id="uefi-file-select",
+                                    disabled=not self.is_vm_stopped,
+                                    allow_blank=True,
+                                )
+                                yield Static(classes="button-separator")
+                                yield Button("Switch to BIOS", id="switch-to-bios", disabled=not self.is_vm_stopped)
+                            else:
+                                yield Button("Switch to UEFI", id="switch-to-uefi", disabled=not self.is_vm_stopped)
+
+
+                            if "machine_type" in self.vm_info:
+                                yield Static(classes="button-separator")
+                                yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
+                                yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
+
+
+                    with TabPane("Boot", id="detail-boot-tab"):
+                        with Vertical():
+                            yield Checkbox("Enable boot menu", id="boot-menu-enable", disabled=not self.is_vm_stopped)
+                            with Horizontal(classes="boot-manager"):
+                                with Vertical(classes="boot-main-container"):
+                                    yield Label("Boot Order")
+                                    yield ListView(id="boot-order-list", classes="boot-list-container")
+                                with Vertical(classes="boot-buttons-container"):
+                                    yield Label("")
+                                    yield Button("<", id="boot-add", disabled=not self.is_vm_stopped)
+                                    yield Button(">", id="boot-remove", disabled=not self.is_vm_stopped)
+                                    yield Button("Up", id="boot-up", disabled=not self.is_vm_stopped)
+                                    yield Button("Down", id="boot-down", disabled=not self.is_vm_stopped)
+                                with Vertical(classes="boot-main-container"):
+                                    yield Label("Available Devices")
+                                    yield ListView(id="available-devices-list", classes="boot-list-container")
+                            yield Button("Save Boot Order", id="save-boot-order", disabled=not self.is_vm_stopped, variant="primary")
+
+                    with TabPane("Disks", id="detail-disk-tab"):
+                        with ScrollableContainer(classes="info-details"):
+                            yield DataTable(id="disks-table", cursor_type="row")
+
+                        disks_info = self.vm_info.get("disks", [])
+                        has_enabled_disks = any(d['status'] == 'enabled' for d in disks_info)
+                        has_disabled_disks = any(d['status'] == 'disabled' for d in disks_info)
+                        remove_button = Button("Remove Disk", id="detail_remove_disk", classes="detail-disks")
+                        disable_button = Button("Disable Disk", id="detail_disable_disk", classes="detail-disks")
+                        enable_button = Button("Enable Disk", id="detail_enable_disk", classes="detail-disks")
+                        remove_button.display = has_enabled_disks
+                        disable_button.display = has_enabled_disks
+                        enable_button.display = has_disabled_disks
+
                         with Vertical(classes="button-details"):
                             with Horizontal():
-                                yield Button("Add", variant="primary", id="add-virtiofs-btn", classes="detail-disks")
-                                yield Button("Edit", variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")
-                                yield Button("Delete", variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
-                                yield Button("Help", id="detail_virtiofs_help", classes="detail-disks")
+                                yield Button("Add Disk", id="detail_add_disk", classes="detail-disks")
+                                yield Button("Attach Existing Disk", id="detail_attach_disk", classes="detail-disks")
+                                yield Button("Edit Disk", id="detail_edit_disk", classes="detail-disks", disabled=True)
+                                yield remove_button
+                                yield Button("Help", id="detail_disk_help", classes="detail-disks")
+
+                        with Horizontal(classes="button-details"):
+                            yield disable_button
+                            yield enable_button
+
+                    with TabPane("Networks", id="networks"):
+                        with ScrollableContainer(classes="info-details"):
+                            networks_table = DataTable(id="networks-table", cursor_type="row")
+                            networks_table.add_column("MAC", key="mac")
+                            networks_table.add_column("Network", key="network")
+                            networks_table.add_column("Model", key="model")
+                            networks_table.add_column("IP Address", key="ip")
+                            networks_table.add_column("Gateway", key="gateway")
+                            networks_table.add_column("DNS", key="dns")
+                            yield networks_table
+
+                        with Vertical(classes="button-details"):
+                            with Horizontal():
+                                yield Button("Edit Interface", id="edit-network-interface-button", classes="detail-disks", variant="primary", disabled=True)
+                                yield Button("Add Interface", id="add-network-interface-button", classes="detail-disks", variant="primary")
+                                yield Button("Remove Interface", id="remove-network-interface-button", classes="detail-disks", variant="error", disabled=True)
+
+                    if self.vm_info.get("devices"):
+                        with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
+                            if not self.vm_info.get('shared_memory'):
+                                yield Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", classes="tabd-warning")
+                            with ScrollableContainer(classes="info-details"):
+                                virtiofs_table = DataTable(id="virtiofs-table")
+                                virtiofs_table.cursor_type = "row"
+                                virtiofs_table.add_column("Source Path", key="source")
+                                virtiofs_table.add_column("Target Path", key="target")
+                                virtiofs_table.add_column("Readonly", key="readonly")
+                                for fs in self.vm_info["devices"]["virtiofs"]:
+                                    virtiofs_table.add_row(
+                                        fs.get('source', 'N/A'),
+                                        fs.get('target', 'N/A'),
+                                        str(fs.get('readonly', False)),
+                                        key=fs.get('target')
+                                    )
+                                yield virtiofs_table
+                            with Vertical(classes="button-details"):
+                                with Horizontal():
+                                    yield Button("Add", variant="primary", id="add-virtiofs-btn", classes="detail-disks")
+                                    yield Button("Edit", variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")
+                                    yield Button("Delete", variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
+                                    yield Button("Help", id="detail_virtiofs_help", classes="detail-disks")
 
                 with TabPane("Video", id="detail-video-tab"):
                     with Vertical(classes="info-details"):
@@ -1676,13 +1880,16 @@ class VMDetailModal(ModalScreen):
                         with Horizontal():
                             yield Button("Apply Watchdog Settings", id="apply-watchdog-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove Watchdog", id="remove-watchdog-btn", variant="error", disabled=not self.is_vm_stopped or watchdog_model == 'none')
-                with TabPane("Input", id="detail-input-tab"):
-                    with VerticalScroll(classes="info-details"):
-                        yield DataTable(id="input-table", cursor_type="row")
-                    with Vertical(classes="button-details"):
-                        with Horizontal():
-                            yield Button("Add Input", id="add-input-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Remove Input", id="remove-input-btn", variant="error", disabled=True)
+
+                if not self.is_bulk:
+                    with TabPane("Input", id="detail-input-tab"):
+                        with VerticalScroll(classes="info-details"):
+                            yield DataTable(id="input-table", cursor_type="row")
+                        with Vertical(classes="button-details"):
+                            with Horizontal():
+                                yield Button("Add Input", id="add-input-btn", variant="primary", disabled=not self.is_vm_stopped)
+                                yield Button("Remove Input", id="remove-input-btn", variant="error", disabled=True)
+
                 with TabPane("Controller", id="detail-controler-tab"):
                     with ScrollableContainer(classes="info-details"):
                         yield DataTable(id="controller-table", cursor_type="row")
@@ -1692,34 +1899,36 @@ class VMDetailModal(ModalScreen):
                             yield Button("Add USB3", id="add-usb3-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Add SCSI", id="add-scsi-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button("Remove", id="remove-controller-btn", variant="error", disabled=True)
-                with TabPane("USB Host", id="detail-usbhost-tab"):
-                    with Horizontal(classes="boot-manager"):
-                        with Vertical(classes="boot-main-container"):
-                            yield Label("Available Host USB Devices")
-                            yield ListView(id="available-usb-list", classes="boot-list-container")
-                        with Vertical(classes="boot-buttons-container"):
-                            yield Button("Attach >", id="attach-usb-btn", disabled=True)
-                            yield Button("< Detach", id="detach-usb-btn", disabled=True)
-                        with Vertical(classes="boot-main-container"):
-                            yield Label("Attached to VM")
-                            yield ListView(id="attached-usb-list", classes="boot-list-container")
-                with TabPane("PCI Host", id="detail-PCIhost-tab"):
-                    with Horizontal(classes="boot-manager"):
-                        with Vertical(classes="boot-main-container"):
-                            yield Label("Available Host PCI Devices")
-                            yield ListView(id="available-pci-list", classes="boot-list-container")
-                        with Vertical(classes="boot-buttons-container"):
-                            yield Button("Attach >", id="attach-pci-btn", disabled=True)
-                            yield Button("< Detach", id="detach-pci-btn", disabled=True)
-                        with Vertical(classes="boot-main-container"):
-                            yield Label("Attached to VM")
-                            yield ListView(id="attached-pci-list", classes="boot-list-container")
+
+                if not self.is_bulk:
+                    with TabPane("USB Host", id="detail-usbhost-tab"):
+                        with Horizontal(classes="boot-manager"):
+                            with Vertical(classes="boot-main-container"):
+                                yield Label("Available Host USB Devices")
+                                yield ListView(id="available-usb-list", classes="boot-list-container")
+                            with Vertical(classes="boot-buttons-container"):
+                                yield Button("Attach >", id="attach-usb-btn", disabled=True)
+                                yield Button("< Detach", id="detach-usb-btn", disabled=True)
+                            with Vertical(classes="boot-main-container"):
+                                yield Label("Attached to VM")
+                                yield ListView(id="attached-usb-list", classes="boot-list-container")
+                    with TabPane("PCI Host", id="detail-PCIhost-tab"):
+                        with Horizontal(classes="boot-manager"):
+                            with Vertical(classes="boot-main-container"):
+                                yield Label("Available Host PCI Devices")
+                                yield ListView(id="available-pci-list", classes="boot-list-container")
+                            with Vertical(classes="boot-buttons-container"):
+                                yield Button("Attach >", id="attach-pci-btn", disabled=True)
+                                yield Button("< Detach", id="detach-pci-btn", disabled=True)
+                            with Vertical(classes="boot-main-container"):
+                                yield Label("Attached to VM")
+                                yield ListView(id="attached-pci-list", classes="boot-list-container")
                 #with TabPane("PCIe", id="detail-pcie-tab"):
                 #    yield Label("PCIe")
                 #with TabPane("SATA", id="detail-sata-tab"):
                 #    yield Label("SATA")
-                with TabPane("Channel", id="detail-channel-tab"):
-                    yield Label("TODO Channel")
+                #with TabPane("Channel", id="detail-channel-tab"):
+                #    yield Label("TODO Channel")
 
             yield Button("Close", variant="default", id="close-btn", classes="close-button")
 
@@ -1780,7 +1989,7 @@ class VMDetailModal(ModalScreen):
 
             self.query_one("#watchdog-model-select", Select).value = model
             self.query_one("#watchdog-action-select", Select).value = action
-            
+
             self.query_one("#apply-watchdog-btn", Button).disabled = not self.is_vm_stopped
             self.query_one("#remove-watchdog-btn", Button).disabled = not self.is_vm_stopped or model == 'none'
         except Exception:
@@ -2222,10 +2431,6 @@ class VMDetailModal(ModalScreen):
                                         self.app.call_from_thread(self.app.show_success_message, msg)
 
                                     migrate_vm_machine_type(self.domain, new_machine_type, log_callback=log_callback)
-                                    # Since this is in a worker, we need to call invalidate on the main thread if the callback is not thread-safe,
-                                    # but the callback is just a function. self.invalidate_cache_callback is usually bound to VMService method.
-                                    # VMService methods are generally thread-safe for cache operations (dict operations are atomic in Python).
-                                    # But let's wrap it in call_from_thread just in case.
                                     self.app.call_from_thread(self._invalidate_cache)
                                     self.app.call_from_thread(self.app.show_success_message, f"VM '{self.vm_name}' successfully migrated to machine type '{new_machine_type}'.")
                                     # Refresh VM info and close modal
@@ -2367,57 +2572,99 @@ class VMDetailModal(ModalScreen):
             )
 
         elif event.button.id == "add-usb2-controller-btn":
-            try:
-                add_usb_device(self.domain, 'usb', 'usb2')
+            targets = self.selected_domains if self.is_bulk else [self.domain]
+            errors = []
+            success_count = 0
+            for d in targets:
+                try:
+                    add_usb_device(d, 'usb', 'usb2')
+                    success_count += 1
+                except (libvirt.libvirtError, ValueError) as e:
+                    errors.append(f"{d.name()}: {e}")
+            if success_count > 0:
                 self._invalidate_cache()
-                self.app.show_success_message("USB 2.0 controller added successfully.")
-                self._update_controller_table()
-            except (libvirt.libvirtError, ValueError) as e:
-                self.app.show_error_message(f"Error adding USB 2.0 controller: {e}")
-        
+                msg = "USB 2.0 controller added successfully."
+                if self.is_bulk: msg += f" (Applied to {success_count} VMs)"
+                self.app.show_success_message(msg)
+                if not self.is_bulk: self._update_controller_table()
+            if errors:
+                self.app.show_error_message(f"Errors adding USB 2.0 controller: {'; '.join(errors)}")
+
         elif event.button.id == "add-usb3-controller-btn":
-            try:
-                add_usb_device(self.domain, 'usb', 'usb3')
+            targets = self.selected_domains if self.is_bulk else [self.domain]
+            errors = []
+            success_count = 0
+            for d in targets:
+                try:
+                    add_usb_device(d, 'usb', 'usb3')
+                    success_count += 1
+                except (libvirt.libvirtError, ValueError) as e:
+                    errors.append(f"{d.name()}: {e}")
+            if success_count > 0:
                 self._invalidate_cache()
-                self.app.show_success_message("USB 3.0 controller added successfully.")
-                self._update_controller_table()
-            except (libvirt.libvirtError, ValueError) as e:
-                self.app.show_error_message(f"Error adding USB 3.0 controller: {e}")
+                msg = "USB 3.0 controller added successfully."
+                if self.is_bulk: msg += f" (Applied to {success_count} VMs)"
+                self.app.show_success_message(msg)
+                if not self.is_bulk: self._update_controller_table()
+            if errors:
+                self.app.show_error_message(f"Errors adding USB 3.0 controller: {'; '.join(errors)}")
 
         elif event.button.id == "add-scsi-controller-btn":
-            try:
-                add_scsi_controller(self.domain, 'virtio-scsi')
+            targets = self.selected_domains if self.is_bulk else [self.domain]
+            errors = []
+            success_count = 0
+            for d in targets:
+                try:
+                    add_scsi_controller(d, 'virtio-scsi')
+                    success_count += 1
+                except (libvirt.libvirtError, ValueError) as e:
+                    errors.append(f"{d.name()}: {e}")
+            if success_count > 0:
                 self._invalidate_cache()
-                self.app.show_success_message("SCSI controller added successfully.")
-                self._update_controller_table()
-            except (libvirt.libvirtError, ValueError) as e:
-                self.app.show_error_message(f"Error adding SCSI controller: {e}")
-        
+                msg = "SCSI controller added successfully."
+                if self.is_bulk: msg += f" (Applied to {success_count} VMs)"
+                self.app.show_success_message(msg)
+                if not self.is_bulk: self._update_controller_table()
+            if errors:
+                self.app.show_error_message(f"Errors adding SCSI controller: {'; '.join(errors)}")
+
         elif event.button.id == "remove-controller-btn":
             if self.selected_controller:
                 message = f"Are you sure you want to remove the {self.selected_controller['type']} controller (model: {self.selected_controller['model']})?"
+                if self.is_bulk:
+                    message = f"Are you sure you want to remove the {self.selected_controller['type']} controller (model: {self.selected_controller['model']}) from ALL selected VMs?"
                 def on_confirm(confirmed: bool) -> None:
                     if confirmed:
-                        try:
-                            if self.selected_controller['type'] == 'USB':
-                                usb_model_arg = 'usb2' if 'uhci' in self.selected_controller['model'] else 'usb3'
-                                remove_usb_device(
-                                    self.domain,
-                                    usb_model_arg,
-                                    self.selected_controller['index']
-                                )
-                            elif self.selected_controller['type'] == 'SCSI':
-                                remove_scsi_controller(
-                                    self.domain,
-                                    self.selected_controller['model'],
-                                    self.selected_controller['index']
-                                )
-                            
+                        targets = self.selected_domains if self.is_bulk else [self.domain]
+                        errors = []
+                        success_count = 0
+                        for d in targets:
+                            try:
+                                if self.selected_controller['type'] == 'USB':
+                                    usb_model_arg = 'usb2' if 'uhci' in self.selected_controller['model'] else 'usb3'
+                                    remove_usb_device(
+                                        d,
+                                        usb_model_arg,
+                                        self.selected_controller['index']
+                                    )
+                                elif self.selected_controller['type'] == 'SCSI':
+                                    remove_scsi_controller(
+                                        d,
+                                        self.selected_controller['model'],
+                                        self.selected_controller['index']
+                                    )
+                                success_count += 1
+                            except (libvirt.libvirtError, ValueError) as e:
+                                errors.append(f"{d.name()}: {e}")
+
+                        if success_count > 0:
                             self._invalidate_cache()
-                            self.app.show_success_message("Controller removed successfully.")
-                            self._update_controller_table()
-                        except (libvirt.libvirtError, ValueError) as e:
-                            self.app.show_error_message(f"Error removing controller: {e}")
+                            msg = "Controller removed successfully."
+                            if self.is_bulk: msg += f" (Applied to {success_count} VMs)"
+                            self.app.show_success_message(msg)
+                            if not self.is_bulk: self._update_controller_table()
+                        if errors:
+                            self.app.show_error_message(f"Errors removing controller: {'; '.join(errors)}")
                 self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
         elif event.button.id == "detail_remove_disk":
@@ -2574,58 +2821,114 @@ class VMDetailModal(ModalScreen):
         elif event.button.id == "edit-cpu":
             def edit_cpu_callback(new_cpu_count):
                 if new_cpu_count is not None and new_cpu_count.isdigit():
-                    try:
-                        set_vcpu(self.domain, int(new_cpu_count))
+                    targets = self.selected_domains if self.is_bulk else [self.domain]
+                    errors = []
+                    success_count = 0
+                    for d in targets:
+                        try:
+                            set_vcpu(d, int(new_cpu_count))
+                            success_count += 1
+                        except (libvirt.libvirtError, Exception) as e:
+                            errors.append(f"{d.name()}: {e}")
+
+                    if success_count > 0:
                         self._invalidate_cache()
-                        self.app.show_success_message(f"CPU count set to {new_cpu_count}")
-                        self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
-                        self.vm_info['cpu'] = int(new_cpu_count)
-                    except (libvirt.libvirtError, Exception) as e:
-                        self.app.show_error_message(f"Error setting CPU: {e}")
+                        msg = f"CPU count set to {new_cpu_count}"
+                        if self.is_bulk:
+                            msg += f" for {success_count} VMs"
+                        self.app.show_success_message(msg)
+                        if not self.is_bulk:
+                            self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
+                            self.vm_info['cpu'] = int(new_cpu_count)
+
+                    if errors:
+                        self.app.show_error_message(f"Errors setting CPU: {'; '.join(errors)}")
 
             self.app.push_screen(EditCpuModal(current_cpu=str(self.vm_info.get('cpu', ''))), edit_cpu_callback)
 
         elif event.button.id == "edit-memory":
             def edit_memory_callback(new_memory_size):
                 if new_memory_size is not None and new_memory_size.isdigit():
-                    try:
-                        set_memory(self.domain, int(new_memory_size))
+                    targets = self.selected_domains if self.is_bulk else [self.domain]
+                    errors = []
+                    success_count = 0
+                    for d in targets:
+                        try:
+                            set_memory(d, int(new_memory_size))
+                            success_count += 1
+                        except (libvirt.libvirtError, Exception) as e:
+                            errors.append(f"{d.name()}: {e}")
+
+                    if success_count > 0:
                         self._invalidate_cache()
-                        self.app.show_success_message(f"Memory size set to {new_memory_size} MB")
-                        self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
-                        self.vm_info['memory'] = int(new_memory_size)
-                    except (libvirt.libvirtError, Exception) as e:
-                        self.app.show_error_message(f"Error setting memory: {e}")
+                        msg = f"Memory size set to {new_memory_size} MB"
+                        if self.is_bulk:
+                            msg += f" for {success_count} VMs"
+                        self.app.show_success_message(msg)
+                        if not self.is_bulk:
+                            self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
+                            self.vm_info['memory'] = int(new_memory_size)
+
+                    if errors:
+                        self.app.show_error_message(f"Errors setting memory: {'; '.join(errors)}")
 
             self.app.push_screen(EditMemoryModal(current_memory=str(self.vm_info.get('memory', ''))), edit_memory_callback)
 
         elif event.button.id == "add-serial-btn":
-            try:
-                add_serial_console(self.domain)
+            targets = self.selected_domains if self.is_bulk else [self.domain]
+            errors = []
+            success_count = 0
+            for d in targets:
+                try:
+                    add_serial_console(d)
+                    success_count += 1
+                except (libvirt.libvirtError, ValueError) as e:
+                    errors.append(f"{d.name()}: {e}")
+
+            if success_count > 0:
                 self._invalidate_cache()
-                self.app.show_success_message("Serial console added successfully.")
-                self.xml_desc = self.domain.XMLDesc(0)
-                self._populate_serial_table()
-            except (libvirt.libvirtError, ValueError) as e:
-                self.app.show_error_message(f"Error adding serial console: {e}")
+                msg = "Serial console added successfully."
+                if self.is_bulk:
+                    msg += f" (Applied to {success_count} VMs)"
+                self.app.show_success_message(msg)
+                if not self.is_bulk:
+                    self.xml_desc = self.domain.XMLDesc(0)
+                    self._populate_serial_table()
+
+            if errors:
+                self.app.show_error_message(f"Errors adding serial console: {'; '.join(errors)}")
 
         elif event.button.id == "remove-serial-btn":
             if self.selected_serial_port:
                 def on_confirm_remove(confirmed: bool):
                     if confirmed:
-                        try:
-                            remove_serial_console(self.domain, self.selected_serial_port)
-                            self._invalidate_cache()
-                            self.app.show_success_message("Serial console removed successfully.")
-                            self.xml_desc = self.domain.XMLDesc(0)
-                            self._populate_serial_table()
-                        except (libvirt.libvirtError, ValueError) as e:
-                            self.app.show_error_message(f"Error removing serial console: {e}")
+                        targets = self.selected_domains if self.is_bulk else [self.domain]
+                        errors = []
+                        success_count = 0
+                        for d in targets:
+                            try:
+                                remove_serial_console(d, self.selected_serial_port)
+                                success_count += 1
+                            except (libvirt.libvirtError, ValueError) as e:
+                                errors.append(f"{d.name()}: {e}")
 
-                self.app.push_screen(
-                    ConfirmationDialog(f"Are you sure you want to remove console on port {self.selected_serial_port}?"),
-                    on_confirm_remove
-                )
+                        if success_count > 0:
+                            self._invalidate_cache()
+                            msg = "Serial console removed successfully."
+                            if self.is_bulk:
+                                msg += f" (Applied to {success_count} VMs)"
+                            self.app.show_success_message(msg)
+                            if not self.is_bulk:
+                                self.xml_desc = self.domain.XMLDesc(0)
+                                self._populate_serial_table()
+
+                        if errors:
+                            self.app.show_error_message(f"Errors removing serial console: {'; '.join(errors)}")
+
+                msg = f"Are you sure you want to remove console on port {self.selected_serial_port}?"
+                if self.is_bulk:
+                    msg = f"Are you sure you want to remove console on port {self.selected_serial_port} from ALL selected VMs?"
+                self.app.push_screen(ConfirmationDialog(msg), on_confirm_remove)
 
     def action_close_modal(self) -> None:
         """Close the modal."""
