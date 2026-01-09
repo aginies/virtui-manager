@@ -322,7 +322,7 @@ class VMManagerTUI(App):
                 self.initial_cache_loading = True
                 self.worker_manager.run(self._initial_cache_worker, name="initial_cache")
 
-        self.set_interval(300, self._log_cache_statistics)
+        self.set_interval(600, self._log_cache_statistics)
 
     def _log_cache_statistics(self) -> None:
         """Log cache statistics periodically."""
