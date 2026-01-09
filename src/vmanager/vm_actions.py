@@ -1356,18 +1356,15 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
     # Remove existing graphics elements of other types or if no graphics type is specified
     existing_graphics_elements = devices.findall('graphics')
     for elem in existing_graphics_elements:
-        if graphics_type is None or elem.get('type') != graphics_type:
-            devices.remove(elem)
-
-    graphics_elem = devices.find(f"graphics[@type='{graphics_type}']")
+        logging.info("Removing previous graphics")
+        devices.remove(elem)
 
     if graphics_type is None:
-        # If no graphics type is specified, ensure all graphics elements are removed
-        for elem in existing_graphics_elements:
-            devices.remove(elem)
+        # If no graphics type is specified, all graphics elements are been removed
+        logging.info("No more graphics")
+        pass
     else:
-        if graphics_elem is None:
-            graphics_elem = ET.SubElement(devices, 'graphics', type=graphics_type)
+        graphics_elem = ET.SubElement(devices, 'graphics', type=graphics_type)
 
         # Set port and autoport
         if autoport:

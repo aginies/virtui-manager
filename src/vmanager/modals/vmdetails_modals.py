@@ -121,6 +121,7 @@ class VMDetailModal(ModalScreen):
         self.vm_info['video_model'] = video_info.get('model', 'none')
         self.vm_info['video'] = video_info
         self.graphics_info = get_vm_graphics_info(root)
+        self.original_graphics_info = self.graphics_info.copy()
         self.rng_info = get_vm_rng_info(root)
         self.tpm_info = get_vm_tpm_info(root)
         self.watchdog_info = get_vm_watchdog_info(root)
@@ -137,7 +138,8 @@ class VMDetailModal(ModalScreen):
                     except Exception:
                         pass # Ignore if we can't invalidate one
             else:
-                self.invalidate_cache_callback(self.vm_info['uuid'])
+                internal_id = self.vm_service._get_internal_id(self.domain, self.conn)
+                self.invalidate_cache_callback(internal_id)
 
     @property
     def is_vm_stopped(self) -> bool:
@@ -993,7 +995,7 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message("VM must be stopped to apply graphics settings.")
             return
 
-        original_graphics_type = self.graphics_info.get('type')
+        original_graphics_type = self.original_graphics_info.get('type')
         new_graphics_type = self.query_one("#graphics-type-select", Select).value
         listen_type = self.query_one("#graphics-listen-type-select", Select).value
 
@@ -1054,6 +1056,7 @@ class VMDetailModal(ModalScreen):
                         except ET.ParseError:
                             root = None
                     self.graphics_info = get_vm_graphics_info(root)
+                    self.original_graphics_info = self.graphics_info.copy()
                     self._update_graphics_ui()
 
             if errors:
