@@ -5,7 +5,8 @@ import subprocess
 import logging
 import traceback
 import datetime
-from functools import partial, lru_cache
+import time
+from functools import partial
 from urllib.parse import urlparse
 import libvirt
 from rich.markdown import Markdown as RichMarkdown
@@ -20,7 +21,7 @@ from textual import on
 from textual.events import Click
 from textual.css.query import NoMatches
 
-from events import VMNameClicked, VMSelectionChanged, VmActionRequest
+from events import VMNameClicked, VMSelectionChanged, VmActionRequest, VmCardUpdateRequest
 from vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
         restore_vm_snapshot, delete_vm_snapshot,
@@ -47,7 +48,6 @@ from vmcard_dialog import (
 from utils import (
         extract_server_name_from_uri,
         generate_tooltip_markdown,
-        format_memory_display
 )
 from constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
@@ -160,11 +160,17 @@ class VMCard(Static):
     def _get_vm_display_name(self) -> str:
         """Returns the formatted VM name including server name if available."""
         if hasattr(self, 'conn') and self.conn:
-            server_display = extract_server_name_from_uri(self.conn.getURI())
+            #server_display = extract_server_name_from_uri(self.conn.getURI())
+            # Use cached URI lookup to avoid libvirt call
+            uri = self.app.vm_service.get_uri_for_connection(self.conn)
+            if not uri:
+                uri = self.conn.getURI()
+            server_display = extract_server_name_from_uri(uri)
             return f"{self.name} ({server_display})"
         return self.name
 
     def _get_snapshot_tab_title(self, num_snapshots: int = -1) -> str:
+        """Get snapshot tab title. Pass num_snapshots to avoid blocking libvirt call."""
         if num_snapshots == -1:
              # If no count provided, don't fetch it here to avoid blocking.
              # For now, return default if we can't get it cheaply.
@@ -299,7 +305,11 @@ class VMCard(Static):
         if not self.conn:
             return False
         try:
-            uri = self.conn.getURI()
+            #uri = self.conn.getURI()
+            # Use cached URI to avoid libvirt call
+            uri = self.app.vm_service.get_uri_for_connection(self.conn)
+            if not uri:
+                uri = self.conn.getURI()
             parsed = urlparse(uri)
             return parsed.hostname not in (None, "localhost", "127.0.0.1") and parsed.scheme == "qemu+ssh"
         except Exception:
@@ -324,15 +334,22 @@ class VMCard(Static):
         if self._is_remote_server() and not has_cached_xml:
             self.ui["vmname"].tooltip = None
             return
-
+        # Use cached identity to avoid libvirt call
         try:
-            uuid_display = self.vm.UUIDString() if self.vm else "Unknown"
+            #uuid_display = self.vm.UUIDString() if self.vm else "Unknown"
+            if self.vm:
+                raw_uuid, _ = self.app.vm_service.get_vm_identity(self.vm, self.conn)
+                uuid_display = raw_uuid.split('@')[0]  # Extract just the UUID part
+            else:
+                uuid_display = "Unknown"
         except Exception:
             uuid_display = "Unknown"
 
         hypervisor = "Unknown"
         if self.conn:
-            hypervisor = extract_server_name_from_uri(self.conn.getURI())
+            #hypervisor = extract_server_name_from_uri(self.conn.getURI())
+            uri = self.app.vm_service.get_uri_for_connection(self.conn) or self.conn.getURI()
+            hypervisor = extract_server_name_from_uri(uri)
 
         mem_display = f"{self.memory} MiB"
         if self.memory >= 1024:
@@ -602,7 +619,7 @@ class VMCard(Static):
                     if xml_content:
                         root = _parse_domain_xml(xml_content)
                         if root is not None:
-                            # Always update from cache if available
+                            # Use cached XML when available
                             boot_info = get_boot_info(self.conn, root)
                             if boot_info['order']:
                                 boot_dev = boot_info['order'][0]
@@ -611,8 +628,10 @@ class VMCard(Static):
                             graphics_type = graphics_info.get("type")
                             self._boot_device_checked = True
                     elif not is_remote:
-                        # Fallback: Fetch XML once if not in cache to get static info like Boot/CPU model
+                        # Fallback for local VMs: fetch XML once to populate cache
+                        # This is acceptable as it's done only once and cached
                         try:
+                            # This calls XMLDesc() only once, then caches it
                             _, root = _get_domain_root(self.vm)
                             if root is not None:
                                 boot_info = get_boot_info(self.conn, root)
@@ -622,9 +641,8 @@ class VMCard(Static):
                                 graphics_info = get_vm_graphics_info(root)
                                 graphics_type = graphics_info.get("type")
 
-                                # Opportunistically populate cache to avoid future fetches
-                                # This is safe because we are in a worker thread
-                                self.app.vm_service._get_domain_info_and_xml(self.vm)
+                                # XML is now cached by _get_domain_root, so we're done
+                                # No need for additional cache population
                                 self._boot_device_checked = True
                         except Exception:
                             pass
@@ -714,12 +732,16 @@ class VMCard(Static):
         """Update the button layout based on current VM status."""
         self._update_fast_buttons()
 
-        # Trigger background fetch for heavy data (snapshots, overlays)
+        # Trigger background fetch for heavy data (snapshots, overlays) only if actions are visible
         if self.ui.get(ButtonIds.RENAME_BUTTON):
-            self.app.worker_manager.run(
-                self._fetch_actions_state_worker,
-                name=f"actions_state_{self.internal_id}"
-            )
+            # Check if collapsible is expanded before fetching heavy data
+            collapsible = self.ui.get("collapsible")
+            if collapsible and not collapsible.collapsed:
+                self.app.worker_manager.run(
+                    self._fetch_actions_state_worker,
+                    name=f"actions_state_{self.internal_id}",
+                    exclusive=True
+                )
 
     def _update_fast_buttons(self):
         """Updates buttons that rely on cached/fast state."""
@@ -757,11 +779,27 @@ class VMCard(Static):
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
+            state_tuple = self.app.vm_service._get_domain_state(self.vm)
+            if not state_tuple:
+                return
             snapshot_count = 0
             domain_missing = False
             try:
                 if self.vm:
+                    # expensive libvirt call
+                    # Check if we recently fetched this to avoid redundant calls
+                    last_fetch_key = f"snapshot_fetch_{self.internal_id}"
+                    if hasattr(self.app, '_last_snapshot_fetch'):
+                        last_fetch = self.app._last_snapshot_fetch.get(last_fetch_key, 0)
+                        if time.time() - last_fetch < 2:  # Don't fetch more than once per 2 seconds
+                            return
+
                     snapshot_count = self.vm.snapshotNum(0)
+                    # Record fetch time
+                    if not hasattr(self.app, '_last_snapshot_fetch'):
+                        self.app._last_snapshot_fetch = {}
+                    self.app._last_snapshot_fetch[last_fetch_key] = time.time()
+
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     domain_missing = True
@@ -853,6 +891,10 @@ class VMCard(Static):
     def _handle_create_overlay(self, event: Button.Pressed) -> None:
         """Handles the create overlay button press."""
         try:
+            # Use cached XML if available to avoid XMLDesc() call
+            vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
+            xml_content = vm_cache.get('xml')
+
             disks = get_vm_disks(self.vm)
             # Filter for actual disks (exclude cdroms, etc)
             valid_disks = [d['path'] for d in disks if d.get('device_type') == 'disk']
@@ -863,7 +905,7 @@ class VMCard(Static):
 
             target_disk = valid_disks[0]
 
-            vm_name = self.vm.name()
+            _, vm_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             default_name = f"{vm_name}_overlay_{timestamp}.qcow2"
 
@@ -986,7 +1028,7 @@ class VMCard(Static):
     def _handle_shutdown_button(self, event: Button.Pressed) -> None:
         """Handles the shutdown button press."""
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
-        if self.vm.isActive():
+        if self.status in (StatusText.RUNNING, StatusText.PAUSED):
             self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
@@ -996,7 +1038,9 @@ class VMCard(Static):
         def on_confirm(confirmed: bool) -> None:
             if not confirmed:
                 return
-            if self.vm.isActive():
+            #if self.vm.isActive():
+            # maybe better to use cache status
+            if self.status in (StatusText.RUNNING, StatusText.PAUSED):
                 self.post_message(VmActionRequest(self.internal_id, VmAction.FORCE_OFF))
 
         message = f"{ErrorMessages.HARD_STOP_WARNING}\nAre you sure you want to stop '{self.name}'?"
@@ -1016,6 +1060,9 @@ class VMCard(Static):
     def _handle_xml_button(self, event: Button.Pressed) -> None:
         """Handles the xml button press."""
         try:
+            vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
+            cached_xml = vm_cache.get('xml')
+
             original_xml = self.vm.XMLDesc(0)
             is_stopped = self.status == StatusText.STOPPED
 
@@ -1056,8 +1103,15 @@ class VMCard(Static):
 
         def do_connect() -> None:
             try:
-                uri = self.conn.getURI()
-                domain_name = self.vm.name()
+                #uri = self.conn.getURI()
+                #domain_name = self.vm.name()
+                # Use cached values to avoid libvirt calls
+                uri = self.app.vm_service.get_uri_for_connection(self.conn)
+                if not uri:
+                    uri = self.conn.getURI()
+                
+                _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
+
 
                 command = ["virt-viewer", "--connect", uri, domain_name]
                 logging.info(f"Executing command: {' '.join(command)}")
@@ -1107,14 +1161,20 @@ class VMCard(Static):
             uuid = self.internal_id
             if self.app.webconsole_manager.is_running(uuid):
                 self.app.worker_manager.run(
-                    worker, name=f"show_console_{self.vm.name()}"
+                   worker, name=f"show_console_{self.vm.name()}"
                 )
                 return
         except Exception as e:
             self.app.show_error_message(f"Error checking web console status for {self.name}: {e}")
             return
 
-        is_remote = self.app.webconsole_manager.is_remote_connection(self.conn.getURI())
+        #is_remote = self.app.webconsole_manager.is_remote_connection(self.conn.getURI())
+        # Use cached URI to avoid libvirt call
+        uri = self.app.vm_service.get_uri_for_connection(self.conn)
+        if not uri:
+            uri = self.conn.getURI()
+        is_remote = self.app.webconsole_manager.is_remote_connection(uri)
+
 
         if is_remote:
             def handle_dialog_result(should_start: bool) -> None:
@@ -1135,6 +1195,8 @@ class VMCard(Static):
         logging.info(f"Attempting to take snapshot for VM: {self.name}")
 
         def handle_snapshot_result(result: dict | None) -> None:
+            # Always refresh tab title when modal closes, even if cancelled
+            self._refresh_snapshot_tab_async()
             if result:
                 name = result["name"]
                 description = result["description"]
@@ -1142,12 +1204,11 @@ class VMCard(Static):
                 try:
                     create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
-                    self.update_button_layout()
+                    self.app.set_time(0.5, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                 except Exception as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
 
-            self.update_snapshot_tab_title()
         self.app.push_screen(SnapshotNameDialog(self.vm), handle_snapshot_result)
 
     def _handle_snapshot_restore_button(self, event: Button.Pressed) -> None:
@@ -1159,11 +1220,14 @@ class VMCard(Static):
             return
 
         def restore_snapshot(snapshot_name: str | None) -> None:
+            # Always refresh tab title when modal closes
+            self._refresh_snapshot_tab_async()
             if snapshot_name:
                 try:
                     restore_vm_snapshot(self.vm, snapshot_name)
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
+                    self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
                     logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
                 except Exception as e:
@@ -1180,6 +1244,8 @@ class VMCard(Static):
             return
 
         def delete_snapshot(snapshot_name: str | None) -> None:
+            # Refresh again after confirmation dialog closes
+            self._refresh_snapshot_tab_async()
             if snapshot_name:
                 def on_confirm(confirmed: bool) -> None:
                     if confirmed:
@@ -1187,17 +1253,58 @@ class VMCard(Static):
                             delete_vm_snapshot(self.vm, snapshot_name)
                             self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
-                            self.update_button_layout()
+                            self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except Exception as e:
                             self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
 
-                    self.update_snapshot_tab_title()
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
                 )
 
         self.app.push_screen(SelectSnapshotDialog(snapshots_info, "Select snapshot to delete"), delete_snapshot)
+
+    def _refresh_snapshot_tab_async(self) -> None:
+        """Refreshes the snapshot tab title asynchronously in a worker."""
+        def fetch_and_update():
+            try:
+                if not self.vm:
+                    return
+
+                # Fetch current snapshot count
+                snapshot_count = 0
+                try:
+                    snapshot_count = self.vm.snapshotNum(0)
+                except libvirt.libvirtError as e:
+                    if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                        logging.debug(f"Domain no longer exists for {self.name}")
+                        return
+                    else:
+                        logging.warning(f"Could not get snapshot count for {self.name}: {e}")
+                        return
+
+                # Update UI on main thread
+                def update_ui():
+                    if self.is_mounted:
+                        self.update_snapshot_tab_title(snapshot_count)
+                        # Also update button visibility
+                        if self.ui.get(ButtonIds.RENAME_BUTTON):
+                            has_snapshots = snapshot_count > 0
+                            self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
+                            self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+
+                self.app.call_from_thread(update_ui)
+
+            except Exception as e:
+                logging.error(f"Error refreshing snapshot tab for {self.name}: {e}")
+
+        # Run in worker to avoid blocking UI
+        self.app.worker_manager.run(
+            fetch_and_update,
+            name=f"refresh_snapshot_tab_{self.internal_id}",
+            exclusive=True
+        )
+
 
     def _handle_delete_button(self, event: Button.Pressed) -> None:
         """Handles the delete button press."""
@@ -1236,9 +1343,13 @@ class VMCard(Static):
                 log_callback(f"Attempting to clone VM: {self.name}")
                 existing_vm_names = set()
                 try:
-                    all_domains = self.conn.listAllDomains(0)
-                    for domain in all_domains:
-                        existing_vm_names.add(domain.name())
+                     # Use listAllDomains(0) which is already cached
+                     # by vm_service, so this won't trigger additional libvirt calls
+                     all_domains = self.conn.listAllDomains(0)
+                     for domain in all_domains:
+                        _, name = self.app.vm_service.get_vm_identity(domain, self.conn)
+                        existing_vm_names.add(name)
+
                 except libvirt.libvirtError as e:
                     log_callback(f"ERROR: Error getting existing VM names: {e}")
                     app.call_from_thread(app.show_error_message, f"Error getting existing VM names: {e}")
@@ -1338,12 +1449,13 @@ class VMCard(Static):
             num_snapshots = self.vm.snapshotNum(0)
             if num_snapshots > 0:
                 def on_confirm_delete(confirmed: bool) -> None:
+                    self._refresh_snapshot_tab_async()
                     if confirmed:
                         do_rename(delete_snapshots=True)
+                        self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                     else:
                         self.app.show_success_message("VM rename cancelled.")
 
-                    self.update_snapshot_tab_title()
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOTS_AND_RENAME.format(count=num_snapshots)),
                     on_confirm_delete
@@ -1357,11 +1469,11 @@ class VMCard(Static):
         """Handles the configure button press."""
         try:
             self._boot_device_checked = False
-            
+
             uuid = self.internal_id
             vm_name = self.name
             active_uris = list(self.app.active_uris)
-            
+
             # Capture variables for thread safety
             vm_obj = self.vm
             conn_obj = self.conn
@@ -1379,24 +1491,24 @@ class VMCard(Static):
                         conn=conn_obj, 
                         cached_ips=cached_ips
                     )
-                    
+
                     def show_details():
                         loading_modal.dismiss()
                         if not result:
                             self.app.show_error_message(f"VM {vm_name} with internal ID {uuid} not found on any active server.")
                             return
-                        
+
                         vm_info, domain, conn_for_domain = result
-                        
+
                         def on_detail_modal_dismissed(res):
-                            self.app.refresh_vm_list(force=True)
+                            self.post_message(VmCardUpdateRequest(uuid))
                             self._perform_tooltip_update()
 
                         self.app.push_screen(
                             VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_cache),
                             on_detail_modal_dismissed
                         )
-                    
+
                     self.app.call_from_thread(show_details)
 
                 except Exception as e:
@@ -1420,21 +1532,20 @@ class VMCard(Static):
         selected_vms = []
         if selected_vm_uuids:
             for uuid in selected_vm_uuids:
-                found_domain = None
-                for uri in self.app.active_uris:
-                    conn = self.app.vm_service.connect(uri)
-                    if conn:
-                        try:
-                            # Try lookup by UUID first
-                            raw_uuid = uuid.split('@')[0]
-                            domain = conn.lookupByUUIDString(raw_uuid)
-                            # Verify it matches the composite ID if it's one
-                            if self.app.vm_service._get_internal_id(domain, conn) == uuid:
-                                selected_vms.append(domain)
-                                found_domain = True
-                                break
-                        except libvirt.libvirtError:
-                            continue
+                #Use cached domain lookup instead of iterating all URIs
+                with self.app.vm_service._cache_lock:
+                    domain = self.app.vm_service._domain_cache.get(uuid)
+                    
+                if domain:
+                    try:
+                        # Verify domain is still valid
+                        domain.info()
+                        selected_vms.append(domain)
+                        found_domain = True
+                    except libvirt.libvirtError:
+                        found_domain = False
+                else:
+                    found_domain = False
                 if not found_domain:
                     self.app.show_error_message(f"Selected VM with ID {uuid} not found on any active server.")
 
@@ -1443,12 +1554,35 @@ class VMCard(Static):
 
         logging.info(f"Migration initiated for VMs: {[vm.name() for vm in selected_vms]}")
 
-        source_conns = {vm.connect().getURI() for vm in selected_vms}
+        #source_conns = {vm.connect().getURI() for vm in selected_vms}
+        source_conns = set()
+        for vm in selected_vms:
+            conn = vm.connect()
+            uri = self.app.vm_service.get_uri_for_connection(conn)
+            if not uri:
+                uri = conn.getURI()
+            source_conns.add(uri)
+
         if len(source_conns) > 1:
             self.app.show_error_message("Cannot migrate VMs from different source hosts at the same time.")
             return
 
-        active_vms = [vm for vm in selected_vms if vm.isActive()]
+        #active_vms = [vm for vm in selected_vms if vm.isActive()]
+        # Check status from cache instead of isActive()
+        # We can infer from the card's status which VMs are active
+        active_vms = []
+        for vm in selected_vms:
+            try:
+                state_tuple = self.app.vm_service._get_domain_state(vm)
+                if state_tuple:
+                    state, _ = state_tuple
+                    if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                        active_vms.append(vm)
+            except:
+                # Fallback to isActive() if cache lookup fails
+                if vm.isActive():
+                    active_vms.append(vm)
+
         is_live = len(active_vms) > 0
         if is_live and len(active_vms) < len(selected_vms):
             self.app.show_error_message("Cannot migrate running/paused and stopped VMs at the same time.")
@@ -1457,7 +1591,13 @@ class VMCard(Static):
         active_uris = self.app.vm_service.get_all_uris()
         all_connections = {uri: self.app.vm_service.get_connection(uri) for uri in active_uris if self.app.vm_service.get_connection(uri)}
 
-        source_uri = selected_vms[0].connect().getURI()
+        #source_uri = selected_vms[0].connect().getURI()
+        # Use cached URI
+        source_conn = selected_vms[0].connect()
+        source_uri = self.app.vm_service.get_uri_for_connection(source_conn)
+        if not source_uri:
+            source_uri = source_conn.getURI()
+
         if source_uri == "qemu:///system":
             self.app.show_error_message(
                 ErrorMessages.MIGRATION_LOCALHOST_NOT_SUPPORTED
