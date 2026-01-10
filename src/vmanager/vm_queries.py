@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import logging
 from functools import lru_cache
 import hashlib
+import concurrent.futures
 import libvirt
 from libvirt_utils import (
         VIRTUI_MANAGER_NS,
@@ -430,10 +431,10 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
                     bus = target_elem.get('bus') if target_elem is not None else 'N/A'
 
                     disks.append({
-                        'path': disk_path, 
-                        'status': 'enabled', 
-                        'cache_mode': cache_mode, 
-                        'discard_mode': discard_mode, 
+                        'path': disk_path,
+                        'status': 'enabled',
+                        'cache_mode': cache_mode,
+                        'discard_mode': discard_mode,
                         'bus': bus,
                         'device_type': device_type
                     })
@@ -490,6 +491,7 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
 def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of disk path to a list of VM names.
+    Optimized to fetch VM XMLs and resolve disks in parallel.
     """
     disk_to_vms_map = {}
     if not conn:
@@ -500,21 +502,30 @@ def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     except libvirt.libvirtError:
         return disk_to_vms_map
 
-    for domain in domains:
+    def process_domain_disk_usage(domain):
+        """Helper to process a single domain for disk usage."""
         try:
             _, root = _get_domain_root(domain)
             if root is not None:
-                disks = get_vm_disks_info(conn, root)
-                vm_name = domain.name()
-                for disk in disks:
-                    path = disk.get('path')
-                    if path:
-                        if path not in disk_to_vms_map:
-                            disk_to_vms_map[path] = []
-                        if vm_name not in disk_to_vms_map[path]:
-                            disk_to_vms_map[path].append(vm_name)
+                # get_vm_disks_info uses conn to look up storage pools/vols
+                return domain.name(), get_vm_disks_info(conn, root)
         except Exception:
-            continue
+            pass
+        return None, []
+
+    # Use ThreadPoolExecutor for parallel processing
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(process_domain_disk_usage, domains)
+
+    for vm_name, disks in results:
+        if vm_name:
+            for disk in disks:
+                path = disk.get('path')
+                if path:
+                    if path not in disk_to_vms_map:
+                        disk_to_vms_map[path] = []
+                    if vm_name not in disk_to_vms_map[path]:
+                        disk_to_vms_map[path].append(vm_name)
 
     return disk_to_vms_map
 
@@ -991,6 +1002,7 @@ def check_for_spice_vms(conn):
 def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of network name to a list of VM names using it.
+    Optimized to fetch VM XMLs in parallel.
     """
     network_to_vms = {}
     if not conn:
@@ -1001,21 +1013,30 @@ def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     except libvirt.libvirtError:
         return network_to_vms
 
-    for domain in domains:
+    def process_domain(domain):
+        """Helper to process a single domain."""
         try:
             _, root = _get_domain_root(domain)
             if root is not None:
-                vm_name = domain.name()
-                networks = get_vm_networks_info(root)
-                for net in networks:
-                    net_name = net.get('network')
-                    if net_name:
-                        if net_name not in network_to_vms:
-                            network_to_vms[net_name] = []
-                        if vm_name not in network_to_vms[net_name]:
-                            network_to_vms[net_name].append(vm_name)
+                return domain.name(), get_vm_networks_info(root)
         except Exception:
-            continue
+            pass
+        return None, []
+
+    # Use a ThreadPoolExecutor to fetch XMLs in parallel
+    # Limit max_workers to a reasonable number (e.g., 20) to balance speed and resource usage
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(process_domain, domains)
+
+    for vm_name, networks in results:
+        if vm_name:
+            for net in networks:
+                net_name = net.get('network')
+                if net_name:
+                    if net_name not in network_to_vms:
+                        network_to_vms[net_name] = []
+                    if vm_name not in network_to_vms[net_name]:
+                        network_to_vms[net_name].append(vm_name)
 
     return network_to_vms
 
@@ -1157,7 +1178,7 @@ def get_overlay_disks(domain: libvirt.virDomain) -> list[str]:
         root = ET.fromstring(xml_desc)
 
         for disk in root.findall(".//disk"):
-             # Get path first as we need it for return value and volume lookup
+            # Get path first as we need it for return value and volume lookup
             path = None
             source = disk.find("source")
             if source is not None:
