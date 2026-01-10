@@ -424,8 +424,14 @@ class VMService:
             info = vm_cache.get('info')
             info_ts = vm_cache.get('info_ts', 0)
 
-        #TOFIX: use state, reason = domain.state()
-        if info is None or (now - info_ts >= self._info_cache_ttl):
+        # Use cached state if possible
+        state_tuple = self._get_domain_state(domain, internal_id=uuid)
+        state = state_tuple[0] if state_tuple else None
+
+        # Fetch if Cache is empty or TTL has expired
+        if (info is None) or \
+           (now - info_ts >= self._info_cache_ttl) or \
+           (state is not None and info[0] != state):
             try:
                 info = domain.info()
                 with self._cache_lock:
