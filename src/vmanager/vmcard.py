@@ -718,6 +718,8 @@ class VMCard(Static):
                 else:
                     logging.warning(f"Libvirt error during stat update for {self.name}: {e}")
             except Exception as e:
+                if e.__class__.__name__ == "NoActiveAppError":
+                    return
                 logging.error(f"Unexpected error in update_stats worker for {self.name}: {e}", exc_info=True)
 
         self.app.worker_manager.run(update_worker, name=f"update_stats_{uuid}")
