@@ -30,3 +30,11 @@ class VmActionRequest(Message):
         self.vm_uuid = vm_uuid
         self.action = action
         self.delete_storage = delete_storage
+
+
+class VmCardUpdateRequest(Message):
+    """Posted when a specific VM card needs to be updated."""
+
+    def __init__(self, vm_uuid: str) -> None:
+        super().__init__()
+        self.vm_uuid = vm_uuid
