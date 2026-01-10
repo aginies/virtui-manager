@@ -47,6 +47,7 @@ class VMService:
     """A service class to abstract libvirt operations."""
 
     def __init__(self):
+        _start_event_loop()
         self.connection_manager = ConnectionManager()
         self._cpu_time_cache = {} # Cache for calculating CPU usage {uuid: (last_time, last_timestamp)}
         self._io_stats_cache = {} # Cache for calculating Disk/Net I/O {uuid: {'ts': ts, 'disk_read': bytes, ...}}
