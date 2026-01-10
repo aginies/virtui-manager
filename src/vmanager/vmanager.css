@@ -503,7 +503,7 @@ Select:focus {
 .close-button { height: 1; width: auto; color: white; background: red; border: hidden; margin: 1 1; }
 .delete-button, .cancel-button { background: red; }
 .rename-button, .edit-button, .add-button { background: green; }
-.delete-button, .done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
+.done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
 #switch-to-bios,
 #switch-to-uefi,
 #add-usb2-controller-btn,
