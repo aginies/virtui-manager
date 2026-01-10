@@ -30,7 +30,7 @@ Stats data checked after 5 minutes (to get them stabilized).
 | **Physical Memory (RSS)** | ~197 MB | ~97 MB | **-100 MB** (virtui is lighter) |
 | **Virtual Memory (VSZ)** | ~2.3 GB | ~494 MB | **-1.8 GB** (virtui uses significantly less address space) |
 | **CPU Usage (Idle/Polling)** | ~5.5% | ~1.5% | **-5.0%** (virtui is ligther) |
-| **First Start Speed** | ~30sec | 1sec | **-29sec%** (virtui is fater) |
+| **First Start Speed** | ~30sec | 1sec | **-29sec** (virtui is faster) |
 | **Display XML data** | 1sec | 1sec | similar |
 | **Display XML data (GUI/TUI) ** | 1sec | 3sec | **-2sec** (virt-manager faster) |
 
