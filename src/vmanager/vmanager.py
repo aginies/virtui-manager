@@ -20,7 +20,6 @@ from config import load_config, save_config, get_log_path
 from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
         ErrorMessages, AppInfo, StatusText, ServerPallette,
-        AppCacheTimeout
         )
 from events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from libvirt_error_handler import register_error_handler
@@ -50,7 +49,6 @@ from utils import (
     check_websockify,
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
-    format_server_names,
     setup_cache_monitoring,
 )
 from vm_queries import (
@@ -1147,8 +1145,8 @@ class VMManagerTUI(App):
 
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
-
-            self.sub_title = f"Servers: {format_server_names(tuple(server_names))}"
+            # Main tittle with Servers name
+            self.title = f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
             self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
 
         self.call_from_thread(update_ui)

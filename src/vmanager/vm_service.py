@@ -1020,18 +1020,31 @@ class VMService:
 
         # Map URIs to Server Names (using connection manager which is thread safe)
         server_names = []
+        # Count VMs per URI from the domain cache
+        uri_counts = {}
+        for internal_id in domains_map.keys():
+            if "@" in internal_id:
+                uri = internal_id.split("@", 1)[1]
+                uri_counts[uri] = uri_counts.get(uri, 0) + 1
+
+        from utils import extract_server_name_from_uri
+
         # We can just iterate active_uris provided
         for uri in active_uris:
+            count = uri_counts.get(uri, 0)
             # Check if we have connection or if it is active
             found = False
+            name = None
             for server in servers:
                 if server['uri'] == uri:
-                    server_names.append(server['name'])
+                    name = server['name']
                     found = True
                     break
 
             if not found:
-                server_names.append(uri)
+                name = extract_server_name_from_uri(uri)
+            
+            server_names.append(f"{name} ({count})")
 
         total_vms_unfiltered = len(domains_with_conn)
         #domains_to_display = domains_with_conn
