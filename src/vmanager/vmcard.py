@@ -1206,7 +1206,7 @@ class VMCard(Static):
                 try:
                     create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
-                    self.app.set_time(0.5, self._refresh_snapshot_tab_async)
+                    self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Snapshot '{name}' created successfully.")
                 except Exception as e:
                     self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
