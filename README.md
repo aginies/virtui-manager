@@ -33,8 +33,8 @@ Stats data checked after 10 minutes (to get them stabilized).
 | **CPU Usage (Idle/Polling)** | ~10.1% | ~2.2% | **-7.9%** (virtui is ligther) |
 | **First Start Speed** | ~24sec | 1sec | **-29sec** (virtui is faster) |
 | **Display XML data** | 1sec | 1sec | similar perf |
-| **Display XML data (GUI/TUI) ** | 1sec | 3sec | **+2sec** (virt-manager faster) |
-| **Network Bandwidth ** | fluctuation: 24/50 kB/s |  **3.5 kB/s** | (virtui-manager is lighter) |
+| **Display XML data (GUI/TUI)** | 1sec | 3sec | **+2sec** (virt-manager faster) |
+| **Network Bandwidth** | fluctuation: 24/50 kB/s |  **3.5 kB/s** | (virtui-manager is lighter) |
 
 ## Key Features
 
