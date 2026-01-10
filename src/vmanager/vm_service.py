@@ -439,7 +439,7 @@ class VMService:
                     vm_cache = self._vm_data_cache[uuid]
                     vm_cache['info'] = info
                     vm_cache['info_ts'] = now
-                    logging.info(f"Cache WRITE for VM info: {uuid}")
+                    #logging.info(f"Cache WRITE for VM info: {uuid}")
             except libvirt.libvirtError:
                 return None
         else:
