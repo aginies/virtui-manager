@@ -19,20 +19,22 @@ Virtui Manager solves these challenges with:
 - **Multi-server Support**: Manage VMs across multiple libvirt servers from a single interface
 - **Performance Optimized**: Built-in caching reduces libvirt calls and improves responsiveness
 
-## Resource Usage Comparison
+## Resource Usage Comparison with virt-manager
 
-Test done with 2 remote servers (12VM and 320VM).
-Stats data checked after 5 minutes (to get them stabilized).
+Test done with 2 ssh remote servers (8VM and 314VM). Any performance testing can be different on different hardware config etc... the prupose is to evaluate the general perf to avoid getting a tool which have bad performance for remote management connected to multiple servers. virt-manager has never been designed for such usage, and performed already very well.
+
+Stats data checked after 10 minutes (to get them stabilized).
 
 | Metric | virt-manager (GUI) | virtui-manager (TUI) | Difference |
 | :--- | :--- | :--- | :--- |
 | **Interface** | GTK3 (Graphical) | Textual (Terminal UI) | N/A |
-| **Physical Memory (RSS)** | ~197 MB | ~97 MB | **-100 MB** (virtui is lighter) |
-| **Virtual Memory (VSZ)** | ~2.3 GB | ~494 MB | **-1.8 GB** (virtui uses significantly less address space) |
-| **CPU Usage (Idle/Polling)** | ~5.5% | ~1.5% | **-5.0%** (virtui is ligther) |
-| **First Start Speed** | ~30sec | 1sec | **-29sec** (virtui is faster) |
-| **Display XML data** | 1sec | 1sec | similar |
-| **Display XML data (GUI/TUI) ** | 1sec | 3sec | **-2sec** (virt-manager faster) |
+| **Physical Memory (RSS)** | ~244 MB | ~102 MB | **-142 MB** (virtui is lighter) |
+| **Virtual Memory (VSZ)** | ~2.4 GB | ~640 MB | **-1.7 GB** (virtui uses significantly less address space) |
+| **CPU Usage (Idle/Polling)** | ~10.1% | ~2.2% | **-7.9%** (virtui is ligther) |
+| **First Start Speed** | ~24sec | 1sec | **-29sec** (virtui is faster) |
+| **Display XML data** | 1sec | 1sec | similar perf |
+| **Display XML data (GUI/TUI) ** | 1sec | 3sec | **+2sec** (virt-manager faster) |
+| **Network Bandwidth ** | fluctuation: 24/50 kB/s |  **3.5 kB/s** | (virtui-manager is lighter) |
 
 ## Key Features
 
