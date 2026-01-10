@@ -2674,6 +2674,19 @@ def discard_overlay(domain: libvirt.virDomain, disk_path: str):
                 break
 
     if updated:
+        # Remove backing chain info from metadata
+        backing_chain_elem = vm_root.find(f".//{{{VIRTUI_MANAGER_NS}}}backing-chain")
+        if backing_chain_elem is not None:
+            for entry in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
+                if entry.get('path') == disk_path:
+                    backing_chain_elem.remove(entry)
+
+            # If backing chain is empty, remove it
+            if len(list(backing_chain_elem)) == 0:
+                 vmanager_elem = vm_root.find(f".//{{{VIRTUI_MANAGER_NS}}}virtuimanager")
+                 if vmanager_elem is not None:
+                     vmanager_elem.remove(backing_chain_elem)
+
         domain.connect().defineXML(ET.tostring(vm_root, encoding='unicode'))
         # Delete the old overlay volume
         try:
