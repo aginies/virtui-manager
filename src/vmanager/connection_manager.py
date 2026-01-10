@@ -15,7 +15,6 @@ class ConnectionManager:
             self._obj = obj
             self._uri = uri
             self._manager = manager
-
         def __getattr__(self, name):
             attr = getattr(self._obj, name)
             if callable(attr):
@@ -49,6 +48,10 @@ class ConnectionManager:
         self.connection_errors: dict[str, str] = {}           # uri -> error message
         self.call_stats: dict[str, dict[str, int]] = {}       # uri -> {method -> count}
         self._lock = threading.RLock()
+        self._alive_cache = {}  # Cache liveness (TTL 30s)
+        self._alive_lock = threading.RLock()
+        self._last_check = {}   # Per-URI last check time
+
 
     def _record_call(self, uri: str, method_name: str):
         """Increments the call counter for a URI and method."""
@@ -57,6 +60,23 @@ class ConnectionManager:
                 self.call_stats[uri] = {}
             stats = self.call_stats[uri]
             stats[method_name] = stats.get(method_name, 0) + 1
+
+    def _is_alive_fast(self, uri: str, conn) -> bool:
+        """Cheap liveness check using cached timestamp."""
+        import time
+        now = time.time()
+        with self._alive_lock:
+            last = self._last_check.get(uri, 0)
+            if now - last < 30:  # 30s cache TTL
+                return self._alive_cache.get(uri, True)
+            try:
+                # Cheaper than getLibVersion(): listDefinedDomains(0) no-op if cached
+                conn.listDefinedDomains()
+                self._alive_cache[uri] = True
+            except libvirt.libvirtError:
+                self._alive_cache[uri] = False
+            self._last_check[uri] = now
+            return self._alive_cache[uri]
 
     def get_stats(self) -> dict[str, dict[str, int]]:
         """Returns the call statistics."""
@@ -68,6 +88,7 @@ class ConnectionManager:
         """Resets all call statistics."""
         with self._lock:
             self.call_stats.clear()
+            self.call_stats = {}
 
     def connect(self, uri: str) -> libvirt.virConnect | None:
         """
@@ -84,7 +105,8 @@ class ConnectionManager:
                 # Test the connection by calling a simple libvirt function
                 # Note: This call itself will be recorded if we use the wrapper, 
                 # but here we use the raw conn to test.
-                conn.getLibVersion()
+                if not self._is_alive_fast(uri, conn):
+                    logging.warning(f"Connection to {uri} is dead, reconnecting...")
                 return self.ConnectionWrapper(conn, uri, self)
             except libvirt.libvirtError:
                 # Connection is dead, remove it and create a new one
