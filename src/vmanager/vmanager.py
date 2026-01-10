@@ -831,6 +831,8 @@ class VMManagerTUI(App):
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""
         if result is None:
+            self.selected_vm_uuids.clear()
+            self.refresh_vm_list()
             return
 
         action_type = result.get('action')
