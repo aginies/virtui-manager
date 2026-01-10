@@ -355,7 +355,7 @@ class VMManagerTUI(App):
                 total_increase = total_calls - previous_total
                 increase_pct = 0.0
                 how_many_more = total_calls - previous_total
-                if previous_total > 0:
+                if total_increase > 0:
                     increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
                 logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
