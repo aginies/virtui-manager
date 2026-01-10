@@ -19,7 +19,8 @@ from textual.worker import Worker, WorkerState
 from config import load_config, save_config, get_log_path
 from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
-        ErrorMessages, AppInfo, StatusText, ServerPallette
+        ErrorMessages, AppInfo, StatusText, ServerPallette,
+        AppCacheTimeout
         )
 from events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from libvirt_error_handler import register_error_handler
@@ -629,13 +630,11 @@ class VMManagerTUI(App):
     def handle_config_result(self, result: dict | None) -> None:
         """Handle the result from the ConfigModal."""
         if result:
-            old_cache_ttl = self.config.get("CACHE_TTL")
             old_stats_interval = self.config.get("STATS_INTERVAL")
 
             self.config = result
 
-            if (self.config.get("CACHE_TTL") != old_cache_ttl or
-                self.config.get("STATS_INTERVAL") != old_stats_interval):
+            if (self.config.get("STATS_INTERVAL") != old_stats_interval):
                 self.show_success_message("Configuration updated. Refreshing VM list...")
                 self.refresh_vm_list(force=False, optimize_for_current_page=True)
             else:

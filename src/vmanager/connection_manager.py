@@ -5,6 +5,7 @@ import logging
 import threading
 import libvirt
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from constants import AppCacheTimeout
 
 class ConnectionManager:
     """A class to manage opening, closing, and storing multiple libvirt connections."""
@@ -48,7 +49,7 @@ class ConnectionManager:
         self.connection_errors: dict[str, str] = {}           # uri -> error message
         self.call_stats: dict[str, dict[str, int]] = {}       # uri -> {method -> count}
         self._lock = threading.RLock()
-        self._alive_cache = {}  # Cache liveness (TTL 30s)
+        self._alive_cache = {}  # Cache liveness (defaut 30s)
         self._alive_lock = threading.RLock()
         self._last_check = {}   # Per-URI last check time
 
@@ -67,7 +68,7 @@ class ConnectionManager:
         now = time.time()
         with self._alive_lock:
             last = self._last_check.get(uri, 0)
-            if now - last < 30:  # 30s cache TTL
+            if now - last < AppCacheTimeout.CACHE_TTL:  # 30s default cache TTL
                 return self._alive_cache.get(uri, True)
             try:
                 # Cheaper than getLibVersion(): listDefinedDomains(0) no-op if cached

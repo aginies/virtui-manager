@@ -8,7 +8,6 @@ from constants import AppInfo
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
-    'CACHE_TTL': 30,
     'STATS_INTERVAL': 5,
     'WC_PORT_RANGE_START': 40000,
     'WC_PORT_RANGE_END': 40050,

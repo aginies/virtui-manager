@@ -13,7 +13,6 @@ from libvirt_utils import (
         get_overlay_backing_path,
         _get_backing_chain_elem,
         )
-from vm_cache import get_from_cache, set_in_cache
 #from utils import log_function_call
 
 def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | None:
@@ -43,62 +42,6 @@ def _get_domain_root(domain) -> tuple[str, ET.Element | None]:
         return xml_content, _parse_domain_xml(xml_content)
     except libvirt.libvirtError:
         return "", None
-
-
-def get_vm_info(conn):
-    """
-    get all VM info
-    """
-    if conn is None:
-        return []
-
-    vm_info_list = []
-    domains = conn.listAllDomains(0)
-    if domains is not None:
-        for domain in domains:
-            uuid = domain.UUIDString()
-            cached_info = get_from_cache(uuid)
-            if cached_info:
-                # To ensure the status is fresh, we can re-fetch just the status
-                cached_info['status'] = get_status(domain)
-                vm_info_list.append(cached_info)
-                continue
-
-            try:
-                info = domain.info()
-            except libvirt.libvirtError:
-                continue
-
-            xml_content, root = _get_domain_root(domain)
-            if root is None:
-                continue
-
-            vm_info = {
-                'name': domain.name(),
-                'uuid': domain.UUIDString(),
-                'status': get_status(domain, state=info[0]),
-                'description': get_vm_description(domain),
-                'cpu': info[3],
-                'memory': info[2] // 1024,  # Convert KiB to MiB
-                'machine_type': get_vm_machine_info(root),
-                'firmware': get_vm_firmware_info(root),
-                'networks': get_vm_networks_info(root),
-                'graphics': get_vm_graphics_info(root),
-                'rng': get_vm_rng_info(root),
-                'watchdog': get_vm_watchdog_info(root),
-                'tpm': get_vm_tpm_info(root),
-                'input': get_vm_input_info(root),
-                'video': get_vm_video_info(root),
-                'boot': get_boot_info(conn, root),
-                'detail_network': get_vm_network_ip(domain),
-                'network_dns_gateway': get_vm_network_dns_gateway_info(domain, root=root),
-                'disks': get_vm_disks_info(conn, root),
-                'devices': get_vm_devices_info(root),
-            }
-            set_in_cache(uuid, vm_info)
-            vm_info_list.append(vm_info)
-
-    return vm_info_list
 
 #@log_function_call
 def get_vm_network_dns_gateway_info(domain: libvirt.virDomain, root=None):

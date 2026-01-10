@@ -27,6 +27,14 @@ class ServerPallette:
         "#00B8FF",  # Electric Blue
     ]
 
+class AppCacheTimeout:
+    """ All Cache timeout value"""
+    CACHE_TTL = 30
+    STATE_CACHE_TTL = 2
+    INFO_CACHE_TTL = 5
+    DETAILS_CACHE_TTL = 300
+    XML_CACHE_TTL = 600
+
 class AppInfo:
     """Define app data"""
     name = "virtui-manager"

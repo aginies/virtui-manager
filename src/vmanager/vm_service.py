@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 import libvirt
 from connection_manager import ConnectionManager
-from constants import VmStatus, VmAction
+from constants import VmStatus, VmAction, AppCacheTimeout
 from storage_manager import check_domain_volumes_in_use
 from utils import natural_sort_key
 from vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
@@ -57,10 +57,10 @@ class VMService:
         self._name_to_uuid_cache: dict[str, dict[str, str]] = {} # {uri: {name: uuid}}
         self._uuid_to_name_cache: dict[str, dict[str, str]] = {} # {uri: {uuid: name}}
 
-        self._state_cache_ttl: int = 2
-        self._info_cache_ttl: int = 5
-        self._xml_cache_ttl: int = 600
-        self._details_cache_ttl: int = 300
+        self._state_cache_ttl: int = AppCacheTimeout.STATE_CACHE_TTL
+        self._info_cache_ttl: int = AppCacheTimeout.INFO_CACHE_TTL
+        self._xml_cache_ttl: int = AppCacheTimeout.XML_CACHE_TTL
+        self._details_cache_ttl: int = AppCacheTimeout.DETAILS_CACHE_TTL
         self._visible_uuids: set[str] = set()
         self._event_callbacks: dict[str, int] = {}  # {uri: callback_id}
         self._events_enabled: bool = True
