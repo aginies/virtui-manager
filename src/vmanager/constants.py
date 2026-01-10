@@ -34,6 +34,7 @@ class AppCacheTimeout:
     INFO_CACHE_TTL = 5
     DETAILS_CACHE_TTL = 300
     XML_CACHE_TTL = 600
+    DONT_DISPLAY_DISK_USAGE = 50
 
 class AppInfo:
     """Define app data"""

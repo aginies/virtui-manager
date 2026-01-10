@@ -24,6 +24,7 @@ from network_manager import (
       )
 import storage_manager
 
+from constants import AppCacheTimeout
 from modals.base_modals import BaseModal
 from modals.network_modals import AddEditNetworkModal, NetworkXMLModal
 from modals.disk_pool_modals import (
@@ -136,18 +137,28 @@ class ServerPrefModal(BaseModal[None]):
         # Prepare disk/nvram/overlay maps for storage (only when loading Storage tab)
         # This is done here to avoid slowing down the initial modal load
         if not self.path_to_vm_list:
-            disk_map = get_all_vm_disk_usage(self.conn)
-            nvram_map = get_all_vm_nvram_usage(self.conn)
-            overlay_map = get_all_vm_overlay_usage(self.conn)
+            try:
+                num_vms = self.conn.numOfDomains() + self.conn.numOfDefinedDomains()
+            except libvirt.libvirtError:
+                num_vms = 0
 
-            # Merge the dictionaries
-            self.path_to_vm_list = disk_map.copy()
-            for path, vm_names in nvram_map.items():
-                if path in self.path_to_vm_list:
-                    # Combine lists and remove duplicates
-                    self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
-                else:
-                    self.path_to_vm_list[path] = vm_names
+
+            if num_vms > AppCacheTimeout.DONT_DISPLAY_DISK_USAGE:
+                self.app.show_warning_message(f"More than {AppCacheTimeout.DONT_DISPLAY_DISK_USAGE} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze.")
+            else:
+                self.app.show_warning_message(f"Runing disk usage scan, this can freeze the UI for larger numbers of VMs and disks.")
+                disk_map = get_all_vm_disk_usage(self.conn)
+                nvram_map = get_all_vm_nvram_usage(self.conn)
+                #overlay_map = get_all_vm_overlay_usage(self.conn)
+
+                # Merge the dictionaries
+                self.path_to_vm_list = disk_map.copy()
+                for path, vm_names in nvram_map.items():
+                    if path in self.path_to_vm_list:
+                        # Combine lists and remove duplicates
+                        self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
+                    else:
+                        self.path_to_vm_list[path] = vm_names
 
         storage_pane = self.query_one("#tab-storage", TabPane)
 
@@ -259,6 +270,7 @@ class ServerPrefModal(BaseModal[None]):
 
         table.clear()
 
+        self.app.show_warning_message(f"Runing network usage scan, this can freeze the UI for larger numbers of VMs.")
         network_usage = get_all_network_usage(self.conn)
         self.networks_list = list_networks(self.conn)
 
