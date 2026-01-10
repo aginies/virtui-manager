@@ -18,7 +18,6 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual import on
 import libvirt
-from vm_service import VMService
 from vm_queries import (
     get_vm_networks_info,
     get_vm_disks_info, get_vm_devices_info,
@@ -1723,7 +1722,7 @@ class VMDetailModal(ModalScreen):
                 with TabPane("Sound", id="detail-sound-tab"):
                     with Vertical(classes="info-details"):
                         current_sound_model = self.vm_info.get('sound_model') or "none"
-                
+
                         sound_models = self.app.config.get('sound_models', [])
                         if not sound_models:
                             sound_models = ["none", "ich6", "ich9", "ac97", "sb16", "usb"]
@@ -1856,7 +1855,7 @@ class VMDetailModal(ModalScreen):
 
                     with Vertical(classes="info-details"):
                         yield Label("Watchdog Model:")
-                        
+
                         watchdog_models = [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")]
 
                         # Add current model if not in list to prevent crash
@@ -2374,7 +2373,7 @@ class VMDetailModal(ModalScreen):
             arch_elem = xml_root.find(".//os/type")
             arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64'
             uefi_for_arch = [f for f in all_uefi_files if arch in f.architectures]
-            
+
             if not uefi_for_arch:
                 self.app.show_error_message(f"No UEFI firmware found for architecture '{arch}'.")
                 return
@@ -2414,7 +2413,7 @@ class VMDetailModal(ModalScreen):
                     return
 
                 original_machine_type = self.vm_info['machine_type']
-                
+
                 current_family = '-'.join(original_machine_type.split('-')[:2])
                 new_family = '-'.join(new_machine_type.split('-')[:2])
 
@@ -2773,7 +2772,7 @@ class VMDetailModal(ModalScreen):
                 return
 
             selected_disk = disks_info[highlighted_index]
-    
+
             def edit_disk_callback(result):
                 if result:
                     new_cache_mode = result.get('cache')
@@ -2840,9 +2839,9 @@ class VMDetailModal(ModalScreen):
                         if self.is_bulk:
                             msg += f" for {success_count} VMs"
                         self.app.show_success_message(msg)
-                        if not self.is_bulk:
-                            self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
-                            self.vm_info['cpu'] = int(new_cpu_count)
+
+                        self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
+                        self.vm_info['cpu'] = int(new_cpu_count)
 
                     if errors:
                         self.app.show_error_message(f"Errors setting CPU: {'; '.join(errors)}")
@@ -2868,9 +2867,9 @@ class VMDetailModal(ModalScreen):
                         if self.is_bulk:
                             msg += f" for {success_count} VMs"
                         self.app.show_success_message(msg)
-                        if not self.is_bulk:
-                            self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
-                            self.vm_info['memory'] = int(new_memory_size)
+
+                        self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
+                        self.vm_info['memory'] = int(new_memory_size)
 
                     if errors:
                         self.app.show_error_message(f"Errors setting memory: {'; '.join(errors)}")
