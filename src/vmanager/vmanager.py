@@ -21,7 +21,7 @@ from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
         ErrorMessages, AppInfo, StatusText, ServerPallette
         )
-from events import VmActionRequest, VMSelectionChanged #,VMNameClicked
+from events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from libvirt_error_handler import register_error_handler
 from modals.bulk_modals import BulkActionModal
 from modals.config_modal import ConfigModal
@@ -407,17 +407,25 @@ class VMManagerTUI(App):
                 self.sort_by,
                 self.search_text,
                 set(),
-                force=True
+                force=True,
+                page_start=0,
+                page_end=self.VMS_PER_PAGE
             )
 
             # Pre-cache info and XML only for the first page of VMs
+            # Full info will be loaded on-demand when cards are displayed
             vms_per_page = self.VMS_PER_PAGE
             vms_to_cache = domains_to_display[:vms_per_page]
 
             active_vms_on_page = []
             for domain, conn in vms_to_cache:
                 try:
-                    state, _ = domain.state()
+                    #state, _ = domain.state()
+                    state_tuple = self.vm_service._get_domain_state(domain)
+                    if not state_tuple:
+                        state, _ = domain.state()
+                    else:
+                        state, _ = state_tuple
                     if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
                         active_vms_on_page.append(domain.name())
 
@@ -427,7 +435,7 @@ class VMManagerTUI(App):
 
             if active_vms_on_page:
                 vms_list_str = ", ".join(active_vms_on_page)
-                self.call_from_thread(self.show_quick_message, f"Fetching and caching VM info and XML config for: {vms_list_str}")
+                self.call_from_thread(self.show_quick_message, f"Caching VM state for: {vms_list_str}")
 
             self.call_from_thread(self._on_initial_cache_complete)
 
@@ -742,7 +750,9 @@ class VMManagerTUI(App):
                 self.call_from_thread(self.show_error_message, f"Could not find VM with UUID {message.vm_uuid}")
                 return
 
-            vm_name = domain.name()
+            #vm_name = domain.name()
+            # Use cached identity to avoid extra libvirt call
+            _, vm_name = self.vm_service.get_vm_identity(domain)
             try:
                 if message.action == VmAction.START:
                     self.vm_service.start_vm(domain)
@@ -768,8 +778,11 @@ class VMManagerTUI(App):
                     self.call_from_thread(self.show_error_message, f"Unknown action '{message.action}' requested.")
                     return
 
-                # If action was successful, refresh the list
-                self.call_from_thread(self.refresh_vm_list)
+                # If action was successful, refresh the list or update single card
+                if message.action in [VmAction.START, VmAction.STOP, VmAction.PAUSE, VmAction.FORCE_OFF, VmAction.RESUME] and self.sort_by == VmStatus.DEFAULT:
+                     self.call_from_thread(self.post_message, VmCardUpdateRequest(message.vm_uuid))
+                else:
+                     self.call_from_thread(self.refresh_vm_list)
 
             except Exception as e:
                 self.call_from_thread(
@@ -1208,10 +1221,16 @@ class VMManagerTUI(App):
             for uuid, domain in self.vm_service._domain_cache.items():
                 try:
                     conn = self.vm_service._uuid_to_conn_cache.get(uuid)
-                    uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
+                    #uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
+                    # Use cached URI lookup to avoid libvirt call
+                    uri = self.vm_service.get_uri_for_connection(conn)
+                    if not uri:
+                        uri = conn.getURI()
+                    # Use cached identity to avoid libvirt call
+                    _, name = self.vm_service.get_vm_identity(domain, conn, known_uri=uri)
                     available_vms.append({
                         'uuid': uuid,
-                        'name': domain.name(),
+                        'name': name,
                         'uri': uri
                     })
                 except Exception:
@@ -1266,7 +1285,9 @@ class VMManagerTUI(App):
             all_names = set()
             for domain in found_domains_map.values():
                 try:
-                    all_names.add(domain.name())
+                    #all_names.add(domain.name())
+                    _, name = self.vm_service.get_vm_identity(domain)
+                    all_names.add(name)
                 except libvirt.libvirtError:
                     pass
 
@@ -1290,6 +1311,67 @@ class VMManagerTUI(App):
     async def action_quit(self) -> None:
         """Quit the application."""
         self.exit()
+
+    @on(VmCardUpdateRequest)
+    def on_vm_card_update_request(self, message: VmCardUpdateRequest) -> None:
+        """
+        Optimized method to update a single VM card without full refresh.
+        Called when a VM card needs fresh data.
+        """
+        vm_uuid = message.vm_uuid
+        logging.info(f"Only refresh: {vm_uuid}")
+        def update_single_card():
+            try:
+                domain = self.vm_service.find_domain_by_uuid(self.active_uris, vm_uuid)
+                if not domain:
+                    return
+
+                # Use cached methods to minimize libvirt calls
+                state_tuple = self.vm_service._get_domain_state(domain)
+                if not state_tuple:
+                    return
+
+                state, _ = state_tuple
+
+                # Only fetch full info if VM is running/paused
+                if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                    info = self.vm_service._get_domain_info(domain)
+                    if info:
+                        status = get_status(domain, state=state)
+                        cpu = info[3]
+                        memory = info[1] // 1024
+                    else:
+                        return
+                else:
+                    # For stopped VMs, use minimal data
+                    status = get_status(domain, state=state)
+                    # Try to get from cache
+                    cached_details = self.vm_service.get_cached_vm_details(vm_uuid)
+                    if cached_details:
+                        cpu = cached_details['cpu']
+                        memory = cached_details['memory']
+                    else:
+                        cpu = 0
+                        memory = 0
+               # Update card on main thread
+                def update_ui():
+                    card = self.vm_cards.get(vm_uuid)
+                    if card and card.is_mounted:
+                        card.status = status
+                        card.cpu = cpu
+                        card.memory = memory
+
+                self.call_from_thread(update_ui)
+
+            except libvirt.libvirtError as e:
+                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                    self.vm_service.invalidate_vm_cache(vm_uuid)
+                logging.debug(f"Error updating card for {vm_uuid}: {e}")
+
+        self.worker_manager.run(
+            update_single_card, name=f"update_card_{vm_uuid}"
+        )
+
 
 def main():
     """Entry point for vmanager TUI application."""
