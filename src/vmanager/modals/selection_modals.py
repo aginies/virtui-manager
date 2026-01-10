@@ -12,6 +12,8 @@ from modals.base_modals import BaseModal
 class PatternSelectModal(BaseModal[set[str] | None]):
     """Modal for selecting VMs by pattern across servers."""
 
+    BINDINGS = [("ctrl+u", "unselect_all", "Unselect All")]
+
     def __init__(self, available_vms: list[dict], available_servers: list[dict], selected_servers: list[str]) -> None:
         super().__init__()
         self.available_vms = available_vms
@@ -58,7 +60,9 @@ class PatternSelectModal(BaseModal[set[str] | None]):
 
     def on_mount(self) -> None:
         table = self.query_one("#results-table", DataTable)
-        table.add_columns("VM Name", "Server")
+        table.add_column("Select", key="select")
+        table.add_column("VM Name", key="vm_name")
+        table.add_column("Server", key="server")
         self.query_one("#pattern-input").focus()
 
     @on(Button.Pressed, "#search-vms-btn")
@@ -92,16 +96,40 @@ class PatternSelectModal(BaseModal[set[str] | None]):
             for vm in self.available_vms:
                 if vm['uri'] in selected_uris and match_func(vm['name']):
                     server_name = next((s['name'] for s in self.available_servers if s['uri'] == vm['uri']), vm['uri'])
-                    table.add_row(vm['name'], server_name, key=vm['uuid'])
+                    table.add_row(" [X]", vm['name'], server_name, key=vm['uuid'])
                     self.matching_uuids.add(vm['uuid'])
 
             count = len(self.matching_uuids)
-            self.query_one("#results-label").update(f"Matching VMs ({count}):")
+            self.query_one("#results-label").update(f"Selected VMs ({count}):")
             self.query_one("#select-btn").disabled = count == 0
 
         except Exception as e:
             logging.error(f"Error in pattern search: {e}")
             self.query_one("#results-label").update(f"Invalid pattern: {e}")
+
+    @on(DataTable.RowSelected, "#results-table")
+    def on_row_selected(self, event: DataTable.RowSelected) -> None:
+        row_key = event.row_key.value
+        table = self.query_one("#results-table", DataTable)
+        if row_key in self.matching_uuids:
+            self.matching_uuids.remove(row_key)
+            table.update_cell(row_key, "select", " [ ]")
+        else:
+            self.matching_uuids.add(row_key)
+            table.update_cell(row_key, "select", " [X]")
+
+        count = len(self.matching_uuids)
+        self.query_one("#results-label").update(f"Selected VMs ({count}):")
+        self.query_one("#select-btn").disabled = count == 0
+
+    def action_unselect_all(self) -> None:
+        table = self.query_one("#results-table", DataTable)
+        self.matching_uuids.clear()
+        for row_key in table.rows:
+            table.update_cell(row_key, "select", " [ ]")
+
+        self.query_one("#results-label").update(f"Selected VMs (0):")
+        self.query_one("#select-btn").disabled = True
 
     @on(Button.Pressed, "#select-btn")
     def on_select_pressed(self) -> None:
