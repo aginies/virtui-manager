@@ -176,8 +176,6 @@ If the certificate and key are found, `virtui-manager` will automatically start 
 - **VNC_COMPRESSION**: VNC compression level (default: `9`)
 
 ### Performance & Behavior
-- **AUTOCONNECT_ON_STARTUP**: Automatically connect to the first configured server on application startup (default: `False`)
-- **CACHE_TTL**: Time-to-live for VM metadata cache in seconds. Reduces `libvirt` calls. (default: `3`)
 - **STATS_INTERVAL**: Interval for updating VM info, Status, Statistics (CPU, Memory, I/O) in seconds
 
 ### Network & Sound Models
@@ -199,16 +197,12 @@ User config parameters:
 servers:
   - name: "Remote Server"
     uri: "qemu+ssh://user@remote-host/system"
-
+    autoconnect: False
 REMOTE_WEBCONSOLE: true
 WC_PORT_RANGE_START: 40000
 WC_PORT_RANGE_END: 40050
 VNC_QUALITY: 1
 VNC_COMPRESSION: 9
-network_models:
-  - virtio
-  - e1000
-  - rtl8139
 ```
 
 ## License
