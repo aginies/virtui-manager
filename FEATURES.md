@@ -200,14 +200,20 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 
 ### Keyboard Shortcuts
 - `v` - View Log
-- `ctrl+v` - Virsh Shell
 - `f` - Filter VM
-- `p` - Server Pref
+- `p` - Pattern Selection of VM
 - `m` - Servers List
 - `s` - Select Servers
 - `ctrl+a` - Select/Deselect All VMs on current page
+- `ctrl+u` - Unselect all VMs
 - `c` - User Application Configuration
+- `ctrl+v` - Virsh Shell
 - `q` - Quit
+
+For Debugging the app:
+- `ctrl+l` - Start/Stop Log Stats
+- `ctrl+s` - Show Cache Stats
+
 
 ### Visual Elements
 - Color-coded server identification
