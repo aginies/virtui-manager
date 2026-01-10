@@ -1,3 +1,4 @@
 textual
 libvirt-python
 pyyaml
+markdown-it-py

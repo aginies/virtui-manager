@@ -76,7 +76,7 @@ Virtui Manager is ideal for:
 - **Remote Connection**: SSH access to libvirt server (ssh-agent recommended)
 - **Python 3.7+**
 - **libvirt** with Python bindings
-- **Python Dependencies**: textual, pyaml, libvirt-python
+- **Python Dependencies**: textual, pyaml, libvirt-python, markdown-it-py
 - **Optional**: virt-viewer, novnc, websockify for enhanced functionality
 
 ## Installation
