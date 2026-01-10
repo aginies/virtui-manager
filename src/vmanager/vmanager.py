@@ -183,8 +183,7 @@ class VMManagerTUI(App):
     active_uris = reactive(_get_initial_active_uris(servers))
     current_page = reactive(0)
     # changing that will break CSS value!
-    VMS_PER_PAGE = config.get('VMS_PER_PAGE', 4)
-    MAX_VM_CARDS = config.get('MAX_VM_CARDS', 250)
+    VMS_PER_PAGE = config.get('VMS_PER_PAGE', 6)
     WC_PORT_RANGE_START = config.get('WC_PORT_RANGE_START')
     WC_PORT_RANGE_END = config.get('WC_PORT_RANGE_END')
     sort_by = reactive(VmStatus.DEFAULT)
@@ -1099,20 +1098,6 @@ class VMManagerTUI(App):
                 del self.vm_cards[uuid]
                 if uuid in self.sparkline_data:
                     del self.sparkline_data[uuid]
-
-            # Enforce MAX_VM_CARDS limit
-            if len(self.vm_cards) > self.MAX_VM_CARDS:
-                # Get UUIDs that are NOT on the current page and remove them until we are under the limit
-                off_page_uuids = [uuid for uuid in self.vm_cards.keys() if uuid not in page_uuids]
-                # Sort by something? For now just take the first ones
-                while len(self.vm_cards) > self.MAX_VM_CARDS and off_page_uuids:
-                    uuid_to_remove = off_page_uuids.pop(0)
-                    logging.info(f"Removing card from cache (limit reached): {uuid_to_remove}")
-                    if self.vm_cards[uuid_to_remove].is_mounted:
-                        self.vm_cards[uuid_to_remove].remove()
-                    del self.vm_cards[uuid_to_remove]
-                    if uuid_to_remove in self.sparkline_data:
-                        del self.sparkline_data[uuid_to_remove]
 
             vms_container = self.ui.get("vms_container")
             if not vms_container:
