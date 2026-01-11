@@ -52,6 +52,7 @@ class ConnectionManager:
         self._alive_cache = {}  # Cache liveness (defaut 30s)
         self._alive_lock = threading.RLock()
         self._last_check = {}   # Per-URI last check time
+        self._failed_attempts: dict[str, int] = {} # uri -> count
 
 
     def _record_call(self, uri: str, method_name: str):
@@ -91,11 +92,22 @@ class ConnectionManager:
             self.call_stats.clear()
             self.call_stats = {}
 
-    def connect(self, uri: str) -> libvirt.virConnect | None:
+    def connect(self, uri: str, force_retry: bool = False) -> libvirt.virConnect | None:
         """
         Connects to a given URI. If already connected, returns the existing connection.
         If the existing connection is dead, it will attempt to reconnect.
+        Args:
+            uri: The URI to connect to.
+            force_retry: If True, resets the failure counter and attempts connection even if previously failed.
         """
+        if force_retry:
+            self.reset_failure_count(uri)
+
+        # Check for max retries
+        if self._failed_attempts.get(uri, 0) >= 3:
+             logging.debug(f"Connection to {uri} failed 3 times. Skipping retry.")
+             return None
+
         conn = None
         with self._lock:
             conn = self.connections.get(uri)
@@ -118,6 +130,11 @@ class ConnectionManager:
 
         new_conn = self._create_connection(uri)
         return self.ConnectionWrapper(new_conn, uri, self) if new_conn else None
+
+    def reset_failure_count(self, uri: str):
+        """Resets the failure count for a URI."""
+        with self._lock:
+            self._failed_attempts[uri] = 0
 
     def _create_connection(self, uri: str) -> libvirt.virConnect | None:
         """
@@ -159,14 +176,33 @@ class ConnectionManager:
                 # This case can happen if the URI is valid but the hypervisor is not running
                 raise libvirt.libvirtError(f"libvirt.open('{uri}') returned None")
 
+            # Enable keepalive for remote connections
+            # Local connections (qemu:///system, etc.) usually don't support it and raise an error
+            is_remote = 'ssh' in uri.lower() or 'tcp' in uri.lower() or 'tls' in uri.lower()
+            if is_remote:
+                try:
+                    conn.setKeepAlive(5, 3)
+                except libvirt.libvirtError as e:
+                    logging.warning(f"Failed to set keepalive for {uri}: {e}")
+
             with self._lock:
                 self.connections[uri] = conn
+                self._failed_attempts[uri] = 0 # Reset failure count on success
                 if uri in self.connection_errors:
                     del self.connection_errors[uri]  # Clear previous error on successful connect
             return conn
         except libvirt.libvirtError as e:
-            error_message = f"Failed to connect to '{uri}': {e}"
+            # Increment failure count
+            with self._lock:
+                self._failed_attempts[uri] = self._failed_attempts.get(uri, 0) + 1
+                count = self._failed_attempts[uri]
+            
+            error_message = f"Failed to connect to '{uri}' (Attempt {count}/3): {e}"
+            if count >= 3:
+                error_message += " - Max retries reached. Will not try again."
+            
             logging.error(error_message)
+            
             with self._lock:
                 self.connection_errors[uri] = str(e)
                 if uri in self.connections:
