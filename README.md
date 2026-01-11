@@ -18,6 +18,7 @@ Virtui Manager solves these challenges with:
 - **Rich Feature Set**: Advanced VM management capabilities in a simple, intuitive interface
 - **Multi-server Support**: Manage VMs across multiple libvirt servers from a single interface
 - **Performance Optimized**: Built-in caching reduces libvirt calls and improves responsiveness
+- **Libvirt Event handler**: Only get update on event from libvirt, with an hearbeat call fallback every 60 sec
 
 ## Resource Usage Comparison with virt-manager
 
@@ -34,7 +35,7 @@ Stats data checked after 10 minutes (to get them stabilized).
 | **First Start Speed** | ~24sec | 1sec | **-29sec** (virtui is faster) |
 | **Display XML data** | 1sec | 1sec | similar perf |
 | **Display XML data (GUI/TUI)** | 1sec | 3sec | **+2sec** (virt-manager faster) |
-| **Network Bandwidth** | fluctuation: 24/50 kB/s |  **3.5 kB/s** | (virtui-manager is lighter) |
+| **Network Bandwidth** | fluctuation: 24/50 kB/s |  0 to 3.5 kB/s | (virtui-manager is lighter) |
 
 ## Key Features
 
