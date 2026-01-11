@@ -1275,8 +1275,14 @@ class VMManagerTUI(App):
 
                 cards_to_mount.append(vm_card)
 
-            # Mount the cards. This will add new ones and re-order existing ones.
+            # Mount the cards. This will add new ones.
             vms_container.mount(*cards_to_mount)
+
+            # Explicitly ensure order if needed (fix for sorting issue)
+            # Textual's mount() might not reorder existing children if they are already mounted
+            if list(vms_container.children) != cards_to_mount:
+                 for card in cards_to_mount:
+                      vms_container.move_child(card, after=vms_container.children[-1])
 
             # Check for connection errors to display via show_error_message
             errors = []

@@ -933,7 +933,7 @@ class VMCard(Static):
                     self.app.show_success_message(f"Overlay '{overlay_name}' created and attached.")
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
-                    self.app.refresh_vm_list() # To update details
+                    self.post_message(VmCardUpdateRequest(self.internal_id))
                     self.update_button_layout()
                 except Exception as e:
                     self.app.show_error_message(f"Error creating overlay: {e}")
@@ -963,7 +963,7 @@ class VMCard(Static):
                             self.app.show_success_message(f"Overlay for '{target_disk}' discarded and reverted to base image.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
-                            self.app.refresh_vm_list()
+                            self.post_message(VmCardUpdateRequest(self.internal_id))
                             self.update_button_layout()
                         except Exception as e:
                             self.app.show_error_message(f"Error discarding overlay: {e}")
