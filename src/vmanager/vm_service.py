@@ -29,7 +29,11 @@ def _event_loop():
     """Event loop for libvirt events."""
     global _event_loop_running
     while _event_loop_running:
-        libvirt.virEventRunDefaultImpl()
+        try:
+            libvirt.virEventRunDefaultImpl()
+        except Exception as e:
+            logging.error(f"Error in libvirt event loop: {e}")
+            time.sleep(1)
 
 def _start_event_loop():
     """Start the libvirt event loop if not already running."""
@@ -58,13 +62,13 @@ class VMService:
         self._name_to_uuid_cache: dict[str, dict[str, str]] = {} # {uri: {name: uuid}}
         self._uuid_to_name_cache: dict[str, dict[str, str]] = {} # {uri: {uuid: name}}
 
-        self._state_cache_ttl: int = AppCacheTimeout.STATE_CACHE_TTL
         self._info_cache_ttl: int = AppCacheTimeout.INFO_CACHE_TTL
         self._xml_cache_ttl: int = AppCacheTimeout.XML_CACHE_TTL
         self._details_cache_ttl: int = AppCacheTimeout.DETAILS_CACHE_TTL
         self._visible_uuids: set[str] = set()
         self._event_callbacks: dict[str, int] = {}  # {uri: callback_id}
         self._events_enabled: bool = True
+        self._registration_lock = threading.Lock()
 
         # Threading support
         self._cache_lock = threading.RLock()
@@ -73,12 +77,17 @@ class VMService:
         self._monitoring_active = False
         self._monitor_thread = None
         self._data_update_callback = None
+        self._message_callback = None
         self._force_update_event = threading.Event()
         self.start_monitoring()
 
     def set_data_update_callback(self, callback):
         """Sets a callback to be invoked when background data update finishes."""
         self._data_update_callback = callback
+
+    def set_message_callback(self, callback):
+        """Sets a callback to be invoked for user-facing messages."""
+        self._message_callback = callback
 
     def update_visible_uuids(self, uuids: set[str]):
         """Updates the set of UUIDs currently visible in the UI."""
@@ -100,17 +109,146 @@ class VMService:
         if self._monitor_thread and self._monitor_thread.is_alive():
             self._monitor_thread.join(timeout=1.0)
 
+    def _invalidate_cache_for_uri(self, uri: str):
+        """Invalidates all cache entries associated with a specific URI."""
+        with self._cache_lock:
+            # Identify keys belonging to this URI
+            keys_to_invalidate = []
+            suffix = f"@{uri}"
+
+            # Helper to find keys in a dict
+            def find_keys(cache_dict):
+                return [k for k in cache_dict.keys() if k.endswith(suffix)]
+
+            keys_to_invalidate.extend(find_keys(self._vm_data_cache))
+
+            # Check other caches
+            other_caches = [
+                self._cpu_time_cache, self._io_stats_cache,
+                self._domain_cache, self._uuid_to_conn_cache
+            ]
+            for cache in other_caches:
+                keys_to_invalidate.extend(find_keys(cache))
+
+            # Remove duplicates
+            keys_to_invalidate = list(set(keys_to_invalidate))
+
+            for k in keys_to_invalidate:
+                if k in self._vm_data_cache: del self._vm_data_cache[k]
+                if k in self._cpu_time_cache: del self._cpu_time_cache[k]
+                if k in self._io_stats_cache: del self._io_stats_cache[k]
+                if k in self._domain_cache: del self._domain_cache[k]
+                if k in self._uuid_to_conn_cache: del self._uuid_to_conn_cache[k]
+
+            # Clean identity cache
+            if uri in self._name_to_uuid_cache:
+                del self._name_to_uuid_cache[uri]
+            if uri in self._uuid_to_name_cache:
+                del self._uuid_to_name_cache[uri]
+
+            logging.info(f"Invalidated {len(keys_to_invalidate)} cache entries for URI: {uri}")
+
+    def _connection_close_callback(self, conn, reason, opaque):
+        """Callback for when a connection is closed."""
+        uri = opaque
+        reason_str = "Unknown"
+        # Map reason codes (safe lookup)
+        reasons = {
+            libvirt.VIR_CONNECT_CLOSE_REASON_ERROR: "Error",
+            libvirt.VIR_CONNECT_CLOSE_REASON_EOF: "End of file",
+            libvirt.VIR_CONNECT_CLOSE_REASON_KEEPALIVE: "Keepalive timeout",
+            libvirt.VIR_CONNECT_CLOSE_REASON_CLIENT: "Client requested",
+        }
+        reason_str = reasons.get(reason, f"Code {reason}")
+
+        logging.warning(f"Connection to {uri} closed: {reason_str}")
+
+        # Send message to UI
+        if self._message_callback:
+            self._message_callback("warning", f"Connection to {uri} lost: {reason_str}. Attempting to reconnect...")
+
+        # Clean up event callbacks tracking
+        with self._registration_lock:
+            if uri in self._event_callbacks:
+                del self._event_callbacks[uri]
+
+        # Invalidate cache for this URI
+        self._invalidate_cache_for_uri(uri)
+        self.connection_manager.disconnect(uri)
+
+        # Notify UI
+        self._force_update_event.set()
+        if self._data_update_callback:
+            try:
+                self._data_update_callback()
+            except Exception as e:
+                logging.error(f"Error in data update callback during close: {e}")
+
     def _register_domain_events(self, conn: libvirt.virConnect, uri: str):
         """Register for domain lifecycle events to invalidate cache reactively."""
+
+        # Register close callback (always, even if events are disabled, to handle disconnects)
+        try:
+            conn.registerCloseCallback(self._connection_close_callback, uri)
+            logging.info(f"Registered close callback for {uri}")
+        except Exception as e:
+            logging.warning(f"Failed to register close callback for {uri}: {e}")
+
         if not self._events_enabled:
             return
+
+        # Keepalive is now set in ConnectionManager.
 
         def lifecycle_callback(conn, domain, event, detail, opaque):
             try:
                 internal_id = self._get_internal_id(domain, conn, known_uri=uri)
-                logging.info(f"Domain event: {event} for {internal_id}")
-                self.invalidate_vm_cache(internal_id)
-                self._force_update_event.set()
+                logging.debug(f"Domain event: {event} detail: {detail} for {internal_id}")
+
+                new_state = None
+                if event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
+                    new_state = libvirt.VIR_DOMAIN_SHUTOFF
+                elif event == libvirt.VIR_DOMAIN_EVENT_STARTED:
+                    new_state = libvirt.VIR_DOMAIN_RUNNING
+                elif event == libvirt.VIR_DOMAIN_EVENT_SUSPENDED:
+                    new_state = libvirt.VIR_DOMAIN_PAUSED
+                elif event == libvirt.VIR_DOMAIN_EVENT_RESUMED:
+                    new_state = libvirt.VIR_DOMAIN_RUNNING
+                elif event == libvirt.VIR_DOMAIN_EVENT_PMSUSPENDED:
+                    new_state = libvirt.VIR_DOMAIN_PMSUSPENDED
+                elif event == libvirt.VIR_DOMAIN_EVENT_CRASHED:
+                    new_state = libvirt.VIR_DOMAIN_CRASHED
+
+                with self._cache_lock:
+                    if event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
+                        self._domain_cache[internal_id] = domain
+                        self._uuid_to_conn_cache[internal_id] = conn
+                        new_state = libvirt.VIR_DOMAIN_SHUTOFF
+                        # Also update name cache
+                        self.get_vm_identity(domain, conn, known_uri=uri)
+                    elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
+                        self.invalidate_vm_cache(internal_id)
+                        # Trigger full update via event for list change
+                        self._force_update_event.set()
+                        if self._data_update_callback:
+                            self._data_update_callback()
+                        return
+
+                    if new_state is not None:
+                        self._vm_data_cache.setdefault(internal_id, {})
+                        self._vm_data_cache[internal_id]['state'] = (new_state, detail)
+                        self._vm_data_cache[internal_id]['state_ts'] = time.time()
+
+                        # Invalidate info cache if state changed to/from running so we re-fetch details
+                        # but we can rely on next get_vms call to do that 1-time fetch
+                        if new_state == libvirt.VIR_DOMAIN_RUNNING:
+                            # If it just started, we might want to clear old info
+                            if 'info' in self._vm_data_cache[internal_id]:
+                                del self._vm_data_cache[internal_id]['info']
+
+                # Notify UI directly
+                if self._data_update_callback:
+                    self._data_update_callback()
+
             except Exception as e:
                 logging.error(f"Error in lifecycle callback: {e}")
 
@@ -121,7 +259,8 @@ class VMService:
                 lifecycle_callback,
                 None
             )
-            self._event_callbacks[uri] = callback_id
+            # Store connection object to detect changes
+            self._event_callbacks[uri] = (conn, callback_id)
             logging.info(f"Registered domain events for {uri}")
         except libvirt.libvirtError as e:
             logging.warning(f"Could not register domain events for {uri}: {e}")
@@ -131,13 +270,22 @@ class VMService:
 
     def _unregister_domain_events(self, conn: libvirt.virConnect, uri: str):
         """Unregister domain events."""
-        if uri in self._event_callbacks:
+        with self._registration_lock:
+            # Unregister close callback
             try:
-                conn.domainEventDeregisterAny(self._event_callbacks[uri])
-                del self._event_callbacks[uri]
-                logging.info(f"Unregistered domain events for {uri}")
-            except libvirt.libvirtError as e:
-                logging.warning(f"Could not unregister domain events for {uri}: {e}")
+                conn.unregisterCloseCallback(self._connection_close_callback)
+            except Exception:
+                pass
+
+            if uri in self._event_callbacks:
+                try:
+                    # Unwrap tuple
+                    _, callback_id = self._event_callbacks[uri]
+                    conn.domainEventDeregisterAny(callback_id)
+                    del self._event_callbacks[uri]
+                    logging.info(f"Unregistered domain events for {uri}")
+                except libvirt.libvirtError as e:
+                    logging.warning(f"Could not unregister domain events for {uri}: {e}")
 
     def get_vm_identity(self, domain: libvirt.virDomain, conn: libvirt.virConnect = None, known_uri: str = None) -> tuple[str, str]:
         """
@@ -183,18 +331,20 @@ class VMService:
             if uris:
                 try:
                     self._perform_background_update(uris)
-                    if self._data_update_callback:
-                        try:
-                            self._data_update_callback()
-                        except Exception as e:
-                            logging.error(f"Error in data update callback: {e}")
                 except Exception as e:
                     logging.error(f"Error in background update loop: {e}")
 
             # Wait for next cycle or force update
-            self._force_update_event.wait(timeout=5.0)
+            # Timeout increased to 60s (heartbeat) to avoid polling, relying on events instead.
+            self._force_update_event.wait(timeout=60.0)
             if self._force_update_event.is_set():
                 self._force_update_event.clear()
+                # If forced, we should callback
+                if self._data_update_callback:
+                    try:
+                        self._data_update_callback()
+                    except Exception as e:
+                        logging.error(f"Error in data update callback: {e}")
 
     def _perform_background_update(self, active_uris: list[str]):
         """Fetches data for all VMs on active URIs and updates cache."""
@@ -205,9 +355,6 @@ class VMService:
             conn = self.connect(uri)
             if conn:
                 active_connections.append(conn)
-                # Register events on new connections
-                if uri not in self._event_callbacks:
-                    self._register_domain_events(conn, uri)
 
         new_domain_cache = {}
         new_uuid_to_conn = {}
@@ -232,37 +379,39 @@ class VMService:
             visible_uuids = self._visible_uuids.copy()
 
         # 2. Fetch state/info for visible domains only
-        for uuid, domain in new_domain_cache.items():
-            if not self._monitoring_active:
-                break
+        # IF events are enabled, we do NOT poll state here.
+        if not self._events_enabled:
+            for uuid, domain in new_domain_cache.items():
+                if not self._monitoring_active:
+                    break
 
-            # ONLY update info for visible VMs in background
-            if uuid not in visible_uuids:
-                continue
+                # ONLY update info for visible VMs in background
+                if uuid not in visible_uuids:
+                    continue
 
-            try:
-                # Use state() instead of info() - lighter call
-                state, reason = domain.state()
-                now = time.time()
+                try:
+                    # Use state() instead of info() - lighter call
+                    state, reason = domain.state()
+                    now = time.time()
 
-                with self._cache_lock:
-                    self._vm_data_cache.setdefault(uuid, {})
-                    vm_cache = self._vm_data_cache[uuid]
-                    vm_cache['state'] = (state, reason)
-                    vm_cache['state_ts'] = now
+                    with self._cache_lock:
+                        self._vm_data_cache.setdefault(uuid, {})
+                        vm_cache = self._vm_data_cache[uuid]
+                        vm_cache['state'] = (state, reason)
+                        vm_cache['state_ts'] = now
 
-                    # Only fetch full info for running/paused VMs
-                    if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
-                        try:
-                            info = domain.info()
-                            vm_cache['info'] = info
-                            vm_cache['info_ts'] = now
-                            logging.debug(f"Background Cache WRITE for VM info: {uuid}")
-                        except libvirt.libvirtError:
-                            pass
+                        # Only fetch full info for running/paused VMs
+                        if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                            try:
+                                info = domain.info()
+                                vm_cache['info'] = info
+                                vm_cache['info_ts'] = now
+                                logging.debug(f"Background Cache WRITE for VM info: {uuid}")
+                            except libvirt.libvirtError:
+                                pass
 
-            except Exception as e:
-                logging.error(f"Error updating cache for VM {uuid}: {e}")
+                except Exception as e:
+                    logging.error(f"Error updating cache for VM {uuid}: {e}")
 
     def invalidate_domain_cache(self):
         """Invalidates the domain cache."""
@@ -270,6 +419,34 @@ class VMService:
             self._domain_cache.clear()
             self._uuid_to_conn_cache.clear()
             self._name_to_uuid_cache.clear()
+
+    def invalidate_vm_state_cache(self, uuid: str):
+        """Invalidates only state/info/xml/stats caches, keeping the domain object."""
+        with self._cache_lock:
+            # Determine keys (handle UUID vs UUID@URI)
+            if "@" in uuid:
+                keys_to_invalidate = [uuid]
+            else:
+                keys_to_invalidate = [
+                    k for k in self._vm_data_cache.keys() 
+                    if k == uuid or k.startswith(f"{uuid}@")
+                ]
+                # Also check other caches just in case keys are there but not in data cache
+                other_caches = [self._cpu_time_cache, self._io_stats_cache]
+                for cache in other_caches:
+                    for k in cache.keys():
+                        if (k == uuid or k.startswith(f"{uuid}@")) and k not in keys_to_invalidate:
+                            keys_to_invalidate.append(k)
+
+            for k in keys_to_invalidate:
+                if k in self._vm_data_cache:
+                    del self._vm_data_cache[k]
+                if k in self._cpu_time_cache:
+                    del self._cpu_time_cache[k]
+                if k in self._io_stats_cache:
+                    del self._io_stats_cache[k]
+
+                logging.debug(f"Invalidated VM state cache for: {k}")
 
     def invalidate_vm_cache(self, uuid: str):
         """Invalidates all cached data for a specific VM."""
@@ -388,9 +565,12 @@ class VMService:
             vm_cache = self._vm_data_cache[uuid]
 
             state = vm_cache.get('state')
-            state_ts = vm_cache.get('state_ts', 0)
 
-        if state is None or (now - state_ts >= self._state_cache_ttl):
+        # If events are enabled, we trust the cache after the first fetch
+        # and do not expire it based on time.
+        should_fetch = (state is None)
+
+        if should_fetch:
             try:
                 state = domain.state()
                 with self._cache_lock:
@@ -664,7 +844,7 @@ class VMService:
             net_tx_rate = 0.0
 
             with self._cache_lock:
-                 last_stats = self._io_stats_cache.get(uuid)
+                last_stats = self._io_stats_cache.get(uuid)
 
             if last_stats:
                 last_ts = last_stats['ts']
@@ -705,13 +885,31 @@ class VMService:
                 self.invalidate_vm_cache(uuid)
             return None
 
-    def connect(self, uri: str) -> libvirt.virConnect | None:
+    def connect(self, uri: str, force_retry: bool = False) -> libvirt.virConnect | None:
         """Connects to a libvirt URI."""
         #return self.connection_manager.connect(uri)
-        conn = self.connection_manager.connect(uri)
-        if conn and uri not in self._event_callbacks:
-            self._register_domain_events(conn, uri)
+        conn = self.connection_manager.connect(uri, force_retry=force_retry)
+
+        # Check if we need to re-register events because connection object changed
+        if conn:
+            with self._registration_lock:
+                if uri in self._event_callbacks:
+                    # Handle unwrapping if it's a wrapper from ConnectionManager
+                    real_conn = conn._obj if hasattr(conn, '_obj') else conn
+                    registered_conn, _ = self._event_callbacks[uri]
+
+                    if real_conn != registered_conn:
+                        logging.info(f"Connection object changed for {uri}, re-registering events")
+                        # Remove old registration record (old conn is likely dead anyway)
+                        del self._event_callbacks[uri]
+
+                if uri not in self._event_callbacks:
+                    self._register_domain_events(conn, uri)
         return conn
+
+    def reset_connection_failures(self, uri: str):
+        """Resets the failure count for a URI."""
+        self.connection_manager.reset_failure_count(uri)
 
     def disconnect(self, uri: str) -> None:
         """Disconnects from a libvirt URI and cleans up associated VM caches."""
@@ -823,6 +1021,30 @@ class VMService:
         """Gets all URIs currently held by the connection manager."""
         return self.connection_manager.get_all_uris()
 
+    def _recover_domain(self, internal_id: str, active_uris: list[str]) -> libvirt.virDomain | None:
+        """Attempts to look up a domain directly via libvirt if cache is stale."""
+        raw_uuid = internal_id.split('@')[0]
+        target_uri = None
+        if '@' in internal_id:
+            target_uri = internal_id.split('@')[1]
+
+        uris_to_check = [target_uri] if target_uri else active_uris
+
+        for uri in uris_to_check:
+            # Check if URI is active (in the list passed by caller, which represents current context)
+            if uri not in active_uris:
+                continue
+
+            conn = self.connect(uri) # Use connect() to ensure we get a valid/new connection
+            if not conn:
+                continue
+            try:
+                domain = conn.lookupByUUIDString(raw_uuid)
+                return domain
+            except libvirt.libvirtError:
+                pass
+        return None
+
     def find_domains_by_uuids(self, active_uris: list[str], vm_uuids: list[str]) -> dict[str, libvirt.virDomain]:
         """Finds and returns a dictionary of domain objects from a list of UUIDs."""
         self._update_target_uris(active_uris)
@@ -832,18 +1054,37 @@ class VMService:
         missing_uuids = []
 
         with self._cache_lock:
-             domain_cache_copy = self._domain_cache.copy()
+            domain_cache_copy = self._domain_cache.copy()
 
         for uuid in vm_uuids:
             domain = domain_cache_copy.get(uuid)
+
+            # Fallback: exact match failed, try to match by UUID prefix (ignore URI part)
+            if not domain:
+                search_uuid = uuid.split('@')[0]
+                for key, d in domain_cache_copy.items():
+                    key_uuid = key.split('@')[0]
+                    if key_uuid == search_uuid:
+                        domain = d
+                        break
+
+            valid = False
             if domain:
                 try:
                     domain.info() # Check if domain is still valid
-                    found_domains[uuid] = domain
+                    valid = True
                 except libvirt.libvirtError:
-                    missing_uuids.append(uuid)
+                    valid = False
+
+            if valid:
+                found_domains[uuid] = domain
             else:
-                missing_uuids.append(uuid)
+                # Attempt immediate recovery
+                recovered_domain = self._recover_domain(uuid, active_uris)
+                if recovered_domain:
+                    found_domains[uuid] = recovered_domain
+                else:
+                    missing_uuids.append(uuid)
 
         if missing_uuids:
             self._force_update_event.set()
@@ -866,21 +1107,25 @@ class VMService:
 
         # If checks pass, start the VM
         start_vm(domain)
+        self.invalidate_vm_state_cache(self._get_internal_id(domain))
         self._force_update_event.set()
 
     def stop_vm(self, domain: libvirt.virDomain) -> None:
         """Stops the VM."""
         stop_vm(domain)
+        self.invalidate_vm_state_cache(self._get_internal_id(domain))
         self._force_update_event.set()
 
     def pause_vm(self, domain: libvirt.virDomain) -> None:
         """Pauses the VM."""
         pause_vm(domain)
+        self.invalidate_vm_state_cache(self._get_internal_id(domain))
         self._force_update_event.set()
 
     def force_off_vm(self, domain: libvirt.virDomain) -> None:
         """Forcefully stops the VM."""
         force_off_vm(domain)
+        self.invalidate_vm_state_cache(self._get_internal_id(domain))
         self._force_update_event.set()
 
     def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
@@ -893,6 +1138,7 @@ class VMService:
     def resume_vm(self, domain: libvirt.virDomain) -> None:
         """Resumes the VM."""
         domain.resume()
+        self.invalidate_vm_state_cache(self._get_internal_id(domain))
         self._force_update_event.set()
 
     def get_vm_details(self, active_uris: list[str], vm_uuid: str, domain: libvirt.virDomain = None, conn: libvirt.virConnect = None, cached_ips: list = None) -> tuple | None:
@@ -1043,7 +1289,7 @@ class VMService:
 
             if not found:
                 name = extract_server_name_from_uri(uri)
-            
+
             server_names.append(f"{name} ({count})")
 
         total_vms_unfiltered = len(domains_with_conn)
