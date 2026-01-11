@@ -204,7 +204,7 @@ class ConnectionManager:
             logging.error(error_message)
             
             with self._lock:
-                self.connection_errors[uri] = str(e)
+                self.connection_errors[uri] = error_message
                 if uri in self.connections:
                     del self.connections[uri]  # Clean up failed connection attempt
             return None
@@ -279,6 +279,13 @@ class ConnectionManager:
         """
         with self._lock:
             return self.connection_errors.get(uri)
+
+    def get_failed_attempts(self, uri: str) -> int:
+        """
+        Returns the number of failed connection attempts for a given URI.
+        """
+        with self._lock:
+            return self._failed_attempts.get(uri, 0)
 
     def has_connection(self, uri: str) -> bool:
         """
