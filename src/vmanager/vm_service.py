@@ -897,8 +897,9 @@ class VMService:
                     # Handle unwrapping if it's a wrapper from ConnectionManager
                     real_conn = conn._obj if hasattr(conn, '_obj') else conn
                     registered_conn, _ = self._event_callbacks[uri]
+                    real_registered_conn = registered_conn._obj if hasattr(registered_conn, '_obj') else registered_conn
 
-                    if real_conn != registered_conn:
+                    if real_conn != real_registered_conn:
                         logging.info(f"Connection object changed for {uri}, re-registering events")
                         # Remove old registration record (old conn is likely dead anyway)
                         del self._event_callbacks[uri]
