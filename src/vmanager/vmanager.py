@@ -198,6 +198,7 @@ class VMManagerTUI(App):
         super().__init__()
         self.vm_service = VMService()
         self.vm_service.set_data_update_callback(self.on_vm_data_update)
+        self.vm_service.set_message_callback(self.on_service_message)
         self.worker_manager = WorkerManager(self)
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}
@@ -213,6 +214,15 @@ class VMManagerTUI(App):
         self._stats_interval_timer = None
         self.last_increase = {}  # Dict {uri: last_how_many_more}
         self.last_method_increase = {}  # Dict {(uri, method): last_increase}
+
+    def on_service_message(self, level: str, message: str):
+        """Callback from VMService to display messages."""
+        if level == "error":
+            self.call_from_thread(self.show_error_message, message)
+        elif level == "warning":
+            self.call_from_thread(self.show_warning_message, message)
+        else:
+            self.call_from_thread(self.show_success_message, message)
 
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
@@ -322,13 +332,20 @@ class VMManagerTUI(App):
                 "No servers configured. Please add one via 'Servers List'."
             )
         else:
-            # Launch initial cache loading before displaying VMs
+            # Launch initial connection and cache loading in background
             if self.active_uris:
-                for uri in self.active_uris:
-                    self.connect_libvirt(uri)
-
                 self.initial_cache_loading = True
-                self.worker_manager.run(self._initial_cache_worker, name="initial_cache")
+                self.worker_manager.run(self._perform_initial_connection_and_cache, name="initial_connect")
+
+    def _perform_initial_connection_and_cache(self):
+        """Connects to servers in background and then triggers cache loading."""
+        if self.active_uris:
+            for uri in self.active_uris:
+                self.call_from_thread(self.show_quick_message, f"Connecting to {uri}...")
+                self.connect_libvirt(uri)
+        
+        # Proceed to cache worker
+        self._initial_cache_worker()
 
     def _log_cache_statistics(self) -> None:
         """Log cache and libvirt call statistics periodically."""
@@ -527,7 +544,7 @@ class VMManagerTUI(App):
         """Connects to libvirt."""
         conn = self.vm_service.connect(uri)
         if conn is None:
-            self.show_error_message(f"Failed to connect to {uri}")
+            self.call_from_thread(self.show_error_message, f"Failed to connect to {uri}")
 
     def show_error_message(self, message: str):
         show_error_message(self, message)
@@ -575,6 +592,10 @@ class VMManagerTUI(App):
                     del self.sparkline_data[uuid]
 
             self.vm_service.disconnect(uri)
+
+        # Reset failure counts for selected URIs to allow immediate reconnection attempts
+        for uri in selected_uris:
+            self.vm_service.reset_connection_failures(uri)
 
         self.active_uris = selected_uris
         self.filtered_server_uris = None
