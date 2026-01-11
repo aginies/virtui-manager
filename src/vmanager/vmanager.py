@@ -325,12 +325,6 @@ class VMManagerTUI(App):
 
         self.sparkline_data = {}
 
-        error_footer = self.ui.get("error_footer")
-        if error_footer:
-            error_footer.styles.height = 0
-            error_footer.styles.overflow = "hidden"
-            error_footer.styles.padding = 0
-
         vms_container = self.ui.get("vms_container")
         if vms_container:
             vms_container.styles.grid_size_columns = 2
@@ -349,9 +343,9 @@ class VMManagerTUI(App):
         """Connects to servers in background and then triggers cache loading."""
         if self.active_uris:
             for uri in self.active_uris:
-                self.call_from_thread(self.show_quick_message, f"Connecting to {uri}...")
+                self.call_from_thread(self.show_success_message, f"Connecting to {uri}...")
                 self.connect_libvirt(uri)
-        
+
         # Proceed to cache worker
         self._initial_cache_worker()
 
@@ -435,6 +429,17 @@ class VMManagerTUI(App):
                 page_end=self.VMS_PER_PAGE
             )
 
+            # Check for connection errors
+            uris_to_check = list(self.active_uris)
+            for uri in uris_to_check:
+                if not self.vm_service.connection_manager.has_connection(uri):
+                    error_msg = self.vm_service.connection_manager.get_connection_error(uri)
+                    if error_msg:
+                        self.call_from_thread(self.show_error_message, error_msg)
+                        
+                        if self.vm_service.connection_manager.is_max_retries_reached(uri):
+                             self.call_from_thread(self.remove_active_uri, uri)
+
             # Pre-cache info and XML only for the first page of VMs
             # Full info will be loaded on-demand when cards are displayed
             vms_per_page = self.VMS_PER_PAGE
@@ -472,8 +477,9 @@ class VMManagerTUI(App):
         """Called when initial cache loading is complete."""
         self.initial_cache_loading = False
         self.initial_cache_complete = True
-        self.show_quick_message("VM data loaded. Displaying VMs...")
-        self.refresh_vm_list()
+        if self.servers:
+            self.show_quick_message("VM data loaded. Displaying VMs...")
+            self.refresh_vm_list()
 
     def _update_layout_for_size(self):
         """Update the layout based on the terminal size."""
@@ -552,7 +558,10 @@ class VMManagerTUI(App):
         """Connects to libvirt."""
         conn = self.vm_service.connect(uri)
         if conn is None:
-            self.call_from_thread(self.show_error_message, f"Failed to connect to {uri}")
+            error_msg = self.vm_service.connection_manager.get_connection_error(uri)
+            if not error_msg:
+                error_msg = f"Failed to connect to {uri}"
+            self.call_from_thread(self.show_error_message, error_msg)
 
     def show_error_message(self, message: str):
         show_error_message(self, message)
@@ -610,6 +619,24 @@ class VMManagerTUI(App):
         self.current_page = 0
 
         self.refresh_vm_list()
+
+    def remove_active_uri(self, uri: str) -> None:
+        """Removes a URI from the active list and configuration, effectively disconnecting it."""
+        if uri in self.active_uris:
+            logging.info(f"Removing {uri} from active URIs due to connection failure.")
+            
+            # Remove from servers list
+            self.servers = [s for s in self.servers if s['uri'] != uri]
+            
+            # Save config to prevent autoconnect on next startup
+            self.config['servers'] = self.servers
+            save_config(self.config)
+
+            # Create a new list excluding the failed URI
+            new_active_uris = [u for u in self.active_uris if u != uri]
+            
+            # Use handle_select_server_result to perform cleanup properly
+            self.handle_select_server_result(new_active_uris)
 
     @on(Button.Pressed, "#filter_button")
     def action_filter_view(self) -> None:
@@ -1038,6 +1065,7 @@ class VMManagerTUI(App):
                 page_start=page_start,
                 page_end=page_end
             )
+
         except Exception as e:
             self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
             return
@@ -1174,6 +1202,44 @@ class VMManagerTUI(App):
 
             # Mount the cards. This will add new ones and re-order existing ones.
             vms_container.mount(*cards_to_mount)
+
+            # Check for connection errors to display via show_error_message
+            errors = []
+            uris_to_remove = []
+            config_changed = False
+
+            for uri in self.active_uris:
+                # Check for permanent failure
+                failed_attempts = self.vm_service.connection_manager.get_failed_attempts(uri)
+                if failed_attempts >= 2:
+                    uris_to_remove.append(uri)
+                    # Find server and disable autoconnect
+                    for s in self.servers:
+                        if s['uri'] == uri and s.get('autoconnect', False):
+                            s['autoconnect'] = False
+                            config_changed = True
+                            logging.info(f"Disabled autoconnect for {uri} due to connection failure.")
+
+                err = self.vm_service.connection_manager.get_connection_error(uri)
+                if err:
+                    # Find server name
+                    name = uri
+                    for s in self.servers:
+                        if s['uri'] == uri:
+                            name = s['name']
+                            break
+
+            # Handle removal of permanently failed servers
+            if uris_to_remove:
+                self.active_uris = [u for u in self.active_uris if u not in uris_to_remove]
+                if self.filtered_server_uris:
+                    self.filtered_server_uris = [u for u in self.filtered_server_uris if u not in uris_to_remove]
+                self.show_error_message(f"Server(s) {', '.join(uris_to_remove)} unselected and autoconnect disabled due to failures.")
+
+            if config_changed:
+                self.config['servers'] = self.servers
+                save_config(self.config)
+
             # Main tittle with Servers name
             self.title = f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
             self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
