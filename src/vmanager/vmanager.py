@@ -57,6 +57,7 @@ from vm_queries import (
 )
 from vm_service import VMService
 from vmcard import VMCard
+from vmcard_pool import VMCardPool
 from webconsole_manager import WebConsoleManager
 
 # Configure logging
@@ -206,7 +207,7 @@ class VMManagerTUI(App):
         self._color_index = 0
         self.ui = {}
         self.devel = "(Devel v" + AppInfo.version + ")"
-        self.vm_cards: dict[str, VMCard] = {}
+        self.vm_card_pool = VMCardPool(self.VMS_PER_PAGE + 4)
         self._resize_timer = None
         self.filtered_server_uris = None
         self.last_total_calls = {}
@@ -542,6 +543,8 @@ class VMManagerTUI(App):
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
 
+        self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 4
+
         if self.VMS_PER_PAGE > 6 and old_vms_per_page <= 6:
             self.show_warning_message(
                 f"Displaying {self.VMS_PER_PAGE} VMs per page. CPU usage may increase; 6 is recommended for optimal performance."
@@ -628,14 +631,12 @@ class VMManagerTUI(App):
 
         for uri in uris_to_disconnect:
             # Cleanup UI caches for VMs on this server
-            uuids_to_remove = [
-                uuid for uuid, card in self.vm_cards.items()
+            uuids_to_release = [
+                uuid for uuid, card in self.vm_card_pool.active_cards.items()
                 if card.conn and (self.vm_service.get_uri_for_connection(card.conn) == uri)
             ]
-            for uuid in uuids_to_remove:
-                if self.vm_cards[uuid].is_mounted:
-                    self.vm_cards[uuid].remove()
-                del self.vm_cards[uuid]
+            for uuid in uuids_to_release:
+                self.vm_card_pool.release_card(uuid)
                 if uuid in self.sparkline_data:
                     del self.sparkline_data[uuid]
 
@@ -701,15 +702,13 @@ class VMManagerTUI(App):
         logging.info(f"Removing VMs for {uri} from view.")
 
         # Identify UUIDs to remove
-        uuids_to_remove = [
-            uuid for uuid, card in self.vm_cards.items()
+        uuids_to_release = [
+            uuid for uuid, card in self.vm_card_pool.active_cards.items()
             if card.conn and (self.vm_service.get_uri_for_connection(card.conn) == uri)
         ]
 
-        for uuid in uuids_to_remove:
-            if self.vm_cards[uuid].is_mounted:
-                self.vm_cards[uuid].remove()
-            del self.vm_cards[uuid]
+        for uuid in uuids_to_release:
+            self.vm_card_pool.release_card(uuid)
             if uuid in self.sparkline_data:
                 del self.sparkline_data[uuid]
 
@@ -907,9 +906,9 @@ class VMManagerTUI(App):
 
                 # If action was successful, refresh the list or update single card
                 if message.action in [VmAction.START, VmAction.STOP, VmAction.PAUSE, VmAction.FORCE_OFF, VmAction.RESUME] and self.sort_by == VmStatus.DEFAULT:
-                     self.call_from_thread(self.post_message, VmCardUpdateRequest(message.vm_uuid))
+                    self.call_from_thread(self.post_message, VmCardUpdateRequest(message.vm_uuid))
                 else:
-                     self.call_from_thread(self.refresh_vm_list)
+                    self.call_from_thread(self.refresh_vm_list)
 
             except Exception as e:
                 self.call_from_thread(
@@ -1216,73 +1215,66 @@ class VMManagerTUI(App):
             # Update visible UUIDs in service
             self.vm_service.update_visible_uuids(page_uuids)
 
-            # Perform cache cleanup on main thread to be safe with widget removal
-            cached_uuids = set(self.vm_cards.keys())
-            uuids_to_remove_from_cache = cached_uuids - all_uuids_from_libvirt
-
-            for uuid in uuids_to_remove_from_cache:
-                logging.info(f"Removing stale VM card from cache: {uuid}")
-                if self.vm_cards[uuid].is_mounted:
-                    self.vm_cards[uuid].remove()
-                del self.vm_cards[uuid]
-                if uuid in self.sparkline_data:
+            # Cleanup sparkline data for deleted VMs
+            for uuid in list(self.sparkline_data.keys()):
+                if uuid not in all_uuids_from_libvirt:
                     del self.sparkline_data[uuid]
 
             vms_container = self.ui.get("vms_container")
             if not vms_container:
                 return
 
-            # Remove cards from container that are not in the new page layout
-            for card in vms_container.query(VMCard):
-                try:
-                    if not card.vm or card.internal_id not in page_uuids:
-                        card.remove()
-                except (libvirt.libvirtError, AttributeError):
-                    card.remove()
+            current_widgets = list(vms_container.children)
 
+            # Step 1: Remove excess widgets if page size shrunk
+            while len(current_widgets) > len(vm_data_list):
+                widget = current_widgets.pop()
+                widget.remove()
+                # Return to pool
+                uuid = widget.internal_id
+                if uuid in self.vm_card_pool.active_cards:
+                    self.vm_card_pool.release_card(uuid)
+
+            # Step 2: Update existing widgets and add new ones
             cards_to_mount = []
-            for data in vm_data_list:
+
+            for i, data in enumerate(vm_data_list):
                 uuid = data['uuid']
-                vm_card = self.vm_cards.get(uuid)
 
-                if vm_card:
-                    # Update existing card
-                    vm_card.vm = data['domain']
-                    vm_card.conn = data['conn']
-                    vm_card.name = data['name']
-                    vm_card.cpu = data['cpu']
-                    vm_card.memory = data['memory']
-                    vm_card.is_selected = data['is_selected']
-                    vm_card.server_border_color = self.get_server_color(data['uri'])
-                    vm_card.status = data['status']
-                    vm_card.internal_id = uuid
+                if i < len(current_widgets):
+                    # Reuse existing active widget
+                    card = current_widgets[i]
+                    old_uuid = card.internal_id
+
+                    # Update Pool Tracking if identity changed
+                    if old_uuid != uuid:
+                        if old_uuid in self.vm_card_pool.active_cards:
+                            # Remove old booking
+                            del self.vm_card_pool.active_cards[old_uuid]
+                        # Book new UUID
+                        self.vm_card_pool.active_cards[uuid] = card
                 else:
-                    # Create new card
-                    if uuid not in self.sparkline_data:
-                        self.sparkline_data[uuid] = {"cpu": [], "mem": [], "disk": [], "net": []}
+                    # Get new widget from pool
+                    card = self.vm_card_pool.get_or_create_card(uuid)
+                    cards_to_mount.append(card)
 
-                    vm_card = VMCard(is_selected=data['is_selected'])
-                    vm_card.name = data['name']
-                    vm_card.status = data['status']
-                    vm_card.cpu = data['cpu']
-                    vm_card.memory = data['memory']
-                    vm_card.vm = data['domain']
-                    vm_card.conn = data['conn']
-                    vm_card.server_border_color = self.get_server_color(data['uri'])
-                    vm_card.cpu_model = ""
-                    vm_card.internal_id = uuid
-                    self.vm_cards[uuid] = vm_card
+                # Apply Data to Card
+                if uuid not in self.sparkline_data:
+                    self.sparkline_data[uuid] = {"cpu": [], "mem": [], "disk": [], "net": []}
 
-                cards_to_mount.append(vm_card)
+                card.vm = data['domain']
+                card.conn = data['conn']
+                card.name = data['name']
+                card.cpu = data['cpu']
+                card.memory = data['memory']
+                card.is_selected = data['is_selected']
+                card.server_border_color = self.get_server_color(data['uri'])
+                card.status = data['status']
+                card.internal_id = uuid
 
-            # Mount the cards. This will add new ones.
-            vms_container.mount(*cards_to_mount)
-
-            # Explicitly ensure order if needed (fix for sorting issue)
-            # Textual's mount() might not reorder existing children if they are already mounted
-            if list(vms_container.children) != cards_to_mount:
-                 for card in cards_to_mount:
-                      vms_container.move_child(card, after=vms_container.children[-1])
+            # Mount any new cards
+            if cards_to_mount:
+                vms_container.mount(*cards_to_mount)
 
             # Check for connection errors to display via show_error_message
             errors = []
@@ -1531,14 +1523,13 @@ class VMManagerTUI(App):
                     else:
                         cpu = 0
                         memory = 0
-               # Update card on main thread
+                # Update card on main thread
                 def update_ui():
-                    card = self.vm_cards.get(vm_uuid)
+                    card = self.vm_card_pool.active_cards.get(vm_uuid)
                     if card and card.is_mounted:
                         card.status = status
                         card.cpu = cpu
                         card.memory = memory
-
                 self.call_from_thread(update_ui)
 
             except libvirt.libvirtError as e:

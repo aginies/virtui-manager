@@ -504,6 +504,21 @@ class VMCard(Static):
         """Called when graphics_type changes."""
         self._perform_tooltip_update()
 
+    def watch_internal_id(self, old_value: str, new_value: str) -> None:
+        """Called when internal_id changes (card reuse)."""
+        if old_value and old_value != new_value:
+             # Cancel old stats worker if running
+             self.app.worker_manager.cancel(f"update_stats_{old_value}")
+             self.app.worker_manager.cancel(f"actions_state_{old_value}")
+             self.app.worker_manager.cancel(f"refresh_snapshot_tab_{old_value}")
+
+        if old_value != new_value:
+             # Reset heavy state UI elements
+             self.update_snapshot_tab_title(-1)
+             self.update_button_layout()
+             self.update_stats()
+             self._perform_tooltip_update()
+
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
         if not self.ui:
@@ -548,6 +563,24 @@ class VMCard(Static):
             collapsible.collapsed = True
 
         self._cleanup_actions()
+
+    def reset_for_reuse(self) -> None:
+        """Reset card state for reuse by another VM."""
+        # Stop any running timers
+        if self.timer:
+            self.timer.stop()
+            self.timer = None
+
+        # Cancel any running workers
+        if self.internal_id:
+            try:
+                self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
+                self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+            except Exception:
+                pass
+
+        # Reset flags
+        self._boot_device_checked = False
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
