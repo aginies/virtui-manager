@@ -41,6 +41,12 @@ def _start_event_loop():
     with _event_loop_lock:
         if not _event_loop_running:
             libvirt.virEventRegisterDefaultImpl()
+            # Register a keepalive timer to ensure the loop wakes up periodically
+            try:
+                libvirt.virEventAddTimeout(1000, lambda t, id: None, None)
+            except Exception:
+                pass # Ignore if already registered or fails
+
             _event_loop_running = True
             _event_loop_thread = threading.Thread(target=_event_loop, daemon=True, name="LibvirtEventLoop")
             _event_loop_thread.start()
