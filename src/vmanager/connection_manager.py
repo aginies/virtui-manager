@@ -156,12 +156,12 @@ class ConnectionManager:
                 future = executor.submit(open_connection)
                 try:
                     # Wait for 10 seconds for the connection to establish
-                    conn = future.result(timeout=10)
+                    conn = future.result(timeout=15)
                     executor.shutdown(wait=True)
                 except TimeoutError:
                     # If it times out, we raise a libvirtError to be caught by the existing error handling.
                     executor.shutdown(wait=False)
-                    msg = "Connection timed out after 10 seconds."
+                    msg = "Connection timed out after 15 seconds."
                     # Check if the URI suggests an SSH connection
                     if 'ssh' in uri.lower(): # Use .lower() for robustness
                         msg += " If using SSH, this can happen if a password or SSH key passphrase is required."
@@ -197,8 +197,8 @@ class ConnectionManager:
                 self._failed_attempts[uri] = self._failed_attempts.get(uri, 0) + 1
                 count = self._failed_attempts[uri]
             
-            error_message = f"Failed to connect to '{uri}' (Attempt {count}/3): {e}"
-            if count >= 3:
+            error_message = f"Failed to connect to '{uri}' (Attempt {count}/2): {e}"
+            if count >= 2:
                 error_message += " - Max retries reached. Will not try again."
             
             logging.error(error_message)
@@ -286,6 +286,13 @@ class ConnectionManager:
         """
         with self._lock:
             return self._failed_attempts.get(uri, 0)
+
+    def is_max_retries_reached(self, uri: str) -> bool:
+        """
+        Checks if the maximum number of connection retries has been reached for a URI.
+        """
+        with self._lock:
+            return self._failed_attempts.get(uri, 0) >= 3
 
     def has_connection(self, uri: str) -> bool:
         """
