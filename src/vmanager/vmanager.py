@@ -3,6 +3,7 @@ Main interface
 """
 import os
 import sys
+import re
 import logging
 import argparse
 from typing import Any, Callable
@@ -225,6 +226,14 @@ class VMManagerTUI(App):
 
     def on_service_message(self, level: str, message: str):
         """Callback from VMService to display messages."""
+        # Detect connection loss message and immediately remove VMs
+        # Format: "Connection to {uri} lost: {reason}. Attempting to reconnect..."
+        if "Connection to" in message and "lost:" in message and "Attempting to reconnect" in message:
+             match = re.search(r"Connection to (.+) lost:", message)
+             if match:
+                 uri = match.group(1)
+                 self.call_from_thread(self._remove_vms_for_uri, uri)
+
         if level == "error":
             self.call_from_thread(self.show_error_message, message)
         elif level == "warning":
@@ -344,7 +353,13 @@ class VMManagerTUI(App):
         if self.active_uris:
             for uri in self.active_uris:
                 self.call_from_thread(self.show_success_message, f"Connecting to {uri}...")
-                self.connect_libvirt(uri)
+                success = self.connect_libvirt(uri)
+                if success:
+                    self.call_from_thread(self.show_success_message, f"Connected to {uri}")
+                else:
+                    error_msg = self.vm_service.connection_manager.get_connection_error(uri)
+                    if error_msg:
+                        self.call_from_thread(self.show_error_message, error_msg)
 
         # Proceed to cache worker
         self._initial_cache_worker()
@@ -429,14 +444,20 @@ class VMManagerTUI(App):
                 page_end=self.VMS_PER_PAGE
             )
 
-            # Check for connection errors
+            # Check for connection errors and display them
             uris_to_check = list(self.active_uris)
             for uri in uris_to_check:
                 if not self.vm_service.connection_manager.has_connection(uri):
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
-                        self.call_from_thread(self.show_error_message, error_msg)
-                        
+                        # Find server name for better error message
+                        server_name = uri
+                        for s in self.servers:
+                            if s['uri'] == uri:
+                                server_name = s['name']
+                                break
+                        self.call_from_thread(self.show_error_message, f"Server '{server_name}': {error_msg}")
+
                         if self.vm_service.connection_manager.is_max_retries_reached(uri):
                              self.call_from_thread(self.remove_active_uri, uri)
 
@@ -557,11 +578,14 @@ class VMManagerTUI(App):
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
         conn = self.vm_service.connect(uri)
-        if conn is None:
+        if conn:
+            return True
+        else:
             error_msg = self.vm_service.connection_manager.get_connection_error(uri)
             if not error_msg:
                 error_msg = f"Failed to connect to {uri}"
-            self.call_from_thread(self.show_error_message, error_msg)
+            logging.error(error_msg)
+            return False
 
     def show_error_message(self, message: str):
         show_error_message(self, message)
@@ -595,6 +619,13 @@ class VMManagerTUI(App):
 
         # Disconnect from servers that are no longer selected
         uris_to_disconnect = [uri for uri in self.active_uris if uri not in selected_uris]
+
+        # Connect to newly selected servers
+        uris_to_connect = [uri for uri in selected_uris if uri not in self.active_uris]
+        # Show connecting message for each new server
+        for uri in uris_to_connect:
+            self.show_success_message(f"Connecting to {uri}...")
+
         for uri in uris_to_disconnect:
             # Cleanup UI caches for VMs on this server
             uuids_to_remove = [
@@ -618,25 +649,69 @@ class VMManagerTUI(App):
         self.filtered_server_uris = None
         self.current_page = 0
 
+
+        # For newly connected servers, attempt connection and show results
+        connection_results = []
+        for uri in uris_to_connect:
+            success = self.connect_libvirt(uri)
+            connection_results.append((uri, success))
+
+        # Show connection results after a brief delay to ensure proper message ordering
+        def show_connection_results():
+            import time
+            time.sleep(0.5)  # Brief delay to ensure "Connecting..." message is shown first
+            for uri, success in connection_results:
+                server_name = uri
+                for s in self.servers:
+                    if s['uri'] == uri:
+                        server_name = s['name']
+                        break
+                if success:
+                    self.call_from_thread(self.show_success_message, f"Connected to {server_name}")
+                else:
+                    error_msg = self.vm_service.connection_manager.get_connection_error(uri)
+                    if error_msg:
+                        self.call_from_thread(self.show_error_message, f"Failed to connect to {server_name}: {error_msg}")
+
+        if uris_to_connect:
+            self.worker_manager.run(show_connection_results, name="show_connection_results")
+
         self.refresh_vm_list()
 
     def remove_active_uri(self, uri: str) -> None:
         """Removes a URI from the active list and configuration, effectively disconnecting it."""
         if uri in self.active_uris:
             logging.info(f"Removing {uri} from active URIs due to connection failure.")
-            
+
             # Remove from servers list
             self.servers = [s for s in self.servers if s['uri'] != uri]
-            
+
             # Save config to prevent autoconnect on next startup
             self.config['servers'] = self.servers
             save_config(self.config)
 
             # Create a new list excluding the failed URI
             new_active_uris = [u for u in self.active_uris if u != uri]
-            
+
             # Use handle_select_server_result to perform cleanup properly
             self.handle_select_server_result(new_active_uris)
+
+    def _remove_vms_for_uri(self, uri: str) -> None:
+        """Removes all VM cards associated with the given URI."""
+        logging.info(f"Removing VMs for {uri} from view.")
+
+        # Identify UUIDs to remove
+        uuids_to_remove = [
+            uuid for uuid, card in self.vm_cards.items()
+            if card.conn and (self.vm_service.get_uri_for_connection(card.conn) == uri)
+        ]
+
+        for uuid in uuids_to_remove:
+            if self.vm_cards[uuid].is_mounted:
+                self.vm_cards[uuid].remove()
+            del self.vm_cards[uuid]
+            if uuid in self.sparkline_data:
+                del self.sparkline_data[uuid]
 
     @on(Button.Pressed, "#filter_button")
     def action_filter_view(self) -> None:
@@ -1209,6 +1284,13 @@ class VMManagerTUI(App):
             config_changed = False
 
             for uri in self.active_uris:
+                # Get server name for better error messages
+                server_name = uri
+                for s in self.servers:
+                    if s['uri'] == uri:
+                        server_name = s['name']
+                        break
+
                 # Check for permanent failure
                 failed_attempts = self.vm_service.connection_manager.get_failed_attempts(uri)
                 if failed_attempts >= 2:
@@ -1218,23 +1300,34 @@ class VMManagerTUI(App):
                         if s['uri'] == uri and s.get('autoconnect', False):
                             s['autoconnect'] = False
                             config_changed = True
-                            logging.info(f"Disabled autoconnect for {uri} due to connection failure.")
+                            logging.info(f"Disabled autoconnect for {server_name} due to connection failure.")
 
                 err = self.vm_service.connection_manager.get_connection_error(uri)
-                if err:
-                    # Find server name
-                    name = uri
-                    for s in self.servers:
-                        if s['uri'] == uri:
-                            name = s['name']
-                            break
+                if err and uri not in uris_to_remove:
+                    # Only show error if not already marked for removal
+                    # This prevents duplicate error messages
+                    errors.append(f"Server '{server_name}': {err}")
+
+            # Display collected errors
+            for error in errors:
+                self.show_error_message(error)
+
 
             # Handle removal of permanently failed servers
             if uris_to_remove:
+                removed_names = []
+                for uri in uris_to_remove:
+                    for s in self.servers:
+                        if s['uri'] == uri:
+                            removed_names.append(s['name'])
+                            break
+
                 self.active_uris = [u for u in self.active_uris if u not in uris_to_remove]
                 if self.filtered_server_uris:
                     self.filtered_server_uris = [u for u in self.filtered_server_uris if u not in uris_to_remove]
-                self.show_error_message(f"Server(s) {', '.join(uris_to_remove)} unselected and autoconnect disabled due to failures.")
+
+                if removed_names:
+                    self.show_error_message(f"Server(s) {', '.join(removed_names)} disconnected and autoconnect disabled due to connection failures.")
 
             if config_changed:
                 self.config['servers'] = self.servers
