@@ -46,6 +46,18 @@ def _start_event_loop():
             _event_loop_thread.start()
             logging.info("Started libvirt event loop")
 
+def _stop_event_loop():
+    """Stop the libvirt event loop."""
+    global _event_loop_running, _event_loop_thread
+    with _event_loop_lock:
+        _event_loop_running = False
+    
+    if _event_loop_thread and _event_loop_thread.is_alive():
+        try:
+            _event_loop_thread.join(timeout=0.2)
+        except Exception:
+            pass
+
 
 class VMService:
     """A service class to abstract libvirt operations."""
@@ -938,6 +950,9 @@ class VMService:
     def disconnect_all(self):
         """Disconnects all active libvirt connections."""
         self.stop_monitoring()
+        
+        # Release domain objects to ensure connections can be closed fully
+        self.invalidate_domain_cache()
 
         # Unregister all events
         for uri in list(self._event_callbacks.keys()):
@@ -946,6 +961,7 @@ class VMService:
                 self._unregister_domain_events(conn, uri)
 
         self.connection_manager.disconnect_all()
+        _stop_event_loop()
 
     def perform_bulk_action(self, active_uris: list[str], vm_uuids: list[str], action_type: str, delete_storage_flag: bool, progress_callback: callable):
         """Performs a bulk action on a list of VMs, reporting progress via a callback."""

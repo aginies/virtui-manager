@@ -215,6 +215,14 @@ class VMManagerTUI(App):
         self.last_increase = {}  # Dict {uri: last_how_many_more}
         self.last_method_increase = {}  # Dict {(uri, method): last_increase}
 
+    def on_unmount(self) -> None:
+        """Called when the application is unmounted."""
+        if hasattr(self, 'vm_service'):
+            self.vm_service.disconnect_all()
+        if hasattr(self, 'worker_manager'):
+            # worker_manager doesn't seem to have a stop method based on quick look but it uses workers
+            pass
+
     def on_service_message(self, level: str, message: str):
         """Callback from VMService to display messages."""
         if level == "error":
