@@ -54,7 +54,7 @@ ssh-add -l
 
 ### Step 3: Connect
 
-That's it! `Rainbow V Manager` will now use the agent to authenticate for any `qemu+ssh://` connections without any more prompts.
+That's it! `Virtui Manager` will now use the agent to authenticate for any `qemu+ssh://` connections without any more prompts.
 
 ---
 
