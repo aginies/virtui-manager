@@ -30,7 +30,6 @@ class ServerPallette:
 class AppCacheTimeout:
     """ All Cache timeout value"""
     CACHE_TTL = 30
-    STATE_CACHE_TTL = 2
     INFO_CACHE_TTL = 5
     DETAILS_CACHE_TTL = 300
     XML_CACHE_TTL = 600
