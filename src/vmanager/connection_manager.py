@@ -90,7 +90,6 @@ class ConnectionManager:
         """Resets all call statistics."""
         with self._lock:
             self.call_stats.clear()
-            self.call_stats = {}
 
     def connect(self, uri: str, force_retry: bool = False) -> libvirt.virConnect | None:
         """
@@ -104,8 +103,8 @@ class ConnectionManager:
             self.reset_failure_count(uri)
 
         # Check for max retries
-        if self._failed_attempts.get(uri, 0) >= 3:
-             logging.debug(f"Connection to {uri} failed 3 times. Skipping retry.")
+        if self._failed_attempts.get(uri, 0) >= 2:
+             logging.debug(f"Connection to {uri} failed 2 times. Skipping retry.")
              return None
 
         conn = None
@@ -198,7 +197,7 @@ class ConnectionManager:
                 count = self._failed_attempts[uri]
             
             error_message = f"Failed to connect to '{uri}' (Attempt {count}/2): {e}"
-            if count >= 2:
+            if count >= 2 and count < 3:
                 error_message += " - Max retries reached. Will not try again."
             
             logging.error(error_message)
