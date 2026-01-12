@@ -72,7 +72,7 @@ class ButtonLabels:
     RESTORE_SNAPSHOT = "Restore Snapshot"
     DELETE_SNAPSHOT = "Del Snapshot"
     DELETE = "Delete"
-    CLONE = "Clone"
+    CLONE = "! Clone !"
     MIGRATION = "! Migration !"
     VIEW_XML = "View XML"
     RENAME = "Rename"
