@@ -818,30 +818,34 @@ class VMCard(Static):
             if not state_tuple:
                 return
             snapshot_count = 0
+            has_overlay = False
             domain_missing = False
+
+            last_fetch_key = f"snapshot_fetch_{self.internal_id}"
+            if hasattr(self.app, '_last_snapshot_fetch'):
+                cached_data = self.app._last_snapshot_fetch.get(last_fetch_key)
+                # dict format for caching data
+                if isinstance(cached_data, dict):
+                    last_fetch = cached_data.get('time', 0)
+                    if time.time() - last_fetch < 2:
+                        # Use cached data and update UI immediately
+                        snapshot_count = cached_data.get('count', 0)
+                        has_overlay = cached_data.get('has_overlay', False)
+                        self.app.call_from_thread(self._update_slow_buttons, snapshot_count, has_overlay)
+                        return
+                elif isinstance(cached_data, (int, float)):
+                    if time.time() - cached_data < 2:
+                        return
+
             try:
                 if self.vm:
-                    # expensive libvirt call
-                    # Check if we recently fetched this to avoid redundant calls
-                    last_fetch_key = f"snapshot_fetch_{self.internal_id}"
-                    if hasattr(self.app, '_last_snapshot_fetch'):
-                        last_fetch = self.app._last_snapshot_fetch.get(last_fetch_key, 0)
-                        if time.time() - last_fetch < 2:  # Don't fetch more than once per 2 seconds
-                            return
-
                     snapshot_count = self.vm.snapshotNum(0)
-                    # Record fetch time
-                    if not hasattr(self.app, '_last_snapshot_fetch'):
-                        self.app._last_snapshot_fetch = {}
-                    self.app._last_snapshot_fetch[last_fetch_key] = time.time()
-
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     domain_missing = True
                 else:
                     logging.warning(f"Could not get snapshot count for {self.name}: {e}")
 
-            has_overlay = False
             try:
                 if self.vm and not domain_missing:
                     has_overlay = has_overlays(self.vm)
@@ -851,6 +855,16 @@ class VMCard(Static):
             if domain_missing:
                 self.app.call_from_thread(self.app.refresh_vm_list)
                 return
+
+            # Record fetch time and data
+            if not hasattr(self.app, '_last_snapshot_fetch'):
+                self.app._last_snapshot_fetch = {}
+
+            self.app._last_snapshot_fetch[last_fetch_key] = {
+                'time': time.time(),
+                'count': snapshot_count,
+                'has_overlay': has_overlay
+            }
 
             def update_ui():
                 self._update_slow_buttons(snapshot_count, has_overlay)
