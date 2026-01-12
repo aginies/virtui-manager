@@ -1045,12 +1045,10 @@ class VMService:
                     action_func(domain)
                     msg = f"Performed '{action_type}' on VM '{vm_name}'."
                     progress_callback("log", message=msg)
-                    time.sleep(0.05)
                 elif action_type == VmAction.DELETE:
                     # Special case for delete action's own callback
                     delete_log_callback = lambda m: progress_callback("log", message=m)
                     delete_vm(domain, delete_storage=delete_storage_flag, log_callback=delete_log_callback)
-                    time.sleep(0.05)
                 else:
                     msg = f"Unknown bulk action type: {action_type}"
                     progress_callback("log_error", message=msg)
