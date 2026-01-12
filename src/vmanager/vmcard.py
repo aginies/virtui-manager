@@ -775,11 +775,11 @@ class VMCard(Static):
             collapsible = self.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
                 self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
-                self.app.worker_manager.run(
-                    self._fetch_actions_state_worker,
-                    name=f"actions_state_{self.internal_id}",
-                    exclusive=True
-                )
+                #self.app.worker_manager.run(
+                #    self._fetch_actions_state_worker,
+                #    name=f"actions_state_{self.internal_id}",
+                #    exclusive=True
+                #)
 
     def _update_fast_buttons(self):
         """Updates buttons that rely on cached/fast state."""
@@ -1433,7 +1433,7 @@ class VMCard(Static):
                         log_callback(f"Cloning '{self.name}' to '{new_name}'...")
                         clone_vm(self.vm, new_name, clone_storage=clone_storage, log_callback=log_callback)
                         success_clones.append(new_name)
-                        #log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
+                        log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
                     except Exception as e:
                         failed_clones.append(new_name)
                         log_callback(f"ERROR: Error cloning VM {self.name} to {new_name}: {e}")
@@ -1450,8 +1450,8 @@ class VMCard(Static):
                     log_callback(f"ERROR: {msg}")
 
                 if success_clones:
-                    app.call_from_thread(app.refresh_vm_list, force=True)
-
+                    app.call_from_thread(app.vm_service.invalidate_domain_cache)
+                    app.call_from_thread(app.refresh_vm_list)
                 app.call_from_thread(progress_modal.dismiss)
 
             app.worker_manager.run(do_clone, name=f"clone_{self.name}")
