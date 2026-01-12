@@ -2,6 +2,7 @@
 VMcard Interface
 """
 import subprocess
+import os
 import logging
 import traceback
 import datetime
@@ -1153,8 +1154,6 @@ class VMCard(Static):
 
         def do_connect() -> None:
             try:
-                #uri = self.conn.getURI()
-                #domain_name = self.vm.name()
                 # Use cached values to avoid libvirt calls
                 uri = self.app.vm_service.get_uri_for_connection(self.conn)
                 if not uri:
@@ -1162,27 +1161,24 @@ class VMCard(Static):
                 
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
 
-
                 command = ["virt-viewer", "--connect", uri, "--wait", domain_name]
-                logging.info(f"Executing command: {' '.join(command)}")
+                logging.info(f"Spawning detached virt-viewer: {' '.join(command)}")
 
-                result = subprocess.run(command, capture_output=True, text=True, check=False)
-
-                if result.returncode != 0:
-                    error_message = result.stderr.strip()
-                    logging.error(f"virt-viewer failed for {domain_name}: {error_message}")
-                    if "cannot open display" in error_message:
-                        self.app.call_from_thread(
-                            self.app.show_error_message, 
-                            ErrorMessages.CANNOT_OPEN_DISPLAY
-                        )
-                    else:
-                        self.app.call_from_thread(
-                            self.app.show_error_message,
-                            f"virt-viewer failed: {error_message}"
-                        )
-                else:
-                    logging.info(f"virt-viewer for {domain_name} closed.")
+                try:
+                    proc = subprocess.Popen(
+                        command,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                        preexec_fn=os.setsid,
+                    )
+                    logging.info(f"virt-viewer started with PID {proc.pid} for {domain_name}")
+                except Exception as e:
+                    logging.error(f"Failed to spawn virt-viewer for {domain_name}: {e}")
+                    self.app.call_from_thread(
+                        self.app.show_error_message,
+                        f"virt-viewer failed to start: {e}"
+                    )
+                    return
 
             except FileNotFoundError:
                 self.app.call_from_thread(
