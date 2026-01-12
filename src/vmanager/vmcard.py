@@ -144,6 +144,11 @@ class VMCard(Static):
     stats_view_mode = reactive("resources") # "resources" or "io"
     internal_id = reactive("")
 
+    @property
+    def raw_uuid(self) -> str:
+        """Returns the raw UUID part of the internal_id."""
+        return self.internal_id.split('@')[0]
+
     # To store the latest raw stat values for display
     latest_disk_read = reactive(0.0)
     latest_disk_write = reactive(0.0)
@@ -602,28 +607,24 @@ class VMCard(Static):
         if not self.vm:
             return
 
-        # Skip unnecessary updates for stopped VMs ---
-        if self.status == StatusText.STOPPED:
-            logging.debug(f"VM {self.name} is stopped, stopping stats updates.")
-            # Ensure any existing timer is cancelled
-            if hasattr(self, 'timer') and self.timer is not None:
-                self.timer.stop()
-                self.timer = None # Clear the timer reference
-            return
-
         # Cancel previous timer if it exists to prevent accumulation
         if self.timer:
             self.timer.stop()
+            self.timer = None
 
-        # Schedule next update
-        interval = self.app.config.get('STATS_INTERVAL', 5)
-        self.timer = self.set_timer(interval, self.update_stats)
+        is_stopped = self.status == StatusText.STOPPED
 
+        # If the VM is stopped, we don't schedule a recurring timer.
+        # The worker will run once to check if the state has changed.
+        # If it has (e.g., started externally), the watch_status handler
+        # will call update_stats again, and a timer will be scheduled.
+        if not is_stopped:
+            interval = self.app.config.get('STATS_INTERVAL', 5)
+            self.timer = self.set_timer(interval, self.update_stats)
+
+        # If the VM is stopped, we still run the worker once to catch external state changes.
         uuid = self.internal_id
         if not uuid:
-            if self.timer:
-                self.timer.stop()
-                self.timer = None
             return
 
         # Capture reactive values on main thread to avoid unsafe access in worker
@@ -797,7 +798,7 @@ class VMCard(Static):
         self.ui[ButtonIds.RENAME_BUTTON].display = is_stopped
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
-        self.ui[ButtonIds.CONNECT].display = (is_running or is_paused) and self.app.virt_viewer_available
+        self.ui[ButtonIds.CONNECT].display = self.app.virt_viewer_available
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
@@ -905,7 +906,7 @@ class VMCard(Static):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == ButtonIds.START:
-            self.post_message(VmActionRequest(self.internal_id, VmAction.START))
+            self.post_message(VmActionRequest(self.raw_uuid, VmAction.START))
             return
 
         button_handlers = {
@@ -980,7 +981,7 @@ class VMCard(Static):
                     self.app.show_success_message(f"Overlay [b]{overlay_name}[/b] created and attached.")
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
-                    self.post_message(VmCardUpdateRequest(self.internal_id))
+                    self.post_message(VmCardUpdateRequest(self.raw_uuid))
                     self.update_button_layout()
                 except Exception as e:
                     self.app.show_error_message(f"Error creating overlay: {e}")
@@ -1010,7 +1011,7 @@ class VMCard(Static):
                             self.app.show_success_message(f"Overlay for [b]{target_disk}[/b] discarded and reverted to base image.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
-                            self.post_message(VmCardUpdateRequest(self.internal_id))
+                            self.post_message(VmCardUpdateRequest(self.raw_uuid))
                             self.update_button_layout()
                         except Exception as e:
                             self.app.show_error_message(f"Error discarding overlay: {e}")
@@ -1078,7 +1079,7 @@ class VMCard(Static):
         """Handles the shutdown button press."""
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
-            self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
+            self.post_message(VmActionRequest(self.raw_uuid, VmAction.STOP))
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
@@ -1090,7 +1091,7 @@ class VMCard(Static):
             #if self.vm.isActive():
             # maybe better to use cache status
             if self.status in (StatusText.RUNNING, StatusText.PAUSED):
-                self.post_message(VmActionRequest(self.internal_id, VmAction.FORCE_OFF))
+                self.post_message(VmActionRequest(self.raw_uuid, VmAction.FORCE_OFF))
 
         message = f"{ErrorMessages.HARD_STOP_WARNING}\nAre you sure you want to stop '{self.name}'?"
         self.app.push_screen(ConfirmationDialog(message), on_confirm)
@@ -1099,12 +1100,12 @@ class VMCard(Static):
         """Handles the pause button press."""
         logging.info(f"Attempting to pause VM: {self.name}")
         if self.vm.isActive():
-            self.post_message(VmActionRequest(self.internal_id, VmAction.PAUSE))
+            self.post_message(VmActionRequest(self.raw_uuid, VmAction.PAUSE))
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
         logging.info(f"Attempting to resume VM: {self.name}")
-        self.post_message(VmActionRequest(self.internal_id, VmAction.RESUME))
+        self.post_message(VmActionRequest(self.raw_uuid, VmAction.RESUME))
 
     def _handle_xml_button(self, event: Button.Pressed) -> None:
         """Handles the xml button press."""
@@ -1162,7 +1163,7 @@ class VMCard(Static):
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
 
 
-                command = ["virt-viewer", "--connect", uri, domain_name]
+                command = ["virt-viewer", "--connect", uri, "--wait", domain_name]
                 logging.info(f"Executing command: {' '.join(command)}")
 
                 result = subprocess.run(command, capture_output=True, text=True, check=False)
@@ -1363,7 +1364,7 @@ class VMCard(Static):
             confirmed, delete_storage = result
             if not confirmed:
                 return
-            self.post_message(VmActionRequest(self.internal_id, VmAction.DELETE, delete_storage=delete_storage))
+            self.post_message(VmActionRequest(self.raw_uuid, VmAction.DELETE, delete_storage=delete_storage))
 
         self.app.push_screen(
             DeleteVMConfirmationDialog(self.name), on_confirm
@@ -1550,7 +1551,7 @@ class VMCard(Static):
                         vm_info, domain, conn_for_domain = result
 
                         def on_detail_modal_dismissed(res):
-                            self.post_message(VmCardUpdateRequest(uuid))
+                            self.post_message(VmCardUpdateRequest(self.raw_uuid))
                             self._perform_tooltip_update()
 
                         self.app.push_screen(
@@ -1668,9 +1669,10 @@ class VMCard(Static):
     def on_vm_select_checkbox_changed(self, event: Checkbox.Changed) -> None:
         """Handles when the VM selection checkbox is changed."""
         self.is_selected = event.value
-        self.post_message(VMSelectionChanged(vm_uuid=self.internal_id, is_selected=event.value))
+        self.post_message(VMSelectionChanged(vm_uuid=self.raw_uuid, is_selected=event.value))
 
     @on(Click, "#vmname")
     def on_click_vmname(self) -> None:
         """Handle clicks on the VM name part of the VM card."""
-        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.internal_id))
+        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.raw_uuid))
+
