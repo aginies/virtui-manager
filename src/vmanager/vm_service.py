@@ -95,6 +95,7 @@ class VMService:
         self._monitoring_active = False
         self._monitor_thread = None
         self._data_update_callback = None
+        self._vm_update_callback = None
         self._message_callback = None
         self._force_update_event = threading.Event()
         self.start_monitoring()
@@ -102,6 +103,10 @@ class VMService:
     def set_data_update_callback(self, callback):
         """Sets a callback to be invoked when background data update finishes."""
         self._data_update_callback = callback
+
+    def set_vm_update_callback(self, callback):
+        """Sets a callback to be invoked when a specific VM updates (UUID)."""
+        self._vm_update_callback = callback
 
     def set_message_callback(self, callback):
         """Sets a callback to be invoked for user-facing messages."""
@@ -215,26 +220,53 @@ class VMService:
         if not self._events_enabled:
             return
 
-        # Keepalive is now set in ConnectionManager.
-
         def lifecycle_callback(conn, domain, event, detail, opaque):
             try:
                 internal_id = self._get_internal_id(domain, conn, known_uri=uri)
                 logging.debug(f"Domain event: {event} detail: {detail} for {internal_id}")
 
                 new_state = None
+                event_msg = None
+                msg_level = "info"
+
                 if event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
                     new_state = libvirt.VIR_DOMAIN_SHUTOFF
+                    event_msg = "Stopped"
                 elif event == libvirt.VIR_DOMAIN_EVENT_STARTED:
                     new_state = libvirt.VIR_DOMAIN_RUNNING
+                    event_msg = "Started"
                 elif event == libvirt.VIR_DOMAIN_EVENT_SUSPENDED:
                     new_state = libvirt.VIR_DOMAIN_PAUSED
+                    event_msg = "Paused"
                 elif event == libvirt.VIR_DOMAIN_EVENT_RESUMED:
                     new_state = libvirt.VIR_DOMAIN_RUNNING
+                    event_msg = "Resumed"
                 elif event == libvirt.VIR_DOMAIN_EVENT_PMSUSPENDED:
                     new_state = libvirt.VIR_DOMAIN_PMSUSPENDED
+                    event_msg = "PM Suspended"
                 elif event == libvirt.VIR_DOMAIN_EVENT_CRASHED:
                     new_state = libvirt.VIR_DOMAIN_CRASHED
+                    event_msg = "Crashed"
+                    msg_level = "error"
+
+                if self._message_callback:
+                    try:
+                        _, vm_name = self.get_vm_identity(domain, conn, known_uri=uri)
+
+                        final_msg = None
+                        if event_msg:
+                            final_msg = f"VM '{vm_name}' {event_msg}"
+                        elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
+                            # Use detail to differentiate? 0=Added, 1=Updated
+                            action_str = "Configuration Updated" if detail == 1 else "Defined"
+                            final_msg = f"VM '{vm_name}' {action_str}"
+                        elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
+                            final_msg = f"VM '{vm_name}' Undefined (Deleted)"
+
+                        if final_msg:
+                            self._message_callback(msg_level, final_msg)
+                    except Exception:
+                        pass # Don't let notification errors break the handler
 
                 with self._cache_lock:
                     if event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
@@ -243,6 +275,10 @@ class VMService:
                         new_state = libvirt.VIR_DOMAIN_SHUTOFF
                         # Also update name cache
                         self.get_vm_identity(domain, conn, known_uri=uri)
+                        # Full update for list changes
+                        if self._data_update_callback:
+                            self._data_update_callback()
+
                     elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
                         self.invalidate_vm_cache(internal_id)
                         # Trigger full update via event for list change
@@ -262,10 +298,13 @@ class VMService:
                             # If it just started, we might want to clear old info
                             if 'info' in self._vm_data_cache[internal_id]:
                                 del self._vm_data_cache[internal_id]['info']
-
-                # Notify UI directly
-                if self._data_update_callback:
-                    self._data_update_callback()
+                        
+                        # Notify for specific VM update
+                        if self._vm_update_callback:
+                            self._vm_update_callback(internal_id)
+                        elif self._data_update_callback:
+                             # Fallback to full update if no specific callback
+                             self._data_update_callback()
 
             except Exception as e:
                 logging.error(f"Error in lifecycle callback: {e}")
