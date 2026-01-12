@@ -1356,6 +1356,11 @@ class VMCard(Static):
         """Handles the delete button press."""
         logging.info(f"Attempting to delete VM: {self.name}")
 
+        # Collapse the actions collapsible if it's open
+        collapsible = self.ui.get("collapsible")
+        if collapsible and not collapsible.collapsed:
+            collapsible.collapsed = True
+
         def on_confirm(result: tuple[bool, bool]) -> None:
             confirmed, delete_storage = result
             if not confirmed:

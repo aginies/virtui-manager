@@ -703,6 +703,14 @@ class VMManagerTUI(App):
             # Use handle_select_server_result to perform cleanup properly
             self.handle_select_server_result(new_active_uris)
 
+    def _collapse_all_action_collapsibles(self) -> None:
+        """Collapses all 'Actions' collapsibles across all visible VM cards."""
+        for card_id, card in self.vm_card_pool.active_cards.items():
+            collapsible = card.ui.get("collapsible")
+            if collapsible and not collapsible.collapsed:
+                collapsible.collapsed = True
+                logging.debug(f"Collapsed actions for VM: {card.name} (UUID: {card.raw_uuid})")
+
     def _remove_vms_for_uri(self, uri: str) -> None:
         """Removes all VM cards associated with the given URI."""
         logging.info(f"Removing VMs for {uri} from view.")
@@ -1439,6 +1447,7 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#bulk_selected_vms")
     def on_bulk_selected_vms_button_pressed(self) -> None:
         """Handles the 'Bulk Selected' button press."""
+        self._collapse_all_action_collapsibles()
         if not self.selected_vm_uuids:
             self.show_error_message("No VMs selected.")
             return
