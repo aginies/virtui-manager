@@ -1072,7 +1072,8 @@ class VMManagerTUI(App):
 
         finally:
             # Ensure these are called on the main thread
-            force_refresh = action_type == VmAction.DELETE
+            # Always force refresh to ensure UI is in sync with backend (e.g. deletions, additions)
+            force_refresh = True
             self.call_from_thread(self.refresh_vm_list, force=force_refresh)
             self.call_from_thread(setattr, self, 'bulk_operation_in_progress', False) # Reset flag
 
