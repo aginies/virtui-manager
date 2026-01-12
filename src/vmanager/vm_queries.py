@@ -1174,6 +1174,9 @@ def get_overlay_disks(domain: libvirt.virDomain) -> list[str]:
     overlay_disks = []
     try:
         conn = domain.connect()
+        if conn is None:
+             return []
+
         xml_desc = domain.XMLDesc(0)
         root = ET.fromstring(xml_desc)
 
