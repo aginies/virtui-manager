@@ -37,6 +37,7 @@ from modals.utils_modals import (
     show_success_message,
     show_warning_message,
     show_quick_message,
+    show_in_progress_message,
     LoadingModal,
     ConfirmationDialog,
 )
@@ -230,15 +231,17 @@ class VMManagerTUI(App):
         # Detect connection loss message and immediately remove VMs
         # Format: "Connection to {uri} lost: {reason}. Attempting to reconnect..."
         if "Connection to" in message and "lost:" in message and "Attempting to reconnect" in message:
-             match = re.search(r"Connection to (.+) lost:", message)
-             if match:
-                 uri = match.group(1)
-                 self.call_from_thread(self._remove_vms_for_uri, uri)
+            match = re.search(r"Connection to (.+) lost:", message)
+            if match:
+                uri = match.group(1)
+                self.call_from_thread(self._remove_vms_for_uri, uri)
 
         if level == "error":
             self.call_from_thread(self.show_error_message, message)
         elif level == "warning":
             self.call_from_thread(self.show_warning_message, message)
+        elif level == "progress":
+            self.call_from_thread(self.show_in_progress_message, message)
         else:
             self.call_from_thread(self.show_success_message, message)
 
@@ -353,7 +356,7 @@ class VMManagerTUI(App):
         """Connects to servers in background and then triggers cache loading."""
         if self.active_uris:
             for uri in self.active_uris:
-                self.call_from_thread(self.show_success_message, f"Connecting to {uri}...")
+                self.call_from_thread(self.show_in_progress_message, f"Connecting to {uri}...")
                 success = self.connect_libvirt(uri)
                 if success:
                     self.call_from_thread(self.show_success_message, f"Connected to {uri}")
@@ -599,6 +602,9 @@ class VMManagerTUI(App):
     def show_quick_message(self, message: str):
         show_quick_message(self, message)
 
+    def show_in_progress_message(self, message: str):
+        show_in_progress_message(self, message)
+
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
 
@@ -627,7 +633,7 @@ class VMManagerTUI(App):
         uris_to_connect = [uri for uri in selected_uris if uri not in self.active_uris]
         # Show connecting message for each new server
         for uri in uris_to_connect:
-            self.show_success_message(f"Connecting to {uri}...")
+            self.show_in_progress_message(f"Connecting to {uri}...")
 
         for uri in uris_to_disconnect:
             # Cleanup UI caches for VMs on this server
