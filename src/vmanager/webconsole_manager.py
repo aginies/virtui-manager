@@ -8,6 +8,7 @@ import signal
 import socket
 import subprocess
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import partial
@@ -423,6 +424,25 @@ wp.websockify_init()
                 pass
             return
 
+        # Check if the remote process is still alive after a short delay
+        time.sleep(1)
+        try:
+            check_alive_cmd = ["ssh", remote_user_host, f"kill -0 {remote_pid}"]
+            result = subprocess.run(check_alive_cmd, check=False, capture_output=True, timeout=5)
+            if result.returncode != 0:
+                # Process is not alive
+                logging.error(f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch.")
+                self.app.call_from_thread(self.app.show_error_message, f"Remote web console process for [b]{vm_name}[/b] failed to start or crashed. Check remote logs.")
+                # Clean up the local ssh process
+                try:
+                    proc.terminate()
+                except:
+                    pass
+                return
+        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+            logging.warning(f"Failed to check remote process status for {remote_pid} on {remote_user_host}: {e}")
+            # Can't verify, so we assume it's running and let it fail later if it's not.
+
         quality = self.config.get('VNC_QUALITY', 0)
         compression = self.config.get('VNC_COMPRESSION', 9)
         url = f"{url_scheme}://{host}:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
@@ -469,9 +489,9 @@ wp.websockify_init()
         host = parsed_uri.hostname
         remote_user_host = f"{user}@{host}" if user else host
 
-        temp_dir = tempfile.gettempdir()
-        socket_name = f"vmanager_ssh_{uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
-        control_socket = os.path.join(temp_dir, socket_name)
+        raw_uuid = uuid.split('@')[0]
+        socket_name = f"vmanager_ssh_{raw_uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
+        control_socket = os.path.join("/tmp", socket_name)
 
         tunnel_port = self._get_next_available_port(None)
         if not tunnel_port:
@@ -499,7 +519,7 @@ wp.websockify_init()
         except FileNotFoundError:
             self.app.call_from_thread(self.app.show_error_message, "SSH command not found. Cannot create tunnel.")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to create SSH tunnel: {e}")
+            self.app.call_from_thread(self.app.show_error_message, f"Failed to create SSH tunnel...")
             logging.error(f"SSH tunnel command failed: {' '.join(ssh_cmd)}")
 
         return None, None, {}
