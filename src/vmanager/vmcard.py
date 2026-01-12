@@ -774,12 +774,11 @@ class VMCard(Static):
             # Check if collapsible is expanded before fetching heavy data
             collapsible = self.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
-                self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
-                #self.app.worker_manager.run(
-                #    self._fetch_actions_state_worker,
-                #    name=f"actions_state_{self.internal_id}",
-                #    exclusive=True
-                #)
+                self.app.worker_manager.run(
+                    self._fetch_actions_state_worker,
+                    name=f"actions_state_{self.internal_id}",
+                    exclusive=True
+                )
 
     def _update_fast_buttons(self):
         """Updates buttons that rely on cached/fast state."""
@@ -817,9 +816,6 @@ class VMCard(Static):
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
-            # Avoid doing anything if no self.vm
-            if self.vm is None:
-                return
             state_tuple = self.app.vm_service._get_domain_state(self.vm)
             if not state_tuple:
                 return
