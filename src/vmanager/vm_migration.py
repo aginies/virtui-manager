@@ -36,6 +36,13 @@ def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt
     root = ET.fromstring(xml_desc)
 
     xml_updated = False
+
+    # Remove UUID to ensure a new one is generated
+    uuid_elem = root.find('uuid')
+    if uuid_elem is not None:
+        root.remove(uuid_elem)
+        xml_updated = True
+
     path_mapping = {}
 
     dest_server_name = extract_server_name_from_uri(dest_conn.getURI())
@@ -152,7 +159,12 @@ def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt
 
     if xml_updated:
         log("Updating VM configuration on destination...")
-        dest_conn.defineXML(ET.tostring(root, encoding='unicode'))
+        # Undefine to allow new UUID generation
+        try:
+            dest_vm.undefine()
+        except libvirt.libvirtError:
+            pass
+        dest_vm = dest_conn.defineXML(ET.tostring(root, encoding='unicode'))
         log("VM configuration updated.")
 
     # Handle Snapshot Migration
