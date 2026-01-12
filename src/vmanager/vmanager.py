@@ -886,26 +886,20 @@ class VMManagerTUI(App):
             # Use cached identity to avoid extra libvirt call
             _, vm_name = self.vm_service.get_vm_identity(domain)
             try:
+                # Message are done by events
                 if message.action == VmAction.START:
                     self.vm_service.start_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] started successfully.")
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"Sent shutdown signal to VM [b]{vm_name}[/b].")
                 elif message.action == VmAction.PAUSE:
                     self.vm_service.pause_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] paused successfully.")
                 elif message.action == VmAction.FORCE_OFF:
                     self.vm_service.force_off_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] forcefully stopped.")
                 elif message.action == VmAction.DELETE:
                     self.vm_service.delete_vm(domain, delete_storage=message.delete_storage)
                     self.vm_service.invalidate_domain_cache()
-                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] deleted successfully.")
                 elif message.action == VmAction.RESUME:
                     self.vm_service.resume_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] resumed successfully.")
-                # Other actions (stop, pause, etc.) will be handled here in the future
                 else:
                     self.call_from_thread(self.show_error_message, f"Unknown action '{message.action}' requested.")
                     return

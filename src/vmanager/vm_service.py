@@ -231,7 +231,7 @@ class VMService:
 
                 if event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
                     new_state = libvirt.VIR_DOMAIN_SHUTOFF
-                    event_msg = "Stopped"
+                    event_msg = "Shutdown signal"
                 elif event == libvirt.VIR_DOMAIN_EVENT_STARTED:
                     new_state = libvirt.VIR_DOMAIN_RUNNING
                     event_msg = "Started"
@@ -255,13 +255,13 @@ class VMService:
 
                         final_msg = None
                         if event_msg:
-                            final_msg = f"VM '{vm_name}' {event_msg}"
+                            final_msg = f"VM [b]{vm_name}[/b] {event_msg}"
                         elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
                             # Use detail to differentiate? 0=Added, 1=Updated
                             action_str = "Configuration Updated" if detail == 1 else "Defined"
-                            final_msg = f"VM '{vm_name}' {action_str}"
+                            final_msg = f"VM [b]{vm_name}[/b] {action_str}"
                         elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
-                            final_msg = f"VM '{vm_name}' Undefined (Deleted)"
+                            final_msg = f"VM [b]{vm_name}[/b] Undefined (Deleted)"
 
                         if final_msg:
                             self._message_callback(msg_level, final_msg)
