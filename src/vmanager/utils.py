@@ -120,12 +120,17 @@ def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str
     if not exists:
         messages.append(('info', f"WebConsole TLS key/cert not found on {'remote' if remote_host else 'local'}. Generating..."))
 
+        hostname = "localhost"
+        if remote_host:
+            hostname = remote_host.split('@')[-1]
+
         gen_cmd = [
             "openssl", "req", "-x509", "-newkey", "rsa:4096",
             "-keyout", str(key_path),
             "-out", str(cert_path),
             "-sha256", "-days", "365", "-nodes",
-            "-subj", "/CN=localhost"
+            "-subj", f"/CN={hostname}",
+            "-addext", f"subjectAltName = DNS:{hostname}"
         ]
 
         try:
