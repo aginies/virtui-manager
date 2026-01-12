@@ -1446,7 +1446,7 @@ class VMCard(Static):
                     log_callback(f"ERROR: {msg}")
 
                 if success_clones:
-                    app.call_from_thread(app.vm_service.invalidate_domain_cache)
+                    #app.call_from_thread(app.vm_service.invalidate_domain_cache)
                     app.call_from_thread(app.refresh_vm_list)
                 app.call_from_thread(progress_modal.dismiss)
 
