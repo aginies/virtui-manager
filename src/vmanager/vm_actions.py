@@ -20,7 +20,6 @@ from vm_cache import invalidate_cache
 from network_manager import list_networks
 from storage_manager import create_overlay_volume
 
-@log_function_call
 def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
     """
     Clones a VM, including its storage using libvirt's storage pool API.
@@ -28,109 +27,130 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
     """
     conn = original_vm.connect()
     original_xml = original_vm.XMLDesc(0)
-    root = ET.fromstring(original_xml)
 
-    msg_start = f"Setting up new VM {new_vm_name}, cleaning some paramaters..."
-    logging.info(msg_start)
-    if log_callback:
-        log_callback(msg_start)
-    name_elem = root.find('name')
-    if name_elem is not None:
-        name_elem.text = new_vm_name
+    # Open a dedicated connection for the cloning operation to avoid blocking the main connection
+    # which is used by the UI thread for stats updates.
+    uri = conn.getURI()
+    clone_conn = libvirt.open(uri)
+    if not clone_conn:
+        raise libvirt.libvirtError(f"Failed to open new connection to {uri} for cloning")
 
-    uuid_elem = root.find('uuid')
-    if uuid_elem is not None:
-        uuid_elem.text = str(uuid.uuid4())
+    try:
+        root = ET.fromstring(original_xml)
 
-    for interface in root.findall('.//devices/interface'):
-        mac_elem = interface.find('mac')
-        if mac_elem is not None:
-            interface.remove(mac_elem)
-
-    if not clone_storage:
-        msg_skip = f"Skipping storage cloning for VM {new_vm_name} (clone_storage=False)"
-        logging.info(msg_skip)
+        msg_start = f"Setting up new VM {new_vm_name}, cleaning some paramaters..."
+        logging.info(msg_start)
         if log_callback:
-            log_callback(msg_skip)
+            log_callback(msg_start)
+        name_elem = root.find('name')
+        if name_elem is not None:
+            name_elem.text = new_vm_name
 
-    for disk in root.findall('.//devices/disk'):
-        if disk.get('device') != 'disk':
-            continue
+        uuid_elem = root.find('uuid')
+        if uuid_elem is not None:
+            uuid_elem.text = str(uuid.uuid4())
 
-        source_elem = disk.find('source')
-        if source_elem is None:
-            continue
+        for interface in root.findall('.//devices/interface'):
+            mac_elem = interface.find('mac')
+            if mac_elem is not None:
+                interface.remove(mac_elem)
 
-        # Skip storage cloning if clone_storage is False
         if not clone_storage:
-            logging.info(f"Keeping original storage reference for disk: {ET.tostring(source_elem, encoding='unicode').strip()}")
-            continue
-
-        original_vol = None
-        original_pool = None
-        disk_type = disk.get('type')
-
-        if disk_type == 'file':
-            original_disk_path = source_elem.get('file')
-            if original_disk_path:
-                original_vol, original_pool = _find_vol_by_path(conn, original_disk_path)
-        elif disk_type == 'volume':
-            pool_name = source_elem.get('pool')
-            vol_name = source_elem.get('volume')
-            if pool_name and vol_name:
-                try:
-                    original_pool = conn.storagePoolLookupByName(pool_name)
-                    original_vol = original_pool.storageVolLookupByName(vol_name)
-                except libvirt.libvirtError as e:
-                    logging.warning(f"Could not find volume '{vol_name}' in pool '{pool_name}'. Skipping disk clone. Error: {e}")
-                    continue
-
-        if not original_vol or not original_pool:
-            logging.info(f"Skipping cloning for non-volume disk source: {ET.tostring(source_elem, encoding='unicode').strip()}")
-            continue
-
-        original_vol_xml = original_vol.XMLDesc(0)
-        vol_root = ET.fromstring(original_vol_xml)
-
-        _, vol_name_ext = os.path.splitext(original_vol.name())
-        new_vol_name = f"{new_vm_name}_{secrets.token_hex(4)}{vol_name_ext}"
-        vol_root.find('name').text = new_vol_name
-
-        # Libvirt will handle capacity, allocation, and backing store when cloning.
-        # Clear old path/key info for the new volume
-        if vol_root.find('key') is not None:
-             vol_root.remove(vol_root.find('key'))
-        target_elem = vol_root.find('target')
-        if target_elem is not None:
-            if target_elem.find('path') is not None:
-                target_elem.remove(target_elem.find('path'))
-
-        new_vol_xml = ET.tostring(vol_root, encoding='unicode')
-
-        # Clone the volume using libvirt's storage pool API
-        try:
-            msg = f"Creating the new volume: {new_vol_name}"
-            logging.info(msg)
+            msg_skip = f"Skipping storage cloning for VM {new_vm_name} (clone_storage=False)"
+            logging.info(msg_skip)
             if log_callback:
-                log_callback(msg)
-            # Flag 0 indicates a full (deep) clone
-            new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
-        except libvirt.libvirtError as e:
-            raise libvirt.libvirtError(f"Failed to perform a full clone of volume '{original_vol.name()}': {e}")
+                log_callback(msg_skip)
 
-        disk.set('type', 'volume')
-        if 'file' in source_elem.attrib:
-            del source_elem.attrib['file']
-        source_elem.set('pool', original_pool.name())
-        source_elem.set('volume', new_vol.name())
+        for disk in root.findall('.//devices/disk'):
+            if disk.get('device') != 'disk':
+                continue
 
-    new_xml = ET.tostring(root, encoding='unicode')
-    msg_end = "Defining the VM..."
-    logging.info(msg_end)
-    if log_callback:
-        log_callback(msg_end)
-    new_vm = conn.defineXML(new_xml)
+            source_elem = disk.find('source')
+            if source_elem is None:
+                continue
 
+            # Skip storage cloning if clone_storage is False
+            if not clone_storage:
+                logging.info(f"Keeping original storage reference for disk: {ET.tostring(source_elem, encoding='unicode').strip()}")
+                continue
+
+            original_vol = None
+            original_pool = None
+            disk_type = disk.get('type')
+
+            if disk_type == 'file':
+                original_disk_path = source_elem.get('file')
+                if original_disk_path:
+                    # Use clone_conn to find volume
+                    original_vol, original_pool = _find_vol_by_path(clone_conn, original_disk_path)
+            elif disk_type == 'volume':
+                pool_name = source_elem.get('pool')
+                vol_name = source_elem.get('volume')
+                if pool_name and vol_name:
+                    try:
+                        # Use clone_conn to lookup pool/volume
+                        original_pool = clone_conn.storagePoolLookupByName(pool_name)
+                        original_vol = original_pool.storageVolLookupByName(vol_name)
+                    except libvirt.libvirtError as e:
+                        logging.warning(f"Could not find volume '{vol_name}' in pool '{pool_name}'. Skipping disk clone. Error: {e}")
+                        continue
+
+            if not original_vol or not original_pool:
+                logging.info(f"Skipping cloning for non-volume disk source: {ET.tostring(source_elem, encoding='unicode').strip()}")
+                continue
+
+            original_vol_xml = original_vol.XMLDesc(0)
+            vol_root = ET.fromstring(original_vol_xml)
+
+            _, vol_name_ext = os.path.splitext(original_vol.name())
+            new_vol_name = f"{new_vm_name}_{secrets.token_hex(4)}{vol_name_ext}"
+            vol_root.find('name').text = new_vol_name
+
+            # Libvirt will handle capacity, allocation, and backing store when cloning.
+            # Clear old path/key info for the new volume
+            if vol_root.find('key') is not None:
+                 vol_root.remove(vol_root.find('key'))
+            target_elem = vol_root.find('target')
+            if target_elem is not None:
+                if target_elem.find('path') is not None:
+                    target_elem.remove(target_elem.find('path'))
+
+            new_vol_xml = ET.tostring(vol_root, encoding='unicode')
+
+            # Clone the volume using libvirt's storage pool API
+            try:
+                msg = f"Creating the new volume: {new_vol_name}"
+                logging.info(msg)
+                if log_callback:
+                    log_callback(msg)
+                # Flag 0 indicates a full (deep) clone
+                new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
+            except libvirt.libvirtError as e:
+                raise libvirt.libvirtError(f"Failed to perform a full clone of volume '{original_vol.name()}': {e}")
+
+            disk.set('type', 'volume')
+            if 'file' in source_elem.attrib:
+                del source_elem.attrib['file']
+            source_elem.set('pool', original_pool.name())
+            source_elem.set('volume', new_vol.name())
+
+        new_xml = ET.tostring(root, encoding='unicode')
+        msg_end = "Defining the VM..."
+        logging.info(msg_end)
+        if log_callback:
+            log_callback(msg_end)
+        
+        # Define the VM using the clone connection
+        new_vm_temp = clone_conn.defineXML(new_xml)
+        new_vm_uuid = new_vm_temp.UUIDString()
+    
+    finally:
+        if clone_conn:
+            clone_conn.close()
+
+    # Retrieve the new VM using the original connection to return a valid object
+    # that is bound to the connection expected by the caller.
+    new_vm = conn.lookupByUUIDString(new_vm_uuid)
     return new_vm
 
 def rename_vm(domain, new_name, delete_snapshots=False):
@@ -141,7 +161,6 @@ def rename_vm(domain, new_name, delete_snapshots=False):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
 
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to be renamed.")
@@ -173,6 +192,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
     xml_desc = domain.XMLDesc(0)
 
+    invalidate_cache(domain.UUIDString())
     domain.undefine()
 
     try:
@@ -193,6 +213,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         msg = f"Failed to rename VM, but restored original state. Error: {e}"
         logging.error(msg)
         raise Exception(msg) from e
+
 
 def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, size_gb=10, disk_format='qcow2'):
     """
@@ -1462,7 +1483,6 @@ def set_vm_rng(domain: libvirt.virDomain, rng_model: str = 'virtio', backend_mod
         backend_model: Backend type (e.g., 'random', 'egd')
         backend_path: Path to backend device/file
     """
-    invalidate_cache(domain.UUIDString())
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change RNG settings.")
 
@@ -1487,6 +1507,7 @@ def set_vm_rng(domain: libvirt.virDomain, rng_model: str = 'virtio', backend_mod
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+    invalidate_cache(domain.UUIDString())
 
 
 @log_function_call
@@ -1529,7 +1550,6 @@ def remove_vm_watchdog(domain: libvirt.virDomain):
     Removes Watchdog configuration from a VM.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to remove Watchdog settings.")
 
@@ -1550,6 +1570,7 @@ def remove_vm_watchdog(domain: libvirt.virDomain):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+    invalidate_cache(domain.UUIDString())
 
 
 @log_function_call
@@ -1563,7 +1584,6 @@ def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bu
         input_type: Input device type (e.g., 'mouse', 'keyboard', 'tablet')
         input_bus: Bus type (e.g., 'usb', 'ps2', 'virtio')
     """
-    invalidate_cache(domain.UUIDString())
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change Input settings.")
 
@@ -1584,6 +1604,7 @@ def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bu
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+    invalidate_cache(domain.UUIDString())
 
 
 @log_function_call
@@ -1592,7 +1613,6 @@ def add_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
     Adds an input device to a VM.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to add an input device.")
 
@@ -1606,6 +1626,7 @@ def add_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+    invalidate_cache(domain.UUIDString())
 
 
 @log_function_call
@@ -1643,7 +1664,6 @@ def start_vm(domain):
     """
     Starts a VM after checking for missing disks.
     """
-    invalidate_cache(domain.UUIDString())
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
     conn = domain.connect()
@@ -1672,46 +1692,44 @@ def start_vm(domain):
                 logging.error(msg)
                 raise Exception(msg) from e
 
+    invalidate_cache(domain.UUIDString())
     domain.create()
 
-@log_function_call
 def stop_vm(domain: libvirt.virDomain):
     """
     Initiates a graceful shutdown of the VM.
     """
-    invalidate_cache(domain.UUIDString())
     if not domain:
         raise ValueError("Invalid domain object.")
     if not domain.isActive():
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot shutdown.")
 
+    invalidate_cache(domain.UUIDString())
     domain.shutdown()
 
-@log_function_call
 def pause_vm(domain: libvirt.virDomain):
     """
     Pauses the execution of the VM.
     """
-    invalidate_cache(domain.UUIDString())
     if not domain:
         raise ValueError("Invalid domain object.")
     if not domain.isActive():
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot pause.")
 
+    invalidate_cache(domain.UUIDString())
     domain.suspend()
 
-@log_function_call
 def force_off_vm(domain: libvirt.virDomain):
     """
     Forcefully shuts down (destroys) the VM.
     This is equivalent to pulling the power plug.
     """
-    invalidate_cache(domain.UUIDString())
     if not domain:
         raise ValueError("Invalid domain object.")
     if not domain.isActive():
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot force off.")
 
+    invalidate_cache(domain.UUIDString())
     domain.destroy()
 
 def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None):
@@ -1721,7 +1739,6 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
 
     def log(message):
         if log_callback:
@@ -1733,105 +1750,136 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
             logging.info(message)
 
     vm_name = "unknown"
+    vm_uuid = None
     try:
         vm_name = domain.name()
+        vm_uuid = domain.UUIDString()
     except libvirt.libvirtError:
         pass # Domain might already be gone
 
     log(f"Starting deletion process for VM '{vm_name}'...")
 
-    conn = domain.connect()
-
-    disks_to_delete = []
-    xml_desc = None
-    if delete_storage or delete_nvram:
-        try:
-            xml_desc = domain.XMLDesc(0)
-            if delete_storage:
-                root = ET.fromstring(xml_desc)
-                disks_to_delete = get_vm_disks_info(conn, root)
-        except libvirt.libvirtError as e:
-            log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
-            raise
-
-    if domain.isActive():
-        log(f"VM '{vm_name}' is active. Forcefully stopping it...")
-        try:
-            domain.destroy()
-            log(f"VM '{vm_name}' stopped.")
-        except libvirt.libvirtError as e:
-            log(f"[red]ERROR:[/] Failed to stop VM '{vm_name}': {e}")
-            raise
-
-    # Undefine the VM
-    log(f"Undefining VM '{vm_name}'...")
-    undefine_flags = libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
-    if delete_nvram and xml_desc:
-        root = ET.fromstring(xml_desc)
-        os_elem = root.find('os')
-        if os_elem is not None and os_elem.find('nvram') is not None:
-            log("...including NVRAM.")
-            undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
+    # Open a dedicated connection for the deletion operation to avoid blocking the main connection
+    original_conn = domain.connect()
+    uri = original_conn.getURI()
+    delete_conn = libvirt.open(uri)
+    if not delete_conn:
+        raise libvirt.libvirtError(f"Failed to open new connection to {uri} for deletion")
 
     try:
-        domain.undefineFlags(undefine_flags)
-        log(f"VM '{vm_name}' undefined.")
-    except libvirt.libvirtError as e:
-        # It might already be gone, which is fine.
-        if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-            log(f"VM '{vm_name}' was already undefined.")
-        else:
-            log(f"[red]ERROR:[/] Failed to undefine VM '{vm_name}': {e}")
-            raise
+        # Get XML from original domain first (if possible) to avoid issues if it's already gone
+        # But for storage lookup we might need the connection.
+        # We will try to lookup the domain on the new connection.
+        
+        domain_to_delete = None
+        try:
+            domain_to_delete = delete_conn.lookupByUUIDString(vm_uuid)
+        except libvirt.libvirtError:
+            log(f"VM '{vm_name}' not found on new connection (might be already deleted).")
+        
+        root = None
+        disks_to_delete = []
+        xml_desc = None
 
-    if delete_storage:
-        if not disks_to_delete:
-            log("No storage volumes found to delete.")
-        else:
-            log(f"Deleting {len(disks_to_delete)} storage volume(s)...")
+        if domain_to_delete:
+             if delete_storage or delete_nvram:
+                try:
+                    xml_desc = domain_to_delete.XMLDesc(0)
+                    root = ET.fromstring(xml_desc)
+                    if delete_storage:
+                        # Pass delete_conn to resolve volumes
+                        disks_to_delete = get_vm_disks_info(delete_conn, root)
+                except libvirt.libvirtError as e:
+                    log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
+                    # If we can't get XML, we can't find disks to delete, but we should still try to undefine
+            
+             if domain_to_delete.isActive():
+                log(f"VM '{vm_name}' is active. Forcefully stopping it...")
+                try:
+                    domain_to_delete.destroy()
+                    log(f"VM '{vm_name}' stopped.")
+                except libvirt.libvirtError as e:
+                    log(f"[red]ERROR:[/] Failed to stop VM '{vm_name}': {e}")
+                    raise
 
-        for disk_info in disks_to_delete:
-            disk_path = disk_info.get('path')
-            if not disk_path or not disk_info.get('status') == 'enabled':
-                continue
+             # Undefine the VM using the new connection object
+             invalidate_cache(vm_uuid)
+             log(f"Undefining VM '{vm_name}'...")
+             undefine_flags = libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
+             if delete_nvram and root is not None:
+                os_elem = root.find('os')
+                if os_elem is not None and os_elem.find('nvram') is not None:
+                    log("...including NVRAM.")
+                    undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
 
-            log(f"Attempting to delete volume: {disk_path}")
-
-            # Check for backing file (overlay) before deletion, as we need the XML metadata
-            backing_path = None
-            if root is not None:
-                backing_path = get_overlay_backing_path(root, disk_path)
-
-            try:
-                vol, pool = _find_vol_by_path(conn, disk_path)
-
-                if vol:
-                    vol.delete(0)
-                    log(f"  - Deleted: {disk_path} from pool {pool.name()}")
-
-                    # Delete backing file if it existed
-                    if backing_path:
-                        log(f"  - Found backing file for overlay: {backing_path}")
-                        try:
-                            backing_vol, backing_pool = _find_vol_by_path(conn, backing_path)
-                            if backing_vol:
-                                backing_vol.delete(0)
-                                log(f"  - Deleted backing file: {backing_path} from pool {backing_pool.name()}")
-                            else:
-                                log(f"  - [yellow]Warning:[/] Backing file '{backing_path}' not found as a managed volume.")
-                        except Exception as e:
-                            log(f"  - [red]ERROR:[/] Failed to delete backing file '{backing_path}': {e}")
-
+             try:
+                domain_to_delete.undefineFlags(undefine_flags)
+                log(f"VM '{vm_name}' undefined.")
+             except libvirt.libvirtError as e:
+                # It might already be gone, which is fine.
+                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                    log(f"VM '{vm_name}' was already undefined.")
                 else:
-                    log(f"  - [yellow]Skipped:[/] Disk '{disk_path}' is not a managed libvirt volume.")
+                    log(f"[red]ERROR:[/] Failed to undefine VM '{vm_name}': {e}")
+                    raise
+        else:
+             # Domain not found, but we might still have storage to delete if we could get XML?
+             # If domain is not found, we can't get XML, so we can't know which storage to delete.
+             pass
 
-            except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
-                    log(f"  - [yellow]Skipped:[/] Volume for path '{disk_path}' not found.")
-                else:
-                    log(f"  - [red]ERROR:[/] Error deleting volume for path {disk_path}: {e}")
-            except Exception as e:
-                log(f"  - [red]ERROR:[/] Unexpected error deleting storage {disk_path}: {e}")
+        if delete_storage:
+            if not disks_to_delete:
+                log("No storage volumes found to delete.")
+            else:
+                log(f"Deleting {len(disks_to_delete)} storage volume(s)...")
+
+            for disk_info in disks_to_delete:
+                disk_path = disk_info.get('path')
+                if not disk_path or not disk_info.get('status') == 'enabled':
+                    continue
+
+                log(f"Attempting to delete volume: {disk_path}")
+
+                # Check for backing file (overlay) before deletion, as we need the XML metadata
+                backing_path = None
+                if root is not None:
+                    backing_path = get_overlay_backing_path(root, disk_path)
+
+                try:
+                    # Use delete_conn to find volume
+                    vol, pool = _find_vol_by_path(delete_conn, disk_path)
+
+                    if vol:
+                        vol.delete(0)
+                        log(f"  - Deleted: {disk_path} from pool {pool.name()}")
+
+                        # Delete backing file if it existed
+                        if backing_path:
+                            log(f"  - Found backing file for overlay: {backing_path}")
+                            try:
+                                backing_vol, backing_pool = _find_vol_by_path(delete_conn, backing_path)
+                                if backing_vol:
+                                    backing_vol.delete(0)
+                                    log(f"  - Deleted backing file: {backing_path} from pool {backing_pool.name()}")
+                                else:
+                                    log(f"  - [yellow]Warning:[/] Backing file '{backing_path}' not found as a managed volume.")
+                            except Exception as e:
+                                log(f"  - [red]ERROR:[/] Failed to delete backing file '{backing_path}': {e}")
+
+                    else:
+                        log(f"  - [yellow]Skipped:[/] Disk '{disk_path}' is not a managed libvirt volume.")
+
+                except libvirt.libvirtError as e:
+                    if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
+                        log(f"  - [yellow]Skipped:[/] Volume for path '{disk_path}' not found.")
+                    else:
+                        log(f"  - [red]ERROR:[/] Error deleting volume for path {disk_path}: {e}")
+                except Exception as e:
+                    log(f"  - [red]ERROR:[/] Unexpected error deleting storage {disk_path}: {e}")
+
+    finally:
+        if delete_conn:
+            delete_conn.close()
 
     log(f"Finished deletion process for VM '{vm_name}'.")
 
