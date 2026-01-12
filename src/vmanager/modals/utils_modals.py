@@ -27,7 +27,7 @@ def show_success_message(app, message: str):
 def show_in_progress_message(app, message: str):
     """Shows an 'In Progress' notification."""
     logging.info(message)
-    app.notify(message, timeout=5, title="In Progress")
+    app.notify(message, timeout=5, title="In Progress", severity="inprogress")
 
 def show_quick_message(app, message: str):
     """Shows a quick notification."""

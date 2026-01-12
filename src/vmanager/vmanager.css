@@ -19,6 +19,11 @@ Select:focus {
     border: tall $accent;
 }
 
+Toast.-inprogress {
+    background: $primary;
+    color: $text;
+}
+
 /* --- Base Dialog & Container Styles --- */
 
 /* Common container for most dialogs */

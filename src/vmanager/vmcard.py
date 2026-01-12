@@ -977,7 +977,7 @@ class VMCard(Static):
 
                 try:
                     create_external_overlay(self.vm, target_disk, overlay_name)
-                    self.app.show_success_message(f"Overlay '{overlay_name}' created and attached.")
+                    self.app.show_success_message(f"Overlay [b]{overlay_name}[/b] created and attached.")
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
                     self.post_message(VmCardUpdateRequest(self.internal_id))
@@ -1007,7 +1007,7 @@ class VMCard(Static):
                     if confirmed:
                         try:
                             discard_overlay(self.vm, target_disk)
-                            self.app.show_success_message(f"Overlay for '{target_disk}' discarded and reverted to base image.")
+                            self.app.show_success_message(f"Overlay for [b]{target_disk}[/b] discarded and reverted to base image.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.post_message(VmCardUpdateRequest(self.internal_id))
@@ -1121,7 +1121,7 @@ class VMCard(Static):
                         try:
                             conn = self.vm.connect()
                             conn.defineXML(modified_xml)
-                            self.app.show_success_message(f"VM '{self.name}' configuration updated successfully.")
+                            self.app.show_success_message(f"VM [b]{self.name}[/b] configuration updated successfully.")
                             logging.info(f"Successfully updated XML for VM: {self.name}")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
@@ -1138,7 +1138,7 @@ class VMCard(Static):
                 handle_xml_modal_result
             )
         except libvirt.libvirtError as e:
-            self.app.show_error_message(f"Error getting XML for VM {self.name}: {e}")
+            self.app.show_error_message(f"Error getting XML for VM [b]{self.name}[/b]: {e}")
         except Exception as e:
             self.app.show_error_message(f"An unexpected error occurred: {e}")
             logging.error(f"Unexpected error handling XML button: {traceback.format_exc()}")
@@ -1191,7 +1191,7 @@ class VMCard(Static):
             except libvirt.libvirtError as e:
                 self.app.call_from_thread(
                     self.app.show_error_message,
-                    f"Error getting VM details for {self.name}: {e}"
+                    f"Error getting VM details for [b]{self.name}[/b]: {e}"
                 )
             except Exception as e:
                 logging.error(f"An unexpected error occurred during connect: {e}", exc_info=True)
@@ -1214,7 +1214,7 @@ class VMCard(Static):
                 )
                 return
         except Exception as e:
-            self.app.show_error_message(f"Error checking web console status for {self.name}: {e}")
+            self.app.show_error_message(f"Error checking web console status for [b]{self.name}[/b]: {e}")
             return
 
         #is_remote = self.app.webconsole_manager.is_remote_connection(self.conn.getURI())
@@ -1254,9 +1254,9 @@ class VMCard(Static):
                     create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
-                    self.app.show_success_message(f"Snapshot '{name}' created successfully.")
+                    self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
                 except Exception as e:
-                    self.app.show_error_message(f"Snapshot error for {self.name}: {e}")
+                    self.app.show_error_message(f"Snapshot error for [b]{self.name}[/b]: {e}")
 
         self.app.push_screen(SnapshotNameDialog(self.vm), handle_snapshot_result)
 
@@ -1277,10 +1277,10 @@ class VMCard(Static):
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
                     self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
-                    self.app.show_success_message(f"Restored to snapshot '{snapshot_name}' successfully.")
-                    logging.info(f"Successfully restored snapshot '{snapshot_name}' for VM: {self.name}")
+                    self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
+                    logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {self.name}")
                 except Exception as e:
-                    self.app.show_error_message(f"Error on VM {self.name} during 'snapshot restore': {e}")
+                    self.app.show_error_message(f"Error on VM [b]{self.name}[/b] during 'snapshot restore': {e}")
 
         self.app.push_screen(SelectSnapshotDialog(snapshots_info, "Select snapshot to restore"), restore_snapshot)
 
@@ -1300,12 +1300,12 @@ class VMCard(Static):
                     if confirmed:
                         try:
                             delete_vm_snapshot(self.vm, snapshot_name)
-                            self.app.show_success_message(f"Snapshot '{snapshot_name}' deleted successfully.")
+                            self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except Exception as e:
-                            self.app.show_error_message(f"Error on VM {self.name} during 'snapshot delete': {e}")
+                            self.app.show_error_message(f"Error on VM [b]{self.name}[/b] during 'snapshot delete': {e}")
 
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
@@ -1472,8 +1472,8 @@ class VMCard(Static):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{new_name_raw}' changed to '{new_name}'")
-            
+                self.app.show_success_message(f"Input sanitized: [b]{new_name_raw}[/b] changed to [b]{new_name}[/b]")
+
             if not new_name:
                 self.app.show_error_message("VM name cannot be empty after sanitization.")
                 return
@@ -1493,7 +1493,7 @@ class VMCard(Static):
                     self.app.refresh_vm_list()
                     logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
                 except Exception as e:
-                    self.app.show_error_message(f"Error renaming VM {self.name}: {e}")
+                    self.app.show_error_message(f"Error renaming VM [b]{self.name}[/b]: {e}")
 
             num_snapshots = self.vm.snapshotNum(0)
             if num_snapshots > 0:
@@ -1544,7 +1544,7 @@ class VMCard(Static):
                     def show_details():
                         loading_modal.dismiss()
                         if not result:
-                            self.app.show_error_message(f"VM {vm_name} with internal ID {uuid} not found on any active server.")
+                            self.app.show_error_message(f"VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active server.")
                             return
 
                         vm_info, domain, conn_for_domain = result
@@ -1563,13 +1563,13 @@ class VMCard(Static):
                 except Exception as e:
                     def show_error():
                         loading_modal.dismiss()
-                        self.app.show_error_message(f"Error getting details for {vm_name}: {e}")
+                        self.app.show_error_message(f"Error getting details for [b]{vm_name}[/b]: {e}")
                     self.app.call_from_thread(show_error)
 
             self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
 
         except Exception as e:
-            self.app.show_error_message(f"Error getting ID for {self.name}: {e}")
+            self.app.show_error_message(f"Error getting ID for [b]{self.name}[/b]: {e}")
 
     def _handle_migration_button(self, event: Button.Pressed) -> None:
         """Handles the migration button press."""
@@ -1596,7 +1596,7 @@ class VMCard(Static):
                 else:
                     found_domain = False
                 if not found_domain:
-                    self.app.show_error_message(f"Selected VM with ID {uuid} not found on any active server.")
+                    self.app.show_error_message(f"Selected VM with ID [b]{uuid}[/b] not found on any active server.")
 
         if not selected_vms:
             selected_vms = [self.vm]

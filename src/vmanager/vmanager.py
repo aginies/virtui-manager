@@ -298,7 +298,7 @@ class VMManagerTUI(App):
         yield self.ui["error_footer"]
         yield Footer()
         self.show_success_message(
-            "In some Terminal use 'Shift' key while selecting text with the mouse to copy it."
+            "In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it."
         )
 
     def reload_servers(self, new_servers):
@@ -356,10 +356,10 @@ class VMManagerTUI(App):
         """Connects to servers in background and then triggers cache loading."""
         if self.active_uris:
             for uri in self.active_uris:
-                self.call_from_thread(self.show_in_progress_message, f"Connecting to {uri}...")
+                self.call_from_thread(self.show_in_progress_message, f"Connecting to [b]{uri}[/b]...")
                 success = self.connect_libvirt(uri)
                 if success:
-                    self.call_from_thread(self.show_success_message, f"Connected to {uri}")
+                    self.call_from_thread(self.show_success_message, f"Connected to [b]{uri}[/b]")
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
@@ -460,7 +460,7 @@ class VMManagerTUI(App):
                             if s['uri'] == uri:
                                 server_name = s['name']
                                 break
-                        self.call_from_thread(self.show_error_message, f"Server '{server_name}': {error_msg}")
+                        self.call_from_thread(self.show_error_message, f"Server [b]{server_name}[/b]: {error_msg}")
 
                         if self.vm_service.connection_manager.is_max_retries_reached(uri):
                              self.call_from_thread(self.remove_active_uri, uri)
@@ -548,9 +548,9 @@ class VMManagerTUI(App):
 
         self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 4
 
-        if self.VMS_PER_PAGE > 6 and old_vms_per_page <= 6:
+        if self.VMS_PER_PAGE > 9 and old_vms_per_page <= 9:
             self.show_warning_message(
-                f"Displaying {self.VMS_PER_PAGE} VMs per page. CPU usage may increase; 6 is recommended for optimal performance."
+                f"Displaying [b]{self.VMS_PER_PAGE}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
             )
 
         self.refresh_vm_list()
@@ -579,7 +579,7 @@ class VMManagerTUI(App):
             if conn:
                 yield conn
             else:
-                self.show_error_message(f"Failed to open connection to {uri}")
+                self.show_error_message(f"Failed to open connection to [b]{uri}[/b]")
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
@@ -633,7 +633,7 @@ class VMManagerTUI(App):
         uris_to_connect = [uri for uri in selected_uris if uri not in self.active_uris]
         # Show connecting message for each new server
         for uri in uris_to_connect:
-            self.show_in_progress_message(f"Connecting to {uri}...")
+            self.show_in_progress_message(f"Connecting to [b]{uri}[/b]...")
 
         for uri in uris_to_disconnect:
             # Cleanup UI caches for VMs on this server
@@ -674,11 +674,11 @@ class VMManagerTUI(App):
                         server_name = s['name']
                         break
                 if success:
-                    self.call_from_thread(self.show_success_message, f"Connected to {server_name}")
+                    self.call_from_thread(self.show_success_message, f"Connected to [b]{server_name}[/b]")
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
-                        self.call_from_thread(self.show_error_message, f"Failed to connect to {server_name}: {error_msg}")
+                        self.call_from_thread(self.show_error_message, f"Failed to connect to [b]{server_name}[/b]: {error_msg}")
 
         if uris_to_connect:
             self.worker_manager.run(show_connection_results, name="show_connection_results")
@@ -754,7 +754,7 @@ class VMManagerTUI(App):
             self.search_text = new_search
             self.filtered_server_uris = new_selected_servers
             self.current_page = 0
-            self.show_quick_message("Loading VM data from remote server(s)...")
+            self.show_in_progress_message("Loading VM data from remote server(s)...")
             self.refresh_vm_list()
 
     def action_config(self) -> None:
@@ -769,7 +769,7 @@ class VMManagerTUI(App):
             self.config = result
 
             if (self.config.get("STATS_INTERVAL") != old_stats_interval):
-                self.show_success_message("Configuration updated. Refreshing VM list...")
+                self.show_in_progress_message("Configuration updated. Refreshing VM list...")
                 self.refresh_vm_list(force=False, optimize_for_current_page=True)
             else:
                 self.show_success_message("Configuration updated.")
@@ -879,7 +879,7 @@ class VMManagerTUI(App):
         def action_worker():
             domain = self.vm_service.find_domain_by_uuid(self.active_uris, message.vm_uuid)
             if not domain:
-                self.call_from_thread(self.show_error_message, f"Could not find VM with UUID {message.vm_uuid}")
+                self.call_from_thread(self.show_error_message, f"Could not find VM with UUID [b]{message.vm_uuid}[/b]")
                 return
 
             #vm_name = domain.name()
@@ -888,23 +888,23 @@ class VMManagerTUI(App):
             try:
                 if message.action == VmAction.START:
                     self.vm_service.start_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' started successfully.")
+                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] started successfully.")
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"Sent shutdown signal to VM '{vm_name}'.")
+                    self.call_from_thread(self.show_success_message, f"Sent shutdown signal to VM [b]{vm_name}[/b].")
                 elif message.action == VmAction.PAUSE:
                     self.vm_service.pause_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' paused successfully.")
+                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] paused successfully.")
                 elif message.action == VmAction.FORCE_OFF:
                     self.vm_service.force_off_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' forcefully stopped.")
+                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] forcefully stopped.")
                 elif message.action == VmAction.DELETE:
                     self.vm_service.delete_vm(domain, delete_storage=message.delete_storage)
                     self.vm_service.invalidate_domain_cache()
-                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' deleted successfully.")
+                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] deleted successfully.")
                 elif message.action == VmAction.RESUME:
                     self.vm_service.resume_vm(domain)
-                    self.call_from_thread(self.show_success_message, f"VM '{vm_name}' resumed successfully.")
+                    self.call_from_thread(self.show_success_message, f"VM [b]{vm_name}[/b] resumed successfully.")
                 # Other actions (stop, pause, etc.) will be handled here in the future
                 else:
                     self.call_from_thread(self.show_error_message, f"Unknown action '{message.action}' requested.")
@@ -919,7 +919,7 @@ class VMManagerTUI(App):
             except Exception as e:
                 self.call_from_thread(
                     self.show_error_message,
-                    f"Error on VM '{vm_name}' during '{message.action}': {e}",
+                    f"Error on VM [b]{vm_name}[/b] during '{message.action}': {e}",
                 )
 
         self.worker_manager.run(
@@ -1068,9 +1068,9 @@ class VMManagerTUI(App):
             logging.info(summary) 
 
             if successful_vms:
-                self.call_from_thread(self.show_success_message, f"Bulk action '{action_type}' successful for {len(successful_vms)} VMs.")
+                self.call_from_thread(self.show_success_message, f"Bulk action [b]{action_type}[/b] successful for {len(successful_vms)} VMs.")
             if failed_vms:
-                self.call_from_thread(self.show_error_message, f"Bulk action '{action_type}' failed for {len(failed_vms)} VMs.")
+                self.call_from_thread(self.show_error_message, f"Bulk action [b]{action_type}[/b] failed for {len(failed_vms)} VMs.")
 
         except Exception as e:
             logging.error(f"An unexpected error occurred during bulk action service call: {e}", exc_info=True)

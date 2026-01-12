@@ -416,7 +416,7 @@ wp.websockify_init()
             proc.stdout.close()
 
         if remote_pid is None:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to start remote websockify for {vm_name}. Check logs.")
+            self.app.call_from_thread(self.app.show_error_message, f"Failed to start remote websockify for [b]{vm_name}[/b]. Check logs.")
             try:
                 proc.terminate()
             except:
@@ -591,7 +591,7 @@ wp.websockify_init()
             subprocess.run(stop_cmd, check=True, timeout=5, capture_output=True)
             logging.info(f"SSH tunnel stopped for VM {vm_name} using socket {control_socket}")
         except FileNotFoundError:
-            self.app.call_from_thread(self.app.show_error_message, "'ssh' command not found.")
+            self.app.call_from_thread(self.app.show_error_message, "[b]ssh[/b] command not found.")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logging.warning(f"Could not stop SSH tunnel cleanly for VM {vm_name}: {e.stderr.decode() if e.stderr else e}")
         finally:
