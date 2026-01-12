@@ -543,7 +543,7 @@ class VMCard(Static):
             # This prevents cache thrashing if status flickers (e.g. Unknown -> Running)
             if old_value == StatusText.STOPPED:
                 try:
-                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                    self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                 except Exception:
                     pass
             self.update_stats()
