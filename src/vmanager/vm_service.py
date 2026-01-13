@@ -8,6 +8,7 @@ import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime
 import libvirt
+from typing import Callable
 from connection_manager import ConnectionManager
 from constants import VmStatus, VmAction, AppCacheTimeout
 from storage_manager import check_domain_volumes_in_use
@@ -101,11 +102,11 @@ class VMService:
         self.start_monitoring()
 
     def set_data_update_callback(self, callback):
-        """Sets a callback to be invoked when background data update finishes."""
+        """Sets a callback to be invoked when data is updated (full refresh)."""
         self._data_update_callback = callback
 
-    def set_vm_update_callback(self, callback):
-        """Sets a callback to be invoked when a specific VM updates (UUID)."""
+    def set_vm_update_callback(self, callback: Callable): # Use Callable without subscripting for broader compatibility
+        """Sets a callback to be invoked when a specific VM updates (internal_id)."""
         self._vm_update_callback = callback
 
     def set_message_callback(self, callback):
@@ -275,6 +276,9 @@ class VMService:
                         new_state = libvirt.VIR_DOMAIN_SHUTOFF
                         # Also update name cache
                         self.get_vm_identity(domain, conn, known_uri=uri)
+                        # If config updated, invalidate cache so new XML is fetched
+                        if detail == 1: # VIR_DOMAIN_EVENT_DETAIL_CHANGED
+                            self.invalidate_vm_state_cache(internal_id)
                         # Full update for list changes
                         if self._data_update_callback:
                             self._data_update_callback()
@@ -424,6 +428,8 @@ class VMService:
                 for domain in domains:
                     # Pass the known URI to avoid another libvirt call inside
                     internal_id, _ = self.get_vm_identity(domain, conn, known_uri=conn_uri)
+                    if internal_id in new_domain_cache:
+                        logging.warning(f"Duplicate internal_id detected: {internal_id}. Possible duplicate server configuration.")
                     new_domain_cache[internal_id] = domain
                     new_uuid_to_conn[internal_id] = conn
             except libvirt.libvirtError:
@@ -1012,10 +1018,11 @@ class VMService:
         """Performs a bulk action on a list of VMs, reporting progress via a callback."""
 
         action_dispatcher = {
-            VmAction.START: start_vm,
-            VmAction.STOP: stop_vm,
-            VmAction.FORCE_OFF: force_off_vm,
-            VmAction.PAUSE: pause_vm,
+            VmAction.START: self.start_vm,
+            VmAction.STOP: self.stop_vm,
+            VmAction.FORCE_OFF: self.force_off_vm,
+            VmAction.PAUSE: self.pause_vm,
+            VmAction.RESUME: self.resume_vm,
         }
 
         total_vms = len(vm_uuids)
@@ -1034,7 +1041,7 @@ class VMService:
             progress_callback("progress", name=vm_name, current=i + 1, total=total_vms)
 
             if not domain:
-                msg = f"VM with UUID {vm_uuid} not found on any active server."
+                msg = f"VM with ID {vm_uuid} not found on any active server."
                 progress_callback("log_error", message=msg)
                 failed_vms.append(vm_uuid)
                 continue
@@ -1049,7 +1056,7 @@ class VMService:
                     # Special case for delete action's own callback
                     delete_log_callback = lambda m: progress_callback("log", message=m)
                     #time.sleep(0.5)
-                    delete_vm(domain, delete_storage=delete_storage_flag, log_callback=delete_log_callback)
+                    self.delete_vm(domain, delete_storage=delete_storage_flag, log_callback=delete_log_callback)
                 else:
                     msg = f"Unknown bulk action type: {action_type}"
                     progress_callback("log_error", message=msg)
@@ -1162,6 +1169,8 @@ class VMService:
 
     def start_vm(self, domain: libvirt.virDomain) -> None:
         """Performs pre-flight checks and starts the VM."""
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Starting VM: {domain.name()} (ID: {internal_id})")
         if domain.isActive():
             return # Already running, do nothing
 
@@ -1170,38 +1179,47 @@ class VMService:
 
         # If checks pass, start the VM
         start_vm(domain)
-        self.invalidate_vm_state_cache(self._get_internal_id(domain))
+        self.invalidate_vm_state_cache(internal_id)
         self._force_update_event.set()
 
     def stop_vm(self, domain: libvirt.virDomain) -> None:
         """Stops the VM."""
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Stopping VM: {domain.name()} (ID: {internal_id})")
         stop_vm(domain)
-        self.invalidate_vm_state_cache(self._get_internal_id(domain))
+        self.invalidate_vm_state_cache(internal_id)
         self._force_update_event.set()
 
     def pause_vm(self, domain: libvirt.virDomain) -> None:
         """Pauses the VM."""
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Pausing VM: {domain.name()} (ID: {internal_id})")
         pause_vm(domain)
-        self.invalidate_vm_state_cache(self._get_internal_id(domain))
+        self.invalidate_vm_state_cache(internal_id)
         self._force_update_event.set()
 
     def force_off_vm(self, domain: libvirt.virDomain) -> None:
         """Forcefully stops the VM."""
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Forcefully stopping VM: {domain.name()} (ID: {internal_id})")
         force_off_vm(domain)
-        self.invalidate_vm_state_cache(self._get_internal_id(domain))
+        self.invalidate_vm_state_cache(internal_id)
         self._force_update_event.set()
 
-    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool) -> None:
+    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool, log_callback=None) -> None:
         """Deletes the VM."""
-        uuid = self._get_internal_id(domain)
-        delete_vm(domain, delete_storage=delete_storage)
-        self.invalidate_vm_cache(uuid)
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Deleting VM: {domain.name()} (ID: {internal_id}, delete_storage={delete_storage})")
+        delete_vm(domain, delete_storage=delete_storage, log_callback=log_callback)
+        self.invalidate_vm_cache(internal_id)
         self._force_update_event.set()
 
     def resume_vm(self, domain: libvirt.virDomain) -> None:
         """Resumes the VM."""
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Resuming VM: {domain.name()} (ID: {internal_id})")
         domain.resume()
-        self.invalidate_vm_state_cache(self._get_internal_id(domain))
+        self.invalidate_vm_state_cache(internal_id)
         self._force_update_event.set()
 
     def get_vm_details(self, active_uris: list[str], vm_uuid: str, domain: libvirt.virDomain = None, conn: libvirt.virConnect = None, cached_ips: list = None) -> tuple | None:
@@ -1271,7 +1289,8 @@ class VMService:
             vm_info = {
                 'name': domain.name(),
                 'uuid': domain.UUIDString(),
-                'status': get_status(domain),
+                'internal_id': self._get_internal_id(domain, conn_for_domain),
+                'status': get_status(domain, state=info[0]),
                 'description': get_vm_description(domain),
                 'cpu': info[3],
                 'cpu_model': get_vm_cpu_model(root),
@@ -1362,7 +1381,7 @@ class VMService:
 
         if sort_by != VmStatus.DEFAULT:
             if sort_by == VmStatus.SELECTED:
-                domains_to_display = [(d, c) for d, c in domains_to_display if d.UUIDString() in selected_vm_uuids]
+                domains_to_display = [(d, c) for d, c in domains_to_display if self._get_internal_id(d, c) in selected_vm_uuids]
             else:
                 def status_match(d):
                     # Use cached state or fetch with lighter state() call
