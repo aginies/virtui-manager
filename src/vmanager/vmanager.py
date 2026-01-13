@@ -235,26 +235,35 @@ class VMManagerTUI(App):
             match = re.search(r"Connection to (.+) lost:", message)
             if match:
                 uri = match.group(1)
-                self.call_from_thread(self._remove_vms_for_uri, uri)
+                try:
+                    self.call_from_thread(self._remove_vms_for_uri, uri)
+                except RuntimeError:
+                    self._remove_vms_for_uri(uri)
 
+        target = self.show_success_message
         if level == "error":
-            self.call_from_thread(self.show_error_message, message)
+            target = self.show_error_message
         elif level == "warning":
-            self.call_from_thread(self.show_warning_message, message)
+            target = self.show_warning_message
         elif level == "progress":
-            self.call_from_thread(self.show_in_progress_message, message)
-        else:
-            self.call_from_thread(self.show_success_message, message)
+            target = self.show_in_progress_message
+        
+        try:
+            self.call_from_thread(target, message)
+        except RuntimeError:
+            target(message)
 
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
-        self.call_from_thread(self.refresh_vm_list)
-        self.call_from_thread(self.worker_manager._cleanup_finished_workers)
+        try:
+            self.call_from_thread(self.refresh_vm_list)
+        except RuntimeError:
+            self.refresh_vm_list()
 
-    def on_vm_specific_update(self, internal_id: str):
-        """Callback from VMService when a specific VM's data is updated by event."""
-        # Post a message to refresh only the affected VM card
-        self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
+        try:
+            self.call_from_thread(self.worker_manager._cleanup_finished_workers)
+        except RuntimeError:
+            self.worker_manager._cleanup_finished_workers()
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
@@ -265,12 +274,11 @@ class VMManagerTUI(App):
             if card.is_mounted:
                 try:
                     collapsible = card.query_one("#actions-collapsible", Collapsible)
-                    collapsible.disabled = in_progress
+                    # dont disable for now
+                    #collapsible.disabled = in_progress
                     if in_progress:
                         collapsible.collapsed = True
-                    #else:
-                    #    collapsible.collapsed = False # Explicitly un-collapse when bulk operation finishes
-                except NoMatches:
+                except Exception:
                     # This can happen if the card is being removed from the DOM
                     pass
 
@@ -937,12 +945,7 @@ class VMManagerTUI(App):
                     if message.internal_id in self.selected_vm_uuids:
                         self.selected_vm_uuids.discard(message.internal_id)
                     self.call_from_thread(self.refresh_vm_list, force=True)
-
-                def on_refresh_complete():
                     self.bulk_operation_in_progress = False
-
-                force_refresh = True
-                self.call_from_thread(self.refresh_vm_list, force=force_refresh, on_complete=on_refresh_complete)
 
             except Exception as e:
                 self.call_from_thread(
