@@ -23,6 +23,7 @@ from config import load_config, get_log_path
 from vm_queries import get_vm_graphics_info
 from vmcard_dialog import WebConsoleDialog
 from utils import generate_webconsole_keys_if_needed
+from libvirt_utils import get_internal_id
 
 
 class WebConsoleManager:
@@ -121,7 +122,7 @@ wp.websockify_init()
         """Starts a web console for a given VM."""
         self.config = load_config()
         logging.info(f"Web console requested for VM: {vm.name()}")
-        uuid = f"{vm.UUIDString()}@{conn.getURI()}"
+        uuid = get_internal_id(vm, conn)
         vm_name = vm.name()
 
         # Check for existing valid session
