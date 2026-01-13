@@ -739,17 +739,29 @@ class VMCard(Static):
                     else:
                         logging.error("app does not have sparkline_data attribute")
 
-                self.app.call_from_thread(apply_stats_to_ui)
+                try:
+                    self.app.call_from_thread(apply_stats_to_ui)
+                except RuntimeError:
+                    apply_stats_to_ui()
 
             except libvirt.libvirtError as e:
                 error_code = e.get_error_code()
                 if error_code == libvirt.VIR_ERR_NO_DOMAIN:
                     if self.timer:
-                        self.app.call_from_thread(self.timer.stop)
-                    self.app.call_from_thread(self.app.refresh_vm_list)
+                        try:
+                            self.app.call_from_thread(self.timer.stop)
+                        except RuntimeError:
+                            self.timer.stop()
+                    try:
+                        self.app.call_from_thread(self.app.refresh_vm_list)
+                    except RuntimeError:
+                        self.app.refresh_vm_list()
                 elif error_code in [libvirt.VIR_ERR_SYSTEM_ERROR, libvirt.VIR_ERR_RPC, libvirt.VIR_ERR_NO_CONNECT, libvirt.VIR_ERR_INVALID_CONN]:
                     logging.warning(f"Connection error for {self.name}: {e}. Triggering refresh.")
-                    self.app.call_from_thread(self.app.refresh_vm_list, force=True)
+                    try:
+                        self.app.call_from_thread(self.app.refresh_vm_list, force=True)
+                    except RuntimeError:
+                        self.app.refresh_vm_list(force=True)
                 else:
                     logging.warning(f"Libvirt error during stat update for {self.name}: {e}")
             except Exception as e:
@@ -763,7 +775,7 @@ class VMCard(Static):
     def toggle_stats_view(self) -> None:
         """Toggle between resource and I/O stat views."""
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
-             self.stats_view_mode = "io" if self.stats_view_mode == "resources" else "resources"
+            self.stats_view_mode = "io" if self.stats_view_mode == "resources" else "resources"
 
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
@@ -834,7 +846,10 @@ class VMCard(Static):
                         # Use cached data and update UI immediately
                         snapshot_count = cached_data.get('count', 0)
                         has_overlay = cached_data.get('has_overlay', False)
-                        self.app.call_from_thread(self._update_slow_buttons, snapshot_count, has_overlay)
+                        try:
+                            self.app.call_from_thread(self._update_slow_buttons, snapshot_count, has_overlay)
+                        except RuntimeError:
+                            self._update_slow_buttons(snapshot_count, has_overlay)
                         return
                 elif isinstance(cached_data, (int, float)):
                     if time.time() - cached_data < 2:
@@ -856,7 +871,10 @@ class VMCard(Static):
                 pass
 
             if domain_missing:
-                self.app.call_from_thread(self.app.refresh_vm_list)
+                try:
+                    self.app.call_from_thread(self.app.refresh_vm_list)
+                except RuntimeError:
+                    self.app.refresh_vm_list()
                 return
 
             # Record fetch time and data
@@ -871,8 +889,11 @@ class VMCard(Static):
 
             def update_ui():
                 self._update_slow_buttons(snapshot_count, has_overlay)
-
-            self.app.call_from_thread(update_ui)
+            
+            try:
+                self.app.call_from_thread(update_ui)
+            except RuntimeError:
+                update_ui()
 
         except Exception as e:
             logging.error(f"Error in actions state worker for {self.name}: {e}")
