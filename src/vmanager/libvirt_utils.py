@@ -10,6 +10,25 @@ VIRTUI_MANAGER_NS = "http://github.com/aginies/virtui-manager"
 ET.register_namespace("virtui-manager", VIRTUI_MANAGER_NS)
 
 
+def get_internal_id(domain: libvirt.virDomain, conn: libvirt.virConnect = None) -> str:
+    """
+    Constructs the internal ID (UUID@URI) for a given domain.
+    """
+    if not conn:
+        conn = domain.connect()
+    try:
+        uri = conn.getURI()
+    except libvirt.libvirtError:
+        uri = "unknown" # Should not happen if connection is valid
+    
+    try:
+        uuid_str = domain.UUIDString()
+    except libvirt.libvirtError:
+        uuid_str = "unknown"
+
+    return f"{uuid_str}@{uri}"
+
+
 def _find_vol_by_path(conn: libvirt.virConnect, vol_path):
     """Finds a storage volume by its path and returns the volume and its pool."""
     try:
