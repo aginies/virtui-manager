@@ -1502,7 +1502,7 @@ class VMDetailModal(ModalScreen):
                     yield Label(f"({status})", id=f"status-{status.lower().replace(' ', '-')}")
 
             if not self.is_bulk:
-                yield Label(f"UUID: {self.vm_info.get('uuid', 'N/A')}", id="vm-details-uuid")
+                yield Label(f"ID: {self.vm_info.get('internal_id', 'N/A')}", id="vm-details-uuid")
 
             yield Button("Other Tabs", id="toggle-detail-button", classes="toggle-detail-button")
             with TabbedContent(id="detail-vm"):
@@ -2441,7 +2441,9 @@ class VMDetailModal(ModalScreen):
                                     self.app.call_from_thread(self.app.show_error_message, f"Libvirt error during machine type migration: {e}")
                                 except Exception as e:
                                     self.app.call_from_thread(self.app.show_error_message, f"Unexpected error during machine type migration: {e}")
-                            self.app.run_worker(migrate_worker, name=f"migrate_machine_type_{self.domain.UUIDString()}", thread=True)
+                            
+                            worker_id = self.vm_service._get_internal_id(self.domain)
+                            self.app.run_worker(migrate_worker, name=f"migrate_machine_type_{worker_id}", thread=True)
                         else:
                             self.app.show_success_message("Machine type migration cancelled.")
 
