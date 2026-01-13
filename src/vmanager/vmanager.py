@@ -1053,6 +1053,19 @@ class VMManagerTUI(App):
     def _perform_bulk_action_worker(self, action_type: str, vm_uuids: list[str], delete_storage_flag: bool = False) -> None:
         """Worker function to orchestrate a bulk action using the VMService."""
 
+        # Stop workers for all selected VMs to prevent conflicts
+        for uuid in vm_uuids:
+            vm_card = self.vm_card_pool.active_cards.get(uuid)
+            if vm_card:
+                def stop_card_workers(card=vm_card):
+                    if card.timer:
+                        card.timer.stop()
+                        card.timer = None
+                    self.worker_manager.cancel(f"update_stats_{card.internal_id}")
+                    self.worker_manager.cancel(f"actions_state_{card.internal_id}")
+
+                self.call_from_thread(stop_card_workers)
+
         # Define a dummy progress callback
         def dummy_progress_callback(event_type: str, *args, **kwargs):
             pass
