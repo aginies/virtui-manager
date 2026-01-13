@@ -53,6 +53,7 @@ from utils import (
     get_server_color_cached,
     setup_cache_monitoring,
 )
+from libvirt_utils import get_internal_id
 from vm_queries import (
     get_status,
 )
@@ -249,6 +250,11 @@ class VMManagerTUI(App):
         """Callback from VMService when data is updated."""
         self.call_from_thread(self.refresh_vm_list)
         self.call_from_thread(self.worker_manager._cleanup_finished_workers)
+
+    def on_vm_specific_update(self, internal_id: str):
+        """Callback from VMService when a specific VM's data is updated by event."""
+        # Post a message to refresh only the affected VM card
+        self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
@@ -727,7 +733,7 @@ class VMManagerTUI(App):
             collapsible = card.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
                 collapsible.collapsed = True
-                logging.debug(f"Collapsed actions for VM: {card.name} (UUID: {card.raw_uuid})")
+                logging.debug(f"Collapsed actions for VM: {card.name} (ID: {card.internal_id})")
 
     def _remove_vms_for_uri(self, uri: str) -> None:
         """Removes all VM cards associated with the given URI."""
@@ -903,14 +909,15 @@ class VMManagerTUI(App):
         """Handles a request to perform an action on a VM."""
 
         def action_worker():
-            domain = self.vm_service.find_domain_by_uuid(self.active_uris, message.vm_uuid)
+            domain = self.vm_service.find_domain_by_uuid(self.active_uris, message.internal_id)
             if not domain:
-                self.call_from_thread(self.show_error_message, f"Could not find VM with UUID [b]{message.vm_uuid}[/b]")
+                self.call_from_thread(self.show_error_message, f"Could not find VM with ID [b]{message.internal_id}[/b]")
                 return
 
             #vm_name = domain.name()
             # Use cached identity to avoid extra libvirt call
             _, vm_name = self.vm_service.get_vm_identity(domain)
+            logging.info(f"Action Request: {message.action} for VM: {vm_name} (ID: {message.internal_id})")
             try:
                 # Message are done by events
                 if message.action == VmAction.START:
@@ -919,22 +926,23 @@ class VMManagerTUI(App):
                     self.vm_service.stop_vm(domain)
                 elif message.action == VmAction.PAUSE:
                     self.vm_service.pause_vm(domain)
+                elif message.action == VmAction.RESUME:
+                    self.vm_service.resume_vm(domain)
                 elif message.action == VmAction.FORCE_OFF:
                     self.vm_service.force_off_vm(domain)
                 elif message.action == VmAction.DELETE:
+                    self.bulk_operation_in_progress = True
                     self.vm_service.delete_vm(domain, delete_storage=message.delete_storage)
-                    self.vm_service.invalidate_domain_cache()
-                elif message.action == VmAction.RESUME:
-                    self.vm_service.resume_vm(domain)
-                else:
-                    self.call_from_thread(self.show_error_message, f"Unknown action '{message.action}' requested.")
-                    return
+                    self.vm_service.invalidate_vm_cache(message.internal_id)
+                    if message.internal_id in self.selected_vm_uuids:
+                        self.selected_vm_uuids.discard(message.internal_id)
+                    self.call_from_thread(self.refresh_vm_list, force=True)
 
-                # If action was successful, refresh the list or update single card
-                if message.action in [VmAction.START, VmAction.STOP, VmAction.PAUSE, VmAction.FORCE_OFF, VmAction.RESUME] and self.sort_by == VmStatus.DEFAULT:
-                    self.call_from_thread(self.post_message, VmCardUpdateRequest(message.vm_uuid))
-                else:
-                    self.call_from_thread(self.refresh_vm_list)
+                def on_refresh_complete():
+                    self.bulk_operation_in_progress = False
+
+                force_refresh = True
+                self.call_from_thread(self.refresh_vm_list, force=force_refresh, on_complete=on_refresh_complete)
 
             except Exception as e:
                 self.call_from_thread(
@@ -943,7 +951,7 @@ class VMManagerTUI(App):
                 )
 
         self.worker_manager.run(
-            action_worker, name=f"action_{message.action}_{message.vm_uuid}"
+            action_worker, name=f"action_{message.action}_{message.internal_id}"
         )
 
     def action_toggle_select_all(self) -> None:
@@ -976,9 +984,9 @@ class VMManagerTUI(App):
     def on_vm_selection_changed(self, message: VMSelectionChanged) -> None:
         """Handles when a VM's selection state changes."""
         if message.is_selected:
-            self.selected_vm_uuids.add(message.vm_uuid)
+            self.selected_vm_uuids.add(message.internal_id)
         else:
-            self.selected_vm_uuids.discard(message.vm_uuid)
+            self.selected_vm_uuids.discard(message.internal_id)
 
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""
@@ -1026,7 +1034,7 @@ class VMManagerTUI(App):
                 # Use the first VM as a reference for the UI (e.g. current settings)
                 reference_domain = selected_domains[0]
                 try:
-                    reference_uuid = self.vm_service._get_internal_id(reference_domain)
+                    reference_uuid = get_internal_id(reference_domain)
                     result = self.vm_service.get_vm_details(
                         self.active_uris,
                         reference_uuid,
@@ -1534,11 +1542,11 @@ class VMManagerTUI(App):
         Optimized method to update a single VM card without full refresh.
         Called when a VM card needs fresh data.
         """
-        vm_uuid = message.vm_uuid
-        logging.info(f"Only refresh: {vm_uuid}")
+        vm_internal_id = message.internal_id
+        logging.info(f"Only refresh ID: {vm_internal_id}")
         def update_single_card():
             try:
-                domain = self.vm_service.find_domain_by_uuid(self.active_uris, vm_uuid)
+                domain = self.vm_service.find_domain_by_uuid(self.active_uris, vm_internal_id)
                 if not domain:
                     return
 
@@ -1562,7 +1570,7 @@ class VMManagerTUI(App):
                     # For stopped VMs, use minimal data
                     status = get_status(domain, state=state)
                     # Try to get from cache
-                    cached_details = self.vm_service.get_cached_vm_details(vm_uuid)
+                    cached_details = self.vm_service.get_cached_vm_details(vm_internal_id)
                     if cached_details:
                         cpu = cached_details['cpu']
                         memory = cached_details['memory']
@@ -1571,7 +1579,7 @@ class VMManagerTUI(App):
                         memory = 0
                 # Update card on main thread
                 def update_ui():
-                    card = self.vm_card_pool.active_cards.get(vm_uuid)
+                    card = self.vm_card_pool.active_cards.get(vm_internal_id)
                     if card and card.is_mounted:
                         card.status = status
                         card.cpu = cpu
@@ -1580,11 +1588,11 @@ class VMManagerTUI(App):
 
             except libvirt.libvirtError as e:
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                    self.vm_service.invalidate_vm_cache(vm_uuid)
-                logging.debug(f"Error updating card for {vm_uuid}: {e}")
+                    self.vm_service.invalidate_vm_cache(vm_internal_id)
+                logging.debug(f"Error updating card for {vm_internal_id}: {e}")
 
         self.worker_manager.run(
-            update_single_card, name=f"update_card_{vm_uuid}"
+            update_single_card, name=f"update_card_{vm_internal_id}"
         )
 
 
