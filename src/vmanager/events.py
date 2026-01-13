@@ -41,4 +41,3 @@ class VMCardRemoved(Message):
     def __init__(self, internal_id: str) -> None:
         self.internal_id = internal_id
         super().__init__()
-
