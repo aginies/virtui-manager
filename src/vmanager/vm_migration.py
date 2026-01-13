@@ -7,7 +7,10 @@ import os
 import xml.etree.ElementTree as ET
 import libvirt
 from vm_queries import get_vm_disks_info, get_vm_snapshots
-from libvirt_utils import _find_vol_by_path, get_overlay_backing_path, VIRTUI_MANAGER_NS
+from libvirt_utils import (
+        _find_vol_by_path, get_overlay_backing_path,
+        VIRTUI_MANAGER_NS, get_internal_id
+        )
 from storage_manager import copy_volume_across_hosts
 from utils import extract_server_name_from_uri
 
@@ -29,7 +32,7 @@ def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt
             break
 
     if not vm_name:
-         raise Exception("Could not determine VM name from actions.")
+        raise Exception("Could not determine VM name from actions.")
 
     dest_vm = dest_conn.lookupByName(vm_name)
     xml_desc = dest_vm.XMLDesc(0)
@@ -100,13 +103,13 @@ def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt
 
             try:
                 result = copy_volume_across_hosts(
-                    source_conn, 
-                    dest_conn, 
-                    action['source_pool'], 
+                    source_conn,
+                    dest_conn,
+                    action['source_pool'],
                     dest_pool_name, 
-                    action['volume_name'], 
+                    action['volume_name'],
                     new_backing_path=new_backing_path,
-                    progress_callback=current_progress_callback,
+                    progress_callback="", #current_progress_callback,
                     log_callback=log
                 )
 
@@ -224,6 +227,7 @@ def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt
         log(f"Undefining VM '{vm_name}' from source...")
         try:
             source_vm = source_conn.lookupByName(vm_name)
+            log(f"Undefining VM ID: {get_internal_id(source_vm)}")
             source_vm.undefine()
             log("Source VM undefined.")
         except Exception as e:
@@ -259,7 +263,8 @@ def custom_migrate_vm(source_conn: libvirt.virConnect, dest_conn: libvirt.virCon
             log_callback(message)
         logging.info(message)
 
-    log(f"Starting custom migration for VM '{domain.name()}'...")
+    vm_internal_id = get_internal_id(domain, source_conn)
+    log(f"Starting custom migration for VM '{domain.name()}' (ID: {vm_internal_id})...")
 
     # 1. Get the VM's XML and define it on the destination
     xml_desc = domain.XMLDesc(0)
