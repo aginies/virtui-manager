@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult, on
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import (
-    Button, Footer, Header, Label, Link, Static,
+    Button, Footer, Header, Label, Link, Static, Collapsible,
 )
 from textual.worker import Worker, WorkerState
 
@@ -249,6 +249,24 @@ class VMManagerTUI(App):
         """Callback from VMService when data is updated."""
         self.call_from_thread(self.refresh_vm_list)
         self.call_from_thread(self.worker_manager._cleanup_finished_workers)
+
+    def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
+        """
+        Called when bulk_operation_in_progress changes.
+        Disables or enables the collapsible 'Actions' button on all VM cards.
+        """
+        for card in self.vm_card_pool.active_cards.values():
+            if card.is_mounted:
+                try:
+                    collapsible = card.query_one("#actions-collapsible", Collapsible)
+                    collapsible.disabled = in_progress
+                    if in_progress:
+                        collapsible.collapsed = True
+                    #else:
+                    #    collapsible.collapsed = False # Explicitly un-collapse when bulk operation finishes
+                except NoMatches:
+                    # This can happen if the card is being removed from the DOM
+                    pass
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
@@ -1094,9 +1112,11 @@ class VMManagerTUI(App):
         finally:
             # Ensure these are called on the main thread
             # Always force refresh to ensure UI is in sync with backend (e.g. deletions, additions)
+            def on_refresh_complete():
+                self.bulk_operation_in_progress = False
+
             force_refresh = True
-            self.call_from_thread(self.refresh_vm_list, force=force_refresh)
-            self.call_from_thread(setattr, self, 'bulk_operation_in_progress', False) # Reset flag
+            self.call_from_thread(self.refresh_vm_list, force=force_refresh, on_complete=on_refresh_complete)
 
 
     def change_connection(self, uri: str) -> None:
@@ -1107,7 +1127,7 @@ class VMManagerTUI(App):
 
         self.handle_select_server_result([uri])
 
-    def refresh_vm_list(self, force: bool = False, optimize_for_current_page: bool = False) -> None:
+    def refresh_vm_list(self, force: bool = False, optimize_for_current_page: bool = False, on_complete: Callable | None = None) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
         # Don't display VMs until initial cache is complete
         if self.initial_cache_loading and not self.initial_cache_complete:
@@ -1130,7 +1150,8 @@ class VMManagerTUI(App):
                 vms_per_page,
                 uris_to_query,
                 force=force,
-                optimize_for_current_page=current_page
+                optimize_for_current_page=current_page,
+                on_complete=on_complete,
             ),
             name="list_vms"
         )
@@ -1142,7 +1163,8 @@ class VMManagerTUI(App):
             vms_per_page: int,
             uris_to_query: list[str],
             force: bool = False,
-            optimize_for_current_page: bool = False
+            optimize_for_current_page: bool = False,
+            on_complete: Callable | None = None
             ):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
@@ -1162,202 +1184,203 @@ class VMManagerTUI(App):
                 page_end=page_end
             )
 
-        except Exception as e:
-            self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
-            return
+            reset_page = False
+            if current_page > 0 and current_page * vms_per_page >= total_filtered_vms:
+                current_page = 0
+                reset_page = True
 
-        reset_page = False
-        if current_page > 0 and current_page * vms_per_page >= total_filtered_vms:
-            current_page = 0
-            reset_page = True
+            start_index = current_page * vms_per_page
+            end_index = start_index + vms_per_page
+            paginated_domains = domains_to_display[start_index:end_index]
 
-        start_index = current_page * vms_per_page
-        end_index = start_index + vms_per_page
-        paginated_domains = domains_to_display[start_index:end_index]
+            # Collect data in worker thread
+            vm_data_list = []
+            page_uuids = set()
 
-        # Collect data in worker thread
-        vm_data_list = []
-        page_uuids = set()
+            for domain, conn in paginated_domains:
+                try:
+                    uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
+                    uuid, vm_name = self.vm_service.get_vm_identity(domain, conn, known_uri=uri)
+                    page_uuids.add(uuid)
 
-        for domain, conn in paginated_domains:
-            try:
-                uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
-                uuid, vm_name = self.vm_service.get_vm_identity(domain, conn, known_uri=uri)
-                page_uuids.add(uuid)
+                    # Get info from cache or fetch if not present. This is safe as we are in a worker.
+                    info = self.vm_service._get_domain_info(domain)
+                    cached_details = self.vm_service.get_cached_vm_details(uuid)
 
-                # Get info from cache or fetch if not present. This is safe as we are in a worker.
-                info = self.vm_service._get_domain_info(domain)
-                cached_details = self.vm_service.get_cached_vm_details(uuid)
+                    if info:
+                        status = get_status(domain, state=info[0])
+                        cpu = info[3]
+                        memory = info[1] // 1024
+                    elif cached_details:
+                        status = cached_details['status']
+                        cpu = cached_details['cpu']
+                        memory = cached_details['memory']
+                    else:
+                        status = StatusText.LOADING
+                        cpu = 0
+                        memory = 0
 
-                if info:
-                    status = get_status(domain, state=info[0])
-                    cpu = info[3]
-                    memory = info[1] // 1024
-                elif cached_details:
-                    status = cached_details['status']
-                    cpu = cached_details['cpu']
-                    memory = cached_details['memory']
-                else:
-                    status = StatusText.LOADING
-                    cpu = 0
-                    memory = 0
+                    vm_data = {
+                        'uuid': uuid,
+                        'name': vm_name,
+                        'status': status,
+                        'cpu': cpu,
+                        'memory': memory,
+                        'is_selected': uuid in selected_uuids,
+                        'domain': domain,
+                        'conn': conn,
+                        'uri': uri
+                    }
+                    vm_data_list.append(vm_data)
 
-                vm_data = {
-                    'uuid': uuid,
-                    'name': vm_name,
-                    'status': status,
-                    'cpu': cpu,
-                    'memory': memory,
-                    'is_selected': uuid in selected_uuids,
-                    'domain': domain,
-                    'conn': conn,
-                    'uri': uri
-                }
-                vm_data_list.append(vm_data)
+                except libvirt.libvirtError as e:
+                    if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                        logging.warning(f"Skipping display of non-existent VM during refresh.")
+                        continue
+                    else:
+                        try:
+                            name_for_error = vm_name if 'vm_name' in locals() else domain.name()
+                        except:
+                            name_for_error = "Unknown"
+                        self.call_from_thread(self.show_error_message, f"Error getting info for VM '{name_for_error}': {e}")
+                        continue
 
-            except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                    logging.warning(f"Skipping display of non-existent VM during refresh.")
-                    continue
-                else:
-                    try:
-                        name_for_error = vm_name if 'vm_name' in locals() else domain.name()
-                    except:
-                        name_for_error = "Unknown"
-                    self.call_from_thread(self.show_error_message, f"Error getting info for VM '{name_for_error}': {e}")
-                    continue
+            # Cleanup cache: remove cards for VMs that no longer exist at all
+            all_uuids_from_libvirt = set(all_active_uuids)
 
-        # Cleanup cache: remove cards for VMs that no longer exist at all
-        all_uuids_from_libvirt = set(all_active_uuids)
+            def update_ui_on_main_thread():
+                if reset_page:
+                    self.current_page = 0
 
-        def update_ui():
-            if reset_page:
-                self.current_page = 0
+                # Update visible UUIDs in service
+                self.vm_service.update_visible_uuids(page_uuids)
 
-            # Update visible UUIDs in service
-            self.vm_service.update_visible_uuids(page_uuids)
+                # Cleanup sparkline data for deleted VMs
+                for uuid in list(self.sparkline_data.keys()):
+                    if uuid not in all_uuids_from_libvirt:
+                        del self.sparkline_data[uuid]
 
-            # Cleanup sparkline data for deleted VMs
-            for uuid in list(self.sparkline_data.keys()):
-                if uuid not in all_uuids_from_libvirt:
-                    del self.sparkline_data[uuid]
+                vms_container = self.ui.get("vms_container")
+                if not vms_container:
+                    return
 
-            vms_container = self.ui.get("vms_container")
-            if not vms_container:
-                return
+                current_widgets = list(vms_container.children)
 
-            current_widgets = list(vms_container.children)
+                # Step 1: Remove excess widgets if page size shrunk
+                while len(current_widgets) > len(vm_data_list):
+                    widget = current_widgets.pop()
+                    widget.remove()
+                    # Return to pool
+                    uuid = widget.internal_id
+                    if uuid in self.vm_card_pool.active_cards:
+                        self.vm_card_pool.release_card(uuid)
 
-            # Step 1: Remove excess widgets if page size shrunk
-            while len(current_widgets) > len(vm_data_list):
-                widget = current_widgets.pop()
-                widget.remove()
-                # Return to pool
-                uuid = widget.internal_id
-                if uuid in self.vm_card_pool.active_cards:
-                    self.vm_card_pool.release_card(uuid)
+                # Step 2: Update existing widgets and add new ones
+                cards_to_mount = []
 
-            # Step 2: Update existing widgets and add new ones
-            cards_to_mount = []
+                for i, data in enumerate(vm_data_list):
+                    uuid = data['uuid']
 
-            for i, data in enumerate(vm_data_list):
-                uuid = data['uuid']
+                    if i < len(current_widgets):
+                        # Reuse existing active widget
+                        card = current_widgets[i]
+                        old_uuid = card.internal_id
 
-                if i < len(current_widgets):
-                    # Reuse existing active widget
-                    card = current_widgets[i]
-                    old_uuid = card.internal_id
+                        # Update Pool Tracking if identity changed
+                        if old_uuid != uuid:
+                            if old_uuid in self.vm_card_pool.active_cards:
+                                # Remove old booking
+                                del self.vm_card_pool.active_cards[old_uuid]
+                            # Book new UUID
+                            self.vm_card_pool.active_cards[uuid] = card
+                    else:
+                        # Get new widget from pool
+                        card = self.vm_card_pool.get_or_create_card(uuid)
+                        cards_to_mount.append(card)
 
-                    # Update Pool Tracking if identity changed
-                    if old_uuid != uuid:
-                        if old_uuid in self.vm_card_pool.active_cards:
-                            # Remove old booking
-                            del self.vm_card_pool.active_cards[old_uuid]
-                        # Book new UUID
-                        self.vm_card_pool.active_cards[uuid] = card
-                else:
-                    # Get new widget from pool
-                    card = self.vm_card_pool.get_or_create_card(uuid)
-                    cards_to_mount.append(card)
+                    # Apply Data to Card
+                    if uuid not in self.sparkline_data:
+                        self.sparkline_data[uuid] = {"cpu": [], "mem": [], "disk": [], "net": []}
 
-                # Apply Data to Card
-                if uuid not in self.sparkline_data:
-                    self.sparkline_data[uuid] = {"cpu": [], "mem": [], "disk": [], "net": []}
+                    card.vm = data['domain']
+                    card.conn = data['conn']
+                    card.name = data['name']
+                    card.cpu = data['cpu']
+                    card.memory = data['memory']
+                    card.is_selected = data['is_selected']
+                    card.server_border_color = self.get_server_color(data['uri'])
+                    card.status = data['status']
+                    card.internal_id = uuid
 
-                card.vm = data['domain']
-                card.conn = data['conn']
-                card.name = data['name']
-                card.cpu = data['cpu']
-                card.memory = data['memory']
-                card.is_selected = data['is_selected']
-                card.server_border_color = self.get_server_color(data['uri'])
-                card.status = data['status']
-                card.internal_id = uuid
+                # Mount any new cards
+                if cards_to_mount:
+                    vms_container.mount(*cards_to_mount)
 
-            # Mount any new cards
-            if cards_to_mount:
-                vms_container.mount(*cards_to_mount)
+                # Check for connection errors to display via show_error_message
+                errors = []
+                uris_to_remove = []
+                config_changed = False
 
-            # Check for connection errors to display via show_error_message
-            errors = []
-            uris_to_remove = []
-            config_changed = False
-
-            for uri in self.active_uris:
-                # Get server name for better error messages
-                server_name = uri
-                for s in self.servers:
-                    if s['uri'] == uri:
-                        server_name = s['name']
-                        break
-
-                # Check for permanent failure
-                failed_attempts = self.vm_service.connection_manager.get_failed_attempts(uri)
-                if failed_attempts >= 2:
-                    uris_to_remove.append(uri)
-                    # Find server and disable autoconnect
-                    for s in self.servers:
-                        if s['uri'] == uri and s.get('autoconnect', False):
-                            s['autoconnect'] = False
-                            config_changed = True
-                            logging.info(f"Disabled autoconnect for {server_name} due to connection failure.")
-
-                err = self.vm_service.connection_manager.get_connection_error(uri)
-                if err and uri not in uris_to_remove:
-                    # Only show error if not already marked for removal
-                    # This prevents duplicate error messages
-                    errors.append(f"Server '{server_name}': {err}")
-
-            # Display collected errors
-            for error in errors:
-                self.show_error_message(error)
-
-
-            # Handle removal of permanently failed servers
-            if uris_to_remove:
-                removed_names = []
-                for uri in uris_to_remove:
+                for uri in self.active_uris:
+                    # Get server name for better error messages
+                    server_name = uri
                     for s in self.servers:
                         if s['uri'] == uri:
-                            removed_names.append(s['name'])
+                            server_name = s['name']
                             break
 
-                self.active_uris = [u for u in self.active_uris if u not in uris_to_remove]
-                if self.filtered_server_uris:
-                    self.filtered_server_uris = [u for u in self.filtered_server_uris if u not in uris_to_remove]
+                    # Check for permanent failure
+                    failed_attempts = self.vm_service.connection_manager.get_failed_attempts(uri)
+                    if failed_attempts >= 2:
+                        uris_to_remove.append(uri)
+                        # Find server and disable autoconnect
+                        for s in self.servers:
+                            if s['uri'] == uri and s.get('autoconnect', False):
+                                s['autoconnect'] = False
+                                config_changed = True
+                                logging.info(f"Disabled autoconnect for {server_name} due to connection failure.")
 
-                if removed_names:
-                    self.show_error_message(f"Server(s) {', '.join(removed_names)} disconnected and autoconnect disabled due to connection failures.")
+                    err = self.vm_service.connection_manager.get_connection_error(uri)
+                    if err and uri not in uris_to_remove:
+                        # Only show error if not already marked for removal
+                        # This prevents duplicate error messages
+                        errors.append(f"Server '{server_name}': {err}")
 
-            if config_changed:
-                self.config['servers'] = self.servers
-                save_config(self.config)
+                # Display collected errors
+                for error in errors:
+                    self.show_error_message(error)
 
-            # Main tittle with Servers name
-            self.title = f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
-            self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
+                # Handle removal of permanently failed servers
+                if uris_to_remove:
+                    removed_names = []
+                    for uri in uris_to_remove:
+                        for s in self.servers:
+                            if s['uri'] == uri:
+                                removed_names.append(s['name'])
+                                break
 
-        self.call_from_thread(update_ui)
+                    self.active_uris = [u for u in self.active_uris if u not in uris_to_remove]
+                    if self.filtered_server_uris:
+                        self.filtered_server_uris = [u for u in self.filtered_server_uris if u not in uris_to_remove]
+
+                    if removed_names:
+                        self.show_error_message(f"Server(s) {', '.join(removed_names)} disconnected and autoconnect disabled due to connection failures.")
+
+                if config_changed:
+                    self.config['servers'] = self.servers
+                    save_config(self.config)
+
+                # Main tittle with Servers name
+                self.title = f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
+                self.update_pagination_controls(total_filtered_vms, total_vms_unfiltered=len(domains_to_display))
+
+            self.call_from_thread(update_ui_on_main_thread)
+
+        except Exception as e:
+            self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
+        finally:
+            if on_complete:
+                self.call_from_thread(on_complete)
 
 
     def update_pagination_controls(self, total_filtered_vms: int, total_vms_unfiltered: int):
