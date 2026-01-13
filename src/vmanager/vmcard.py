@@ -186,9 +186,9 @@ class VMCard(Static):
             try:
                 if num_snapshots == 0:
                     return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
-                elif num_snapshots > 0 and num_snapshots < 2:
+                elif num_snapshots == 1:
                     return TabTitles.SNAPSHOT + "(" + str(num_snapshots) + ")" + "/" + TabTitles.OVERLAY
-                elif num_snapshots > 1:
+                elif num_snapshots >= 2:
                     return TabTitles.SNAPSHOTS + "(" + str(num_snapshots) + ")" "/" + TabTitles.OVERLAY
             except libvirt.libvirtError:
                 pass # Domain might be transient or invalid
@@ -639,7 +639,7 @@ class VMCard(Static):
 
         def update_worker():
             try:
-                logging.debug(f"Starting update_stats worker for {self.name} (UUID: {uuid})")
+                logging.debug(f"Starting update_stats worker for {self.name} (ID: {uuid})")
                 stats = self.app.vm_service.get_vm_runtime_stats(self.vm)
                 logging.debug(f"Stats received for {self.name}: {stats}")
                 # Update info from cache if XML has been fetched (e.g. via Configure)
@@ -774,6 +774,7 @@ class VMCard(Static):
             # Check if collapsible is expanded before fetching heavy data
             collapsible = self.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
+                self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                 self.app.worker_manager.run(
                     self._fetch_actions_state_worker,
                     name=f"actions_state_{self.internal_id}",
@@ -816,12 +817,12 @@ class VMCard(Static):
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
-            state_tuple = self.app.vm_service._get_domain_state(self.vm)
-            if not state_tuple:
-                return
             snapshot_count = 0
             has_overlay = False
             domain_missing = False
+            state_tuple = self.app.vm_service._get_domain_state(self.vm)
+            if not state_tuple:
+                return
 
             last_fetch_key = f"snapshot_fetch_{self.internal_id}"
             if hasattr(self.app, '_last_snapshot_fetch'):
@@ -839,14 +840,14 @@ class VMCard(Static):
                     if time.time() - cached_data < 2:
                         return
 
-            try:
-                if self.vm:
-                    snapshot_count = self.vm.snapshotNum(0)
-            except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                    domain_missing = True
-                else:
-                    logging.warning(f"Could not get snapshot count for {self.name}: {e}")
+            #try:
+            #    if self.vm:
+            #        snapshot_count = self.vm.snapshotNum(0)
+            #except libvirt.libvirtError as e:
+            #    if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+            #        domain_missing = True
+            #    else:
+            #        logging.warning(f"Could not get snapshot count for {self.name}: {e}")
 
             try:
                 if self.vm and not domain_missing:
@@ -907,7 +908,7 @@ class VMCard(Static):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
         if event.button.id == ButtonIds.START:
-            self.post_message(VmActionRequest(self.raw_uuid, VmAction.START))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.START))
             return
 
         button_handlers = {
@@ -982,7 +983,7 @@ class VMCard(Static):
                     self.app.show_success_message(f"Overlay [b]{overlay_name}[/b] created and attached.")
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self._boot_device_checked = False
-                    self.post_message(VmCardUpdateRequest(self.raw_uuid))
+                    self.post_message(VmCardUpdateRequest(self.internal_id))
                     self.update_button_layout()
                 except Exception as e:
                     self.app.show_error_message(f"Error creating overlay: {e}")
@@ -1012,7 +1013,7 @@ class VMCard(Static):
                             self.app.show_success_message(f"Overlay for [b]{target_disk}[/b] discarded and reverted to base image.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self._boot_device_checked = False
-                            self.post_message(VmCardUpdateRequest(self.raw_uuid))
+                            self.post_message(VmCardUpdateRequest(self.internal_id))
                             self.update_button_layout()
                         except Exception as e:
                             self.app.show_error_message(f"Error discarding overlay: {e}")
@@ -1080,7 +1081,7 @@ class VMCard(Static):
         """Handles the shutdown button press."""
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
-            self.post_message(VmActionRequest(self.raw_uuid, VmAction.STOP))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
@@ -1092,7 +1093,7 @@ class VMCard(Static):
             #if self.vm.isActive():
             # maybe better to use cache status
             if self.status in (StatusText.RUNNING, StatusText.PAUSED):
-                self.post_message(VmActionRequest(self.raw_uuid, VmAction.FORCE_OFF))
+                self.post_message(VmActionRequest(self.internal_id, VmAction.FORCE_OFF))
 
         message = f"{ErrorMessages.HARD_STOP_WARNING}\nAre you sure you want to stop '{self.name}'?"
         self.app.push_screen(ConfirmationDialog(message), on_confirm)
@@ -1101,12 +1102,12 @@ class VMCard(Static):
         """Handles the pause button press."""
         logging.info(f"Attempting to pause VM: {self.name}")
         if self.vm.isActive():
-            self.post_message(VmActionRequest(self.raw_uuid, VmAction.PAUSE))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.PAUSE))
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
         logging.info(f"Attempting to resume VM: {self.name}")
-        self.post_message(VmActionRequest(self.raw_uuid, VmAction.RESUME))
+        self.post_message(VmActionRequest(self.internal_id, VmAction.RESUME))
 
     def _handle_xml_button(self, event: Button.Pressed) -> None:
         """Handles the xml button press."""
@@ -1365,7 +1366,7 @@ class VMCard(Static):
             confirmed, delete_storage = result
             if not confirmed:
                 return
-            self.post_message(VmActionRequest(self.raw_uuid, VmAction.DELETE, delete_storage=delete_storage))
+            self.post_message(VmActionRequest(self.internal_id, VmAction.DELETE, delete_storage=delete_storage))
 
         self.app.push_screen(
             DeleteVMConfirmationDialog(self.name), on_confirm
@@ -1572,7 +1573,7 @@ class VMCard(Static):
                         vm_info, domain, conn_for_domain = result
 
                         def on_detail_modal_dismissed(res):
-                            self.post_message(VmCardUpdateRequest(self.raw_uuid))
+                            self.post_message(VmCardUpdateRequest(self.internal_id))
                             self._perform_tooltip_update()
 
                         self.app.push_screen(
