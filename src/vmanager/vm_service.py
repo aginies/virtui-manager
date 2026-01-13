@@ -7,8 +7,8 @@ import threading
 import logging
 import xml.etree.ElementTree as ET
 from datetime import datetime
-import libvirt
 from typing import Callable
+import libvirt
 from connection_manager import ConnectionManager
 from constants import VmStatus, VmAction, AppCacheTimeout
 from storage_manager import check_domain_volumes_in_use
@@ -256,7 +256,7 @@ class VMService:
 
                         final_msg = None
                         if event_msg:
-                            final_msg = f"VM [b]{vm_name}[/b] {event_msg}"
+                            final_msg = f"DEBUG VM [b]{vm_name}[/b] {event_msg}"
                         elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
                             # Use detail to differentiate? 0=Added, 1=Updated
                             action_str = "Configuration Updated" if detail == 1 else "Defined"
@@ -295,16 +295,17 @@ class VMService:
                         self._vm_data_cache.setdefault(internal_id, {})
                         self._vm_data_cache[internal_id]['state'] = (new_state, detail)
                         self._vm_data_cache[internal_id]['state_ts'] = time.time()
+                        logging.info(f"Debug {self._vm_data_cache[internal_id]['state']}")
 
-                        # Invalidate info cache if state changed to/from running so we re-fetch details
-                        # but we can rely on next get_vms call to do that 1-time fetch
-                        if new_state == libvirt.VIR_DOMAIN_RUNNING:
-                            # If it just started, we might want to clear old info
-                            if 'info' in self._vm_data_cache[internal_id]:
-                                del self._vm_data_cache[internal_id]['info']
+                        # Always invalidate info/details cache on state change to ensure UI gets fresh data
+                        if 'info' in self._vm_data_cache[internal_id]:
+                            del self._vm_data_cache[internal_id]['info']
+                        if 'vm_details' in self._vm_data_cache[internal_id]:
+                            del self._vm_data_cache[internal_id]['vm_details']
                         
                         # Notify for specific VM update
                         if self._vm_update_callback:
+                            logging.info(f"Triggering update callback for {internal_id}")
                             self._vm_update_callback(internal_id)
                         elif self._data_update_callback:
                              # Fallback to full update if no specific callback
