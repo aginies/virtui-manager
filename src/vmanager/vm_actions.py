@@ -12,7 +12,8 @@ from libvirt_utils import (
         VIRTUI_MANAGER_NS,
         _get_disabled_disks_elem,
         _get_backing_chain_elem,
-        get_overlay_backing_path
+        get_overlay_backing_path,
+        get_internal_id
         )
 from utils import log_function_call
 from vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root
@@ -103,6 +104,14 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             vol_root = ET.fromstring(original_vol_xml)
 
             _, vol_name_ext = os.path.splitext(original_vol.name())
+            if vol_name_ext:
+                # Ensure the extension starts with a dot
+                if not vol_name_ext.startswith("."):
+                    vol_name_ext = f".{vol_name_ext}"
+            else:
+                # Fallback if no extension found
+                vol_name_ext = ".qcow2"
+
             new_vol_name = f"{new_vm_name}_{secrets.token_hex(4)}{vol_name_ext}"
             vol_root.find('name').text = new_vol_name
 
@@ -192,7 +201,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
     xml_desc = domain.XMLDesc(0)
 
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     domain.undefine()
 
     try:
@@ -223,7 +232,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     conn = domain.connect()
 
@@ -422,7 +431,7 @@ def remove_disk(domain, disk_dev_path):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
@@ -495,7 +504,7 @@ def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to remove a virtiofs device.")
@@ -534,7 +543,7 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to add a virtiofs device.")
@@ -567,7 +576,7 @@ def add_network_interface(domain: libvirt.virDomain, network: str, model: str):
     """Adds a network interface to a VM."""
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     interface_xml = f"""
     <interface type='network'>
@@ -586,7 +595,7 @@ def remove_network_interface(domain: libvirt.virDomain, mac_address: str):
     """Removes a network interface from a VM."""
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
@@ -612,7 +621,7 @@ def remove_network_interface(domain: libvirt.virDomain, mac_address: str):
 
 def change_vm_network(domain: libvirt.virDomain, mac_address: str, new_network: str, new_model: str = None):
     """Changes the network for a VM's network interface."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
@@ -654,7 +663,7 @@ def change_vm_network(domain: libvirt.virDomain, mac_address: str, new_network: 
 
 def disable_disk(domain, disk_path):
     """Disables a disk by moving it to a metadata section in the XML."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to disable a disk.")
 
@@ -692,7 +701,7 @@ def disable_disk(domain, disk_path):
 
 def enable_disk(domain, disk_path):
     """Enables a disk by moving it from metadata back to devices."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to enable a disk.")
 
@@ -735,7 +744,7 @@ def set_vcpu(domain, vcpu_count: int):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     conn = domain.connect()
 
@@ -771,7 +780,7 @@ def set_memory(domain, memory_mb: int):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     memory_kb = memory_mb * 1024
     conn = domain.connect()
@@ -814,7 +823,7 @@ def set_memory(domain, memory_mb: int):
 @log_function_call
 def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: dict):
     """Sets multiple driver properties for a specific disk."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change disk settings.")
 
@@ -879,7 +888,7 @@ def set_machine_type(domain, new_machine_type):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change machine type.")
@@ -918,7 +927,7 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change machine type.")
@@ -1033,12 +1042,12 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
             error_msg += f"\nCRITICAL: Original VM could not be restored. Manual intervention required."
         raise Exception(error_msg)
     finally:
-        invalidate_cache(domain.UUIDString()) # Invalidate original VM cache in case it was renamed or recreated
+        invalidate_cache(get_internal_id(domain)) # Invalidate original VM cache in case it was renamed or recreated
 
 
 def set_shared_memory(domain: libvirt.virDomain, enable: bool):
     """Enable or disable shared memory for a VM."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise ValueError("Cannot change shared memory setting on a running VM.")
 
@@ -1084,7 +1093,7 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
 @log_function_call
 def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str]):
     """Sets the boot configuration for a VM."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change boot settings.")
 
@@ -1155,7 +1164,7 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
 
 def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bool | None = None):
     """Sets the video model and 3D acceleration for a VM."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change the video model.")
 
@@ -1217,7 +1226,7 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
 
 def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
     """Sets the CPU model for a VM."""
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change the CPU model.")
 
@@ -1257,7 +1266,7 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
     Sets the UEFI file for a VM and optionally enables/disables secure boot.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change UEFI firmware.")
 
@@ -1309,7 +1318,7 @@ def set_vm_sound_model(domain: libvirt.virDomain, model: str | None):
     Sets the sound model for a VM. If model is None or 'none', the sound device is removed.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change the sound model.")
 
@@ -1343,7 +1352,7 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
     Sets the graphics configuration (VNC/Spice) for a VM.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     # Password validation and sanitization
     def _sanitize_password(pwd: str | None) -> str | None:
         if not pwd:
@@ -1436,7 +1445,7 @@ def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str | None, tpm_type: str =
         backend_type: Backend type (e.g., 'emulator', 'passthrough')
         backend_path: Path to backend device (required for passthrough')
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change TPM settings.")
 
@@ -1507,7 +1516,7 @@ def set_vm_rng(domain: libvirt.virDomain, rng_model: str = 'virtio', backend_mod
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
@@ -1521,7 +1530,7 @@ def set_vm_watchdog(domain: libvirt.virDomain, watchdog_model: str = 'i6300esb',
         watchdog_model: Watchdog model (e.g., 'i6300esb', 'pcie-vpd')
         action: Action to take when watchdog is triggered (e.g., 'reset', 'shutdown', 'poweroff')
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to change Watchdog settings.")
 
@@ -1570,7 +1579,7 @@ def remove_vm_watchdog(domain: libvirt.virDomain):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
@@ -1604,7 +1613,7 @@ def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bu
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
@@ -1626,7 +1635,7 @@ def add_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
@@ -1635,7 +1644,7 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
     Removes an input device from a VM.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to remove an input device.")
 
@@ -1692,7 +1701,7 @@ def start_vm(domain):
                 logging.error(msg)
                 raise Exception(msg) from e
 
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     domain.create()
 
 def stop_vm(domain: libvirt.virDomain):
@@ -1704,7 +1713,7 @@ def stop_vm(domain: libvirt.virDomain):
     if not domain.isActive():
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot shutdown.")
 
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     domain.shutdown()
 
 def pause_vm(domain: libvirt.virDomain):
@@ -1716,7 +1725,7 @@ def pause_vm(domain: libvirt.virDomain):
     if not domain.isActive():
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot pause.")
 
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     domain.suspend()
 
 def force_off_vm(domain: libvirt.virDomain):
@@ -1729,7 +1738,7 @@ def force_off_vm(domain: libvirt.virDomain):
     if not domain.isActive():
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot force off.")
 
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     domain.destroy()
 
 def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None):
@@ -1751,9 +1760,11 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
 
     vm_name = "unknown"
     vm_uuid = None
+    vm_internal_id = None
     try:
         vm_name = domain.name()
         vm_uuid = domain.UUIDString()
+        vm_internal_id = get_internal_id(domain)
     except libvirt.libvirtError:
         pass # Domain might already be gone
 
@@ -1803,7 +1814,8 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                     raise
 
              # Undefine the VM using the new connection object
-             invalidate_cache(vm_uuid)
+             if vm_internal_id:
+                invalidate_cache(vm_internal_id)
              log(f"Undefining VM '{vm_name}'...")
              undefine_flags = libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
              if delete_nvram and root is not None:
@@ -1934,7 +1946,7 @@ def remove_spice_devices(domain: libvirt.virDomain):
     Removes all SPICE-related devices and configurations from a VM's XML.
     The VM must be stopped.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped to remove SPICE devices.")
 
@@ -2128,7 +2140,7 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
                         if dest_pool_type not in ['netfs', 'iscsi', 'glusterfs', 'rbd', 'nfs']:
                             issues.append({'severity': 'WARNING', 'message': f"Storage pool '{pool_name}' on destination is of type '{dest_pool_type}', which may not be shared. Live migration requires shared storage."})
                 except libvirt.libvirtError:
-                    issues.append({'severity': 'ERROR', 'message': f"Storage pool '{pool_name}' not found on destination host."})
+                    issues.append({'severity': 'WARNING', 'message': f"Storage pool '{pool_name}' not found on destination host."})
 
     if disk_paths:
         issues.append({'severity': 'INFO', 'message': "The VM uses disk images at the following paths. For migration to succeed, these paths MUST be accessible on the destination host:"})
@@ -2252,7 +2264,7 @@ def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
     """
     Attaches a host USB device to the specified VM.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         pass
 
@@ -2281,7 +2293,7 @@ def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = 
     """
     Creates a snapshot for the VM.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     xml = f"<domainsnapshot><name>{name}</name>"
     if description:
@@ -2304,7 +2316,7 @@ def restore_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
     """
     Restores the VM to a specific snapshot.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     try:
         snapshot = domain.snapshotLookupByName(snapshot_name, 0)
         domain.revertToSnapshot(snapshot, 0)
@@ -2318,7 +2330,7 @@ def delete_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
     """
     Deletes a snapshot from the VM.
     """
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
     try:
         snapshot = domain.snapshotLookupByName(snapshot_name, 0)
         snapshot.delete(0)
@@ -2346,7 +2358,7 @@ def detach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
     flags = libvirt.VIR_DOMAIN_AFFECT_LIVE | libvirt.VIR_DOMAIN_AFFECT_CONFIG
     domain.detachDeviceFlags(xml, flags)
 
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 def add_serial_console(domain: libvirt.virDomain):
@@ -2378,7 +2390,7 @@ def add_serial_console(domain: libvirt.virDomain):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
         serial_xml_str = ET.tostring(serial_elem, 'unicode')
@@ -2420,7 +2432,7 @@ def remove_serial_console(domain: libvirt.virDomain, port: str):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
         try:
@@ -2473,7 +2485,7 @@ def add_usb_device(domain: libvirt.virDomain, usb_type: str, model: str):
         flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
 
     domain.attachDeviceFlags(controller_xml, flags)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 def add_scsi_controller(domain: libvirt.virDomain, model: str = 'virtio-scsi'):
@@ -2505,7 +2517,7 @@ def add_scsi_controller(domain: libvirt.virDomain, model: str = 'virtio-scsi'):
         flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
 
     domain.attachDeviceFlags(controller_xml, flags)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 
 def remove_usb_device(domain: libvirt.virDomain, model: str, index: str):
@@ -2544,7 +2556,7 @@ def remove_usb_device(domain: libvirt.virDomain, model: str, index: str):
         flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
 
     domain.detachDeviceFlags(controller_xml, flags)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
     """
@@ -2572,7 +2584,7 @@ def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
             break
 
     domain.detachDeviceFlags(controller_xml, flags)
-    invalidate_cache(domain.UUIDString())
+    invalidate_cache(get_internal_id(domain))
 
 def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_name: str):
     """
