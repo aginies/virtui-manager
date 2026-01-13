@@ -15,7 +15,7 @@ from libvirt_utils import (
         get_overlay_backing_path
         )
 from utils import log_function_call
-from vm_queries import get_vm_disks_info
+from vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root
 from vm_cache import invalidate_cache
 from network_manager import list_networks
 from storage_manager import create_overlay_volume
@@ -1990,6 +1990,16 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
     """
     issues = []
 
+    # Get source domain object and XML
+    source_domain = None
+    source_root = None
+    try:
+        source_domain = source_conn.lookupByName(domain_name)
+        _, source_root = _get_domain_root(source_domain)
+    except libvirt.libvirtError as e:
+        issues.append({'severity': 'ERROR', 'message': f"Could not retrieve source VM '{domain_name}' details: {e}"})
+        return issues # Cannot proceed with further checks without source VM info
+
     try:
         source_arch = source_conn.getInfo()[0]
         dest_arch = dest_conn.getInfo()[0]
@@ -1998,25 +2008,40 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
     except libvirt.libvirtError as e:
         issues.append({'severity': 'WARNING', 'message': f"Could not check host architecture: {e}"})
 
-    try:
-        dest_domain = dest_conn.lookupByName(domain_name)
-        if dest_domain.isActive():
-            issues.append({'severity': 'ERROR', 'message': f"A VM with the name '{domain_name}' is already running or paused on the destination host."})
-        else:
-            issues.append({'severity': 'WARNING', 'message': f"A shut-down VM with the name '{domain_name}' exists on the destination and its configuration will be overwritten."})
-    except libvirt.libvirtError as e:
-        if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-            issues.append({'severity': 'WARNING', 'message': f"Could not check for existing VM on destination host: {e}"})
+    # TPM Check
+    if source_root:
+        source_tpm_info = get_vm_tpm_info(source_root)
+        if source_tpm_info:
+            try:
+                dest_caps_xml = dest_conn.getCapabilities()
+                dest_caps_root = ET.fromstring(dest_caps_xml)
 
-    # Time synchronization check
-    if is_live:
-        issues.append({'severity': 'INFO', 'message': "Could not perform host time synchronization check. Please verify manually."})
+                # Check if destination host supports TPM devices at all
+                if not dest_caps_root.find(".//devices/tpm"):
+                    issues.append({
+                        'severity': 'ERROR',
+                        'message': f"Source VM '{domain_name}' uses TPM, but destination host '{dest_conn.getURI()}' does not appear to support TPM devices."
+                    })
+                else:
+                    for tpm_dev in source_tpm_info:
+                        if tpm_dev['type'] == 'passthrough':
+                            # More specific check for passthrough TPM
+                            issues.append({
+                                'severity': 'WARNING',
+                                'message': f"Source VM '{domain_name}' uses passthrough TPM ({tpm_dev['model']}). Passthrough TPM migration is often problematic due to hardware dependencies. Manual verification on destination host '{dest_conn.getURI()}' recommended."
+                            })
+                        elif tpm_dev['type'] == 'emulated' and is_live:
+                            # Emulated TPM should generally be fine for cold migration.
+                            # Live migration of emulated TPM might be tricky.
+                            issues.append({
+                                'severity': 'WARNING',
+                                'message': f"Source VM '{domain_name}' uses emulated TPM. Live migration with TPM can sometimes have issues; cold migration is safer."
+                            })
 
-    # Add informational notes for manual checks
-    issues.append({'severity': 'INFO', 'message': "For a successful migration, please also manually verify the following:"})
-    issues.append({'severity': 'INFO', 'message': "  - Firewalls on both hosts allow migration traffic (usually TCP ports 49152-49215)."})
-    issues.append({'severity': 'INFO', 'message': "  - The source host's root user (if system session) must have SSH keys set up to connect to the destination host's root user without a password."})
-    issues.append({'severity': 'INFO', 'message': "  - The 'qemu' user and 'kvm'/'libvirt' groups have the same UID/GIDs on both hosts."})
+            except libvirt.libvirtError as e:
+                issues.append({'severity': 'WARNING', 'message': f"Could not retrieve destination host capabilities for TPM check: {e}"})
+            except ET.ParseError as e:
+                issues.append({'severity': 'WARNING', 'message': f"Failed to parse destination host capabilities XML for TPM check: {e}"})
 
     return issues
 
