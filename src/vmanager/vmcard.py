@@ -1390,70 +1390,85 @@ class VMCard(Static):
             def log_callback(message: str):
                 app.call_from_thread(progress_modal.add_log, message)
 
-            def do_clone() -> None:
-                log_callback(f"Attempting to clone VM: {self.name}")
-                existing_vm_names = set()
+            def do_clone():
+                # Stop stats worker to avoid conflicts during heavy I/O
+                def stop_stats_workers():
+                    if self.timer:
+                        self.timer.stop()
+                        self.timer = None
+                    self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
+                    self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+                
+                app.call_from_thread(stop_stats_workers)
+
                 try:
-                     # Use listAllDomains(0) which is already cached
-                     # by vm_service, so this won't trigger additional libvirt calls
-                     all_domains = self.conn.listAllDomains(0)
-                     for domain in all_domains:
-                        _, name = self.app.vm_service.get_vm_identity(domain, self.conn)
-                        existing_vm_names.add(name)
-
-                except libvirt.libvirtError as e:
-                    log_callback(f"ERROR: Error getting existing VM names: {e}")
-                    app.call_from_thread(app.show_error_message, f"Error getting existing VM names: {e}")
-                    app.call_from_thread(progress_modal.dismiss)
-                    return
-
-                proposed_names = []
-                for i in range(1, count + 1):
-                    new_name = f"{base_name}{suffix}{i}" if count > 1 else base_name
-                    proposed_names.append(new_name)
-                log_callback(f"INFO: Proposed Name(s): {proposed_names}")
-
-                conflicting_names = [name for name in proposed_names if name in existing_vm_names]
-                if conflicting_names:
-                    msg = f"The following VM names already exist: {', '.join(conflicting_names)}. Aborting cloning."
-                    log_callback(f"ERROR: {msg}")
-                    app.call_from_thread(app.show_error_message, msg)
-                    app.call_from_thread(progress_modal.dismiss)
-                    return
-                else:
-                    log_callback("INFO: No Conflicting Name")
-                    storage_msg = "with storage cloning" if clone_storage else "without storage cloning (linked clone)"
-                    log_callback(f"INFO: No Conflicting Name - proceeding {storage_msg}")
-
-                success_clones, failed_clones = [], []
-                app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").update(total=count))
-
-                for i in range(1, count + 1):
-                    new_name = f"{base_name}{suffix}{i}" if count > 1 else base_name
+                    existing_vm_names = set()
                     try:
-                        log_callback(f"Cloning '{self.name}' to '{new_name}'...")
-                        clone_vm(self.vm, new_name, clone_storage=clone_storage, log_callback=log_callback)
-                        success_clones.append(new_name)
-                        log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
-                    except Exception as e:
-                        failed_clones.append(new_name)
-                        log_callback(f"ERROR: Error cloning VM {self.name} to {new_name}: {e}")
-                    finally:
-                        app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").advance(1))
+                        # Use self.conn (which is the connection for this VM)
+                        # We use listAllDomains() to get all VMs, to check for name collisions.
+                        # This covers active and inactive VMs.
+                        all_domains = self.conn.listAllDomains(0)
+                        for domain in all_domains:
+                            _, name = self.app.vm_service.get_vm_identity(domain, self.conn)
+                            existing_vm_names.add(name)
 
-                if success_clones:
-                    msg = f"Successfully cloned to: {', '.join(success_clones)}"
-                    app.call_from_thread(app.show_success_message, msg)
-                    log_callback(msg)
-                if failed_clones:
-                    msg = f"Failed to clone to: {', '.join(failed_clones)}"
-                    app.call_from_thread(app.show_error_message, msg)
-                    log_callback(f"ERROR: {msg}")
+                    except libvirt.libvirtError as e:
+                        log_callback(f"ERROR: Error getting existing VM names: {e}")
+                        app.call_from_thread(app.show_error_message, f"Error getting existing VM names: {e}")
+                        app.call_from_thread(progress_modal.dismiss)
+                        return
 
-                if success_clones:
-                    #app.call_from_thread(app.vm_service.invalidate_domain_cache)
-                    app.call_from_thread(app.refresh_vm_list)
-                app.call_from_thread(progress_modal.dismiss)
+                    proposed_names = []
+                    for i in range(1, count + 1):
+                        new_name = f"{base_name}{suffix}{i}" if count > 1 else base_name
+                        proposed_names.append(new_name)
+                    log_callback(f"INFO: Proposed Name(s): {proposed_names}")
+
+                    conflicting_names = [name for name in proposed_names if name in existing_vm_names]
+                    if conflicting_names:
+                        msg = f"The following VM names already exist: {', '.join(conflicting_names)}. Aborting cloning."
+                        log_callback(f"ERROR: {msg}")
+                        app.call_from_thread(app.show_error_message, msg)
+                        app.call_from_thread(progress_modal.dismiss)
+                        return
+                    else:
+                        log_callback("INFO: No Conflicting Name")
+                        storage_msg = "with storage cloning" if clone_storage else "without storage cloning (linked clone)"
+                        log_callback(f"INFO: No Conflicting Name - proceeding {storage_msg}")
+
+                    success_clones, failed_clones = [], []
+                    app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").update(total=count))
+
+                    for i in range(1, count + 1):
+                        new_name = f"{base_name}{suffix}{i}" if count > 1 else base_name
+                        try:
+                            log_callback(f"Cloning '{self.name}' to '{new_name}'...")
+                            clone_vm(self.vm, new_name, clone_storage=clone_storage, log_callback=log_callback)
+                            success_clones.append(new_name)
+                            log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
+                        except Exception as e:
+                            failed_clones.append(new_name)
+                            log_callback(f"ERROR: Error cloning VM {self.name} to {new_name}: {e}")
+                        finally:
+                            app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").advance(1))
+
+                    if success_clones:
+                        msg = f"Successfully cloned to: {', '.join(success_clones)}"
+                        app.call_from_thread(app.show_success_message, msg)
+                        log_callback(msg)
+                    if failed_clones:
+                        msg = f"Failed to clone to: {', '.join(failed_clones)}"
+                        app.call_from_thread(app.show_error_message, msg)
+                        log_callback(f"ERROR: {msg}")
+
+                    if success_clones:
+                        #app.call_from_thread(app.vm_service.invalidate_domain_cache)
+                        app.call_from_thread(app.refresh_vm_list)
+                    app.call_from_thread(progress_modal.dismiss)
+                
+                finally:
+                    # Restart stats worker
+                    app.call_from_thread(self.update_stats)
 
             app.worker_manager.run(do_clone, name=f"clone_{self.name}")
 
