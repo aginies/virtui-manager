@@ -78,7 +78,7 @@ def _sanitize_input(input_string: str) -> tuple[str, bool]:
     if not original_stripped:
         return "", True # Empty input is considered modified
 
-    sanitized = re.sub(r'[^a-zA-Z0-9_-.]', '', original_stripped)
+    sanitized = re.sub(r'[^a-zA-Z0-9.-_]', '', original_stripped)
 
     if len(sanitized) > 64:
         raise ValueError("Sanitized input is too long (max 64 characters)")
