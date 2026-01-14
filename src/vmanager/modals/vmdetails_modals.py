@@ -51,7 +51,7 @@ from libvirt_utils import (
         get_cpu_models, get_domain_capabilities_xml, get_video_domain_capabilities,
         get_host_usb_devices, get_host_pci_devices
         )
-from modals.utils_modals import ConfirmationDialog
+from modals.utils_modals import ConfirmationDialog, ProgressModal
 from modals.cpu_mem_pc_modals import (
         EditCpuModal, EditMemoryModal, SelectMachineTypeModal
         )
@@ -124,6 +124,56 @@ class VMDetailModal(ModalScreen):
         self.rng_info = get_vm_rng_info(root)
         self.tpm_info = get_vm_tpm_info(root)
         self.watchdog_info = get_vm_watchdog_info(root)
+
+    def _run_bulk_operation(self, targets, operation, success_msg_fmt, error_msg_fmt, ui_update_callback=None):
+        """Helper to run bulk operations sequentially in a worker."""
+
+        progress = ProgressModal("Applying changes...")
+        self.app.push_screen(progress)
+
+        def worker_func():
+            success_count = 0
+            successful_names = []
+            errors = []
+
+            total = len(targets)
+            for i, d in enumerate(targets):
+                try:
+                    self.app.call_from_thread(progress.update_progress, (i / total) * 100)
+                    self.app.call_from_thread(progress.add_log, f"Processing {d.name()}...")
+
+                    operation(d)
+
+                    success_count += 1
+                    successful_names.append(d.name())
+                    self.app.call_from_thread(progress.add_log, f"Success: {d.name()}")
+
+                except Exception as e:
+                    errors.append(f"{d.name()}: {e}")
+                    self.app.call_from_thread(progress.add_log, f"Error {d.name()}: {e}")
+
+            self.app.call_from_thread(progress.update_progress, 100)
+
+            if success_count > 0:
+                try:
+                    self._invalidate_cache()
+                except Exception as e:
+                    logging.error(f"Error invalidating cache in worker: {e}")
+
+            def finalize():
+                progress.dismiss()
+                if success_count > 0:
+                    msg = success_msg_fmt.format(count=success_count, names=", ".join(successful_names))
+                    self.app.show_success_message(msg)
+                    if ui_update_callback:
+                        ui_update_callback()
+
+                if errors:
+                    self.app.show_error_message(f"{error_msg_fmt}: {'; '.join(errors)}")
+
+            self.app.call_from_thread(finalize)
+
+        self.app.worker_manager.run(worker_func, name="bulk_edit_worker")
 
     def _invalidate_cache(self):
         """Invalidates the VM cache if a callback is provided."""
@@ -657,32 +707,22 @@ class VMDetailModal(ModalScreen):
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_cpu_model(d, new_cpu_model)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, ValueError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_cpu_model(d, new_cpu_model)
 
-        if success_count > 0:
-            self._invalidate_cache()
-            msg = f"CPU model set to {new_cpu_model}"
-            if self.is_bulk:
-                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-            self.app.show_success_message(msg)
-            if not self.is_bulk: # Only update UI for single VM mode or reference
+        def ui_update():
+            if not self.is_bulk:
                 self.vm_info['cpu_model'] = new_cpu_model
                 self.query_one("#cpu-model-label").update(f"CPU Model: {new_cpu_model}")
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                event.control.value = original_cpu_model
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"CPU model set to {new_cpu_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            "Errors setting CPU model",
+            ui_update
+        )
 
     @on(Select.Changed, "#uefi-file-select")
     def on_uefi_file_changed(self, event: Select.Changed) -> None:
@@ -695,46 +735,31 @@ class VMDetailModal(ModalScreen):
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_uefi_file(d, new_uefi_path, current_secure_boot)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, ValueError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_uefi_file(d, new_uefi_path, current_secure_boot)
 
-        if success_count > 0:
-            self._invalidate_cache()
+        def ui_update():
             if new_uefi_path:
-                msg = f"UEFI file set to {os.path.basename(new_uefi_path)}"
-                if self.is_bulk:
-                    msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-                self.app.show_success_message(msg)
-                if not self.is_bulk:
-                    self.query_one("#firmware-path-label").update(f"File: {os.path.basename(new_uefi_path)}")
+                msg_text = f"File: {os.path.basename(new_uefi_path)}"
             else:
-                msg = "Firmware set to BIOS."
-                if self.is_bulk:
-                    msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-                self.app.show_success_message(msg)
-                if not self.is_bulk:
-                    self.query_one("#firmware-path-label").update("File: ")
-
+                msg_text = "File: "
+            
             if not self.is_bulk:
+                self.query_one("#firmware-path-label").update(msg_text)
                 self.vm_info['firmware']['path'] = new_uefi_path
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                original_basename = os.path.basename(original_uefi_path) if original_uefi_path else None
-                if original_basename and original_basename in self.uefi_path_map:
-                    event.control.value = original_basename
-                else:
-                    event.control.clear()
+        msg_template = f"UEFI file set to {os.path.basename(new_uefi_path) if new_uefi_path else 'BIOS'}"
+        if self.is_bulk:
+            msg_template += " for {count} VMs ({names})"
+
+        self._run_bulk_operation(
+            targets,
+            operation,
+            msg_template,
+            "Errors setting UEFI file",
+            ui_update
+        )
 
     def _update_video_tab_state(self) -> None:
         """Updates the state of widgets in the Video tab based on current selections."""
@@ -763,24 +788,11 @@ class VMDetailModal(ModalScreen):
         accel3d_enabled = accel_checkbox.display and accel_checkbox.value
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_vm_video_model(d, new_model if new_model != "default" else None, accel3d=accel3d_enabled)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_vm_video_model(d, new_model if new_model != "default" else None, accel3d=accel3d_enabled)
 
-        if success_count > 0:
-            self._invalidate_cache()
-            msg = f"Video model set to {new_model}"
-            if self.is_bulk:
-                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-            self.app.show_success_message(msg)
+        def ui_update():
             if not self.is_bulk:
                 self.query_one("#video-model-label").update(f"Video Model: {new_model}")
                 if 'video' not in self.vm_info:
@@ -789,11 +801,13 @@ class VMDetailModal(ModalScreen):
                 self.vm_info['video']['accel3d'] = accel3d_enabled
                 self.vm_info['video_model'] = new_model
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                event.control.value = self.vm_info.get('video', {}).get('model', 'none')
-                self._update_video_tab_state()
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"Video model set to {new_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            "Errors setting video model",
+            ui_update
+        )
 
     @on(Checkbox.Changed, "#video-3d-accel-checkbox")
     def on_video_3d_accel_changed(self, event: Checkbox.Changed) -> None:
@@ -801,33 +815,23 @@ class VMDetailModal(ModalScreen):
         accel3d_enabled = event.value
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_vm_video_model(d, current_model, accel3d=accel3d_enabled)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_vm_video_model(d, current_model, accel3d=accel3d_enabled)
 
-        if success_count > 0:
-            self._invalidate_cache()
-            msg = f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}"
-            if self.is_bulk:
-                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-            self.app.show_success_message(msg)
+        def ui_update():
             if not self.is_bulk:
                 if 'video' not in self.vm_info:
                     self.vm_info['video'] = {}
                 self.vm_info['video']['accel3d'] = accel3d_enabled
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                event.checkbox.value = not accel3d_enabled # Revert on failure
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            "Errors setting 3D acceleration",
+            ui_update
+        )
 
 
     @on(Select.Changed, "#sound-model-select")
@@ -839,32 +843,22 @@ class VMDetailModal(ModalScreen):
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_vm_sound_model(d, new_model if new_model != "none" else None)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_vm_sound_model(d, new_model if new_model != "none" else None)
 
-        if success_count > 0:
-            self._invalidate_cache()
-            msg = f"Sound model set to {new_model}"
-            if self.is_bulk:
-                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-            self.app.show_success_message(msg)
+        def ui_update():
             if not self.is_bulk:
                 self.query_one("#sound-model-label").update(f"Sound Model: {new_model}")
                 self.vm_info['sound_model'] = new_model if new_model != "none" else None
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                event.control.value = current_model
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"Sound model set to {new_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            "Errors setting sound model",
+            ui_update
+        )
 
     @on(Checkbox.Changed, "#secure-boot-checkbox")
     def on_secure_boot_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -878,32 +872,21 @@ class VMDetailModal(ModalScreen):
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_uefi_file(d, current_uefi_path, event.value)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, ValueError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_uefi_file(d, current_uefi_path, event.value)
 
-        if success_count > 0:
-            self._invalidate_cache()
-            msg = f"Secure Boot {'enabled' if event.value else 'disabled'}"
-            if self.is_bulk:
-                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-            self.app.show_success_message(msg)
+        def ui_update():
             if not self.is_bulk:
                 self.vm_info['firmware']['secure_boot'] = event.value
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                event.checkbox.value = not event.value # Revert checkbox
-                self._update_uefi_options() # Revert options
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"Secure Boot {'enabled' if event.value else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            "Errors setting Secure Boot",
+            ui_update
+        )
 
     @on(Checkbox.Changed, "#sev-checkbox, #sev-es-checkbox")
     def on_sev_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -912,31 +895,21 @@ class VMDetailModal(ModalScreen):
     @on(Checkbox.Changed, "#shared-memory-checkbox")
     def on_shared_memory_changed(self, event: Checkbox.Changed) -> None:
         targets = self.selected_domains if self.is_bulk else [self.domain]
-        errors = []
-        success_count = 0
-        successful_names = []
 
-        for d in targets:
-            try:
-                set_shared_memory(d, event.value)
-                success_count += 1
-                successful_names.append(d.name())
-            except (libvirt.libvirtError, ValueError, Exception) as e:
-                errors.append(f"{d.name()}: {e}")
+        def operation(d):
+            set_shared_memory(d, event.value)
 
-        if success_count > 0:
-            self._invalidate_cache()
-            msg = f"Shared memory {'enabled' if event.value else 'disabled'}"
-            if self.is_bulk:
-                msg += f" for {success_count} VMs ({', '.join(successful_names)})"
-            self.app.show_success_message(msg)
+        def ui_update():
             if not self.is_bulk:
                 self.vm_info['shared_memory'] = event.value
 
-        if errors:
-            self.app.show_error_message(f"Errors: {'; '.join(errors)}")
-            if not success_count:
-                event.checkbox.value = not event.value
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"Shared memory {'enabled' if event.value else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            "Errors setting shared memory",
+            ui_update
+        )
 
     # --- Graphics Tab Event Handlers ---
     @on(Select.Changed, "#graphics-type-select")
@@ -1019,33 +992,19 @@ class VMDetailModal(ModalScreen):
         targets = self.selected_domains if self.is_bulk else [self.domain]
 
         def do_apply_graphics_settings():
-            errors = []
-            success_count = 0
-            successful_names = []
-            for d in targets:
-                try:
-                    set_vm_graphics(
-                        d,
-                        new_graphics_type if new_graphics_type != "" else None,
-                        listen_type,
-                        address,
-                        port,
-                        autoport,
-                        password_enabled,
-                        password
-                    )
-                    success_count += 1
-                    successful_names.append(d.name())
-                except (libvirt.libvirtError, Exception) as e:
-                    errors.append(f"{d.name()}: {e}")
+            def operation(d):
+                set_vm_graphics(
+                    d,
+                    new_graphics_type if new_graphics_type != "" else None,
+                    listen_type,
+                    address,
+                    port,
+                    autoport,
+                    password_enabled,
+                    password
+                )
 
-            if success_count > 0:
-                self._invalidate_cache()
-                msg = "Graphics settings applied successfully."
-                if self.is_bulk:
-                    msg += f" (Applied to {success_count} VMs ({', '.join(successful_names)}))"
-                self.app.show_success_message(msg)
-
+            def ui_update():
                 if not self.is_bulk:
                     xml_content = self.vm_service._get_domain_xml(self.domain)
                     root = None
@@ -1058,8 +1017,13 @@ class VMDetailModal(ModalScreen):
                     self.original_graphics_info = self.graphics_info.copy()
                     self._update_graphics_ui()
 
-            if errors:
-                self.app.show_error_message(f"Errors: {'; '.join(errors)}")
+            self._run_bulk_operation(
+                targets,
+                operation,
+                "Graphics settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                "Errors applying graphics settings",
+                ui_update
+            )
 
         # Check if switching from SPICE to VNC and other SPICE devices exist
         has_other_spice_devices = False
@@ -1076,25 +1040,18 @@ class VMDetailModal(ModalScreen):
 
             def on_confirm_spice_removal(confirmed: bool):
                 if confirmed:
-                    removal_errors = []
-                    removal_successful_names = []
-                    for d in targets:
-                        try:
-                            remove_spice_devices(d)
-                            removal_successful_names.append(d.name())
-                        except Exception as e:
-                            removal_errors.append(f"{d.name()}: {e}")
-
-                    if removal_errors:
-                         self.app.show_error_message(f"Error removing SPICE devices: {'; '.join(removal_errors)}")
-                    else:
-                        self._invalidate_cache()
-                        msg = "Removed associated SPICE devices."
-                        if self.is_bulk:
-                            msg += f" (from {len(removal_successful_names)} VMs ({', '.join(removal_successful_names)}))"
-                        self.app.show_success_message(msg)
-
-                do_apply_graphics_settings()
+                    def removal_operation(d):
+                        remove_spice_devices(d)
+                    
+                    self._run_bulk_operation(
+                        targets,
+                        removal_operation,
+                        "Removed associated SPICE devices" + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                        "Error removing SPICE devices",
+                        do_apply_graphics_settings
+                    )
+                else:
+                    do_apply_graphics_settings()
 
             msg = "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
             if self.is_bulk:
@@ -1119,12 +1076,17 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message("RNG device path cannot be empty.")
             return
 
-        try:
-            set_vm_rng(self.domain, "virtio", "random", rng_device)
-            self._invalidate_cache()
-            self.app.show_success_message(f"RNG settings applied successfully. Device: {rng_device}")
-        except Exception as e:
-            self.app.show_error_message(f"Error applying RNG settings: {e}")
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+
+        def operation(d):
+            set_vm_rng(d, "virtio", "random", rng_device)
+
+        self._run_bulk_operation(
+            targets,
+            operation,
+            f"RNG settings applied successfully. Device: {rng_device}" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+            "Error applying RNG settings"
+        )
 
     @on(Select.Changed, "#tpm-type-select")
     def on_tpm_type_changed(self, event: Select.Changed) -> None:
@@ -1159,28 +1121,37 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message("Device path is required for passthrough TPM.")
             return
 
-        try:
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+
+        def operation(d):
             set_vm_tpm(
-                self.domain,
+                d,
                 tpm_model if tpm_model != "none" else None,
                 tpm_type=tpm_type,
                 device_path=device_path if tpm_type == 'passthrough' else None,
                 backend_type=backend_type if tpm_type == 'passthrough' else None,
                 backend_path=backend_path if tpm_type == 'passthrough' else None
             )
-            self._invalidate_cache()
-            self.app.show_success_message("TPM settings applied successfully.")
-            xml_content = self.vm_service._get_domain_xml(self.domain)
-            root = None
-            if xml_content:
-                try:
-                    root = ET.fromstring(xml_content)
-                except ET.ParseError:
-                    root = None
-            self.tpm_info = get_vm_tpm_info(root) # Refresh info
-            self._update_tpm_ui()
-        except Exception as e:
-            self.app.show_error_message(f"Error applying TPM settings: {e}")
+
+        def ui_update():
+            if not self.is_bulk:
+                xml_content = self.vm_service._get_domain_xml(self.domain)
+                root = None
+                if xml_content:
+                    try:
+                        root = ET.fromstring(xml_content)
+                    except ET.ParseError:
+                        root = None
+                self.tpm_info = get_vm_tpm_info(root) # Refresh info
+                self._update_tpm_ui()
+
+        self._run_bulk_operation(
+            targets,
+            operation,
+            "TPM settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+            "Error applying TPM settings",
+            ui_update
+        )
 
     @on(ListView.Highlighted, "#available-devices-list")
     def on_available_devices_list_highlighted(self, event: ListView.Highlighted) -> None:
@@ -2011,21 +1982,30 @@ class VMDetailModal(ModalScreen):
              self.on_watchdog_remove_button_pressed(event)
              return
 
-        try:
-            set_vm_watchdog(self.domain, model, action)
-            self._invalidate_cache()
-            self.app.show_success_message("Watchdog settings applied successfully.")
-            xml_content = self.vm_service._get_domain_xml(self.domain)
-            root = None
-            if xml_content:
-                try:
-                    root = ET.fromstring(xml_content)
-                except ET.ParseError:
-                    root = None
-            self.watchdog_info = get_vm_watchdog_info(root)
-            self._update_watchdog_ui()
-        except Exception as e:
-            self.app.show_error_message(f"Error applying Watchdog settings: {e}")
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+
+        def operation(d):
+            set_vm_watchdog(d, model, action)
+
+        def ui_update():
+            if not self.is_bulk:
+                xml_content = self.vm_service._get_domain_xml(self.domain)
+                root = None
+                if xml_content:
+                    try:
+                        root = ET.fromstring(xml_content)
+                    except ET.ParseError:
+                        root = None
+                self.watchdog_info = get_vm_watchdog_info(root)
+                self._update_watchdog_ui()
+
+        self._run_bulk_operation(
+            targets,
+            operation,
+            "Watchdog settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+            "Error applying Watchdog settings",
+            ui_update
+        )
 
     @on(Button.Pressed, "#remove-watchdog-btn")
     def on_watchdog_remove_button_pressed(self, event: Button.Pressed) -> None:
@@ -2035,16 +2015,28 @@ class VMDetailModal(ModalScreen):
 
         def on_confirm(confirmed: bool):
             if confirmed:
-                try:
-                    remove_vm_watchdog(self.domain)
-                    self._invalidate_cache()
-                    self.app.show_success_message("Watchdog removed successfully.")
-                    self.watchdog_info = {'model': 'none', 'action': 'reset'} # Reset to defaults
-                    self._update_watchdog_ui()
-                except Exception as e:
-                    self.app.show_error_message(f"Error removing Watchdog: {e}")
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+                
+                def operation(d):
+                    remove_vm_watchdog(d)
+                
+                def ui_update():
+                    if not self.is_bulk:
+                        self.watchdog_info = {'model': 'none', 'action': 'reset'} # Reset to defaults
+                        self._update_watchdog_ui()
 
-        self.app.push_screen(ConfirmationDialog("Are you sure you want to remove the Watchdog device?"), on_confirm)
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    "Watchdog removed successfully" + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                    "Error removing Watchdog",
+                    ui_update
+                )
+
+        self.app.push_screen(
+            ConfirmationDialog("Are you sure you want to remove the watchdog device?"),
+            on_confirm
+        )
 
 
     def _update_disk_list(self):
@@ -2161,13 +2153,24 @@ class VMDetailModal(ModalScreen):
                 message = f"Are you sure you want to remove the {self.selected_input_device['type']} on bus {self.selected_input_device['bus']}?"
                 def on_confirm(confirmed: bool) -> None:
                     if confirmed:
-                        try:
-                            remove_vm_input(self.domain, self.selected_input_device['type'], self.selected_input_device['bus'])
-                            self._invalidate_cache()
-                            self.app.show_success_message("Input device removed successfully.")
-                            self._update_input_table()
-                        except (libvirt.libvirtError, ValueError) as e:
-                            self.app.show_error_message(f"Error removing input device: {e}")
+                        targets = self.selected_domains if self.is_bulk else [self.domain]
+                        device_type = self.selected_input_device['type']
+                        device_bus = self.selected_input_device['bus']
+
+                        def operation(d):
+                            remove_vm_input(d, device_type, device_bus)
+
+                        def ui_update():
+                            if not self.is_bulk:
+                                self._update_input_table()
+
+                        self._run_bulk_operation(
+                            targets,
+                            operation,
+                            "Input device removed successfully" + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                            "Error removing input device",
+                            ui_update
+                        )
                 self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
         elif event.button.id == "detail_virtiofs_help":
