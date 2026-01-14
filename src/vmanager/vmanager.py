@@ -4,7 +4,7 @@ Main interface
 import os
 import sys
 import re
-from threading import Lock
+from threading import RLock
 import logging
 import argparse
 from collections import deque
@@ -79,7 +79,7 @@ class WorkerManager:
     def __init__(self, app: App):
         self.app = app
         self.workers: dict[str, Worker] = {}
-        self._lock = Lock()
+        self._lock = RLock()
 
     def run(
         self,
@@ -101,7 +101,7 @@ class WorkerManager:
         with self._lock:
             self._cleanup_finished_workers()
             if exclusive and name in self.workers:
-                logger.debug(f"Worker '{name}' is already running. Skipping new run.")
+                logging.debug(f"Worker '{name}' is already running. Skipping new run.")
                 return None
 
             worker = self.app.run_worker(
