@@ -392,7 +392,8 @@ class MigrationModal(ModalScreen):
     def on_custom_migration_changed(self, event: Checkbox.Changed):
         """Enable or disable other migration options when custom migration is selected."""
         is_custom = event.value
-        self.query_one("#copy-storage-all").disabled = is_custom
+        self.query_one("#copy-storage-all").disabled = False
+        self.query_one("#copy-storage-all").value = is_custom
         self.query_one("#unsafe").disabled = is_custom or not self.is_live
         self.query_one("#persistent").disabled = is_custom
         self.query_one("#compress").disabled = is_custom or not self.is_live
