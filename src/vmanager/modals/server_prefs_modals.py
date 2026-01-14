@@ -484,6 +484,7 @@ class ServerPrefModal(BaseModal[None]):
             return
 
         pool = node_data.get('pool')
+        pool_node = tree.cursor_node
 
         def on_create(result: dict | None) -> None:
             if result:
@@ -494,12 +495,8 @@ class ServerPrefModal(BaseModal[None]):
                         result['size_gb'],
                         result['format']
                     )
-                    self.app.show_success_message(f"Volume '{result['name']}' '{result['size_gb']}' '{result['format']}' created successfully.")
-                    # Refresh the node
-                    if tree.cursor_node:
-                        tree.cursor_node.remove_children()
-                        tree.cursor_node.add_leaf("Loading volumes...")
-                        self.app.call_later(tree.cursor_node.expand)
+                    self.app.show_success_message(f"Volume [b]{result['name']} {result['size_gb']}Gb {result['format']}[/b] created successfully.")
+                    pool_node.add_leaf(result['name'])
 
                 except Exception as e:
                     self.app.show_error_message(str(e))
@@ -649,6 +646,21 @@ class ServerPrefModal(BaseModal[None]):
             def log_callback(message: str):
                 self.app.call_from_thread(progress_modal.add_log, message)
 
+            def find_node_by_label(tree, label_text):
+                """Find a node in the tree by its label."""
+                def search_node(node):
+                    # Check if current node's label matches
+                    if str(node.label) == label_text:
+                        return node
+                    # Search in children recursively
+                    for child in node.children:
+                        result = search_node(child)
+                    if result:
+                        return result
+                    return None
+
+                return search_node(tree.root)
+
             def do_move():
                 try:
                     updated_vms = storage_manager.move_volume(
@@ -660,6 +672,15 @@ class ServerPrefModal(BaseModal[None]):
                         progress_callback=progress_callback,
                         log_callback=log_callback
                     )
+                    # Refresh the parent node
+                    parent_node = tree.cursor_node.parent
+                    tree.cursor_node.remove()
+                    if parent_node and not parent_node.children:
+                        parent_node.add_leaf("No volumes")
+                    target_node = find_node_by_label(tree, dest_pool_name)
+                    target_node.add_leaf(new_volume_name)
+                    self._load_storage_pools()
+
                     return {
                         "message": f"Volume '{volume_name}' moved to pool '{dest_pool_name}'.",
                         "source_pool": source_pool_name,
@@ -684,6 +705,7 @@ class ServerPrefModal(BaseModal[None]):
             return
 
         self.app.pop_screen()  # Pop the progress modal
+        tree: Tree[dict] = self.query_one("#storage-tree")
 
         if event.worker.state == "SUCCESS":
             result = event.worker.result
@@ -692,6 +714,12 @@ class ServerPrefModal(BaseModal[None]):
                 self._load_storage_pools()
             else:
                 self.app.show_success_message(result["message"])
+                # Refresh the parent node
+                parent_node = tree.cursor_node.parent
+                tree.cursor_node.remove()
+                if parent_node and not parent_node.children:
+                    parent_node.add_leaf("No volumes")
+
                 updated_vms = result.get("updated_vms", [])
                 if updated_vms:
                     vm_list = ", ".join(updated_vms)
@@ -830,4 +858,3 @@ class ServerPrefModal(BaseModal[None]):
 
         elif event.button.id == "help-net-btn":
             self.app.push_screen(HowToNetworkModal())
-
