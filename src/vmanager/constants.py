@@ -177,4 +177,4 @@ class DialogMessages:
     DELETE_VM_CONFIRMATION = "Are you sure you want to delete '{name}'?"
     DELETE_SNAPSHOT_CONFIRMATION = "Are you sure you want to delete snapshot '{name}'?"
     DELETE_SNAPSHOTS_AND_RENAME = "VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"
-    EXPERIMENTAL = "Experimental Feature! not yet fully tested!"
+    EXPERIMENTAL = "Experimental Feature! Still contains bugs, fix in progress. You have been informed"
