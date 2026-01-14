@@ -19,6 +19,7 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 ### VM Management Actions
 - Start, Shutdown, Force Off (destroy), Pause, Resume
 - Delete VM with optional storage cleanup: Now more robust, always using libvirt API for managed storage volumes, preventing permission errors. Automatically deletes VM snapshot metadata.
+- Hide restore snapshot if the VM is running or loading
 - Clone VM functionality: Clone VMs with advanced options, including specifying a custom suffix, cloning multiple instances at once, and automatic creation of storage for the new clones.
 - Rename VM with snapshot handling
 - Take, restore, and delete VM snapshots
@@ -30,8 +31,13 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
   - To enable running the web console on the remote server, set `REMOTE_WEBCONSOLE: True` in your `config.yaml`.
   - When `REMOTE_WEBCONSOLE` is enabled, `websockify` and `novnc` assets must be installed on the remote server at the paths specified in `config.yaml` (default: `/usr/bin/websockify` and `/usr/share/novnc/`).
   - For secure (HTTPS) remote web console access, `cert.pem` and `key.pem` files must also be present on the remote server in `~/.config/virtui-manager/`.
+  - Fix issue displaying info about web console
+  - Improve info about web console
 - Bulk actions on selected VMs (start, stop, force off, pause, delete)
 - Edit Configuration Bulk action available
+- VM Migration (Live and Offline) with pre checking server and VM configuration
+- Custom migration can migrate offline VMs with their volumesn, snapshots and overlay, allowing users to select where to place volumes on the destination server pool
+- Always copy storage in custom migration by default
 - VM Migration (Live and Offline) with pre checking server and VM configuration
 - Custom migration can migrate offline VMs with their volumesn, snapshots and overlay, allowing users to select where to place volumes on the destination server pool
 
@@ -182,6 +188,7 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 - Toggle network autostart state
 - View network XML details
 - Get list of VMs using a specific network
+- Fix issue with active/deactivate autostart on/off button on pool
 
 ### Storage Management
 - View storage pools in a tree format
@@ -195,6 +202,7 @@ A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM 
 - List unused storage volumes
 - Get all storage volumes across all pools
 - Move storage volume between pools
+- Some fixes on storage tabpane. Still some bugs in layout (buttons)
 
 ## User Interface Features
 
