@@ -15,7 +15,7 @@ from textual.widgets import (
         )
 from vm_queries import (
       get_all_vm_nvram_usage, get_all_vm_disk_usage,
-      get_all_network_usage, get_all_vm_overlay_usage
+      get_all_network_usage
       )
 from libvirt_utils import get_network_info, _find_pool_by_path
 from network_manager import (
@@ -239,12 +239,13 @@ class ServerPrefModal(BaseModal[None]):
             self._load_storage_content()
             self._unload_network_content()
 
-    def _load_storage_pools(self, expand_pools: list[str] | None = None) -> None:
+    def _load_storage_pools(self, expand_pools: list[str] | None = None, select_pool: str | None = None) -> None:
         """Load storage pools into the tree view."""
         tree: Tree[dict] = self.query_one("#storage-tree")
         tree.clear()
         tree.root.data = {"type": "root"}
         pools = storage_manager.list_storage_pools(self.conn)
+        node_to_select = None
         for pool_data in pools:
             pool_name = pool_data['name']
             status = pool_data['status']
@@ -257,6 +258,12 @@ class ServerPrefModal(BaseModal[None]):
 
             if expand_pools and pool_name in expand_pools:
                 self.app.call_later(pool_node.expand)
+
+            if select_pool and pool_name == select_pool:
+                node_to_select = pool_node
+
+        if node_to_select:
+            self.app.call_later(tree.select_node, node_to_select)
 
     def _load_networks(self):
         table = self.query_one("#networks-table", DataTable)
@@ -445,11 +452,13 @@ class ServerPrefModal(BaseModal[None]):
             return
 
         pool = node_data.get('pool')
+        pool_name = node_data.get('name')
         is_active = node_data.get('status') == 'active'
         try:
             storage_manager.set_pool_active(pool, not is_active)
             self.app.show_success_message(f"Pool '{pool.name()}' is now {'inactive' if is_active else 'active'}.")
-            self._load_storage_pools() # Refresh the tree
+            node_data['status'] = 'inactive' if is_active else 'active'
+            self._load_storage_pools(select_pool=pool_name) # Refresh the tree
         except Exception as e:
             self.app.show_error_message(str(e))
 
@@ -465,11 +474,13 @@ class ServerPrefModal(BaseModal[None]):
             return
 
         pool = node_data.get('pool')
+        pool_name = node_data.get('name')
         has_autostart = node_data.get('autostart', False)
         try:
             storage_manager.set_pool_autostart(pool, not has_autostart)
             self.app.show_success_message(f"Autostart for pool '{pool.name()}' is now {'off' if has_autostart else 'on'}.")
-            self._load_storage_pools() # Refresh the tree
+            node_data['autostart'] = not has_autostart
+            self._load_storage_pools(select_pool=pool_name) # Refresh the tree
         except Exception as e:
             self.app.show_error_message(str(e))
 
