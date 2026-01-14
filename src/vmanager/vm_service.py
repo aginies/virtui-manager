@@ -270,7 +270,7 @@ class VMService:
 
                         final_msg = None
                         if event_msg:
-                            final_msg = f"DEBUG VM [b]{vm_name}[/b] {event_msg}"
+                            final_msg = f"VM [b]{vm_name}[/b] {event_msg}"
                         elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
                             # Use detail to differentiate? 0=Added, 1=Updated
                             action_str = "Configuration Updated" if detail == 1 else "Defined"
