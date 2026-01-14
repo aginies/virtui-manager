@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 import libvirt
 
 from constants import AppInfo
+from events import VmCardUpdateRequest
 from config import load_config, get_log_path
 from vm_queries import get_vm_graphics_info
 from vmcard_dialog import WebConsoleDialog
@@ -70,6 +71,7 @@ wp.websockify_init()
 
     def save_session(self, uuid, data):
         with self._lock:
+            logging.info(f"[save_session] Saving session for {uuid}: {data}")
             sessions = self.load_sessions()
             sessions[uuid] = data
             with open(self.SESSION_FILE, 'w') as f:
@@ -77,6 +79,7 @@ wp.websockify_init()
 
     def remove_session(self, uuid):
         with self._lock:
+            logging.info(f"[remove_session] Removing session for {uuid}")
             sessions = self.load_sessions()
             if uuid in sessions:
                 del sessions[uuid]
@@ -122,6 +125,8 @@ wp.websockify_init()
         self.config = load_config()
         logging.info(f"Web console requested for VM: {vm.name()}")
         uuid = get_internal_id(vm, conn)
+        if '?' in uuid:
+            uuid = uuid.split('?')[0]
         vm_name = vm.name()
 
         # Check for existing valid session
@@ -208,6 +213,7 @@ wp.websockify_init()
         self._stop_ssh_tunnel(vm_name, ssh_info)
 
         self.remove_session(uuid)
+        self.app.post_message(VmCardUpdateRequest(uuid))
         self.app.call_from_thread(self.app.show_success_message, "Web console stopped.")
 
     def _get_next_available_port(self, remote_host: str | None = None) -> int | None:
@@ -458,6 +464,7 @@ wp.websockify_init()
             "type": "remote"
         }
         self.save_session(uuid, session_data)
+        self.app.post_message(VmCardUpdateRequest(uuid))
 
         stopper_worker = partial(self.stop_console, uuid, vm_name)
         def on_dialog_dismiss(result):
@@ -587,6 +594,7 @@ wp.websockify_init()
                 "type": "local"
             }
             self.save_session(uuid, session_data)
+            self.app.post_message(VmCardUpdateRequest(uuid))
 
             stopper_worker = partial(self.stop_console, uuid, vm_name)
             def on_dialog_dismiss(result):

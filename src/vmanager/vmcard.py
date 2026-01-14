@@ -207,19 +207,30 @@ class VMCard(Static):
             logging.warning("Could not find snapshot tab to update title.")
 
     def _update_webc_status(self) -> None:
-        """Updates the web console status indicator."""
+        """Updates the web console status indicator and button."""
+        webc_is_running = False
         if hasattr(self.app, 'webconsole_manager') and self.vm:
             try:
                 uuid = self.internal_id
-                if self.app.webconsole_manager.is_running(uuid):
-                    if self.webc_status_indicator != " (WebC On)":
-                        self.webc_status_indicator = " (WebC On)"
-                    return
+                if uuid: # ensure uuid is not empty
+                    webc_is_running = self.app.webconsole_manager.is_running(uuid)
             except Exception as e:
-                logging.warning(f"Error getting internal_id for webconsole status: {e}")
+                logging.warning(f"Error getting webconsole status for {self.internal_id}: {e}")
 
-        if self.webc_status_indicator != "":
-            self.webc_status_indicator = ""
+        # Update status indicator text
+        new_indicator = " (WebC On)" if webc_is_running else ""
+        if self.webc_status_indicator != new_indicator:
+            self.webc_status_indicator = new_indicator
+
+        # Update button label and style
+        web_console_button = self.ui.get(ButtonIds.WEB_CONSOLE)
+        if web_console_button:
+            if webc_is_running:
+                web_console_button.label = "Show Console"
+                web_console_button.variant = "success"
+            else:
+                web_console_button.label = ButtonLabels.WEB_CONSOLE
+                web_console_button.variant = "default"
 
     def watch_webc_status_indicator(self, old_value: str, new_value: str) -> None:
         """Called when webc_status_indicator changes."""
@@ -780,6 +791,7 @@ class VMCard(Static):
     def update_button_layout(self):
         """Update the button layout based on current VM status."""
         self._update_fast_buttons()
+        self._update_webc_status()
 
         # Trigger background fetch for heavy data (snapshots, overlays) only if actions are visible
         if self.ui.get(ButtonIds.RENAME_BUTTON):
@@ -1350,7 +1362,7 @@ class VMCard(Static):
                     snapshot_count = self.vm.snapshotNum(0)
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                        logging.debug(f"Domain no longer exists for {self.name}")
+                        logging.info(f"Domain no longer exists for {self.name}")
                         return
                     else:
                         logging.warning(f"Could not get snapshot count for {self.name}: {e}")
