@@ -594,8 +594,12 @@ class VMService:
                 self._active_uris = list(active_uris)
                 force = True
 
+        # If cache is empty but force is False, it remains empty!
+        with self._cache_lock:
+            if not self._domain_cache:
+                force = True
+
         if force:
-            # Synchronous update of domain list
             active_connections = []
             for uri in active_uris:
                 conn = self.connect(uri)
