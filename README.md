@@ -10,6 +10,7 @@ Managing virtual machines in a terminal environment has never been easier or mor
 - **Virt-manager** requires X11 forwarding, which is slow, resource-intensive, and often impossible in remote environments
 - **GUI-based solutions** are heavy with X dependencies, making them unsuitable for headless servers or low-bandwidth connections
 - **Command-line tools** lack the intuitive interface needed for complex VM management tasks
+- **Cockpit Machine** is feature incomplete, and needs a lot of depencies. It is not multi hypervisor oriented
 
 ### Why Virtui Manager is Different
 Virtui Manager solves these challenges with:
@@ -19,10 +20,13 @@ Virtui Manager solves these challenges with:
 - **Multi-server Support**: Manage VMs across multiple libvirt servers from a single interface
 - **Performance Optimized**: Built-in caching reduces libvirt calls and improves responsiveness
 - **Libvirt Event handler**: Only get update on event from libvirt, with an hearbeat call fallback every 60 sec
+- **Migration Support**: Live and offline VM migration capabilities and custom migration
+- **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
+- **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 
 ## Resource Usage Comparison with virt-manager
 
-Test done with 2 ssh remote servers (8VM and 314VM). Any performance testing can be different on different hardware config etc... the prupose is to evaluate the general perf to avoid getting a tool which have bad performance for remote management connected to multiple servers. virt-manager has never been designed for such usage, and performed already very well.
+Test done with 2 ssh remote servers (8VM and 314VM). Any performance testing can be different on different hardware config etc... the purpose is to evaluate the general perf to avoid getting a tool which have bad performance for remote management connected to multiple servers. virt-manager has never been designed for such usage, and performed already very well.
 
 Stats data checked after 10 minutes (to get them stabilized).
 
@@ -36,31 +40,6 @@ Stats data checked after 10 minutes (to get them stabilized).
 | **Display XML data** | 1sec | 1sec | similar perf |
 | **Display XML data (GUI/TUI)** | 1sec | 3sec | **+2sec** (virt-manager faster) |
 | **Network Bandwidth** | fluctuation: 24/50 kB/s |  0 to 3.5 kB/s | (virtui-manager is lighter) |
-
-## Key Features
-
-### VM Management
-- **Complete Lifecycle Control**: Start, shutdown, force off, pause, resume, and delete VMs
-- **Advanced Operations**: Clone VMs with custom suffixes, bulk operations, snapshot management, disk overlays (external snapshots)
-- **Detailed Monitoring**: Real-time CPU, memory, disk, and network usage sparklines
-- **Flexible Configuration**: Edit CPU, memory, firmware, boot, disk, network, graphics settings (including 3D acceleration), and more
-
-### Network & Storage Management
-- **Network Operations**: Create, edit, and manage virtual networks
-- **Storage Management**: Handle storage pools, volumes, perform storage operations, attach existing volumes, and edit pool paths
-- **VirtIO-FS Support**: Configure shared filesystems for enhanced VM performance
-
-### Advanced Capabilities
-- **Multi-server Management**: Connect to and manage multiple libvirt servers simultaneously
-- **Bulk Operations**: Execute commands across multiple VMs at once
-- **Web Console Access**: Integrated VNC support with novnc
-- **Migration Support**: Live and offline VM migration capabilities
-- **PCI Passthrough**: Support for hardware device passthrough
-
-### User Experience
-- **Intuitive TUI**: Color-coded status indicators, responsive layout, and visual feedback
-- **Keyboard Shortcuts**: Efficient navigation and operations with customizable key bindings
-- **Confirmation Dialogs**: Safety measures for destructive operations
 
 ## Who Is This For?
 
@@ -88,7 +67,7 @@ git clone https://github.com/aginies/virtui-manager.git
 cd virtui-manager
 ```
 
-### Zypper
+### openSUSE/SLE Zypper
 
 ```bash
 zypper in libvirt-python python3-textual python3-pyaml python3-markdown-it-py
@@ -191,7 +170,7 @@ qemu-system-x86_64 -machine pc-q35-10.1 -audio  model=help
 qemu-system-x86_64 -machine pc-q35-10.1 -net  model=help
 ```
 
-User config parameters:
+Possible User config parameters:
 - **network_models**: List of allowed network models (default: `['virtio', 'e1000', 'e1000e', 'rtl8139', 'ne2k_pci', 'pcnet']`)
 - **sound_models**: List of allowed sound models (default: `['none', 'ich6', 'ich9', 'ac97', 'sb16', 'usb']`)
 
