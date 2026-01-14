@@ -223,6 +223,20 @@ class VMService:
 
         def lifecycle_callback(conn, domain, event, detail, opaque):
             try:
+                # Debug logging to investigate 'str' object error
+                if isinstance(domain, str):
+                    logging.warning(f"lifecycle_callback received domain as string: '{domain}'. Attempting recovery.")
+                    try:
+                        # Try to look up domain by UUID or Name
+                        # Assuming string is UUID first
+                        try:
+                            domain = conn.lookupByUUIDString(domain)
+                        except libvirt.libvirtError:
+                            domain = conn.lookupByName(domain)
+                    except Exception as e:
+                         logging.error(f"Failed to recover domain from string: {e}")
+                         return
+
                 internal_id = self._get_internal_id(domain, conn, known_uri=uri)
                 logging.debug(f"Domain event: {event} detail: {detail} for {internal_id}")
 
@@ -354,12 +368,21 @@ class VMService:
         Returns (internal_id, name) for a domain.
         High-performance method using bidirectional caching to avoid libvirt calls.
         """
+        # Safety check for domain type
+        if isinstance(domain, str):
+            logging.error(f"get_vm_identity received string instead of virDomain: {domain}")
+            return "unknown", "unknown"
+
         try:
-            if known_uri:
+            if known_uri is not None:
                 uri = known_uri
             else:
                 if not conn:
-                    conn = domain.connect()
+                    if hasattr(domain, 'connect'):
+                        conn = domain.connect()
+                    else:
+                        logging.warning(f"Domain object {domain} has no connect method")
+                        return "unknown", "unknown"
                 uri = conn.getURI()
 
             name = domain.name()

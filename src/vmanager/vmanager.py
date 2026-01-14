@@ -202,6 +202,7 @@ class VMManagerTUI(App):
         super().__init__()
         self.vm_service = VMService()
         self.vm_service.set_data_update_callback(self.on_vm_data_update)
+        self.vm_service.set_vm_update_callback(self.on_vm_update)
         self.vm_service.set_message_callback(self.on_service_message)
         self.worker_manager = WorkerManager(self)
         self.webconsole_manager = WebConsoleManager(self)
@@ -264,6 +265,13 @@ class VMManagerTUI(App):
             self.call_from_thread(self.worker_manager._cleanup_finished_workers)
         except RuntimeError:
             self.worker_manager._cleanup_finished_workers()
+
+    def on_vm_update(self, internal_id: str):
+        """Callback from VMService for specific VM updates."""
+        try:
+            self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
+        except RuntimeError:
+            self.post_message(VmCardUpdateRequest(internal_id))
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
@@ -1551,18 +1559,22 @@ class VMManagerTUI(App):
             try:
                 domain = self.vm_service.find_domain_by_uuid(self.active_uris, vm_internal_id)
                 if not domain:
+                    logging.warning(f"Domain not found for update: {vm_internal_id}")
                     return
 
                 # Use cached methods to minimize libvirt calls
-                state_tuple = self.vm_service._get_domain_state(domain)
+                # Pass internal_id to ensure we hit the exact cache entry updated by the event
+                state_tuple = self.vm_service._get_domain_state(domain, internal_id=vm_internal_id)
                 if not state_tuple:
+                    logging.warning(f"Could not get state for {vm_internal_id}")
                     return
 
                 state, _ = state_tuple
+                logging.debug(f"Update card {vm_internal_id}: State={state}")
 
                 # Only fetch full info if VM is running/paused
                 if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
-                    info = self.vm_service._get_domain_info(domain)
+                    info = self.vm_service._get_domain_info(domain, internal_id=vm_internal_id)
                     if info:
                         status = get_status(domain, state=state)
                         cpu = info[3]
@@ -1580,6 +1592,8 @@ class VMManagerTUI(App):
                     else:
                         cpu = 0
                         memory = 0
+                
+                logging.info(f"Updating card {vm_internal_id} with status {status}")
                 # Update card on main thread
                 def update_ui():
                     card = self.vm_card_pool.active_cards.get(vm_internal_id)
