@@ -68,7 +68,7 @@ class AddInputDeviceModal(BaseModal[None]):
 
 def _sanitize_input(input_string: str) -> tuple[str, bool]:
     """
-    Sanitise input to alphanumeric, underscore, hyphen only.
+    Sanitise input to alphanumeric, underscore, hyphen only, period.
     Returns a tuple: (sanitized_string, was_modified).
     `was_modified` is True if any characters were removed/changed or input was empty.
     """
@@ -78,11 +78,11 @@ def _sanitize_input(input_string: str) -> tuple[str, bool]:
     if not original_stripped:
         return "", True # Empty input is considered modified
 
-    sanitized = re.sub(r'[^a-zA-Z0-9_-]', '', original_stripped)
-    
+    sanitized = re.sub(r'[^a-zA-Z0-9_-.]', '', original_stripped)
+
     if len(sanitized) > 64:
         raise ValueError("Sanitized input is too long (max 64 characters)")
-    
+
     if sanitized != original_stripped:
         was_modified = True
 
@@ -102,10 +102,10 @@ def _sanitize_domain_name(input_string: str) -> tuple[str, bool]:
 
     # Allow alphanumeric, hyphens, and periods
     sanitized = re.sub(r'[^a-zA-Z0-9.-]', '', original_stripped)
-    
+
     if len(sanitized) > 64: # Common domain name length limit
         raise ValueError("Sanitized domain name is too long (max 64 characters)")
-    
+
     if sanitized != original_stripped:
         was_modified = True
 
