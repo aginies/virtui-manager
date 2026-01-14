@@ -21,6 +21,7 @@ from config import load_config, save_config, get_log_path
 from constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
         ErrorMessages, AppInfo, StatusText, ServerPallette,
+        DialogMessages
         )
 from events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from libvirt_error_handler import register_error_handler
@@ -878,7 +879,11 @@ class VMManagerTUI(App):
             else:
                 self.push_screen(ServerPrefModal(uri=uri))
 
-        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
+        def on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
+
+        self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
 
     def _select_server_and_run(self, callback: callable, modal_title: str, modal_button_label: str) -> None:
         """
