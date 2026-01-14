@@ -14,30 +14,57 @@ from textual.widgets import (
         )
 from modals.base_modals import BaseModal, BaseDialog
 
+def _sanitize_message(message: str) -> str:
+    """
+    Escapes brackets in strings that look like file paths or invalid tags.
+    Preserves valid Rich markup tags.
+    """
+    def replacer(match):
+        content = match.group(1)
+        # Valid closing tags: [/] or [/name]
+        if content.startswith('/'):
+             if content == '/' or re.fullmatch(r"/[a-zA-Z0-9_-]+", content):
+                 return match.group(0)
+             # Invalid closing tag -> escape
+             return f"\\[{content}]"
+        
+        # Rich doesn't support / in style names (except for closing tag prefix).
+        if '/' in content and '=' not in content:
+             return f"\\[{content}]"
+
+        # If it has . inside, like [file.txt]
+        if '.' in content and '=' not in content:
+             return f"\\[{content}]"
+
+        return match.group(0)
+
+    # Use regex to find [...] patterns and replace them
+    return re.sub(r"\[(.*?)\]", replacer, message)
+
 def show_error_message(app, message: str):
     """Shows an error notification."""
     logging.error(message)
-    app.notify(message, severity="error", timeout=10, title="Error!")
+    app.notify(_sanitize_message(message), severity="error", timeout=10, title="Error!")
 
 def show_success_message(app, message: str):
     """Shows a success notification."""
     logging.info(message)
-    app.notify(message, timeout=10, title="Info")
+    app.notify(_sanitize_message(message), timeout=10, title="Info")
 
 def show_in_progress_message(app, message: str):
     """Shows an 'In Progress' notification."""
     logging.info(message)
-    app.notify(message, timeout=5, title="In Progress", severity="inprogress")
+    app.notify(_sanitize_message(message), timeout=5, title="In Progress", severity="inprogress")
 
 def show_quick_message(app, message: str):
     """Shows a quick notification."""
     logging.info(message)
-    app.notify(message, timeout=2, title="Quick Info")
+    app.notify(_sanitize_message(message), timeout=2, title="Quick Info")
 
 def show_warning_message(app, message: str):
     """Shows a warning notification."""
     logging.warning(message)
-    app.notify(message, severity="warning", timeout=10, title="Warning")
+    app.notify(_sanitize_message(message), severity="warning", timeout=10, title="Warning")
 
 class SafeDirectoryTree(DirectoryTree):
     """
