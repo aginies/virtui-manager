@@ -144,6 +144,7 @@ class VMCard(Static):
     is_selected = reactive(False)
     stats_view_mode = reactive("resources") # "resources" or "io"
     internal_id = reactive("")
+    compact_view = reactive(False)
 
     @property
     def raw_uuid(self) -> str:
@@ -413,6 +414,7 @@ class VMCard(Static):
             self.update_sparkline_data()
 
         self.update_stats()
+        self.watch_compact_view(self.compact_view)
 
     def watch_stats_view_mode(self, old_mode: str, new_mode: str) -> None:
         """Update sparklines when view mode changes."""
@@ -438,7 +440,7 @@ class VMCard(Static):
 
     def update_sparkline_data(self) -> None:
         """Updates the labels and data of the sparklines based on the current view mode."""
-        if not self.is_mounted or not self.display:
+        if not self.is_mounted or not self.display or self.compact_view:
             return
 
         uuid = self.internal_id
@@ -524,17 +526,48 @@ class VMCard(Static):
     def watch_internal_id(self, old_value: str, new_value: str) -> None:
         """Called when internal_id changes (card reuse)."""
         if old_value and old_value != new_value:
-             # Cancel old stats worker if running
-             self.app.worker_manager.cancel(f"update_stats_{old_value}")
-             self.app.worker_manager.cancel(f"actions_state_{old_value}")
-             self.app.worker_manager.cancel(f"refresh_snapshot_tab_{old_value}")
+            # Cancel old stats worker if running
+            self.app.worker_manager.cancel(f"update_stats_{old_value}")
+            self.app.worker_manager.cancel(f"actions_state_{old_value}")
+            self.app.worker_manager.cancel(f"refresh_snapshot_tab_{old_value}")
 
         if old_value != new_value:
-             # Reset heavy state UI elements
-             self.update_snapshot_tab_title(-1)
-             self.update_button_layout()
-             self.update_stats()
-             self._perform_tooltip_update()
+            # Reset heavy state UI elements
+            self.update_snapshot_tab_title(-1)
+            self.update_button_layout()
+            self.update_stats()
+            self._perform_tooltip_update()
+
+    def watch_compact_view(self, value: bool) -> None:
+        """Called when compact_view changes."""
+        if not self.ui or not self.is_mounted:
+            return
+
+        #sparklines = self.ui.get("sparklines_container")
+        collapsible = self.ui.get("collapsible")
+
+        if value: # if compact view, add hidden class
+            #if sparklines and sparklines.is_mounted:
+            #    logging.info("DEBUG remove spark")
+            #    sparklines.remove()
+            if collapsible and collapsible.is_mounted:
+                collapsible.collapsed = True
+                collapsible.remove()
+        else:
+            info_container = self.query_one("#info-container")
+            #if sparklines:
+            #    info_container.mount(sparklines)
+            if collapsible:
+                info_container.mount(collapsible)
+
+            # Ensure sparklines visibility is correct
+            self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
+
+        # Change height based on compact_view
+        if value: # Compact view
+            self.styles.height = 4
+        else: # Detailed view
+            self.styles.height = 14
 
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""

@@ -12,6 +12,7 @@ import libvirt
 from textual.app import App, ComposeResult, on
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
+from textual.binding import Binding
 from textual.widgets import (
     Button, Footer, Header, Label, Link, Static, Collapsible,
 )
@@ -143,19 +144,21 @@ class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = [
-        ("ctrl+s", "show_cache_stats", ""),
-        ("v", "view_log", "Log"),
-        ("f", "filter_view", "Filter"),
-        #("p", "server_preferences", "ServerPrefs"),
-        ("c", "config", "Config"),
-        ("s", "select_server", "SelServers"),
-        ("m", "manage_server", "ServList"),
-        ("p", "pattern_select", "PatternSel"),
-        ("ctrl+a", "toggle_select_all", "Sel/Des All"),
-        ("ctrl+u", "unselect_all", "Unselect All"),
-        ("ctrl+v", "virsh_shell", "Virsh"),
-        ("ctrl+l", "toggle_stats_logging", "Log Stats"),
-        ("q", "quit", "Quit"),
+        Binding(key="v", action="view_log", description="Log"),
+        Binding(key="f", action="filter_view", description="Filter"),
+        Binding(key="k", action="compact_view", description="CompactView", show=True),
+        #Binding(key="p", action="server_preferences", description="ServerPrefs"),
+        Binding(key="c", action="config", description="Config", show=False),
+        Binding(key="b", action="bulk_cmd", description="BulkCMD", show=True),
+        Binding(key="s", action="select_server", description="SelServers", show=False),
+        Binding(key="m", action="manage_server", description="ServList", show=False),
+        Binding(key="p", action="pattern_select", description="PatternSel"),
+        Binding(key="ctrl+a", action="toggle_select_all", description="Sel/Des All"),
+        Binding(key="ctrl+u", action="unselect_all", description="Unselect All"),
+        Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
+        Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
+        Binding(key="ctrl+s", action="show_cache_stats", description="Show cache Stats", show=False),
+        Binding(key="q", action="quit", description="Quit"),
     ]
 
     config = load_config()
@@ -195,6 +198,7 @@ class VMManagerTUI(App):
     num_pages = reactive(1)
     selected_vm_uuids: reactive[set[str]] = reactive(set)
     bulk_operation_in_progress = reactive(False)
+    compact_view = reactive(False)
 
     SERVER_COLOR_PALETTE = ServerPallette.COLOR
     CSS_PATH = ["vmanager.css", "vmcard.css", "dialog.css"]
@@ -331,7 +335,10 @@ class VMManagerTUI(App):
             # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button(ButtonLabels.BULK_CMD, id=ButtonIds.BULK_SELECTED_VMS, classes="Buttonpage")
             yield Button(ButtonLabels.PATTERN_SELECT, id=ButtonIds.PATTERN_SELECT_BUTTON, classes="Buttonpage")
-            yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
+            #yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
+            #yield Button(
+            #    ButtonLabels.COMPACT_VIEW, id=ButtonIds.COMPACT_VIEW_BUTTON, classes="Buttonpage"
+            #)
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
         yield self.ui["pagination_controls"]
@@ -578,11 +585,16 @@ class VMManagerTUI(App):
         if height > 42:
             rows = 3
 
+        if self.compact_view:
+            rows *= 3
+
         vms_container.styles.grid_size_columns = cols
         vms_container.styles.width = container_width
 
         old_vms_per_page = self.VMS_PER_PAGE
         self.VMS_PER_PAGE = cols * rows
+        if self.compact_view:
+            self.VMS_PER_PAGE = cols * rows + cols
 
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
@@ -648,6 +660,23 @@ class VMManagerTUI(App):
 
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
+
+    @on(Button.Pressed, f"#{ButtonIds.COMPACT_VIEW_BUTTON}")
+    def action_compact_view(self) -> None:
+        """Toggle compact view."""
+        self.compact_view = not self.compact_view
+
+    def watch_compact_view(self, value: bool) -> None:
+        """Update layout for compact view."""
+        for card in self.query(VMCard):
+            card.compact_view = value
+        vms_container = self.ui.get("vms_container")
+        if vms_container:
+            if value:
+                vms_container.styles.grid_rows = "4"
+            else:
+                vms_container.styles.grid_rows = "14"
+        self._update_layout_for_size()
 
     @on(Button.Pressed, "#select_server_button")
     def action_select_server(self) -> None:
@@ -1349,10 +1378,14 @@ class VMManagerTUI(App):
                     card.server_border_color = self.get_server_color(data['uri'])
                     card.status = data['status']
                     card.internal_id = uuid
+                    card.compact_view = self.compact_view
 
                 # Mount any new cards
                 if cards_to_mount:
                     vms_container.mount(*cards_to_mount)
+
+                for card in vms_container.query(VMCard):
+                    card.compact_view = self.compact_view
 
                 # Check for connection errors to display via show_error_message
                 errors = []
@@ -1519,7 +1552,8 @@ class VMManagerTUI(App):
         self.push_screen(PatternSelectModal(available_vms, available_servers, selected_servers), handle_result)
 
     @on(Button.Pressed, "#bulk_selected_vms")
-    def on_bulk_selected_vms_button_pressed(self) -> None:
+    def action_bulk_cmd(self) -> None:
+        #def on_bulk_selected_vms_button_pressed(self) -> None:
         """Handles the 'Bulk Selected' button press."""
         self._collapse_all_action_collapsibles()
         if not self.selected_vm_uuids:
