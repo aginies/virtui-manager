@@ -307,6 +307,11 @@ class VMService:
 
                     if new_state is not None:
                         self._vm_data_cache.setdefault(internal_id, {})
+                        
+                        # Get previous state for debouncing
+                        prev_state_tuple = self._vm_data_cache[internal_id].get('state')
+                        prev_state = prev_state_tuple[0] if prev_state_tuple else None
+
                         self._vm_data_cache[internal_id]['state'] = (new_state, detail)
                         self._vm_data_cache[internal_id]['state_ts'] = time.time()
 
@@ -316,10 +321,19 @@ class VMService:
                         if 'vm_details' in self._vm_data_cache[internal_id]:
                             del self._vm_data_cache[internal_id]['vm_details']
                         
-                        # Notify for specific VM update
+                        # Notify for specific VM update with debouncing
                         if self._vm_update_callback:
-                            logging.info(f"Triggering update callback for {internal_id}")
-                            self._vm_update_callback(internal_id)
+                            now = time.time()
+                            last_cb_ts = self._vm_data_cache[internal_id].get('last_cb_ts', 0)
+                            
+                            # Debounce: If state matches previous state AND last callback was < 1s ago, skip.
+                            if prev_state == new_state and (now - last_cb_ts < 1.0):
+                                logging.debug(f"Debouncing update callback for {internal_id} (State: {prev_state}->{new_state})")
+                            else:
+                                logging.info(f"Triggering update callback for {internal_id} (State: {prev_state}->{new_state})")
+                                self._vm_update_callback(internal_id)
+                                self._vm_data_cache[internal_id]['last_cb_ts'] = now
+
                         elif self._data_update_callback:
                              # Fallback to full update if no specific callback
                              self._data_update_callback()
