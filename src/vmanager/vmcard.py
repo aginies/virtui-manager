@@ -817,6 +817,7 @@ class VMCard(Static):
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
         self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading
+        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading
 
         xml_button = self.ui[ButtonIds.XML]
         if is_stopped:
@@ -905,10 +906,11 @@ class VMCard(Static):
 
         is_running = self.status == StatusText.RUNNING
         is_stopped = self.status == StatusText.STOPPED
+        is_loading = self.status == StatusText.LOADING
 
         has_snapshots = snapshot_count > 0
 
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
+        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading
         self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
 
         self.ui[ButtonIds.COMMIT_DISK].display = is_running and has_overlay
@@ -1361,7 +1363,9 @@ class VMCard(Static):
                         # Also update button visibility
                         if self.ui.get(ButtonIds.RENAME_BUTTON):
                             has_snapshots = snapshot_count > 0
-                            self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots
+                            is_running = self.status == StatusText.RUNNING
+                            is_loading = self.status == StatusText.LOADING
+                            self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading
                             self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
 
                 self.app.call_from_thread(update_ui)
