@@ -97,6 +97,7 @@ class ButtonLabels:
     COMMIT_DISK = "Commit Disk"
     DISCARD_OVERLAY = "Discard Overlay"
     SNAP_OVERLAY_HELP = "Help"
+    COMPACT_VIEW = "Compact"
 
 class ButtonIds:
     """Constants for button IDs"""
@@ -136,6 +137,7 @@ class ButtonIds:
     CREATE = "create"
     CHANGE = "change"
     CLOSE = "close"
+    COMPACT_VIEW_BUTTON = "compact-view-button"
 
 class TabTitles:
     """Constants for tab titles"""
