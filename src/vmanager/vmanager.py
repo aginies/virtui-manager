@@ -7,6 +7,7 @@ import re
 from threading import Lock
 import logging
 import argparse
+from collections import deque
 from typing import Any, Callable
 import libvirt
 
@@ -900,11 +901,11 @@ class VMManagerTUI(App):
 
     @on(Button.Pressed, "#view_log_button")
     def action_view_log(self) -> None:
-        """View the application log file."""
+        """View the application log file (last 1000 lines)."""
         log_path = get_log_path()
         try:
             with open(log_path, "r") as f:
-                log_content = f.read()
+                log_content = "".join(deque(f, 1000))
         except FileNotFoundError:
             log_content = f"Log file ({log_path}) not found."
         except Exception as e:

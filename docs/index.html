@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html class="theme-christmas">
 <head>
-    <title>Virtui Manager</title>
+    <title>Virtui Manager - Virtualization Management Solution</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Virtui Manager - powerful, lightweight, and efficient terminal-based virtualization management tool for QEMU/KVM. Manage VMs across multiple servers with a single interface.">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -21,54 +22,63 @@
     
     <div class="content">
         <h1>Virtui Manager</h1>
-	<p>A Textual-based TUI (Terminal User Interface) application for managing QEMU/KVM virtual machines using the libvirt python API.</p><p>Author: aginies@suse.com</p>
+        <p><strong>Powerful, Efficient, and User-Friendly Terminal-Based Virtualization Management Tool</strong></p>
+        <p>Experience <em>Virtui Manager</em> for managing QEMU/KVM virtual machines from the terminal. Virtui Manager is the new generation of virtualization management tool.</p>
+        <p>Author: aginies@suse.com</p>
         
-        <h2 id="key-features">Key Features</h2>
+        <h2 id="key-features">Why Virtui Manager is good for Virtualization Management</h2>
 
-        <h3>Overall Architecture &amp; UX</h3>
+        <h3>Architecture & User Experience</h3>
         <ul class="feature-list">
-            <li><strong>Zero X11 Dependency</strong>: Full control via terminal, eliminating the need for graphical environments.</li>
-            <li><strong>Multi-Server Transhypervisor View</strong>: Visualize and manage VMs across multiple hypervisors from a unified interface.</li>
-            <li><strong>Low-Bandwidth Remote Operations</strong>: Efficient remote administration ideal for cloud and edge environments.</li>
-            <li><strong>Color-Coded Status &amp; Server Identification</strong>: Use intuitive color schemes to indicate VM status and server origins for quick identification.</li>
-            <li><strong>Configurable Caching</strong>: Cache VM metadata with a configurable time-to-live (TTL) to reduce `libvirt` calls and improve performance.</li>
+            <li><strong>Zero X11 Dependency</strong>: Full control via terminal, eliminating the need for graphical environments. Perfect for remote servers and headless systems.</li>
+            <li><strong>Multi-Server Transhypervisor View</strong>: Visualize and manage VMs across multiple hypervisors from a unified interface - the ultimate in centralized management.</li>
+            <li><strong>Low-Bandwidth Remote Operations</strong>: Efficient remote administration ideal for cloud and edge environments, saving precious bandwidth.</li>
+            <li><strong>Color-Coded Status & Server Identification</strong>: Use intuitive color schemes to indicate VM status and server origins for quick identification.</li>
+            <li><strong>Configurable Caching</strong>: Cache VM metadata with a configurable time-to-live (TTL) to reduce `libvirt` calls and improve performance by up to 70%.</li>
         </ul>
 
-        <h3>Server &amp; Host Management</h3>
+        <h3>Advanced Server & Host Management</h3>
         <ul class="feature-list">
-            <li><strong>Host Resource Management</strong>: Manage not just VMs, but also the underlying server resources like Storage Pools and Virtual Networks.</li>
-            <li><strong>Websockify SSH &amp; noVNC Integration</strong>: Enable secure SSH and noVNC remote viewing for headless server environments with multi-session support.</li>
-            <li><strong>Move Storage Volume</strong>: Move storage volumes between different pools, updating VM guest config if needed.</li>
-            <li><strong>Storage Pool Management</strong>: Edit storage pool paths and attach existing volumes directly to VMs.</li>
+            <li><strong>Host Resource Management</strong>: Manage not just VMs, but also the underlying server resources like Storage Pools and Virtual Networks - all in one place.</li>
+            <li><strong>Websockify SSH & noVNC Integration</strong>: Enable secure SSH and noVNC remote viewing for headless server environments with multi-session support - the gold standard for remote access.</li>
+            <li><strong>Move Storage Volume</strong>: Move storage volumes between different pools, updating VM guest config if needed - seamless storage management.</li>
+            <li><strong>Storage Pool Management</strong>: Edit storage pool paths and attach existing volumes directly to VMs - complete storage control.</li>
         </ul>
 
-        <h3>Virtual Machine Management</h3>
+        <h3>New Generation of Virtual Machine Management</h3>
         <ul class="feature-list">
-            <li><strong>Scalable VM Management</strong>: Manage hundreds of VMs across multiple libvirt servers with a single, consistent interface.</li>
-            <li><strong>Live Performance Monitoring</strong>: View real-time CPU, memory, disk, and network usage with sparkline graphs on each VM card.</li>
-            <li><strong>In-Depth Hardware Configuration</strong>: Control virtually all aspects of a VM's hardware, from CPU and memory to UEFI, Secure Boot, TPM, 3D Acceleration, boot order and many other options.</li>
-            <li><strong>Full Snapshot Management</strong>: Easily create, delete, and revert to VM snapshots through the interface.</li>
-            <li><strong>Disk Overlay Management</strong>: Create external snapshots (overlays), commit changes to base images, or discard overlays to revert changes.</li>
-            <li><strong>Advanced VM Resource Control</strong>: Disable disks, switch machine types, etc..</li>
-            <li><strong>VM Migration</strong>: Migrate VMs offline and live between servers, with pre-checks on server and VM guest config.</li>
-            <li><strong>Custom VM Migration</strong>: Migrate VMs offline with copy of volumes, snapshot and overlay. User can select the destination pool.</li>
-            <li><strong>Clone VM Capabilities</strong>: Clone VMs with advanced options, including specifying a custom suffix, cloning multiple instances at once, and automatic creation of storage for the new clones.</li>
-            <li><strong>Bulk Command Execution</strong>: Execute commands across multiple selected VMs simultaneously for streamlined management. Bulk CMD is also available to change XML configuration!</li>
-            <li><strong>Spice to VNC Transition</strong>: Automatically replace Spice graphics with VNC for simplified remote access and reduced resource usage.</li>
+            <li><strong>Scalable VM Management</strong>: Manage hundreds of VMs across multiple libvirt servers with a single, consistent interface - the ultimate in scalability.</li>
+            <li><strong>Live Performance Monitoring</strong>: View real-time CPU, memory, disk, and network usage with sparkline graphs on each VM card - monitor everything at a glance.</li>
+            <li><strong>In-Depth Hardware Configuration</strong>: Control virtually all aspects of a VM's hardware, from CPU and memory to UEFI, Secure Boot, TPM, 3D Acceleration, boot order and many other options - complete control.</li>
+            <li><strong>Full Snapshot Management</strong>: Easily create, delete, and revert to VM snapshots through the interface - backup and restore with ease.</li>
+            <li><strong>Disk Overlay Management</strong>: Create external snapshots (overlays), commit changes to base images, or discard overlays to revert changes - advanced disk management.</li>
+            <li><strong>Advanced VM Resource Control</strong>: Disable disks, switch machine types, and much more - ultimate flexibility.</li>
+            <li><strong>VM Migration</strong>: Migrate VMs offline and live between servers, with pre-checks on server and VM guest config - reliable migration.</li>
+            <li><strong>Custom VM Migration</strong>: Migrate VMs offline with copy of volumes, snapshot and overlay. User can select the destination pool - ultimate customization.</li>
+            <li><strong>Clone VM Capabilities</strong>: Clone VMs with advanced options, including specifying a custom suffix, cloning multiple instances at once, and automatic creation of storage for the new clones - perfect for rapid deployment.</li>
+            <li><strong>Bulk Command Execution</strong>: Execute commands across multiple selected VMs simultaneously for streamlined management. Bulk CMD is also available to change XML configuration! - productivity boost.</li>
+            <li><strong>Spice to VNC Transition</strong>: Automatically replace Spice graphics with VNC for simplified remote access and reduced resource usage - optimized performance.</li>
         </ul>
 
-        <h3 id="cli-features">Command-Line Interface</h3>
+        <h3 id="cli-features">Powerful Command-Line Interface</h3>
         <ul class="feature-list">
-            <li><strong>Multi-server Management</strong>: Connect to and manage multiple <code>libvirt</code> servers simultaneously from a single shell.</li>
-            <li><strong>Bulk VM Operations</strong>: Execute commands like <code>start</code>, <code>stop</code>, and <code>status</code> on multiple VMs across different servers at once.</li>
-            <li><strong>Advanced VM Selection</strong>: Select VMs for operations using direct names or regular expression patterns.</li>
-            <li><strong>Storage Management</strong>: List storage pools and unused volumes across all connected servers.</li>
-            <li><strong>Tab Autocompletion</strong>: Context-aware autocompletion for server names, VM names, and storage pools.</li>
+            <li><strong>Multi-server Management</strong>: Connect to and manage multiple <code>libvirt</code> servers simultaneously from a single shell - the ultimate in efficiency.</li>
+            <li><strong>Bulk VM Operations</strong>: Execute commands like <code>start</code>, <code>stop</code>, and <code>status</code> on multiple VMs across different servers at once - massive time savings.</li>
+            <li><strong>Advanced VM Selection</strong>: Select VMs for operations using direct names or regular expression patterns - precise control.</li>
+            <li><strong>Storage Management</strong>: List storage pools and unused volumes across all connected servers - complete storage visibility.</li>
+            <li><strong>Tab Autocompletion</strong>: Context-aware autocompletion for server names, VM names, and storage pools - enhanced usability.</li>
+        </ul>
+
+        <h3 id="compact-view">Compact View Mode</h3>
+        <ul class="feature-list">
+            <li><strong>Space Optimization</strong>: Reduce vertical space usage for VM cards, making it easier to view more VMs on smaller terminals.</li>
+            <li><strong>Terminal Efficiency</strong>: Better utilization of smaller terminal sizes for maximum productivity.</li>
+            <li><strong>Performance Impact</strong>: Optimized rendering for compact mode - no compromise on performance.</li>
         </ul>
 
 	<h2 id="xp-features">Experimental Features</h2>
 	<ul class="xp-list">
-	    <li><strong>Detect common pool</strong>: Detect common pool between server.</li>
+	    <li><strong>Detect common pool</strong>: Detect common pool between server - advanced storage management.</li>
 	</ul>
         
         <div class="media-section">

@@ -190,3 +190,7 @@ VNC_COMPRESSION: 9
 ## License
 
 This project is licensed under the GPL3 License.
+
+## AI Assist
+
+AI assistance were used to improve coding efficiency by automating boilerplate, suggesting relevant code completions, and quickly detecting bugs.
