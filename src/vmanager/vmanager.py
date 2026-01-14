@@ -4,6 +4,7 @@ Main interface
 import os
 import sys
 import re
+from threading import Lock
 import logging
 import argparse
 from typing import Any, Callable
@@ -77,6 +78,7 @@ class WorkerManager:
     def __init__(self, app: App):
         self.app = app
         self.workers: dict[str, Worker] = {}
+        self._lock = Lock()
 
     def run(
         self,
@@ -95,18 +97,23 @@ class WorkerManager:
         if exclusive and self.is_running(name):
             #logging.warning(f"Worker '{name}' is already running. Skipping new run.")
             return None
+        with self._lock:
+            self._cleanup_finished_workers()
+            if exclusive and name in self.workers:
+                logger.debug(f"Worker '{name}' is already running. Skipping new run.")
+                return None
 
-        worker = self.app.run_worker(
-            callable,
-            name=name,
-            thread=thread,
-            group=group,
-            exclusive=exclusive,
-            description=description,
-            exit_on_error=exit_on_error,
-        )
+            worker = self.app.run_worker(
+                callable,
+                name=name,
+                thread=thread,
+                group=group,
+                exclusive=exclusive,
+                description=description,
+                exit_on_error=exit_on_error,
+            )
+            self.workers[name] = worker
 
-        self.workers[name] = worker
         return worker
 
     def _cleanup_finished_workers(self) -> None:
@@ -120,25 +127,32 @@ class WorkerManager:
 
     def is_running(self, name: str) -> bool:
         """Check if a worker with the given name is currently running."""
-        self._cleanup_finished_workers()
-        return name in self.workers and self.workers[name].state not in (
-            WorkerState.SUCCESS,
-            WorkerState.CANCELLED,
-            WorkerState.ERROR,
-        )
+        with self._lock:
+            self._cleanup_finished_workers()
+            return name in self.workers
 
-    def cancel(self, name: str) -> bool:
-        """Cancel a running worker by name. Returns True if cancelled, False otherwise."""
-        if name in self.workers:
-            self.workers[name].cancel()
-            return True
-        return False
+    def cancel(self, name: str) -> Worker | None:
+        """
+        Cancel a running worker by name.
+
+        Returns the cancelled Worker if found, None otherwise.
+        """
+        with self._lock:
+            worker = self.workers.pop(name, None)
+
+        if worker:
+            worker.cancel()
+            return worker
+        return None
 
     def cancel_all(self) -> None:
         """Cancel all running workers."""
-        for worker in list(self.workers.values()):
+        with self._lock:
+            workers = list(self.workers.values())
+            self.workers.clear()
+
+        for worker in workers:
             worker.cancel()
-        self.workers.clear()
 
 class VMManagerTUI(App):
     """A Textual application to manage VMs."""
@@ -283,6 +297,13 @@ class VMManagerTUI(App):
         Called when bulk_operation_in_progress changes.
         Disables or enables the collapsible 'Actions' button on all VM cards.
         """
+        if in_progress:
+            self._previous_compact_view = self.compact_view
+            self.compact_view = True
+        else:
+            if hasattr(self, '_previous_compact_view'):
+                self.compact_view = self._previous_compact_view
+
         for card in self.vm_card_pool.active_cards.values():
             if card.is_mounted:
                 try:
@@ -601,12 +622,12 @@ class VMManagerTUI(App):
 
         self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 4
 
-        if self.VMS_PER_PAGE > 9 and old_vms_per_page <= 9:
+        if self.VMS_PER_PAGE > 9 and old_vms_per_page <= 9 and not self.compact_view:
             self.show_warning_message(
                 f"Displaying [b]{self.VMS_PER_PAGE}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
             )
 
-        self.refresh_vm_list()
+        self.refresh_vm_list(force=True)
 
     def on_resize(self, event):
         """Handle terminal resize events."""
@@ -614,7 +635,7 @@ class VMManagerTUI(App):
             return
         if self._resize_timer:
             self._resize_timer.stop()
-        self._resize_timer = self.set_timer(1, self._update_layout_for_size)
+        self._resize_timer = self.set_timer(0.5, self._update_layout_for_size)
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
@@ -664,6 +685,9 @@ class VMManagerTUI(App):
     @on(Button.Pressed, f"#{ButtonIds.COMPACT_VIEW_BUTTON}")
     def action_compact_view(self) -> None:
         """Toggle compact view."""
+        if self.bulk_operation_in_progress:
+            self.show_warning_message("Compact view is locked during bulk operations.")
+            return
         self.compact_view = not self.compact_view
 
     def watch_compact_view(self, value: bool) -> None:
@@ -1168,8 +1192,10 @@ class VMManagerTUI(App):
             def on_refresh_complete():
                 self.bulk_operation_in_progress = False
 
-            force_refresh = True
-            self.call_from_thread(self.refresh_vm_list, force=force_refresh, on_complete=on_refresh_complete)
+            def do_refresh():
+                self.refresh_vm_list(force=True, on_complete=on_refresh_complete)
+
+            self.call_from_thread(do_refresh)
 
 
     def change_connection(self, uri: str) -> None:
