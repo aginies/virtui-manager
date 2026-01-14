@@ -322,9 +322,9 @@ class WebConsoleDialog(BaseDialog[str | None]):
 
     def compose(self):
         yield Vertical(
-            Markdown("**Web Console** is running at: (ctrl+click to open)"),
+            Markdown("**Web Console** is running at:"),
             Markdown(self.url),
-            #Link("Open Link To a Browser", url=self.url),
+            Markdown("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console."),
             Label(""),
             Horizontal(
                 Button(ButtonLabels.STOP, variant="error", id=ButtonIds.STOP),

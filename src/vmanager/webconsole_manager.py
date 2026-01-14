@@ -7,7 +7,6 @@ import os
 import signal
 import socket
 import subprocess
-import tempfile
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime

@@ -82,10 +82,12 @@ CustomMigrationModal Select {
 SelectSnapshotDialog > #dialog,
 SnapshotNameDialog > #dialog { height: 20;}
 DeleteVMConfirmationDialog > #delete-vm-dialog,
+WebConsoleDialog > #webconsole-dialog,
 ConfirmationDialog > #dialog { 
   height: 15; 
   border: $error; 
 }
+
 #file-tree {
    height: 90%;
 }
