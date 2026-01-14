@@ -1226,16 +1226,30 @@ class VMManagerTUI(App):
                     info = self.vm_service._get_domain_info(domain)
                     cached_details = self.vm_service.get_cached_vm_details(uuid)
 
+                    # Explicitly get state from cache/service which might be event-updated
+                    # This avoids flickering if domain.info() (fetched by _get_domain_info) lags behind events
+                    state_tuple = self.vm_service._get_domain_state(domain, internal_id=uuid)
+
+                    effective_state = None
+                    if state_tuple:
+                        effective_state = state_tuple[0]
+                    elif info:
+                        effective_state = info[0]
+
+                    if effective_state is not None:
+                        status = get_status(domain, state=effective_state)
+                    elif cached_details:
+                        status = cached_details['status']
+                    else:
+                        status = StatusText.LOADING
+
                     if info:
-                        status = get_status(domain, state=info[0])
                         cpu = info[3]
                         memory = info[1] // 1024
                     elif cached_details:
-                        status = cached_details['status']
                         cpu = cached_details['cpu']
                         memory = cached_details['memory']
                     else:
-                        status = StatusText.LOADING
                         cpu = 0
                         memory = 0
 
@@ -1554,7 +1568,7 @@ class VMManagerTUI(App):
         Called when a VM card needs fresh data.
         """
         vm_internal_id = message.internal_id
-        logging.info(f"Only refresh ID: {vm_internal_id}")
+        logging.debug(f"Only refresh ID: {vm_internal_id}")
         def update_single_card():
             try:
                 domain = self.vm_service.find_domain_by_uuid(self.active_uris, vm_internal_id)
@@ -1593,7 +1607,7 @@ class VMManagerTUI(App):
                         cpu = 0
                         memory = 0
                 
-                logging.info(f"Updating card {vm_internal_id} with status {status}")
+                logging.debug(f"Updating card {vm_internal_id} with status {status}")
                 # Update card on main thread
                 def update_ui():
                     card = self.vm_card_pool.active_cards.get(vm_internal_id)

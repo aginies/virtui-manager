@@ -287,7 +287,7 @@ class VMService:
                     if event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
                         self._domain_cache[internal_id] = domain
                         self._uuid_to_conn_cache[internal_id] = conn
-                        new_state = libvirt.VIR_DOMAIN_SHUTOFF
+
                         # Also update name cache
                         self.get_vm_identity(domain, conn, known_uri=uri)
                         # If config updated, invalidate cache so new XML is fetched
@@ -309,7 +309,6 @@ class VMService:
                         self._vm_data_cache.setdefault(internal_id, {})
                         self._vm_data_cache[internal_id]['state'] = (new_state, detail)
                         self._vm_data_cache[internal_id]['state_ts'] = time.time()
-                        logging.info(f"Debug {self._vm_data_cache[internal_id]['state']}")
 
                         # Always invalidate info/details cache on state change to ensure UI gets fresh data
                         if 'info' in self._vm_data_cache[internal_id]:
@@ -384,6 +383,9 @@ class VMService:
                         logging.warning(f"Domain object {domain} has no connect method")
                         return "unknown", "unknown"
                 uri = conn.getURI()
+                # Clean up URI to match canonical form (remove internal params like no_tty)
+                if uri:
+                    uri = uri.replace("?no_tty=1", "").replace("&no_tty=1", "")
 
             name = domain.name()
 
@@ -661,15 +663,15 @@ class VMService:
             try:
                 state = domain.state()
                 with self._cache_lock:
-                    self._vm_data_cache.setdefault(uuid, {})
-                    vm_cache = self._vm_data_cache[uuid]
-                    vm_cache['state'] = state
-                    vm_cache['state_ts'] = now
-                    logging.debug(f"Cache WRITE for VM state: {uuid}")
+                    # Check if state has been populated by an event while we were fetching
+                    # If events are enabled, avoid overwriting a potentially newer event update
+                    vm_cache = self._vm_data_cache.get(uuid, {})
+                    if not self._events_enabled or vm_cache.get('state') is None:
+                        self._vm_data_cache.setdefault(uuid, {})
+                        self._vm_data_cache[uuid]['state'] = state
+                        self._vm_data_cache[uuid]['state_ts'] = now
             except libvirt.libvirtError:
                 return None
-        else:
-            logging.debug(f"Cache HIT for VM state: {uuid}")
         return state
 
 
@@ -880,7 +882,7 @@ class VMService:
             net_tx_bytes = 0
 
             # Use cached XML if available, otherwise skip I/O stats to avoid libvirt XMLDesc call
-            xml_content = self._get_domain_xml(domain) # Handles locking internally
+            xml_content = self._get_domain_xml(domain, internal_id=uuid) # Handles locking internally
 
             if not xml_content:
                 # Skip I/O stats calculation if XML is not cached
