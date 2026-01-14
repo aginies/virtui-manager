@@ -16,6 +16,15 @@ class VMCardPool:
         self.active_cards: dict[str, VMCard] = {}  # uuid -> card
         self.last_page_order: list[str] = []  # Track last page's UUID order
 
+    def prefill_pool(self) -> None:
+        """Prefill the pool with cards up to pool_size."""
+        current_count = len(self.available_cards)
+        if current_count < self.pool_size:
+            to_create = self.pool_size - current_count
+            #logging.info(f"Prefilling pool with {to_create} cards")
+            for _ in range(to_create):
+                self.available_cards.append(VMCard(is_selected=False))
+
     def get_or_create_card(self, uuid: str) -> VMCard:
         """Get a card from the pool or create a new one."""
         # If we already have an active card for this UUID, return it
@@ -25,11 +34,11 @@ class VMCardPool:
         # Try to reuse a card from the pool
         if self.available_cards:
             card = self.available_cards.pop()
-            logging.debug(f"Reusing card from pool for {uuid}")
+            #logging.info(f"Reusing card from pool for {uuid}")
         else:
             # Create new card if pool is empty
             card = VMCard(is_selected=False)
-            logging.debug(f"Creating new card for {uuid}")
+            #logging.info(f"Creating new card for {uuid}")
 
         self.active_cards[uuid] = card
         return card
