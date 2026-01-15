@@ -230,7 +230,7 @@ class VMManagerTUI(App):
         self._color_index = 0
         self.ui = {}
         self.devel = "(Devel v" + AppInfo.version + ")"
-        self.vm_card_pool = VMCardPool(self.VMS_PER_PAGE + 4)
+        self.vm_card_pool = VMCardPool(self.VMS_PER_PAGE + 8)
         self._resize_timer = None
         self.filtered_server_uris = None
         self.last_total_calls = {}
@@ -421,6 +421,8 @@ class VMManagerTUI(App):
             if self.active_uris:
                 self.initial_cache_loading = True
                 self.worker_manager.run(self._perform_initial_connection_and_cache, name="initial_connect")
+            # Ensure layout and pool are initialized
+            self._update_layout_for_size()
 
     def _perform_initial_connection_and_cache(self):
         """Connects to servers in background and then triggers cache loading."""
@@ -621,7 +623,8 @@ class VMManagerTUI(App):
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
 
-        self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 4
+        self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 8
+        self.vm_card_pool.prefill_pool()
 
         if self.VMS_PER_PAGE > 9 and old_vms_per_page <= 9 and not self.compact_view:
             self.show_warning_message(
@@ -933,11 +936,12 @@ class VMManagerTUI(App):
             else:
                 self.push_screen(ServerPrefModal(uri=uri))
 
-        def on_confirm(confirmed: bool) -> None:
-            if confirmed:
-                self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
+        #def on_confirm(confirmed: bool) -> None:
+        #    if confirmed:
+        #        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
 
-        self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
+        #self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
+        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
 
     def _select_server_and_run(self, callback: callable, modal_title: str, modal_button_label: str) -> None:
         """
