@@ -87,6 +87,9 @@ ConfirmationDialog > #dialog {
   height: 15; 
   border: $error; 
 }
+SelectOneServerModal > #select-one-server-container, {
+  height: 10
+}
 
 #file-tree {
    height: 90%;
