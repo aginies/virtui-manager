@@ -756,7 +756,13 @@ class VMService:
 
         if xml is None or (now - xml_ts >= self._xml_cache_ttl):
             try:
-                xml = domain.XMLDesc(0)
+                try:
+                    # Try getting secure XML first (includes secrets like VNC password)
+                    xml = domain.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
+                except libvirt.libvirtError:
+                    # Fallback if denied or not supported
+                    xml = domain.XMLDesc(0)
+
                 with self._cache_lock:
                     self._vm_data_cache.setdefault(uuid, {})
                     vm_cache = self._vm_data_cache[uuid]
