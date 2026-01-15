@@ -164,7 +164,7 @@ class SparklineLabels:
 
 class ErrorMessages:
     """Constants for error messages"""
-    VIRT_VIEWER_NOT_FOUND = "virt-viewer command not found. Please ensure it is installed."
+    R_VIEWER_NOT_FOUND = "Remote viewer command not found. Please ensure it is installed."
     CANNOT_OPEN_DISPLAY = "Could not open display. Ensure you are in a graphical session."
     HARD_STOP_WARNING = "This is a hard stop, like unplugging the power cord."
     MIGRATION_LOCALHOST_NOT_SUPPORTED = "Migration from localhost (qemu:///system) is not supported.\nA full remote URI (e.g., qemu+ssh://user@host/system) is required."

@@ -1249,7 +1249,7 @@ class VMCard(Static):
             logging.error(f"Unexpected error handling XML button: {traceback.format_exc()}")
 
     def _handle_connect_button(self, event: Button.Pressed) -> None:
-        """Handles the connect button press by running virt-viewer in a worker."""
+        """Handles the connect button press by running the remove virt viewer in a worker."""
         logging.info(f"Attempting to connect to VM: {self.name}")
         if not hasattr(self, 'conn') or not self.conn:
             self.app.show_error_message("Connection info not available for this VM.")
@@ -1263,30 +1263,33 @@ class VMCard(Static):
                     uri = self.conn.getURI()
 
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
+                rviewer = "/usr/bin/virtui-remote-viewer.py"
+                command = [ rviewer, "--connect", uri, "--domain-name", domain_name]
+                logging.info(f"Spawning detached {rviewer}: {' '.join(command)}")
 
-                command = ["virt-viewer", "--connect", uri, "--wait", domain_name]
-                logging.info(f"Spawning detached virt-viewer: {' '.join(command)}")
-
+                env = os.environ.copy()
+                env['GDK_BACKEND'] = 'x11'
                 try:
                     proc = subprocess.Popen(
                         command,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         preexec_fn=os.setsid,
+                        env=env
                     )
-                    logging.info(f"virt-viewer started with PID {proc.pid} for {domain_name}")
+                    logging.info(f"{rviewer} started with PID {proc.pid} for {domain_name}")
                 except Exception as e:
-                    logging.error(f"Failed to spawn virt-viewer for {domain_name}: {e}")
+                    logging.error(f"Failed to spawn {rviewer} for {domain_name}: {e}")
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"virt-viewer failed to start: {e}"
+                        f"{rviewer} failed to start: {e}"
                     )
                     return
 
             except FileNotFoundError:
                 self.app.call_from_thread(
                     self.app.show_error_message,
-                    ErrorMessages.VIRT_VIEWER_NOT_FOUND
+                    ErrorMessages.R_VIEWER_NOT_FOUND
                 )
             except libvirt.libvirtError as e:
                 self.app.call_from_thread(
