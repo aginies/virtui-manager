@@ -831,7 +831,7 @@ class VMCard(Static):
             # Check if collapsible is expanded before fetching heavy data
             collapsible = self.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
-                self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
+                self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                 self.app.worker_manager.run(
                     self._fetch_actions_state_worker,
                     name=f"actions_state_{self.internal_id}",
@@ -1258,7 +1258,7 @@ class VMCard(Static):
                 uri = self.app.vm_service.get_uri_for_connection(self.conn)
                 if not uri:
                     uri = self.conn.getURI()
-                
+
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
 
                 command = ["virt-viewer", "--connect", uri, "--wait", domain_name]
@@ -1351,7 +1351,7 @@ class VMCard(Static):
                     create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
-                    self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
+                    self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
                 except Exception as e:
                     self.app.show_error_message(f"Snapshot error for [b]{self.name}[/b]: {e}")
@@ -1375,7 +1375,7 @@ class VMCard(Static):
                     self.app.vm_service.invalidate_vm_cache(self.internal_id)
                     self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
                     self._boot_device_checked = False
-                    self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
+                    #self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
                     logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {self.name}")
                 except Exception as e:
@@ -1402,7 +1402,7 @@ class VMCard(Static):
                             self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")
                             self.app.vm_service.invalidate_vm_cache(self.internal_id)
                             self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
-                            self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
+                            self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
                         except Exception as e:
                             self.app.show_error_message(f"Error on VM [b]{self.name}[/b] during 'snapshot delete': {e}")
@@ -1654,7 +1654,7 @@ class VMCard(Static):
                     self._refresh_snapshot_tab_async()
                     if confirmed:
                         do_rename(delete_snapshots=True)
-                        self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
+                        self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                     else:
                         self.app.show_success_message("VM rename cancelled.")
 
