@@ -875,7 +875,7 @@ class VMCard(Static):
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
-            snapshot_count = 0
+            snapshot_summary = {'count': 0, 'latest': None}
             has_overlay = False
             domain_missing = False
             state_tuple = self.app.vm_service._get_domain_state(self.vm)
@@ -890,12 +890,12 @@ class VMCard(Static):
                     last_fetch = cached_data.get('time', 0)
                     if time.time() - last_fetch < 2:
                         # Use cached data and update UI immediately
-                        snapshot_count = cached_data.get('count', 0)
+                        snapshot_summary = cached_data.get('snapshot_summary', {'count': 0, 'latest': None})
                         has_overlay = cached_data.get('has_overlay', False)
                         try:
-                            self.app.call_from_thread(self._update_slow_buttons, snapshot_count, has_overlay)
+                            self.app.call_from_thread(self._update_slow_buttons, snapshot_summary, has_overlay)
                         except RuntimeError:
-                            self._update_slow_buttons(snapshot_count, has_overlay)
+                            self._update_slow_buttons(snapshot_summary, has_overlay)
                         return
                 elif isinstance(cached_data, (int, float)):
                     if time.time() - cached_data < 2:
@@ -909,6 +909,21 @@ class VMCard(Static):
             #        domain_missing = True
             #    else:
             #        logging.warning(f"Could not get snapshot count for {self.name}: {e}")
+
+            try:
+                if self.vm and not domain_missing:
+                    # Optimization: only fetch full details if there are snapshots
+                    if self.vm.snapshotNum(0) > 0:
+                        snapshots = get_vm_snapshots(self.vm)
+                        if snapshots:
+                            snapshot_summary['count'] = len(snapshots)
+                            latest = snapshots[0]
+                            snapshot_summary['latest'] = {
+                                'name': latest['name'],
+                                'time': latest['creation_time']
+                            }
+            except Exception:
+                pass
 
             try:
                 if self.vm and not domain_missing:
@@ -929,12 +944,12 @@ class VMCard(Static):
 
             self.app._last_snapshot_fetch[last_fetch_key] = {
                 'time': time.time(),
-                'count': snapshot_count,
+                'snapshot_summary': snapshot_summary,
                 'has_overlay': has_overlay
             }
 
             def update_ui():
-                self._update_slow_buttons(snapshot_count, has_overlay)
+                self._update_slow_buttons(snapshot_summary, has_overlay)
             
             try:
                 self.app.call_from_thread(update_ui)
@@ -944,10 +959,26 @@ class VMCard(Static):
         except Exception as e:
             logging.error(f"Error in actions state worker for {self.name}: {e}")
 
-    def _update_slow_buttons(self, snapshot_count: int, has_overlay: bool):
+    def _update_slow_buttons(self, snapshot_summary: dict, has_overlay: bool):
         """Updates buttons that rely on heavy state."""
         if not self.ui.get(ButtonIds.RENAME_BUTTON):
             return
+
+        snapshot_count = snapshot_summary.get('count', 0)
+
+        # Update Tooltip on TabPane
+        tabbed_content = self.ui.get("tabbed_content")
+        if tabbed_content:
+            try:
+                pane = tabbed_content.get_tab("snapshot-tab")
+                if snapshot_count > 0:
+                    latest = snapshot_summary.get('latest')
+                    info = f"Latest: {latest['name']} ({latest['time']})" if latest else "Unknown"
+                    pane.tooltip = f"{info}\nTotal: {snapshot_count}"
+                else:
+                    pane.tooltip = "No Snapshots created"
+            except Exception:
+                pass
 
         is_running = self.status == StatusText.RUNNING
         is_stopped = self.status == StatusText.STOPPED
@@ -1389,22 +1420,48 @@ class VMCard(Static):
                 if not self.vm:
                     return
 
-                # Fetch current snapshot count
-                snapshot_count = 0
+                # Fetch current snapshot count and summary
+                snapshot_summary = {'count': 0, 'latest': None}
                 try:
-                    snapshot_count = self.vm.snapshotNum(0)
+                    # Optimization: only fetch full details if there are snapshots
+                    if self.vm.snapshotNum(0) > 0:
+                        snapshots = get_vm_snapshots(self.vm)
+                        if snapshots:
+                            snapshot_summary['count'] = len(snapshots)
+                            latest = snapshots[0]
+                            snapshot_summary['latest'] = {
+                                'name': latest['name'],
+                                'time': latest['creation_time']
+                            }
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                         logging.info(f"Domain no longer exists for {self.name}")
                         return
                     else:
-                        logging.warning(f"Could not get snapshot count for {self.name}: {e}")
+                        logging.warning(f"Could not get snapshot details for {self.name}: {e}")
                         return
+
+                snapshot_count = snapshot_summary.get('count', 0)
 
                 # Update UI on main thread
                 def update_ui():
                     if self.is_mounted:
                         self.update_snapshot_tab_title(snapshot_count)
+
+                        # Update Tooltip on TabPane
+                        tabbed_content = self.ui.get("tabbed_content")
+                        if tabbed_content:
+                            try:
+                                pane = tabbed_content.get_tab("snapshot-tab")
+                                if snapshot_count > 0:
+                                    latest = snapshot_summary.get('latest')
+                                    info = f"Latest: {latest['name']} ({latest['time']})" if latest else "Unknown"
+                                    pane.tooltip = f"{info}\nTotal: {snapshot_count}"
+                                else:
+                                    pane.tooltip = "No Snapshots created"
+                            except Exception:
+                                pass
+
                         # Also update button visibility
                         if self.ui.get(ButtonIds.RENAME_BUTTON):
                             has_snapshots = snapshot_count > 0
