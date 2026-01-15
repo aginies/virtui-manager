@@ -1214,7 +1214,10 @@ class VMCard(Static):
             vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
             cached_xml = vm_cache.get('xml')
 
-            original_xml = self.vm.XMLDesc(0)
+            try:
+                original_xml = self.vm.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
+            except libvirt.libvirtError:
+                original_xml = self.vm.XMLDesc(0)
             is_stopped = self.status == StatusText.STOPPED
 
             def handle_xml_modal_result(modified_xml: str | None):
