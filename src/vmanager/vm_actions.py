@@ -1358,8 +1358,11 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
         if not pwd:
             return None
         pwd = pwd.strip()
-        if len(pwd) < 6 or len(pwd) > 8:
-            raise ValueError("Password must be 6-8 characters long")
+
+        # Validation
+        if graphics_type == 'vnc' and len(pwd) > 8:
+            raise ValueError("VNC password cannot exceed 8 characters")
+
         if not pwd.isprintable() or any(c in pwd for c in '\n\r\t'):
             raise ValueError("Password contains invalid characters")
         return pwd
@@ -1781,13 +1784,13 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
         # Get XML from original domain first (if possible) to avoid issues if it's already gone
         # But for storage lookup we might need the connection.
         # We will try to lookup the domain on the new connection.
-        
+
         domain_to_delete = None
         try:
             domain_to_delete = delete_conn.lookupByUUIDString(vm_uuid)
         except libvirt.libvirtError:
             log(f"VM '{vm_name}' not found on new connection (might be already deleted).")
-        
+
         root = None
         disks_to_delete = []
         xml_desc = None
@@ -1803,7 +1806,7 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                 except libvirt.libvirtError as e:
                     log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
                     # If we can't get XML, we can't find disks to delete, but we should still try to undefine
-            
+
              if domain_to_delete.isActive():
                 log(f"VM '{vm_name}' is active. Forcefully stopping it...")
                 try:
