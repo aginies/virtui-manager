@@ -214,6 +214,8 @@ def get_vm_network_ip(domain) -> list:
     Returns a list of dictionaries, where each dictionary represents an interface
     and contains its MAC address and a list of IP addresses.
     """
+    if domain is None:
+        return []
     if domain.state()[0] == libvirt.VIR_DOMAIN_RUNNING or domain.state()[0] == libvirt.VIR_DOMAIN_PAUSED:
         ip_addresses = []
         try:
