@@ -85,6 +85,15 @@ CustomMigrationModal Select {
   width: 75%;
   border: none ;
 }
+#expert-mem,
+#expert-cpu, {
+  width: 20%;
+}
+#expert-disk-size,
+#expert-disk-format, {
+  width: 30%;
+}
+
 #iso-path-label {
   height: 1;
   margin: 0 0;
@@ -92,12 +101,12 @@ CustomMigrationModal Select {
   margin-bottom: 0;
 }
 #iso-select {
-  height: 7;
+  height: 8;
   width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
 InstallVMModal > #install-dialog, {
-  width: 80;
+  width: 88;
 }
 SelectSnapshotDialog > #dialog {
   width: 68;
