@@ -393,7 +393,7 @@ class VMManagerTUI(App):
             )
             self.r_viewer_available = False
         else:
-            self.show_success_message(f" {self.r_viewer} selected.")
+            self.show_quick_message(f"The remove viewer {self.r_viewer} has been selected.")
 
         if not check_websockify():
             self.show_error_message(
