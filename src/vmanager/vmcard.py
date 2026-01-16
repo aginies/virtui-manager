@@ -1277,11 +1277,12 @@ class VMCard(Static):
                         #env=env
                     )
                     logging.info(f"{self.app.r_viewer} started with PID {proc.pid} for {domain_name}")
+                    self.app.show_quick_message(f"Remote viewer {self.app.r_viewer} started for {domain_name}")
                 except Exception as e:
                     logging.error(f"Failed to spawn {self.app.r_viewer} for {domain_name}: {e}")
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"{self.app.r_viewer} failed to start: {e}"
+                        f"{self.app.r_viewer} failed to start for {domain_name}: {e}"
                     )
                     return
 
