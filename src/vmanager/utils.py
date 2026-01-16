@@ -168,20 +168,25 @@ def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str
     return messages
 
 
-def check_virt_viewer() -> bool:
+def check_r_viewer() -> bool:
     """
-    Checks if virt-viewer is installed.
+    Checks if r-viewer is installed.
 
     Returns:
-        bool: True if virt-viewer is installed, False otherwise
+        str: return the viewer to use or None
 
     Raises:
         Exception: For unexpected errors during check
     """
     try:
-        return shutil.which("virt-viewer") is not None
+        if shutil.which("virtui-remote-viewer.py") is not None:
+            return "virtui-remote-viewer.py"
+        elif shutil.which("virt-viewer") is not None:
+            return "virt-viewer"
+        else:
+            return None
     except Exception as e:
-        logging.error(f"Error checking virt-viewer: {e}")
+        logging.error(f"Error checking r-viewer: {e}")
         return False
 
 

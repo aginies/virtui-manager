@@ -51,7 +51,7 @@ from modals.vmanager_modals import (
 from modals.virsh_modals import VirshShellScreen
 from utils import (
     check_novnc_path,
-    check_virt_viewer,
+    check_r_viewer,
     check_websockify,
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
@@ -180,7 +180,7 @@ class VMManagerTUI(App):
 
     config = load_config()
     servers = config.get('servers', [])
-    virt_viewer_available = reactive(True)
+    r_viewer_available = reactive(True)
     websockify_available = reactive(True)
     novnc_available = reactive(True)
     initial_cache_loading = reactive(False)
@@ -241,6 +241,7 @@ class VMManagerTUI(App):
         self._stats_interval_timer = None
         self.last_increase = {}  # Dict {uri: last_how_many_more}
         self.last_method_increase = {}  # Dict {(uri, method): last_increase}
+        self.r_viewer = None
 
     def on_unmount(self) -> None:
         """Called when the application is unmounted."""
@@ -383,11 +384,14 @@ class VMManagerTUI(App):
         register_error_handler()
         self.title = f"{AppInfo.namecase} {self.devel}"
 
-        if not check_virt_viewer():
+        self.r_viewer = check_r_viewer()
+        if self.r_viewer is None:
             self.show_error_message(
                 ErrorMessages.R_VIEWER_NOT_FOUND
             )
-            self.virt_viewer_available = False
+            self.r_viewer_available = False
+        else:
+            self.show_success_message(f" {self.r_viewer} selected.")
 
         if not check_websockify():
             self.show_error_message(

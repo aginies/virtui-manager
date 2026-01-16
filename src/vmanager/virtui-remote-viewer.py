@@ -2,8 +2,8 @@
 """
 Simple remote viewer
 """
-import os
-os.environ['GDK_BACKEND'] = 'x11'
+#import os
+#os.environ['GDK_BACKEND'] = 'x11'
 import argparse
 import sys
 import xml.etree.ElementTree as ET
@@ -430,7 +430,7 @@ class RemoteViewer(Gtk.Application):
         self.load_state()
 
         domain_name = self.domain.name()
-        title = f"{domain_name} - Remote Viewer"
+        title = f"{domain_name} - Virtui Manager Viewer"
         subtitle = self.uri
         if self.attach:
             subtitle += " (Attached)"

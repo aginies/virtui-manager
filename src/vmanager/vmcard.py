@@ -857,7 +857,7 @@ class VMCard(Static):
         self.ui[ButtonIds.RENAME_BUTTON].display = is_stopped
         self.ui[ButtonIds.PAUSE].display = is_running
         self.ui[ButtonIds.RESUME].display = is_paused
-        self.ui[ButtonIds.CONNECT].display = self.app.virt_viewer_available
+        self.ui[ButtonIds.CONNECT].display = self.app.r_viewer_available
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
@@ -1263,9 +1263,8 @@ class VMCard(Static):
                     uri = self.conn.getURI()
 
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
-                rviewer = "/usr/bin/virtui-remote-viewer.py"
-                command = [ rviewer, "--connect", uri, "--domain-name", domain_name]
-                logging.info(f"Spawning detached {rviewer}: {' '.join(command)}")
+                command = [ self.app.r_viewer, "--connect", uri, "--domain-name", domain_name]
+                logging.info(f"Spawning detached {self.app.r_viewer}: {' '.join(command)}")
 
                 #env = os.environ.copy()
                 #env['GDK_BACKEND'] = 'x11'
@@ -1277,12 +1276,12 @@ class VMCard(Static):
                         preexec_fn=os.setsid,
                         #env=env
                     )
-                    logging.info(f"{rviewer} started with PID {proc.pid} for {domain_name}")
+                    logging.info(f"{self.app.r_viewer} started with PID {proc.pid} for {domain_name}")
                 except Exception as e:
-                    logging.error(f"Failed to spawn {rviewer} for {domain_name}: {e}")
+                    logging.error(f"Failed to spawn {self.app.r_viewer} for {domain_name}: {e}")
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"{rviewer} failed to start: {e}"
+                        f"{self.app.r_viewer} failed to start: {e}"
                     )
                     return
 
@@ -1303,7 +1302,7 @@ class VMCard(Static):
                     "An unexpected error occurred while trying to connect."
                 )
 
-        self.app.worker_manager.run(do_connect, name=f"virt_viewer_{self.name}")
+        self.app.worker_manager.run(do_connect, name=f"r_viewer_{self.name}")
 
     def _handle_web_console_button(self, event: Button.Pressed) -> None:
         """Handles the web console button press by opening a config dialog."""
