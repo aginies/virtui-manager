@@ -191,6 +191,7 @@ PasswordModal Button {
   margin-left: 1;
 }
 AddPoolModal #browse-dir-btn,
+InstallVMModal #browse-iso-btn,
 AttachVolumeModal #browse-vol-btn,
 AddDiskModal #browse-disk-btn, {
   height: 3;
@@ -207,6 +208,7 @@ PasswordModal Input,
 AddInputDeviceModal Select {
   margin-bottom: 1;
 }
+InstallVMModal #custom-iso-path,
 AddPoolModal #dir-target-path-input,
 AttachVolumeModal #vol-path-input,
 AddDiskModal #disk-path-input {

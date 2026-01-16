@@ -14,6 +14,7 @@ from storage_manager import list_storage_pools
 from vm_service import VMService
 from utils import remote_viewer_cmd
 from modals.base_modals import BaseModal
+from modals.utils_modals import FileSelectionModal
 
 class InstallVMModal(BaseModal[str | None]):
     """
@@ -57,8 +58,7 @@ class InstallVMModal(BaseModal[str | None]):
                 yield Label("Custom ISO (Local Path):", classes="label")
                 with Horizontal():
                     yield Input(placeholder="/path/to/local.iso", id="custom-iso-path", classes="path-input")
-                    # Future: File Picker Button
-
+                    yield Button("Browse", id="browse-iso-btn")
                 yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
                 yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
                 yield Label("", id="checksum-status", classes="status-text")
@@ -168,6 +168,16 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Button.Pressed, "#cancel-btn")
     def on_cancel(self):
         self.dismiss()
+
+    @on(Button.Pressed, "#browse-iso-btn")
+    def on_browse_iso(self):
+        """Open file picker for Custom ISO."""
+        def set_path(path: str | None) -> None:
+            if path:
+                self.query_one("#custom-iso-path", Input).value = path
+                self._check_form_validity()
+
+        self.app.push_screen(FileSelectionModal(), set_path)
 
     @on(Button.Pressed, "#install-btn")
     def on_install(self):
