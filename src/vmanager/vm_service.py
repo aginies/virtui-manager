@@ -1292,11 +1292,11 @@ class VMService:
             self.invalidate_vm_state_cache(internal_id)
             self._force_update_event.set()
 
-    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool, log_callback=None, invalidate_cache: bool = True) -> None:
+    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None, invalidate_cache: bool = True) -> None:
         """Deletes the VM."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Deleting VM: {domain.name()} (ID: {internal_id}, delete_storage={delete_storage})")
-        delete_vm(domain, delete_storage=delete_storage, log_callback=log_callback)
+        logging.info(f"Deleting VM: {domain.name()} (ID: {internal_id}, delete_storage={delete_storage}, delete_nvram={delete_nvram})")
+        delete_vm(domain, delete_storage=delete_storage, delete_nvram=delete_nvram, log_callback=log_callback)
         if invalidate_cache:
             self.invalidate_vm_cache(internal_id)
             self._force_update_event.set()
