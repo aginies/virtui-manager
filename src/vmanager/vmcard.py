@@ -1267,15 +1267,15 @@ class VMCard(Static):
                 command = [ rviewer, "--connect", uri, "--domain-name", domain_name]
                 logging.info(f"Spawning detached {rviewer}: {' '.join(command)}")
 
-                env = os.environ.copy()
-                env['GDK_BACKEND'] = 'x11'
+                #env = os.environ.copy()
+                #env['GDK_BACKEND'] = 'x11'
                 try:
                     proc = subprocess.Popen(
                         command,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         preexec_fn=os.setsid,
-                        env=env
+                        #env=env
                     )
                     logging.info(f"{rviewer} started with PID {proc.pid} for {domain_name}")
                 except Exception as e:
