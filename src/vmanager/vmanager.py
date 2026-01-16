@@ -174,7 +174,7 @@ class VMManagerTUI(App):
         Binding(key="left", action="previous_page", description="Previous Page", show=False),
         Binding(key="right", action="next_page", description="Next Page", show=False),
         Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
-        Binding(key="i", action="install_vm", description="Install VM", show=True),
+        Binding(key="i", action="install_vm", description="InstallVM", show=True),
         Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
         Binding(key="ctrl+s", action="show_cache_stats", description="Show cache Stats", show=False),
         Binding(key="q", action="quit", description="Quit"),
@@ -1214,13 +1214,12 @@ class VMManagerTUI(App):
         finally:
             # Ensure these are called on the main thread
             # Always force refresh to ensure UI is in sync with backend (e.g. deletions, additions)
-            def on_refresh_complete():
+            # Unlock immediately so UI is not stuck if refresh fails
+            def unlock_and_refresh():
                 self.bulk_operation_in_progress = False
+                self.refresh_vm_list(force=True)
 
-            def do_refresh():
-                self.refresh_vm_list(force=True, on_complete=on_refresh_complete)
-
-            self.call_from_thread(do_refresh)
+            self.call_from_thread(unlock_and_refresh)
 
 
     def change_connection(self, uri: str) -> None:
