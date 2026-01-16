@@ -85,7 +85,14 @@ CustomMigrationModal Select {
   width: 75%;
   border: none ;
 }
-#iso-select Select {
+#iso-path-label {
+  height: 1;
+  margin: 0 0;
+  padding: 0 0;
+  margin-bottom: 0;
+}
+#iso-select {
+  height: 7;
   width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
@@ -97,6 +104,14 @@ SelectSnapshotDialog > #dialog {
 }
 #expert-mode {
   height: 5;
+}
+#checksum-container,
+#expert-mode-collapsible,
+#vminstall-storage-label {
+  margin-top: 1;
+}
+#expert-mode-collapsible {
+  width: 75%;
 }
 #howto-vmtype-dialog, {
   width: 80;
