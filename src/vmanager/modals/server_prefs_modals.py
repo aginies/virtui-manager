@@ -23,6 +23,7 @@ from network_manager import (
       set_network_active, set_network_autostart
       )
 import storage_manager
+from storage_manager import list_storage_volumes
 
 from constants import AppCacheTimeout
 from modals.base_modals import BaseModal
@@ -611,6 +612,8 @@ class ServerPrefModal(BaseModal[None]):
                 try:
                     storage_manager.delete_volume(vol)
                     self.app.show_success_message(f"Volume '{vol_name}' deleted successfully.")
+                    # Clear the cache to force a refresh
+                    list_storage_volumes.cache_clear()
                     # Refresh the parent node
                     parent_node = tree.cursor_node.parent
                     tree.cursor_node.remove()
