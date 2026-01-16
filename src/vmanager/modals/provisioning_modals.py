@@ -5,7 +5,7 @@ import logging
 import subprocess
 
 import os
-from textual.widgets import Input, Select, Button, Label, ProgressBar, Checkbox
+from textual.widgets import Input, Select, Button, Label, ProgressBar, Checkbox, Collapsible
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on, work
 
@@ -45,7 +45,7 @@ class InstallVMModal(BaseModal[str | None]):
             yield Label("VM Type:", classes="label")
             with Horizontal(classes="label-row"):
                 yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
-                yield Button("?", id="vm-type-info-btn", variant="primary")
+                yield Button("Info", id="vm-type-info-btn", variant="primary")
 
             yield Label("Distribution:", classes="label")
 
@@ -84,6 +84,18 @@ class InstallVMModal(BaseModal[str | None]):
                     yield Input(placeholder="/path/to/autoinstall.xml", id="autoinstall-path", classes="path-input", disabled=True)
                     yield Button("Browse", id="browse-autoinstall-btn", disabled=True)
 
+            with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
+                with Horizontal(id="expert-mode"):
+                    with Vertical():
+                        yield Label("Memory (MB):", classes="label")
+                        yield Input("4096", id="memory-input", type="integer")
+                    with Vertical():
+                        yield Label("CPUs:", classes="label")
+                        yield Input("2", id="cpu-input", type="integer")
+                    with Vertical():
+                        yield Label("Disk Size (GB):", classes="label")
+                        yield Input("8", id="disk-size-input", type="integer")
+
             yield Label("Storage Pool:", classes="label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
 
@@ -100,6 +112,32 @@ class InstallVMModal(BaseModal[str | None]):
         # Initial state
         self.query_one("#custom-iso-container").styles.display = "none"
         self.fetch_isos(OpenSUSEDistro.LEAP)
+        # Ensure expert defaults are set correctly based on initial selection
+        self._update_expert_defaults(self.query_one("#vm-type", Select).value)
+
+    def _update_expert_defaults(self, vm_type):
+        mem = 4096
+        vcpu = 2
+        disk_size = 8
+
+        if vm_type == VMType.COMPUTATION:
+            mem = 8192
+            vcpu = 4
+        elif vm_type == VMType.DESKTOP:
+            mem = 4096
+            vcpu = 4
+            disk_size = 18
+        elif vm_type == VMType.SECURE:
+            mem = 4096
+            vcpu = 2
+
+        self.query_one("#memory-input", Input).value = str(mem)
+        self.query_one("#cpu-input", Input).value = str(vcpu)
+        self.query_one("#disk-size-input", Input).value = str(disk_size)
+
+    @on(Select.Changed, "#vm-type")
+    def on_vm_type_changed(self, event: Select.Changed):
+        self._update_expert_defaults(event.value)
 
     @on(Select.Changed, "#distro")
     def on_distro_changed(self, event: Select.Changed):
@@ -239,6 +277,20 @@ class InstallVMModal(BaseModal[str | None]):
         else:
             iso_url = self.query_one("#iso-select", Select).value
 
+        # Expert Mode Settings
+        expert_mode = not self.query_one("#expert-mode-collapsible", Collapsible).collapsed
+        memory_mb = 4096
+        vcpu = 2
+        disk_size = 20
+        
+        if expert_mode:
+            try:
+                memory_mb = int(self.query_one("#memory-input", Input).value)
+                vcpu = int(self.query_one("#cpu-input", Input).value)
+                disk_size = int(self.query_one("#disk-size-input", Input).value)
+            except ValueError:
+                self.app.show_error_message("Invalid input for expert settings. Using defaults.")
+
         # Disable inputs
         for widget in self.query("Input"): widget.disabled = True
         for widget in self.query("Select"): widget.disabled = True
@@ -247,10 +299,10 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#progress-bar").styles.display = "block"
         self.query_one("#status-label").styles.display = "block"
 
-        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum)
+        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size)
 
     @work(exclusive=True, thread=True)
-    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum):
+    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
 
@@ -282,6 +334,9 @@ class InstallVMModal(BaseModal[str | None]):
                 vm_type=vm_type,
                 iso_url=final_iso_url,
                 storage_pool_name=pool_name,
+                memory_mb=memory_mb,
+                vcpu=vcpu,
+                disk_size_gb=disk_size,
                 progress_callback=progress_cb
             )
 
