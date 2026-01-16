@@ -382,11 +382,11 @@ class VMProvisioner:
     <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
 """
         else:
-             xml += f"""
+            xml += f"""
   <os>
     <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
 """
-        
+
         xml += """
     <boot dev='hd'/>
     <boot dev='cdrom'/>
@@ -494,14 +494,16 @@ class VMProvisioner:
         if settings['mem_backing']:
             xml += f"  <memoryBacking>\n    <source type='{settings['mem_backing']}'/>\n"
             if settings.get('sev'):
-                 xml += "    <locked/>\n" # Often needed for SEV
+                xml += "    <locked/>\n" # Often needed for SEV
             xml += "  </memoryBacking>\n"
 
         xml += "</domain>"
 
         return xml
 
-    def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str, progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
+    def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
+                     memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8,
+                     progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
         """
@@ -547,7 +549,7 @@ class VMProvisioner:
         create_volume(
             pool,
             disk_name,
-            8,
+            disk_size_gb,
             vol_format=storage_format,
             preallocation=preallocation,
             lazy_refcounts=lazy_refcounts,
@@ -556,7 +558,7 @@ class VMProvisioner:
 
         # 4. Generate XML
         report("Configuring VM", 80)
-        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path)
+        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu)
 
         # 5. Define and Start VM
         report("Starting VM", 90)
