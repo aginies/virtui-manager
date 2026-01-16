@@ -555,11 +555,12 @@ class VMCard(Static):
                 collapsible.collapsed = True
                 collapsible.remove()
         else:
-            info_container = self.query_one("#info-container")
-            #if sparklines:
-            #    info_container.mount(sparklines)
-            if collapsible:
-                info_container.mount(collapsible)
+            try:
+                info_container = self.query_one("#info-container")
+                if collapsible:
+                    info_container.mount(collapsible)
+            except NoMatches:
+                logging.warning(f"Could not find #info-container on VMCard {self.name} when switching to detailed view.")
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
