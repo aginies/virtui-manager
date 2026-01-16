@@ -350,14 +350,19 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
         self.text_remote = "Run Web console on remote server. This will use a **LOT** of network bandwidth. It is recommended to **reduce quality** and enable **max compression**."
 
     def compose(self) -> ComposeResult:
-        with ScrollableContainer(id="webconsole-config-dialog"):
+        with Vertical(id="webconsole-config-dialog"):
             yield Label("Web Console Configuration", id="webconsole-config-title")
 
             if self.is_remote:
                 remote_console_enabled = self.config.get('REMOTE_WEBCONSOLE', False)
                 label_text = self.text_remote if remote_console_enabled else "Run Web console on local machine"
                 yield Markdown(label_text, id="console-location-label")
-                yield Switch(value=remote_console_enabled, id="remote-console-switch")
+                with Vertical():
+                    yield Grid(
+                        Label("Remote or Local:"),
+                        Switch(value=remote_console_enabled, id="remote-console-switch"),
+                        id="grid-remote-local"
+                        )
 
                 with Vertical(id="remote-options") as remote_opts:
                     remote_opts.display = remote_console_enabled
@@ -365,11 +370,13 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                     quality_options = [(str(i), i) for i in range(10)]
                     compression_options = [(str(i), i) for i in range(10)]
 
-                    yield Label("VNC Quality (0=low, 9=high)")
-                    yield Select(quality_options, value=self.config.get('VNC_QUALITY', 0), id="quality-select")
-
-                    yield Label("VNC Compression (0=none, 9=max)")
-                    yield Select(compression_options, value=self.config.get('VNC_COMPRESSION', 9), id="compression-select")
+                    yield Grid(
+                        Label("VNC Quality (0=low, 9=high)"),
+                        Select(quality_options, value=self.config.get('VNC_QUALITY', 0), id="quality-select"),
+                        Label("VNC Compression (0=none, 9=max)"),
+                        Select(compression_options, value=self.config.get('VNC_COMPRESSION', 9), id="compression-select"),
+                        id="grid-vnc-config"
+                        )
             else:
                 yield Markdown("Web console will run locally.")
 
@@ -380,10 +387,15 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
         if event.control.id == "remote-console-switch":
             markdown = self.query_one("#console-location-label", Markdown)
             remote_opts = self.query_one("#remote-options")
+            switch = event.switch
             if event.value:
+                switch.add_class("switch-on")
+                switch.remove_class("switch-off")
                 markdown.update(self.text_remote)
                 remote_opts.display = True
             else:
+                switch.remove_class("switch-on")
+                switch.add_class("switch-off")
                 markdown.update("Run Web console on local machine")
                 remote_opts.display = False
 
