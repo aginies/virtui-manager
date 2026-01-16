@@ -86,6 +86,7 @@ class VMService:
         self._details_cache_ttl: int = AppCacheTimeout.DETAILS_CACHE_TTL
         self._visible_uuids: set[str] = set()
         self._suppressed_uuids: set[str] = set()
+        self._global_updates_suspended: bool = False
         self._event_callbacks: dict[str, int] = {}  # {uri: callback_id}
         self._events_enabled: bool = True
         self._registration_lock = threading.Lock()
@@ -113,6 +114,16 @@ class VMService:
     def set_message_callback(self, callback):
         """Sets a callback to be invoked for user-facing messages."""
         self._message_callback = callback
+
+    def suspend_global_updates(self):
+        """Suspend all update callbacks globally."""
+        self._global_updates_suspended = True
+        logging.info("Global update callbacks suspended")
+
+    def resume_global_updates(self):
+        """Resume all update callbacks globally."""
+        self._global_updates_suspended = False
+        logging.info("Global update callbacks resumed")
 
     def update_visible_uuids(self, uuids: set[str]):
         """Updates the set of UUIDs currently visible in the UI."""
@@ -223,20 +234,10 @@ class VMService:
             return
 
         def lifecycle_callback(conn, domain, event, detail, opaque):
+            """Callback for domain lifecycle events."""
             try:
-                # Debug logging to investigate 'str' object error
-                if isinstance(domain, str):
-                    logging.warning(f"lifecycle_callback received domain as string: '{domain}'. Attempting recovery.")
-                    try:
-                        # Try to look up domain by UUID or Name
-                        # Assuming string is UUID first
-                        try:
-                            domain = conn.lookupByUUIDString(domain)
-                        except libvirt.libvirtError:
-                            domain = conn.lookupByName(domain)
-                    except Exception as e:
-                         logging.error(f"Failed to recover domain from string: {e}")
-                         return
+                if self._global_updates_suspended:
+                    return
 
                 internal_id = self._get_internal_id(domain, conn, known_uri=uri)
 

@@ -387,17 +387,24 @@ class InstallVMModal(BaseModal[str | None]):
                 final_iso_url = self.provisioner.upload_iso(custom_path, pool_name, upload_progress)
 
             # 3. Provision
-            dom = self.provisioner.provision_vm(
-                vm_name=name,
-                vm_type=vm_type,
-                iso_url=final_iso_url,
-                storage_pool_name=pool_name,
-                memory_mb=memory_mb,
-                vcpu=vcpu,
-                disk_size_gb=disk_size,
-                disk_format=disk_format,
-                progress_callback=progress_cb
-            )
+            # Suspend global updates to prevent UI freeze during heavy provisioning ops
+            self.app.call_from_thread(self.app.vm_service.suspend_global_updates)
+            try:
+                dom = self.provisioner.provision_vm(
+                    vm_name=name,
+                    vm_type=vm_type,
+                    iso_url=final_iso_url,
+                    storage_pool_name=pool_name,
+                    memory_mb=memory_mb,
+                    vcpu=vcpu,
+                    disk_size_gb=disk_size,
+                    disk_format=disk_format,
+                    progress_callback=progress_cb
+                )
+            finally:
+                self.app.call_from_thread(self.app.vm_service.resume_global_updates)
+                # Manually trigger a refresh as we suppressed the events
+                self.app.call_from_thread(self.app.on_vm_data_update)
 
             self.app.call_from_thread(self.app.show_success_message, f"VM '{name}' created successfully!")
 
