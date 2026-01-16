@@ -14,6 +14,12 @@ Button {
     border: hidden;
 }
 
+.info-text {
+    color: $text-muted;
+    margin-bottom: 1;
+    text-align: center;
+}
+
 Input:focus,
 Select:focus {
     border: tall $accent;
