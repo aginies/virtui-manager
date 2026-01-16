@@ -48,6 +48,7 @@ class RemoteViewer(Gtk.Application):
         self.list_window = None
         self.is_fullscreen = False
         self.scaling_enabled = False
+        self.smoothing_enabled = True
         self.lossy_encoding_enabled = False
         self.view_only_enabled = False
         self.vnc_depth = 0
@@ -182,9 +183,9 @@ class RemoteViewer(Gtk.Application):
         if not self.ssh_gateway or not self.ssh_tunnel_local_port:
             return False
 
-        # SSH command: ssh -L local_port:remote_host:remote_port gateway -p gateway_port -N
+        # SSH command: ssh -N -C -L local_port:remote_host:remote_port gateway -p gateway_port
         ssh_cmd = [
-            'ssh', '-N', '-L',
+            'ssh', '-N', '-C', '-L',
             f'{self.ssh_tunnel_local_port}:{remote_host}:{remote_port}',
             self.ssh_gateway, '-p', self.ssh_gateway_port
         ]
@@ -283,12 +284,14 @@ class RemoteViewer(Gtk.Application):
                 data = json.load(f)
                 self.is_fullscreen = data.get("fullscreen", False)
                 self.scaling_enabled = data.get("scaling", False)
+                self.smoothing_enabled = data.get("smoothing", True)
                 self.lossy_encoding_enabled = data.get("lossy_encoding", False)
                 self.view_only_enabled = data.get("view_only", False)
                 self.vnc_depth = data.get("vnc_depth", 0)
         except (FileNotFoundError, json.JSONDecodeError):
             self.is_fullscreen = False
             self.scaling_enabled = False
+            self.smoothing_enabled = True
             self.lossy_encoding_enabled = False
             self.view_only_enabled = False
             self.vnc_depth = 0
@@ -298,6 +301,7 @@ class RemoteViewer(Gtk.Application):
             data = {
                 "fullscreen": self.is_fullscreen,
                 "scaling": self.scaling_enabled,
+                "smoothing": self.smoothing_enabled,
                 "lossy_encoding": self.lossy_encoding_enabled,
                 "view_only": self.view_only_enabled,
                 "vnc_depth": self.vnc_depth
@@ -464,6 +468,12 @@ class RemoteViewer(Gtk.Application):
         scaling_check.set_active(self.scaling_enabled)
         scaling_check.connect("toggled", self.on_scaling_toggled)
         vbox_settings.pack_start(scaling_check, False, False, 0)
+
+        # Smoothing Checkbox
+        self.smoothing_check = Gtk.CheckButton(label="Smoothing (Interpolation)")
+        self.smoothing_check.set_active(self.smoothing_enabled)
+        self.smoothing_check.connect("toggled", self.on_smoothing_toggled)
+        vbox_settings.pack_start(self.smoothing_check, False, False, 0)
 
         # Lossy Encoding Checkbox
         self.lossy_check = Gtk.CheckButton(label="Lossy Compression (JPEG)")
@@ -796,6 +806,7 @@ class RemoteViewer(Gtk.Application):
 
             self.vnc_display.set_pointer_local(True)
             self.vnc_display.set_scaling(self.scaling_enabled)
+            self.vnc_display.set_smoothing(self.smoothing_enabled)
             self.vnc_display.set_keep_aspect_ratio(True)
             self.vnc_display.set_lossy_encoding(self.lossy_encoding_enabled)
             self.vnc_display.set_read_only(self.view_only_enabled)
@@ -1124,6 +1135,12 @@ class RemoteViewer(Gtk.Application):
             self.vnc_display.set_scaling(self.scaling_enabled)
         elif self.protocol == 'spice' and self.display_widget:
             self.display_widget.set_property("scaling", self.scaling_enabled)
+        self.save_state()
+
+    def on_smoothing_toggled(self, button):
+        self.smoothing_enabled = button.get_active()
+        if self.protocol == 'vnc' and self.vnc_display:
+            self.vnc_display.set_smoothing(self.smoothing_enabled)
         self.save_state()
 
     def on_lossy_toggled(self, button):
