@@ -100,6 +100,33 @@ def set_pool_autostart(pool: libvirt.virStoragePool, autostart: bool):
         logging.error(msg)
         raise Exception(msg) from e
 
+def calculate_qcow2_cache_sizes(disk_size_bytes: int, cluster_size_bytes: int = 65536) -> tuple[int, int]:
+    """
+    Calculates the recommended L2 and refcount cache sizes for a qcow2 image
+    to cover the entire disk, ensuring optimal performance.
+    
+    Returns:
+        (l2_cache_size_bytes, refcount_cache_size_bytes)
+    """
+    # L2 cache needed to cover the full disk
+    # Formula: disk_size_bytes / cluster_size_bytes * 8
+
+    # Ensure cluster_size_bytes is valid to avoid division by zero
+    if cluster_size_bytes <= 0:
+        cluster_size_bytes = 65536
+
+    l2_cache_size = (disk_size_bytes // cluster_size_bytes) * 8
+
+    # Enforce a reasonable minimum (e.g., 1MB)
+    min_l2_cache = 1048576 # 1MB
+    if l2_cache_size < min_l2_cache:
+        l2_cache_size = min_l2_cache
+
+    # Refcount cache: usually 1/4 of L2 cache is sufficient
+    refcount_cache_size = l2_cache_size // 4
+
+    return l2_cache_size, refcount_cache_size
+
 def create_storage_pool(conn, name, pool_type, target, source_host=None, source_path=None, source_format=None):
     """
     Creates and starts a new storage pool.
@@ -124,7 +151,8 @@ def create_storage_pool(conn, name, pool_type, target, source_host=None, source_
     pool.setAutostart(1)
     return pool
 
-def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_format: str):
+def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_format: str,
+                  preallocation: str = None, lazy_refcounts: bool = False, cluster_size: str = None):
     """
     Creates a new storage volume in a pool.
     """
@@ -135,12 +163,58 @@ def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_for
 
     size_bytes = size_gb * 1024 * 1024 * 1024
 
+    # Build features
+    features_xml = ""
+    if lazy_refcounts and vol_format == 'qcow2':
+        features_xml = "<features><lazy_refcounts/></features>"
+
+    # Preallocation handling
+    # Libvirt supports preallocation via allocation element or target/format/features
+    # For qcow2, metadata preallocation is common.
+    
+    format_attr = f"type='{vol_format}'"
+    
+    # Cluster size
+    cluster_xml = ""
+    cluster_size_bytes = 65536 # Default
+    
+    if cluster_size and vol_format == 'qcow2':
+        # cluster_size can be '1024k', '64k' etc.
+        unit = 'B'
+        value = cluster_size
+        if cluster_size.endswith('k'):
+            unit = 'KiB'
+            value = cluster_size[:-1]
+            cluster_size_bytes = int(value) * 1024
+        elif cluster_size.endswith('M'):
+            unit = 'MiB'
+            value = cluster_size[:-1]
+            cluster_size_bytes = int(value) * 1024 * 1024
+        else:
+             try:
+                 cluster_size_bytes = int(cluster_size)
+             except ValueError:
+                 pass # keep default
+        
+        cluster_xml = f"<cluster_size unit='{unit}'>{value}</cluster_size>"
+
+    if vol_format == 'qcow2':
+        l2_size, ref_size = calculate_qcow2_cache_sizes(size_bytes, cluster_size_bytes)
+        logging.info(f"Recommended caches for volume '{name}': l2-cache-size={l2_size}, refcount-cache-size={ref_size}")
+
     vol_xml = f"""
     <volume>
-        <name>{name}</name>
-        <capacity unit="bytes">{size_bytes}</capacity>
+        <name>{name}</name>        <capacity unit="bytes">{size_bytes}</capacity>
+    """
+
+    if preallocation == 'full' or preallocation == 'falloc':
+         vol_xml += f"        <allocation unit='bytes'>{size_bytes}</allocation>\n"
+
+    vol_xml += f"""
         <target>
-            <format type='{vol_format}'/>
+            <format {format_attr}/>
+            {features_xml}
+            {cluster_xml}
         </target>
     </volume>
     """
