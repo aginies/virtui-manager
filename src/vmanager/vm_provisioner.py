@@ -7,16 +7,19 @@ import urllib.request
 import ssl
 import re
 import hashlib
+from datetime import datetime
 from enum import Enum
 from typing import Callable, Optional, Dict, Any, List
 from concurrent.futures import ThreadPoolExecutor
 from email.utils import parsedate_to_datetime
 import xml.etree.ElementTree as ET
+from pathlib import Path
 import libvirt
 
 from config import load_config
 from storage_manager import create_volume
 from libvirt_utils import get_host_architecture
+from constants import AppInfo
 
 class VMType(Enum):
     SECURE = "Secure VM"
@@ -72,6 +75,32 @@ class VMProvisioner:
         except Exception as e:
             logging.warning(f"Failed to get details for {url}: {e}")
             return {'name': name, 'url': url, 'date': ''}
+
+    def get_cached_isos(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves a list of ISOs already present in the local cache directory.
+        """
+        config = load_config()
+        iso_cache_dir = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
+
+        if not iso_cache_dir.exists():
+            return []
+
+        isos = []
+        try:
+            for f in iso_cache_dir.glob("*.iso"):
+                # Use stats for date
+                mtime = f.stat().st_mtime
+                dt_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                isos.append({
+                    'name': f.name,
+                    'url': f.name, # Use filename as URL for local detection logic
+                    'date': f"{dt_str} (Cached)"
+                })
+        except Exception as e:
+            logging.error(f"Error reading cached ISOs: {e}")
+
+        return isos
 
     def get_iso_list(self, distro: OpenSUSEDistro | str) -> List[Dict[str, Any]]:
         """
@@ -238,33 +267,53 @@ class VMProvisioner:
         """
         vol = pool.createXML(vol_xml, 0)
 
-        # Upload data
-        stream = self.conn.newStream(0)
+        # --- Keepalive logic for long uploads ---
+        old_interval, old_count = -1, 0
         try:
-            vol.upload(stream, 0, file_size)
+            # Get original keepalive settings
+            old_interval, old_count = self.conn.getKeepAlive()
+            # Set a more aggressive keepalive for the long operation
+            self.conn.setKeepAlive(10, 5)
+            logging.info(f"Set libvirt keepalive to 10s for ISO upload.")
+        except libvirt.libvirtError:
+            logging.warning("Could not set libvirt keepalive for upload.")
 
-            with open(local_path, "rb") as f:
-                uploaded = 0
-                while True:
-                    data = f.read(1024*1024) # 1MB chunk
-                    if not data:
-                        break
-                    stream.send(data)
-                    uploaded += len(data)
-                    if progress_callback:
-                        percent = int((uploaded / file_size) * 100)
-                        progress_callback(percent)
-
-            stream.finish()
-        except Exception as e:
+        try:
+            # Upload data
+            stream = self.conn.newStream(0)
             try:
-                stream.abort()
-            except:
-                pass
-            vol.delete(0)
-            raise e
+                vol.upload(stream, 0, file_size)
 
-        return vol.path()
+                with open(local_path, "rb") as f:
+                    uploaded = 0
+                    while True:
+                        data = f.read(1024*1024) # 1MB chunk
+                        if not data:
+                            break
+                        stream.send(data)
+                        uploaded += len(data)
+                        if progress_callback:
+                            percent = int((uploaded / file_size) * 100)
+                            progress_callback(percent)
+
+                stream.finish()
+            except Exception as e:
+                try:
+                    stream.abort()
+                except:
+                    pass
+                vol.delete(0)
+                raise e
+
+            return vol.path()
+        finally:
+            # Restore original keepalive settings
+            if old_interval != -1:
+                try:
+                    self.conn.setKeepAlive(old_interval, old_count)
+                    logging.info(f"Restored libvirt keepalive to interval={old_interval}, count={old_count}.")
+                except libvirt.libvirtError:
+                    logging.warning("Could not restore original libvirt keepalive settings.")
 
     def validate_iso(self, local_path: str, expected_checksum: str = None) -> bool:
         """
@@ -300,7 +349,7 @@ class VMProvisioner:
             'policy': '0x0033'
         }
 
-    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2) -> str:
+    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
@@ -364,6 +413,10 @@ class VMProvisioner:
                 'on_reboot': 'restart',
                 'on_crash': 'destroy',
             })
+
+        # Override disk format if provided
+        if disk_format:
+            settings['disk_format'] = disk_format
 
         # --- XML Construction ---
 
@@ -502,7 +555,7 @@ class VMProvisioner:
         return xml
 
     def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
-                     memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8,
+                     memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8, disk_format: str | None = None,
                      progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -521,27 +574,44 @@ class VMProvisioner:
         pool_xml = ET.fromstring(pool.XMLDesc(0))
         pool_target_path = pool_xml.find("target/path").text
 
-        disk_name = f"{vm_name}.{ 'raw' if vm_type == VMType.COMPUTATION else 'qcow2' }"
+        # Determine storage format
+        if disk_format:
+            storage_format = disk_format
+        else:
+            storage_format = 'raw' if vm_type == VMType.COMPUTATION else 'qcow2'
+
+        disk_name = f"{vm_name}.{storage_format}"
         disk_path = os.path.join(pool_target_path, disk_name)
 
         # 2. Download ISO
+        # Define local cache path for ISOs
+        config = load_config()
+        iso_cache_dir = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
+        iso_cache_dir.mkdir(parents=True, exist_ok=True)
+
         # Derive name from URL
         iso_name = iso_url.split('/')[-1]
-        iso_path = os.path.join(pool_target_path, iso_name)
+        iso_cache_path = str(iso_cache_dir / iso_name)
 
         def download_cb(percent):
             report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4)) # 10-50%
 
-        if not os.path.exists(iso_path):
-            self.download_iso(iso_url, iso_path, download_cb)
+        if not os.path.exists(iso_cache_path):
+            self.download_iso(iso_url, iso_cache_path, download_cb)
         else:
             report("ISO found, skipping download", 50)
 
-        # 3. Create Disk
+        # 3. Upload ISO from cache to storage pool
+        report("Uploading ISO to storage pool", 55)
+        def upload_cb(percent):
+            # This stage is quick, allocate a small progress percentage (e.g., 5%)
+            report(f"Uploading ISO: {percent}%", 55 + int(percent * 0.05))
+
+        iso_path = self.upload_iso(iso_cache_path, storage_pool_name, upload_cb)
+
+        # 4. Create Disk
         report("Creating Storage", 60)
 
-        # Determine storage options based on VMType (matching DEFAULT_SETTINGS.md)
-        storage_format = 'raw' if vm_type == VMType.COMPUTATION else 'qcow2'
         preallocation = 'metadata' if vm_type in [VMType.SECURE, VMType.DESKTOP] else 'off'
         lazy_refcounts = True if vm_type in [VMType.SECURE, VMType.COMPUTATION] else False
         cluster_size = '1024k' if vm_type in [VMType.SECURE, VMType.DESKTOP] else None
@@ -558,7 +628,7 @@ class VMProvisioner:
 
         # 4. Generate XML
         report("Configuring VM", 80)
-        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu)
+        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format)
 
         # 5. Define and Start VM
         report("Starting VM", 90)
