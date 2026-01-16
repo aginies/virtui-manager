@@ -15,6 +15,7 @@ from vm_service import VMService
 from utils import remote_viewer_cmd
 from modals.base_modals import BaseModal
 from modals.utils_modals import FileSelectionModal
+from modals.vm_type_info_modal import VMTypeInfoModal
 
 class InstallVMModal(BaseModal[str | None]):
     """
@@ -42,11 +43,22 @@ class InstallVMModal(BaseModal[str | None]):
             yield Input(placeholder="my-new-vm", id="vm-name")
 
             yield Label("VM Type:", classes="label")
-            yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
+            with Horizontal(classes="label-row"):
+                yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
+                yield Button("?", id="vm-type-info-btn", variant="primary")
 
             yield Label("Distribution:", classes="label")
-            # Add Custom option manually if not in Enum iteration, but I added it to Enum in previous step
-            yield Select([(d.value, d) for d in OpenSUSEDistro], value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
+
+            distro_options = [(d.value, d) for d in OpenSUSEDistro]
+            custom_repos = self.provisioner.get_custom_repos()
+            for repo in custom_repos:
+                # Use URI as value, Name as label
+                name = repo.get('name', repo['uri'])
+                uri = repo['uri']
+                # Insert before CUSTOM option (last one usually)
+                distro_options.insert(-1, (name, uri))
+
+            yield Select(distro_options, value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
@@ -56,12 +68,21 @@ class InstallVMModal(BaseModal[str | None]):
             # Container for Custom ISO
             with Vertical(id="custom-iso-container"):
                 yield Label("Custom ISO (Local Path):", classes="label")
-                with Horizontal():
+                with Horizontal(classes="input-row"):
                     yield Input(placeholder="/path/to/local.iso", id="custom-iso-path", classes="path-input")
                     yield Button("Browse", id="browse-iso-btn")
-                yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
-                yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
-                yield Label("", id="checksum-status", classes="status-text")
+
+                with Vertical(id="checksum-container"):
+                    yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
+                    yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
+                    yield Label("", id="checksum-status", classes="status-text")
+
+            # Container for Autoinstall (Disabled for now)
+            with Vertical(id="autoinstall-container"):
+                yield Label("Autoinstall File (Optional):", classes="label")
+                with Horizontal(classes="input-row"):
+                    yield Input(placeholder="/path/to/autoinstall.xml", id="autoinstall-path", classes="path-input", disabled=True)
+                    yield Button("Browse", id="browse-autoinstall-btn", disabled=True)
 
             yield Label("Storage Pool:", classes="label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
@@ -69,9 +90,10 @@ class InstallVMModal(BaseModal[str | None]):
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
             yield Label("", id="status-label")
 
-            with Horizontal(classes="buttons"):
-                yield Button("Install", variant="primary", id="install-btn", disabled=True)
-                yield Button("Cancel", variant="default", id="cancel-btn")
+            with Vertical():
+                with Horizontal(classes="buttons"):
+                    yield Button("Install", variant="primary", id="install-btn", disabled=True)
+                    yield Button("Cancel", variant="default", id="cancel-btn")
 
     def on_mount(self):
         """Called when modal is mounted."""
@@ -103,16 +125,20 @@ class InstallVMModal(BaseModal[str | None]):
         self._check_form_validity()
 
     @work(exclusive=True, thread=True)
-    def fetch_isos(self, distro: OpenSUSEDistro):
+    def fetch_isos(self, distro: OpenSUSEDistro | str):
         self.app.call_from_thread(self._update_iso_status, "Fetching ISO list...", True)
 
         try:
             isos = self.provisioner.get_iso_list(distro)
-            # Create Select options: (filename, url)
+            # Create Select options: (label, url)
             iso_options = []
-            for url in isos:
-                name = url.split('/')[-1]
-                iso_options.append((name, url))
+            for iso in isos:
+                name = iso['name']
+                url = iso['url']
+                date = iso.get('date', '')
+
+                label = f"{name} ({date})" if date else name
+                iso_options.append((label, url))
 
             def update_select():
                 sel = self.query_one("#iso-select", Select)
@@ -178,6 +204,20 @@ class InstallVMModal(BaseModal[str | None]):
                 self._check_form_validity()
 
         self.app.push_screen(FileSelectionModal(), set_path)
+
+    @on(Button.Pressed, "#browse-autoinstall-btn")
+    def on_browse_autoinstall(self):
+        """Open file picker for Autoinstall file."""
+        def set_path(path: str | None) -> None:
+            if path:
+                self.query_one("#autoinstall-path", Input).value = path
+
+        self.app.push_screen(FileSelectionModal(), set_path)
+
+    @on(Button.Pressed, "#vm-type-info-btn")
+    def on_vm_type_info(self):
+        """Show VM Type info modal."""
+        self.app.push_screen(VMTypeInfoModal())
 
     @on(Button.Pressed, "#install-btn")
     def on_install(self):
