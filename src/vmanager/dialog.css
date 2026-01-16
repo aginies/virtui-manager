@@ -33,6 +33,7 @@ CustomMigrationModal,
 HowToOverlayModal,
 HowToVirtIOFSModal,
 HowToDiskModal,
+VMTypeInfoModal,
 WebConsoleConfigDialog,
 LoadingModal,
 PatternSelectModal,
@@ -60,6 +61,7 @@ PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
 ConfigModal > #config-dialog,
+InstallVMModal > #install-dialog,
 HowToOverlayModal > #howto-overlay-dialog,
 HowToNetworkModal > #howto-network-dialog,
 WebConsoleConfigDialog > #webconsole-config-dialog,
@@ -74,18 +76,24 @@ HowToSSHModal > #howto-ssh-dialog {
   height: auto;
 }
 
-SelectSnapshotDialog > #dialog, {
-  width: 68;
-}
 InstallVMModal > #install-dialog Select,
+InstallVMModal > #vm-type Select,
 WebConsoleConfigDialog > #webconsole-config-dialog Select,
 CustomMigrationModal Select {
+  width: 75%;
   border: none ;
-}
-InstallVMModal > #install-dialog Select, {
-  width: 100%;
+  margin: 0 0;
+  padding: 0 0;
+  margin-bottom: 0;
 }
 /* === SPECIFIC HEIGHT === */
+SelectSnapshotDialog > #dialog {
+  width: 68;
+}
+VMTypeInfoModal > #howto-vmtype-dialog, {
+  width: 80;
+}
+
 SelectSnapshotDialog > #dialog,
 SnapshotNameDialog > #dialog { height: 20;}
 DeleteVMConfirmationDialog > #delete-vm-dialog,
@@ -93,6 +101,21 @@ WebConsoleDialog > #webconsole-dialog,
 ConfirmationDialog > #dialog { 
   height: 15; 
   border: $error; 
+}
+InstallVMModal > #custom-iso-container,
+InstallVMModal > #autoinstall-container,
+InstallVMModal #checksum-container {
+  height: auto;
+  margin-bottom: 1;
+}
+
+.input-row {
+    height: 3;
+    margin-bottom: 1;
+}
+InstallVMModal #custom-iso-container Checkbox {
+    margin-bottom: 1;
+    height: 3;
 }
 WebConsoleConfigDialog > #webconsole-config-dialog, {
   height: 24;
@@ -191,8 +214,10 @@ PasswordModal Button {
   margin-left: 1;
 }
 AddPoolModal #browse-dir-btn,
+InstallVMModal #vm-type-info-btn,
 InstallVMModal #browse-iso-btn,
 AttachVolumeModal #browse-vol-btn,
+InstallVMModal #browse-autoinstall-btn,
 AddDiskModal #browse-disk-btn, {
   height: 3;
   width: 25%;
@@ -209,6 +234,7 @@ AddInputDeviceModal Select {
   margin-bottom: 1;
 }
 InstallVMModal #custom-iso-path,
+InstallVMModal #autoinstall-path,
 AddPoolModal #dir-target-path-input,
 AttachVolumeModal #vol-path-input,
 AddDiskModal #disk-path-input {
@@ -465,16 +491,8 @@ InstallVMModal {
     align: center middle;
 }
 
-#install-dialog {
-    width: 70;
-    height: auto;
-    border: thick $background 80%;
-    background: $surface;
-    padding: 1 2;
-}
-
 .label {
-    margin-top: 1;
+    margin-top: 0;
     margin-bottom: 0;
     color: $text-muted;
 }
@@ -489,16 +507,5 @@ InstallVMModal {
     display: none;
     text-align: center;
     color: $accent;
+    margin-bottom: 1;
 }
-
-.buttons {
-    margin-top: 2;
-    align: center middle;
-    height: 3;
-    width: 100%;
-}
-
-Button {
-    margin: 0 1;
-}
-
