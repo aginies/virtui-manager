@@ -206,6 +206,7 @@ WebConsoleDialog Button,
 SelectDiskModal Button,
 FileSelectionModal Button,
 SelectPoolModal Button,
+InstallVMModal Button,
 DeleteVMConfirmationDialog Button,
 ConfigModal Button,
 PasswordModal Button {
