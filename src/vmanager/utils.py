@@ -168,7 +168,7 @@ def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str
     return messages
 
 
-def check_r_viewer() -> bool:
+def check_r_viewer() -> str:
     """
     Checks if r-viewer is installed.
 
@@ -189,6 +189,16 @@ def check_r_viewer() -> bool:
         logging.error(f"Error checking r-viewer: {e}")
         return False
 
+def remote_viewer_cmd(uri: str, domain_name: str) -> str:
+    """
+    return the remote viewer command line
+    """
+    check_which_one = check_r_viewer()
+    if check_which_one == "virt-viewer":
+        command = [ check_which_one, "--connect", uri, domain_name]
+    else:
+        command = [ check_which_one, "--connect", uri, "--domain-name", domain_name]
+    return command
 
 def check_firewalld() -> bool:
     """

@@ -49,6 +49,7 @@ from vmcard_dialog import (
 from utils import (
         extract_server_name_from_uri,
         generate_tooltip_markdown,
+        remote_viewer_cmd,
 )
 from constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
@@ -1263,8 +1264,7 @@ class VMCard(Static):
                     uri = self.conn.getURI()
 
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
-                command = [ self.app.r_viewer, "--connect", uri, "--domain-name", domain_name]
-                logging.info(f"Spawning detached {self.app.r_viewer}: {' '.join(command)}")
+                command = remote_viewer_cmd(uri, domain_name)
 
                 #env = os.environ.copy()
                 #env['GDK_BACKEND'] = 'x11'
