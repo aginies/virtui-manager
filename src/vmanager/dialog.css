@@ -77,9 +77,13 @@ HowToSSHModal > #howto-ssh-dialog {
 SelectSnapshotDialog > #dialog, {
   width: 68;
 }
+InstallVMModal > #install-dialog Select,
 WebConsoleConfigDialog > #webconsole-config-dialog Select,
 CustomMigrationModal Select {
-  border: none;
+  border: none ;
+}
+InstallVMModal > #install-dialog Select, {
+  width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
 SelectSnapshotDialog > #dialog,
@@ -454,3 +458,45 @@ LoadingModal LoadingIndicator {
     height: 1;
     color: $accent;
 }
+/* === Install Modals === */
+InstallVMModal {
+    align: center middle;
+}
+
+#install-dialog {
+    width: 70;
+    height: auto;
+    border: thick $background 80%;
+    background: $surface;
+    padding: 1 2;
+}
+
+.label {
+    margin-top: 1;
+    margin-bottom: 0;
+    color: $text-muted;
+}
+
+#progress-bar {
+    display: none;
+    margin-top: 1;
+    width: 100%;
+}
+
+#status-label {
+    display: none;
+    text-align: center;
+    color: $accent;
+}
+
+.buttons {
+    margin-top: 2;
+    align: center middle;
+    height: 3;
+    width: 100%;
+}
+
+Button {
+    margin: 0 1;
+}
+
