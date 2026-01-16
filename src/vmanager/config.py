@@ -22,6 +22,7 @@ DEFAULT_CONFIG = {
     'servers': [
         {'name': 'Localhost', 'uri': 'qemu:///system'},
     ],
+    'custom_ISO_repo': [],
     'LOG_FILE_PATH': str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
 }
 
