@@ -270,12 +270,16 @@ class VMProvisioner:
         # --- Keepalive logic for long uploads ---
         old_interval, old_count = -1, 0
         try:
-            # Get original keepalive settings
+            # Try to get original keepalive settings
             old_interval, old_count = self.conn.getKeepAlive()
+        except (libvirt.libvirtError, AttributeError):
+            pass
+
+        try:
             # Set a more aggressive keepalive for the long operation
             self.conn.setKeepAlive(10, 5)
             logging.info(f"Set libvirt keepalive to 10s for ISO upload.")
-        except libvirt.libvirtError:
+        except (libvirt.libvirtError, AttributeError):
             logging.warning("Could not set libvirt keepalive for upload.")
 
         try:
@@ -286,12 +290,23 @@ class VMProvisioner:
 
                 with open(local_path, "rb") as f:
                     uploaded = 0
+                    chunk_count = 0
                     while True:
                         data = f.read(1024*1024) # 1MB chunk
                         if not data:
                             break
                         stream.send(data)
                         uploaded += len(data)
+                        chunk_count += 1
+
+                        # Periodically ping libvirt to keep connection alive during long uploads
+                        # Every 10MB seems reasonable to prevent timeouts on some connections
+                        if chunk_count % 10 == 0:
+                            try:
+                                self.conn.getLibVersion()
+                            except:
+                                pass
+
                         if progress_callback:
                             percent = int((uploaded / file_size) * 100)
                             progress_callback(percent)
