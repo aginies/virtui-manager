@@ -129,6 +129,31 @@ def get_cpu_models(conn: libvirt.virConnect, arch: str):
         print(f"Error getting CPU models for arch {arch}: {e}")
         return []
 
+def get_host_architecture(conn: libvirt.virConnect) -> str:
+    """
+    Returns the host architecture (e.g., 'x86_64', 'aarch64').
+    """
+    try:
+        # getCapabilities returns an XML string describing the host capabilities
+        caps_xml = conn.getCapabilities()
+        root = ET.fromstring(caps_xml)
+
+        arch = root.findtext('host/cpu/arch')
+        if arch:
+            return arch
+
+        # in case of failure check guest
+        guest_arch = root.findtext('guest/arch[@name]')
+        if guest_arch:
+            return guest_arch
+
+    except libvirt.libvirtError as e:
+        logging.error(f"Error getting host architecture: {e}")
+    except ET.ParseError as e:
+        logging.error(f"Error parsing capabilities XML: {e}")
+
+    return 'x86_64'
+
 def find_all_vm(conn: libvirt.virConnect):
     """
     Find all VM from the current Hypervisor
