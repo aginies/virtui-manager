@@ -765,10 +765,25 @@ class RemoteViewer(Gtk.Application):
 
     def init_display(self):
         """Initialize the display widget based on available protocol"""
-        # Remove existing if any
+        # Cleanup existing display widget and container
         if self.display_widget:
-            # Need to remove from container... simplified for now assuming single init
-            pass
+            # Check for parent ScrolledWindow and remove it
+            parent = self.display_widget.get_parent()
+            if parent and isinstance(parent, Gtk.ScrolledWindow):
+                if parent.get_parent() == self.view_container:
+                     self.view_container.remove(parent)
+                parent.destroy()
+            elif parent == self.view_container:
+                self.view_container.remove(self.display_widget)
+            
+            self.display_widget.destroy()
+            self.display_widget = None
+
+        # Disconnect previous clipboard handler if exists
+        if hasattr(self, 'clipboard_handler_id') and self.clipboard_handler_id:
+             if self.clipboard.handler_is_connected(self.clipboard_handler_id):
+                 self.clipboard.disconnect(self.clipboard_handler_id)
+             self.clipboard_handler_id = None
 
         protocol, host, port, password_required = self.get_display_info()
         self.protocol = protocol
@@ -819,10 +834,11 @@ class RemoteViewer(Gtk.Application):
             self.vnc_display.connect("vnc-server-cut-text", self.on_vnc_server_cut_text)
 
             # Local clipboard -> VNC
-            self.clipboard.connect("owner-change", self.on_clipboard_owner_change)
+            self.clipboard_handler_id = self.clipboard.connect("owner-change", self.on_clipboard_owner_change)
 
         scroll.add(self.display_widget)
         self.view_container.pack_start(scroll, True, True, 0)
+        self.view_container.show_all()
 
     def connect_display(self, force=False, password=None):
         """Attempts connection"""
