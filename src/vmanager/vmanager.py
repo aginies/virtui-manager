@@ -49,6 +49,7 @@ from modals.vmanager_modals import (
     FilterModal,
 )
 from modals.virsh_modals import VirshShellScreen
+from modals.provisioning_modals import InstallVMModal
 from utils import (
     check_novnc_path,
     check_r_viewer,
@@ -173,6 +174,7 @@ class VMManagerTUI(App):
         Binding(key="left", action="previous_page", description="Previous Page", show=False),
         Binding(key="right", action="next_page", description="Next Page", show=False),
         Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
+        Binding(key="i", action="install_vm", description="Install VM", show=True),
         Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
         Binding(key="ctrl+s", action="show_cache_stats", description="Show cache Stats", show=False),
         Binding(key="q", action="quit", description="Quit"),
@@ -988,6 +990,18 @@ class VMManagerTUI(App):
     def on_virsh_shell_button_pressed(self, event: Button.Pressed) -> None:
         """Callback for the virsh shell button."""
         self.action_virsh_shell()
+
+    def action_install_vm(self) -> None:
+        """Launch the VM Installation Modal."""
+        def launch_install_modal(uri: str):
+            self.push_screen(InstallVMModal(self.vm_service, uri), self.handle_install_vm_result)
+
+        self._select_server_and_run(launch_install_modal, "Select a server for VM Installation", "Install Here")
+
+    def handle_install_vm_result(self, result: bool | None) -> None:
+        """Handle result from installation modal."""
+        if result:
+            self.refresh_vm_list(force=True)
 
     @on(VmActionRequest)
     def on_vm_action_request(self, message: VmActionRequest) -> None:
