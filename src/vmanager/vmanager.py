@@ -385,7 +385,7 @@ class VMManagerTUI(App):
 
         if not check_virt_viewer():
             self.show_error_message(
-                ErrorMessages.VIRT_VIEWER_NOT_FOUND
+                ErrorMessages.R_VIEWER_NOT_FOUND
             )
             self.virt_viewer_available = False
 
