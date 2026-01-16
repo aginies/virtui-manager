@@ -35,6 +35,7 @@ HowToVirtIOFSModal,
 HowToDiskModal,
 WebConsoleConfigDialog,
 LoadingModal,
+InstallVMModal,
 PatternSelectModal,
 VMTypeInfoModal,
 HowToSSHModal {
@@ -83,13 +84,19 @@ WebConsoleConfigDialog > #webconsole-config-dialog Select,
 CustomMigrationModal Select {
   width: 75%;
   border: none ;
-  margin: 0 0;
-  padding: 0 0;
-  margin-bottom: 0;
+}
+#iso-select Select {
+  width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
+InstallVMModal > #install-dialog, {
+  width: 80;
+}
 SelectSnapshotDialog > #dialog {
   width: 68;
+}
+#expert-mode {
+  height: 5;
 }
 #howto-vmtype-dialog, {
   width: 80;
@@ -108,7 +115,7 @@ ConfirmationDialog > #dialog {
 InstallVMModal > #custom-iso-container,
 InstallVMModal > #autoinstall-container,
 InstallVMModal #checksum-container {
-  height: auto;
+  height: 8;
   margin-bottom: 1;
 }
 
@@ -117,7 +124,6 @@ InstallVMModal #checksum-container {
     margin-bottom: 1;
 }
 InstallVMModal #custom-iso-container Checkbox {
-    margin-bottom: 1;
     height: 3;
 }
 WebConsoleConfigDialog > #webconsole-config-dialog, {
@@ -126,7 +132,12 @@ WebConsoleConfigDialog > #webconsole-config-dialog, {
 SelectOneServerModal > #select-one-server-container, {
   height: 10
 }
-
+#expert-mode-collapsible {
+  height: auto;
+  border: none;
+  margin: 0 0;
+  padding: 0 0;
+}
 #file-tree {
    height: 90%;
 }
@@ -218,17 +229,23 @@ PasswordModal Button {
   margin: 1;
   margin-left: 1;
 }
-AddPoolModal #browse-dir-btn,
-InstallVMModal #vm-type-info-btn,
-InstallVMModal #browse-iso-btn,
+InstallVMModal #custom-iso-path,
 AttachVolumeModal #browse-vol-btn,
-InstallVMModal #browse-autoinstall-btn,
 AddDiskModal #browse-disk-btn, {
   height: 3;
   width: 25%;
+  padding: 0 0;
   background: $primary;
 }
-
+InstallVMModal #browse-iso-btn,
+InstallVMModal #browse-autoinstall-btn,
+InstallVMModal #vm-type-info-btn, {
+  height: 1;
+  width: 25%;
+}
+AddPoolModal #browse-dir-btn, {
+  height: 3;
+}
 ConfirmationDialog Button { margin-right: 1; }
 
 /* === INPUTS === */
@@ -492,16 +509,6 @@ LoadingModal LoadingIndicator {
     color: $accent;
 }
 /* === Install Modals === */
-InstallVMModal {
-    align: center middle;
-}
-
-.label {
-    margin-top: 0;
-    margin-bottom: 0;
-    color: $text-muted;
-}
-
 #progress-bar {
     display: none;
     margin-top: 1;
