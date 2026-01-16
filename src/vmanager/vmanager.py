@@ -1031,18 +1031,25 @@ class VMManagerTUI(App):
                     self.vm_service.force_off_vm(domain)
                 elif message.action == VmAction.DELETE:
                     self.bulk_operation_in_progress = True
-                    self.vm_service.delete_vm(domain, delete_storage=message.delete_storage)
+                    self.vm_service.delete_vm(domain, delete_storage=message.delete_storage, delete_nvram=True)
                     self.vm_service.invalidate_vm_cache(message.internal_id)
                     if message.internal_id in self.selected_vm_uuids:
                         self.selected_vm_uuids.discard(message.internal_id)
                     self.call_from_thread(self.refresh_vm_list, force=True)
-                    self.bulk_operation_in_progress = False
-
             except Exception as e:
                 self.call_from_thread(
                     self.show_error_message,
                     f"Error on VM [b]{vm_name}[/b] during '{message.action}': {e}",
                 )
+            finally:
+                # Always try to unset the flag from the main thread
+                def unset_flag():
+                    if self.bulk_operation_in_progress:
+                        self.bulk_operation_in_progress = False
+                try:
+                    self.call_from_thread(unset_flag)
+                except RuntimeError:
+                    logging.warning("Could not unset bulk operation flag: event loop not running.")
 
         self.worker_manager.run(
             action_worker, name=f"action_{message.action}_{message.internal_id}"
