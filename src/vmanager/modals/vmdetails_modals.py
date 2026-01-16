@@ -128,6 +128,20 @@ class VMDetailModal(ModalScreen):
     def _run_bulk_operation(self, targets, operation, success_msg_fmt, error_msg_fmt, ui_update_callback=None):
         """Helper to run bulk operations sequentially in a worker."""
 
+        if len(targets) == 1:
+            d = targets[0]
+            try:
+                operation(d)
+                self._invalidate_cache()
+                msg = success_msg_fmt.format(count=1, names=d.name())
+                self.app.show_success_message(msg)
+                if ui_update_callback:
+                    ui_update_callback()
+                return
+            except Exception as e:
+                self.app.show_error_message(f"{error_msg_fmt}: {e}")
+                return
+
         progress = ProgressModal("Applying changes...")
         self.app.push_screen(progress)
 
