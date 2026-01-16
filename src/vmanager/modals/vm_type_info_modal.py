@@ -16,7 +16,7 @@ VM_TYPE_INFO_TEXT = """
 | lazy_refcounts| on | on | off |
 | format | qcow2 | raw | qcow2 |
 | disk bus | virtio | virtio | virtio |
-| capacity | 8G | 8G | 8G |
+| capacity | 8G | 8G | 18G |
 | cluster_size | 1024k | NA | 1024k
 
 | Guest Settings | Secure VM | Computation | Desktop |
