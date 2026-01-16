@@ -32,7 +32,7 @@ from gi.repository import Gtk, Gdk, GtkVnc, GLib, GdkPixbuf
 
 class RemoteViewer(Gtk.Application):
     def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False):
-        super().__init__(application_id='org.example.RemoteViewer')
+        super().__init__(application_id=None)
         self.uri = uri
         self.domain_name = domain_name
         self.uuid = uuid
