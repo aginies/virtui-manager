@@ -5,10 +5,13 @@ import logging
 import subprocess
 
 import os
+from pathlib import Path
 from textual.widgets import Input, Select, Button, Label, ProgressBar, Checkbox, Collapsible
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on, work
 
+from config import load_config
+from constants import AppInfo
 from vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
 from storage_manager import list_storage_pools
 from vm_service import VMService
@@ -63,6 +66,10 @@ class InstallVMModal(BaseModal[str | None]):
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
                 yield Label("ISO Image (Repo):", classes="label")
+                # Show download path
+                config = load_config()
+                iso_path = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
+                yield Label(f"ISOs will be downloaded to: {iso_path}", classes="info-text", id="iso-path-label")
                 yield Select([], prompt="Select ISO...", id="iso-select", disabled=True)
 
             # Container for Custom ISO
@@ -79,7 +86,7 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Container for Autoinstall (Disabled for now)
             with Vertical(id="autoinstall-container"):
-                yield Label("Autoinstall File (Optional):", classes="label")
+                yield Label("Autoinstall File (Optional):", disabled=True)
                 with Horizontal(classes="input-row"):
                     yield Input(placeholder="/path/to/autoinstall.xml", id="autoinstall-path", classes="path-input", disabled=True)
                     yield Button("Browse", id="browse-autoinstall-btn", disabled=True)
@@ -95,8 +102,11 @@ class InstallVMModal(BaseModal[str | None]):
                     with Vertical():
                         yield Label("Disk Size (GB):", classes="label")
                         yield Input("8", id="disk-size-input", type="integer")
+                    with Vertical():
+                        yield Label("Disk Format:", classes="label")
+                        yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
 
-            yield Label("Storage Pool:", classes="label")
+            yield Label("Storage Pool:", id="vminstall-storage-label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
 
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
@@ -119,10 +129,12 @@ class InstallVMModal(BaseModal[str | None]):
         mem = 4096
         vcpu = 2
         disk_size = 8
+        disk_format = "qcow2"
 
         if vm_type == VMType.COMPUTATION:
             mem = 8192
             vcpu = 4
+            disk_format = "raw"
         elif vm_type == VMType.DESKTOP:
             mem = 4096
             vcpu = 4
@@ -134,6 +146,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#memory-input", Input).value = str(mem)
         self.query_one("#cpu-input", Input).value = str(vcpu)
         self.query_one("#disk-size-input", Input).value = str(disk_size)
+        self.query_one("#disk-format", Select).value = disk_format
 
     @on(Select.Changed, "#vm-type")
     def on_vm_type_changed(self, event: Select.Changed):
@@ -167,7 +180,15 @@ class InstallVMModal(BaseModal[str | None]):
         self.app.call_from_thread(self._update_iso_status, "Fetching ISO list...", True)
 
         try:
-            isos = self.provisioner.get_iso_list(distro)
+            # 1. Get Cached ISOs
+            cached_isos = self.provisioner.get_cached_isos()
+
+            # 2. Get Remote ISOs
+            remote_isos = self.provisioner.get_iso_list(distro)
+
+            # Combine (Cached first)
+            isos = cached_isos + remote_isos
+
             # Create Select options: (label, url)
             iso_options = []
             for iso in isos:
@@ -282,12 +303,14 @@ class InstallVMModal(BaseModal[str | None]):
         memory_mb = 4096
         vcpu = 2
         disk_size = 20
-        
+        disk_format = "qcow2"
+
         if expert_mode:
             try:
                 memory_mb = int(self.query_one("#memory-input", Input).value)
                 vcpu = int(self.query_one("#cpu-input", Input).value)
                 disk_size = int(self.query_one("#disk-size-input", Input).value)
+                disk_format = self.query_one("#disk-format", Select).value
             except ValueError:
                 self.app.show_error_message("Invalid input for expert settings. Using defaults.")
 
@@ -299,10 +322,10 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#progress-bar").styles.display = "block"
         self.query_one("#status-label").styles.display = "block"
 
-        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size)
+        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format)
 
     @work(exclusive=True, thread=True)
-    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size):
+    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
 
@@ -337,6 +360,7 @@ class InstallVMModal(BaseModal[str | None]):
                 memory_mb=memory_mb,
                 vcpu=vcpu,
                 disk_size_gb=disk_size,
+                disk_format=disk_format,
                 progress_callback=progress_cb
             )
 
