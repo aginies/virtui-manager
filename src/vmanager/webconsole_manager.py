@@ -197,6 +197,9 @@ wp.websockify_init()
         # Handle remote cleanup if needed
         remote_pid = ssh_info.get("remote_pid")
         remote_host = ssh_info.get("remote_host")
+        ssh_port = ssh_info.get("ssh_port")
+        control_socket = ssh_info.get("control_socket")
+
         if remote_pid and remote_host:
             try:
                 logging.info(f"Killing remote websockify process {remote_pid} on {remote_host}")
@@ -282,6 +285,7 @@ wp.websockify_init()
         parsed_uri = urlparse(conn.getURI())
         user = parsed_uri.username
         host = parsed_uri.hostname
+        ssh_port = parsed_uri.port or 22  # Get SSH port from URI
         remote_user_host = f"{user}@{host}" if user else host
 
         # Determine target VNC host on the remote server
@@ -379,14 +383,20 @@ wp.websockify_init()
             logging.warning(f"Could not check for remote certs/novnc: {e}. Proceeding without SSL options and default novnc path.")
             self.app.call_from_thread(self.app.show_success_message, "Could not check for remote cert/key, using insecure ws connection.")
 
+        # Build SSH command with custom port if needed
+        ssh_base_args = ["ssh"]
+        if ssh_port != 22:
+            ssh_base_args.extend(["-p", str(ssh_port)])
+        ssh_base_args.append(remote_user_host)
+
         remote_websockify_cmd_str = " ".join(remote_websockify_cmd_list)
 
         # Wrap command to capture PID and redirect stderr to stdout
         # "exec" replaces the shell, so $$ is the shell's PID which becomes websockify's PID
         remote_cmd = f"echo $$; exec {remote_websockify_cmd_str} 2>&1"
 
-        ssh_command_list = [
-            "ssh", remote_user_host,
+        ssh_command_list = ssh_base_args[:-1] + [
+            remote_user_host,
             remote_cmd
         ]
 
@@ -449,18 +459,75 @@ wp.websockify_init()
             logging.warning(f"Failed to check remote process status for {remote_pid} on {remote_user_host}: {e}")
             # Can't verify, so we assume it's running and let it fail later if it's not.
 
+        # Find a free LOCAL port for the SSH tunnel
+        local_tunnel_port = self._get_next_available_port(None)
+        if not local_tunnel_port:
+            # Clean up remote websockify
+            try:
+                subprocess.run(
+                    ssh_base_args + [f"kill {remote_pid}"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                )
+            except:
+                pass
+            self.app.call_from_thread(self.app.show_error_message, "Could not find a free local port for SSH tunnel.")
+            return
+
+        # Create control socket for the tunnel
+        raw_uuid = uuid.split('@')[0] if '@' in uuid else uuid
+        socket_name = f"wc_tunnel_{raw_uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
+        control_socket = os.path.join("/tmp", socket_name)
+
+        # SSH tunnel command: forward local_tunnel_port to remote web_port
+        tunnel_cmd = ["ssh", "-M", "-S", control_socket, "-f", "-N"]
+        if ssh_port != 22:
+            tunnel_cmd.extend(["-p", str(ssh_port)])
+        tunnel_cmd.extend([
+            "-L", f"{local_tunnel_port}:127.0.0.1:{web_port}",
+            remote_user_host
+        ])
+
+        try:
+            subprocess.run(
+                tunnel_cmd,
+                check=True,
+                timeout=10,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            logging.info(f"SSH tunnel created: localhost:{local_tunnel_port} -> {remote_user_host}:{web_port}")
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
+            # Clean up remote websockify
+            try:
+                subprocess.run(
+                    ssh_base_args + [f"kill {remote_pid}"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5
+                )
+            except:
+                pass
+            self.app.call_from_thread(self.app.show_error_message, f"Failed to create SSH tunnel: {e}")
+            return
+
+
+
         quality = self.config.get('VNC_QUALITY', 0)
         compression = self.config.get('VNC_COMPRESSION', 9)
-        url = f"{url_scheme}://{host}:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
+        # Use localhost with the LOCAL tunnel port
+        url = f"{url_scheme}://localhost:{local_tunnel_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
 
-        ssh_info = {"remote_pid": remote_pid, "remote_host": remote_user_host} if remote_pid else {}
+        ssh_info = {"remote_pid": remote_pid, "remote_host": remote_user_host, "ssh_port": ssh_port, "control_socket": control_socket}
 
         # Save session
         session_data = {
             "pid": proc.pid,  # Local SSH PID
             "url": url,
             "ssh_info": ssh_info,
-            "port": web_port,
+            "port": local_tunnel_port,
             "type": "remote"
         }
         self.save_session(uuid, session_data)
