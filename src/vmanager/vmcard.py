@@ -1080,7 +1080,7 @@ class VMCard(Static):
                 try:
                     create_external_overlay(self.vm, target_disk, overlay_name)
                     self.app.show_success_message(f"Overlay [b]{overlay_name}[/b] created and attached.")
-                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                    self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                     self._boot_device_checked = False
                     self.post_message(VmCardUpdateRequest(self.internal_id))
                     self.update_button_layout()
@@ -1110,7 +1110,7 @@ class VMCard(Static):
                         try:
                             discard_overlay(self.vm, target_disk)
                             self.app.show_success_message(f"Overlay for [b]{target_disk}[/b] discarded and reverted to base image.")
-                            self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                            self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.post_message(VmCardUpdateRequest(self.internal_id))
                             self.update_button_layout()
@@ -1228,7 +1228,7 @@ class VMCard(Static):
                             conn.defineXML(modified_xml)
                             self.app.show_success_message(f"VM [b]{self.name}[/b] configuration updated successfully.")
                             logging.info(f"Successfully updated XML for VM: {self.name}")
-                            self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                            self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
@@ -1712,7 +1712,7 @@ class VMCard(Static):
                             self._perform_tooltip_update()
 
                         self.app.push_screen(
-                            VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_cache),
+                            VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_state_cache),
                             on_detail_modal_dismissed
                         )
 

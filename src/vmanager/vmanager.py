@@ -1131,7 +1131,7 @@ class VMManagerTUI(App):
                                 vm_info=vm_info,
                                 domain=domain,
                                 conn=conn,
-                                invalidate_cache_callback=self.vm_service.invalidate_vm_cache,
+                                invalidate_cache_callback=self.vm_service.invalidate_vm_state_cache,
                                 selected_domains=selected_domains
                             )
                         )
