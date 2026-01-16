@@ -31,7 +31,7 @@ except (ValueError, ImportError):
 from gi.repository import Gtk, Gdk, GtkVnc, GLib, GdkPixbuf
 
 class RemoteViewer(Gtk.Application):
-    def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False):
+    def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False, wait=False):
         super().__init__(application_id=None)
         self.uri = uri
         self.domain_name = domain_name
@@ -41,6 +41,7 @@ class RemoteViewer(Gtk.Application):
         self.password = password
         self.show_logs = show_logs
         self.attach = attach
+        self.wait_for_vm = wait
         self.conn = None
         self._pending_password = None
         self.domain = None
@@ -426,6 +427,26 @@ class RemoteViewer(Gtk.Application):
             self.list_window.destroy()
             self.show_viewer()
 
+    def _wait_and_connect_cb(self):
+        try:
+            # Refresh domain info
+            if self.original_domain_uuid:
+                try:
+                    self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
+                except libvirt.libvirtError:
+                    pass # Keep using current domain object if lookup fails
+            
+            protocol, host, port, pwd = self.get_display_info()
+            if not self.attach and (not host or not port):
+                return True # Keep waiting
+            
+            self.show_notification("VM started! Connecting...", Gtk.MessageType.INFO)
+            self.connect_display()
+            return False
+        except Exception as e:
+            if self.verbose: print(f"Wait error: {e}")
+            return True
+
     def show_viewer(self):
         if not self.domain:
             self.show_error_dialog("No domain selected or domain not found.")
@@ -696,7 +717,27 @@ class RemoteViewer(Gtk.Application):
         self.register_domain_events()
 
         # Connection
+        if self.wait_for_vm:
+            protocol, host, port, pwd = self.get_display_info()
+            if not self.attach and (not host or not port):
+                self.show_notification("Waiting for VM to start...", Gtk.MessageType.INFO)
+                GLib.timeout_add_seconds(2, self._wait_and_connect_cb)
+                return
+
         self.connect_display()
+
+    def _setup_tunnel_if_needed(self, listen, port):
+        # If SSH tunnel is configured, setup tunnel for this specific port
+        if self.ssh_gateway and self.ssh_tunnel_process is None:
+            # Start tunnel to the actual remote host/port
+            remote_host = listen
+            if listen == 'localhost' or listen == '0.0.0.0':
+                # Extract remote host from libvirt URI
+                import re
+                match = re.search(r'qemu\+ssh://(?:[^@]+@)?([^/:]+)', self.uri)
+                if match:
+                    remote_host = match.group(1)
+            self.start_ssh_tunnel(remote_host, port)
 
     def get_display_info(self):
         """Retrieve connection info (protocol, host, port, password)"""
@@ -704,57 +745,36 @@ class RemoteViewer(Gtk.Application):
             xml_desc = self.domain.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
             root = ET.fromstring(xml_desc)
 
-            # Check SPICE
-            graphics = root.find(".//graphics[@type='spice']")
-            if graphics is not None:
-                port = graphics.get('port')
+            def get_graphics_info(g_node):
+                if g_node is None: return None
+                port = g_node.get('port')
                 if not port or port == '-1':
-                    port = graphics.get('tlsPort')
-
-                listen = graphics.get('listen')
+                    port = g_node.get('tlsPort')
+                
+                listen = g_node.get('listen')
                 if not listen or listen == '0.0.0.0':
                     listen = 'localhost'
-
-                password = graphics.get('passwd')
-
-                # If SSH tunnel is configured, setup tunnel for this specific port
-                if self.ssh_gateway and self.ssh_tunnel_process is None:
-                    # Start tunnel to the actual remote host/port
-                    remote_host = listen
-                    if listen == 'localhost' or listen == '0.0.0.0':
-                        # Extract remote host from libvirt URI
-                        import re
-                        match = re.search(r'qemu\+ssh://(?:[^@]+@)?([^/:]+)', self.uri)
-                        if match:
-                            remote_host = match.group(1)
-                    self.start_ssh_tunnel(remote_host, port)
-
+                
+                password = g_node.get('passwd')
+                
                 if port and port != '-1':
+                    return listen, port, password
+                return None
+
+            # Check SPICE (only if client is available)
+            if SPICE_AVAILABLE:
+                info = get_graphics_info(root.find(".//graphics[@type='spice']"))
+                if info:
+                    listen, port, password = info
+                    self._setup_tunnel_if_needed(listen, port)
                     return 'spice', listen, port, password
 
             # Check VNC
-            graphics = root.find(".//graphics[@type='vnc']")
-            if graphics is not None:
-                port = graphics.get('port')
-                listen = graphics.get('listen')
-                if not listen or listen == '0.0.0.0':
-                    listen = 'localhost'
-
-                password = graphics.get('passwd')
-
-                # If SSH tunnel is configured, setup tunnel for this specific port
-                if self.ssh_gateway and self.ssh_tunnel_process is None:
-                    # Start tunnel to the actual remote host/port
-                    remote_host = listen
-                    if listen == 'localhost' or listen == '0.0.0.0':
-                        # Extract remote host from libvirt URI
-                        import re
-                        match = re.search(r'qemu\+ssh://(?:[^@]+@)?([^/:]+)', self.uri)
-                        if match:
-                            remote_host = match.group(1)
-                    self.start_ssh_tunnel(remote_host, port)
-                if port and port != '-1':
-                    return 'vnc', listen, port, password
+            info = get_graphics_info(root.find(".//graphics[@type='vnc']"))
+            if info:
+                listen, port, password = info
+                self._setup_tunnel_if_needed(listen, port)
+                return 'vnc', listen, port, password
 
         except Exception as e:
             msg = f"XML parse error: {e}"
@@ -1432,10 +1452,11 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='Verbose mode')
     parser.add_argument('--logs', action='store_true', help='Enable Logs & Events tab')
     parser.add_argument('-a', '--attach', action='store_true', help='Attach to the local display using libvirt')
+    parser.add_argument('-w', '--wait', action='store_true', help='Wait for VM to start')
 
     args = parser.parse_args()
 
-    app = RemoteViewer(args.uri, args.domain_name, args.uuid, args.verbose, args.password, show_logs=args.logs, attach=args.attach)
+    app = RemoteViewer(args.uri, args.domain_name, args.uuid, args.verbose, args.password, show_logs=args.logs, attach=args.attach, wait=args.wait)
     try:
         app.run([sys.argv[0]])
     except KeyboardInterrupt:
