@@ -1306,9 +1306,10 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
 
         nvram_elem = os_elem.find('nvram')
         if nvram_elem is None:
-            ET.SubElement(os_elem, 'nvram', template=f"{uefi_path.replace('.bin', '_VARS.fd')}")
+            ET.SubElement(os_elem, 'nvram', template=f"{uefi_path.replace('.bin', '_VARS.fd')}", templateFormat='qcow2')
         else:
             nvram_elem.set('template', uefi_path.replace('.bin', '_VARS.fd'))
+            nvram_elem.set('templateFormat', 'qcow2')
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
