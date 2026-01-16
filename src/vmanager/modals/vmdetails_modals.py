@@ -625,7 +625,7 @@ class VMDetailModal(ModalScreen):
 
         try:
             password_input = self.query_one("#graphics-password-input", Input)
-            password_input.value = self.graphics_info['password'] if self.graphics_info['password_enabled'] else ""
+            password_input.value = (self.graphics_info['password'] or "") if self.graphics_info['password_enabled'] else ""
             password_input.disabled = not self.is_vm_stopped or not self.graphics_info['password_enabled']
         except Exception:
             pass
