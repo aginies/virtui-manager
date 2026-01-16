@@ -10,6 +10,7 @@ from textual.widgets import Input, Select, Button, Label, ProgressBar, Checkbox,
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on, work
 
+import libvirt
 from config import load_config
 from constants import AppInfo
 from vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
@@ -19,6 +20,7 @@ from utils import remote_viewer_cmd
 from modals.base_modals import BaseModal
 from modals.utils_modals import FileSelectionModal
 from modals.vm_type_info_modal import VMTypeInfoModal
+from modals.input_modals import _sanitize_domain_name
 
 class InstallVMModal(BaseModal[str | None]):
     """
@@ -53,6 +55,7 @@ class InstallVMModal(BaseModal[str | None]):
             yield Label("Distribution:", classes="label")
 
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
+            distro_options.insert(0, ("Cached ISOs", "cached"))
             custom_repos = self.provisioner.get_custom_repos()
             for repo in custom_repos:
                 # Use URI as value, Name as label
@@ -93,17 +96,17 @@ class InstallVMModal(BaseModal[str | None]):
 
             with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
-                    with Vertical():
-                        yield Label("Memory (MB):", classes="label")
+                    with Vertical(id="expert-mem"):
+                        yield Label("Memory (MB)", classes="label")
                         yield Input("4096", id="memory-input", type="integer")
-                    with Vertical():
-                        yield Label("CPUs:", classes="label")
+                    with Vertical(id="expert-cpu"):
+                        yield Label("CPUs", classes="label")
                         yield Input("2", id="cpu-input", type="integer")
-                    with Vertical():
-                        yield Label("Disk Size (GB):", classes="label")
+                    with Vertical(id="expert-disk-size"):
+                        yield Label("Disk Size (GB)", classes="label")
                         yield Input("8", id="disk-size-input", type="integer")
-                    with Vertical():
-                        yield Label("Disk Format:", classes="label")
+                    with Vertical(id="expert-disk-format"):
+                        yield Label("Disk Format", classes="label")
                         yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
 
             yield Label("Storage Pool:", id="vminstall-storage-label")
@@ -121,7 +124,9 @@ class InstallVMModal(BaseModal[str | None]):
         """Called when modal is mounted."""
         # Initial state
         self.query_one("#custom-iso-container").styles.display = "none"
-        self.fetch_isos(OpenSUSEDistro.LEAP)
+        # Default to showing cached ISOs first
+        self.query_one("#distro", Select).value = "cached"
+        self.fetch_isos("cached")
         # Ensure expert defaults are set correctly based on initial selection
         self._update_expert_defaults(self.query_one("#vm-type", Select).value)
 
@@ -154,6 +159,7 @@ class InstallVMModal(BaseModal[str | None]):
 
     @on(Select.Changed, "#distro")
     def on_distro_changed(self, event: Select.Changed):
+        self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
         if event.value == OpenSUSEDistro.CUSTOM:
             self.query_one("#repo-iso-container").styles.display = "none"
             self.query_one("#custom-iso-container").styles.display = "block"
@@ -180,14 +186,11 @@ class InstallVMModal(BaseModal[str | None]):
         self.app.call_from_thread(self._update_iso_status, "Fetching ISO list...", True)
 
         try:
-            # 1. Get Cached ISOs
-            cached_isos = self.provisioner.get_cached_isos()
-
-            # 2. Get Remote ISOs
-            remote_isos = self.provisioner.get_iso_list(distro)
-
-            # Combine (Cached first)
-            isos = cached_isos + remote_isos
+            isos = []
+            if distro == "cached":
+                isos = self.provisioner.get_cached_isos()
+            else:
+                isos = self.provisioner.get_iso_list(distro)
 
             # Create Select options: (label, url)
             iso_options = []
@@ -205,7 +208,10 @@ class InstallVMModal(BaseModal[str | None]):
                 sel.disabled = False
                 if iso_options:
                     sel.value = iso_options[0][1] # Select first by default
+                else:
+                    sel.clear() # No options, clear any previous value
                 self._update_iso_status("", False)
+                self._check_form_validity() # Re-check validity after options change
 
             self.app.call_from_thread(update_select)
 
@@ -280,7 +286,36 @@ class InstallVMModal(BaseModal[str | None]):
 
     @on(Button.Pressed, "#install-btn")
     def on_install(self):
-        vm_name = self.query_one("#vm-name", Input).value.strip()
+        vm_name_raw = self.query_one("#vm-name", Input).value
+
+        # 1. Sanitize VM Name
+        try:
+            vm_name, was_modified = _sanitize_domain_name(vm_name_raw)
+        except ValueError as e:
+            self.app.show_error_message(str(e))
+            return
+
+        if was_modified:
+            self.app.show_quick_message(f"VM name sanitized: '{vm_name_raw}' -> '{vm_name}'")
+            self.query_one("#vm-name", Input).value = vm_name
+
+        if not vm_name:
+            self.app.show_error_message("VM name cannot be empty.")
+            return
+
+        # 2. Check if VM exists
+        try:
+            self.conn.lookupByName(vm_name)
+            self.app.show_error_message(f"A VM with the name '{vm_name}' already exists. Please choose a different name.")
+            return
+        except libvirt.libvirtError as e:
+            if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+                self.app.show_error_message(f"Error checking VM name: {e}")
+                return
+        except Exception as e:
+            self.app.show_error_message(f"An unexpected error occurred: {e}")
+            return
+
         vm_type = self.query_one("#vm-type", Select).value
         pool_name = self.query_one("#pool", Select).value
         distro = self.query_one("#distro", Select).value
