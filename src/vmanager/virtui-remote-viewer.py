@@ -12,9 +12,9 @@ import json
 import time
 import subprocess
 import socket
+import threading
 import libvirt
 import gi
-import threading
 import vm_queries
 import vm_actions
 import libvirt_utils
@@ -295,6 +295,9 @@ class RemoteViewer(Gtk.Application):
 
         if event_type == "Started":
             self.show_notification(f"VM '{dom.name()}' has started.", Gtk.MessageType.INFO)
+            self.log_message("VM started, scheduling display connection...")
+            # Schedule connection attempt (give some time for graphics to init)
+            GLib.timeout_add(1000, self.connect_display)
         elif event_type == "Suspended":
             self.show_notification(f"VM '{dom.name()}' is suspended.", Gtk.MessageType.WARNING)
         elif event_type == "Resumed":
@@ -1032,6 +1035,23 @@ class RemoteViewer(Gtk.Application):
 
     def connect_display(self, force=False, password=None):
         """Attempts connection"""
+        # Refresh domain object to ensure we have the latest handle (especially for live XML)
+        if self.original_domain_uuid and self.conn:
+            try:
+                # We need to refresh self.domain to ensure we are querying the running instance
+                # which has the assigned VNC/SPICE port in its XML.
+                self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
+                
+                # Log state for debugging
+                try:
+                    state_str = vm_queries.get_status(self.domain)
+                    self.log_message(f"Debug: Domain refreshed. Current State: {state_str}")
+                except Exception as ex:
+                    self.log_message(f"Debug: Could not get VM state: {ex}")
+
+            except libvirt.libvirtError as e:
+                self.log_message(f"Warning: Could not refresh domain object: {e}")
+
         # Safety check: ensure we're still connecting to the same VM
         if self.original_domain_uuid and self.domain:
             try:
