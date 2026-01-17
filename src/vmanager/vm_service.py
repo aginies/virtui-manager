@@ -361,9 +361,20 @@ class VMService:
                 lifecycle_callback,
                 None
             )
-            # Store connection object to detect changes
-            self._event_callbacks[uri] = (conn, callback_id)
-            logging.info(f"Registered domain events for {uri}")
+
+            with self._registration_lock:
+                # Check for race condition: did someone else register while we were registering?
+                if uri in self._event_callbacks:
+                    # Cleanup our duplicate registration
+                    try:
+                        conn.domainEventDeregisterAny(callback_id)
+                    except Exception:
+                        pass
+                else:
+                    # Store connection object to detect changes
+                    self._event_callbacks[uri] = (conn, callback_id)
+                    logging.info(f"Registered domain events for {uri}")
+
         except libvirt.libvirtError as e:
             logging.warning(f"Could not register domain events for {uri}: {e}")
             if "event timer" in str(e).lower() or "event loop" in str(e).lower():
@@ -372,22 +383,30 @@ class VMService:
 
     def _unregister_domain_events(self, conn: libvirt.virConnect, uri: str):
         """Unregister domain events."""
-        with self._registration_lock:
-            # Unregister close callback
-            try:
-                conn.unregisterCloseCallback(self._connection_close_callback)
-            except Exception:
-                pass
+        callback_id_to_remove = None
 
+        with self._registration_lock:
             if uri in self._event_callbacks:
                 try:
                     # Unwrap tuple
                     _, callback_id = self._event_callbacks[uri]
-                    conn.domainEventDeregisterAny(callback_id)
+                    callback_id_to_remove = callback_id
                     del self._event_callbacks[uri]
-                    logging.info(f"Unregistered domain events for {uri}")
-                except libvirt.libvirtError as e:
-                    logging.warning(f"Could not unregister domain events for {uri}: {e}")
+                except Exception as e:
+                    logging.warning(f"Error removing callback from dict for {uri}: {e}")
+
+        # Perform libvirt calls outside the lock
+        try:
+            conn.unregisterCloseCallback(self._connection_close_callback)
+        except Exception:
+            pass
+
+        if callback_id_to_remove is not None:
+            try:
+                conn.domainEventDeregisterAny(callback_id_to_remove)
+                logging.info(f"Unregistered domain events for {uri}")
+            except libvirt.libvirtError as e:
+                logging.warning(f"Could not unregister domain events for {uri}: {e}")
 
     def get_vm_identity(self, domain: libvirt.virDomain, conn: libvirt.virConnect = None, known_uri: str = None) -> tuple[str, str]:
         """
@@ -1019,6 +1038,7 @@ class VMService:
 
         # Check if we need to re-register events because connection object changed
         if conn:
+            should_register = False
             with self._registration_lock:
                 if uri in self._event_callbacks:
                     # Handle unwrapping if it's a wrapper from ConnectionManager
@@ -1030,9 +1050,13 @@ class VMService:
                         logging.info(f"Connection object changed for {uri}, re-registering events")
                         # Remove old registration record (old conn is likely dead anyway)
                         del self._event_callbacks[uri]
+                        should_register = True
+                else:
+                    should_register = True
 
-                if uri not in self._event_callbacks:
-                    self._register_domain_events(conn, uri)
+            if should_register:
+                self._register_domain_events(conn, uri)
+
         return conn
 
     def reset_connection_failures(self, uri: str):
