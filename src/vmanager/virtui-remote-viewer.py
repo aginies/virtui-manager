@@ -1780,6 +1780,7 @@ class RemoteViewer(Gtk.Application):
                         GLib.idle_add(self._hide_wait_dialog)
                         GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
                 
+                threading.Thread(target=_restore_snapshot_thread).start()
 
 
 
