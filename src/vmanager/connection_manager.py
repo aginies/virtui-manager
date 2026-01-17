@@ -67,18 +67,25 @@ class ConnectionManager:
         """Cheap liveness check using cached timestamp."""
         import time
         now = time.time()
+        
         with self._alive_lock:
             last = self._last_check.get(uri, 0)
             if now - last < AppCacheTimeout.CACHE_TTL:  # 30s default cache TTL
                 return self._alive_cache.get(uri, True)
-            try:
-                # Cheaper than getLibVersion(): listDefinedDomains(0) no-op if cached
-                conn.listDefinedDomains()
-                self._alive_cache[uri] = True
-            except libvirt.libvirtError:
-                self._alive_cache[uri] = False
+
+        # Perform libvirt call outside lock
+        alive = False
+        try:
+            # Cheaper than getLibVersion(): listDefinedDomains(0) no-op if cached
+            conn.listDefinedDomains()
+            alive = True
+        except libvirt.libvirtError:
+            alive = False
+
+        with self._alive_lock:
+            self._alive_cache[uri] = alive
             self._last_check[uri] = now
-            return self._alive_cache[uri]
+            return alive
 
     def get_stats(self) -> dict[str, dict[str, int]]:
         """Returns the call statistics."""
