@@ -212,17 +212,21 @@ class ConnectionManager:
         """
         Closes and removes a specific connection from the manager.
         """
+        conn_to_close = None
         with self._lock:
             if uri in self.connections:
-                try:
-                    self.connections[uri].close()
-                    logging.info(f"Closed connection to {uri}")
-                except libvirt.libvirtError as e:
-                    logging.error(f"Error closing connection to {uri}: {e}")
-                finally:
-                    if uri in self.connections:
-                        del self.connections[uri]
-                    return True
+                conn_to_close = self.connections[uri]
+                del self.connections[uri]
+
+        if conn_to_close:
+            try:
+                conn_to_close.close()
+                logging.info(f"Closed connection to {uri}")
+            except libvirt.libvirtError as e:
+                logging.error(f"Error closing connection to {uri}: {e}")
+            except Exception as e:
+                logging.error(f"Unexpected error closing connection to {uri}: {e}")
+            return True
         return False
 
     def disconnect_all(self) -> None:
