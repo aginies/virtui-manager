@@ -426,6 +426,7 @@ class ServerPrefModal(BaseModal[None]):
                     # Redefine the pool with the new XML
                     self.conn.storagePoolDefineXML(new_xml, 0)
                     self.app.show_success_message(f"Storage pool '{pool.name()}' updated successfully.")
+                    storage_manager.list_storage_pools.cache_clear()
                     self._load_storage_pools()  # Refresh the tree
                 except libvirt.libvirtError as e:
                     self.app.show_error_message(f"Error updating pool XML: {e}")
@@ -459,6 +460,7 @@ class ServerPrefModal(BaseModal[None]):
             storage_manager.set_pool_active(pool, not is_active)
             self.app.show_success_message(f"Pool '{pool.name()}' is now {'inactive' if is_active else 'active'}.")
             node_data['status'] = 'inactive' if is_active else 'active'
+            storage_manager.list_storage_pools.cache_clear()
             self._load_storage_pools(select_pool=pool_name) # Refresh the tree
         except Exception as e:
             self.app.show_error_message(str(e))
@@ -481,6 +483,7 @@ class ServerPrefModal(BaseModal[None]):
             storage_manager.set_pool_autostart(pool, not has_autostart)
             self.app.show_success_message(f"Autostart for pool '{pool.name()}' is now {'off' if has_autostart else 'on'}.")
             node_data['autostart'] = not has_autostart
+            storage_manager.list_storage_pools.cache_clear()
             self._load_storage_pools(select_pool=pool_name) # Refresh the tree
         except Exception as e:
             self.app.show_error_message(str(e))
@@ -547,6 +550,7 @@ class ServerPrefModal(BaseModal[None]):
                         self.app.show_success_message(
                             f"Storage pool '{new_pool_name}' created for directory:\n{volume_dir}"
                         )
+                        storage_manager.list_storage_pools.cache_clear()
                         self._load_storage_pools(expand_pools=[new_pool_name])
                     except Exception as e:
                         self.app.show_error_message(f"Error creating storage pool: {e}")
@@ -565,6 +569,7 @@ class ServerPrefModal(BaseModal[None]):
     def on_add_pool_button_pressed(self, event: Button.Pressed) -> None:
         def on_create(success: bool | None) -> None:
             if success:
+                storage_manager.list_storage_pools.cache_clear()
                 self._load_storage_pools()
 
         self.app.push_screen(AddPoolModal(self.conn), on_create)
@@ -587,6 +592,7 @@ class ServerPrefModal(BaseModal[None]):
                 try:
                     storage_manager.delete_storage_pool(pool)
                     self.app.show_success_message(f"Storage pool '{pool_name}' deleted successfully.")
+                    storage_manager.list_storage_pools.cache_clear()
                     self._load_storage_pools() # Refresh the tree
                 except Exception as e:
                     self.app.show_error_message(str(e))
