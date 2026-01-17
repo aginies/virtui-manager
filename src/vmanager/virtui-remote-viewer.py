@@ -17,6 +17,7 @@ import gi
 import threading
 import vm_queries
 import vm_actions
+import libvirt_utils
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkVnc', '2.0')
@@ -66,6 +67,12 @@ class RemoteViewer(Gtk.Application):
         self.events_registered = False
         self.snapshots_store = None
         self.snapshots_tree_view = None
+        self.attached_usb_store = None
+        self.attached_usb_tree_view = None
+        self.host_usb_store = None
+        self.host_usb_tree_view = None
+        self.attach_usb_button = None
+        self.detach_usb_button = None
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         self.clipboard_update_in_progress = False
         self.last_clipboard_content = None
@@ -189,6 +196,9 @@ class RemoteViewer(Gtk.Application):
         if not self.ssh_gateway or not self.ssh_tunnel_local_port:
             return False
 
+        # Ensure any previous tunnel is stopped
+        self.stop_ssh_tunnel()
+
         # SSH command: ssh -N -C -L local_port:remote_host:remote_port gateway -p gateway_port
         ssh_cmd = [
             'ssh', '-N', '-C', '-L',
@@ -199,6 +209,18 @@ class RemoteViewer(Gtk.Application):
         self.log_message(f"Starting SSH tunnel: {' '.join(ssh_cmd)}")
         self.ssh_tunnel_process = subprocess.Popen(ssh_cmd)
         return True
+
+    def stop_ssh_tunnel(self, *args):
+        """Terminate the SSH tunnel process if active."""
+        if self.ssh_tunnel_process:
+            self.log_message("Terminating SSH tunnel")
+            self.ssh_tunnel_process.terminate()
+            try:
+                self.ssh_tunnel_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.ssh_tunnel_process.kill()
+            self.ssh_tunnel_process = None
+            self.log_message("SSH tunnel terminated.")
 
     def register_domain_events(self):
         if not self.conn or not self.domain:
@@ -277,8 +299,12 @@ class RemoteViewer(Gtk.Application):
             self.show_notification(f"VM '{dom.name()}' is suspended.", Gtk.MessageType.WARNING)
         elif event_type == "Resumed":
             self.show_notification(f"VM '{dom.name()}' has resumed.", Gtk.MessageType.INFO)
-        elif event_type == "Stopped" or event_type == "Shutdown" or event_type == "Crashed":
-            self.show_notification(f"VM '{dom.name()}' has stopped.", Gtk.MessageType.INFO)
+        elif event_type == "Stopped":
+            self.show_notification(f"VM '{dom.name()}' has stopped.", Gtk.MessageType.ERROR)
+        elif event_type == "Shutdown":
+            self.show_notification(f"VM '{dom.name()}' has shut down.", Gtk.MessageType.INFO)
+        elif event_type == "Crashed":
+            self.show_notification(f"VM '{dom.name()}' has crashed.", Gtk.MessageType.ERROR)
         
         # Call this to update sensitivity of restore button if needed
         self.update_restore_button_sensitivity()
@@ -479,7 +505,7 @@ class RemoteViewer(Gtk.Application):
 
         # Main Window (GTK3)
         self.window = Gtk.ApplicationWindow(application=self, title=title)
-        self.window.set_default_size(800, 600)
+        self.window.set_default_size(1024, 768)
 
         # HeaderBar
         header = Gtk.HeaderBar()
@@ -701,18 +727,7 @@ class RemoteViewer(Gtk.Application):
         self.notebook.append_page(self.display_tab, Gtk.Label(label="Display"))
         self.view_container = self.display_tab
 
-        # Tab 2: Logs & Events
-        self.log_view = Gtk.TextView()
-        self.log_view.set_editable(False)
-        self.log_view.set_monospace(True)
-        self.log_buffer = self.log_view.get_buffer()
-
-        self.log_scroll = Gtk.ScrolledWindow()
-        self.log_scroll.add(self.log_view)
-        # We append it, but might hide it
-        self.notebook.append_page(self.log_scroll, Gtk.Label(label="Logs & Events"))
-
-        # Tab 3: Snapshots
+        # Tab 2: Snapshots
         self.snapshots_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self.snapshots_tab.set_border_width(10)
         self.notebook.append_page(self.snapshots_tab, Gtk.Label(label="Snapshots"))
@@ -755,8 +770,67 @@ class RemoteViewer(Gtk.Application):
         # Connect selection change to update button sensitivity
         selection = self.snapshots_tree_view.get_selection()
         selection.connect("changed", self.on_snapshots_selection_changed)
+
+        # Tab 3: USB Devices
+        self.usb_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.usb_tab.set_border_width(10)
+        self.notebook.append_page(self.usb_tab, Gtk.Label(label="USB Devices"))
+
+        # Attached USB Devices
+        self.usb_tab.pack_start(Gtk.Label(label="<b>Attached USB Devices</b>", use_markup=True), False, False, 0)
+        self.attached_usb_store = Gtk.ListStore(str, str, str, str, str) # vendor_id, product_id, vendor_name, product_name, description
+        self.attached_usb_tree_view = Gtk.TreeView(model=self.attached_usb_store)
+        self._add_usb_tree_columns(self.attached_usb_tree_view)
+        scroll_attached_usb = Gtk.ScrolledWindow()
+        scroll_attached_usb.set_vexpand(True)
+        scroll_attached_usb.add(self.attached_usb_tree_view)
+        self.usb_tab.pack_start(scroll_attached_usb, True, True, 0)
+
+        # Host USB Devices
+        self.usb_tab.pack_start(Gtk.Label(label="<b>Available Host USB Devices</b>", use_markup=True), False, False, 0)
+        self.host_usb_store = Gtk.ListStore(str, str, str, str, str) # vendor_id, product_id, vendor_name, product_name, description
+        self.host_usb_tree_view = Gtk.TreeView(model=self.host_usb_store)
+        self._add_usb_tree_columns(self.host_usb_tree_view)
+        scroll_host_usb = Gtk.ScrolledWindow()
+        scroll_host_usb.set_vexpand(True)
+        scroll_host_usb.add(self.host_usb_tree_view)
+        self.usb_tab.pack_start(scroll_host_usb, True, True, 0)
+
+        # USB Action Buttons
+        usb_action_buttons_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.usb_tab.pack_start(usb_action_buttons_box, False, False, 0)
+
+        self.attach_usb_button = Gtk.Button(label="Attach USB Device")
+        self.attach_usb_button.connect("clicked", self.on_attach_usb_clicked)
+        self.attach_usb_button.set_sensitive(False)
+        usb_action_buttons_box.pack_start(self.attach_usb_button, True, True, 0)
+
+        self.detach_usb_button = Gtk.Button(label="Detach USB Device")
+        self.detach_usb_button.connect("clicked", self.on_detach_usb_clicked)
+        self.detach_usb_button.set_sensitive(False)
+        usb_action_buttons_box.pack_start(self.detach_usb_button, True, True, 0)
+
+        refresh_usb_button = Gtk.Button(label="Refresh USB Lists")
+        refresh_usb_button.connect("clicked", self.on_refresh_usb_lists_clicked)
+        usb_action_buttons_box.pack_start(refresh_usb_button, True, True, 0)
+
+        # Connect selection changes for sensitivity
+        self.attached_usb_tree_view.get_selection().connect("changed", self.on_attached_usb_selection_changed)
+        self.host_usb_tree_view.get_selection().connect("changed", self.on_host_usb_selection_changed)
         # Connect tab-select signal to populate snapshots when the tab is switched to
         self.notebook.connect("switch-page", self.on_notebook_switch_page)
+
+        # Tab 4: Logs & Events
+        self.log_view = Gtk.TextView()
+        self.log_view.set_editable(False)
+        self.log_view.set_monospace(True)
+        self.log_buffer = self.log_view.get_buffer()
+
+        self.log_scroll = Gtk.ScrolledWindow()
+        self.log_scroll.add(self.log_view)
+
+        # We append it, but might hide it
+        self.notebook.append_page(self.log_scroll, Gtk.Label(label="Logs & Events"))
 
         self.update_logs_visibility()
 
@@ -765,6 +839,8 @@ class RemoteViewer(Gtk.Application):
 
         # Fullscreen management via key-press-event signal
         self.window.connect("key-press-event", self.on_key_press)
+        # Ensure SSH tunnel is stopped if window is destroyed
+        self.window.connect("destroy", self.stop_ssh_tunnel)
 
         # Apply initial fullscreen state
         if self.is_fullscreen:
@@ -801,8 +877,11 @@ class RemoteViewer(Gtk.Application):
         self.connect_display()
 
     def _setup_tunnel_if_needed(self, listen, port):
+        # Stop any existing tunnel before potentially starting a new one.
+        self.stop_ssh_tunnel()
+
         # If SSH tunnel is configured, setup tunnel for this specific port
-        if self.ssh_gateway and self.ssh_tunnel_process is None:
+        if self.ssh_gateway: # Removed `self.ssh_tunnel_process is None` as stop_ssh_tunnel handles it
             # Start tunnel to the actual remote host/port
             remote_host = listen
             if listen == 'localhost' or listen == '0.0.0.0':
@@ -1129,7 +1208,6 @@ class RemoteViewer(Gtk.Application):
                 # Avoid triggering the owner-change signal loop via flag
                 self.clipboard_update_in_progress = True
                 self.clipboard.set_text(text, -1)
-                # Ensure the clipboard is available even after the window might lose focus
                 self.clipboard.store()
             finally:
                 self.clipboard_update_in_progress = False
@@ -1267,17 +1345,20 @@ class RemoteViewer(Gtk.Application):
         if not hasattr(self, 'notebook'):
             return
 
-        # Page numbers: 0=Display, 1=Logs & Events, 2=Snapshots
-        logs_page_num = 1
-        snapshots_page_num = 2
+        # Page numbers: 0=Display, 1=Logs & Events, 2=Snapshots, 3=USB Devices
+        snapshots_page_num = 1
+        usb_page_num = 2
+        logs_page_num = 3
 
         if self.show_logs:
             self.notebook.get_nth_page(logs_page_num).show()
             self.notebook.get_nth_page(snapshots_page_num).show() # Show snapshots too if logs are visible
+            self.notebook.get_nth_page(usb_page_num).show() # Show USB tab
             self.notebook.set_show_tabs(True)
         else:
             self.notebook.get_nth_page(logs_page_num).hide()
             self.notebook.get_nth_page(snapshots_page_num).hide()
+            self.notebook.get_nth_page(usb_page_num).hide() # Hide USB tab
             self.notebook.set_show_tabs(False)
             
         # Always default to Display tab when toggling or at startup
@@ -1422,10 +1503,11 @@ class RemoteViewer(Gtk.Application):
         self.show_notification("Snapshots list refreshed.", Gtk.MessageType.INFO)
 
     def on_notebook_switch_page(self, notebook, page, page_num):
-        # Page numbers: 0=Display, 1=Logs & Events, 2=Snapshots
-        # Only populate when switching to the snapshots tab
+        # Only populate when switching to the specific tab
         if page_num == 2: # Snapshots tab
             self._populate_snapshots_list()
+        elif page_num == 3: # USB Devices tab
+            self._populate_usb_lists()
 
     def on_send_key(self, button, keys, popover):
         if self.protocol == 'vnc' and self.vnc_display:
@@ -1698,9 +1780,159 @@ class RemoteViewer(Gtk.Application):
                         GLib.idle_add(self._hide_wait_dialog)
                         GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
                 
-                threading.Thread(target=_restore_snapshot_thread).start()
+
+
+
+    def _add_usb_tree_columns(self, tree_view):
+        columns = [
+            ("Description", 4), # Index of the description column in ListStore
+            ("Vendor ID", 0),
+            ("Product ID", 1)
+        ]
+        for title, col_id in columns:
+            renderer = Gtk.CellRendererText()
+            column = Gtk.TreeViewColumn(title, renderer, text=col_id)
+            tree_view.append_column(column)
+
+
+
+    def _populate_usb_lists(self):
+        self.attached_usb_store.clear()
+        self.host_usb_store.clear()
+
+        if not self.domain:
+            self.show_notification("No VM domain available for USB actions.", Gtk.MessageType.WARNING)
+            return
+
+        # Populate attached USB devices
+        try:
+            domain_xml = self.domain.XMLDesc(0)
+            root = ET.fromstring(domain_xml)
+            attached_devices = vm_queries.get_attached_usb_devices(root)
+            for dev in attached_devices:
+                self.attached_usb_store.append([
+                    dev.get("vendor_id", "N/A"),
+                    dev.get("product_id", "N/A"),
+                    "", "", # Vendor/Product Name not directly in attached_usb_devices from vm_queries
+                    f"{dev.get('vendor_id', '')}:{dev.get('product_id', '')}"
+                ])
+        except libvirt.libvirtError as e:
+            self.show_notification(f"Failed to get attached USB devices: {e}", Gtk.MessageType.ERROR)
+        except Exception as e:
+            self.show_notification(f"Error getting attached USB devices: {e}", Gtk.MessageType.ERROR)
+
+        # Populate host USB devices
+        try:
+            host_devices = libvirt_utils.get_host_usb_devices(self.conn)
+            for dev in host_devices:
+                self.host_usb_store.append([
+                    dev.get("vendor_id", "N/A"),
+                    dev.get("product_id", "N/A"),
+                    dev.get("vendor_name", ""),
+                    dev.get("product_name", ""),
+                    dev.get("description", "N/A")
+                ])
+        except libvirt.libvirtError as e:
+            self.show_notification(f"Failed to get host USB devices: {e}", Gtk.MessageType.ERROR)
+        except Exception as e:
+            self.show_notification(f"Error getting host USB devices: {e}", Gtk.MessageType.ERROR)
+        
+        # Update button sensitivities after populating lists
+        self.on_attached_usb_selection_changed(self.attached_usb_tree_view.get_selection())
+        self.on_host_usb_selection_changed(self.host_usb_tree_view.get_selection())
+
+
+    def on_refresh_usb_lists_clicked(self, button):
+        self._populate_usb_lists()
+        self.show_notification("USB device lists refreshed.", Gtk.MessageType.INFO)
+
+    def on_attached_usb_selection_changed(self, selection):
+        model, treeiter = selection.get_selected()
+        self.detach_usb_button.set_sensitive(treeiter is not None and self.domain and self.domain.isActive())
+        # If an attached device is selected, deselect host device to avoid conflict
+        if treeiter:
+            self.host_usb_tree_view.get_selection().unselect_all()
+
+    def on_host_usb_selection_changed(self, selection):
+        model, treeiter = selection.get_selected()
+        self.attach_usb_button.set_sensitive(treeiter is not None and self.domain and self.domain.isActive())
+        # If a host device is selected, deselect attached device to avoid conflict
+        if treeiter:
+            self.attached_usb_tree_view.get_selection().unselect_all()
+
+    def on_attach_usb_clicked(self, button):
+        self.log_message("on_attach_usb_clicked called.")
+        selection = self.host_usb_tree_view.get_selection()
+        model, treeiter = selection.get_selected()
+        if treeiter:
+            vendor_id = model[treeiter][0]
+            product_id = model[treeiter][1]
+            description = model[treeiter][4]
+            self.log_message(f"Selected host USB: {description} ({vendor_id}:{product_id})")
+
+            self._show_wait_dialog(f"Attaching USB device '{description}'...")
+            self.log_message("Wait dialog shown.")
+            
+            def _attach_usb_thread():
+                self.log_message(f"Attempting to attach USB in thread: {description}")
+                try:
+                    vm_actions.attach_usb_device(self.domain, vendor_id, product_id)
+                    self.log_message(f"USB device {description} attached successfully by vm_actions.")
+                    GLib.idle_add(self.show_notification, f"USB device '{description}' attached successfully.", Gtk.MessageType.INFO)
+                except libvirt.libvirtError as e:
+                    self.log_message(f"libvirtError attaching USB: {e}")
+                    print(f"ERROR (libvirt): Failed to attach USB device: {e}", file=sys.stderr) # Direct print for debug
+                    GLib.idle_add(self.show_notification, f"Failed to attach USB device: {e}", Gtk.MessageType.ERROR)
+                except Exception as e:
+                    self.log_message(f"Generic error attaching USB: {e}")
+                    print(f"ERROR (generic): An unexpected error occurred during USB attach: {e}", file=sys.stderr) # Direct print for debug
+                    GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                finally:
+                    self.log_message("Attaching USB thread finished. Hiding wait dialog and refreshing lists.")
+                    GLib.idle_add(self._hide_wait_dialog)
+                    GLib.idle_add(self._populate_usb_lists) # Refresh lists on main thread
+            
+            threading.Thread(target=_attach_usb_thread).start()
         else:
-            self.show_notification("No snapshot selected for restoration.", Gtk.MessageType.WARNING)
+            self.show_notification("No host USB device selected for attachment.", Gtk.MessageType.WARNING)
+            self.log_message("No host USB device selected.")
+
+    def on_detach_usb_clicked(self, button):
+        self.log_message("on_detach_usb_clicked called.")
+        selection = self.attached_usb_tree_view.get_selection()
+        model, treeiter = selection.get_selected()
+        if treeiter:
+            vendor_id = model[treeiter][0]
+            product_id = model[treeiter][1]
+            description = model[treeiter][4]
+            self.log_message(f"Selected attached USB: {description} ({vendor_id}:{product_id})")
+
+            self._show_wait_dialog(f"Detaching USB device '{description}'...")
+            self.log_message("Wait dialog shown.")
+            
+            def _detach_usb_thread():
+                self.log_message(f"Attempting to detach USB in thread: {description}")
+                try:
+                    vm_actions.detach_usb_device(self.domain, vendor_id, product_id)
+                    self.log_message(f"USB device {description} detached successfully by vm_actions.")
+                    GLib.idle_add(self.show_notification, f"USB device '{description}' detached successfully.", Gtk.MessageType.INFO)
+                except libvirt.libvirtError as e:
+                    self.log_message(f"libvirtError detaching USB: {e}")
+                    print(f"ERROR (libvirt): Failed to detach USB device: {e}", file=sys.stderr) # Direct print for debug
+                    GLib.idle_add(self.show_notification, f"Failed to detach USB device: {e}", Gtk.MessageType.ERROR)
+                except Exception as e:
+                    self.log_message(f"Generic error detaching USB: {e}")
+                    print(f"ERROR (generic): An unexpected error occurred during USB detach: {e}", file=sys.stderr) # Direct print for debug
+                    GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                finally:
+                    self.log_message("Detaching USB thread finished. Hiding wait dialog and refreshing lists.")
+                    GLib.idle_add(self._hide_wait_dialog)
+                    GLib.idle_add(self._populate_usb_lists) # Refresh lists on main thread
+            
+            threading.Thread(target=_detach_usb_thread).start()
+        else:
+            self.show_notification("No attached USB device selected for detachment.", Gtk.MessageType.WARNING)
+            self.log_message("No attached USB device selected.")
 
     def _show_wait_dialog(self, message):
         self.wait_dialog = Gtk.Dialog(
@@ -1730,7 +1962,7 @@ class RemoteViewer(Gtk.Application):
 
         vbox.show_all()
         self.wait_dialog.show()
-        self.wait_dialog.present() # Add this line
+        self.wait_dialog.present()
         # Ensure UI updates
         while Gtk.events_pending():
             Gtk.main_iteration()
@@ -1744,13 +1976,7 @@ class RemoteViewer(Gtk.Application):
                 Gtk.main_iteration()
     def do_shutdown(self):
         """Cleanup SSH tunnel on application shutdown"""
-        if self.ssh_tunnel_process:
-            self.log_message("Terminating SSH tunnel")
-            self.ssh_tunnel_process.terminate()
-            try:
-                self.ssh_tunnel_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.ssh_tunnel_process.kill()
+        self.stop_ssh_tunnel() # Call the unified cleanup method
         Gtk.Application.do_shutdown(self)
 
 def main():
