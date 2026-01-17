@@ -385,7 +385,9 @@ class RemoteViewer(Gtk.Application):
             if self.domain and not self.original_domain_uuid:
                 self.original_domain_uuid = self.domain.UUIDString()
         except libvirt.libvirtError as e:
-            self.show_error_dialog(f"Error finding domain: {e}")
+            self.log_message(f"Error finding domain: {e}")
+            if self.verbose:
+                print(f"Error finding domain: {e}")
 
     def show_vm_list(self):
         self.list_window = Gtk.Window(application=self, title="Select VM to Connect")
@@ -491,13 +493,18 @@ class RemoteViewer(Gtk.Application):
             return True
 
     def show_viewer(self):
-        if not self.domain:
-            self.show_error_dialog("No domain selected or domain not found.")
-            return
+        # Allow viewer to start even if domain is not found
+        # if not self.domain:
+        #    self.show_error_dialog("No domain selected or domain not found.")
+        #    return
 
         self.load_state()
 
-        domain_name = self.domain.name()
+        if self.domain:
+            domain_name = self.domain.name()
+        else:
+            domain_name = self.domain_name or self.uuid or "Unknown VM"
+
         title = f"{domain_name} - Virtui Manager Viewer"
         subtitle = self.uri
         if self.attach:
@@ -863,16 +870,19 @@ class RemoteViewer(Gtk.Application):
                 GLib.timeout_add_seconds(2, self._wait_and_connect_cb)
                 return
         else: # Check current state if not waiting for VM to start
-            try:
-                state, _ = self.domain.state()
-                if state == libvirt.VIR_DOMAIN_PAUSED:
-                    self.show_notification(f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING)
-                elif state == libvirt.VIR_DOMAIN_RUNNING:
-                    self.show_notification(f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO)
-                elif state == libvirt.VIR_DOMAIN_SHUTOFF or state == libvirt.VIR_DOMAIN_SHUTDOWN:
-                    self.show_notification(f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO)
-            except libvirt.libvirtError as e:
-                self.show_notification(f"Could not determine VM state: {e}", Gtk.MessageType.ERROR)
+            if self.domain:
+                try:
+                    state, _ = self.domain.state()
+                    if state == libvirt.VIR_DOMAIN_PAUSED:
+                        self.show_notification(f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING)
+                    elif state == libvirt.VIR_DOMAIN_RUNNING:
+                        self.show_notification(f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO)
+                    elif state == libvirt.VIR_DOMAIN_SHUTOFF or state == libvirt.VIR_DOMAIN_SHUTDOWN:
+                        self.show_notification(f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO)
+                except libvirt.libvirtError as e:
+                    self.show_notification(f"Could not determine VM state: {e}", Gtk.MessageType.ERROR)
+            else:
+                 self.show_notification("VM domain not found/loaded.", Gtk.MessageType.WARNING)
 
         self.connect_display()
 
@@ -894,6 +904,9 @@ class RemoteViewer(Gtk.Application):
 
     def get_display_info(self):
         """Retrieve connection info (protocol, host, port, password)"""
+        if not self.domain:
+            return None, None, None, None
+
         try:
             xml_desc = self.domain.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
             root = ET.fromstring(xml_desc)
@@ -966,6 +979,10 @@ class RemoteViewer(Gtk.Application):
         if self.verbose:
              print(msg)
 
+        if protocol is None:
+            self.log_message("No display protocol detected. Skipping display initialization for now.")
+            return
+
         scroll = Gtk.ScrolledWindow()
 
         if protocol == 'spice' and SPICE_AVAILABLE:
@@ -1028,6 +1045,14 @@ class RemoteViewer(Gtk.Application):
                 pass
 
         protocol, host, port, xml_password_required = self.get_display_info()
+
+        if not protocol:
+            self.log_message("Connection skipped: No display protocol detected.")
+            return False
+
+        if not self.display_widget:
+            self.log_message(f"Display widget not initialized, initializing now for {protocol}...")
+            self.init_display()
 
         # If attaching, we don't strictly need host/port if libvirt handles the FD,
         # but we need to know the protocol (which init_display determined).
@@ -1385,7 +1410,10 @@ class RemoteViewer(Gtk.Application):
 
     def on_power_menu_show(self, popover):
         try:
-            state, reason = self.domain.state()
+            if self.domain:
+                state, reason = self.domain.state()
+            else:
+                state = libvirt.VIR_DOMAIN_NOSTATE
         except libvirt.libvirtError:
             state = libvirt.VIR_DOMAIN_NOSTATE # Assume unknown if error
 
