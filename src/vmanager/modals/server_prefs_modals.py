@@ -511,6 +511,7 @@ class ServerPrefModal(BaseModal[None]):
                         result['format']
                     )
                     self.app.show_success_message(f"Volume [b]{result['name']} {result['size_gb']}Gb {result['format']}[/b] created successfully.")
+                    storage_manager.list_storage_volumes.cache_clear()
                     pool_node.add_leaf(result['name'])
 
                 except Exception as e:
@@ -533,11 +534,16 @@ class ServerPrefModal(BaseModal[None]):
             existing_pool = _find_pool_by_path(self.conn, volume_dir)
 
             if existing_pool:
-                self.app.show_error_message(
-                    f"A pool named '{existing_pool.name()}' already manages this directory.\n\n"
-                    "The volume should already be listed in the pool."
-                    "If this is not the case deactivate and reactivate the pool to refresh the content."
-                )
+                try:
+                    existing_pool.refresh(0)
+                    storage_manager.list_storage_volumes.cache_clear()
+                    self.app.show_success_message(
+                        f"A pool named '{existing_pool.name()}' already manages this directory.\n"
+                        "Refreshed pool to include the new volume."
+                    )
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error refreshing pool: {e}")
+                
                 self._load_storage_pools(expand_pools=[existing_pool.name()])
                 return
 
@@ -734,6 +740,7 @@ class ServerPrefModal(BaseModal[None]):
                 self._load_storage_pools()
             else:
                 self.app.show_success_message(result["message"])
+                storage_manager.list_storage_volumes.cache_clear()
                 # Refresh the parent node
                 parent_node = tree.cursor_node.parent
                 tree.cursor_node.remove()
