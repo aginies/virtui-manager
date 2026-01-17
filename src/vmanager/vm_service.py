@@ -339,9 +339,13 @@ class VMService:
                             if prev_state == new_state and (now - last_cb_ts < 1.0):
                                 logging.debug(f"Debouncing update callback for {internal_id} (State: {prev_state}->{new_state})")
                             else:
-                                logging.info(f"Triggering update callback for {internal_id} (State: {prev_state}->{new_state})")
-                                self._vm_update_callback(internal_id)
-                                self._vm_data_cache[internal_id]['last_cb_ts'] = now
+                                logging.debug(f"Triggering update callback for {internal_id} (State: {prev_state}->{new_state})")
+                                try:
+                                    self._vm_update_callback(internal_id)
+                                except Exception as e:
+                                    logging.error(f"Error invoking update callback for {internal_id}: {e}")
+                                finally:
+                                    self._vm_data_cache[internal_id]['last_cb_ts'] = now
 
                         elif self._data_update_callback:
                              # Fallback to full update if no specific callback
