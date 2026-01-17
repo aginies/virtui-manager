@@ -81,6 +81,7 @@ class RemoteViewer(Gtk.Application):
         self.ssh_tunnel_active = False
         self.ssh_gateway = None
         self.ssh_gateway_port = None
+        self.notification_timeout_id = None
 
     def show_error_dialog(self, message):
         dialog = Gtk.MessageDialog(
@@ -99,6 +100,15 @@ class RemoteViewer(Gtk.Application):
             self.info_bar.set_message_type(message_type)
             self.info_bar_label.set_text(message)
             self.info_bar.set_revealed(True)
+
+            # Cancel previous timeout if it exists
+            if self.notification_timeout_id:
+                GLib.source_remove(self.notification_timeout_id)
+                self.notification_timeout_id = None
+
+            # Set new timeout to hide after 5 seconds
+            self.notification_timeout_id = GLib.timeout_add_seconds(5, self._hide_notification)
+
         elif message_type == Gtk.MessageType.ERROR:
             # Fallback if no window/infobar yet
             self.show_error_dialog(message)
@@ -108,6 +118,12 @@ class RemoteViewer(Gtk.Application):
 
     def on_info_bar_response(self, bar, response):
         bar.set_revealed(False)
+
+    def _hide_notification(self):
+        if self.info_bar:
+            self.info_bar.set_revealed(False)
+        self.notification_timeout_id = None
+        return False
 
     def log_message(self, message):
         timestamp = time.strftime("%H:%M:%S")
@@ -1212,7 +1228,7 @@ class RemoteViewer(Gtk.Application):
 
     def on_vnc_auth_credential(self, vnc, cred_list):
         if self.verbose:
-            print(f"VNC Auth Credential requested: {cred_list}")
+            print(f"VNC Auth Credential requested")
 
         password = self._pending_password
         # If no password was set (XML has no passwd attribute), VNC shouldn't ask for auth
