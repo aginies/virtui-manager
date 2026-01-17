@@ -14,6 +14,9 @@ import subprocess
 import socket
 import libvirt
 import gi
+import threading
+import vm_queries
+import vm_actions
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkVnc', '2.0')
@@ -61,6 +64,8 @@ class RemoteViewer(Gtk.Application):
         self.info_bar = None
         self.info_bar_label = None
         self.events_registered = False
+        self.snapshots_store = None
+        self.snapshots_tree_view = None
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         self.clipboard_update_in_progress = False
         self.last_clipboard_content = None
@@ -265,6 +270,18 @@ class RemoteViewer(Gtk.Application):
         }
         event_type = event_strs.get(event, f"Unknown({event})")
         self.log_message(f"Event: Lifecycle - {event_type} (Detail: {detail})")
+
+        if event_type == "Started":
+            self.show_notification(f"VM '{dom.name()}' has started.", Gtk.MessageType.INFO)
+        elif event_type == "Suspended":
+            self.show_notification(f"VM '{dom.name()}' is suspended.", Gtk.MessageType.WARNING)
+        elif event_type == "Resumed":
+            self.show_notification(f"VM '{dom.name()}' has resumed.", Gtk.MessageType.INFO)
+        elif event_type == "Stopped" or event_type == "Shutdown" or event_type == "Crashed":
+            self.show_notification(f"VM '{dom.name()}' has stopped.", Gtk.MessageType.INFO)
+        
+        # Call this to update sensitivity of restore button if needed
+        self.update_restore_button_sensitivity()
 
 
     def _event_generic_callback(self, conn, dom, *args):
@@ -695,6 +712,52 @@ class RemoteViewer(Gtk.Application):
         # We append it, but might hide it
         self.notebook.append_page(self.log_scroll, Gtk.Label(label="Logs & Events"))
 
+        # Tab 3: Snapshots
+        self.snapshots_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.snapshots_tab.set_border_width(10)
+        self.notebook.append_page(self.snapshots_tab, Gtk.Label(label="Snapshots"))
+
+        # Snapshot list store and treeview
+        # name, description, creation_time, state, libvirt_snapshot_object
+        self.snapshots_store = Gtk.ListStore(str, str, str, str, object)
+        self.snapshots_tree_view = Gtk.TreeView(model=self.snapshots_store)
+
+        self._add_snapshots_tree_columns()
+
+        scroll_snapshots = Gtk.ScrolledWindow()
+        scroll_snapshots.set_vexpand(True)
+        scroll_snapshots.add(self.snapshots_tree_view)
+        self.snapshots_tab.pack_start(scroll_snapshots, True, True, 0)
+
+        # Snapshot actions buttons
+        action_buttons_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.snapshots_tab.pack_start(action_buttons_box, False, False, 0)
+ 
+        self.create_snapshot_button = Gtk.Button(label="Create Snapshot")
+        self.create_snapshot_button.connect("clicked", self.on_create_snapshot_clicked)
+        action_buttons_box.pack_start(self.create_snapshot_button, True, True, 0)
+ 
+        self.delete_snapshot_button = Gtk.Button(label="Delete Snapshot")
+        self.delete_snapshot_button.connect("clicked", self.on_delete_snapshot_clicked)
+        self.delete_snapshot_button.set_sensitive(False) # Initially insensitive
+        action_buttons_box.pack_start(self.delete_snapshot_button, True, True, 0)
+ 
+        self.restore_snapshot_button = Gtk.Button(label="Restore Snapshot")
+        self.restore_snapshot_button.connect("clicked", self.on_restore_snapshot_clicked)
+        self.restore_snapshot_button.set_sensitive(False) # Initially insensitive
+        action_buttons_box.pack_start(self.restore_snapshot_button, True, True, 0)
+ 
+        # Refresh button (keeping it separate or integrating as preferred)
+        refresh_button = Gtk.Button(label="Refresh Snapshots")
+        refresh_button.connect("clicked", self.on_refresh_snapshots_clicked)
+        action_buttons_box.pack_start(refresh_button, True, True, 0)
+ 
+        # Connect selection change to update button sensitivity
+        selection = self.snapshots_tree_view.get_selection()
+        selection.connect("changed", self.on_snapshots_selection_changed)
+        # Connect tab-select signal to populate snapshots when the tab is switched to
+        self.notebook.connect("switch-page", self.on_notebook_switch_page)
+
         self.update_logs_visibility()
 
         # Init display (VNC or SPICE)
@@ -723,6 +786,17 @@ class RemoteViewer(Gtk.Application):
                 self.show_notification("Waiting for VM to start...", Gtk.MessageType.INFO)
                 GLib.timeout_add_seconds(2, self._wait_and_connect_cb)
                 return
+        else: # Check current state if not waiting for VM to start
+            try:
+                state, _ = self.domain.state()
+                if state == libvirt.VIR_DOMAIN_PAUSED:
+                    self.show_notification(f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING)
+                elif state == libvirt.VIR_DOMAIN_RUNNING:
+                    self.show_notification(f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO)
+                elif state == libvirt.VIR_DOMAIN_SHUTOFF or state == libvirt.VIR_DOMAIN_SHUTDOWN:
+                    self.show_notification(f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO)
+            except libvirt.libvirtError as e:
+                self.show_notification(f"Could not determine VM state: {e}", Gtk.MessageType.ERROR)
 
         self.connect_display()
 
@@ -1193,14 +1267,17 @@ class RemoteViewer(Gtk.Application):
         if not hasattr(self, 'notebook'):
             return
 
-        # Page 0 is Display, Page 1 is Logs & Events
+        # Page numbers: 0=Display, 1=Logs & Events, 2=Snapshots
         logs_page_num = 1
+        snapshots_page_num = 2
 
         if self.show_logs:
             self.notebook.get_nth_page(logs_page_num).show()
+            self.notebook.get_nth_page(snapshots_page_num).show() # Show snapshots too if logs are visible
             self.notebook.set_show_tabs(True)
         else:
             self.notebook.get_nth_page(logs_page_num).hide()
+            self.notebook.get_nth_page(snapshots_page_num).hide()
             self.notebook.set_show_tabs(False)
             
         # Always default to Display tab when toggling or at startup
@@ -1298,6 +1375,57 @@ class RemoteViewer(Gtk.Application):
             depth_enum = GtkVnc.DisplayDepthColor.LOW
 
         self.vnc_display.set_depth(depth_enum)
+
+    def _apply_vnc_depth(self):
+        # Map integer depth to GtkVnc enum
+        depth_enum = GtkVnc.DisplayDepthColor.DEFAULT
+        if self.vnc_depth == 24:
+            depth_enum = GtkVnc.DisplayDepthColor.FULL
+        elif self.vnc_depth == 16:
+            depth_enum = GtkVnc.DisplayDepthColor.MEDIUM
+        elif self.vnc_depth == 8:
+            depth_enum = GtkVnc.DisplayDepthColor.LOW
+
+        self.vnc_display.set_depth(depth_enum)
+
+    def _add_snapshots_tree_columns(self):
+        columns = [
+            ("Name", 0),
+            ("Description", 1),
+            ("Creation Time", 2),
+            ("State", 3)
+        ]
+        for title, col_id in columns:
+            renderer = Gtk.CellRendererText()
+            column = Gtk.TreeViewColumn(title, renderer, text=col_id)
+            self.snapshots_tree_view.append_column(column)
+
+    def _populate_snapshots_list(self):
+        self.snapshots_store.clear()
+        if self.domain:
+            snapshots = vm_queries.get_vm_snapshots(self.domain)
+            # Sort by creation time to ensure newest first is displayed top
+            snapshots.sort(key=lambda x: x.get('creation_time', ''), reverse=True)
+            for snap in snapshots:
+                self.snapshots_store.append([
+                    snap.get("name", "N/A"),
+                    snap.get("description", ""),
+                    snap.get("creation_time", "N/A"),
+                    snap.get("state", "N/A"),
+                    snap.get("snapshot_object")
+                ])
+        else:
+            self.show_notification("No VM domain available to list snapshots.", Gtk.MessageType.WARNING)
+
+    def on_refresh_snapshots_clicked(self, button):
+        self._populate_snapshots_list()
+        self.show_notification("Snapshots list refreshed.", Gtk.MessageType.INFO)
+
+    def on_notebook_switch_page(self, notebook, page, page_num):
+        # Page numbers: 0=Display, 1=Logs & Events, 2=Snapshots
+        # Only populate when switching to the snapshots tab
+        if page_num == 2: # Snapshots tab
+            self._populate_snapshots_list()
 
     def on_send_key(self, button, keys, popover):
         if self.protocol == 'vnc' and self.vnc_display:
@@ -1424,6 +1552,196 @@ class RemoteViewer(Gtk.Application):
         except libvirt.libvirtError as e:
             self.show_error_dialog(f"Destroy error: {e}")
 
+    def on_snapshots_selection_changed(self, selection):
+        model, treeiter = selection.get_selected()
+        has_selection = (treeiter is not None)
+        self.delete_snapshot_button.set_sensitive(has_selection)
+        self.update_restore_button_sensitivity()
+
+    def update_restore_button_sensitivity(self):
+        selection = self.snapshots_tree_view.get_selection()
+        model, treeiter = selection.get_selected()
+        is_vm_active = self.domain.isActive() if self.domain else True # Assume active if no domain
+        
+        # Restore button is sensitive only if a snapshot is selected AND the VM is NOT active
+        self.restore_snapshot_button.set_sensitive(treeiter is not None and not is_vm_active)
+
+    def on_create_snapshot_clicked(self, button):
+        dialog = Gtk.Dialog(
+            title="Create Snapshot",
+            parent=self.window,
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT
+        )
+        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
+                           Gtk.STOCK_OK, Gtk.ResponseType.OK)
+
+        content_area = dialog.get_content_area()
+        grid = Gtk.Grid(row_spacing=5, column_spacing=5, margin=10)
+        content_area.add(grid)
+
+        grid.attach(Gtk.Label(label="Snapshot Name:"), 0, 0, 1, 1)
+        name_entry = Gtk.Entry()
+        name_entry.set_placeholder_text("Required")
+        grid.attach(name_entry, 1, 0, 1, 1)
+
+        grid.attach(Gtk.Label(label="Description:"), 0, 1, 1, 1)
+        description_entry = Gtk.Entry()
+        description_entry.set_placeholder_text("Optional")
+        grid.attach(description_entry, 1, 1, 1, 1)
+
+        quiesce_check = Gtk.CheckButton(label="Quiesce VM (Requires QEMU Guest Agent)")
+        grid.attach(quiesce_check, 0, 2, 2, 1)
+
+        grid.show_all()
+
+        response = dialog.run()
+        snapshot_name = name_entry.get_text().strip()
+        snapshot_description = description_entry.get_text().strip()
+        quiesce = quiesce_check.get_active()
+        dialog.destroy()
+
+        if response == Gtk.ResponseType.OK:
+            if not snapshot_name:
+                self.show_notification("Snapshot name is required.", Gtk.MessageType.ERROR)
+                return
+
+            self._show_wait_dialog(f"Creating snapshot '{snapshot_name}'...")
+            
+            # Function to run in a separate thread
+            def _create_snapshot_thread():
+                try:
+                    vm_actions.create_vm_snapshot(self.domain, snapshot_name, snapshot_description, quiesce)
+                    GLib.idle_add(self.show_notification, f"Snapshot '{snapshot_name}' created successfully.", Gtk.MessageType.INFO)
+                except libvirt.libvirtError as e:
+                    GLib.idle_add(self.show_notification, f"Failed to create snapshot: {e}", Gtk.MessageType.ERROR)
+                except Exception as e:
+                    GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                finally:
+                    GLib.idle_add(self._hide_wait_dialog)
+                    GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
+            
+            threading.Thread(target=_create_snapshot_thread).start()
+
+    def on_delete_snapshot_clicked(self, button):
+        selection = self.snapshots_tree_view.get_selection()
+        model, treeiter = selection.get_selected()
+        if treeiter:
+            snapshot_name = model[treeiter][0] # Name is at index 0
+
+            dialog = Gtk.MessageDialog(
+                transient_for=self.window,
+                flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text="Confirm Snapshot Deletion"
+            )
+            dialog.format_secondary_text(f"Are you sure you want to delete snapshot '{snapshot_name}'?")
+            response = dialog.run()
+            dialog.destroy()
+
+            if response == Gtk.ResponseType.YES:
+                self._show_wait_dialog(f"Deleting snapshot '{snapshot_name}'...")
+                
+                # Function to run in a separate thread
+                def _delete_snapshot_thread():
+                    try:
+                        vm_actions.delete_vm_snapshot(self.domain, snapshot_name)
+                        GLib.idle_add(self.show_notification, f"Snapshot '{snapshot_name}' deleted successfully.", Gtk.MessageType.INFO)
+                    except libvirt.libvirtError as e:
+                        GLib.idle_add(self.show_notification, f"Failed to delete snapshot: {e}", Gtk.MessageType.ERROR)
+                    except Exception as e:
+                        GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                    finally:
+                        GLib.idle_add(self._hide_wait_dialog)
+                        GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
+                
+                threading.Thread(target=_delete_snapshot_thread).start()
+        else:
+            self.show_notification("No snapshot selected for deletion.", Gtk.MessageType.WARNING)
+
+    def on_restore_snapshot_clicked(self, button):
+        selection = self.snapshots_tree_view.get_selection()
+        model, treeiter = selection.get_selected()
+        if treeiter:
+            snapshot_name = model[treeiter][0] # Name is at index 0
+
+            if self.domain and self.domain.isActive():
+                self.show_notification("Cannot restore snapshot while VM is running. Please stop the VM first.", Gtk.MessageType.ERROR)
+                return
+
+            dialog = Gtk.MessageDialog(
+                transient_for=self.window,
+                flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.YES_NO,
+                text="Confirm Snapshot Restore"
+            )
+            dialog.format_secondary_text(f"Are you sure you want to restore to snapshot '{snapshot_name}'? "
+                                        "Any unsaved work in the current VM state will be lost.")
+            response = dialog.run()
+            dialog.destroy()
+
+            if response == Gtk.ResponseType.YES:
+                self._show_wait_dialog(f"Restoring VM to snapshot '{snapshot_name}'...")
+                
+                # Function to run in a separate thread
+                def _restore_snapshot_thread():
+                    try:
+                        vm_actions.restore_vm_snapshot(self.domain, snapshot_name)
+                        GLib.idle_add(self.show_notification, f"VM restored to snapshot '{snapshot_name}' successfully.", Gtk.MessageType.INFO)
+                        GLib.idle_add(self.connect_display) # Reconnect display after successful restore
+                    except libvirt.libvirtError as e:
+                        GLib.idle_add(self.show_notification, f"Failed to restore snapshot: {e}", Gtk.MessageType.ERROR)
+                    except Exception as e:
+                        GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                    finally:
+                        GLib.idle_add(self._hide_wait_dialog)
+                        GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
+                
+                threading.Thread(target=_restore_snapshot_thread).start()
+        else:
+            self.show_notification("No snapshot selected for restoration.", Gtk.MessageType.WARNING)
+
+    def _show_wait_dialog(self, message):
+        self.wait_dialog = Gtk.Dialog(
+            title="Please Wait",
+            parent=self.window,
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT
+        )
+        self.wait_dialog.set_default_size(250, 100)
+        self.wait_dialog.set_resizable(False)
+        self.wait_dialog.set_decorated(False) # Hide title bar etc.
+
+        content_area = self.wait_dialog.get_content_area()
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        vbox.set_margin_top(20)
+        vbox.set_margin_bottom(20)
+        vbox.set_margin_start(20)
+        vbox.set_margin_end(20)
+        content_area.add(vbox)
+
+        spinner = Gtk.Spinner()
+        spinner.props.active = True
+        spinner.set_size_request(30, 30) # Make spinner a bit larger
+        vbox.pack_start(spinner, False, False, 0)
+
+        label = Gtk.Label(label=message)
+        vbox.pack_start(label, False, False, 0)
+
+        vbox.show_all()
+        self.wait_dialog.show()
+        self.wait_dialog.present() # Add this line
+        # Ensure UI updates
+        while Gtk.events_pending():
+            Gtk.main_iteration()
+
+    def _hide_wait_dialog(self):
+        if hasattr(self, 'wait_dialog') and self.wait_dialog:
+            self.wait_dialog.destroy()
+            self.wait_dialog = None
+            # Ensure UI updates
+            while Gtk.events_pending():
+                Gtk.main_iteration()
     def do_shutdown(self):
         """Cleanup SSH tunnel on application shutdown"""
         if self.ssh_tunnel_process:
