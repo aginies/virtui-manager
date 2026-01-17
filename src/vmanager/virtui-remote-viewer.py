@@ -313,7 +313,7 @@ class RemoteViewer(Gtk.Application):
             self.show_notification(f"VM '{dom.name()}' has started.", Gtk.MessageType.INFO)
             self.log_message("VM started, scheduling display connection...")
             # Schedule connection attempt (give some time for graphics to init)
-            GLib.timeout_add(1000, self.connect_display)
+            GLib.timeout_add(3000, self.connect_display)
         elif event_type == "Suspended":
             self.show_notification(f"VM '{dom.name()}' is suspended.", Gtk.MessageType.WARNING)
         elif event_type == "Resumed":
@@ -886,7 +886,7 @@ class RemoteViewer(Gtk.Application):
             protocol, host, port, pwd = self.get_display_info()
             if not self.attach and (not host or not port):
                 self.show_notification("Waiting for VM to start...", Gtk.MessageType.INFO)
-                GLib.timeout_add_seconds(2, self._wait_and_connect_cb)
+                GLib.timeout_add_seconds(3, self._wait_and_connect_cb)
                 return
         else: # Check current state if not waiting for VM to start
             if self.domain:
@@ -1152,7 +1152,7 @@ class RemoteViewer(Gtk.Application):
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
                     # Give tunnel time to establish
-                    time.sleep(1)
+                    time.sleep(2)
                 uri = f"spice://{host}:{port}"
                 self.log_message(f"Connecting to SPICE at {uri}")
                 self.spice_session.set_property("uri", uri)
@@ -1174,7 +1174,7 @@ class RemoteViewer(Gtk.Application):
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
                     # Give tunnel time to establish
-                    time.sleep(1)
+                    time.sleep(2)
                 self.log_message(f"Connecting to VNC at {host}:{port}")
                 if self.vnc_display.is_open():
                     if force:
@@ -1249,10 +1249,10 @@ class RemoteViewer(Gtk.Application):
         if self.verbose: print("VNC Disconnected")
 
         if self.reconnect_pending:
-            if self.verbose: print("Pending reconnect detected, reconnecting in 500ms...")
+            if self.verbose: print("Pending reconnect detected, reconnecting in 1500ms...")
             self.reconnect_pending = False
-            # Increase delay to 500ms to ensure socket cleanup
-            GLib.timeout_add(500, self.connect_display)
+            # Increase delay to 1500ms to ensure socket cleanup
+            GLib.timeout_add(1500, self.connect_display)
             return
 
         self.check_shutdown()
@@ -1439,7 +1439,7 @@ class RemoteViewer(Gtk.Application):
             if self.spice_session.is_connected():
                 self.spice_session.disconnect()
                 # Schedule reconnection after disconnect
-                GLib.timeout_add(500, self.connect_display)
+                GLib.timeout_add(1500, self.connect_display)
             else:
                 self.connect_display()
 
@@ -1659,7 +1659,7 @@ class RemoteViewer(Gtk.Application):
                 raise libvirt.libvirtError("No domain identifier available")
 
             self.domain.create()
-            GLib.timeout_add_seconds(2, self.connect_display)
+            GLib.timeout_add_seconds(5, self.connect_display)
         except libvirt.libvirtError as e:
             self.show_error_dialog(f"Start error: {e}")
 
