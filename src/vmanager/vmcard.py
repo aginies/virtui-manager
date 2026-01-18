@@ -164,6 +164,7 @@ class VMCard(Static):
         self.is_selected = is_selected
         self.timer = None
         self._boot_device_checked = False
+        self._last_click_time = 0
 
     def _get_vm_display_name(self) -> str:
         """Returns the formatted VM name including server name if available."""
@@ -1860,5 +1861,32 @@ class VMCard(Static):
     @on(Click, "#vmname")
     def on_click_vmname(self) -> None:
         """Handle clicks on the VM name part of the VM card."""
-        self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.raw_uuid))
+        click_time = time.time()
+        if click_time - getattr(self, "_last_click_time", 0) < 0.5:
+             # Double click detected
+             if not self.compact_view:
+                 self._fetch_xml_and_update_tooltip()
+             self._last_click_time = 0
+        else:
+             self._last_click_time = click_time
+             self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.raw_uuid))
+
+    def _fetch_xml_and_update_tooltip(self):
+        """Fetches the XML configuration and updates the tooltip."""
+        if not self.vm:
+            return
+
+        def fetch_worker():
+            try:
+                # Use vm_service to get XML (handles caching)
+                self.app.vm_service._get_domain_xml(self.vm, internal_id=self.internal_id)
+                
+                # Update tooltip on main thread
+                self.app.call_from_thread(self._perform_tooltip_update)
+                self.app.call_from_thread(self.app.show_quick_message, f"Info refreshed for {self.name}")
+
+            except Exception as e:
+                logging.error(f"Error fetching XML for tooltip: {e}")
+
+        self.app.worker_manager.run(fetch_worker, name=f"xml_tooltip_{self.internal_id}")
 
