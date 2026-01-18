@@ -240,13 +240,13 @@ class VMCard(Static):
             return
         status_widget = self.ui.get("status")
         if status_widget:
-            status_text = f"Status: {self.status}{new_value}"
+            status_text = f"{self.status}{new_value}"
             status_widget.update(status_text)
 
     def compose(self):
-        self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected)
+        self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected, tooltip="Select VM")
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
-        self.ui["status"] = Static(f"Status: {self.status}{self.webc_status_indicator}", id="status", classes=self.status.lower())
+        self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status", classes=self.status.lower())
 
         # Create all sparkline components
         self.ui["cpu_label"] = Static("", classes="sparkline-label")
@@ -341,6 +341,10 @@ class VMCard(Static):
         if not self.ui or "vmname" not in self.ui:
             return
         
+        if self.compact_view:
+            self.ui["vmname"].tooltip = self._get_vm_display_name()
+            return
+        
         uuid = self.internal_id
         if not uuid:
             return
@@ -415,11 +419,11 @@ class VMCard(Static):
             self.update_sparkline_data()
 
         self.update_stats()
-        self.watch_compact_view(self.compact_view)
+        self._apply_compact_view_styles(self.compact_view)
 
     def watch_stats_view_mode(self, old_mode: str, new_mode: str) -> None:
         """Update sparklines when view mode changes."""
-        if not self.display or not self.ui:
+        if not self.display or not self.ui or self.compact_view:
             return
 
         is_active = self.status in (StatusText.RUNNING, StatusText.PAUSED)
@@ -539,13 +543,16 @@ class VMCard(Static):
             self.update_stats()
             self._perform_tooltip_update()
 
-    def watch_compact_view(self, value: bool) -> None:
-        """Called when compact_view changes."""
-        if not self.ui or not self.is_mounted:
+    def _apply_compact_view_styles(self, value: bool) -> None:
+        """Apply styles for compact view."""
+        if not self.ui:
             return
 
         #sparklines = self.ui.get("sparklines_container")
         collapsible = self.ui.get("collapsible")
+        vmname = self.ui.get("vmname")
+        vmstatus = self.ui.get("status")
+        checkbox = self.ui.get("checkbox")
 
         if value: # if compact view, add hidden class
             #if sparklines and sparklines.is_mounted:
@@ -558,9 +565,16 @@ class VMCard(Static):
             try:
                 info_container = self.query_one("#info-container")
                 if collapsible:
-                    info_container.mount(collapsible)
+                    # Check if collapsible is already a child of info_container to avoid double mounting
+                    if collapsible not in info_container.children:
+                        info_container.mount(collapsible)
             except NoMatches:
+                # This can happen if the card is not fully initialized or structures changed
                 logging.warning(f"Could not find #info-container on VMCard {self.name} when switching to detailed view.")
+            except Exception as e:
+                # Catch-all for potential mounting errors (e.g. already mounted elsewhere?)
+                 logging.warning(f"Error restoring collapsible in detailed view: {e}")
+
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
@@ -568,8 +582,21 @@ class VMCard(Static):
         # Change height based on compact_view
         if value: # Compact view
             self.styles.height = 4
+            self.styles.width = 20
+            if vmname: vmname.styles.content_align = ("left", "middle")
+            if vmstatus: vmstatus.styles.content_align = ("left", "middle")
+            if checkbox: checkbox.styles.width = "2"
         else: # Detailed view
             self.styles.height = 14
+            self.styles.width = 41
+            if vmname: vmname.styles.content_align = ("center", "middle")
+            if vmstatus: vmstatus.styles.content_align = ("center", "middle")
+            if checkbox: checkbox.styles.width = "5"
+
+    def watch_compact_view(self, value: bool) -> None:
+        """Called when compact_view changes."""
+        self._apply_compact_view_styles(value)
+        self._perform_tooltip_update()
 
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
@@ -582,7 +609,7 @@ class VMCard(Static):
 
         status_widget = self.ui.get("status")
         if status_widget:
-            status_widget.update(f"Status: {new_value}{self.webc_status_indicator}")
+            status_widget.update(f"{new_value}{self.webc_status_indicator}")
 
         if new_value == StatusText.RUNNING:
             # Only invalidate cache if transitioning from STOPPED (clean boot)

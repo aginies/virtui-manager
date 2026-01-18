@@ -619,17 +619,26 @@ class VMManagerTUI(App):
 
         if self.compact_view:
             rows *= 3
+            cols *= 2
 
-        vms_container.styles.grid_size_columns = cols
         vms_container.styles.width = container_width
+        vms_container.styles.grid_size_columns = cols
 
         old_vms_per_page = self.VMS_PER_PAGE
+        
+        # Calculate the index of the first item on the current page
+        first_item_index = self.current_page * old_vms_per_page
+
         self.VMS_PER_PAGE = cols * rows
         if self.compact_view:
             self.VMS_PER_PAGE = cols * rows + cols
 
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
+
+        # Recalculate the page number to keep the same item in view
+        if self.VMS_PER_PAGE != old_vms_per_page and self.VMS_PER_PAGE > 0:
+            self.current_page = first_item_index // self.VMS_PER_PAGE
 
         self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 8
         self.vm_card_pool.prefill_pool()
