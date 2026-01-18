@@ -640,6 +640,10 @@ class VMManagerTUI(App):
         if self.VMS_PER_PAGE != old_vms_per_page and self.VMS_PER_PAGE > 0:
             self.current_page = first_item_index // self.VMS_PER_PAGE
 
+        if not self.compact_view and hasattr(self, '_saved_page_before_compact'):
+            self.current_page = self._saved_page_before_compact
+            del self._saved_page_before_compact
+
         self.vm_card_pool.pool_size = self.VMS_PER_PAGE + 8
         self.vm_card_pool.prefill_pool()
 
@@ -709,6 +713,10 @@ class VMManagerTUI(App):
         if self.bulk_operation_in_progress:
             self.show_warning_message("Compact view is locked during bulk operations.")
             return
+
+        if not self.compact_view:
+            self._saved_page_before_compact = self.current_page
+
         self.compact_view = not self.compact_view
 
     def watch_compact_view(self, value: bool) -> None:
