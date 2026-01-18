@@ -342,10 +342,6 @@ class VMCard(Static):
         if not self.ui or "vmname" not in self.ui:
             return
         
-        if self.compact_view:
-            self.ui["vmname"].tooltip = self._get_vm_display_name()
-            return
-        
         uuid = self.internal_id
         if not uuid:
             return
@@ -354,6 +350,10 @@ class VMCard(Static):
         with self.app.vm_service._cache_lock:
             vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
             has_cached_xml = vm_cache.get('xml') is not None
+
+        if self.compact_view and not has_cached_xml:
+            self.ui["vmname"].tooltip = self._get_vm_display_name()
+            return
 
         if self._is_remote_server() and not has_cached_xml:
             self.ui["vmname"].tooltip = None
