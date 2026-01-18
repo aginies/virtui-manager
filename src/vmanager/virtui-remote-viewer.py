@@ -1406,7 +1406,7 @@ class RemoteViewer(Gtk.Application):
         if not hasattr(self, 'notebook'):
             return
 
-        # Page numbers: 0=Display, 1=Logs & Events, 2=Snapshots, 3=USB Devices
+        # Page numbers: 0=Display, 1=Snapshots, 2=USB Devices, 3=Logs & Events
         snapshots_page_num = 1
         usb_page_num = 2
         logs_page_num = 3
@@ -1568,9 +1568,9 @@ class RemoteViewer(Gtk.Application):
 
     def on_notebook_switch_page(self, notebook, page, page_num):
         # Only populate when switching to the specific tab
-        if page_num == 2: # Snapshots tab
+        if page_num == 1: # Snapshots tab
             self._populate_snapshots_list()
-        elif page_num == 3: # USB Devices tab
+        elif page_num == 2: # USB Devices tab
             self._populate_usb_lists()
 
     def on_send_key(self, button, keys, popover):
