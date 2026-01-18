@@ -626,19 +626,12 @@ class VMManagerTUI(App):
 
         old_vms_per_page = self.VMS_PER_PAGE
         
-        # Calculate the index of the first item on the current page
-        first_item_index = self.current_page * old_vms_per_page
-
         self.VMS_PER_PAGE = cols * rows
         if self.compact_view:
             self.VMS_PER_PAGE = cols * rows + cols
 
         if width < 86:
             self.VMS_PER_PAGE = self.config.get("VMS_PER_PAGE", 4)
-
-        # Recalculate the page number to keep the same item in view
-        if self.VMS_PER_PAGE != old_vms_per_page and self.VMS_PER_PAGE > 0:
-            self.current_page = first_item_index // self.VMS_PER_PAGE
 
         if not self.compact_view and hasattr(self, '_saved_page_before_compact'):
             self.current_page = self._saved_page_before_compact
