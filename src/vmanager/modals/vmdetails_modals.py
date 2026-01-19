@@ -37,7 +37,7 @@ from vm_actions import (
         detach_usb_device, add_serial_console, remove_serial_console,
         add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog,
         add_usb_device, remove_usb_device, add_scsi_controller, remove_scsi_controller,
-        migrate_vm_machine_type
+        migrate_vm_machine_type, add_vm_channel, remove_vm_channel
 )
 from config import get_log_path
 from network_manager import (
@@ -63,7 +63,7 @@ from modals.disk_pool_modals import (
 from modals.howto_disk_modal import HowToDiskModal
 from modals.howto_virtiofs_modal import HowToVirtIOFSModal
 from modals.network_modals import AddEditNetworkInterfaceModal
-from modals.input_modals import AddInputDeviceModal
+from modals.input_modals import AddInputDeviceModal, AddChannelModal
 
 # Configure logging
 logging.basicConfig(
@@ -101,6 +101,7 @@ class VMDetailModal(ModalScreen):
         self.input_devices = []
         self.selected_input_device = None
         self.selected_controller = None
+        self.selected_channel = None
         self.boot_order = self.vm_info.get('boot', {}).get('order', [])
         self.all_bootable_devices = [] # Initialize the new reactive list
         self.sev_caps = {'sev': False, 'sev-es': False}
@@ -294,6 +295,7 @@ class VMDetailModal(ModalScreen):
             self._populate_pci_lists()
             self._populate_serial_table()
             self._populate_input_table()
+            self._populate_channel_table()
 
         self._populate_controller_table()
 
@@ -1471,6 +1473,97 @@ class VMDetailModal(ModalScreen):
             self.selected_controller = None
             self.query_one("#remove-controller-btn").disabled = True
 
+    def _populate_channel_table(self):
+        """Populates the channel devices table."""
+        channel_table = self.query_one("#channel-table", DataTable)
+        channel_table.clear()
+        if not channel_table.columns:
+            channel_table.add_column("Type", key="type")
+            channel_table.add_column("Target Name", key="name")
+            channel_table.add_column("Target Type", key="target_type")
+            channel_table.add_column("State", key="state")
+
+        devices = self.vm_info.get("devices", {})
+        channels = devices.get("channels", [])
+
+        for i, channel in enumerate(channels):
+            # Create a unique key for the row
+            row_key = f"{channel.get('type')}-{channel.get('name')}-{i}"
+            channel_table.add_row(
+                channel.get('type', 'N/A'),
+                channel.get('name', 'N/A'),
+                channel.get('target_type', 'N/A'),
+                channel.get('state', 'N/A'),
+                key=row_key
+            )
+
+    def _update_channel_table(self):
+        """Refreshes the channel table."""
+        new_xml = self.vm_service._get_domain_xml(self.domain)
+        root = None
+        if new_xml:
+            try:
+                root = ET.fromstring(new_xml)
+            except ET.ParseError:
+                root = None
+        self.vm_info['devices'] = get_vm_devices_info(root)
+        self._populate_channel_table()
+
+    @on(DataTable.RowSelected, "#channel-table")
+    def on_channel_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        row_key = event.row_key.value
+        if row_key:
+            try:
+                idx = int(row_key.split('-')[-1])
+                channels = self.vm_info.get("devices", {}).get("channels", [])
+                if 0 <= idx < len(channels):
+                    self.selected_channel = channels[idx]
+                    self.query_one("#remove-channel-btn").disabled = not self.is_vm_stopped
+                    return
+            except (ValueError, IndexError):
+                pass
+        
+        self.selected_channel = None
+        self.query_one("#remove-channel-btn").disabled = True
+
+    @on(Button.Pressed, "#add-channel-btn")
+    def on_add_channel_btn_pressed(self, event: Button.Pressed) -> None:
+        def add_channel_callback(result):
+            if result:
+                try:
+                    add_vm_channel(
+                        self.domain,
+                        result["type"],
+                        result["target_name"]
+                    )
+                    self._invalidate_cache()
+                    self.app.show_success_message("Channel added successfully.")
+                    self._update_channel_table()
+                except libvirt.libvirtError as e:
+                    self.app.show_error_message(f"Error adding channel: {e}")
+
+        self.app.push_screen(AddChannelModal(), add_channel_callback)
+
+    @on(Button.Pressed, "#remove-channel-btn")
+    def on_remove_channel_btn_pressed(self, event: Button.Pressed) -> None:
+        if self.selected_channel:
+            target_name = self.selected_channel.get('name')
+            if not target_name:
+                self.app.show_error_message("Selected channel has no target name.")
+                return
+
+            message = f"Are you sure you want to remove channel '{target_name}'?"
+            def on_confirm(confirmed: bool) -> None:
+                if confirmed:
+                    try:
+                        remove_vm_channel(self.domain, target_name)
+                        self._invalidate_cache()
+                        self.app.show_success_message(f"Channel '{target_name}' removed successfully.")
+                        self._update_channel_table()
+                    except libvirt.libvirtError as e:
+                        self.app.show_error_message(f"Error removing channel: {e}")
+            self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
     def compose(self) -> ComposeResult:
         xml_root = ET.fromstring(self.xml_desc)
         status = self.vm_info.get("status", "N/A")
@@ -1914,8 +2007,13 @@ class VMDetailModal(ModalScreen):
                 #    yield Label("PCIe")
                 #with TabPane("SATA", id="detail-sata-tab"):
                 #    yield Label("SATA")
-                #with TabPane("Channel", id="detail-channel-tab"):
-                #    yield Label("TODO Channel")
+                with TabPane("Channel", id="detail-channel-tab"):
+                    with ScrollableContainer(classes="info-details"):
+                        yield DataTable(id="channel-table", cursor_type="row")
+                    with Vertical(classes="button-details"):
+                        with Horizontal():
+                            yield Button("Add Channel", id="add-channel-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button("Remove Channel", id="remove-channel-btn", variant="error", disabled=True)
 
             yield Button("Close", variant="default", id="close-btn", classes="close-button")
 

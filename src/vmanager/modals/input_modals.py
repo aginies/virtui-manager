@@ -66,6 +66,36 @@ class AddInputDeviceModal(BaseModal[None]):
         else:
             self.dismiss()
 
+class AddChannelModal(BaseModal[dict | None]):
+    """A modal for adding a new channel device."""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-channel-container"):
+            yield Label("Add Channel Device")
+            yield Select(
+                [("unix", "unix"), ("virtio", "virtio"), ("spicevmc", "spicevmc")],
+                prompt="Channel Type",
+                id="channel-type-select",
+                value="unix"
+            )
+            yield Input(placeholder="Target Name (e.g. org.qemu.guest_agent.0)", id="target-name-input")
+            with Vertical():
+                with Horizontal():
+                    yield Button("Add", variant="primary", id="add-channel-btn")
+                    yield Button("Cancel", variant="default", id="cancel-channel-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add-channel-btn":
+            channel_type = self.query_one("#channel-type-select", Select).value
+            target_name = self.query_one("#target-name-input", Input).value
+            if channel_type and target_name:
+                self.dismiss({"type": channel_type, "target_name": target_name})
+            else:
+                # Optionally show error
+                pass 
+        else:
+            self.dismiss(None)
+
 def _sanitize_input(input_string: str) -> tuple[str, bool]:
     """
     Sanitise input to alphanumeric, underscore, hyphen only, period.

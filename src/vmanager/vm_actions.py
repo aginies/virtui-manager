@@ -2788,3 +2788,64 @@ def discard_overlay(domain: libvirt.virDomain, disk_path: str):
             logging.warning(f"Failed to delete overlay volume '{disk_path}' after reverting: {e}")
     else:
         raise Exception("Could not find disk in VM configuration.")
+
+@log_function_call
+def add_vm_channel(domain: libvirt.virDomain, channel_type: str, target_name: str, target_type: str = 'virtio', target_state: str = None):
+    """
+    Adds a channel device to a VM.
+    The VM must be stopped.
+    """
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to add a channel.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    devices = root.find('devices')
+    if devices is None:
+        devices = ET.SubElement(root, 'devices')
+
+    channel = ET.SubElement(devices, 'channel', type=channel_type)
+    target_attrs = {'type': target_type, 'name': target_name}
+    if target_state:
+        target_attrs['state'] = target_state
+    
+    ET.SubElement(channel, 'target', **target_attrs)
+
+    # For qemu-guest-agent (unix socket), we usually need a source too (bind)
+    if channel_type == 'unix':
+        ET.SubElement(channel, 'source', mode='bind')
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+@log_function_call
+def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
+    """
+    Removes a channel device from a VM by its target name.
+    The VM must be stopped.
+    """
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to remove a channel.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    devices = root.find('devices')
+    if devices is None:
+        raise ValueError("Could not find <devices> in VM XML.")
+
+    channel_to_remove = None
+    for channel in devices.findall('channel'):
+        target = channel.find('target')
+        if target is not None and target.get('name') == target_name:
+            channel_to_remove = channel
+            break
+    
+    if channel_to_remove is None:
+        raise ValueError(f"Channel with target name '{target_name}' not found.")
+
+    devices.remove(channel_to_remove)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)

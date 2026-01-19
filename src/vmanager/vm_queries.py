@@ -258,6 +258,7 @@ def get_vm_devices_info(root: ET.Element) -> dict:
         'input': [],
         'sound': [],
         'scsi': [],
+        'channels': [],
     }
 
     if root is None:
@@ -281,7 +282,32 @@ def get_vm_devices_info(root: ET.Element) -> dict:
                             'readonly': readonly
                         })
 
-            # virtio-serial and qemu.guest_agent
+            # Generic channels extraction
+            devices_info['channels'] = []
+            for channel_elem in devices.findall('channel'):
+                channel_type = channel_elem.get('type')
+                channel_details = {'type': channel_type}
+
+                target_elem = channel_elem.find('target')
+                if target_elem is not None:
+                    target_type = target_elem.get('type')
+                    name = target_elem.get('name')
+                    state = target_elem.get('state')
+
+                    if target_type: channel_details['target_type'] = target_type
+                    if name: channel_details['name'] = name
+                    if state: channel_details['state'] = state
+
+                source_elem = channel_elem.find('source')
+                if source_elem is not None:
+                    mode = source_elem.get('mode')
+                    path = source_elem.get('path')
+                    if mode: channel_details['mode'] = mode
+                    if path: channel_details['path'] = path
+
+                devices_info['channels'].append(channel_details)
+
+            # virtio-serial and qemu.guest_agent (legacy support/specific categorization)
             for channel_elem in devices.findall('channel'):
                 channel_type = channel_elem.get('type')
                 if channel_type == 'virtio':
