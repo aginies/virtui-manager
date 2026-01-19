@@ -108,6 +108,7 @@ CustomMigrationModal Select {
 InstallVMModal > #install-dialog, {
   width: 88;
 }
+SelectDiskModal > #select-disk-dialog,
 SelectSnapshotDialog > #dialog {
   width: 68;
 }
