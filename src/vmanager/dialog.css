@@ -82,18 +82,22 @@ HowToSSHModal > #howto-ssh-dialog {
 
 InstallVMModal > #install-dialog Select,
 InstallVMModal > #vm-type Select,
+InstallVMModal > #distro Select,
 WebConsoleConfigDialog > #webconsole-config-dialog Select,
 CustomMigrationModal Select {
   width: 75%;
   border: none ;
 }
-#expert-mem,
 #expert-cpu, {
-  width: 20%;
+  width: 10%;
 }
-#expert-disk-size,
+#expert-mem,
+#expert-disk-size, {
+  width: 18%;
+}
+#expert-firmware,
 #expert-disk-format, {
-  width: 30%;
+  width: 26%;
 }
 
 #iso-path-label {
@@ -117,13 +121,19 @@ SelectSnapshotDialog > #dialog {
 #expert-mode {
   height: 5;
 }
+#vm-type,
+#repo-iso-container, {
+  height: 6;
+}
 #checksum-container,
-#expert-mode-collapsible,
 #vminstall-storage-label {
   margin-top: 1;
+  padding: 0 0;
 }
+#install-dialog,
 #expert-mode-collapsible {
-  width: 75%;
+  width: 100%;
+  height: auto;
 }
 #howto-vmtype-dialog, {
   width: 80;
