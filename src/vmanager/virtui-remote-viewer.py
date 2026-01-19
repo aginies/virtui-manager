@@ -35,7 +35,7 @@ except (ValueError, ImportError):
 from gi.repository import Gtk, Gdk, GtkVnc, GLib, GdkPixbuf
 
 class RemoteViewer(Gtk.Application):
-    def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False, wait=False):
+    def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False, wait=False, direct=False):
         super().__init__(application_id=None)
         self.uri = uri
         self.domain_name = domain_name
@@ -46,6 +46,7 @@ class RemoteViewer(Gtk.Application):
         self.show_logs = show_logs
         self.attach = attach
         self.wait_for_vm = wait
+        self.direct_connection = direct
         self.conn = None
         self._pending_password = None
         self.domain = None
@@ -183,7 +184,7 @@ class RemoteViewer(Gtk.Application):
 
     def setup_ssh_tunnel(self):
         """Setup SSH tunnel for qemu+ssh:// connections"""
-        if not self.uri or 'qemu+ssh' not in self.uri:
+        if not self.uri or 'qemu+ssh' not in self.uri or self.direct_connection:
             return False
 
         try:
@@ -378,7 +379,7 @@ class RemoteViewer(Gtk.Application):
     def do_activate(self):
         # Connection to libvirt
         try:
-            if 'qemu+ssh' in self.uri:
+            if 'qemu+ssh' in self.uri and not self.direct_connection:
                 self.setup_ssh_tunnel()
             self.conn = libvirt.open(self.uri)
         except libvirt.libvirtError as e:
@@ -912,15 +913,19 @@ class RemoteViewer(Gtk.Application):
         # If SSH tunnel is configured, setup tunnel for this specific port
         if self.ssh_gateway: # Removed `self.ssh_tunnel_process is None` as stop_ssh_tunnel handles it
             # Start tunnel to the actual remote host/port
-            remote_host = listen
+            remote_host = listen if not self.direct_connection else None
             if listen == 'localhost' or listen == '0.0.0.0':
                 # Extract remote host from libvirt URI
                 import re
                 match = re.search(r'qemu\+ssh://(?:[^@]+@)?([^/:]+)', self.uri)
                 if match:
                     remote_host = match.group(1)
-            self.start_ssh_tunnel(remote_host, port)
 
+            if remote_host and not self.direct_connection:
+                self.start_ssh_tunnel(remote_host, port)
+            elif self.direct_connection:
+                self.log_message("Direct connection mode: Skipping SSH tunnel")
+ 
     def get_display_info(self):
         """Retrieve connection info (protocol, host, port, password)"""
         if not self.domain:
@@ -1146,8 +1151,8 @@ class RemoteViewer(Gtk.Application):
             # Standard Network Connection
             if self.protocol == 'spice' and SPICE_AVAILABLE:
                 # Spice connection
-                # Use tunneled connection if SSH tunnel is active
-                if self.ssh_gateway and self.ssh_tunnel_local_port:
+                # Use tunneled connection if SSH tunnel is active and not in direct mode
+                if self.ssh_gateway and self.ssh_tunnel_local_port and not self.direct_connection:
                     host = 'localhost'
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
@@ -1168,8 +1173,8 @@ class RemoteViewer(Gtk.Application):
 
             else:
                 # VNC connection
-                # Use tunneled connection if SSH tunnel is active
-                if self.ssh_gateway and self.ssh_tunnel_local_port:
+                # Use tunneled connection if SSH tunnel is active and not in direct mode
+                if self.ssh_gateway and self.ssh_tunnel_local_port and not self.direct_connection:
                     host = 'localhost'
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
@@ -2062,10 +2067,11 @@ def main():
     parser.add_argument('--logs', action='store_true', help='Enable Logs & Events tab')
     parser.add_argument('-a', '--attach', action='store_true', help='Attach to the local display using libvirt')
     parser.add_argument('-w', '--wait', action='store_true', help='Wait for VM to start')
+    parser.add_argument('--direct', action='store_true', help='Direct connection (disable SSH tunneling)')
 
     args = parser.parse_args()
 
-    app = RemoteViewer(args.uri, args.domain_name, args.uuid, args.verbose, args.password, show_logs=args.logs, attach=args.attach, wait=args.wait)
+    app = RemoteViewer(args.uri, args.domain_name, args.uuid, args.verbose, args.password, show_logs=args.logs, attach=args.attach, wait=args.wait, direct=args.direct)
     try:
         app.run([sys.argv[0]])
     except KeyboardInterrupt:
