@@ -7,6 +7,8 @@ import urllib.request
 import ssl
 import re
 import hashlib
+import subprocess
+import tempfile
 from datetime import datetime
 from enum import Enum
 from typing import Callable, Optional, Dict, Any, List
@@ -19,12 +21,14 @@ import libvirt
 from config import load_config
 from storage_manager import create_volume
 from libvirt_utils import get_host_architecture
+from firmware_manager import get_uefi_files
 from constants import AppInfo
 
 class VMType(Enum):
     SECURE = "Secure VM"
     COMPUTATION = "Computation"
     DESKTOP = "Desktop"
+    SERVER = "Server"
 
 class OpenSUSEDistro(Enum):
     LEAP = "Leap"
@@ -166,7 +170,7 @@ class VMProvisioner:
                     return []
 
             if isinstance(distro, OpenSUSEDistro) and distro == OpenSUSEDistro.LEAP:
-                # Use hardcoded versions as requested
+                # Use hardcoded versions
                 versions = ['15.5', '15.6', '16.0']
                 for ver in versions:
                     ver_iso_url = f"{base_url}{ver}/iso/"
@@ -364,18 +368,221 @@ class VMProvisioner:
             'policy': '0x0033'
         }
 
-    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None) -> str:
+    def _setup_uefi_nvram(self, vm_name: str, target_pool_name: str, vm_type: VMType,
+                           support_snapshots: bool = True) -> tuple[str, str]:
+        """
+        Sets up UEFI NVRAM on the server side by:
+        1. Finding suitable firmware using the firmware_manager.
+        2. Identifying the code/vars pair from the firmware metadata.
+        3. Cloning the vars template to the target pool.
+
+        Args:
+            support_snapshots: If True, ensures NVRAM format is snapshot-compatible
+
+        Returns: (loader_path, nvram_path)
+        """
+        all_firmwares = get_uefi_files()
+        candidate_fw = None
+
+        # Score each firmware to find the best match
+        best_score = -1
+
+        for fw in all_firmwares:
+            if self.host_arch not in fw.architectures:
+                continue
+
+            if not fw.nvram_template:
+                continue
+
+            score = 0
+            is_secure = 'secure-boot' in fw.features
+            has_pflash = 'pflash' in fw.interfaces
+
+            # Match VM type requirements
+            if vm_type == VMType.SECURE:
+                if is_secure:
+                    score += 100  # High priority for secure boot
+            else:
+                if not is_secure:
+                    score += 50  # Prefer non-secure for non-secure VMs
+
+            # Check for snapshot-related features
+            # Some firmware metadata may include hints about snapshot support
+            if 'enrolled-keys' in fw.features:
+                score += 10
+
+           # Prefer firmware with certain naming patterns known to work well
+            if fw.executable:
+                exec_lower = fw.executable.lower()
+                if 'ovmf' in exec_lower:
+                    score += 5
+                if 'code' in exec_lower:
+                    score += 5
+
+            # Massive preference for pflash to preserve original behavior
+            if has_pflash:
+                score += 1000
+
+            if score > best_score:
+                best_score = score
+                candidate_fw = fw
+
+        if not candidate_fw or not candidate_fw.executable or not candidate_fw.nvram_template:
+            raise Exception("Could not find suitable UEFI firmware (OVMF) using firmware_manager.")
+
+        loader_path = candidate_fw.executable
+        vars_template_path = candidate_fw.nvram_template
+
+        # Check if we need conversion (fallback to non-pflash)
+        has_pflash = 'pflash' in candidate_fw.interfaces
+        needs_conversion = not has_pflash
+
+        logging.info(f"Selected firmware (score={best_score}, pflash={has_pflash}): loader='{loader_path}', nvram_template='{vars_template_path}'")
+
+        fw_dir = os.path.dirname(vars_template_path)
+        vars_vol_name = os.path.basename(vars_template_path)
+        temp_pool_name = f"virtui-fw-{vm_name}"
+        temp_pool = None
+
+        # Clean up any leftover temp pool from a previous failed run
+        try:
+            p = self.conn.storagePoolLookupByName(temp_pool_name)
+            if p.isActive():
+                p.destroy()
+            p.undefine()
+        except libvirt.libvirtError:
+            pass
+
+        try:
+            # Define a temporary pool for the firmware directory
+            xml = f"<pool type='dir'><name>{temp_pool_name}</name><target><path>{fw_dir}</path></target></pool>"
+            temp_pool = self.conn.storagePoolDefineXML(xml, 0)
+            temp_pool.create(0)
+
+            source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
+            target_pool = self.conn.storagePoolLookupByName(target_pool_name)
+
+           # Determine NVRAM format based on snapshot requirement
+            # For snapshot support, qcow2 is generally better, but we need to ensure
+            # the template can be properly converted
+            if support_snapshots:
+                nvram_format = 'qcow2'
+                nvram_name = f"{vm_name}_VARS.qcow2"
+            else:
+                # Use raw format - simpler, but no snapshot support for NVRAM
+                nvram_format = 'raw'
+                nvram_name = f"{vm_name}_VARS.fd"
+
+            nvram_path = None
+
+            # Check if already exists in target pool
+            try:
+                target_vol = target_pool.storageVolLookupByName(nvram_name)
+                logging.info(f"NVRAM volume '{nvram_name}' already exists.")
+                nvram_path = target_vol.path()
+            except libvirt.libvirtError:
+                logging.info(f"Creating new {nvram_format} NVRAM volume '{nvram_name}' from '{vars_vol_name}'")
+
+                source_capacity = source_vol.info()[1]
+
+                # Download source content from template
+                stream_down = self.conn.newStream(0)
+                source_vol.download(stream_down, 0, source_capacity)
+
+                received_data = bytearray()
+                while True:
+                    try:
+                        chunk = stream_down.recv(1024 * 1024)
+                        if not chunk:
+                            break
+                        received_data.extend(chunk)
+                    except libvirt.libvirtError as e:
+                        if e.get_error_code() == libvirt.VIR_ERR_RPC:
+                            break
+                        raise
+
+                stream_down.finish()
+
+                if not received_data:
+                    raise Exception(f"Failed to download content from NVRAM template '{vars_vol_name}'. Template appears to be empty.")
+
+                if needs_conversion:
+                    logging.info(f"Firmware does not support pflash directly. Converting NVRAM template to {nvram_format} using qemu-img.")
+                    # Create temporary files for conversion
+                    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_in:
+                        try:
+                            tmp_in.write(received_data)
+                            tmp_in.flush()
+                            tmp_in_name = tmp_in.name
+                        except Exception as e:
+                            os.remove(tmp_in.name)
+                            raise e
+
+                    tmp_out_name = tmp_in_name + f".{nvram_format}" # safe suffix
+
+                    try:
+                        # Run qemu-img convert
+                        cmd = ["qemu-img", "convert", "-O", nvram_format, tmp_in_name, tmp_out_name]
+                        subprocess.run(cmd, check=True)
+
+                        # Read back converted data
+                        with open(tmp_out_name, "rb") as f:
+                            received_data = f.read()
+
+                        # Update capacity to match converted size
+                        source_capacity = len(received_data)
+                    finally:
+                        if os.path.exists(tmp_in_name): os.remove(tmp_in_name)
+                        if os.path.exists(tmp_out_name): os.remove(tmp_out_name)
+
+                # Create new volume in target pool with specified format
+                new_vol_xml = f"""
+                <volume>
+                    <name>{nvram_name}</name>
+                    <capacity>{source_capacity}</capacity>
+                    <target>
+                        <format type='{nvram_format}'/>
+                    </target>
+                </volume>
+                """
+                target_vol = target_pool.createXML(new_vol_xml, 0)
+
+                # Upload data to the new volume
+                stream_up = self.conn.newStream(0)
+                target_vol.upload(stream_up, 0, len(received_data))
+                stream_up.send(received_data)
+                stream_up.finish()
+
+                nvram_path = target_vol.path()
+                logging.info(f"Created {nvram_format.upper()} NVRAM: {nvram_name} at {nvram_path}")
+
+            return loader_path, nvram_path
+
+        finally:
+            # Cleanup temp pool
+            if temp_pool:
+                try:
+                    if temp_pool.isActive():
+                        temp_pool.destroy()
+                    temp_pool.undefine()
+                except libvirt.libvirtError:
+                    pass
+
+
+    def _get_pool_path(self, pool: libvirt.virStoragePool) -> str:
+        xml = ET.fromstring(pool.XMLDesc(0))
+        return xml.find("target/path").text
+
+    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
 
-        # --- Defaults based on DEFAULT_SETTINGS.md ---
         settings = {
             # Storage
             'disk_bus': 'virtio',
             'disk_format': 'qcow2',
             'disk_cache': 'none',
-
             # Guest
             'machine': 'pc-q35-10.1',
             'video': 'virtio',
@@ -384,13 +591,11 @@ class VMProvisioner:
             'suspend_to_disk': 'off',
             'boot_uefi': True,
             'iothreads': 0,
-
             # Features
             'sev': False,
             'tpm': False,
             'mem_backing': False,
         }
-
         if vm_type == VMType.SECURE:
             settings.update({
                 'disk_cache': 'writethrough',
@@ -428,15 +633,26 @@ class VMProvisioner:
                 'on_reboot': 'restart',
                 'on_crash': 'destroy',
             })
+        elif vm_type == VMType.SERVER:
+            settings.update({
+                'disk_cache': 'none',
+                'disk_format': 'qcow2',
+                'video': 'virtio',
+                'network_model': 'virtio',
+                'suspend_to_mem': 'on',
+                'suspend_to_disk': 'on',
+                'mem_backing': False,
+                'on_poweroff': 'destroy',
+                'on_reboot': 'restart',
+                'on_crash': 'restart',
+            })
 
         # Override disk format if provided
         if disk_format:
             settings['disk_format'] = disk_format
 
         # --- XML Construction ---
-
         # UUID generation handled by libvirt if omitted
-
         xml = f"""
 <domain type='kvm'>
   <name>{vm_name}</name>
@@ -445,16 +661,28 @@ class VMProvisioner:
   <vcpu placement='static'>{vcpu}</vcpu>
 """
         if settings['boot_uefi']:
-             xml += f"""
+            if loader_path and nvram_path:
+                xml += f"""
+  <os>
+    <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
+    <loader readonly='yes' type='pflash'>{loader_path}</loader>
+    <nvram format='qcow2'>{nvram_path}</nvram>
+"""
+            else:
+                xml += f"""
   <os firmware='efi'>
     <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
+    <loader readonly='yes' type='pflash'/>
 """
+                if nvram_path:
+                    xml += f"    <nvram format='qcow2'>{nvram_path}</nvram>\n"
+                else:
+                    xml += "    <nvram format='qcow2'/>\n"
         else:
             xml += f"""
   <os>
     <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
 """
-
         xml += """
     <boot dev='hd'/>
     <boot dev='cdrom'/>
@@ -465,11 +693,8 @@ class VMProvisioner:
     <apic/>
     <pae/>
   </features>
-
   <cpu mode='host-passthrough' check='none' migratable='on'/>
-  
   <clock offset='utc'/>
-  
   <on_poweroff>{0}</on_poweroff>
   <on_reboot>{1}</on_reboot>
   <on_crash>{2}</on_crash>
@@ -564,9 +789,7 @@ class VMProvisioner:
             if settings.get('sev'):
                 xml += "    <locked/>\n" # Often needed for SEV
             xml += "  </memoryBacking>\n"
-
         xml += "</domain>"
-
         return xml
 
     def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
@@ -581,7 +804,7 @@ class VMProvisioner:
 
         report("Checking Environment", 0)
 
-        # 1. Prepare Storage Pool for Disk
+        # Prepare Storage Pool for Disk
         pool = self.conn.storagePoolLookupByName(storage_pool_name)
         if not pool.isActive():
             raise Exception(f"Storage pool {storage_pool_name} is not active.")
@@ -598,7 +821,7 @@ class VMProvisioner:
         disk_name = f"{vm_name}.{storage_format}"
         disk_path = os.path.join(pool_target_path, disk_name)
 
-        # 2. Download ISO
+        # Download ISO
         # Define local cache path for ISOs
         config = load_config()
         iso_cache_dir = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
@@ -616,7 +839,7 @@ class VMProvisioner:
         else:
             report("ISO found, skipping download", 50)
 
-        # 3. Upload ISO from cache to storage pool
+        # Upload ISO from cache to storage pool
         report("Uploading ISO to storage pool", 55)
         def upload_cb(percent):
             # This stage is quick, allocate a small progress percentage (e.g., 5%)
@@ -624,8 +847,18 @@ class VMProvisioner:
 
         iso_path = self.upload_iso(iso_cache_path, storage_pool_name, upload_cb)
 
-        # 4. Create Disk
-        report("Creating Storage", 60)
+        # Setup NVRAM if UEFI (assume default True for now or check args)
+        # TODO: This should match generate_xml default logic or be explicit
+        boot_uefi = True
+        loader_path = None
+        nvram_path = None
+
+        if boot_uefi:
+            report("Setting up UEFI Firmware", 75)
+            loader_path, nvram_path = self._setup_uefi_nvram(vm_name, storage_pool_name, vm_type)
+
+        # Create Disk
+        report("Creating Storage", 78) # Adjusted percentage
 
         preallocation = 'metadata' if vm_type in [VMType.SECURE, VMType.DESKTOP] else 'off'
         lazy_refcounts = True if vm_type in [VMType.SECURE, VMType.COMPUTATION] else False
@@ -641,11 +874,11 @@ class VMProvisioner:
             cluster_size=cluster_size
         )
 
-        # 4. Generate XML
+        # Generate XML
         report("Configuring VM", 80)
-        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format)
+        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path)
 
-        # 5. Define and Start VM
+        # Define and Start VM
         report("Starting VM", 90)
         dom = self.conn.defineXML(xml_desc)
         dom.create()
