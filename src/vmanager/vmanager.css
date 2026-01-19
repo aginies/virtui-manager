@@ -574,6 +574,7 @@ RadioButton { padding: 0 0 0 1; }
 #remove-disk-dialog Select,
 #input-type-select Select,
 #input-bus-select Select,
+#remote-viewer-select Select,
 #uefi-file-select Select,
 #dest-server-select Select,
 #select-pool-dialog Select,

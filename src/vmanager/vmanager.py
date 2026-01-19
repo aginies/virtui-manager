@@ -386,7 +386,7 @@ class VMManagerTUI(App):
         register_error_handler()
         self.title = f"{AppInfo.namecase} {self.devel}"
 
-        self.r_viewer = check_r_viewer()
+        self.r_viewer = check_r_viewer(self.config.get("REMOTE_VIEWER"))
         if self.r_viewer is None:
             self.show_error_message(
                 ErrorMessages.R_VIEWER_NOT_FOUND
@@ -891,6 +891,14 @@ class VMManagerTUI(App):
             old_stats_interval = self.config.get("STATS_INTERVAL")
 
             self.config = result
+
+            # Update remote viewer if changed
+            self.r_viewer = check_r_viewer(self.config.get("REMOTE_VIEWER"))
+            if self.r_viewer is None:
+                self.show_error_message(ErrorMessages.R_VIEWER_NOT_FOUND)
+                self.r_viewer_available = False
+            else:
+                self.r_viewer_available = True
 
             if (self.config.get("STATS_INTERVAL") != old_stats_interval):
                 self.show_in_progress_message("Configuration updated. Refreshing VM list...")

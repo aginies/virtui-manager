@@ -1,14 +1,16 @@
 """
 Modal for user configuration
 """
+import shutil
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
-from textual.widgets import Label, Button, Input, Checkbox, Static
+from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
 from config import save_config, get_user_config_path
 from constants import AppInfo
 from modals.base_modals import BaseModal
+from utils import check_r_viewer
 
 class ConfigModal(BaseModal[None]):
     """Modal screen for configuring the application."""
@@ -41,8 +43,33 @@ class ConfigModal(BaseModal[None]):
                     tooltip="Full path to the application log file"
                 )
 
-                # Web console settings
-                yield Label("Web Console (novnc)", classes="config-section-label")
+                # Remote Viewer Settings
+                yield Label("Remote Viewer")
+
+                viewers = []
+                if shutil.which("virtui-remote-viewer.py"):
+                    viewers.append(("virtui-remote-viewer.py", "virtui-remote-viewer.py"))
+                if shutil.which("virt-viewer"):
+                    viewers.append(("virt-viewer", "virt-viewer"))
+
+                current_viewer = self.config.get("REMOTE_VIEWER")
+                if current_viewer not in [v[1] for v in viewers]:
+                    current_viewer = Select.BLANK
+
+                if not viewers:
+                     yield Label("No remote viewers found (virt-viewer or virtui-remote-viewer.py)")
+                else:
+                    auto_detected = check_r_viewer()
+                    yield Label(f"Select Default Remote Viewer (Auto-detect: {auto_detected}):")
+                    yield Select(
+                        viewers,
+                        value=current_viewer,
+                        id="remote-viewer-select",
+                        allow_blank=True,
+                        prompt="Select a viewer"
+                    )
+
+                # Web console settings                yield Label("Web Console (novnc)", classes="config-section-label")
                 yield Checkbox(
                     "Enable remote web console",
                     self.config.get("REMOTE_WEBCONSOLE", False),
@@ -111,6 +138,16 @@ class ConfigModal(BaseModal[None]):
                 self.config["VNC_COMPRESSION"] = int(self.query_one("#vnc-compression-input", Input).value)
                 self.config["STATS_INTERVAL"] = int(self.query_one("#stats-interval-input", Input).value)
                 self.config["LOG_FILE_PATH"] = self.query_one("#log-file-path-input", Input).value
+
+                try:
+                    viewer_select = self.query_one("#remote-viewer-select", Select)
+                    if viewer_select.value != Select.BLANK:
+                        self.config["REMOTE_VIEWER"] = viewer_select.value
+                    else:
+                        self.config["REMOTE_VIEWER"] = None
+                        self.app.show_warning_message("No remote viewer selected. Auto-detection will be used.")
+                except Exception:
+                    pass
 
                 save_config(self.config)
                 self.app.show_success_message("Configuration saved successfully.")

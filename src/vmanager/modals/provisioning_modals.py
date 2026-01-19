@@ -420,7 +420,7 @@ class InstallVMModal(BaseModal[str | None]):
             # 4. Auto-connect Remote Viewer
             def launch_viewer():
                 domain_name = dom.name()
-                cmd = remote_viewer_cmd(self.uri, domain_name)
+                cmd = remote_viewer_cmd(self.uri, domain_name, self.app.r_viewer)
                 try:
                     proc = subprocess.Popen(
                         cmd,

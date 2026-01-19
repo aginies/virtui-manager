@@ -1299,7 +1299,7 @@ class VMCard(Static):
                     uri = self.conn.getURI()
 
                 _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
-                command = remote_viewer_cmd(uri, domain_name)
+                command = remote_viewer_cmd(uri, domain_name, self.app.r_viewer)
 
                 #env = os.environ.copy()
                 #env['GDK_BACKEND'] = 'x11'
