@@ -435,14 +435,19 @@ class VMService:
 
             name = domain.name()
 
+            uuid = None
             with self._cache_lock:
                 if uri in self._name_to_uuid_cache:
                     uuid = self._name_to_uuid_cache[uri].get(name)
-                    if uuid:
-                        return f"{uuid}@{uri}", name
+            
+            if uuid:
+                return f"{uuid}@{uri}", name
 
-                uuid = domain.UUIDString()
+            # Fetch UUID outside the lock to prevent blocking the event loop (which needs the lock)
+            # if this call hangs due to a dying connection.
+            uuid = domain.UUIDString()
 
+            with self._cache_lock:
                 self._name_to_uuid_cache.setdefault(uri, {})[name] = uuid
                 self._uuid_to_name_cache.setdefault(uri, {})[uuid] = name
 
