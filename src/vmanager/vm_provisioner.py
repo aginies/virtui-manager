@@ -573,7 +573,7 @@ class VMProvisioner:
         xml = ET.fromstring(pool.XMLDesc(0))
         return xml.find("target/path").text
 
-    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None) -> str:
+    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None, boot_uefi: bool = True) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
@@ -584,12 +584,12 @@ class VMProvisioner:
             'disk_format': 'qcow2',
             'disk_cache': 'none',
             # Guest
-            'machine': 'pc-q35-10.1',
+            'machine': 'pc-q35-10.1' if boot_uefi else 'pc-i440fx-10.1',
             'video': 'virtio',
             'network_model': 'e1000',
             'suspend_to_mem': 'off',
             'suspend_to_disk': 'off',
-            'boot_uefi': True,
+            'boot_uefi': boot_uefi,
             'iothreads': 0,
             # Features
             'sev': False,
@@ -794,6 +794,7 @@ class VMProvisioner:
 
     def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
                      memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8, disk_format: str | None = None,
+                     boot_uefi: bool = True,
                      progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -847,9 +848,7 @@ class VMProvisioner:
 
         iso_path = self.upload_iso(iso_cache_path, storage_pool_name, upload_cb)
 
-        # Setup NVRAM if UEFI (assume default True for now or check args)
-        # TODO: This should match generate_xml default logic or be explicit
-        boot_uefi = True
+        # Setup NVRAM if UEFI
         loader_path = None
         nvram_path = None
 
@@ -876,7 +875,7 @@ class VMProvisioner:
 
         # Generate XML
         report("Configuring VM", 80)
-        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path)
+        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path, boot_uefi=boot_uefi)
 
         # Define and Start VM
         report("Starting VM", 90)

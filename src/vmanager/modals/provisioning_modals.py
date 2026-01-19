@@ -41,7 +41,7 @@ class InstallVMModal(BaseModal[str | None]):
         active_pools = [(p['name'], p['name']) for p in pools if p['status'] == 'active']
         default_pool = 'default' if any(p[0] == 'default' for p in active_pools) else (active_pools[0][1] if active_pools else None)
 
-        with ScrollableContainer(id="install-dialog"):
+        with Vertical(id="install-dialog"):
             yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
 
             yield Label("VM Name:", classes="label")
@@ -97,17 +97,20 @@ class InstallVMModal(BaseModal[str | None]):
             with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
-                        yield Label("Memory (MB)", classes="label")
+                        yield Label(" Memory (MB)", classes="label")
                         yield Input("4096", id="memory-input", type="integer")
                     with Vertical(id="expert-cpu"):
-                        yield Label("CPUs", classes="label")
+                        yield Label(" CPUs", classes="label")
                         yield Input("2", id="cpu-input", type="integer")
                     with Vertical(id="expert-disk-size"):
-                        yield Label("Disk Size (GB)", classes="label")
+                        yield Label(" Disk Size(GB)", classes="label")
                         yield Input("8", id="disk-size-input", type="integer")
                     with Vertical(id="expert-disk-format"):
-                        yield Label("Disk Format", classes="label")
+                        yield Label(" Disk Format", classes="label")
                         yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
+                    with Vertical(id="expert-firmware"):
+                        yield Label(" Firmware", classes="label")
+                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True)
 
             yield Label("Storage Pool:", id="vminstall-storage-label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
@@ -343,6 +346,7 @@ class InstallVMModal(BaseModal[str | None]):
         vcpu = 2
         disk_size = 20
         disk_format = "qcow2"
+        boot_uefi = True
 
         if expert_mode:
             try:
@@ -350,6 +354,7 @@ class InstallVMModal(BaseModal[str | None]):
                 vcpu = int(self.query_one("#cpu-input", Input).value)
                 disk_size = int(self.query_one("#disk-size-input", Input).value)
                 disk_format = self.query_one("#disk-format", Select).value
+                boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
             except ValueError:
                 self.app.show_error_message("Invalid input for expert settings. Using defaults.")
 
@@ -361,10 +366,10 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#progress-bar").styles.display = "block"
         self.query_one("#status-label").styles.display = "block"
 
-        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format)
+        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi)
 
     @work(exclusive=True, thread=True)
-    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format):
+    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
 
@@ -403,6 +408,7 @@ class InstallVMModal(BaseModal[str | None]):
                     vcpu=vcpu,
                     disk_size_gb=disk_size,
                     disk_format=disk_format,
+                    boot_uefi=boot_uefi,
                     progress_callback=progress_cb
                 )
             finally:
