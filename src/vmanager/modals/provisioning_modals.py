@@ -53,7 +53,6 @@ class InstallVMModal(BaseModal[str | None]):
                 yield Button("Info", id="vm-type-info-btn", variant="primary")
 
             yield Label("Distribution:", classes="label")
-
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
             distro_options.insert(0, ("Cached ISOs", "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -110,7 +109,7 @@ class InstallVMModal(BaseModal[str | None]):
                         yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
                     with Vertical(id="expert-firmware"):
                         yield Label(" Firmware", classes="label")
-                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True)
+                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
             yield Label("Storage Pool:", id="vminstall-storage-label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
