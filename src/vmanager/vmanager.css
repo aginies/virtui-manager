@@ -515,6 +515,9 @@ Toast.-inprogress {
 .delete-button, .cancel-button { background: red; width: 25% }
 .rename-button, .edit-button, .add-button { background: green; }
 .done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
+#add-channel-btn,
+#cancel-channel-btn,
+#remove-channel-btn,
 #switch-to-bios,
 #switch-to-uefi,
 #add-usb2-controller-btn,
@@ -565,6 +568,8 @@ RadioButton { padding: 0 0 0 1; }
 /* Select widgets */
 #move-volume-dialog Select,
 #migration-dialog Select,
+#channel-type-select Select,
+#target-preset-select Select,
 #cpu-model-select Select,
 #remove-disk-dialog Select,
 #input-type-select Select,

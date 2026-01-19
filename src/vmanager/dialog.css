@@ -38,6 +38,7 @@ LoadingModal,
 InstallVMModal,
 PatternSelectModal,
 VMTypeInfoModal,
+AddChannelModal,
 HowToSSHModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
@@ -68,6 +69,7 @@ HowToNetworkModal > #howto-network-dialog,
 WebConsoleConfigDialog > #webconsole-config-dialog,
 HowToDiskModal > #howto-disk-dialog,
 HowToVirtIOFSModal > #howto-virtiofs-dialog,
+AddChannelModal > #add-channel-container,
 VMTypeInfoModal > #howto-vmtype-dialog,
 HowToSSHModal > #howto-ssh-dialog {
   width: 60;
@@ -151,6 +153,7 @@ InstallVMModal #checksum-container {
 InstallVMModal #custom-iso-container Checkbox {
     height: 3;
 }
+AddChannelModal > #add-channel-container,
 WebConsoleConfigDialog > #webconsole-config-dialog, {
   height: 24;
 }
