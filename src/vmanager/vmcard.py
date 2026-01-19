@@ -101,7 +101,7 @@ class VMCardActions(Static):
                         yield self.card.ui[ButtonIds.CONFIGURE_BUTTON]
                         yield self.card.ui[ButtonIds.WEB_CONSOLE]
                         yield self.card.ui[ButtonIds.CONNECT]
-            with TabPane(self.card._get_snapshot_tab_title(), id="snapshot-tab"):
+            with TabPane(self.card._get_snapshot_tab_title(num_snapshots=0), id="snapshot-tab"):
                 with Horizontal():
                     with Vertical():
                         yield self.card.ui[ButtonIds.SNAPSHOT_TAKE]
@@ -1230,8 +1230,11 @@ class VMCard(Static):
     def _handle_pause_button(self, event: Button.Pressed) -> None:
         """Handles the pause button press."""
         logging.info(f"Attempting to pause VM: {self.name}")
-        if self.vm.isActive():
+        # Use status instead of blocking isActive() call
+        if self.status in (StatusText.RUNNING, StatusText.PAUSED):
             self.post_message(VmActionRequest(self.internal_id, VmAction.PAUSE))
+        else:
+            self.app.show_warning_message(f"VM '{self.name}' is not in a pausable state.")
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
