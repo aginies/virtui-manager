@@ -1377,6 +1377,9 @@ class VMCard(Static):
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot take button press."""
         logging.info(f"Attempting to take snapshot for VM: {self.name}")
+        vm = self.vm
+        internal_id = self.internal_id
+        vm_name = self.name
 
         def handle_snapshot_result(result: dict | None) -> None:
             # Always refresh tab title when modal closes, even if cancelled
@@ -1386,20 +1389,24 @@ class VMCard(Static):
                 description = result["description"]
                 quiesce = result.get("quiesce", False)
                 try:
-                    create_vm_snapshot(self.vm, name, description, quiesce=quiesce)
-                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                    create_vm_snapshot(vm, name, description, quiesce=quiesce)
+                    self.app.vm_service.invalidate_vm_cache(internal_id)
                     self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
                     self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
                 except Exception as e:
-                    self.app.show_error_message(f"Snapshot error for [b]{self.name}[/b]: {e}")
+                    self.app.show_error_message(f"Snapshot error for [b]{vm_name}[/b]: {e}")
 
-        self.app.push_screen(SnapshotNameDialog(self.vm), handle_snapshot_result)
+        self.app.push_screen(SnapshotNameDialog(vm), handle_snapshot_result)
 
     def _handle_snapshot_restore_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot restore button press."""
         logging.info(f"Attempting to restore snapshot for VM: {self.name}")
-        snapshots_info = get_vm_snapshots(self.vm)
+        vm = self.vm
+        internal_id = self.internal_id
+        vm_name = self.name
+
+        snapshots_info = get_vm_snapshots(vm)
         if not snapshots_info:
             self.app.show_error_message("No snapshots to restore.")
             return
@@ -1410,21 +1417,25 @@ class VMCard(Static):
             if snapshot_name:
                 try:
                     restore_vm_snapshot(self.vm, snapshot_name)
-                    self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                    self.app.vm_service.invalidate_vm_cache(internal_id)
                     self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
                     self._boot_device_checked = False
                     #self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                     self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
-                    logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {self.name}")
+                    logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {vm_name}")
                 except Exception as e:
-                    self.app.show_error_message(f"Error on VM [b]{self.name}[/b] during 'snapshot restore': {e}")
+                    self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot restore': {e}")
 
         self.app.push_screen(SelectSnapshotDialog(snapshots_info, "Select snapshot to restore"), restore_snapshot)
 
     def _handle_snapshot_delete_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot delete button press."""
         logging.info(f"Attempting to delete snapshot for VM: {self.name}")
-        snapshots_info = get_vm_snapshots(self.vm)
+        vm = self.vm
+        internal_id = self.internal_id
+        vm_name = self.name
+
+        snapshots_info = get_vm_snapshots(vm)
         if not snapshots_info:
             self.app.show_error_message("No snapshots to delete.")
             return
@@ -1436,14 +1447,14 @@ class VMCard(Static):
                 def on_confirm(confirmed: bool) -> None:
                     if confirmed:
                         try:
-                            delete_vm_snapshot(self.vm, snapshot_name)
+                            delete_vm_snapshot(vm, snapshot_name)
                             self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")
-                            self.app.vm_service.invalidate_vm_cache(self.internal_id)
+                            self.app.vm_service.invalidate_vm_cache(internal_id)
                             self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
                             self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
-                            logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {self.name}")
+                            logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {vm_name}")
                         except Exception as e:
-                            self.app.show_error_message(f"Error on VM [b]{self.name}[/b] during 'snapshot delete': {e}")
+                            self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot delete': {e}")
 
                 self.app.push_screen(
                     ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
