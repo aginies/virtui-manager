@@ -400,6 +400,10 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                 except (libvirt.libvirtError, ET.ParseError):
                     pass # use default disk_format
 
+            # QEMU does not support 'iso' as a driver type for disks, use 'raw' instead
+            if vol_format == 'iso':
+                vol_format = 'raw'
+
             disk_xml = f"""
             <disk type='file' device='disk'>
                 <driver name='qemu' type='{vol_format}' discard='unmap'/>

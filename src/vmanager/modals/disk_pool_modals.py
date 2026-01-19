@@ -58,7 +58,7 @@ class SelectDiskModal(BaseModal[str | None]):
             yield Label(self.prompt)
             with ScrollableContainer():
                 yield ListView(
-                    *[ValueListItem(Label(disk), value=disk) for disk in self.disks],
+                    *[ValueListItem(Label(os.path.basename(disk)), value=disk) for disk in self.disks],
                     id="disk-selection-list"
                 )
             yield Button("Cancel", variant="error", id="cancel")
