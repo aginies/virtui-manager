@@ -5,6 +5,7 @@ import re
 from textual.widgets import Select, Button, Label, Input
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
+from textual import on
 from modals.base_modals import BaseModal
 
 class InputModal(BaseModal[str | None]):
@@ -78,11 +79,56 @@ class AddChannelModal(BaseModal[dict | None]):
                 id="channel-type-select",
                 value="unix"
             )
+            yield Label("Standard Target Names:")
+            yield Select(
+                [],
+                id="target-preset-select",
+                prompt="Select a standard target or type below",
+                value=Select.BLANK
+            )
+            yield Label("Target Name:")
             yield Input(placeholder="Target Name (e.g. org.qemu.guest_agent.0)", id="target-name-input")
-            with Vertical():
-                with Horizontal():
-                    yield Button("Add", variant="primary", id="add-channel-btn")
-                    yield Button("Cancel", variant="default", id="cancel-channel-btn")
+
+            with Horizontal():
+                yield Button("Add", variant="primary", id="add-channel-btn")
+                yield Button("Cancel", variant="default", id="cancel-channel-btn")
+
+    def on_mount(self) -> None:
+        # Initialize presets for default type (unix)
+        self._update_presets("unix")
+
+    def _update_presets(self, channel_type: str) -> None:
+        preset_select = self.query_one("#target-preset-select", Select)
+        target_input = self.query_one("#target-name-input", Input)
+
+        options = []
+        default_val = ""
+
+        if channel_type == "unix":
+            options = [("org.qemu.guest_agent.0", "org.qemu.guest_agent.0")]
+            default_val = "org.qemu.guest_agent.0"
+        elif channel_type == "spicevmc":
+            options = [("com.redhat.spice.0", "com.redhat.spice.0")]
+            default_val = "com.redhat.spice.0"
+        elif channel_type == "virtio":
+            options = [
+                ("org.qemu.guest_agent.0", "org.qemu.guest_agent.0"),
+                ("org.libguestfs.channel.0", "org.libguestfs.channel.0")
+            ]
+            default_val = "org.qemu.guest_agent.0"
+
+        preset_select.set_options(options)
+        preset_select.value = Select.BLANK 
+        target_input.value = default_val
+
+    @on(Select.Changed, "#channel-type-select")
+    def on_channel_type_changed(self, event: Select.Changed) -> None:
+        self._update_presets(event.value)
+
+    @on(Select.Changed, "#target-preset-select")
+    def on_target_preset_changed(self, event: Select.Changed) -> None:
+        if event.value and event.value != Select.BLANK:
+            self.query_one("#target-name-input", Input).value = event.value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "add-channel-btn":
@@ -91,9 +137,8 @@ class AddChannelModal(BaseModal[dict | None]):
             if channel_type and target_name:
                 self.dismiss({"type": channel_type, "target_name": target_name})
             else:
-                # Optionally show error
                 pass 
-        else:
+        elif event.button.id == "cancel-channel-btn":
             self.dismiss(None)
 
 def _sanitize_input(input_string: str) -> tuple[str, bool]:
