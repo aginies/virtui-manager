@@ -88,11 +88,11 @@ class InstallVMModal(BaseModal[str | None]):
                     yield Label("", id="checksum-status", classes="status-text")
 
             # Container for Autoinstall (Disabled for now)
-            with Vertical(id="autoinstall-container"):
-                yield Label("Autoinstall File (Optional):", disabled=True)
-                with Horizontal(classes="input-row"):
-                    yield Input(placeholder="/path/to/autoinstall.xml", id="autoinstall-path", classes="path-input", disabled=True)
-                    yield Button("Browse", id="browse-autoinstall-btn", disabled=True)
+            #with Vertical(id="autoinstall-container"):
+            #    yield Label("Autoinstall File (Optional):", disabled=True)
+            #    with Horizontal(classes="input-row"):
+            #        yield Input(placeholder="/path/to/autoinstall.xml", id="autoinstall-path", classes="path-input", disabled=True)
+            #        yield Button("Browse", id="browse-autoinstall-btn", disabled=True)
 
             with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
@@ -140,6 +140,10 @@ class InstallVMModal(BaseModal[str | None]):
             mem = 8192
             vcpu = 4
             disk_format = "raw"
+        elif vm_type == VMType.SERVER:
+            mem = 4096
+            vcpu = 6
+            disk_size = 18
         elif vm_type == VMType.DESKTOP:
             mem = 4096
             vcpu = 4
@@ -270,14 +274,14 @@ class InstallVMModal(BaseModal[str | None]):
 
         self.app.push_screen(FileSelectionModal(), set_path)
 
-    @on(Button.Pressed, "#browse-autoinstall-btn")
-    def on_browse_autoinstall(self):
-        """Open file picker for Autoinstall file."""
-        def set_path(path: str | None) -> None:
-            if path:
-                self.query_one("#autoinstall-path", Input).value = path
+    #@on(Button.Pressed, "#browse-autoinstall-btn")
+    #def on_browse_autoinstall(self):
+    #    """Open file picker for Autoinstall file."""
+    #    def set_path(path: str | None) -> None:
+    #        if path:
+    #            self.query_one("#autoinstall-path", Input).value = path
 
-        self.app.push_screen(FileSelectionModal(), set_path)
+    #    self.app.push_screen(FileSelectionModal(), set_path)
 
     @on(Button.Pressed, "#vm-type-info-btn")
     def on_vm_type_info(self):
