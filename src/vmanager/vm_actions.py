@@ -148,11 +148,11 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
         logging.info(msg_end)
         if log_callback:
             log_callback(msg_end)
-        
+
         # Define the VM using the clone connection
         new_vm_temp = clone_conn.defineXML(new_xml)
         new_vm_uuid = new_vm_temp.UUIDString()
-    
+
     finally:
         if clone_conn:
             clone_conn.close()
@@ -167,6 +167,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
     Renames a VM.
     The VM must be stopped.
     If delete_snapshots is True, it will delete all snapshots before renaming.
+    Handles NVRAM renaming if present.
     """
     if not domain:
         raise ValueError("Invalid domain object.")
@@ -200,13 +201,74 @@ def rename_vm(domain, new_name, delete_snapshots=False):
             raise # Re-raise other libvirt errors.
 
     xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    # Check for NVRAM
+    nvram_elem = root.find("./os/nvram")
+    old_nvram_path = None
+    new_nvram_path = None
+    old_nvram_vol = None
+    has_nvram = False
+
+    if nvram_elem is not None:
+        has_nvram = True
+        old_nvram_path = nvram_elem.text
+        # Try to rename volume
+        if old_nvram_path:
+            try:
+                vol, pool = _find_vol_by_path(conn, old_nvram_path)
+                if vol and pool:
+                    old_nvram_vol = vol
+                    _, ext = os.path.splitext(vol.name())
+                    if not ext: ext = ".fd"
+                    new_vol_name = f"{new_name}_VARS{ext}"
+                    # Check if new volume name already exists
+                    try:
+                        pool.storageVolLookupByName(new_vol_name)
+                        logging.warning(f"Target NVRAM volume {new_vol_name} already exists. Will use it.")
+                    except libvirt.libvirtError:
+                        # Clone old volume to new name
+                        vol_xml_desc = vol.XMLDesc(0)
+                        vol_root = ET.fromstring(vol_xml_desc)
+                        vol_root.find('name').text = new_vol_name
+
+                        # Clear keys/paths
+                        if vol_root.find('key') is not None:
+                            vol_root.remove(vol_root.find('key'))
+                        target = vol_root.find('target')
+                        if target is not None and target.find('path') is not None:
+                            target.remove(target.find('path'))
+              
+                        new_vol_xml = ET.tostring(vol_root, encoding='unicode')
+                        pool.createXMLFrom(new_vol_xml, vol, 0)
+                        logging.info(f"Cloned NVRAM to {new_vol_name}")
+
+                    # Get new path
+                    new_vol = pool.storageVolLookupByName(new_vol_name)
+                    new_nvram_path = new_vol.path()
+
+                    # Update XML
+                    nvram_elem.text = new_nvram_path
+
+            except Exception as e:
+                logging.warning(f"Failed to rename NVRAM volume, keeping old one: {e}")
 
     invalidate_cache(get_internal_id(domain))
-    domain.undefine()
+
+    if has_nvram:
+        # If NVRAM is present, we must tell libvirt to keep it
+        # otherwise undefine() fails.
+        try:
+            domain.undefineFlags(libvirt.VIR_DOMAIN_UNDEFINE_KEEP_NVRAM)
+        except (libvirt.libvirtError, AttributeError):
+            # Try plain undefine
+            domain.undefine()
+    else:
+        domain.undefine()
 
     try:
         # Modify XML with new name
-        root = ET.fromstring(xml_desc)
+        # We already modified root if NVRAM changed
         name_elem = root.find('name')
         if name_elem is None:
             msg = "Could not find name element in VM XML."
@@ -217,10 +279,24 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
         # Define the new domain from the modified XML
         conn.defineXML(new_xml)
+
+        # If successful, delete old NVRAM volume if we cloned it
+        if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
+            try:
+                old_nvram_vol.delete(0)
+                logging.info("Deleted old NVRAM volume")
+            except Exception as e:
+                logging.warning(f"Failed to delete old NVRAM volume: {e}")
+
     except Exception as e:
-        conn.defineXML(xml_desc)
-        msg = f"Failed to rename VM, but restored original state. Error: {e}"
-        logging.error(msg)
+        # Try to restore old domain
+        try:
+            conn.defineXML(xml_desc)
+            msg = f"Failed to rename VM, but restored original state. Error: {e}"
+            logging.error(msg)
+        except Exception as restore_error:
+            msg = f"Failed to rename VM AND failed to restore original state! Error: {e}. Restore Error: {restore_error}"
+            logging.critical(msg)
         raise Exception(msg) from e
 
 
