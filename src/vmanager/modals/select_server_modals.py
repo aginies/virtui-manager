@@ -57,7 +57,7 @@ class SelectServerModal(BaseModal[None]):
             return
 
         if event.value:  # If checkbox is checked
-            loading_modal = LoadingModal()
+            loading_modal = LoadingModal(f"Connecting to {uri}...")
             self.app.push_screen(loading_modal)
 
             def connect_and_update():
