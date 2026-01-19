@@ -267,7 +267,7 @@ PasswordModal Button {
   margin: 1;
   margin-left: 1;
 }
-InstallVMModal #custom-iso-path,
+InstallVMModal #browse-iso-btn,
 AttachVolumeModal #browse-vol-btn,
 AddDiskModal #browse-disk-btn, {
   height: 3;
