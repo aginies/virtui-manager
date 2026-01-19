@@ -16,7 +16,7 @@ from libvirt_utils import (
         get_internal_id
         )
 from utils import log_function_call
-from vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root
+from vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root, get_vm_snapshots
 from vm_cache import invalidate_cache
 from network_manager import list_networks
 from storage_manager import create_overlay_volume
@@ -182,12 +182,25 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
     # Check for snapshots
     num_snapshots = domain.snapshotNum(0)
+    snapshot_xmls = []
     if num_snapshots > 0:
         if delete_snapshots:
             for snapshot in domain.listAllSnapshots(0):
                 snapshot.delete(0)
         else:
-            raise libvirt.libvirtError(f"Cannot rename VM with {num_snapshots} snapshot(s).")
+            # Capture snapshots to restore them later
+            try:
+                snapshots = get_vm_snapshots(domain)
+                # Sort by creation time to ensure parentage is respected
+                snapshots.sort(key=lambda x: x.get('creation_time', 0))
+                
+                for snap in snapshots:
+                    snap_obj = snap['snapshot_object']
+                    # Get the XML with security info
+                    xml = snap_obj.getXMLDesc(libvirt.VIR_DOMAIN_SNAPSHOT_XML_SECURE)
+                    snapshot_xmls.append(xml)
+            except Exception as e:
+                raise libvirt.libvirtError(f"Failed to retrieve snapshots for migration: {e}")
 
     # Check if a VM with the new name already exists
     try:
@@ -255,16 +268,38 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
     invalidate_cache(get_internal_id(domain))
 
+    # Build flags for undefining the domain.
+    undefine_flags = 0
     if has_nvram:
-        # If NVRAM is present, we must tell libvirt to keep it
-        # otherwise undefine() fails.
+        # Keep NVRAM file temporarily during rename. It will be cleaned up later if the rename is successful.
         try:
-            domain.undefineFlags(libvirt.VIR_DOMAIN_UNDEFINE_KEEP_NVRAM)
-        except (libvirt.libvirtError, AttributeError):
-            # Try plain undefine
+            undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_KEEP_NVRAM
+        except AttributeError:
+            pass # older libvirt
+
+    if snapshot_xmls:
+        # Also undefine snapshot metadata. They will be recreated for the new domain.
+        try:
+            undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
+        except AttributeError:
+            pass # older libvirt
+
+    try:
+        # Undefine the domain. Using undefineFlags if necessary.
+        if undefine_flags:
+            domain.undefineFlags(undefine_flags)
+        else:
             domain.undefine()
-    else:
+    except AttributeError:
+        # Fallback for older libvirt that doesn't support undefineFlags.
+        # This will likely fail if there are snapshots.
         domain.undefine()
+    except libvirt.libvirtError as e:
+        # If undefine failed, re-raise with a more informative message.
+        if "does not support flags" in str(e): # another older libvirt case
+            domain.undefine()
+        else:
+            raise libvirt.libvirtError(f"Failed to undefine domain '{domain.name()}' during rename: {e}")
 
     try:
         # Modify XML with new name
@@ -280,7 +315,44 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         # Define the new domain from the modified XML
         conn.defineXML(new_xml)
 
-        # If successful, delete old NVRAM volume if we cloned it
+        # Restore snapshots if any
+        if snapshot_xmls:
+            new_domain = conn.lookupByName(new_name)
+            for snap_xml in snapshot_xmls:
+                try:
+                    # Update domain name in snapshot XML
+                    snap_root = ET.fromstring(snap_xml)
+                    # Update domain name in the snapshot's domain definition
+                    domain_elem = snap_root.find("domain")
+                    if domain_elem is not None:
+                        d_name = domain_elem.find("name")
+                        if d_name is not None:
+                            d_name.text = new_name
+                        # Update NVRAM path if it changed
+                        if new_nvram_path:
+                            nvram_elem = domain_elem.find("./os/nvram")
+                            if nvram_elem is not None:
+                                nvram_elem.text = new_nvram_path
+                    # Update UUID in domain definition to match new domain's UUID (which we just defined)
+                    # Actually, for a rename via defineXML, the UUID usually stays the same if we preserved it in root
+                    # Let's ensure the snapshot XML uses the correct UUID if it's there
+                    if domain_elem is not None:
+                        d_uuid = domain_elem.find("uuid")
+                        if d_uuid is not None:
+                            # We didn't change the UUID in the main XML, so it should be fine.
+                            # But if defineXML generated a new one (e.g. if we removed it), we'd need to update it.
+                            # In rename_vm we use existing XML, so UUID is preserved.
+                            pass
+
+                    updated_snap_xml = ET.tostring(snap_root, encoding='unicode')
+
+                    # Re-create snapshot for the new domain
+                    new_domain.snapshotCreateXML(updated_snap_xml, 0)
+                    logging.info(f"Re-created snapshot during rename for {new_name}")
+                except Exception as e:
+                    logging.error(f"Failed to re-create snapshot for renamed VM {new_name}: {e}")
+        
+        # If successful, delete old NVRAM volume if we cloned it        if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
         if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
             try:
                 old_nvram_vol.delete(0)

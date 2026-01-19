@@ -891,7 +891,7 @@ class VMCard(Static):
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
-        self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading
+        self.ui[ButtonIds.SNAPSHOT_TAKE].display = is_running or is_paused
         self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading
 
         xml_button = self.ui[ButtonIds.XML]
@@ -1710,12 +1710,10 @@ class VMCard(Static):
                 self.app.show_success_message("New VM name is the same as the old name. No rename performed.")
                 return
 
-            def do_rename(delete_snapshots=False):
+            def do_rename():
                 try:
-                    rename_vm(self.vm, new_name, delete_snapshots=delete_snapshots)
+                    rename_vm(self.vm, new_name)
                     msg = f"VM '{self.name}' renamed to '{new_name}' successfully."
-                    if delete_snapshots:
-                        msg = f"Snapshots deleted and VM '{self.name}' renamed to '{new_name}' successfully."
                     self.app.show_success_message(msg)
                     self.app.vm_service.invalidate_domain_cache()
                     self._boot_device_checked = False
@@ -1728,25 +1726,17 @@ class VMCard(Static):
 
             def on_confirm_rename(confirmed: bool, delete_snapshots=False) -> None:
                 if confirmed:
-                    if delete_snapshots:
-                        self._refresh_snapshot_tab_async()
-                    do_rename(delete_snapshots=delete_snapshots)
+                    do_rename()
                     if delete_snapshots:
                         self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                 else:
                     self.app.show_success_message("VM rename cancelled.")
 
-            if num_snapshots > 0:
-                self.app.push_screen(
-                    ConfirmationDialog(DialogMessages.DELETE_SNAPSHOTS_AND_RENAME.format(count=num_snapshots)),
-                    partial(on_confirm_rename, delete_snapshots=True)
-                )
-            else:
-                msg = f"Are you sure you want to rename VM [b]{self.name}[/b] to [b]{new_name}[/b]?\n\n[yellow]Warning: This operation involves undefining and redefining the VM.[/yellow]"
-                self.app.push_screen(
-                    ConfirmationDialog(msg),
-                    on_confirm_rename
-                )
+            msg = f"Are you sure you want to rename VM {self.name} to {new_name}?\n\nWarning: This operation involves undefining and redefining the VM."
+            self.app.push_screen(
+                ConfirmationDialog(msg),
+                on_confirm_rename
+            )
 
         self.app.push_screen(RenameVMDialog(current_name=self.name), handle_rename)
 
