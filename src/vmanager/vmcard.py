@@ -1359,7 +1359,6 @@ class VMCard(Static):
             uri = self.conn.getURI()
         is_remote = self.app.webconsole_manager.is_remote_connection(uri)
 
-
         if is_remote:
             def handle_dialog_result(should_start: bool) -> None:
                 if should_start:
@@ -1388,14 +1387,29 @@ class VMCard(Static):
                 name = result["name"]
                 description = result["description"]
                 quiesce = result.get("quiesce", False)
-                try:
-                    create_vm_snapshot(vm, name, description, quiesce=quiesce)
-                    self.app.vm_service.invalidate_vm_cache(internal_id)
-                    self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
-                    self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
-                    self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
-                except Exception as e:
-                    self.app.show_error_message(f"Snapshot error for [b]{vm_name}[/b]: {e}")
+
+                loading_modal = LoadingModal(message=f"Taking snapshot for {vm_name}...")
+                self.app.push_screen(loading_modal)
+
+                def do_snapshot():
+                    try:
+                        create_vm_snapshot(vm, name, description, quiesce=quiesce)
+
+                        def finalize_snapshot():
+                            loading_modal.dismiss()
+                            self.app.vm_service.invalidate_vm_cache(internal_id)
+                            self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
+                            self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
+                            self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
+
+                        self.app.call_from_thread(finalize_snapshot)
+                    except Exception as e:
+                        def show_error():
+                            loading_modal.dismiss()
+                            self.app.show_error_message(f"Snapshot error for [b]{vm_name}[/b]: {e}")
+                        self.app.call_from_thread(show_error)
+
+                self.app.worker_manager.run(do_snapshot, name=f"snapshot_take_{internal_id}")
 
         self.app.push_screen(SnapshotNameDialog(vm), handle_snapshot_result)
 
@@ -1415,16 +1429,29 @@ class VMCard(Static):
             # Always refresh tab title when modal closes
             self._refresh_snapshot_tab_async()
             if snapshot_name:
-                try:
-                    restore_vm_snapshot(self.vm, snapshot_name)
-                    self.app.vm_service.invalidate_vm_cache(internal_id)
-                    self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
-                    self._boot_device_checked = False
-                    #self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
-                    self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
-                    logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {vm_name}")
-                except Exception as e:
-                    self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot restore': {e}")
+                loading_modal = LoadingModal(message=f"Restoring snapshot {snapshot_name}...")
+                self.app.push_screen(loading_modal)
+
+                def do_restore():
+                    try:
+                        restore_vm_snapshot(self.vm, snapshot_name)
+
+                        def finalize_restore():
+                            loading_modal.dismiss()
+                            self.app.vm_service.invalidate_vm_cache(internal_id)
+                            self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
+                            self._boot_device_checked = False
+                            self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
+                            logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {vm_name}")
+
+                        self.app.call_from_thread(finalize_restore)
+                    except Exception as e:
+                        def show_error():
+                            loading_modal.dismiss()
+                            self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot restore': {e}")
+                        self.app.call_from_thread(show_error)
+
+                self.app.worker_manager.run(do_restore, name=f"snapshot_restore_{internal_id}")
 
         self.app.push_screen(SelectSnapshotDialog(snapshots_info, "Select snapshot to restore"), restore_snapshot)
 
@@ -1578,7 +1605,7 @@ class VMCard(Static):
                         self.timer = None
                     self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
                     self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
-                
+
                 app.call_from_thread(stop_stats_workers)
 
                 try:
@@ -1645,7 +1672,7 @@ class VMCard(Static):
                         #app.call_from_thread(app.vm_service.invalidate_domain_cache)
                         app.call_from_thread(app.refresh_vm_list)
                     app.call_from_thread(progress_modal.dismiss)
-                
+
                 finally:
                     # Restart stats worker
                     app.call_from_thread(self.update_stats)
@@ -1786,7 +1813,7 @@ class VMCard(Static):
                 #Use cached domain lookup instead of iterating all URIs
                 with self.app.vm_service._cache_lock:
                     domain = self.app.vm_service._domain_cache.get(uuid)
-                    
+
                 if domain:
                     try:
                         # Verify domain is still valid
@@ -1877,13 +1904,13 @@ class VMCard(Static):
         """Handle clicks on the VM name part of the VM card."""
         click_time = time.time()
         if click_time - getattr(self, "_last_click_time", 0) < 0.5:
-             # Double click detected
-             if not self.compact_view:
-                 self._fetch_xml_and_update_tooltip()
-             self._last_click_time = 0
+            # Double click detected
+            if not self.compact_view:
+                self._fetch_xml_and_update_tooltip()
+            self._last_click_time = 0
         else:
-             self._last_click_time = click_time
-             self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.raw_uuid))
+            self._last_click_time = click_time
+            self.post_message(VMNameClicked(vm_name=self.name, vm_uuid=self.raw_uuid))
 
     def _fetch_xml_and_update_tooltip(self):
         """Fetches the XML configuration and updates the tooltip."""
@@ -1903,4 +1930,3 @@ class VMCard(Static):
                 logging.error(f"Error fetching XML for tooltip: {e}")
 
         self.app.worker_manager.run(fetch_worker, name=f"xml_tooltip_{self.internal_id}")
-
