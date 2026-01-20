@@ -1,5 +1,5 @@
 ---
-name: Bug Report / Performance Issue
+name: Bug Report
 about: Report a bug
 title: "[BUG] "
 labels: bug
