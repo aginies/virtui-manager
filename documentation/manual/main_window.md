@@ -38,7 +38,7 @@ Configure server-specific settings directly from the UI without touching config 
 *   **Auto-Connect:** Toggle which servers should connect on startup.
 *   **Defaults:** Set default storage pools and network interfaces for new VMs on a per-server basis.
 
-### Bulk CMD
+### [Bulk CMD](bulk_ops.md)
 
 The "Bulk Command" mode puts the power of fleet management at your fingertips.
 
