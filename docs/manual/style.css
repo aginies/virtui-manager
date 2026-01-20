@@ -421,18 +421,18 @@ footer {
 }
 
 /* MkDocs Material Theme Overrides */
-.md-header__source {
+.md-header__source, 
+.md-source,
+.md-source__repository,
+.md-source__fact {
     color: #000 !important;
 }
 
-.md-header__source .md-icon svg {
+.md-header__source .md-icon svg,
+.md-source__icon svg {
     fill: #000 !important;
 }
 
-.md-header__button.md-icon[for="__search"] {
-    color: #000 !important;
-}
-
-.md-header__button.md-icon[data-md-component="palette"] {
+.md-header__button.md-icon {
     color: #000 !important;
 }
