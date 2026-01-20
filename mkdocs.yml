@@ -1,0 +1,57 @@
+site_name: Virtui Manager Documentation
+site_url: https://aginies.github.io/virtui-manager/
+site_description: The next-generation terminal-based management solution for QEMU/KVM virtualization.
+site_author: aginies
+repo_url: https://github.com/aginies/virtui-manager
+repo_name: aginies/virtui-manager
+
+docs_dir: docs/manual
+site_dir: site
+
+theme:
+  name: material
+  palette:
+    # Dark mode
+    - scheme: slate
+      primary: light green
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Switch to light mode
+    # Light mode
+    - scheme: default
+      primary: light green
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to dark mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - style.css
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Manual:
+    - Management Window: main_window.md
+    - VM Actions: vm_actions.md
+    - Selection & Filtering: selection.md
+    - Bulk Operations: bulk_ops.md
+    - App Configuration: app_configuration.md
+    - Installation: installation.md
