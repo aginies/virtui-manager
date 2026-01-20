@@ -1,132 +1,278 @@
-/*
-  --- WEBSITE THEMES ---
-  To set a theme for the website, add the corresponding class to the <html> tag
-  in both index.html and media.html.
-
-  Example: <html class="theme-christmas">
-
-  Available themes:
-  - theme-dark (default, solarized dark)
-  - theme-christmas
-  - theme-ufo
-*/
-
-/* Default Theme (theme-dark) */
 :root {
-  --bg-color: #073642;
-  --text-color: #eee8d5;
-  --link-hover-color: #ffffff;
-  --border-color: #586e75;
-  --lightbox-bg-color: rgba(0, 0, 0, 0.8);
-  --snowflake-color: #fff;
-  --snowflake-shadow: #000;
+    --bg-primary: #0a0e14;
+    --bg-secondary: #161b22;
+    --accent-primary: #58a6ff;
+    --accent-secondary: #bc8cff;
+    --text-primary: #f0f6fc;
+    --text-secondary: #8b949e;
+    --border-color: #30363d;
+    --card-bg: #21262d;
+    --gradient-hero: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+    --font-heading: 'Montserrat', sans-serif;
+    --font-body: 'Open Sans', sans-serif;
+    
+    /* Legacy Theme Support */
+    --lightbox-bg-color: rgba(0, 0, 0, 0.9);
 }
 
-html.theme-christmas {
-  --bg-color: #073642; /* Use original solarized background */
-  --text-color: #f5f5f5;
-  --link-hover-color: #ffd700; /* Gold */
-  --border-color: #c41e3a; /* Christmas Red */
-  --lightbox-bg-color: rgba(69, 19, 29, 0.8);
-  --snowflake-color: #fff;
-  --snowflake-shadow: #c41e3a;
-}
-
-html.theme-ufo {
-  --bg-color: #0c0c14; /* Deep Space */
-  --text-color: #00ff00; /* Green Alien Text */
-  --link-hover-color: #ff00ff; /* Magenta Warp */
-  --border-color: #00ffff; /* Cyan Grid */
-  --lightbox-bg-color: rgba(0, 255, 0, 0.8);
-}
-
-html.theme-matrix {
-  --bg-color: #000000;
-  --text-color: #00ff00;
-  --link-hover-color: #ffffff;
-  --border-color: #008F11;
-  --lightbox-bg-color: rgba(0, 80, 0, 0.8);
-}
-
-html.theme-retro {
-  --bg-color: #000000;
-  --text-color: #ffffff;
-  --link-hover-color: #ffff00;
-  --border-color: #ff0000;
-  --lightbox-bg-color: rgba(50, 0, 0, 0.8);
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
 }
 
 body {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: Arial, sans-serif;
-    position: relative;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    line-height: 1.6;
     overflow-x: hidden;
-    transition: background-color 0.3s, color 0.3s;
 }
 
-header {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    padding: 10px;
-    text-align: center;
-    width: 100%;
+/* Typography */
+h1, h2, h3 {
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+    line-height: 1.2;
 }
 
-nav ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+h1 { font-size: 3.5rem; font-weight: 700; margin-bottom: 1rem; }
+h2 { font-size: 2.5rem; font-weight: 600; margin-bottom: 1.5rem; }
+h3 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+
+p { margin-bottom: 1rem; color: var(--text-secondary); }
+
+a { color: var(--accent-primary); text-decoration: none; transition: color 0.2s; }
+a:hover { color: var(--accent-secondary); }
+
+/* Navigation */
+.navbar {
     display: flex;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
+    padding: 1.5rem 5%;
+    background-color: rgba(10, 14, 20, 0.95);
+    backdrop-filter: blur(10px);
+    position: fixed;
+    width: 100%;
+    top: 0;
+    z-index: 1000;
+    border-bottom: 1px solid var(--border-color);
 }
 
-nav ul li {
-    margin: 0 10px;
+.logo {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
 }
 
-nav ul a {
-    color: var(--text-color);
-    text-decoration: none;
+.navbar nav ul {
+    display: flex;
+    list-style: none;
+    gap: 2rem;
 }
 
-nav ul a:hover {
-    color: var(--link-hover-color);
-    text-decoration: underline;
+.navbar nav a {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-primary);
 }
 
-.content {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 0 20px;
+.navbar nav a:hover {
+    color: var(--accent-primary);
 }
 
-.media-section {
+/* Hero Section */
+.hero {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    margin: 20px 0;
+    background: var(--gradient-hero);
+    padding: 0 1rem;
+    position: relative;
+    overflow: hidden;
 }
 
-.feature-list {
-    margin: 15px 0;
+.hero-content {
+    max-width: 800px;
+    z-index: 2;
+    animation: fadeInUp 1s ease-out;
 }
 
-a {
-    color: var(--text-color);
-    text-decoration: none;
+.hero .subtitle {
+    font-size: 1.25rem;
+    margin-bottom: 2.5rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-a:hover {
-    color: var(--link-hover-color);
-    text-decoration: underline;
+.btn {
+    display: inline-block;
+    padding: 0.8rem 2rem;
+    border-radius: 50px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 15px rgba(88, 166, 255, 0.4);
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(88, 166, 255, 0.6);
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 2px solid var(--accent-primary);
+    color: var(--accent-primary);
+    margin-left: 1rem;
+}
+
+.btn-secondary:hover {
+    background: rgba(88, 166, 255, 0.1);
+}
+
+/* Features Section */
+.feature-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6rem 10%;
+    min-height: 80vh;
+    gap: 4rem;
+}
+
+.feature-section:nth-child(even) {
+    background-color: var(--bg-secondary);
+    flex-direction: row-reverse;
+}
+
+.feature-content {
+    flex: 1;
+}
+
+.feature-image {
+    flex: 1.2;
+    position: relative;
+}
+
+.feature-image img {
+    width: 100%;
+    border-radius: 12px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    border: 1px solid var(--border-color);
+    transition: transform 0.5s ease;
+}
+
+.feature-image:hover img {
+    transform: scale(1.02);
+}
+
+.marketing-text {
+    font-size: 1.1rem;
+    line-height: 1.8;
+}
+
+/* Details Grid */
+.details-grid {
+    padding: 6rem 10%;
+    background-color: var(--bg-primary);
+    text-align: center;
+}
+
+.section-title {
+    margin-bottom: 4rem;
+    font-size: 2.5rem;
+}
+
+.grid-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.grid-item {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    transition: transform 0.3s ease;
+    text-align: left;
+}
+
+.grid-item:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-primary);
+}
+
+/* Footer */
+footer {
+    background-color: var(--bg-secondary);
+    padding: 3rem 0;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+}
+
+.footer-content p {
+    font-size: 0.9rem;
+}
+
+/* Animations */
+.hidden-left {
+    opacity: 0;
+    transform: translateX(-50px);
+    transition: all 1s ease-out;
+}
+
+.hidden-right {
+    opacity: 0;
+    transform: translateX(50px);
+    transition: all 1s ease-out;
+}
+
+.show {
+    opacity: 1;
+    transform: translateX(0);
+}
+
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Media Gallery Styles (Restored) --- */
+.gallery {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    padding: 2rem;
+    gap: 1rem;
 }
 
 .gallery img {
-    max-width: 200px;
+    max-width: 250px;
     height: auto;
-    margin: 5px;
     cursor: pointer;
+    border-radius: 8px;
     border: 1px solid var(--border-color);
+    transition: transform 0.2s;
+}
+
+.gallery img:hover {
+    transform: scale(1.05);
+    border-color: var(--accent-primary);
 }
 
 #lightbox {
@@ -139,46 +285,61 @@ a:hover {
     background: var(--lightbox-bg-color);
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 2000;
 }
+
 #lightbox-img {
     max-width: 90%;
     max-height: 90%;
+    border-radius: 4px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
 }
+
 #close-lightbox {
-    color: var(--text-color);
+    color: var(--text-primary);
     position: absolute;
     top: 20px;
-    right: 20px;
+    right: 30px;
     cursor: pointer;
-    font-size: 24px;
+    font-size: 3rem;
+    line-height: 1;
 }
 
 #prev, #next {
-    color: var(--text-color);
+    color: var(--text-primary);
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
     cursor: pointer;
-    font-size: 30px;
+    font-size: 3rem;
+    padding: 0 1rem;
+    user-select: none;
 }
-#prev {
-    left: 20px;
-}
-#next {
-    right: 20px;
+#prev { left: 20px; }
+#next { right: 20px; }
+
+/* Responsive Design */
+@media (max-width: 900px) {
+    .feature-section {
+        flex-direction: column !important;
+        text-align: center;
+        padding: 4rem 5%;
+        gap: 2rem;
+    }
+
+    .hero h1 {
+        font-size: 2.5rem;
+    }
+    
+    .navbar nav {
+        display: none; /* Mobile menu can be added if needed */
+    }
 }
 
-/* --- THEME ANIMATIONS --- */
-.star, .snowflake, .ufo {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    will-change: transform, opacity;
-}
-
+/* --- Legacy Theme Animations (Preserved) --- */
 /* Christmas/Dark Theme Animations */
 .star {
+    position: fixed;
     top: 0; left: 0;
     width: 2px;
     height: 2px;
@@ -186,6 +347,8 @@ a:hover {
     border-radius: 50%;
     box-shadow: 0 0 6px #fff, 0 0 10px #fff, 0 0 15px #0ff;
     animation: twinkle 2s infinite ease-in-out alternate;
+    pointer-events: none;
+    z-index: 9999;
 }
 
 @keyframes twinkle {
@@ -194,11 +357,14 @@ a:hover {
 }
 
 .snowflake {
+    position: fixed;
     top: -20px; left: 0;
-    color: var(--snowflake-color);
-    text-shadow: 0 0 5px var(--snowflake-shadow);
+    color: #fff;
+    text-shadow: 0 0 5px #000;
     font-size: 20px;
     animation: fall linear infinite;
+    pointer-events: none;
+    z-index: 9999;
 }
 
 @keyframes fall {
@@ -206,97 +372,4 @@ a:hover {
         transform: translateY(105vh) rotate(360deg);
         opacity: 0;
     }
-}
-
-/* UFO Theme Animations */
-.ufo {
-    left: 0;
-    animation: fly-across linear; /* duration set by JS */
-}
-
-.ufo > div { /* The child element for wobbling */
-    animation: ufo-wobble 0.7s infinite ease-in-out alternate;
-}
-
-.ufo-emoji {
-    font-size: 25px;
-    text-shadow: 0 0 15px var(--text-color);
-}
-
-.ufo-ship {
-    width: 0;
-    height: 0;
-    border-left: 12px solid transparent;
-    border-right: 12px solid transparent;
-    border-bottom: 30px solid var(--text-color);
-    filter: drop-shadow(0 0 8px var(--link-hover-color));
-}
-
-@keyframes fly-across {
-    from { transform: translateX(-150px); }
-    to { transform: translateX(110vw); }
-}
-
-@keyframes ufo-wobble {
-    from { transform: rotate(-8deg); }
-    to { transform: rotate(8deg); }
-}
-
-/* Matrix Theme Animations */
-.matrix-stream {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    font-family: 'Courier New', Courier, monospace;
-    color: #00ff00;
-    text-shadow: 0 0 5px #00ff00; /* Reduced glow */
-    opacity: 0.7; /* Added transparency */
-    writing-mode: vertical-rl;
-    text-orientation: upright;
-    white-space: nowrap;
-    user-select: none;
-    animation: matrix-fall 5s ease-in infinite; /* Changed to ease-in */
-}
-
-@keyframes matrix-fall {
-    from { top: -550px; } /* Start safely off-screen */
-    to { top: 100vh; }    /* Move past the bottom of the screen */
-}
-
-.matrix-leader {
-    color: #ddffdd; /* Less intense white */
-    text-shadow: 0 0 3px #fff, 0 0 10px #fff; /* Reduced glow */
-}
-
-@keyframes matrix-fall {
-    from { transform: translateY(-100vh); }
-    to { transform: translateY(100vh); }
-}
-
-/* Retro Arcade Theme Animations */
-.invader-fleet {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    width: 240px; /* 8 invaders * 30px */
-}
-
-/* Pong Game Elements */
-.paddle {
-    position: fixed;
-    width: 15px;
-    height: 100px;
-    background-color: #fff;
-    box-shadow: 0 0 8px #fff;
-    z-index: 10000;
-}
-
-.ball {
-    position: fixed;
-    width: 15px;
-    height: 15px;
-    background-color: #fff;
-    border-radius: 50%;
-    box-shadow: 0 0 8px #fff, 0 0 12px #fff;
-    z-index: 9999;
 }

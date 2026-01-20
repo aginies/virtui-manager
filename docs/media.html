@@ -1,82 +1,101 @@
 <!DOCTYPE html>
-<html class="theme-christmas">
+<html lang="en">
 <head>
-    <title>Media Gallery</title>
-    <meta charset="utf-8">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtui Manager - Media Gallery</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header>
+    <header class="navbar">
+        <div class="logo"><a href="index.html" style="color: inherit;">Virtui Manager</a></div>
         <nav>
             <ul>
-                <li><a href="index.html#key-features">Key Features</a></li>
-                <li><a href="index.html#quick-links">Quick Links</a></li>
-                <li><a href="https://github.com/aginies/vmanager" target="_blank">Source code</a></li>
-                <li><a href="index.html#license">License</a></li>
-                <li><a href="media.html">Media</a></li>
+                <li><a href="index.html#features">Features</a></li>
+                <li><a href="index.html#gallery">Gallery</a></li>
+                <li><a href="https://github.com/aginies/virtui-manager" target="_blank">GitHub</a></li>
+                <li><a href="media.html" class="active">Media</a></li>
             </ul>
         </nav>
     </header>
-    <h1>Media Gallery</h1>
-    <div class="gallery">
-        <img src="https://paste.opensuse.org/pastes/ed4b8571f3ff/raw" alt="Rainbow V Manager Interface">
-        <img src="https://paste.opensuse.org/pastes/ed4b8571f3ff/raw" alt="VM Management View">
-        <img src="https://paste.opensuse.org/pastes/d65d1c424bf0/raw" alt="Server Network Preferences">
-        <img src="https://paste.opensuse.org/pastes/89c327e81294/raw" alt="Server List Management">
-        <img src="https://paste.opensuse.org/pastes/5cf19668df25/raw" alt="Server To Display">
-        <img src="https://paste.opensuse.org/pastes/ed4b8571f3ff/raw" alt="Server Selection">
-        <img src="https://paste.opensuse.org/pastes/609001704a2c/raw" alt="Clone result">
-        <img src="https://paste.opensuse.org/pastes/15b1cb0945af/raw" alt="Clone">
-        <img src="https://paste.opensuse.org/pastes/6914a2578554/raw" alt="TPM">
-        <img src="https://paste.opensuse.org/pastes/8fb71474fdcc/raw" alt="Graphics">
-        <img src="https://paste.opensuse.org/pastes/f5a5e6892a4e/raw" alt="Boot">
-        <img src="https://paste.opensuse.org/pastes/32c592108214/raw" alt="Bulk Command">
-    </div>
+
+    <main style="padding-top: 80px;">
+        <h1 style="text-align: center; margin-top: 2rem;">Media Gallery</h1>
+        
+        <div class="gallery">
+            <img src="https://paste.opensuse.org/pastes/ed4b8571f3ff/raw" alt="Rainbow V Manager Interface">
+            <img src="https://paste.opensuse.org/pastes/ed4b8571f3ff/raw" alt="VM Management View">
+            <img src="https://paste.opensuse.org/pastes/d65d1c424bf0/raw" alt="Server Network Preferences">
+            <img src="https://paste.opensuse.org/pastes/89c327e81294/raw" alt="Server List Management">
+            <img src="https://paste.opensuse.org/pastes/5cf19668df25/raw" alt="Server To Display">
+            <img src="https://paste.opensuse.org/pastes/ed4b8571f3ff/raw" alt="Server Selection">
+            <img src="https://paste.opensuse.org/pastes/609001704a2c/raw" alt="Clone result">
+            <img src="https://paste.opensuse.org/pastes/15b1cb0945af/raw" alt="Clone">
+            <img src="https://paste.opensuse.org/pastes/6914a2578554/raw" alt="TPM">
+            <img src="https://paste.opensuse.org/pastes/8fb71474fdcc/raw" alt="Graphics">
+            <img src="https://paste.opensuse.org/pastes/f5a5e6892a4e/raw" alt="Boot">
+            <img src="https://paste.opensuse.org/pastes/32c592108214/raw" alt="Bulk Command">
+        </div>
+    </main>
 
     <div id="lightbox">
         <span id="prev">&lt;</span>
-        <img id="lightbox-img">
+        <img id="lightbox-img" src="">
         <span id="next">&gt;</span>
         <span id="close-lightbox">&times;</span>
     </div>
 
+    <footer>
+        <div class="footer-content">
+            <p>&copy; 2026 Virtui Manager. Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL3</a>.</p>
+        </div>
+    </footer>
+
     <script>
         let currentImageIndex = 0;
         const galleryImages = document.querySelectorAll('.gallery img');
+        const lightbox = document.getElementById('lightbox');
+        const lightboxImg = document.getElementById('lightbox-img');
 
-        document.querySelectorAll('.gallery img').forEach((img, index) => {
+        galleryImages.forEach((img, index) => {
             img.addEventListener('click', function() {
                 currentImageIndex = index;
-                document.getElementById('lightbox-img').src = this.src;
-                document.getElementById('lightbox').style.display = 'flex';
+                lightboxImg.src = this.src;
+                lightbox.style.display = 'flex';
             });
         });
 
-        document.getElementById('prev').addEventListener('click', function() {
-            currentImageIndex = (currentImageIndex - 1 + galleryImages.length) % galleryImages.length;
-            document.getElementById('lightbox-img').src = galleryImages[currentImageIndex].src;
+        function showImage(index) {
+            currentImageIndex = (index + galleryImages.length) % galleryImages.length;
+            lightboxImg.src = galleryImages[currentImageIndex].src;
+        }
+
+        document.getElementById('prev').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showImage(currentImageIndex - 1);
         });
 
-        document.getElementById('next').addEventListener('click', function() {
-            currentImageIndex = (currentImageIndex + 1) % galleryImages.length;
-            document.getElementById('lightbox-img').src = galleryImages[currentImageIndex].src;
+        document.getElementById('next').addEventListener('click', (e) => {
+            e.stopPropagation();
+            showImage(currentImageIndex + 1);
         });
 
-        document.getElementById('close-lightbox').addEventListener('click', function() {
-            document.getElementById('lightbox').style.display = 'none';
+        document.getElementById('close-lightbox').addEventListener('click', () => {
+            lightbox.style.display = 'none';
+        });
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) {
+                lightbox.style.display = 'none';
+            }
         });
 
         document.addEventListener('keydown', function(event) {
-            if (document.getElementById('lightbox').style.display === 'flex') {
-                if (event.key === 'ArrowLeft') {
-                    currentImageIndex = (currentImageIndex - 1 + galleryImages.length) % galleryImages.length;
-                    document.getElementById('lightbox-img').src = galleryImages[currentImageIndex].src;
-                } else if (event.key === 'ArrowRight') {
-                    currentImageIndex = (currentImageIndex + 1) % galleryImages.length;
-                    document.getElementById('lightbox-img').src = galleryImages[currentImageIndex].src;
-                } else if (event.key === 'Escape') {
-                    document.getElementById('lightbox').style.display = 'none';
-                }
+            if (lightbox.style.display === 'flex') {
+                if (event.key === 'ArrowLeft') showImage(currentImageIndex - 1);
+                else if (event.key === 'ArrowRight') showImage(currentImageIndex + 1);
+                else if (event.key === 'Escape') lightbox.style.display = 'none';
             }
         });
     </script>
