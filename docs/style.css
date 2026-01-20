@@ -1,8 +1,8 @@
 :root {
     --bg-primary: #0a0e14;
     --bg-secondary: #161b22;
-    --accent-primary: #58a6ff;
-    --accent-secondary: #bc8cff;
+    --accent-primary: #73ba25;
+    --accent-secondary: #35b9ab;
     --text-primary: #f0f6fc;
     --text-secondary: #8b949e;
     --border-color: #30363d;
@@ -152,12 +152,13 @@ a:hover { color: var(--accent-secondary); }
     background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
     color: #fff;
     border: none;
-    box-shadow: 0 4px 15px rgba(88, 166, 255, 0.4);
+    box-shadow: 0 4px 15px rgba(115, 186, 37, 0.4);
 }
 
 .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(88, 166, 255, 0.6);
+    box-shadow: 0 6px 20px rgba(115, 186, 37, 0.6);
+    color: var(--bg-primary);
 }
 
 .btn-secondary {
@@ -168,7 +169,7 @@ a:hover { color: var(--accent-secondary); }
 }
 
 .btn-secondary:hover {
-    background: rgba(88, 166, 255, 0.1);
+    background: rgba(115, 186, 37, 0.1);
 }
 
 /* Features Section */
