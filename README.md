@@ -19,27 +19,10 @@ Virtui Manager solves these challenges with:
 - **Rich Feature Set**: Advanced VM management capabilities in a simple, intuitive interface
 - **Multi-server Support**: Manage VMs across multiple libvirt servers from a single interface
 - **Performance Optimized**: Built-in caching reduces libvirt calls and improves responsiveness
-- **Libvirt Event handler**: Only get update on event from libvirt, with an hearbeat call fallback every 60 sec
+- **Libvirt Event handler**: Only get update on event from libvirt
 - **Migration Support**: Live and offline VM migration capabilities and custom migration
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
-
-## Resource Usage Comparison with virt-manager
-
-Test done with 2 ssh remote servers (8VM and 314VM). Any performance testing can be different on different hardware config etc... the purpose is to evaluate the general perf to avoid getting a tool which have bad performance for remote management connected to multiple servers. virt-manager has never been designed for such usage, and performed already very well.
-
-Stats data checked after 10 minutes (to get them stabilized).
-
-| Metric | virt-manager (GUI) | virtui-manager (TUI) | Difference |
-| :--- | :--- | :--- | :--- |
-| **Interface** | GTK3 (Graphical) | Textual (Terminal UI) | N/A |
-| **Physical Memory (RSS)** | ~244 MB | ~102 MB | **-142 MB** (virtui is lighter) |
-| **Virtual Memory (VSZ)** | ~2.4 GB | ~640 MB | **-1.7 GB** (virtui uses significantly less address space) |
-| **CPU Usage (Idle/Polling)** | ~10.1% | ~2.2% | **-7.9%** (virtui is ligther) |
-| **First Start Speed** | ~24sec | 1sec | **-29sec** (virtui is faster) |
-| **Display XML data** | 1sec | 1sec | similar perf |
-| **Display XML data (GUI/TUI)** | 1sec | 3sec | **+2sec** (virt-manager faster) |
-| **Network Bandwidth** | fluctuation: 24/50 kB/s |  0 to 3.5 kB/s | (virtui-manager is lighter) |
 
 ## Who Is This For?
 
@@ -176,21 +159,47 @@ Possible User config parameters:
 
 ### Example Configuration
 ```yaml
-servers:
-  - name: "Remote Server"
-    uri: "qemu+ssh://user@remote-host/system"
-    autoconnect: False
+CACHE_TTL: 300
+ISO_DOWNLOAD_PATH: /home/isos
+LOG_FILE_PATH: /home/aginies/.cache/virtui-manager/vm_manager.log
+REMOTE_VIEWER: null
 REMOTE_WEBCONSOLE: true
-WC_PORT_RANGE_START: 40000
-WC_PORT_RANGE_END: 40050
-VNC_QUALITY: 1
+STATS_INTERVAL: 15
+novnc_path: /usr/share/webapps/novnc/
+websockify_path: /usr/bin/websockify
 VNC_COMPRESSION: 9
+VNC_QUALITY: 1
+WC_PORT_RANGE_END: 40049
+WC_PORT_RANGE_START: 40000
+WEBSOCKIFY_BUF_SIZE: 4096
+custom_ISO_repo:
+- name: Alpine 3.23 x86_64
+  uri: https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/
+- name: Slackware 16
+  uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
+- name: Qubes R4 3.0
+  uri: https://mirrors.edge.kernel.org/qubes/iso/
+servers:
+- autoconnect: false
+  name: Localhost
+  uri: qemu:///system
+- autoconnect: false
+  name: ryzen9
+  uri: qemu+ssh://root@10.0.1.38/system
+- autoconnect: false
+  name: ryzen7
+  uri: qemu+ssh://root@10.0.1.78/system
 ```
+
+## Contributing
+
+[CONTRIBUTING.md](CONTRIBUTING.md)
+
+## AI Assist
+
+AI assistance is used to improve coding efficiency by automating boilerplate, suggesting relevant code completions, and quickly detecting bugs.
 
 ## License
 
 This project is licensed under the GPL3 License.
 
-## AI Assist
-
-AI assistance were used to improve coding efficiency by automating boilerplate, suggesting relevant code completions, and quickly detecting bugs.
