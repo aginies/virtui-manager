@@ -281,6 +281,11 @@ class VMManagerTUI(App):
 
     def on_vm_data_update(self):
         """Callback from VMService when data is updated."""
+        # Avoid refreshing during bulk operations to prevent double refreshes and UI freezes
+        # The bulk operation will trigger a forced refresh upon completion.
+        if self.bulk_operation_in_progress:
+            return
+
         try:
             self.call_from_thread(self.refresh_vm_list)
         except RuntimeError:
@@ -1409,13 +1414,21 @@ class VMManagerTUI(App):
                 current_widgets = list(vms_container.children)
 
                 # Step 1: Remove excess widgets if page size shrunk
+                widgets_to_remove = []
                 while len(current_widgets) > len(vm_data_list):
-                    widget = current_widgets.pop()
-                    widget.remove()
-                    # Return to pool
-                    uuid = widget.internal_id
-                    if uuid in self.vm_card_pool.active_cards:
-                        self.vm_card_pool.release_card(uuid)
+                    widgets_to_remove.append(current_widgets.pop())
+
+                if widgets_to_remove:
+                    # Release cards first (updates pool state)
+                    for widget in widgets_to_remove:
+                        uuid = widget.internal_id
+                        if uuid in self.vm_card_pool.active_cards:
+                            self.vm_card_pool.release_card(uuid)
+
+                    # Batch remove from UI if possible, or sequential
+                    for widget in widgets_to_remove:
+                        if widget.is_mounted:
+                            widget.remove()
 
                 # Step 2: Update existing widgets and add new ones
                 cards_to_mount = []
