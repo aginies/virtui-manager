@@ -50,7 +50,7 @@ a:hover { color: var(--accent-secondary); }
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.5rem 5%;
+    padding: 0.05rem 2.5%;
     background-color: rgba(10, 14, 20, 0.95);
     backdrop-filter: blur(10px);
     position: fixed;
@@ -63,15 +63,23 @@ a:hover { color: var(--accent-secondary); }
 .logo {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 1.5rem;
+    font-size: 3.1rem;
     color: var(--text-primary);
     letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.nav-logo {
+    height: 125px;
+    width: auto;
 }
 
 .navbar nav ul {
     display: flex;
     list-style: none;
-    gap: 2rem;
+    gap: 1rem;
 }
 
 .navbar nav a {
@@ -92,7 +100,7 @@ a:hover { color: var(--accent-secondary); }
     justify-content: center;
     text-align: center;
     background: var(--gradient-hero);
-    padding: 120px 1rem 60px;
+    padding: 100px 1rem 40px;
     position: relative;
     overflow: hidden;
 }
@@ -177,7 +185,7 @@ a:hover { color: var(--accent-secondary); }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6rem 10%;
+    padding: 3rem 10%;
     min-height: 80vh;
     gap: 4rem;
 }
@@ -224,7 +232,7 @@ a:hover { color: var(--accent-secondary); }
 
 /* Details Grid */
 .details-grid {
-    padding: 6rem 10%;
+    padding: 3rem 10%;
     background-color: var(--bg-primary);
     text-align: center;
 }
@@ -257,9 +265,16 @@ a:hover { color: var(--accent-secondary); }
 /* Footer */
 footer {
     background-color: var(--bg-secondary);
-    padding: 3rem 0;
+    padding: 2rem 0;
     text-align: center;
     border-top: 1px solid var(--border-color);
+}
+
+.footer-logo {
+    height: 240px;
+    width: auto;
+    margin-bottom: 1.5rem;
+    display: inline-block;
 }
 
 .footer-content p {
