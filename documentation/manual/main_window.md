@@ -6,6 +6,9 @@ The **Management Main Window** is the central hub of Virtui Manager, designed fo
 
 ## Interface Overview
 
+!!! note
+    You can view the application logs at any time by pressing the **`v`** key. This is useful for monitoring background operations and troubleshooting.
+
 The interface is divided into intuitive sections to streamline your workflow:
 
 ### Select Servers
