@@ -452,6 +452,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../web_console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web Console
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../selection/" class="md-nav__link">
         
   
@@ -828,12 +856,12 @@
 <p>To access the configuration, press <strong><code>c</code></strong> on your keyboard while in the main window.</p>
 <p><img alt="App Configuration" src="../images/app_configuration.jpg" /></p>
 <h2 id="configuration-file">Configuration File<a class="headerlink" href="#configuration-file" title="Permanent link">&para;</a></h2>
-<p>While most settings can be managed via the UI, Virtui Manager stores its configuration in a human-readable YAML file.</p>
+<p>Virtui Manager uses a YAML configuration file for customization:</p>
 <ul>
-<li><strong>Location:</strong> <code>~/.config/virtui-manager/config.yaml</code></li>
-<li><strong>Format:</strong> YAML</li>
+<li><strong>User-specific:</strong> <code>~/.config/virtui-manager/config.yaml</code></li>
+<li><strong>System-wide:</strong> <code>/etc/virtui-manager/config.yaml</code></li>
 </ul>
-<p>If the file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.</p>
+<p>While most settings can be managed via the UI, Virtui Manager stores its configuration in these human-readable files. If the user-specific file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.</p>
 <h3 id="example-configuration">Example Configuration<a class="headerlink" href="#example-configuration" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Performance and UI</span>
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">STATS_INTERVAL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
