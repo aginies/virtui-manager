@@ -5,8 +5,8 @@ site_author: aginies
 repo_url: https://github.com/aginies/virtui-manager
 repo_name: aginies/virtui-manager
 
-docs_dir: docs/manual
-site_dir: site
+docs_dir: documentation/manual
+site_dir: docs/manual
 
 theme:
   name: material
