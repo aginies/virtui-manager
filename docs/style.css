@@ -193,17 +193,26 @@ a:hover { color: var(--accent-secondary); }
 .feature-image {
     flex: 1.2;
     position: relative;
+    display: grid;
+    grid-template-areas: "stack";
 }
 
 .feature-image img {
+    grid-area: stack;
     width: 100%;
     border-radius: 12px;
     box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     border: 1px solid var(--border-color);
-    transition: transform 0.5s ease;
+    transition: opacity 1s ease-in-out, transform 0.5s ease;
+    opacity: 0;
 }
 
-.feature-image:hover img {
+.feature-image img.active {
+    opacity: 1;
+    z-index: 1;
+}
+
+.feature-image:hover img.active {
     transform: scale(1.02);
 }
 

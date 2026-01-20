@@ -45,7 +45,7 @@
         <!-- Feature 1: Easy Management -->
         <section class="feature-section hidden-left" id="management">
             <div class="feature-image">
-                <img src="management.jpg" alt="The intuitive Actions collapsible menu">
+                <img src="management.jpg" alt="The intuitive Actions collapsible menu" class="active">
             </div>
             <div class="feature-content">
                 <h2>Intuitive Control</h2>
@@ -56,7 +56,7 @@
         <!-- Feature 2: Bulk Operations -->
         <section class="feature-section hidden-right" id="bulk-ops">
             <div class="feature-image">
-                <img src="bulk.jpg" alt="Bulk Operations Interface showing multiple VMs selected">
+                <img src="bulk.jpg" alt="Bulk Operations Interface showing multiple VMs selected" class="active">
             </div>
             <div class="feature-content">
                 <h2>Scale Without Limits</h2>
@@ -67,7 +67,7 @@
         <!-- Feature 3: Migration -->
         <section class="feature-section hidden-left" id="migration">
             <div class="feature-image">
-                <img src="migration.jpg" alt="Custom migration capabilities in action">
+                <img src="migration.jpg" alt="Custom migration capabilities in action" class="active">
             </div>
             <div class="feature-content">
                 <h2>Seamless Mobility</h2>
@@ -78,7 +78,8 @@
         <!-- Feature 4: Clone VM -->
         <section class="feature-section hidden-right" id="cloning">
             <div class="feature-image">
-                <img src="clone.jpg" alt="Advanced VM Cloning interface">
+                <img src="clone.jpg" alt="Advanced VM Cloning interface" class="active">
+                <img src="clone_mini.jpg" alt="Mini clone interface">
             </div>
             <div class="feature-content">
                 <h2>Rapid Deployment</h2>
@@ -89,7 +90,7 @@
         <!-- Feature 5: Modern VM installation -->
         <section class="feature-section hidden-left" id="installation">
             <div class="feature-image">
-                <img src="install.jpg" alt="Modern VM installation interface">
+                <img src="install.jpg" alt="Modern VM installation interface" class="active">
             </div>
             <div class="feature-content">
                 <h2>Modern VM Installation</h2>
@@ -152,13 +153,38 @@
 
     <footer>
         <div class="footer-content">
-            <p>&copy; 2026 Virtui Manager. Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPL3</a>.</p>
+            <p>&copy; 2026 Virtui Manager. Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPLv3</a>.</p>
             <p>Created by <a href="https://github.com/aginies">aginies</a>.</p>
         </div>
     </footer>
 
     <!-- Scroll Animation Script -->
     <script>
+        // Image Slider Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            setInterval(() => {
+                document.querySelectorAll('.feature-image').forEach(slider => {
+                    const images = slider.querySelectorAll('img');
+                    if (images.length > 1) {
+                        const current = slider.querySelector('img.active');
+                        // Ensure we only cycle images, not other elements if they existed
+                        if (current) {
+                            current.classList.remove('active');
+                            // Find next image sibling
+                            let next = current.nextElementSibling;
+                            // If next sibling is not an image (unlikely but safe) or null, loop back
+                            if (!next || next.tagName !== 'IMG') {
+                                next = images[0];
+                            }
+                            next.classList.add('active');
+                        } else if (images.length > 0) {
+                            images[0].classList.add('active');
+                        }
+                    }
+                });
+            }, 3000);
+        });
+
         const observerOptions = {
             root: null,
             rootMargin: '0px',
