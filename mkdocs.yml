@@ -10,6 +10,7 @@ site_dir: docs/manual
 
 theme:
   name: material
+  logo: images/virtui-manager_logo_notext_inverted.png
   palette:
     scheme: slate
     primary: light green

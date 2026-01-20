@@ -1,5 +1,7 @@
 # Virtui Manager Documentation
 
+<img src="images/virtui-manager_logo_notext_inverted.png" alt="Virtui Manager Logo" width="35%">
+
 Welcome to the official documentation for **Virtui Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization.
 
 ## Table of Contents
