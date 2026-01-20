@@ -419,3 +419,20 @@ footer {
         opacity: 0;
     }
 }
+
+/* MkDocs Material Theme Overrides */
+.md-header__source {
+    color: #000 !important;
+}
+
+.md-header__source .md-icon svg {
+    fill: #000 !important;
+}
+
+.md-header__button.md-icon[for="__search"] {
+    color: #000 !important;
+}
+
+.md-header__button.md-icon[data-md-component="palette"] {
+    color: #000 !important;
+}

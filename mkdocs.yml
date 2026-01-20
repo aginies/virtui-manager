@@ -11,20 +11,9 @@ site_dir: docs/manual
 theme:
   name: material
   palette:
-    # Dark mode
-    - scheme: slate
-      primary: light green
-      accent: teal
-      toggle:
-        icon: material/weather-night
-        name: Switch to light mode
-    # Light mode
-    - scheme: default
-      primary: light green
-      accent: teal
-      toggle:
-        icon: material/weather-sunny
-        name: Switch to dark mode
+    scheme: slate
+    primary: light green
+    accent: teal
   features:
     - navigation.tabs
     - navigation.sections
