@@ -85,64 +85,6 @@ Or:
 python3 vmanager.py --cmd
 ```
 
-## Configuration
-
-Virtui Manager uses a YAML configuration file for customization:
-- **User-specific**: `~/.config/virtui-manager/config.yaml`
-- **System-wide**: `/etc/virtui-manager/config.yaml`
-
-The configuration file supports the following options:
-
-### Server Configuration
-- **servers**: List of libvirt server connections (default: `[{'name': 'Localhost', 'uri': 'qemu:///system'}]`)
-
-### Web Console Settings
-- **REMOTE_WEBCONSOLE**: Enable remote web console (default: `False`)
-- **WC_PORT_RANGE_START**: Start port for websockify (default: 40000)
-- **WC_PORT_RANGE_END**: End port for websockify (default: 40050)
-- **websockify_path**: Path to the websockify binary (default: `/usr/bin/websockify`)
-- **novnc_path**: Path to noVNC files (default: `/usr/share/novnc/`)
-- **WEBSOCKIFY_BUF_SIZE**: Sets the send and receive buffer size for websockify connections, affecting network performance. (default: `4096`)
-
-#### Secure Remote Web Console (WSS)
-
-When `REMOTE_WEBCONSOLE` is enabled, Virtui Manager can use a secure WebSocket connection (`wss://`) if an SSL certificate is available on the remote server. This is highly recommended for security.
-
-To enable secure connections:
-
-1. **Install needed packages**
-
-* [python websockify](https://pypi.org/project/websockify/)
-* [novnc](https://novnc.com/info.html)
-
-
-2.  **Generate a self-signed certificate and key on the remote server:**
-
-    Log in to your remote libvirt server and run the following command. Replace `your.remote.host.com` with the server's actual hostname or IP address. This is important for the browser to trust the certificate.
-
-    ```bash
-    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj "/CN=your.remote.host.com"
-    ```
-
-3.  **Place the generated files in the correct directory on the remote server:**
-
-    `virtui-manager` will automatically detect `cert.pem` and `key.pem` but for remote server the file must be in: 
-
-    -   **System-wide path**: `/etc/virtui-manager/keys/`
-        ```bash
-        sudo mkdir -p /etc/virtui-manager/keys/
-        sudo mv cert.pem key.pem /etc/virtui-manager/keys/
-        ```
-
-If the certificate and key are found, `virtui-manager` will automatically start `websockify` with SSL/TLS encryption and use a `wss://` URL. If not, it will default to an unencrypted `ws://` connection.
-
-### VNC Settings
-- **VNC_QUALITY**: VNC quality setting (0-10, default: 0)
-- **VNC_COMPRESSION**: VNC compression level (default: `9`)
-
-### Performance & Behavior
-- **STATS_INTERVAL**: Interval for updating VM info, Status, Statistics (CPU, Memory, I/O) in seconds
-
 ### Network & Sound Models
 
 As there is no simple way to get **sound** and **network** model using libvirt API, the user can provides a list in his own configuration file. 
