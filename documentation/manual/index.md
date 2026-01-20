@@ -9,6 +9,7 @@ Welcome to the official documentation for **Virtui Manager**, the next-generatio
 - [Management Main Window](main_window.md)
 - [VM Actions](vm_actions.md)
 - [Virtui Remote Viewer](remote_viewer.md)
+- [Web Console](web_console.md)
 - [Selection & Filtering](selection.md)
 - [Bulk Operations](bulk_ops.md)
 - [App Configuration](app_configuration.md)

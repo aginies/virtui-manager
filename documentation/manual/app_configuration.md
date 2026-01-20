@@ -8,13 +8,12 @@ To access the configuration, press **`c`** on your keyboard while in the main wi
 
 ## Configuration File
 
-While most settings can be managed via the UI, Virtui Manager stores its configuration in a human-readable YAML file.
+Virtui Manager uses a YAML configuration file for customization:
 
-*   **Location:** `~/.config/virtui-manager/config.yaml`
-*   **Format:** YAML
+*   **User-specific:** `~/.config/virtui-manager/config.yaml`
+*   **System-wide:** `/etc/virtui-manager/config.yaml`
 
-If the file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.
-
+While most settings can be managed via the UI, Virtui Manager stores its configuration in these human-readable files. If the user-specific file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.
 
 ### Example Configuration
 
