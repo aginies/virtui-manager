@@ -53,11 +53,21 @@ class AddInputDeviceModal(BaseModal[None]):
             )
             with Vertical():
                 with Horizontal():
-                    yield Button("Add", variant="primary", id="add-input")
+                    yield Button("Add", variant="primary", id="add-input", disabled=True)
                     yield Button("Cancel", variant="default", id="cancel-input")
 
+    @on(Select.Changed)
+    def on_select_changed(self) -> None:
+        type_select = self.query_one("#input-type-select", Select)
+        bus_select = self.query_one("#input-bus-select", Select)
+        
+        is_type_selected = type_select.value != Select.BLANK
+        is_bus_selected = bus_select.value != Select.BLANK
+        
+        self.query_one("#add-input", Button).disabled = not (is_type_selected and is_bus_selected)
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "add":
+        if event.button.id == "add-input":
             input_type = self.query_one("#input-type-select", Select).value
             input_bus = self.query_one("#input-bus-select", Select).value
             if input_type and input_bus:
