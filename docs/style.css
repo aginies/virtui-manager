@@ -63,7 +63,7 @@ a:hover { color: var(--accent-secondary); }
 .logo {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 3.1rem;
+    font-size: 2.5rem;
     color: var(--text-primary);
     letter-spacing: -0.5px;
     display: flex;
@@ -72,7 +72,7 @@ a:hover { color: var(--accent-secondary); }
 }
 
 .nav-logo {
-    height: 125px;
+    height: 130px;
     width: auto;
 }
 
