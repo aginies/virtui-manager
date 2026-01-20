@@ -86,19 +86,19 @@ a:hover { color: var(--accent-secondary); }
 
 /* Hero Section */
 .hero {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
     text-align: center;
     background: var(--gradient-hero);
-    padding: 0 1rem;
+    padding: 120px 1rem 60px;
     position: relative;
     overflow: hidden;
 }
 
 .hero-content {
-    max-width: 800px;
+    max-width: 1000px;
     z-index: 2;
     animation: fadeInUp 1s ease-out;
 }
@@ -109,6 +109,33 @@ a:hover { color: var(--accent-secondary); }
     max-width: 600px;
     margin-left: auto;
     margin-right: auto;
+}
+
+.hero-image-container {
+    margin-top: 4rem;
+    perspective: 1000px;
+}
+
+.hero-main-img {
+    width: 100%;
+    max-width: 900px;
+    border-radius: 12px;
+    box-shadow: 0 30px 60px rgba(0,0,0,0.6);
+    border: 1px solid var(--border-color);
+    transform: rotateX(5deg);
+    transition: transform 0.5s ease;
+    animation: float 6s ease-in-out infinite;
+}
+
+@keyframes float {
+    0% { transform: rotateX(5deg) translateY(0px); }
+    50% { transform: rotateX(7deg) translateY(-20px); }
+    100% { transform: rotateX(5deg) translateY(0px); }
+}
+
+.hero-main-img:hover {
+    transform: rotateX(0deg) scale(1.02);
+    animation-play-state: paused;
 }
 
 .btn {
