@@ -185,9 +185,9 @@ a:hover { color: var(--accent-secondary); }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 3rem 10%;
+    padding: 3rem 5%;
     min-height: 80vh;
-    gap: 4rem;
+    gap: 2rem;
 }
 
 .feature-section:nth-child(even) {
@@ -196,11 +196,11 @@ a:hover { color: var(--accent-secondary); }
 }
 
 .feature-content {
-    flex: 1;
+    flex: 0.8;
 }
 
 .feature-image {
-    flex: 1.2;
+    flex: 2;
     position: relative;
     display: grid;
     grid-template-areas: "stack";
