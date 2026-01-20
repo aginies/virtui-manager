@@ -21,7 +21,7 @@ from constants import AppInfo
 from events import VmCardUpdateRequest
 from config import load_config, get_log_path
 from vm_queries import get_vm_graphics_info
-from vmcard_dialog import WebConsoleDialog
+from modals.vmcard_dialog import WebConsoleDialog
 from utils import generate_webconsole_keys_if_needed
 from libvirt_utils import get_internal_id
 

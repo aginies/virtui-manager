@@ -42,7 +42,7 @@ from modals.migration_modals import MigrationModal
 from modals.disk_pool_modals import SelectDiskModal
 from modals.howto_overlay_modal import HowToOverlayModal
 from modals.input_modals import InputModal, _sanitize_input
-from vmcard_dialog import (
+from modals.vmcard_dialog import (
         DeleteVMConfirmationDialog, WebConsoleConfigDialog,
         AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
         )
