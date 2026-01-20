@@ -30,9 +30,10 @@ When you enter Bulk Command mode, a menu appears presenting actions that can be 
 *   **Pause / Resume:** Suspend or continue execution for the selected group.
 *   **Delete:** Remove multiple VMs at once. *Use with caution.*
 *   **Snapshots:** Create or manage snapshots for the entire selection (e.g., "Pre-patching" snapshot for all web servers).
+*   **Configuration:** Its possible to change the configurationfor all VM selected. This should be done with caution as this can lead to major issue for VM.
 
 ## Safety and Feedback
 
 *   **Confirmation:** For destructive actions like "Delete" or "Force Off," Virtui Manager will ask for confirmation to prevent accidental data loss.
 *   **Parallel Execution:** Actions are triggered in an optimized sequence, allowing you to monitor the progress across the grid as VM statuses update in real-time.
-*   **Selection Persistence:** After a bulk operation, your selection usually persists, allowing you to perform follow-up actions (e.g., Shutdown then Configure).
+*   **Selection:** After a bulk operation, your selection dont persists, to avoid any error.

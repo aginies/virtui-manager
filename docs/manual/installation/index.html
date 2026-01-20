@@ -617,6 +617,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#custom-iso-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom ISO Repositories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#custom-iso-options" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -724,6 +735,17 @@
     <span class="md-ellipsis">
       
         Basic Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-iso-repositories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom ISO Repositories
       
     </span>
   </a>
@@ -840,6 +862,14 @@
 </ul>
 </li>
 </ul>
+<h3 id="custom-iso-repositories">Custom ISO Repositories<a class="headerlink" href="#custom-iso-repositories" title="Permanent link">&para;</a></h3>
+<p>You can define your own ISO repositories in the <code>config.yaml</code> file. This allows you to add custom distributions to the selection menu by providing a URL to a directory containing ISO files.</p>
+<p>Add the <code>custom_ISO_repo</code> key to your configuration file with the following syntax:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">custom_ISO_repo</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Alpine 3.23 x86_64</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/</span>
+</code></pre></div>
+<p>These repositories will then be available in the <strong>Distribution</strong> selection dropdown. When selected, Virtui Manager will fetch and display the available <code>.iso</code> files from that location.</p>
 <h3 id="custom-iso-options">Custom ISO Options<a class="headerlink" href="#custom-iso-options" title="Permanent link">&para;</a></h3>
 <p><em>Visible only when "Custom" distribution is selected.</em></p>
 <ul>

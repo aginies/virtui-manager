@@ -27,8 +27,7 @@ The core view displaying your virtual machines.
     *   **Double-Click Name:** Double-clicking on a VM's name triggers a background fetch of all VM data, including its full XML configuration. This ensures that tooltips and detailed views have the most up-to-date information.
     *   **Compact View (`k`):** Pressing **`k`** toggles between the detailed "Normal" view and a "Compact" view. The compact view is optimized for high-density environments, showing only the selection checkbox, the VM name (with its server), and the current status.
 *   **Visual Cues:**
-    *   **Green Border/Text:** Active/Running.
-    *   **Red/Grey:** Stopped or Error state.
+    *   **The Border/Text:** Indication about the server the VM belongs to.
 *   **Navigation:** Use arrow keys to navigate the grid efficiently.
 
 ### Server Prefs

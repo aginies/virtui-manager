@@ -32,6 +32,20 @@ The wizard guides you through the necessary steps to configure your new VM.
 *   **ISO Image (Repo):**
     *   If you selected a distribution or "Cached ISOs", pick the specific image version from the dropdown. New images will be downloaded automatically to the configured ISO path.
 
+### Custom ISO Repositories
+
+You can define your own ISO repositories in the `config.yaml` file. This allows you to add custom distributions to the selection menu by providing a URL to a directory containing ISO files.
+
+Add the `custom_ISO_repo` key to your configuration file with the following syntax:
+
+```yaml
+custom_ISO_repo:
+  - name: Alpine 3.23 x86_64
+    uri: https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/
+```
+
+These repositories will then be available in the **Distribution** selection dropdown. When selected, Virtui Manager will fetch and display the available `.iso` files from that location.
+
 ### Custom ISO Options
 
 *Visible only when "Custom" distribution is selected.*
