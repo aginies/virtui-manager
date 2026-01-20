@@ -1,5 +1,5 @@
 """
-Modals for input device configuration.
+Modals for input device configuration and all Input dialog
 """
 import re
 from textual.widgets import Select, Button, Label, Input
