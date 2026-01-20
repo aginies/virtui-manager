@@ -838,7 +838,7 @@
 <p>If the file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.</p>
 <h3 id="example-configuration">Example Configuration<a class="headerlink" href="#example-configuration" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Performance and UI</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">STATS_INTERVAL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">STATS_INTERVAL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nt">REMOTE_VIEWER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">virtui-remote-viewer.py</span>
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Logging</span>
@@ -859,10 +859,6 @@
 <a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="nt">WC_PORT_RANGE_END</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40050</span>
 <a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nt">VNC_QUALITY</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 <a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="nt">VNC_COMPRESSION</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9</span>
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="c1"># Default Models for New VMs</span>
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="nt">network_models</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">virtio</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">e1000</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">e1000e</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">rtl8139</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ne2k_pci</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pcnet</span><span class="p p-Indicator">]</span>
-<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="nt">sound_models</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">none</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ich6</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ich9</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ac97</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">sb16</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">usb</span><span class="p p-Indicator">]</span>
 </code></pre></div>
 <h3 id="key-fields-explained">Key Fields Explained<a class="headerlink" href="#key-fields-explained" title="Permanent link">&para;</a></h3>
 <ul>
@@ -905,46 +901,34 @@
 <h2 id="web-console-novnc">Web Console (noVNC)<a class="headerlink" href="#web-console-novnc" title="Permanent link">&para;</a></h2>
 <p>These settings configure the built-in web-based remote console capabilities, useful for headless server environments or accessing VMs via a browser.</p>
 <ul>
-<li>
-<p><strong>Enable remote web console:</strong></p>
-<ul>
+<li><strong>Enable remote web console:</strong><ul>
 <li>Toggles the availability of the web console feature.</li>
 <li>When enabled, it allows secure SSH and noVNC remote viewing.</li>
 </ul>
 </li>
-<li>
-<p><strong>Websockify Path:</strong></p>
-<ul>
+<li><strong>Websockify Path:</strong><ul>
 <li>Path to the <code>websockify</code> binary, which translates VNC traffic to WebSockets.</li>
 <li><strong>Default:</strong> <code>/usr/bin/websockify</code></li>
 </ul>
 </li>
-<li>
-<p><strong>noVNC Path:</strong></p>
-<ul>
+<li><strong>noVNC Path:</strong><ul>
 <li>Path to the noVNC web assets (HTML/JS/CSS).</li>
 <li><strong>Default:</strong> <code>/usr/share/novnc/</code> (may vary by distribution, e.g., <code>/usr/share/webapps/novnc/</code>).</li>
 </ul>
 </li>
-<li>
-<p><strong>Websockify Port Range:</strong></p>
-<ul>
+<li><strong>Websockify Port Range:</strong><ul>
 <li>Defines the range of local ports the application can use for WebSocket connections.</li>
 <li><strong>Start:</strong> Default <code>40000</code></li>
 <li><strong>End:</strong> Default <code>40050</code></li>
 </ul>
 </li>
-<li>
-<p><strong>VNC Quality (0-9):</strong></p>
-<ul>
+<li><strong>VNC Quality (0-9):</strong><ul>
 <li>Sets the visual quality of the VNC stream.</li>
 <li><strong>Range:</strong> 0 (Lowest) to 9 (Highest).</li>
 <li><strong>Default:</strong> <code>0</code> (Optimized for speed).</li>
 </ul>
 </li>
-<li>
-<p><strong>VNC Compression (0-9):</strong></p>
-<ul>
+<li><strong>VNC Compression (0-9):</strong><ul>
 <li>Sets the compression level for the VNC stream.</li>
 <li><strong>Range:</strong> 0 (None) to 9 (Maximum).</li>
 <li><strong>Default:</strong> <code>9</code> (Maximum compression to save bandwidth).</li>

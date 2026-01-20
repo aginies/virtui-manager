@@ -15,12 +15,6 @@
     --lightbox-bg-color: rgba(0, 0, 0, 0.9);
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
 body {
     background-color: var(--bg-primary);
     color: var(--text-primary);

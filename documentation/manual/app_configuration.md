@@ -15,11 +15,12 @@ While most settings can be managed via the UI, Virtui Manager stores its configu
 
 If the file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.
 
+
 ### Example Configuration
 
 ```yaml
 # Performance and UI
-STATS_INTERVAL: 5
+STATS_INTERVAL: 30
 REMOTE_VIEWER: virtui-remote-viewer.py
 
 # Logging
@@ -40,10 +41,6 @@ WC_PORT_RANGE_START: 40000
 WC_PORT_RANGE_END: 40050
 VNC_QUALITY: 0
 VNC_COMPRESSION: 9
-
-# Default Models for New VMs
-network_models: [virtio, e1000, e1000e, rtl8139, ne2k_pci, pcnet]
-sound_models: [none, ich6, ich9, ac97, sb16, usb]
 ```
 
 ### Key Fields Explained
@@ -84,25 +81,20 @@ These settings configure the built-in web-based remote console capabilities, use
 *   **Enable remote web console:**
     *   Toggles the availability of the web console feature.
     *   When enabled, it allows secure SSH and noVNC remote viewing.
-
 *   **Websockify Path:**
     *   Path to the `websockify` binary, which translates VNC traffic to WebSockets.
     *   **Default:** `/usr/bin/websockify`
-
 *   **noVNC Path:**
     *   Path to the noVNC web assets (HTML/JS/CSS).
     *   **Default:** `/usr/share/novnc/` (may vary by distribution, e.g., `/usr/share/webapps/novnc/`).
-
 *   **Websockify Port Range:**
     *   Defines the range of local ports the application can use for WebSocket connections.
     *   **Start:** Default `40000`
     *   **End:** Default `40050`
-
 *   **VNC Quality (0-9):**
     *   Sets the visual quality of the VNC stream.
     *   **Range:** 0 (Lowest) to 9 (Highest).
     *   **Default:** `0` (Optimized for speed).
-
 *   **VNC Compression (0-9):**
     *   Sets the compression level for the VNC stream.
     *   **Range:** 0 (None) to 9 (Maximum).

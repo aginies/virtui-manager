@@ -7,6 +7,7 @@ Bulk operations allow you to execute commands across multiple Virtual Machines s
 ## Getting Started
 
 To perform bulk operations, you must first select the target VMs. You can use any of the methods described in the [Selection & Filtering](selection.md) chapter:
+
 *   Manual clicking of the 'X' on VM cards.
 *   `Ctrl+A` to select all.
 *   `Pattern Sel` (shortcut `p`) for regex/glob matching.
@@ -18,12 +19,14 @@ Once VMs are selected, the **Bulk CMD** button (or shortcut `b`) becomes your pr
 When you enter Bulk Command mode, a menu appears presenting actions that can be applied to your entire selection:
 
 ### Power Management
+
 *   **Start:** Boot all selected stopped VMs.
 *   **Shutdown:** Send an ACPI shutdown signal to all running selected VMs.
 *   **Force Off:** Immediately terminate selected VMs (equivalent to pulling the power plug).
 *   **Reboot:** Perform a graceful reboot of all selected machines.
 
 ### Configuration & State
+
 *   **Pause / Resume:** Suspend or continue execution for the selected group.
 *   **Delete:** Remove multiple VMs at once. *Use with caution.*
 *   **Snapshots:** Create or manage snapshots for the entire selection (e.g., "Pre-patching" snapshot for all web servers).

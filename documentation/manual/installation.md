@@ -33,6 +33,7 @@ The wizard guides you through the necessary steps to configure your new VM.
     *   If you selected a distribution or "Cached ISOs", pick the specific image version from the dropdown. New images will be downloaded automatically to the configured ISO path.
 
 ### Custom ISO Options
+
 *Visible only when "Custom" distribution is selected.*
 
 *   **Custom ISO (Local Path):** Enter the full path or browse for a local `.iso` file.

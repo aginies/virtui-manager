@@ -787,29 +787,41 @@
 <h2 id="interface-overview">Interface Overview<a class="headerlink" href="#interface-overview" title="Permanent link">&para;</a></h2>
 <p>The interface is divided into intuitive sections to streamline your workflow:</p>
 <h3 id="select-servers">Select Servers<a class="headerlink" href="#select-servers" title="Permanent link">&para;</a></h3>
-<p>Located at the top-left or accessible via keyboard shortcuts, this menu allows you to switch contexts between different hypervisors. 
-*   <strong>Single Pane of Glass:</strong> View VMs from local KVM instances or remote servers connected via SSH.
-*   <strong>Status Indicators:</strong> Instantly see connection health and resource usage for each connected server.</p>
+<p>Located at the top-left or accessible via keyboard shortcuts, this menu allows you to switch contexts between different hypervisors.</p>
+<ul>
+<li><strong>Single Pane of Glass:</strong> View VMs from local KVM instances or remote servers connected via SSH.</li>
+<li><strong>Status Indicators:</strong> Instantly see connection health and resource usage for each connected server.</li>
+</ul>
 <h3 id="server-list">Server List<a class="headerlink" href="#server-list" title="Permanent link">&para;</a></h3>
-<p>The core view displaying your virtual machines.
-*   <strong>Card View:</strong> Each VM is represented as a card showing real-time status (Running/Stopped), CPU/Memory usage sparklines, and IP addresses.
-*   <strong>Interaction:</strong>
-    *   <strong>Double-Click Name:</strong> Double-clicking on a VM's name triggers a background fetch of all VM data, including its full XML configuration. This ensures that tooltips and detailed views have the most up-to-date information.
-    *   <strong>Compact View (<code>k</code>):</strong> Pressing <strong><code>k</code></strong> toggles between the detailed "Normal" view and a "Compact" view. The compact view is optimized for high-density environments, showing only the selection checkbox, the VM name (with its server), and the current status.
-*   <strong>Visual Cues:</strong> 
-    *   <strong>Green Border/Text:</strong> Active/Running.
-    *   <strong>Red/Grey:</strong> Stopped or Error state.
-*   <strong>Navigation:</strong> Use arrow keys to navigate the grid efficiently.</p>
+<p>The core view displaying your virtual machines.</p>
+<ul>
+<li><strong>Card View:</strong> Each VM is represented as a card showing real-time status (Running/Stopped), CPU/Memory usage sparklines, and IP addresses.</li>
+<li><strong>Interaction:</strong><ul>
+<li><strong>Double-Click Name:</strong> Double-clicking on a VM's name triggers a background fetch of all VM data, including its full XML configuration. This ensures that tooltips and detailed views have the most up-to-date information.</li>
+<li><strong>Compact View (<code>k</code>):</strong> Pressing <strong><code>k</code></strong> toggles between the detailed "Normal" view and a "Compact" view. The compact view is optimized for high-density environments, showing only the selection checkbox, the VM name (with its server), and the current status.</li>
+</ul>
+</li>
+<li><strong>Visual Cues:</strong><ul>
+<li><strong>Green Border/Text:</strong> Active/Running.</li>
+<li><strong>Red/Grey:</strong> Stopped or Error state.</li>
+</ul>
+</li>
+<li><strong>Navigation:</strong> Use arrow keys to navigate the grid efficiently.</li>
+</ul>
 <h3 id="server-prefs">Server Prefs<a class="headerlink" href="#server-prefs" title="Permanent link">&para;</a></h3>
-<p>Configure server-specific settings directly from the UI without touching config files.
-*   <strong>Connection Details:</strong> Edit URI, user, and SSH key paths.
-*   <strong>Auto-Connect:</strong> Toggle which servers should connect on startup.
-*   <strong>Defaults:</strong> Set default storage pools and network interfaces for new VMs on a per-server basis.</p>
+<p>Configure server-specific settings directly from the UI without touching config files.</p>
+<ul>
+<li><strong>Connection Details:</strong> Edit URI, user, and SSH key paths.</li>
+<li><strong>Auto-Connect:</strong> Toggle which servers should connect on startup.</li>
+<li><strong>Defaults:</strong> Set default storage pools and network interfaces for new VMs on a per-server basis.</li>
+</ul>
 <h3 id="bulk-cmd">Bulk CMD<a class="headerlink" href="#bulk-cmd" title="Permanent link">&para;</a></h3>
-<p>The "Bulk Command" mode puts the power of fleet management at your fingertips.
-*   <strong>Multi-Select:</strong> Select multiple VMs manually or use <strong>Pattern Selection</strong> (regex/glob) to target specific groups (e.g., <code>web-*</code>).
-*   <strong>Mass Actions:</strong> Perform operations like <code>Start</code>, <code>Shutdown</code>, or <code>Reboot</code> on all selected VMs simultaneously.
-*   <strong>Efficiency:</strong> Ideal for patching cycles or bringing up environments.</p>
+<p>The "Bulk Command" mode puts the power of fleet management at your fingertips.</p>
+<ul>
+<li><strong>Multi-Select:</strong> Select multiple VMs manually or use <strong>Pattern Selection</strong> (regex/glob) to target specific groups (e.g., <code>web-*</code>).</li>
+<li><strong>Mass Actions:</strong> Perform operations like <code>Start</code>, <code>Shutdown</code>, or <code>Reboot</code> on all selected VMs simultaneously.</li>
+<li><strong>Efficiency:</strong> Ideal for patching cycles or bringing up environments.</li>
+</ul>
 
 
 

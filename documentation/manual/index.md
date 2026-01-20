@@ -10,4 +10,3 @@ Welcome to the official documentation for **Virtui Manager**, the next-generatio
 - [Bulk Operations](bulk_ops.md)
 - [App Configuration](app_configuration.md)
 - [Installation](installation.md)
-- [Key Features](../index.html#features)
