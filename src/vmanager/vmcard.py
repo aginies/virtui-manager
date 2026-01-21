@@ -27,7 +27,7 @@ from vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
         restore_vm_snapshot, delete_vm_snapshot,
         create_external_overlay, commit_disk_changes,
-        discard_overlay
+        discard_overlay, delete_vm
         )
 
 from vm_queries import (
@@ -1632,7 +1632,44 @@ class VMCard(Static):
             confirmed, delete_storage = result
             if not confirmed:
                 return
-            self.post_message(VmActionRequest(self.internal_id, VmAction.DELETE, delete_storage=delete_storage))
+
+            vm_name = self.name
+            internal_id = self.internal_id
+
+            progress_modal = ProgressModal(title=f"Deleting {vm_name}...")
+            self.app.push_screen(progress_modal)
+
+            def log_callback(message: str):
+                self.app.call_from_thread(progress_modal.add_log, message)
+
+            def do_delete():
+                # Stop stats worker to avoid conflicts
+                if self.timer:
+                    self.timer.stop()
+                    self.timer = None
+                self.app.worker_manager.cancel(f"update_stats_{internal_id}")
+                self.app.worker_manager.cancel(f"actions_state_{internal_id}")
+
+                try:
+                    # delete_vm handles opening its own connection
+                    delete_vm(self.vm, delete_storage=delete_storage, delete_nvram=True, log_callback=log_callback)
+
+                    self.app.call_from_thread(self.app.show_success_message, f"VM '{vm_name}' deleted successfully.")
+
+                    # Invalidate cache
+                    self.app.vm_service.invalidate_vm_cache(internal_id)
+                    # If it was selected, unselect it
+                    if internal_id in self.app.selected_vm_uuids:
+                        self.app.selected_vm_uuids.discard(internal_id)
+
+                    self.app.call_from_thread(self.app.refresh_vm_list, force=True)
+
+                except Exception as e:
+                    self.app.call_from_thread(self.app.show_error_message, f"Error deleting VM '{vm_name}': {e}")
+                finally:
+                    self.app.call_from_thread(progress_modal.dismiss)
+
+            self.app.worker_manager.run(do_delete, name=f"delete_{internal_id}")
 
         self.app.push_screen(
             DeleteVMConfirmationDialog(self.name), on_confirm
