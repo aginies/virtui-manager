@@ -12,13 +12,13 @@
         <meta name="author" content="aginies">
       
       
-        <link rel="canonical" href="https://aginies.github.io/virtui-manager/web_console/">
+        <link rel="canonical" href="https://aginies.github.io/virtui-manager/vm_configuration/">
       
       
-        <link rel="prev" href="../remote_viewer/">
+        <link rel="prev" href="../main_window/">
       
       
-        <link rel="next" href="../selection/">
+        <link rel="next" href="../vm_actions/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Web Console - Virtui Manager Documentation</title>
+        <title>VM Configuration - Virtui Manager Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#web-console-novnc" class="md-skip">
+        <a href="#vm-configuration" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Web Console
+              VM Configuration
             
           </span>
         </div>
@@ -393,10 +393,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../vm_configuration/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Configuration
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -412,6 +439,148 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#general-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        General Resources
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#boot-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boot Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage-networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage &amp; Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Storage &amp; Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#disks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#networks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Networks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#virtio-fs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VirtIO-FS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hardware-peripherals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hardware &amp; Peripherals
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Hardware &amp; Peripherals">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#graphics-display" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graphics &amp; Display
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#input-peripherals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input &amp; Peripherals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial &amp; Channels
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -477,37 +646,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Web Console
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../web_console/" class="md-nav__link">
         
   
   
@@ -523,115 +665,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Overview
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#configuration-dialog" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Configuration Dialog
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Configuration Dialog">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#settings" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Settings
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#running-the-console" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Running the Console
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Running the Console">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#key-behaviors" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Key Behaviors
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Requirements
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ssltls-encryption" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SSL/TLS Encryption
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -783,10 +816,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#overview" class="md-nav__link">
+  <a href="#general-resources" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Overview
+        General Resources
       
     </span>
   </a>
@@ -794,22 +827,55 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#configuration-dialog" class="md-nav__link">
+  <a href="#boot-management" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Configuration Dialog
+        Boot Management
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Configuration Dialog">
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage-networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage &amp; Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Storage &amp; Networking">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#settings" class="md-nav__link">
+  <a href="#disks" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Settings
+        Disks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#networks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Networks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#virtio-fs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VirtIO-FS
       
     </span>
   </a>
@@ -822,22 +888,44 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#running-the-console" class="md-nav__link">
+  <a href="#hardware-peripherals" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Running the Console
+        Hardware &amp; Peripherals
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Running the Console">
+    <nav class="md-nav" aria-label="Hardware &amp; Peripherals">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#key-behaviors" class="md-nav__link">
+  <a href="#graphics-display" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Key Behaviors
+        Graphics &amp; Display
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#input-peripherals" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Input &amp; Peripherals
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-channels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial &amp; Channels
       
     </span>
   </a>
@@ -846,28 +934,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#requirements" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Requirements
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#ssltls-encryption" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        SSL/TLS Encryption
-      
-    </span>
-  </a>
   
 </li>
       
@@ -891,73 +957,87 @@
   
 
 
-<h1 id="web-console-novnc">Web Console (noVNC)<a class="headerlink" href="#web-console-novnc" title="Permanent link">&para;</a></h1>
-<p>VirtUI Manager includes a built-in feature to launch a <strong>Web Console</strong> for any running Virtual Machine. This leverages <code>websockify</code> and <code>noVNC</code> to provide a VNC client directly in your web browser, eliminating the need for installed client software on the viewing machine.</p>
-<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
-<p>The Web Console creates a bridge between the VM's VNC socket and a WebSocket, allowing modern browsers to display the VM's screen.</p>
+<h1 id="vm-configuration">VM Configuration<a class="headerlink" href="#vm-configuration" title="Permanent link">&para;</a></h1>
+<p>The <strong>VM Configuration</strong> modal allows you to fine-tune every aspect of your virtual machines, from resource allocation to hardware passthrough.</p>
+<p>To access configuration:
+*   <strong>Single VM:</strong> Double-click on a VM card (or press Enter when selected).
+*   <strong>Bulk Edit:</strong> Select multiple VMs and use the <strong>Bulk CMD</strong> menu (or press <code>b</code>).</p>
+<p><img alt="General Configuration" src="../images/configure2.jpg" /></p>
+<h2 id="general-resources">General Resources<a class="headerlink" href="#general-resources" title="Permanent link">&para;</a></h2>
+<p>Adjust the core computing resources for your VM.</p>
 <ul>
-<li><strong>Secure:</strong> Supports HTTPS/WSS when certificates are configured.</li>
-<li><strong>Flexible:</strong> Can run locally on your management machine or directly on a remote server.</li>
-<li><strong>Accessible:</strong> Ideal for accessing VMs from devices where you can't install a native viewer (e.g., tablets, restricted workstations).</li>
-</ul>
-<h2 id="configuration-dialog">Configuration Dialog<a class="headerlink" href="#configuration-dialog" title="Permanent link">&para;</a></h2>
-<p>When you select <strong>Web Console</strong> from the VM Actions menu, you are presented with a configuration dialog.</p>
-<p><img alt="Web Console Configuration" src="../images/webconsole1.jpg" /></p>
-<h3 id="settings">Settings<a class="headerlink" href="#settings" title="Permanent link">&para;</a></h3>
-<ul>
-<li>
-<p><strong>Remote or Local:</strong></p>
-<ul>
-<li><strong>Local (Default):</strong> The <code>websockify</code> process runs on the machine where you are running VirtUI Manager. This is the standard mode.</li>
-<li><strong>Remote:</strong> The process runs on the remote Libvirt server itself. This requires <code>websockify</code> and <code>noVNC</code> to be installed on the remote server. <em>See <a href="../app_configuration/">App Configuration</a> for setup details.</em></li>
+<li><strong>CPU:</strong><ul>
+<li><strong>Cores:</strong> Set the number of vCPUs.</li>
+<li><strong>Model:</strong> Choose the CPU model. <code>host-passthrough</code> provides best performance, while specific models (e.g., <code>EPYC</code>, <code>Skylake</code>) ensure migration compatibility.</li>
 </ul>
 </li>
-<li>
-<p><strong>VNC Quality (0-9):</strong></p>
-<ul>
-<li>Controls the visual fidelity of the stream. Lower values reduce bandwidth usage but may look blocky.</li>
+<li><strong>Memory:</strong><ul>
+<li><strong>Size:</strong> Allocate RAM (in MB).</li>
+<li><strong>Shared Memory:</strong> Enable this if you plan to use VirtIO-FS for file sharing.</li>
 </ul>
 </li>
-<li>
-<p><strong>VNC Compression (0-9):</strong></p>
-<ul>
-<li>Sets the compression level. Higher values save bandwidth but require more CPU processing.</li>
+<li><strong>Firmware &amp; Security:</strong><ul>
+<li><strong>Firmware:</strong> Switch between BIOS and UEFI modes.</li>
+<li><strong>Secure Boot:</strong> Enable for modern OS security requirements (requires UEFI).</li>
+<li><strong>AMD SEV/SEV-ES:</strong> Enable memory encryption features (if supported by host hardware).</li>
+<li><strong>Machine Type:</strong> Update the QEMU machine type version (e.g., <code>pc-q35-6.0</code> to <code>pc-q35-7.0</code>) to access new hypervisor features.</li>
 </ul>
 </li>
 </ul>
-<h2 id="running-the-console">Running the Console<a class="headerlink" href="#running-the-console" title="Permanent link">&para;</a></h2>
-<p>Once you click <strong>Start</strong>, VirtUI Manager sets up the necessary tunnels and proxies. A confirmation window will appear with the unique URL for your session.</p>
-<p><img alt="Web Console Running" src="../images/webconsole2.jpg" /></p>
-<h3 id="key-behaviors">Key Behaviors<a class="headerlink" href="#key-behaviors" title="Permanent link">&para;</a></h3>
+<h2 id="boot-management">Boot Management<a class="headerlink" href="#boot-management" title="Permanent link">&para;</a></h2>
+<p>Control how the VM starts up.</p>
+<p><img alt="Boot Options" src="../images/configure5.jpg" /></p>
 <ul>
-<li><strong>Single Session:</strong> By default, <code>websockify</code> is configured to handle a <strong>single WebSocket connection</strong> and then exit. This means the link is valid for <strong>one time use</strong>. If you disconnect or refresh the page, you will need to restart the Web Console service from VirtUI Manager.</li>
-<li><strong>Bandwidth:</strong> Running the console remotely can consume significant bandwidth if high quality is selected. It is recommended to use <strong>Low Quality (0-3)</strong> and <strong>High Compression (7-9)</strong> for remote connections over slower links.</li>
+<li><strong>Boot Order:</strong> Reorder devices using the <strong>Up</strong> and <strong>Down</strong> buttons to prioritize boot targets.</li>
+<li><strong>Boot Menu:</strong> Enable the interactive boot menu (accessible via <code>F12</code> during POST).</li>
+<li><strong>Devices:</strong> Add or remove Disks and Network Interfaces from the boot sequence using the arrow buttons.</li>
 </ul>
-<h2 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h2>
-<p>To use this feature, the following must be installed (either locally or on the remote server, depending on your choice):</p>
+<h2 id="storage-networking">Storage &amp; Networking<a class="headerlink" href="#storage-networking" title="Permanent link">&para;</a></h2>
+<p>Manage your virtual disks and network connections.</p>
+<p><img alt="Storage and Network" src="../images/configure1.jpg" /></p>
+<h3 id="disks">Disks<a class="headerlink" href="#disks" title="Permanent link">&para;</a></h3>
 <ul>
-<li><code>websockify</code></li>
-<li><code>noVNC</code> assets (HTML/JS/CSS)</li>
+<li><strong>Management:</strong> Add new virtual disks, attach existing images/volumes, or remove/disable current drives.</li>
+<li><strong>Modes:</strong> Configure <strong>Cache</strong> (e.g., <code>none</code>, <code>writeback</code>) and <strong>Discard</strong> (e.g., <code>unmap</code>) settings for performance optimization and storage efficiency.</li>
 </ul>
-<p>Paths to these resources are defined in your <a href="../app_configuration/">configuration file</a>.</p>
-<h2 id="ssltls-encryption">SSL/TLS Encryption<a class="headerlink" href="#ssltls-encryption" title="Permanent link">&para;</a></h2>
-<p>To enable secure connections (WSS) for the Web Console, you can provide SSL certificates.</p>
-<ol>
-<li>
-<p><strong>Generate a self-signed certificate and key on the remote server:</strong></p>
-<p>Log in to your remote libvirt server and run the following command. Replace <code>your.remote.host.com</code> with the server's actual hostname or IP address. This is important for the browser to trust the certificate.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>openssl<span class="w"> </span>req<span class="w"> </span>-x509<span class="w"> </span>-newkey<span class="w"> </span>rsa:4096<span class="w"> </span>-keyout<span class="w"> </span>key.pem<span class="w"> </span>-out<span class="w"> </span>cert.pem<span class="w"> </span>-sha256<span class="w"> </span>-days<span class="w"> </span><span class="m">365</span><span class="w"> </span>-nodes<span class="w"> </span>-subj<span class="w"> </span><span class="s2">&quot;/CN=your.remote.host.com&quot;</span>
-</code></pre></div>
-</li>
-<li>
-<p><strong>Place the generated files in the correct directory on the remote server:</strong></p>
-<p><em><code>virtui-manager</code> will automatically detect <code>cert.pem</code> and <code>key.pem</code> but for remote server the file must be in </em><em>System-wide path</em>*: <code>/etc/virtui-manager/keys/</code></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/etc/virtui-manager/keys/
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>sudo<span class="w"> </span>mv<span class="w"> </span>cert.pem<span class="w"> </span>key.pem<span class="w"> </span>/etc/virtui-manager/keys/
-</code></pre></div>
-</li>
-</ol>
-<p>If the certificate and key are found, <code>virtui-manager</code> will automatically start <code>websockify</code> with SSL/TLS encryption and use a <code>wss://</code> URL. If not, it will default to an unencrypted <code>ws://</code> connection.</p>
+<h3 id="networks">Networks<a class="headerlink" href="#networks" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Interfaces:</strong> Add or remove network adapters.</li>
+<li><strong>Model:</strong> Select the NIC model (e.g., <code>virtio</code> for performance, <code>e1000e</code> for compatibility).</li>
+<li><strong>Connection:</strong> Switch networks (e.g., from <code>default</code> NAT to a bridge) on the fly.</li>
+</ul>
+<h3 id="virtio-fs">VirtIO-FS<a class="headerlink" href="#virtio-fs" title="Permanent link">&para;</a></h3>
+<p>Share directories from the host to the guest efficiently without network overhead.
+*   <strong>Requirement:</strong> Requires <strong>Shared Memory</strong> to be enabled in the Memory tab.
+*   <strong>Setup:</strong> Map a host source path to a guest mount tag.</p>
+<h2 id="hardware-peripherals">Hardware &amp; Peripherals<a class="headerlink" href="#hardware-peripherals" title="Permanent link">&para;</a></h2>
+<p>Configure advanced hardware integration and display settings.</p>
+<p><img alt="Hardware Settings" src="../images/configure3.jpg" /></p>
+<h3 id="graphics-display">Graphics &amp; Display<a class="headerlink" href="#graphics-display" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Video Model:</strong> Select the video adapter (e.g., <code>virtio</code> for 3D acceleration, <code>qxl</code>, <code>vga</code>, <code>none</code>).</li>
+<li><strong>Graphics Type:</strong> Choose between <strong>VNC</strong> (broad compatibility) and <strong>SPICE</strong> (better desktop integration).</li>
+<li><strong>Remote Access:</strong> Configure listen addresses, ports, and passwords for remote connections.</li>
+<li><strong>3D Acceleration:</strong> Enable for supported guests (requires <code>virtio</code> video model).</li>
+</ul>
+<p><img alt="USB Passthrough" src="../images/configure4.jpg" /></p>
+<h3 id="input-peripherals">Input &amp; Peripherals<a class="headerlink" href="#input-peripherals" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>USB Host:</strong> Pass physical USB devices from the host to the VM dynamically.</li>
+<li><strong>TPM:</strong> Configure Emulated or Passthrough TPM 2.0 (essential for Windows 11 support).</li>
+<li><strong>RNG:</strong> Configure Random Number Generator passthrough for better entropy in the guest.</li>
+<li><strong>Watchdog:</strong> Set up automatic actions (reset, shutdown) if the guest OS hangs.</li>
+</ul>
+<h3 id="serial-channels">Serial &amp; Channels<a class="headerlink" href="#serial-channels" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Serial:</strong> Manage serial consoles (PTY) for headless management.</li>
+<li><strong>Channels:</strong> Configure QEMU Guest Agent channels for host-guest communication (copy-paste, time sync).</li>
+</ul>
+<hr />
+<div class="admonition tip">
+<p class="admonition-title">Bulk Configuration</p>
+<p>When multiple VMs are selected via Bulk Edit, changing a setting (like CPU Model or Graphics Password) will apply that change to <strong>all selected VMs</strong> sequentially. This is powerful for fleet updates.</p>
+</div>
 
 
 

@@ -1,16 +1,17 @@
-# Virtui Manager Documentation
+# VirtUI Manager Documentation
 
-<img src="images/virtui-manager_logo_notext_inverted.png" alt="Virtui Manager Logo" width="35%">
+<img src="images/virtui-manager_logo_notext_inverted.png" alt="VirtUI Manager Logo" width="35%">
 
-Welcome to the official documentation for **Virtui Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization.
+Welcome to the official documentation for **VirtUI Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization.
 
 ## Table of Contents
 
 - [Management Main Window](main_window.md)
-- [VM Actions](vm_actions.md)
-- [Virtui Remote Viewer](remote_viewer.md)
-- [Web Console](web_console.md)
+- [VirtUI Manager Configuration](app_configuration.md)
+- [Virtual Machine Configuration](vm_configuration.md)
+- [Control Virtual Machine](vm_actions.md)
 - [Selection & Filtering](selection.md)
 - [Bulk Operations](bulk_ops.md)
-- [App Configuration](app_configuration.md)
-- [Installation](installation.md)
+- [Remote Web Console (VM)](web_console.md)
+- [Virtual Machine Installation](installation.md)
+- [VirtUI Remote Viewer](remote_viewer.md)

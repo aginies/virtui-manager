@@ -1,19 +1,21 @@
-# Virtui Manager
+# VirtUI Manager
 
 A powerful, text-based Terminal User Interface (TUI) application for managing QEMU/KVM virtual machines using the libvirt Python API. 
 
-## Why Virtui Manager?
+## Why VirtUI Manager?
 
-Managing virtual machines in a terminal environment has never been easier or more powerful. Virtui Manager bridges the gap between the simplicity of command-line tools and the rich functionality of GUI-based solutions, offering the best of both worlds for virtualization administrators.
+Managing virtual machines in a terminal environment has never been easier or more powerful. **VirtUI Manager** bridges the gap between the simplicity of command-line tools and the rich functionality of GUI-based solutions, offering the best of both worlds for virtualization administrators.
 
 ### The Problem with Traditional Tools
+
 - **Virt-manager** requires X11 forwarding, which is slow, resource-intensive, and often impossible in remote environments
 - **GUI-based solutions** are heavy with X dependencies, making them unsuitable for headless servers or low-bandwidth connections
 - **Command-line tools** lack the intuitive interface needed for complex VM management tasks
 - **Cockpit Machine** is feature incomplete, and needs a lot of depencies. It is not multi hypervisor oriented
 
-### Why Virtui Manager is Different
-Virtui Manager solves these challenges with:
+### Why VirtUI Manager is Different
+
+VirtUI Manager solves these challenges with:
 - **Lightweight Terminal Interface**: No X11 dependencies, works perfectly over SSH
 - **Remote Management**: Efficient low-bandwidth control of remote libvirt servers
 - **Rich Feature Set**: Advanced VM management capabilities in a simple, intuitive interface
@@ -24,14 +26,9 @@ Virtui Manager solves these challenges with:
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 
-## Who Is This For?
+## Documentation
 
-Virtui Manager is ideal for:
-- **System Administrators** managing KVM virtualization environments
-- **DevOps Engineers** requiring efficient VM management in CI/CD pipelines
-- **Remote System Administrators** working in low-bandwidth environments
-- **Cloud Operators** managing multiple hypervisor servers
-- **IT Professionals** who prefer terminal-based tools for virtualization management
+[VirtUI Manager doc](https://aginies.github.io/virtui-manager/manual/)
 
 ## Requirements
 
@@ -99,40 +96,6 @@ Possible User config parameters:
 - **network_models**: List of allowed network models (default: `['virtio', 'e1000', 'e1000e', 'rtl8139', 'ne2k_pci', 'pcnet']`)
 - **sound_models**: List of allowed sound models (default: `['none', 'ich6', 'ich9', 'ac97', 'sb16', 'usb']`)
 
-### Example Configuration
-```yaml
-CACHE_TTL: 300
-ISO_DOWNLOAD_PATH: /home/isos
-LOG_FILE_PATH: /home/aginies/.cache/virtui-manager/vm_manager.log
-REMOTE_VIEWER: null
-REMOTE_WEBCONSOLE: true
-STATS_INTERVAL: 15
-novnc_path: /usr/share/webapps/novnc/
-websockify_path: /usr/bin/websockify
-VNC_COMPRESSION: 9
-VNC_QUALITY: 1
-WC_PORT_RANGE_END: 40049
-WC_PORT_RANGE_START: 40000
-WEBSOCKIFY_BUF_SIZE: 4096
-custom_ISO_repo:
-- name: Alpine 3.23 x86_64
-  uri: https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/
-- name: Slackware 16
-  uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
-- name: Qubes R4 3.0
-  uri: https://mirrors.edge.kernel.org/qubes/iso/
-servers:
-- autoconnect: false
-  name: Localhost
-  uri: qemu:///system
-- autoconnect: false
-  name: ryzen9
-  uri: qemu+ssh://root@10.0.1.38/system
-- autoconnect: false
-  name: ryzen7
-  uri: qemu+ssh://root@10.0.1.78/system
-```
-
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -143,5 +106,4 @@ AI assistance is used to improve coding efficiency by automating boilerplate, su
 
 ## License
 
-This project is licensed under the GPL3 License.
-
+This project is licensed under the GPLv3 License.

@@ -40,6 +40,7 @@ nav:
   - Home: index.md
   - Manual:
     - Management Window: main_window.md
+    - VM Configuration: vm_configuration.md
     - VM Actions: vm_actions.md
     - Virtui Remote Viewer: remote_viewer.md
     - Web Console: web_console.md

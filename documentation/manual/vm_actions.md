@@ -90,7 +90,7 @@ This tab contains administrative actions for the VM lifecycle.
     *   *Visible when the VM is Stopped.*
 
 *   **! Migration !:**
-    *   Moves the VM to another server managed by Virtui Manager.
+    *   Moves the VM to another server managed by VirtUI Manager.
     *   Requires SSH connectivity between hosts.
 
 *   **View XML / Edit XML:**

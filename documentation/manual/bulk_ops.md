@@ -34,6 +34,6 @@ When you enter Bulk Command mode, a menu appears presenting actions that can be 
 
 ## Safety and Feedback
 
-*   **Confirmation:** For destructive actions like "Delete" or "Force Off," Virtui Manager will ask for confirmation to prevent accidental data loss.
+*   **Confirmation:** For destructive actions like "Delete" or "Force Off," VirtUI Manager will ask for confirmation to prevent accidental data loss.
 *   **Parallel Execution:** Actions are triggered in an optimized sequence, allowing you to monitor the progress across the grid as VM statuses update in real-time.
 *   **Selection:** After a bulk operation, your selection dont persists, to avoid any error.

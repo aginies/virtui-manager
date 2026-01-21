@@ -1,6 +1,6 @@
 # App Configuration
 
-Virtui Manager allows you to customize various aspects of its behavior, including performance settings, logging, and remote viewer integration.
+VirtUI Manager allows you to customize various aspects of its behavior, including performance settings, logging, and remote viewer integration.
 
 To access the configuration, press **`c`** on your keyboard while in the main window.
 
@@ -8,52 +8,71 @@ To access the configuration, press **`c`** on your keyboard while in the main wi
 
 ## Configuration File
 
-Virtui Manager uses a YAML configuration file for customization:
+VirtUI Manager uses a YAML configuration file for customization:
 
 *   **User-specific:** `~/.config/virtui-manager/config.yaml`
 *   **System-wide:** `/etc/virtui-manager/config.yaml`
 
-While most settings can be managed via the UI, Virtui Manager stores its configuration in these human-readable files. If the user-specific file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.
+While most settings can be managed via the UI, VirtUI Manager stores its configuration in these human-readable files. If the user-specific file does not exist, VirtUI Manager will create it with default values upon the first launch or when you save settings from the UI.
 
 ### Example Configuration
 
 ```yaml
 # Performance and UI
-STATS_INTERVAL: 30
-REMOTE_VIEWER: virtui-remote-viewer.py
+CACHE_TTL: 300
+STATS_INTERVAL: 15
+REMOTE_VIEWER: null
+
+# ISO Management
+ISO_DOWNLOAD_PATH: /home/isos
 
 # Logging
-LOG_FILE_PATH: /home/user/.cache/virtui-manager/vm_manager.log
-
-# Servers List
-servers:
-- name: Localhost
-  uri: qemu:///system
-- name: Production Host
-  uri: qemu+ssh://admin@10.0.0.10/system
+LOG_FILE_PATH: /home/aginies/.cache/virtui-manager/vm_manager.log
 
 # Web Console (noVNC)
 REMOTE_WEBCONSOLE: true
+novnc_path: /usr/share/webapps/novnc/
 websockify_path: /usr/bin/websockify
-novnc_path: /usr/share/novnc/
+WEBSOCKIFY_BUF_SIZE: 4096
 WC_PORT_RANGE_START: 40000
-WC_PORT_RANGE_END: 40050
-VNC_QUALITY: 0
+WC_PORT_RANGE_END: 40049
+VNC_QUALITY: 1
 VNC_COMPRESSION: 9
+
+# ISO Repositories
+custom_ISO_repo:
+- name: Alpine 3.23 x86_64
+  uri: https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/
+- name: Slackware 16
+  uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
+- name: Qubes R4 3.0
+  uri: https://mirrors.edge.kernel.org/qubes/iso/
+
+# Servers List
+servers:
+- autoconnect: false
+  name: Localhost
+  uri: qemu:///system
+- autoconnect: false
+  name: ryzen9
+  uri: qemu+ssh://root @10.0.1.38/system
+- autoconnect: false
+  name: ryzen7
+  uri: qemu+ssh://root @10.0.1.78/system
 ```
 
 ### Key Fields Explained
 
-*   **`servers`**: A list of Libvirt connections. Each entry requires a `name` (for display) and a `uri` (the Libvirt connection string).
-*   **`network_models` / `sound_models`**: These lists define the options available in the dropdown menus when provisioning new VMs. You can add custom models here if your environment requires them.
+*   **`servers`**: A list of Libvirt connections. Each entry requires a `name` (for display), a `uri` (the Libvirt connection string), and an optional `autoconnect` boolean.
+*   **`CACHE_TTL`**: Time in seconds to cache VM states and stats to reduce load (Default: 300).
 *   **`ISO_DOWNLOAD_PATH`**: The directory where downloaded ISO images are stored.
-*   **`custom_ISO_repo`**: A list of paths to local directories containing ISO files that you want to be available during VM installation.
+*   **`custom_ISO_repo`**: A list of remote or local repositories. Each entry needs a `name` and a `uri` (HTTP/HTTPS URL or local path).
 
 ## Performance
 
 *   **Stats Interval (seconds):**
     *   Determines how frequently the application updates VM status and statistics (CPU, Memory, I/O).
-    *   **Default:** `5` seconds.
+    *   **Default:** `15` seconds.
     *   **Tip:** Increasing this value can reduce the load on the host system, while decreasing it provides more real-time updates.
 
 ## Logging
@@ -71,7 +90,7 @@ This section controls how the graphical console of VMs is accessed.
     *   **Options:**
         *   `virtui-remote-viewer.py`: The built-in viewer (recommended).
         *   `virt-viewer`: The standard external viewer.
-    *   If set to **Auto-detect**, the application will attempt to find an available viewer.
+        *   `null`: Auto-detects an available viewer.
 
 ## Web Console (noVNC)
 
@@ -83,17 +102,20 @@ These settings configure the built-in web-based remote console capabilities, use
 *   **Websockify Path:**
     *   Path to the `websockify` binary, which translates VNC traffic to WebSockets.
     *   **Default:** `/usr/bin/websockify`
+*   **Websockify Buffer Size:**
+    *   Buffer size for the websockify connection.
+    *   **Default:** `4096`
 *   **noVNC Path:**
     *   Path to the noVNC web assets (HTML/JS/CSS).
-    *   **Default:** `/usr/share/novnc/` (may vary by distribution, e.g., `/usr/share/webapps/novnc/`).
+    *   **Default:** `/usr/share/webapps/novnc/` (common on Arch/Manjaro) or `/usr/share/novnc/` (Debian/Ubuntu).
 *   **Websockify Port Range:**
     *   Defines the range of local ports the application can use for WebSocket connections.
     *   **Start:** Default `40000`
-    *   **End:** Default `40050`
+    *   **End:** Default `40049`
 *   **VNC Quality (0-9):**
     *   Sets the visual quality of the VNC stream.
     *   **Range:** 0 (Lowest) to 9 (Highest).
-    *   **Default:** `0` (Optimized for speed).
+    *   **Default:** `1` (Optimized for speed).
 *   **VNC Compression (0-9):**
     *   Sets the compression level for the VNC stream.
     *   **Range:** 0 (None) to 9 (Maximum).

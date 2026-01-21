@@ -1,6 +1,6 @@
 # VM Installation
 
-Virtui Manager provides a streamlined wizard for provisioning new virtual machines, with a focus on ease of use for OpenSUSE distributions while supporting custom ISOs.
+VirtUI Manager provides a streamlined wizard for provisioning new virtual machines, with a focus on ease of use for OpenSUSE distributions while supporting custom ISOs.
 
 To start the installation wizard, press **`i`** on your keyboard while in the main window.
 
@@ -44,7 +44,7 @@ custom_ISO_repo:
     uri: https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/
 ```
 
-These repositories will then be available in the **Distribution** selection dropdown. When selected, Virtui Manager will fetch and display the available `.iso` files from that location.
+These repositories will then be available in the **Distribution** selection dropdown. When selected, VirtUI Manager will fetch and display the available `.iso` files from that location.
 
 ### Custom ISO Options
 

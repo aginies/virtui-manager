@@ -1,6 +1,6 @@
 # Management Main Window
 
-The **Management Main Window** is the central hub of Virtui Manager, designed for efficiency and rapid control of your virtual infrastructure.
+The **Management Main Window** is the central hub of VirtUI Manager, designed for efficiency and rapid control of your virtual infrastructure.
 
 ![Management Main Window](images/management.jpg)
 
@@ -11,37 +11,67 @@ The **Management Main Window** is the central hub of Virtui Manager, designed fo
 
 The interface is divided into intuitive sections to streamline your workflow:
 
-### Select Servers
+### Server Management
 
-Located at the top-left or accessible via keyboard shortcuts, this menu allows you to switch contexts between different hypervisors.
+Located at the top-left, these tools control your connection contexts:
 
-*   **Single Pane of Glass:** View VMs from local KVM instances or remote servers connected via SSH.
-*   **Status Indicators:** Instantly see connection health and resource usage for each connected server.
+*   **Select Servers (`s`):** Switch the "Single Pane of Glass" view to specific servers (local or remote SSH).
+*   **Manage Servers:** Add, remove, or edit the list of available Libvirt connections.
+*   **Server Prefs:** Configure connection details, auto-connect behaviors, and default storage/network pools for new VMs.
 
-### Server List
+### Server List & Navigation
 
 The core view displaying your virtual machines.
 
-*   **Card View:** Each VM is represented as a card showing real-time status (Running/Stopped), CPU/Memory usage sparklines, and IP addresses.
+*   **Card View:** Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines, and IP addresses.
+*   **Compact View (`k`):** Toggles a high-density view showing only selection, name, and status.
 *   **Interaction:**
-    *   **Double-Click Name:** Double-clicking on a VM's name triggers a background fetch of all VM data, including its full XML configuration. This ensures that tooltips and detailed views have the most up-to-date information.
-    *   **Compact View (`k`):** Pressing **`k`** toggles between the detailed "Normal" view and a "Compact" view. The compact view is optimized for high-density environments, showing only the selection checkbox, the VM name (with its server), and the current status.
-*   **Visual Cues:**
-    *   **The Border/Text:** Indication about the server the VM belongs to.
-*   **Navigation:** Use arrow keys to navigate the grid efficiently.
+    *   **Double-Click Name:** Triggers a background fetch of full VM data.
+    *   **Navigation:** Use **Arrow Keys** to move focus.
+    *   **Pagination:** Use **Left/Right** buttons or keys (when focused) to navigate pages of VMs.
 
-### Server Prefs
+### Filtering & Search (`f`)
 
-Configure server-specific settings directly from the UI without touching config files.
+Press **`f`** or click the **Filter VM** button to narrow down the list.
 
-*   **Connection Details:** Edit URI, user, and SSH key paths.
-*   **Auto-Connect:** Toggle which servers should connect on startup.
-*   **Defaults:** Set default storage pools and network interfaces for new VMs on a per-server basis.
+*   **Search Text:** Filter by VM name.
+*   **Status:** Show only Running, Stopped, or Paused VMs.
+*   **Server Scope:** Limit the view to specific servers from your active connection list.
 
-### [Bulk CMD](bulk_ops.md)
+### VM Provisioning (`i`)
+
+Press **`i`** to launch the **VM Installation Wizard**.
+
+*   **Guided Setup:** Select target server, ISO image (local or remote), and allocate resources (CPU, RAM, Disk).
+*   **Defaults:** Uses the defaults defined in *Server Prefs* to speed up deployment.
+
+### [Bulk CMD](bulk_ops.md) (`b`)
 
 The "Bulk Command" mode puts the power of fleet management at your fingertips.
 
-*   **Multi-Select:** Select multiple VMs manually or use **Pattern Selection** (regex/glob) to target specific groups (e.g., `web-*`).
-*   **Mass Actions:** Perform operations like `Start`, `Shutdown`, or `Reboot` on all selected VMs simultaneously.
-*   **Efficiency:** Ideal for patching cycles or bringing up environments.
+*   **Multi-Select:** Manually select cards or use **`Ctrl+a`** (Select All) / **`Ctrl+u`** (Unselect All).
+*   **Pattern Selection (`p`):** Select VMs based on name patterns (regex/glob).
+*   **Mass Actions:** Perform operations like `Start`, `Shutdown`, `Reboot`, or `Delete` on all selected VMs simultaneously.
+
+### Advanced Tools
+
+*   **Virsh Shell (`Ctrl+v`):** Opens a direct shell to run `virsh` commands against a selected server.
+*   **Stats Logging (`Ctrl+l`):** Toggles background logging of performance statistics to the log file.
+*   **Cache Stats (`Ctrl+s`):** Displays internal cache hit/miss statistics for debugging.
+
+## Keyboard Shortcuts Cheat Sheet
+
+| Key | Action |
+| :--- | :--- |
+| **`s`** | Select Servers |
+| **`f`** | Filter View |
+| **`i`** | Install New VM |
+| **`k`** | Toggle Compact View |
+| **`b`** | Bulk Command Mode |
+| **`p`** | Pattern Select |
+| **`v`** | View Application Log |
+| **`c`** | Open App Configuration |
+| **`Ctrl+a`** | Select All Visible VMs |
+| **`Ctrl+u`** | Unselect All VMs |
+| **`Ctrl+v`** | Open Virsh Shell |
+| **`q`** | Quit Application |

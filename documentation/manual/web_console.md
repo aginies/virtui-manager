@@ -1,6 +1,6 @@
 # Web Console (noVNC)
 
-Virtui Manager includes a built-in feature to launch a **Web Console** for any running Virtual Machine. This leverages `websockify` and `noVNC` to provide a VNC client directly in your web browser, eliminating the need for installed client software on the viewing machine.
+VirtUI Manager includes a built-in feature to launch a **Web Console** for any running Virtual Machine. This leverages `websockify` and `noVNC` to provide a VNC client directly in your web browser, eliminating the need for installed client software on the viewing machine.
 
 ## Overview
 
@@ -19,7 +19,7 @@ When you select **Web Console** from the VM Actions menu, you are presented with
 ### Settings
 
 *   **Remote or Local:**
-    *   **Local (Default):** The `websockify` process runs on the machine where you are running Virtui Manager. This is the standard mode.
+    *   **Local (Default):** The `websockify` process runs on the machine where you are running VirtUI Manager. This is the standard mode.
     *   **Remote:** The process runs on the remote Libvirt server itself. This requires `websockify` and `noVNC` to be installed on the remote server. *See [App Configuration](app_configuration.md) for setup details.*
 
 *   **VNC Quality (0-9):**
@@ -30,13 +30,13 @@ When you select **Web Console** from the VM Actions menu, you are presented with
 
 ## Running the Console
 
-Once you click **Start**, Virtui Manager sets up the necessary tunnels and proxies. A confirmation window will appear with the unique URL for your session.
+Once you click **Start**, VirtUI Manager sets up the necessary tunnels and proxies. A confirmation window will appear with the unique URL for your session.
 
 ![Web Console Running](images/webconsole2.jpg)
 
 ### Key Behaviors
 
-*   **Single Session:** By default, `websockify` is configured to handle a **single WebSocket connection** and then exit. This means the link is valid for **one time use**. If you disconnect or refresh the page, you will need to restart the Web Console service from Virtui Manager.
+*   **Single Session:** By default, `websockify` is configured to handle a **single WebSocket connection** and then exit. This means the link is valid for **one time use**. If you disconnect or refresh the page, you will need to restart the Web Console service from VirtUI Manager.
 *   **Bandwidth:** Running the console remotely can consume significant bandwidth if high quality is selected. It is recommended to use **Low Quality (0-3)** and **High Compression (7-9)** for remote connections over slower links.
 
 ## Requirements

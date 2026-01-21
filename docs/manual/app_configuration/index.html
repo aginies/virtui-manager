@@ -396,6 +396,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../vm_configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../vm_actions/" class="md-nav__link">
         
   
@@ -852,52 +880,71 @@
 
 
 <h1 id="app-configuration">App Configuration<a class="headerlink" href="#app-configuration" title="Permanent link">&para;</a></h1>
-<p>Virtui Manager allows you to customize various aspects of its behavior, including performance settings, logging, and remote viewer integration.</p>
+<p>VirtUI Manager allows you to customize various aspects of its behavior, including performance settings, logging, and remote viewer integration.</p>
 <p>To access the configuration, press <strong><code>c</code></strong> on your keyboard while in the main window.</p>
 <p><img alt="App Configuration" src="../images/app_configuration.jpg" /></p>
 <h2 id="configuration-file">Configuration File<a class="headerlink" href="#configuration-file" title="Permanent link">&para;</a></h2>
-<p>Virtui Manager uses a YAML configuration file for customization:</p>
+<p>VirtUI Manager uses a YAML configuration file for customization:</p>
 <ul>
 <li><strong>User-specific:</strong> <code>~/.config/virtui-manager/config.yaml</code></li>
 <li><strong>System-wide:</strong> <code>/etc/virtui-manager/config.yaml</code></li>
 </ul>
-<p>While most settings can be managed via the UI, Virtui Manager stores its configuration in these human-readable files. If the user-specific file does not exist, Virtui Manager will create it with default values upon the first launch or when you save settings from the UI.</p>
+<p>While most settings can be managed via the UI, VirtUI Manager stores its configuration in these human-readable files. If the user-specific file does not exist, VirtUI Manager will create it with default values upon the first launch or when you save settings from the UI.</p>
 <h3 id="example-configuration">Example Configuration<a class="headerlink" href="#example-configuration" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Performance and UI</span>
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">STATS_INTERVAL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nt">REMOTE_VIEWER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">virtui-remote-viewer.py</span>
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="c1"># Logging</span>
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nt">LOG_FILE_PATH</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/home/user/.cache/virtui-manager/vm_manager.log</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="c1"># Servers List</span>
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nt">servers</span><span class="p">:</span>
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Localhost</span>
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu:///system</span>
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Production Host</span>
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu+ssh://admin@10.0.0.10/system</span>
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="c1"># Web Console (noVNC)</span>
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="nt">REMOTE_WEBCONSOLE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="nt">websockify_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/bin/websockify</span>
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nt">novnc_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/share/novnc/</span>
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nt">WC_PORT_RANGE_START</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40000</span>
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="nt">WC_PORT_RANGE_END</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40050</span>
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a><span class="nt">VNC_QUALITY</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="nt">VNC_COMPRESSION</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">CACHE_TTL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="nt">STATS_INTERVAL</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="nt">REMOTE_VIEWER</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="c1"># ISO Management</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="nt">ISO_DOWNLOAD_PATH</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/home/isos</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="c1"># Logging</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="nt">LOG_FILE_PATH</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/home/aginies/.cache/virtui-manager/vm_manager.log</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="c1"># Web Console (noVNC)</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="nt">REMOTE_WEBCONSOLE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="nt">novnc_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/share/webapps/novnc/</span>
+<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="nt">websockify_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/usr/bin/websockify</span>
+<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="nt">WEBSOCKIFY_BUF_SIZE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4096</span>
+<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="nt">WC_PORT_RANGE_START</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40000</span>
+<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a><span class="nt">WC_PORT_RANGE_END</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40049</span>
+<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a><span class="nt">VNC_QUALITY</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a><span class="nt">VNC_COMPRESSION</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9</span>
+<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>
+<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a><span class="c1"># ISO Repositories</span>
+<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="nt">custom_ISO_repo</span><span class="p">:</span>
+<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Alpine 3.23 x86_64</span>
+<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/</span>
+<a id="__codelineno-0-26" name="__codelineno-0-26" href="#__codelineno-0-26"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Slackware 16</span>
+<a id="__codelineno-0-27" name="__codelineno-0-27" href="#__codelineno-0-27"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/</span>
+<a id="__codelineno-0-28" name="__codelineno-0-28" href="#__codelineno-0-28"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Qubes R4 3.0</span>
+<a id="__codelineno-0-29" name="__codelineno-0-29" href="#__codelineno-0-29"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://mirrors.edge.kernel.org/qubes/iso/</span>
+<a id="__codelineno-0-30" name="__codelineno-0-30" href="#__codelineno-0-30"></a>
+<a id="__codelineno-0-31" name="__codelineno-0-31" href="#__codelineno-0-31"></a><span class="c1"># Servers List</span>
+<a id="__codelineno-0-32" name="__codelineno-0-32" href="#__codelineno-0-32"></a><span class="nt">servers</span><span class="p">:</span>
+<a id="__codelineno-0-33" name="__codelineno-0-33" href="#__codelineno-0-33"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">autoconnect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-0-34" name="__codelineno-0-34" href="#__codelineno-0-34"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Localhost</span>
+<a id="__codelineno-0-35" name="__codelineno-0-35" href="#__codelineno-0-35"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu:///system</span>
+<a id="__codelineno-0-36" name="__codelineno-0-36" href="#__codelineno-0-36"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">autoconnect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-0-37" name="__codelineno-0-37" href="#__codelineno-0-37"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ryzen9</span>
+<a id="__codelineno-0-38" name="__codelineno-0-38" href="#__codelineno-0-38"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu+ssh://root @10.0.1.38/system</span>
+<a id="__codelineno-0-39" name="__codelineno-0-39" href="#__codelineno-0-39"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">autoconnect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<a id="__codelineno-0-40" name="__codelineno-0-40" href="#__codelineno-0-40"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ryzen7</span>
+<a id="__codelineno-0-41" name="__codelineno-0-41" href="#__codelineno-0-41"></a><span class="w">  </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu+ssh://root @10.0.1.78/system</span>
 </code></pre></div>
 <h3 id="key-fields-explained">Key Fields Explained<a class="headerlink" href="#key-fields-explained" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><code>servers</code></strong>: A list of Libvirt connections. Each entry requires a <code>name</code> (for display) and a <code>uri</code> (the Libvirt connection string).</li>
-<li><strong><code>network_models</code> / <code>sound_models</code></strong>: These lists define the options available in the dropdown menus when provisioning new VMs. You can add custom models here if your environment requires them.</li>
+<li><strong><code>servers</code></strong>: A list of Libvirt connections. Each entry requires a <code>name</code> (for display), a <code>uri</code> (the Libvirt connection string), and an optional <code>autoconnect</code> boolean.</li>
+<li><strong><code>CACHE_TTL</code></strong>: Time in seconds to cache VM states and stats to reduce load (Default: 300).</li>
 <li><strong><code>ISO_DOWNLOAD_PATH</code></strong>: The directory where downloaded ISO images are stored.</li>
-<li><strong><code>custom_ISO_repo</code></strong>: A list of paths to local directories containing ISO files that you want to be available during VM installation.</li>
+<li><strong><code>custom_ISO_repo</code></strong>: A list of remote or local repositories. Each entry needs a <code>name</code> and a <code>uri</code> (HTTP/HTTPS URL or local path).</li>
 </ul>
 <h2 id="performance">Performance<a class="headerlink" href="#performance" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong>Stats Interval (seconds):</strong><ul>
 <li>Determines how frequently the application updates VM status and statistics (CPU, Memory, I/O).</li>
-<li><strong>Default:</strong> <code>5</code> seconds.</li>
+<li><strong>Default:</strong> <code>15</code> seconds.</li>
 <li><strong>Tip:</strong> Increasing this value can reduce the load on the host system, while decreasing it provides more real-time updates.</li>
 </ul>
 </li>
@@ -918,9 +965,9 @@
 <li><strong>Options:</strong><ul>
 <li><code>virtui-remote-viewer.py</code>: The built-in viewer (recommended).</li>
 <li><code>virt-viewer</code>: The standard external viewer.</li>
+<li><code>null</code>: Auto-detects an available viewer.</li>
 </ul>
 </li>
-<li>If set to <strong>Auto-detect</strong>, the application will attempt to find an available viewer.</li>
 </ul>
 </li>
 </ul>
@@ -937,21 +984,26 @@
 <li><strong>Default:</strong> <code>/usr/bin/websockify</code></li>
 </ul>
 </li>
+<li><strong>Websockify Buffer Size:</strong><ul>
+<li>Buffer size for the websockify connection.</li>
+<li><strong>Default:</strong> <code>4096</code></li>
+</ul>
+</li>
 <li><strong>noVNC Path:</strong><ul>
 <li>Path to the noVNC web assets (HTML/JS/CSS).</li>
-<li><strong>Default:</strong> <code>/usr/share/novnc/</code> (may vary by distribution, e.g., <code>/usr/share/webapps/novnc/</code>).</li>
+<li><strong>Default:</strong> <code>/usr/share/webapps/novnc/</code> (common on Arch/Manjaro) or <code>/usr/share/novnc/</code> (Debian/Ubuntu).</li>
 </ul>
 </li>
 <li><strong>Websockify Port Range:</strong><ul>
 <li>Defines the range of local ports the application can use for WebSocket connections.</li>
 <li><strong>Start:</strong> Default <code>40000</code></li>
-<li><strong>End:</strong> Default <code>40050</code></li>
+<li><strong>End:</strong> Default <code>40049</code></li>
 </ul>
 </li>
 <li><strong>VNC Quality (0-9):</strong><ul>
 <li>Sets the visual quality of the VNC stream.</li>
 <li><strong>Range:</strong> 0 (Lowest) to 9 (Highest).</li>
-<li><strong>Default:</strong> <code>0</code> (Optimized for speed).</li>
+<li><strong>Default:</strong> <code>1</code> (Optimized for speed).</li>
 </ul>
 </li>
 <li><strong>VNC Compression (0-9):</strong><ul>

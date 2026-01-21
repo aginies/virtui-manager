@@ -396,6 +396,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../vm_configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../vm_actions/" class="md-nav__link">
         
   
@@ -907,8 +935,8 @@
   
 
 
-<h1 id="virtui-remote-viewer">Virtui Remote Viewer<a class="headerlink" href="#virtui-remote-viewer" title="Permanent link">&para;</a></h1>
-<p>The <strong>Virtui Remote Viewer</strong> is a custom-built, high-performance graphical console integrated directly into Virtui Manager. It provides a seamless way to interact with your Virtual Machines without needing external tools like <code>virt-viewer</code> or <code>virt-manager</code>.</p>
+<h1 id="virtui-remote-viewer">VirtUI Remote Viewer<a class="headerlink" href="#virtui-remote-viewer" title="Permanent link">&para;</a></h1>
+<p>The <strong>VirtUI Remote Viewer</strong> is a custom-built, high-performance graphical console integrated directly into VirtUI Manager. It provides a seamless way to interact with your Virtual Machines without needing external tools like <code>virt-viewer</code> or <code>virt-manager</code>.</p>
 <p>It supports both <strong>VNC</strong> and <strong>SPICE</strong> protocols and offers advanced features like USB redirection and snapshot management directly from the viewer window.</p>
 <h2 id="interface-overview">Interface Overview<a class="headerlink" href="#interface-overview" title="Permanent link">&para;</a></h2>
 <p>The viewer is designed to be intuitive, with a toolbar at the top and a tabbed interface for advanced controls.</p>
@@ -942,7 +970,7 @@
 </ul>
 <p><img alt="Remote Viewer Snapshots" src="../images/vr_snapshot.jpg" /></p>
 <h3 id="usb-redirection">USB Redirection<a class="headerlink" href="#usb-redirection" title="Permanent link">&para;</a></h3>
-<p>The <strong>USB Devices</strong> tab enables you to pass through USB devices from your local machine (the one running Virtui Manager) directly to the VM.</p>
+<p>The <strong>USB Devices</strong> tab enables you to pass through USB devices from your local machine (the one running VirtUI Manager) directly to the VM.</p>
 <ul>
 <li><strong>Attach USB:</strong> Select a device from the "Available Host USB Devices" list and click "Attach" to make it available to the guest.</li>
 <li><strong>Detach USB:</strong> Select an attached device and click "Detach" to return control to the host.</li>
@@ -957,7 +985,7 @@
 </ul>
 <p><img alt="Remote Viewer Logs" src="../images/vr_log.jpg" /></p>
 <h2 id="connectivity">Connectivity<a class="headerlink" href="#connectivity" title="Permanent link">&para;</a></h2>
-<p>Virtui Remote Viewer handles connections intelligently:</p>
+<p>VirtUI Remote Viewer handles connections intelligently:</p>
 <ul>
 <li><strong>Local:</strong> Connects directly to local libvirt instances via Unix sockets.</li>
 <li><strong>SSH Tunneling:</strong> When managing remote servers, it automatically establishes secure SSH tunnels for VNC/SPICE traffic, ensuring your data is encrypted.</li>

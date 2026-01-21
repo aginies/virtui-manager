@@ -18,7 +18,7 @@
         <link rel="prev" href="..">
       
       
-        <link rel="next" href="../vm_actions/">
+        <link rel="next" href="../vm_configuration/">
       
       
         
@@ -440,10 +440,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#select-servers" class="md-nav__link">
+  <a href="#server-management" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Select Servers
+        Server Management
       
     </span>
   </a>
@@ -451,10 +451,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#server-list" class="md-nav__link">
+  <a href="#server-list-navigation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Server List
+        Server List &amp; Navigation
       
     </span>
   </a>
@@ -462,10 +462,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#server-prefs" class="md-nav__link">
+  <a href="#filtering-search-f" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Server Prefs
+        Filtering &amp; Search (f)
       
     </span>
   </a>
@@ -473,10 +473,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#bulk-cmd" class="md-nav__link">
+  <a href="#vm-provisioning-i" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bulk CMD
+        VM Provisioning (i)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-cmd-b" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk CMD (b)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Tools
       
     </span>
   </a>
@@ -488,10 +510,49 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#keyboard-shortcuts-cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard Shortcuts Cheat Sheet
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../vm_configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VM Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -739,10 +800,10 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#select-servers" class="md-nav__link">
+  <a href="#server-management" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Select Servers
+        Server Management
       
     </span>
   </a>
@@ -750,10 +811,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#server-list" class="md-nav__link">
+  <a href="#server-list-navigation" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Server List
+        Server List &amp; Navigation
       
     </span>
   </a>
@@ -761,10 +822,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#server-prefs" class="md-nav__link">
+  <a href="#filtering-search-f" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Server Prefs
+        Filtering &amp; Search (f)
       
     </span>
   </a>
@@ -772,10 +833,32 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#bulk-cmd" class="md-nav__link">
+  <a href="#vm-provisioning-i" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Bulk CMD
+        VM Provisioning (i)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#bulk-cmd-b" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bulk CMD (b)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#advanced-tools" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advanced Tools
       
     </span>
   </a>
@@ -784,6 +867,17 @@
         
       </ul>
     </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#keyboard-shortcuts-cheat-sheet" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard Shortcuts Cheat Sheet
+      
+    </span>
+  </a>
   
 </li>
       
@@ -808,7 +902,7 @@
 
 
 <h1 id="management-main-window">Management Main Window<a class="headerlink" href="#management-main-window" title="Permanent link">&para;</a></h1>
-<p>The <strong>Management Main Window</strong> is the central hub of Virtui Manager, designed for efficiency and rapid control of your virtual infrastructure.</p>
+<p>The <strong>Management Main Window</strong> is the central hub of VirtUI Manager, designed for efficiency and rapid control of your virtual infrastructure.</p>
 <p><img alt="Management Main Window" src="../images/management.jpg" /></p>
 <h2 id="interface-overview">Interface Overview<a class="headerlink" href="#interface-overview" title="Permanent link">&para;</a></h2>
 <div class="admonition note">
@@ -816,41 +910,110 @@
 <p>You can view the application logs at any time by pressing the <strong><code>v</code></strong> key. This is useful for monitoring background operations and troubleshooting.</p>
 </div>
 <p>The interface is divided into intuitive sections to streamline your workflow:</p>
-<h3 id="select-servers">Select Servers<a class="headerlink" href="#select-servers" title="Permanent link">&para;</a></h3>
-<p>Located at the top-left or accessible via keyboard shortcuts, this menu allows you to switch contexts between different hypervisors.</p>
+<h3 id="server-management">Server Management<a class="headerlink" href="#server-management" title="Permanent link">&para;</a></h3>
+<p>Located at the top-left, these tools control your connection contexts:</p>
 <ul>
-<li><strong>Single Pane of Glass:</strong> View VMs from local KVM instances or remote servers connected via SSH.</li>
-<li><strong>Status Indicators:</strong> Instantly see connection health and resource usage for each connected server.</li>
+<li><strong>Select Servers (<code>s</code>):</strong> Switch the "Single Pane of Glass" view to specific servers (local or remote SSH).</li>
+<li><strong>Manage Servers:</strong> Add, remove, or edit the list of available Libvirt connections.</li>
+<li><strong>Server Prefs:</strong> Configure connection details, auto-connect behaviors, and default storage/network pools for new VMs.</li>
 </ul>
-<h3 id="server-list">Server List<a class="headerlink" href="#server-list" title="Permanent link">&para;</a></h3>
+<h3 id="server-list-navigation">Server List &amp; Navigation<a class="headerlink" href="#server-list-navigation" title="Permanent link">&para;</a></h3>
 <p>The core view displaying your virtual machines.</p>
 <ul>
-<li><strong>Card View:</strong> Each VM is represented as a card showing real-time status (Running/Stopped), CPU/Memory usage sparklines, and IP addresses.</li>
+<li><strong>Card View:</strong> Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines, and IP addresses.</li>
+<li><strong>Compact View (<code>k</code>):</strong> Toggles a high-density view showing only selection, name, and status.</li>
 <li><strong>Interaction:</strong><ul>
-<li><strong>Double-Click Name:</strong> Double-clicking on a VM's name triggers a background fetch of all VM data, including its full XML configuration. This ensures that tooltips and detailed views have the most up-to-date information.</li>
-<li><strong>Compact View (<code>k</code>):</strong> Pressing <strong><code>k</code></strong> toggles between the detailed "Normal" view and a "Compact" view. The compact view is optimized for high-density environments, showing only the selection checkbox, the VM name (with its server), and the current status.</li>
+<li><strong>Double-Click Name:</strong> Triggers a background fetch of full VM data.</li>
+<li><strong>Navigation:</strong> Use <strong>Arrow Keys</strong> to move focus.</li>
+<li><strong>Pagination:</strong> Use <strong>Left/Right</strong> buttons or keys (when focused) to navigate pages of VMs.</li>
 </ul>
 </li>
-<li><strong>Visual Cues:</strong><ul>
-<li><strong>The Border/Text:</strong> Indication about the server the VM belongs to.</li>
 </ul>
-</li>
-<li><strong>Navigation:</strong> Use arrow keys to navigate the grid efficiently.</li>
-</ul>
-<h3 id="server-prefs">Server Prefs<a class="headerlink" href="#server-prefs" title="Permanent link">&para;</a></h3>
-<p>Configure server-specific settings directly from the UI without touching config files.</p>
+<h3 id="filtering-search-f">Filtering &amp; Search (<code>f</code>)<a class="headerlink" href="#filtering-search-f" title="Permanent link">&para;</a></h3>
+<p>Press <strong><code>f</code></strong> or click the <strong>Filter VM</strong> button to narrow down the list.</p>
 <ul>
-<li><strong>Connection Details:</strong> Edit URI, user, and SSH key paths.</li>
-<li><strong>Auto-Connect:</strong> Toggle which servers should connect on startup.</li>
-<li><strong>Defaults:</strong> Set default storage pools and network interfaces for new VMs on a per-server basis.</li>
+<li><strong>Search Text:</strong> Filter by VM name.</li>
+<li><strong>Status:</strong> Show only Running, Stopped, or Paused VMs.</li>
+<li><strong>Server Scope:</strong> Limit the view to specific servers from your active connection list.</li>
 </ul>
-<h3 id="bulk-cmd"><a href="../bulk_ops/">Bulk CMD</a><a class="headerlink" href="#bulk-cmd" title="Permanent link">&para;</a></h3>
+<h3 id="vm-provisioning-i">VM Provisioning (<code>i</code>)<a class="headerlink" href="#vm-provisioning-i" title="Permanent link">&para;</a></h3>
+<p>Press <strong><code>i</code></strong> to launch the <strong>VM Installation Wizard</strong>.</p>
+<ul>
+<li><strong>Guided Setup:</strong> Select target server, ISO image (local or remote), and allocate resources (CPU, RAM, Disk).</li>
+<li><strong>Defaults:</strong> Uses the defaults defined in <em>Server Prefs</em> to speed up deployment.</li>
+</ul>
+<h3 id="bulk-cmd-b"><a href="../bulk_ops/">Bulk CMD</a> (<code>b</code>)<a class="headerlink" href="#bulk-cmd-b" title="Permanent link">&para;</a></h3>
 <p>The "Bulk Command" mode puts the power of fleet management at your fingertips.</p>
 <ul>
-<li><strong>Multi-Select:</strong> Select multiple VMs manually or use <strong>Pattern Selection</strong> (regex/glob) to target specific groups (e.g., <code>web-*</code>).</li>
-<li><strong>Mass Actions:</strong> Perform operations like <code>Start</code>, <code>Shutdown</code>, or <code>Reboot</code> on all selected VMs simultaneously.</li>
-<li><strong>Efficiency:</strong> Ideal for patching cycles or bringing up environments.</li>
+<li><strong>Multi-Select:</strong> Manually select cards or use <strong><code>Ctrl+a</code></strong> (Select All) / <strong><code>Ctrl+u</code></strong> (Unselect All).</li>
+<li><strong>Pattern Selection (<code>p</code>):</strong> Select VMs based on name patterns (regex/glob).</li>
+<li><strong>Mass Actions:</strong> Perform operations like <code>Start</code>, <code>Shutdown</code>, <code>Reboot</code>, or <code>Delete</code> on all selected VMs simultaneously.</li>
 </ul>
+<h3 id="advanced-tools">Advanced Tools<a class="headerlink" href="#advanced-tools" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Virsh Shell (<code>Ctrl+v</code>):</strong> Opens a direct shell to run <code>virsh</code> commands against a selected server.</li>
+<li><strong>Stats Logging (<code>Ctrl+l</code>):</strong> Toggles background logging of performance statistics to the log file.</li>
+<li><strong>Cache Stats (<code>Ctrl+s</code>):</strong> Displays internal cache hit/miss statistics for debugging.</li>
+</ul>
+<h2 id="keyboard-shortcuts-cheat-sheet">Keyboard Shortcuts Cheat Sheet<a class="headerlink" href="#keyboard-shortcuts-cheat-sheet" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Key</th>
+<th style="text-align: left;">Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong><code>s</code></strong></td>
+<td style="text-align: left;">Select Servers</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>f</code></strong></td>
+<td style="text-align: left;">Filter View</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>i</code></strong></td>
+<td style="text-align: left;">Install New VM</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>k</code></strong></td>
+<td style="text-align: left;">Toggle Compact View</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>b</code></strong></td>
+<td style="text-align: left;">Bulk Command Mode</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>p</code></strong></td>
+<td style="text-align: left;">Pattern Select</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>v</code></strong></td>
+<td style="text-align: left;">View Application Log</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>c</code></strong></td>
+<td style="text-align: left;">Open App Configuration</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Ctrl+a</code></strong></td>
+<td style="text-align: left;">Select All Visible VMs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Ctrl+u</code></strong></td>
+<td style="text-align: left;">Unselect All VMs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Ctrl+v</code></strong></td>
+<td style="text-align: left;">Open Virsh Shell</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>q</code></strong></td>
+<td style="text-align: left;">Quit Application</td>
+</tr>
+</tbody>
+</table>
 
 
 
