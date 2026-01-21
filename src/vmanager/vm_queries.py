@@ -960,7 +960,7 @@ def get_vm_graphics_info(root: ET.Element) -> dict:
     Returns a dictionary with graphics details.
     """
     graphics_info = {
-        'type': None,
+        'type': "",
         'listen_type': 'none',  # 'none' or 'address'
         'address': '0.0.0.0', # Default to all interfaces
         'port': None,
