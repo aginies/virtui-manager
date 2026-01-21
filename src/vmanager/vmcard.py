@@ -1644,9 +1644,12 @@ class VMCard(Static):
 
             def do_delete():
                 # Stop stats worker to avoid conflicts
-                if self.timer:
-                    self.timer.stop()
-                    self.timer = None
+                def stop_stats():
+                    if self.timer:
+                        self.timer.stop()
+                        self.timer = None
+                self.app.call_from_thread(stop_stats)
+
                 self.app.worker_manager.cancel(f"update_stats_{internal_id}")
                 self.app.worker_manager.cancel(f"actions_state_{internal_id}")
 
