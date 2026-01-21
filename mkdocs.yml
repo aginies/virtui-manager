@@ -57,3 +57,4 @@ nav:
     - Virtual Machine Installation: installation.md
     - Virtui Remote Viewer: remote_viewer.md
     - VirtUI Manager CMD: cli.md
+    - Debugging and Statistics: debugging_and_statistics.md
