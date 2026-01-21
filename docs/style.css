@@ -63,7 +63,7 @@ a:hover { color: var(--accent-secondary); }
 .logo {
     font-family: var(--font-heading);
     font-weight: 700;
-    font-size: 2.1rem;
+    font-size: 1.7rem;
     color: var(--text-primary);
     letter-spacing: -0.5px;
     display: flex;
@@ -72,7 +72,7 @@ a:hover { color: var(--accent-secondary); }
 }
 
 .nav-logo {
-    height: 110px;
+    height: 100px;
     width: auto;
 }
 
@@ -383,8 +383,20 @@ footer {
         font-size: 2.5rem;
     }
     
+    .navbar {
+        flex-direction: column;
+        padding: 0.5rem;
+    }
+
     .navbar nav {
-        display: none; /* Mobile menu can be added if needed */
+        margin-top: 0.5rem;
+        width: 100%;
+    }
+
+    .navbar nav ul {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1.5rem;
     }
 }
 
