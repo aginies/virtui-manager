@@ -62,12 +62,11 @@ To enable secure connections (WSS) for the Web Console, you can provide SSL cert
 
 2. **Place the generated files in the correct directory on the remote server:**
 
-    `virtui-manager` will automatically detect `cert.pem` and `key.pem` but for remote server the file must be in:
+    *`virtui-manager` will automatically detect `cert.pem` and `key.pem` but for remote server the file must be in **System-wide path**: `/etc/virtui-manager/keys/`
 
-    -   **System-wide path**: `/etc/virtui-manager/keys/`
-        ```bash
-        sudo mkdir -p /etc/virtui-manager/keys/
-        sudo mv cert.pem key.pem /etc/virtui-manager/keys/
-        ```
+    ```bash
+    sudo mkdir -p /etc/virtui-manager/keys/
+    sudo mv cert.pem key.pem /etc/virtui-manager/keys/
+    ```
 
 If the certificate and key are found, `virtui-manager` will automatically start `websockify` with SSL/TLS encryption and use a `wss://` URL. If not, it will default to an unencrypted `ws://` connection.
