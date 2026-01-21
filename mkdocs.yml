@@ -53,6 +53,7 @@ nav:
     - Control Virtual Machine: vm_actions.md
     - Selection & Filtering: selection.md
     - Bulk Operations: bulk_ops.md
+    - Virtual Machine Migration: migration.md
     - Remote Web Console (VM): web_console.md
     - Virtual Machine Installation: installation.md
     - Virtui Remote Viewer: remote_viewer.md

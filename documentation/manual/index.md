@@ -13,6 +13,7 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [Control Virtual Machine](vm_actions.md)
 - [Selection & Filtering](selection.md)
 - [Bulk Operations](bulk_ops.md)
+- [Virtual Machine Migration](migration.md)
 - [Remote Web Console (VM)](web_console.md)
 - [Virtual Machine Installation](installation.md)
 - [VirtUI Remote Viewer](remote_viewer.md)
