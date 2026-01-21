@@ -46,5 +46,6 @@ nav:
     - Web Console: web_console.md
     - Selection & Filtering: selection.md
     - Bulk Operations: bulk_ops.md
+    - Command Line Interface: cli.md
     - App Configuration: app_configuration.md
     - Installation: installation.md
