@@ -48,4 +48,5 @@ nav:
     - Bulk Operations: bulk_ops.md
     - Command Line Interface: cli.md
     - App Configuration: app_configuration.md
+    - App Installation: app_installation.md
     - Installation: installation.md

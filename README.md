@@ -39,50 +39,7 @@ VirtUI Manager solves these challenges with:
 - **Python Dependencies**: textual, pyaml, libvirt-python, markdown-it-py
 - **Optional**: virt-viewer, novnc, websockify for enhanced functionality
 
-## Installation
-
-### Clone the Repository
-```bash
-git clone https://github.com/aginies/virtui-manager.git
-cd virtui-manager
-```
-
-### openSUSE/SLE Zypper
-
-```bash
-zypper in libvirt-python python3-textual python3-pyaml python3-markdown-it-py
-```
-
-### Install Python Dependencies
-```bash
-pip install libvirt-python textual pyaml markdown-it-py
-```
-
-### Run the Application
-```bash
-cd src/vmanager
-python3 vmanager.py
-```
-
-## Command-Line Interface
-
-In addition to the main TUI application, `vmanager` provides a command-line interface (`vmanager_cmd.py`) for:
-- Multi-server management
-- Bulk VM operations
-- Basic Storage management
-- Advanced VM selection with regular expressions
-- Tab autocompletion for enhanced usability
-
-Launch the CLI with:
-```bash
-python3 vmanager_cmd.py
-```
-Or:
-```bash
-python3 vmanager.py --cmd
-```
-
-### Network & Sound Models
+### Note about Libvirt API
 
 As there is no simple way to get **sound** and **network** model using libvirt API, the user can provides a list in his own configuration file. 
 

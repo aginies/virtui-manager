@@ -6,6 +6,7 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 
 ## Table of Contents
 
+- [VirtUI Manager Installation](app_installation.md)
 - [Management Main Window](main_window.md)
 - [VirtUI Manager Configuration](app_configuration.md)
 - [Virtual Machine Configuration](vm_configuration.md)
@@ -15,3 +16,4 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [Remote Web Console (VM)](web_console.md)
 - [Virtual Machine Installation](installation.md)
 - [VirtUI Remote Viewer](remote_viewer.md)
+- [VirtUI Manager CMD](cli.md)
