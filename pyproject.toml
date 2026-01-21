@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "virtui-manager"
-version = "0.9.0"
+version = "0.9.9"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
 authors = [
@@ -55,7 +55,7 @@ webconsole = [
 
 [project.urls]
 Homepage = "https://aginies.github.io/virtui-manager/"
-Documentation = "https://aginies.github.io/virtui-manager/"
+Documentation = "https://aginies.github.io/virtui-manager/manual"
 Repository = "https://github.com/aginies/virtui-manager"
 Issues = "https://github.com/aginies/virtui-manager/issues"
 Changelog = "https://github.com/aginies/virtui-manager/releases"
