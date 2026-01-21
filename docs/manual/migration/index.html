@@ -1042,11 +1042,13 @@
 <h2 id="compatibility-checks">Compatibility Checks<a class="headerlink" href="#compatibility-checks" title="Permanent link">&para;</a></h2>
 <p>Before starting the actual migration, you can (and should) run a <strong>Check Compatibility</strong>.</p>
 <p><img alt="Compatibility Check" src="../images/migration2.jpg" /></p>
-<p>The compatibility check performs several verifications:
-*   <strong>Server Connectivity:</strong> Ensures the destination is reachable.
-*   <strong>CPU Compatibility:</strong> Checks if the destination host CPU supports the VM's CPU configuration (especially important for <code>host-passthrough</code> or <code>host-model</code>).
-*   <strong>Storage Pools:</strong> Checks if required storage pools exist on the destination.
-*   <strong>Disk Availability:</strong> Verifies if disk images or paths are accessible or need to be created.</p>
+<p>The compatibility check performs several verifications:</p>
+<ul>
+<li><strong>Server Connectivity:</strong> Ensures the destination is reachable.</li>
+<li><strong>CPU Compatibility:</strong> Checks if the destination host CPU supports the VM's CPU configuration (especially important for <code>host-passthrough</code> or <code>host-model</code>).</li>
+<li><strong>Storage Pools:</strong> Checks if required storage pools exist on the destination.</li>
+<li><strong>Disk Availability:</strong> Verifies if disk images or paths are accessible or need to be created.</li>
+</ul>
 <div class="admonition warning">
 <p class="admonition-title">CPU Compatibility</p>
 <p>If you see warnings about CPU incompatibility, the migration might fail or the VM might crash on the destination. You may need to change the VM's CPU mode to a more generic model (e.g., <code>x86_64</code> or <code>kvm64</code>) before migrating.</p>
@@ -1054,10 +1056,12 @@
 <h2 id="custom-migration-non-shared-storage">Custom Migration (Non-Shared Storage)<a class="headerlink" href="#custom-migration-non-shared-storage" title="Permanent link">&para;</a></h2>
 <p>For environments without shared storage (like NFS or iSCSI/SAN), VirtUI Manager's <strong>Custom Migration</strong> features are essential.</p>
 <p><img alt="Custom Migration Details" src="../images/migration3.jpg" /></p>
-<p>When "Custom migration" is enabled, VirtUI Manager attempts to:
-1.  <strong>Analyze Disks:</strong> Identifies all disks attached to the VM.
-2.  <strong>Create Storage:</strong> If the destination storage pool exists but the volume doesn't, it can create the necessary empty volumes on the destination.
-3.  <strong>Handle Overlays:</strong>  It has logic to handle qcow2 backing chains, ensuring the base images exist on the destination.</p>
+<p>When "Custom migration" is enabled, VirtUI Manager attempts to:</p>
+<ol>
+<li><strong>Analyze Disks:</strong> Identifies all disks attached to the VM.</li>
+<li><strong>Create Storage:</strong> If the destination storage pool exists but the volume doesn't, it can create the necessary empty volumes on the destination.</li>
+<li><strong>Handle Overlays:</strong>  It has logic to handle qcow2 backing chains, ensuring the base images exist on the destination.</li>
+</ol>
 <p><img alt="Migration Progress" src="../images/migration4.jpg" /></p>
 <h2 id="performing-the-migration">Performing the Migration<a class="headerlink" href="#performing-the-migration" title="Permanent link">&para;</a></h2>
 <ol>

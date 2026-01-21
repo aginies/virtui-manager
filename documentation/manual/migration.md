@@ -13,6 +13,7 @@ The migration interface guides you through the process of selecting a destinatio
 ![Migration Interface](images/migration.jpg)
 
 ### 1. Select Destination Server
+
 First, choose the target host from the "Select destination server" dropdown. This list is populated from your configured Libvirt connections.
 
 ### 2. Migration Options
@@ -33,6 +34,7 @@ Before starting the actual migration, you can (and should) run a **Check Compati
 ![Compatibility Check](images/migration2.jpg)
 
 The compatibility check performs several verifications:
+
 *   **Server Connectivity:** Ensures the destination is reachable.
 *   **CPU Compatibility:** Checks if the destination host CPU supports the VM's CPU configuration (especially important for `host-passthrough` or `host-model`).
 *   **Storage Pools:** Checks if required storage pools exist on the destination.
@@ -48,6 +50,7 @@ For environments without shared storage (like NFS or iSCSI/SAN), VirtUI Manager'
 ![Custom Migration Details](images/migration3.jpg)
 
 When "Custom migration" is enabled, VirtUI Manager attempts to:
+
 1.  **Analyze Disks:** Identifies all disks attached to the VM.
 2.  **Create Storage:** If the destination storage pool exists but the volume doesn't, it can create the necessary empty volumes on the destination.
 3.  **Handle Overlays:**  It has logic to handle qcow2 backing chains, ensuring the base images exist on the destination.
