@@ -182,18 +182,18 @@ def check_r_viewer(configured_viewer: str = None) -> str:
         Exception: For unexpected errors during check
     """
     try:
-        virtui = shutil.which("virtui-remote-viewer.py")
+        virtui = shutil.which("virtui-remote-viewer")
         virt = shutil.which("virt-viewer")
 
         if configured_viewer:
-            if configured_viewer == "virtui-remote-viewer.py" and virtui:
-                return "virtui-remote-viewer.py"
+            if configured_viewer == "virtui-remote-viewer" and virtui:
+                return "virtui-remote-viewer"
             elif configured_viewer == "virt-viewer" and virt:
                 return "virt-viewer"
             logging.warning(f"Configured viewer {configured_viewer} not found. Falling back to auto-detection.")
 
         if virtui is not None:
-            return "virtui-remote-viewer.py"
+            return "virtui-remote-viewer"
         elif virt is not None:
             return "virt-viewer"
         else:
