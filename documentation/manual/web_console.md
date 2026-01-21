@@ -47,3 +47,27 @@ To use this feature, the following must be installed (either locally or on the r
 *   `noVNC` assets (HTML/JS/CSS)
 
 Paths to these resources are defined in your [configuration file](app_configuration.md).
+
+## SSL/TLS Encryption
+
+To enable secure connections (WSS) for the Web Console, you can provide SSL certificates.
+
+**Generate a self-signed certificate and key on the remote server:**
+
+    Log in to your remote libvirt server and run the following command. Replace `your.remote.host.com` with the server's actual hostname or IP address. This is important for the browser to trust the certificate.
+
+    ```bash
+    openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -sha256 -days 365 -nodes -subj "/CN=your.remote.host.com"
+    ```
+
+3.  **Place the generated files in the correct directory on the remote server:**
+
+    `virtui-manager` will automatically detect `cert.pem` and `key.pem` but for remote server the file must be in:
+
+    -   **System-wide path**: `/etc/virtui-manager/keys/`
+        ```bash
+        sudo mkdir -p /etc/virtui-manager/keys/
+        sudo mv cert.pem key.pem /etc/virtui-manager/keys/
+        ```
+
+If the certificate and key are found, `virtui-manager` will automatically start `websockify` with SSL/TLS encryption and use a `wss://` URL. If not, it will default to an unencrypted `ws://` connection.
