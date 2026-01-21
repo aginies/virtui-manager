@@ -38,7 +38,7 @@ class AppCacheTimeout:
 class AppInfo:
     """Define app data"""
     name = "virtui-manager"
-    namecase = "Virtui Manager"
+    namecase = "VirtUI Manager"
     version = "0.9.9"
 
 class VmAction:
