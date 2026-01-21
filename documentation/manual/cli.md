@@ -10,6 +10,7 @@ virtui-manager --cmd
 ## Core Concepts
 
 The CLI operates on a context-based system:
+
 1.  **Connect** to one or more servers.
 2.  **Select** the VMs you want to manage.
 3.  **Execute** commands on the selection.
