@@ -589,6 +589,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#ssltls-encryption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSL/TLS Encryption
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -821,6 +832,17 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#ssltls-encryption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSL/TLS Encryption
+      
+    </span>
+  </a>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -890,6 +912,27 @@
 <li><code>noVNC</code> assets (HTML/JS/CSS)</li>
 </ul>
 <p>Paths to these resources are defined in your <a href="../app_configuration/">configuration file</a>.</p>
+<h2 id="ssltls-encryption">SSL/TLS Encryption<a class="headerlink" href="#ssltls-encryption" title="Permanent link">&para;</a></h2>
+<p>To enable secure connections (WSS) for the Web Console, you can provide SSL certificates.</p>
+<ol>
+<li>
+<p><strong>Generate a self-signed certificate and key on the remote server:</strong></p>
+<p>Log in to your remote libvirt server and run the following command. Replace <code>your.remote.host.com</code> with the server's actual hostname or IP address. This is important for the browser to trust the certificate.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>openssl<span class="w"> </span>req<span class="w"> </span>-x509<span class="w"> </span>-newkey<span class="w"> </span>rsa:4096<span class="w"> </span>-keyout<span class="w"> </span>key.pem<span class="w"> </span>-out<span class="w"> </span>cert.pem<span class="w"> </span>-sha256<span class="w"> </span>-days<span class="w"> </span><span class="m">365</span><span class="w"> </span>-nodes<span class="w"> </span>-subj<span class="w"> </span><span class="s2">&quot;/CN=your.remote.host.com&quot;</span>
+</code></pre></div>
+</li>
+<li>
+<p><strong>Place the generated files in the correct directory on the remote server:</strong></p>
+<p><code>virtui-manager</code> will automatically detect <code>cert.pem</code> and <code>key.pem</code> but for remote server the file must be in:</p>
+<ul>
+<li><strong>System-wide path</strong>: <code>/etc/virtui-manager/keys/</code>
+    <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/etc/virtui-manager/keys/
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>sudo<span class="w"> </span>mv<span class="w"> </span>cert.pem<span class="w"> </span>key.pem<span class="w"> </span>/etc/virtui-manager/keys/
+</code></pre></div></li>
+</ul>
+</li>
+</ol>
+<p>If the certificate and key are found, <code>virtui-manager</code> will automatically start <code>websockify</code> with SSL/TLS encryption and use a <code>wss://</code> URL. If not, it will default to an unencrypted <code>ws://</code> connection.</p>
 
 
 
