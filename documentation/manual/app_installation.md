@@ -11,7 +11,22 @@ VirtUI Manager is a Python-based application that leverages `libvirt` for virtua
 *   **Virtualization:** KVM/QEMU and Libvirt installed and running.
 *   **Access:** Your user must have permissions to manage libvirt (usually part of the `libvirt` group).
 
-## Installation Steps
+
+## OpenSUSE / SLE Installation
+
+VirtUI Manager is available as a package in the [Virtualization](https://build.opensuse.org/package/show/Virtualization/virtui-manager) repository. Choose the right repository, go to it and download packages and install them. IE for 16.0:
+
+* go to [16 repo](https://download.opensuse.org/repositories/Virtualization/16.0/noarch/)
+* Search for **virtui-manager**
+* Download the rpm packages: **virtui-manager**, **virtui-manager-doc**, **virtui-remote-viewer**
+* install the packages
+
+```bash
+sudo zypper in virtui-*.rpm
+```
+
+
+## Installation Steps from Source Code
 
 ### 1. Clone the Repository
 
@@ -28,6 +43,7 @@ You can install dependencies using your system's package manager (recommended fo
 
 #### openSUSE / SLE (Zypper)
 
+To install dependencies manually from official repositories (this is done automatically when installing the packages):
 ```bash
 sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py
 ```
@@ -37,7 +53,7 @@ sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it
 If your distribution doesn't package these libraries or you prefer a virtual environment:
 
 ```bash
-pip install libvirt-python textual pyyaml markdown-it-py
+pipx install libvirt-python textual pyyaml markdown-it-py
 ```
 
 ### 3. Run the Application
@@ -51,4 +67,4 @@ python3 vmanager.py
 
 !!! tip "Add to PATH"
     For easier access, you can create a shell alias or symlink:
-    `alias vimgr='python3 /path/to/virtui-manager/src/vmanager/vmanager.py'`
+    `alias virtui-manager='python3 /path/to/virtui-manager/src/vmanager/vmanager.py'`
