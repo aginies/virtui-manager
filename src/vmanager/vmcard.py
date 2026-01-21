@@ -1250,10 +1250,13 @@ class VMCard(Static):
             vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
             cached_xml = vm_cache.get('xml')
 
+            xml_flags = 0
             try:
                 original_xml = self.vm.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
+                xml_flags = libvirt.VIR_DOMAIN_XML_SECURE
             except libvirt.libvirtError:
                 original_xml = self.vm.XMLDesc(0)
+                xml_flags = 0
             is_stopped = self.status == StatusText.STOPPED
 
             def handle_xml_modal_result(modified_xml: str | None):
@@ -1261,9 +1264,18 @@ class VMCard(Static):
                     if original_xml.strip() != modified_xml.strip():
                         try:
                             conn = self.vm.connect()
-                            conn.defineXML(modified_xml)
-                            self.app.show_success_message(f"VM [b]{self.name}[/b] configuration updated successfully.")
-                            logging.info(f"Successfully updated XML for VM: {self.name}")
+                            new_domain = conn.defineXML(modified_xml)
+                            
+                            # Verify if changes were effectively applied
+                            new_xml = new_domain.XMLDesc(xml_flags)
+                            
+                            if original_xml == new_xml:
+                                self.app.show_warning_message(f"VM [b]{self.name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away.")
+                                logging.warning(f"XML update for {self.name} resulted in no effective changes.")
+                            else:
+                                self.app.show_success_message(f"VM [b]{self.name}[/b] configuration updated successfully.")
+                                logging.info(f"Successfully updated XML for VM: {self.name}")
+                            
                             self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.app.refresh_vm_list()

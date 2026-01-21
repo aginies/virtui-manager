@@ -22,6 +22,7 @@ Located at the top-left, these tools control your connection contexts:
 ### Server List & Navigation
 
 The core view displaying your virtual machines.
+![Select Server to Display](images/select_server_display.jpg)
 
 *   **Card View:** Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines, and IP addresses.
 *   **Compact View (`k`):** Toggles a high-density view showing only selection, name, and status.
