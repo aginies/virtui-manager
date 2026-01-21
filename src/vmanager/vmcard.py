@@ -6,6 +6,7 @@ import os
 import logging
 import traceback
 import datetime
+import threading
 import time
 from functools import partial
 from urllib.parse import urlparse
@@ -164,6 +165,7 @@ class VMCard(Static):
         self.is_selected = is_selected
         self.timer = None
         self._boot_device_checked = False
+        self._timer_lock = threading.Lock()
         self._last_click_time = 0
 
     def _get_vm_display_name(self) -> str:
@@ -628,8 +630,11 @@ class VMCard(Static):
 
     def on_unmount(self) -> None:
         """Stop the timer and cancel any running stat workers when the widget is removed."""
-        if self.timer:
-            self.timer.stop()
+        with self._timer_lock:
+            if self.timer:
+                self.timer.stop()
+                self.timer = None
+        # Cancel Workers
         if self.vm:
             try:
                 uuid = self.internal_id
@@ -647,8 +652,9 @@ class VMCard(Static):
     def reset_for_reuse(self) -> None:
         """Reset card state for reuse by another VM."""
         # Stop any running timers
-        if self.timer:
-            self.timer.stop()
+        with self._timer_lock:
+            if self.timer:
+                self.timer.stop()
             self.timer = None
 
         # Cancel any running workers
@@ -683,19 +689,20 @@ class VMCard(Static):
             return
 
         # Cancel previous timer if it exists to prevent accumulation
-        if self.timer:
-            self.timer.stop()
-            self.timer = None
+        with self._timer_lock:
+            if self.timer:
+                self.timer.stop()
+                self.timer = None
 
-        is_stopped = self.status == StatusText.STOPPED
+            is_stopped = self.status == StatusText.STOPPED
 
-        # If the VM is stopped, we don't schedule a recurring timer.
-        # The worker will run once to check if the state has changed.
-        # If it has (e.g., started externally), the watch_status handler
-        # will call update_stats again, and a timer will be scheduled.
-        if not is_stopped:
-            interval = self.app.config.get('STATS_INTERVAL', 5)
-            self.timer = self.set_timer(interval, self.update_stats)
+            # If the VM is stopped, we don't schedule a recurring timer.
+            # The worker will run once to check if the state has changed.
+            # If it has (e.g., started externally), the watch_status handler
+            # will call update_stats again, and a timer will be scheduled.
+            if not is_stopped:
+                interval = self.app.config.get('STATS_INTERVAL', 5)
+                self.timer = self.set_timer(interval, self.update_stats)
 
         # If the VM is stopped, we still run the worker once to catch external state changes.
         uuid = self.internal_id
@@ -823,7 +830,8 @@ class VMCard(Static):
                 if error_code == libvirt.VIR_ERR_NO_DOMAIN:
                     if self.timer:
                         try:
-                            self.app.call_from_thread(self.timer.stop)
+                            with self._timer_lock:
+                                self.app.call_from_thread(self.timer.stop)
                         except RuntimeError:
                             self.timer.stop()
                     try:
