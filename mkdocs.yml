@@ -1,4 +1,4 @@
-site_name: Virtui Manager Documentation
+site_name: VirtUI Manager Documentation
 site_url: https://aginies.github.io/virtui-manager/
 site_description: The next-generation terminal-based management solution for QEMU/KVM virtualization.
 site_author: aginies
@@ -18,7 +18,14 @@ theme:
   features:
     - navigation.tabs
     - navigation.sections
+    - navigation.footer
+    - navigation.tracking
     - content.code.copy
+    - navigation.instant
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - search.share
   icon:
     repo: fontawesome/brands/github
 
