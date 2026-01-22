@@ -769,7 +769,7 @@ class VMService:
                 info = domain.info()
                 with self._cache_lock:
                     # Re-acquire vm_cache after lock
-                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache = self._vm_data_cache.setdefault(uuid, {})
                     vm_cache['info'] = info
                     vm_cache['info_ts'] = now
                     #logging.info(f"Cache WRITE for VM info: {uuid}")
@@ -805,7 +805,7 @@ class VMService:
                     xml = domain.XMLDesc(0)
 
                 with self._cache_lock:
-                    vm_cache = self._vm_data_cache[uuid]
+                    vm_cache = self._vm_data_cache.setdefault(uuid, {})
                     vm_cache['xml'] = xml
                     vm_cache['xml_ts'] = now
                     logging.info(f"Cache WRITE for VM XML: {uuid}")
