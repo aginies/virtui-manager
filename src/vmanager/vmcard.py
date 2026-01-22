@@ -339,9 +339,7 @@ class VMCard(Static):
 
     def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
-        if not self.display:
-            return
-        if not self.ui or "vmname" not in self.ui:
+        if not self.display or not self.ui or "vmname" not in self.ui:
             return
         
         uuid = self.internal_id
@@ -477,8 +475,9 @@ class VMCard(Static):
                 cpu_label.update(cpu_text)
                 mem_label.update(mem_text)
 
-                cpu_sparkline.data = list(storage.get("cpu", []))
-                mem_sparkline.data = list(storage.get("mem", []))
+                with self.app.vm_service._sparkline_lock:
+                    cpu_sparkline.data = list(storage.get("cpu", []))
+                    mem_sparkline.data = list(storage.get("mem", []))
         else:  # io mode
             disk_label = self.ui.get("disk_label")
             net_label = self.ui.get("net_label")
@@ -496,9 +495,9 @@ class VMCard(Static):
 
                 disk_label.update(disk_text)
                 net_label.update(net_text)
-
-                disk_sparkline.data = list(storage.get("disk", []))
-                net_sparkline.data = list(storage.get("net", []))
+                with self.app.vm_service._sparkline_lock:
+                    disk_sparkline.data = list(storage.get("disk", []))
+                    net_sparkline.data = list(storage.get("net", []))
 
     def watch_name(self, value: str) -> None:
         """Called when name changes."""
@@ -807,12 +806,13 @@ class VMCard(Static):
                                     history.pop(0)
                                 storage[key] = history
 
-                            if self.stats_view_mode == "resources":
-                                update_history("cpu", stats["cpu_percent"])
-                                update_history("mem", stats["mem_percent"])
-                            else: # io
-                                update_history("disk", self.latest_disk_read + self.latest_disk_write)
-                                update_history("net", self.latest_net_rx + self.latest_net_tx)
+                            with app_ref.vm_service._sparkline_lock:
+                                if self.stats_view_mode == "resources":
+                                    update_history("cpu", stats["cpu_percent"])
+                                    update_history("mem", stats["mem_percent"])
+                                else: # io
+                                    update_history("disk", self.latest_disk_read + self.latest_disk_write)
+                                    update_history("net", self.latest_net_rx + self.latest_net_tx)
 
                             self.update_sparkline_data()
                         else:
@@ -899,7 +899,7 @@ class VMCard(Static):
         self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
-        self.ui[ButtonIds.SNAPSHOT_TAKE].display = is_running or is_paused
+        self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading #is_running or is_paused
         self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading
 
         xml_button = self.ui[ButtonIds.XML]
@@ -1223,6 +1223,15 @@ class VMCard(Static):
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
             self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
 
+    def stop_background_activities(self):
+        """ Stop background activities before action """
+        with self._timer_lock:
+            if self.timer:
+                self.timer.stop()
+                self.timer = None
+        self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
+        self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
         logging.info(f"Attempting to stop VM: {self.name}")
@@ -1233,6 +1242,7 @@ class VMCard(Static):
             #if self.vm.isActive():
             # maybe better to use cache status
             if self.status in (StatusText.RUNNING, StatusText.PAUSED):
+                self.stop_background_activities()
                 self.post_message(VmActionRequest(self.internal_id, VmAction.FORCE_OFF))
 
         message = f"{ErrorMessages.HARD_STOP_WARNING}\nAre you sure you want to stop '{self.name}'?"
@@ -1243,6 +1253,7 @@ class VMCard(Static):
         logging.info(f"Attempting to pause VM: {self.name}")
         # Use status instead of blocking isActive() call
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
+            self.stop_background_activities()
             self.post_message(VmActionRequest(self.internal_id, VmAction.PAUSE))
         else:
             self.app.show_warning_message(f"VM '{self.name}' is not in a pausable state.")
@@ -1250,7 +1261,10 @@ class VMCard(Static):
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
         logging.info(f"Attempting to resume VM: {self.name}")
+        self.stop_background_activities()
+        self.status = StatusText.LOADING
         self.post_message(VmActionRequest(self.internal_id, VmAction.RESUME))
+        self.app.set_timer(1.0, self.update_stats)
 
     def _handle_xml_button(self, event: Button.Pressed) -> None:
         """Handles the xml button press."""
@@ -1411,6 +1425,9 @@ class VMCard(Static):
                 description = result["description"]
                 quiesce = result.get("quiesce", False)
 
+                self.stop_background_activities()
+                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{internal_id}")
+
                 loading_modal = LoadingModal(message=f"Taking snapshot for {vm_name}...")
                 self.app.push_screen(loading_modal)
 
@@ -1531,6 +1548,8 @@ class VMCard(Static):
                     if snapshot_name:
                         def on_confirm(confirmed: bool) -> None:
                             if confirmed:
+                                self.stop_background_activities()
+                                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{internal_id}")
                                 try:
                                     delete_vm_snapshot(vm, snapshot_name)
                                     self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")

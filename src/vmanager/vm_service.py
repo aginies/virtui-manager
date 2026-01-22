@@ -100,6 +100,7 @@ class VMService:
         self._data_update_callback = None
         self._vm_update_callback = None
         self._message_callback = None
+        self._sparkline_lock = threading.Lock()
         self._force_update_event = threading.Event()
         self.start_monitoring()
 
