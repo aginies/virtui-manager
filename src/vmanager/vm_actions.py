@@ -2997,3 +2997,52 @@ def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
 
     new_xml = ET.tostring(root, encoding='unicode')
     domain.connect().defineXML(new_xml)
+
+
+def set_vm_cputune(domain: libvirt.virDomain, vcpupin_list: list[dict]):
+    """
+    Sets cputune configuration (vcpupin) for a VM.
+    The VM must be stopped.
+    """
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change CPU Tune settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    # Remove existing cputune
+    cputune = root.find('cputune')
+    if cputune is not None:
+        root.remove(cputune)
+
+    if vcpupin_list:
+        cputune = ET.SubElement(root, 'cputune')
+        for pin in vcpupin_list:
+            ET.SubElement(cputune, 'vcpupin', vcpu=str(pin['vcpu']), cpuset=str(pin['cpuset']))
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
+
+def set_vm_numatune(domain: libvirt.virDomain, mode: str, nodeset: str):
+    """
+    Sets numatune configuration for a VM.
+    The VM must be stopped.
+    """
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change NUMA Tune settings.")
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+
+    # Remove existing numatune
+    numatune = root.find('numatune')
+    if numatune is not None:
+        root.remove(numatune)
+
+    if mode and mode != "None":
+        numatune = ET.SubElement(root, 'numatune')
+        ET.SubElement(numatune, 'memory', mode=mode, nodeset=nodeset)
+
+    new_xml = ET.tostring(root, encoding='unicode')
+    domain.connect().defineXML(new_xml)
