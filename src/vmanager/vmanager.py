@@ -1040,6 +1040,8 @@ class VMManagerTUI(App):
             # Use cached identity to avoid extra libvirt call
             _, vm_name = self.vm_service.get_vm_identity(domain)
             logging.info(f"Action Request: {message.action} for VM: {vm_name} (ID: {message.internal_id})")
+
+            self.vm_service.suppress_vm_events(message.internal_id)
             try:
                 # Message are done by events
                 if message.action == VmAction.START:
@@ -1065,6 +1067,7 @@ class VMManagerTUI(App):
                     f"Error on VM [b]{vm_name}[/b] during '{message.action}': {e}",
                 )
             finally:
+                self.vm_service.unsuppress_vm_events(message.internal_id)
                 # Always try to unset the flag from the main thread
                 def unset_flag():
                     if self.bulk_operation_in_progress:
