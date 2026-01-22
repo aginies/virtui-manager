@@ -25,7 +25,8 @@ from vm_queries import (
     get_vm_sound_model,
     get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info, get_vm_video_info,
     get_attached_usb_devices, get_serial_devices, get_vm_input_info,
-    get_vm_watchdog_info, get_attached_pci_devices
+    get_vm_watchdog_info, get_attached_pci_devices,
+    get_vm_numatune, get_vm_cputune
     )
 from vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
@@ -37,7 +38,8 @@ from vm_actions import (
         detach_usb_device, add_serial_console, remove_serial_console,
         add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog,
         add_usb_device, remove_usb_device, add_scsi_controller, remove_scsi_controller,
-        migrate_vm_machine_type, add_vm_channel, remove_vm_channel
+        migrate_vm_machine_type, add_vm_channel, remove_vm_channel,
+        set_vm_numatune, set_vm_cputune
 )
 from config import get_log_path
 from network_manager import (
@@ -49,11 +51,13 @@ from firmware_manager import (
 import storage_manager
 from libvirt_utils import (
         get_cpu_models, get_domain_capabilities_xml, get_video_domain_capabilities,
-        get_host_usb_devices, get_host_pci_devices
+        get_host_usb_devices, get_host_pci_devices,
+        get_host_numa_nodes
         )
 from modals.utils_modals import ConfirmationDialog, ProgressModal
 from modals.cpu_mem_pc_modals import (
-        EditCpuModal, EditMemoryModal, SelectMachineTypeModal
+        EditCpuModal, EditMemoryModal, SelectMachineTypeModal,
+        EditNumaTuneModal, EditCpuTuneModal,
         )
 from modals.virtiofs_modals import AddEditVirtIOFSModal
 from modals.disk_pool_modals import (
@@ -125,6 +129,9 @@ class VMDetailModal(ModalScreen):
         self.rng_info = get_vm_rng_info(root)
         self.tpm_info = get_vm_tpm_info(root)
         self.watchdog_info = get_vm_watchdog_info(root)
+        self.cputune_info = get_vm_cputune(root)
+        self.numatune_info = get_vm_numatune(root)
+        self.host_numa_nodes = get_host_numa_nodes(self.conn)
 
     def _run_bulk_operation(self, targets, operation, success_msg_fmt, error_msg_fmt, ui_update_callback=None):
         """Helper to run bulk operations sequentially in a worker."""
@@ -262,7 +269,7 @@ class VMDetailModal(ModalScreen):
                 sev_es_checkbox.display = self.sev_caps['sev-es']
                 sev_checkbox.disabled = not self.vm_info.get("status") == "Stopped"
                 sev_es_checkbox.disabled = not self.vm_info.get("status") == "Stopped"
-            except Exception as e:
+            except Exception:
                 try:
                     # If getting caps failed, hide checkboxes if they exist
                     if self.query("#sev-checkbox"):
@@ -1613,6 +1620,22 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             classes="cpu-model-select"
                         )
+                        yield Static(classes="button-separator")
+
+                        # CPU Tune
+                        vcpupin_count = len(self.cputune_info.get('vcpupin', []))
+                        yield Label(f"CPU Pinning: {vcpupin_count} rules", id="cputune-label", classes="tabd")
+                        yield Button("Edit CPU Tune", id="edit-cputune", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
+
+                        yield Static(classes="button-separator")
+
+                        # NUMA Tune
+                        numa_mode = self.numatune_info.get('memory', {}).get('mode', 'strict')
+                        yield Label(f"NUMA Mode: {numa_mode}", id="numatune-label", classes="tabd")
+
+                        numa_btn_disabled = not self.is_vm_stopped or self.host_numa_nodes <= 1
+                        yield Button("Edit NUMA Tune", id="edit-numatune", classes="edit-detail-btn", disabled=numa_btn_disabled)
+
                 with TabPane("Mem", id="detail-mem-tab", ):
                     with Vertical(classes="info-details"):
                         yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label", classes="tabd")
@@ -3048,6 +3071,52 @@ class VMDetailModal(ModalScreen):
                 if self.is_bulk:
                     msg = f"Are you sure you want to remove console on port {self.selected_serial_port} from ALL selected VMs?"
                 self.app.push_screen(ConfirmationDialog(msg), on_confirm_remove)
+
+    @on(Button.Pressed, "#edit-cputune")
+    def on_edit_cputune_pressed(self, event: Button.Pressed) -> None:
+        def callback(new_vcpupin):
+            if new_vcpupin is not None:
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                def operation(d):
+                    set_vm_cputune(d, new_vcpupin)
+
+                def ui_update():
+                    if not self.is_bulk:
+                        self.cputune_info['vcpupin'] = new_vcpupin
+                        count = len(new_vcpupin)
+                        self.query_one("#cputune-label").update(f"CPU Pinning: {count} rules")
+
+                self._run_bulk_operation(
+                    targets, operation, "CPU Tune updated", "Error updating CPU Tune", ui_update
+                )
+
+        current_vcpu_count = int(self.vm_info.get('cpu', 0))
+        self.app.push_screen(EditCpuTuneModal(self.cputune_info.get('vcpupin'), max_vcpus=current_vcpu_count), callback)
+
+    @on(Button.Pressed, "#edit-numatune")
+    def on_edit_numatune_pressed(self, event: Button.Pressed) -> None:
+        current_mode = self.numatune_info.get('memory', {}).get('mode', 'strict')
+        current_nodeset = self.numatune_info.get('memory', {}).get('nodeset', '')
+
+        def callback(result):
+            if result:
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                def operation(d):
+                    set_vm_numatune(d, result['mode'], result['nodeset'])
+
+                def ui_update():
+                    if not self.is_bulk:
+                        self.numatune_info['memory'] = result
+                        self.query_one("#numatune-label").update(f"NUMA Mode: {result['mode']}")
+
+                self._run_bulk_operation(
+                    targets, operation, "NUMA Tune updated", "Error updating NUMA Tune", ui_update
+                )
+
+        self.app.push_screen(EditNumaTuneModal(current_mode, current_nodeset), callback)
+
 
     def action_close_modal(self) -> None:
         """Close the modal."""
