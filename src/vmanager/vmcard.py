@@ -1432,23 +1432,30 @@ class VMCard(Static):
                 self.app.push_screen(loading_modal)
 
                 def do_snapshot():
+                    error = None
                     try:
                         create_vm_snapshot(vm, name, description, quiesce=quiesce)
-
-                        def finalize_snapshot():
-                            loading_modal.dismiss()
-                            self.app.vm_service.invalidate_vm_cache(internal_id)
-                            self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
-                            self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
-                            self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
-
-                        self.app.call_from_thread(finalize_snapshot)
                     except Exception as e:
-                        def show_error():
-                            loading_modal.dismiss()
-                            self.app.show_error_message(f"Snapshot error for [b]{vm_name}[/b]: {e}")
-                        self.app.call_from_thread(show_error)
+                        error = e
 
+                    # Invalidate caches in worker thread to avoid blocking main thread
+                    if not error:
+                        try:
+                            self.app.vmservice.invalidatedomaincache()
+                        except Exception:
+                            pass
+                    def finalize_snapshot():
+                        loading_modal.dismiss()
+                        if error:
+                            self.app.showerrormessage(f"Snapshot error for **{vm_name}**: {error}")
+                        else:
+                            self.app.show_success_message(f"Snapshot **{name}** created successfully.")
+                            # Defer refresh and restart stats to avoid racing
+                            self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
+                        # Restart stats timer after a delay
+                        self.app.set_timer(1.0, self.update_stats)
+
+                    self.app.call_from_thread(finalize_snapshot)
                 self.app.worker_manager.run(do_snapshot, name=f"snapshot_take_{internal_id}")
 
         self.app.push_screen(SnapshotNameDialog(vm), handle_snapshot_result)
@@ -1559,6 +1566,9 @@ class VMCard(Static):
                                     logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {vm_name}")
                                 except Exception as e:
                                     self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot delete': {e}")
+                                finally:
+                                    # Restart stats timer
+                                    self.update_stats()
 
                         self.app.push_screen(
                             ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
