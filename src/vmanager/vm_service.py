@@ -131,6 +131,18 @@ class VMService:
         with self._cache_lock:
             self._visible_uuids = uuids
 
+    def suppress_vm_events(self, uuid: str):
+        """Suppresses lifecycle events for a specific VM UUID."""
+        with self._cache_lock:
+            self._suppressed_uuids.add(uuid)
+            logging.debug(f"Events suppressed for {uuid}")
+
+    def unsuppress_vm_events(self, uuid: str):
+        """Unsuppresses lifecycle events for a specific VM UUID."""
+        with self._cache_lock:
+            self._suppressed_uuids.discard(uuid)
+            logging.debug(f"Events unsuppressed for {uuid}")
+
     def start_monitoring(self):
         """Starts the background monitoring thread."""
         if self._monitoring_active:
@@ -236,7 +248,7 @@ class VMService:
             # Register close callback (always, even if events are disabled, to handle disconnects)
             try:
                 conn.registerCloseCallback(self._connection_close_callback, uri)
-                logging.info(f"Registered close callback for {uri}")
+                logging.debug(f"Registered close callback for {uri}")
             except Exception as e:
                 logging.warning(f"Failed to register close callback for {uri}: {e}")
 
@@ -350,7 +362,7 @@ class VMService:
                                 try:
                                     self._vm_update_callback(internal_id)
                                 except Exception as e:
-                                    logging.error(f"Error invoking update callback for {internal_id}: {e}")
+                                    logging.info(f"Error invoking update callback for {internal_id}: {e}")
                                 finally:
                                     self._vm_data_cache[internal_id]['last_cb_ts'] = now
 
@@ -359,7 +371,7 @@ class VMService:
                              self._data_update_callback()
 
             except Exception as e:
-                logging.error(f"Error in lifecycle callback: {e}")
+                logging.info(f"Error in lifecycle callback: {e}")
 
         try:
             callback_id = conn.domainEventRegisterAny(
@@ -376,7 +388,7 @@ class VMService:
         except libvirt.libvirtError as e:
             logging.warning(f"Could not register domain events for {uri}: {e}")
             if "event timer" in str(e).lower() or "event loop" in str(e).lower():
-                logging.warning("Disabling event system due to event loop issues")
+                logging.info("Disabling event system due to event loop issues")
                 self._events_enabled = False
 
     def _unregister_domain_events(self, conn: libvirt.virConnect, uri: str):
