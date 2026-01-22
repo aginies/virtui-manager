@@ -25,46 +25,41 @@ VirtUI Manager is available as a package in the [Virtualization](https://build.o
 sudo zypper in virtui-*.rpm
 ```
 
-
 ## Installation Steps from Source Code
 
-### 1. Clone the Repository
+### Devel version: Clone the Repository
 
-Get the latest source code from GitHub:
+This is possible to test latest version from github
+
+#### Get the latest source code from GitHub:
 
 ```bash
 git clone https://github.com/aginies/virtui-manager.git
 cd virtui-manager
 ```
 
-### 2. Install Dependencies
+#### Launch the devel version
 
-You can install dependencies using your system's package manager (recommended for stability) or via Python's package manager (`pip`).
-
-#### openSUSE / SLE (Zypper)
-
-To install dependencies manually from official repositories (this is done automatically when installing the packages):
 ```bash
-sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py
+cd src/vmanager
+python3 virtui-dev.py
 ```
 
-#### Generic / Virtual Environment (Pip)
+### Generic / Virtual Environment (Pip)
 
 If your distribution doesn't package these libraries or you prefer a virtual environment:
 
 ```bash
-pipx install libvirt-python textual pyyaml markdown-it-py
+pip3 install virtui-manager
 ```
 
-### 3. Run the Application
+Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd** will be available from Command line.
 
-Navigate to the source directory and launch the manager:
+
+### openSUSE / SLE (Zypper)
+
+To install dependencies manually from official repositories (this is done automatically when installing the packages):
 
 ```bash
-cd src/vmanager
-python3 vmanager.py
+sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py
 ```
-
-!!! tip "Add to PATH"
-    For easier access, you can create a shell alias or symlink:
-    `alias virtui-manager='python3 /path/to/virtui-manager/src/vmanager/vmanager.py'`
