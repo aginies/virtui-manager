@@ -11,11 +11,11 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static, Select, Checkbox, Label, ProgressBar
 from textual import on, work
 
-from vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
-from storage_manager import find_shared_storage_pools
-from utils import extract_server_name_from_uri
-from vm_migration import custom_migrate_vm, execute_custom_migration
-from modals.custom_migration_modal import CustomMigrationModal
+from ..vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
+from ..storage_manager import find_shared_storage_pools
+from ..utils import extract_server_name_from_uri
+from ..vm_migration import custom_migrate_vm, execute_custom_migration
+from .custom_migration_modal import CustomMigrationModal
 #from pprint import pprint # pprint(vars(object))
 
 class MigrationModal(ModalScreen):

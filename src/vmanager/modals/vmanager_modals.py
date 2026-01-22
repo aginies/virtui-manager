@@ -8,9 +8,9 @@ from textual.widgets import (
         Button, Input, Label,
         RadioButton, RadioSet, Checkbox
         )
-from constants import VmStatus
-from modals.base_modals import BaseModal
-from modals.input_modals import _sanitize_input
+from ..constants import VmStatus
+from .base_modals import BaseModal
+from .input_modals import _sanitize_input
 
 
 class FilterModal(BaseModal[None]):

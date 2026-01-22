@@ -20,23 +20,23 @@ from textual.widgets import (
 )
 from textual.worker import Worker, WorkerState
 
-from config import load_config, save_config, get_log_path
-from constants import (
+from .config import load_config, save_config, get_log_path
+from .constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
         ErrorMessages, AppInfo, StatusText, ServerPallette,
         DialogMessages
         )
-from events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
-from libvirt_error_handler import register_error_handler
-from modals.bulk_modals import BulkActionModal
-from modals.config_modal import ConfigModal
-from modals.log_modal import LogModal
-from modals.server_modals import ServerManagementModal
-from modals.server_prefs_modals import ServerPrefModal
-from modals.select_server_modals import SelectOneServerModal, SelectServerModal
-from modals.selection_modals import PatternSelectModal
-from modals.cache_stats_modal import CacheStatsModal
-from modals.utils_modals import (
+from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
+from .libvirt_error_handler import register_error_handler
+from .modals.bulk_modals import BulkActionModal
+from .modals.config_modal import ConfigModal
+from .modals.log_modal import LogModal
+from .modals.server_modals import ServerManagementModal
+from .modals.server_prefs_modals import ServerPrefModal
+from .modals.select_server_modals import SelectOneServerModal, SelectServerModal
+from .modals.selection_modals import PatternSelectModal
+from .modals.cache_stats_modal import CacheStatsModal
+from .modals.utils_modals import (
     show_error_message,
     show_success_message,
     show_warning_message,
@@ -45,12 +45,12 @@ from modals.utils_modals import (
     LoadingModal,
     ConfirmationDialog,
 )
-from modals.vmanager_modals import (
+from .modals.vmanager_modals import (
     FilterModal,
 )
-from modals.virsh_modals import VirshShellScreen
-from modals.provisioning_modals import InstallVMModal
-from utils import (
+from .modals.virsh_modals import VirshShellScreen
+from .modals.provisioning_modals import InstallVMModal
+from .utils import (
     check_novnc_path,
     check_r_viewer,
     check_websockify,
@@ -58,14 +58,14 @@ from utils import (
     get_server_color_cached,
     setup_cache_monitoring,
 )
-from libvirt_utils import get_internal_id
-from vm_queries import (
+from .libvirt_utils import get_internal_id
+from .vm_queries import (
     get_status,
 )
-from vm_service import VMService
-from vmcard import VMCard
-from vmcard_pool import VMCardPool
-from webconsole_manager import WebConsoleManager
+from .vm_service import VMService
+from .vmcard import VMCard
+from .vmcard_pool import VMCardPool
+from .webconsole_manager import WebConsoleManager
 
 # Configure logging
 logging.basicConfig(

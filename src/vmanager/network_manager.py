@@ -8,7 +8,7 @@ import logging
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 import libvirt
-from utils import log_function_call
+from .utils import log_function_call
 
 
 @lru_cache(maxsize=16)

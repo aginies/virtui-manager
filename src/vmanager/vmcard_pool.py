@@ -3,8 +3,8 @@ Create a VMcard pool
 """
 import logging
 import threading
-from vmcard import VMCard
-from constants import VmStatus
+from .vmcard import VMCard
+from .constants import VmStatus
 
 class VMCardPool:
     """

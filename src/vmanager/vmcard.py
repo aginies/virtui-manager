@@ -23,36 +23,36 @@ from textual import on
 from textual.events import Click
 from textual.css.query import NoMatches
 
-from events import VMNameClicked, VMSelectionChanged, VmActionRequest, VmCardUpdateRequest
-from vm_actions import (
+from .events import VMNameClicked, VMSelectionChanged, VmActionRequest, VmCardUpdateRequest
+from .vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
         restore_vm_snapshot, delete_vm_snapshot,
         create_external_overlay, commit_disk_changes,
         discard_overlay, delete_vm
         )
 
-from vm_queries import (
+from .vm_queries import (
         get_vm_snapshots, has_overlays, get_overlay_disks,
         get_vm_network_ip, get_boot_info, _get_domain_root,
         get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
         )
-from modals.xml_modals import XMLDisplayModal
-from modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
-from modals.vmdetails_modals import VMDetailModal
-from modals.migration_modals import MigrationModal
-from modals.disk_pool_modals import SelectDiskModal
-from modals.howto_overlay_modal import HowToOverlayModal
-from modals.input_modals import InputModal, _sanitize_input
-from modals.vmcard_dialog import (
+from .modals.xml_modals import XMLDisplayModal
+from .modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
+from .modals.vmdetails_modals import VMDetailModal
+from .modals.migration_modals import MigrationModal
+from .modals.disk_pool_modals import SelectDiskModal
+from .modals.howto_overlay_modal import HowToOverlayModal
+from .modals.input_modals import InputModal, _sanitize_input
+from .modals.vmcard_dialog import (
         DeleteVMConfirmationDialog, WebConsoleConfigDialog,
         AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
         )
-from utils import (
+from .utils import (
         extract_server_name_from_uri,
         generate_tooltip_markdown,
         remote_viewer_cmd,
 )
-from constants import (
+from .constants import (
     ButtonLabels, ButtonIds, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction
 )

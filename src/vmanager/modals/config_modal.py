@@ -7,10 +7,10 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
-from config import save_config, get_user_config_path
-from constants import AppInfo
-from modals.base_modals import BaseModal
-from utils import check_r_viewer
+from ..config import save_config, get_user_config_path
+from ..constants import AppInfo
+from .base_modals import BaseModal
+from ..utils import check_r_viewer
 
 class ConfigModal(BaseModal[None]):
     """Modal screen for configuring the application."""

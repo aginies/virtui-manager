@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "virtui-manager"
-version = "0.9.9"
+version = "1.0.5"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
 authors = [
@@ -61,8 +61,9 @@ Issues = "https://github.com/aginies/virtui-manager/issues"
 Changelog = "https://github.com/aginies/virtui-manager/releases"
 
 [project.scripts]
-vmanager = "vmanager:main"
-vmanager-cmd = "vmanager.vmanager_cmd:main"
+virtui-manager = "vmanager.wrapper:main"
+virtui-manager-cmd = "vmanager.wrapper:cmd_main"
+virtui-remote-viewer = "vmanager.wrapper:remote_viewer_main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -11,7 +11,7 @@ import os
 import re
 from typing import List, Tuple, Union, Callable
 from urllib.parse import urlparse
-from constants import AppInfo
+from .constants import AppInfo
 
 def find_free_port(start: int, end: int) -> int:
     """
@@ -493,7 +493,7 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(format_memory_display)
     cache_monitor.track(generate_tooltip_markdown)
 
-    from libvirt_utils import (
+    from .libvirt_utils import (
             get_host_pci_devices, get_host_usb_devices,
             _get_vm_names_from_uuids, get_domain_capabilities_xml
             )
@@ -502,7 +502,7 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(get_host_usb_devices)
     cache_monitor.track(get_domain_capabilities_xml)
 
-    from vm_queries import (
+    from .vm_queries import (
         _parse_domain_xml,
         get_vm_network_dns_gateway_info,
         get_vm_description,
@@ -521,7 +521,7 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(get_all_vm_disk_usage)
     cache_monitor.track(get_supported_machine_types)
 
-    from storage_manager import (
+    from .storage_manager import (
         list_storage_pools,
         list_storage_volumes,
         find_vms_using_volume,
@@ -532,7 +532,7 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(find_vms_using_volume)
     cache_monitor.track(get_all_storage_volumes)
 
-    from network_manager import (
+    from .network_manager import (
         list_networks,
         get_vms_using_network,
         get_host_network_info,

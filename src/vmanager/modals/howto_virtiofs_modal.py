@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.widgets import Button, Markdown
 from textual import on
-from modals.base_modals import BaseModal
+from .base_modals import BaseModal
 
 HOW_TO_VIRTIOFS_TEXT = """
 # Using VirtIO-FS for Host-Guest File Sharing

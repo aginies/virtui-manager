@@ -4,7 +4,7 @@ Manage the configuration of the tool
 import os
 from pathlib import Path
 import yaml
-from constants import AppInfo
+from .constants import AppInfo
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {

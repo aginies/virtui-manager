@@ -4,12 +4,12 @@ the Cmd line tool
 import cmd
 import re
 import libvirt
-from config import load_config
-from libvirt_utils import find_all_vm
-from vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
-from vm_service import VMService
-from storage_manager import list_unused_volumes, list_storage_pools
-from constants import AppInfo
+from .config import load_config
+from .libvirt_utils import find_all_vm
+from .vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
+from .vm_service import VMService
+from .storage_manager import list_unused_volumes, list_storage_pools
+from .constants import AppInfo
 
 class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""

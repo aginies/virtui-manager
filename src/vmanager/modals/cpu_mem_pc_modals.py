@@ -5,8 +5,8 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Input, Label, ListView, Select
 
-from modals.base_modals import BaseModal, ValueListItem
-from modals.utils_modals import InfoModal
+from .base_modals import BaseModal, ValueListItem
+from .utils_modals import InfoModal
 
 
 class EditCpuModal(BaseModal[str | None]):

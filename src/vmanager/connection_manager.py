@@ -5,7 +5,7 @@ import logging
 import threading
 import libvirt
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
-from constants import AppCacheTimeout
+from .constants import AppCacheTimeout
 
 class ConnectionManager:
     """A class to manage opening, closing, and storing multiple libvirt connections."""

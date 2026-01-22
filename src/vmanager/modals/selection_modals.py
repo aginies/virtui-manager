@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll, Grid
 from textual.widgets import Button, Input, Label, DataTable, Checkbox
 from textual import on
-from modals.base_modals import BaseModal
+from .base_modals import BaseModal
 
 class PatternSelectModal(BaseModal[set[str] | None]):
     """Modal for selecting VMs by pattern across servers."""

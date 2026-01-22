@@ -9,13 +9,13 @@ from textual.widgets import (
         Button, Label, Checkbox, Select, Input,
         Switch, Markdown, DataTable
         )
-from modals.input_modals import _sanitize_input
-from modals.utils_modals import (
+from .input_modals import _sanitize_input
+from .utils_modals import (
     BaseDialog, show_warning_message
 )
-from config import load_config, save_config
-from constants import ButtonLabels, ButtonIds
-from vm_queries import is_qemu_agent_running
+from ..config import load_config, save_config
+from ..constants import ButtonLabels, ButtonIds
+from ..vm_queries import is_qemu_agent_running
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     """A dialog to confirm VM deletion with an option to delete storage."""

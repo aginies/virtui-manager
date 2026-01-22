@@ -8,11 +8,11 @@ from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 
-from modals.base_modals import BaseModal, BaseDialog
-from network_manager import (
+from .base_modals import BaseModal, BaseDialog
+from ..network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
 )
-from modals.input_modals import _sanitize_input, _sanitize_domain_name
+from .input_modals import _sanitize_input, _sanitize_domain_name
 
 class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
     """A dialog to add or edit a VM's network interface."""

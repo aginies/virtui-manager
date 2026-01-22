@@ -18,7 +18,7 @@ from textual.reactive import reactive
 from textual.screen import ModalScreen
 from textual import on
 import libvirt
-from vm_queries import (
+from ..vm_queries import (
     get_vm_networks_info,
     get_vm_disks_info, get_vm_devices_info,
     get_supported_machine_types, get_vm_graphics_info,
@@ -28,7 +28,7 @@ from vm_queries import (
     get_vm_watchdog_info, get_attached_pci_devices,
     get_vm_numatune, get_vm_cputune
     )
-from vm_actions import (
+from ..vm_actions import (
         add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
         disable_disk, change_vm_network, set_shared_memory, remove_virtiofs,
         add_virtiofs, set_vm_video_model, set_cpu_model, set_uefi_file,
@@ -41,33 +41,33 @@ from vm_actions import (
         migrate_vm_machine_type, add_vm_channel, remove_vm_channel,
         set_vm_numatune, set_vm_cputune
 )
-from config import get_log_path
-from network_manager import (
+from ..config import get_log_path
+from ..network_manager import (
     list_networks,
 )
-from firmware_manager import (
+from ..firmware_manager import (
     get_uefi_files, get_host_sev_capabilities
 )
-import storage_manager
-from libvirt_utils import (
+from .. import storage_manager
+from ..libvirt_utils import (
         get_cpu_models, get_domain_capabilities_xml, get_video_domain_capabilities,
         get_host_usb_devices, get_host_pci_devices,
         get_host_numa_nodes
         )
-from modals.utils_modals import ConfirmationDialog, ProgressModal
-from modals.cpu_mem_pc_modals import (
+from .utils_modals import ConfirmationDialog, ProgressModal
+from .cpu_mem_pc_modals import (
         EditCpuModal, EditMemoryModal, SelectMachineTypeModal,
         EditNumaTuneModal, EditCpuTuneModal,
         )
-from modals.virtiofs_modals import AddEditVirtIOFSModal
-from modals.disk_pool_modals import (
+from .virtiofs_modals import AddEditVirtIOFSModal
+from .disk_pool_modals import (
           SelectPoolModal, AddDiskModal,
           SelectDiskModal, EditDiskModal
           )
-from modals.howto_disk_modal import HowToDiskModal
-from modals.howto_virtiofs_modal import HowToVirtIOFSModal
-from modals.network_modals import AddEditNetworkInterfaceModal
-from modals.input_modals import AddInputDeviceModal, AddChannelModal
+from .howto_disk_modal import HowToDiskModal
+from .howto_virtiofs_modal import HowToVirtIOFSModal
+from .network_modals import AddEditNetworkInterfaceModal
+from .input_modals import AddInputDeviceModal, AddChannelModal
 
 # Configure logging
 logging.basicConfig(

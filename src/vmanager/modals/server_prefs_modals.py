@@ -13,30 +13,30 @@ from textual.widgets import (
         DataTable, Static,
         TabbedContent, TabPane, Tree
         )
-from vm_queries import (
+from ..vm_queries import (
       get_all_vm_nvram_usage, get_all_vm_disk_usage,
       get_all_network_usage
       )
-from libvirt_utils import get_network_info, _find_pool_by_path
-from network_manager import (
+from ..libvirt_utils import get_network_info, _find_pool_by_path
+from ..network_manager import (
       list_networks, get_vms_using_network, delete_network,
       set_network_active, set_network_autostart
       )
-import storage_manager
-from storage_manager import list_storage_volumes
+from .. import storage_manager
+from ..storage_manager import list_storage_volumes
 
-from constants import AppCacheTimeout
-from modals.base_modals import BaseModal
-from modals.network_modals import AddEditNetworkModal, NetworkXMLModal
-from modals.disk_pool_modals import (
+from ..constants import AppCacheTimeout
+from .base_modals import BaseModal
+from .network_modals import AddEditNetworkModal, NetworkXMLModal
+from .disk_pool_modals import (
         AddPoolModal,
         CreateVolumeModal,
         MoveVolumeModal,
         AttachVolumeModal,
         )
-from modals.utils_modals import ConfirmationDialog, ProgressModal
-from modals.xml_modals import XMLDisplayModal
-from modals.howto_network_modal import HowToNetworkModal
+from .utils_modals import ConfirmationDialog, ProgressModal
+from .xml_modals import XMLDisplayModal
+from .howto_network_modal import HowToNetworkModal
 
 
 class ServerPrefModal(BaseModal[None]):

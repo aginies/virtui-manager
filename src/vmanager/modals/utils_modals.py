@@ -19,7 +19,7 @@ from textual.widgets import (
     ProgressBar,
 )
 
-from modals.base_modals import BaseDialog, BaseModal
+from .base_modals import BaseDialog, BaseModal
 
 
 def _sanitize_message(message: str) -> str:

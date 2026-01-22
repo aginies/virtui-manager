@@ -18,11 +18,11 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 import libvirt
 
-from config import load_config
-from storage_manager import create_volume
-from libvirt_utils import get_host_architecture
-from firmware_manager import get_uefi_files
-from constants import AppInfo
+from .config import load_config
+from .storage_manager import create_volume
+from .libvirt_utils import get_host_architecture
+from .firmware_manager import get_uefi_files
+from .constants import AppInfo
 
 class VMType(Enum):
     SECURE = "Secure VM"

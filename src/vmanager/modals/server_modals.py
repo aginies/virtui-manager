@@ -6,11 +6,11 @@ from typing import Tuple
 from textual.app import ComposeResult
 from textual.widgets import Button, Label, DataTable, Input, Checkbox
 from textual.containers import ScrollableContainer, Horizontal, Vertical
-from vmcard import ConfirmationDialog
-from modals.howto_ssh_modal import HowToSSHModal
-from modals.base_modals import BaseModal
+from ..vmcard import ConfirmationDialog
+from .howto_ssh_modal import HowToSSHModal
+from .base_modals import BaseModal
 
-from config import save_config
+from ..config import save_config
 
 class ConnectionModal(BaseModal[str | None]):
 

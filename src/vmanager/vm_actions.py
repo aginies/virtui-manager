@@ -7,7 +7,7 @@ import uuid
 import logging
 import xml.etree.ElementTree as ET
 import libvirt
-from libvirt_utils import (
+from .libvirt_utils import (
         _find_vol_by_path,
         VIRTUI_MANAGER_NS,
         _get_disabled_disks_elem,
@@ -15,11 +15,11 @@ from libvirt_utils import (
         get_overlay_backing_path,
         get_internal_id
         )
-from utils import log_function_call
-from vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root, get_vm_snapshots
-from vm_cache import invalidate_cache
-from network_manager import list_networks
-from storage_manager import create_overlay_volume
+from .utils import log_function_call
+from .vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root, get_vm_snapshots
+from .vm_cache import invalidate_cache
+from .network_manager import list_networks
+from .storage_manager import create_overlay_volume
 
 def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
     """

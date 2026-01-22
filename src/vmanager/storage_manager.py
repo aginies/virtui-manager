@@ -11,10 +11,10 @@ import threading
 from functools import lru_cache
 import subprocess
 import libvirt
-from libvirt_utils import (
+from .libvirt_utils import (
         _find_vol_by_path,
         )
-from vm_queries import get_vm_disks_info
+from .vm_queries import get_vm_disks_info
 
 @lru_cache(maxsize=16)
 def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:

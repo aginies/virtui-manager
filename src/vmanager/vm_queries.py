@@ -7,7 +7,7 @@ from functools import lru_cache
 import hashlib
 import concurrent.futures
 import libvirt
-from libvirt_utils import (
+from .libvirt_utils import (
         VIRTUI_MANAGER_NS,
         _find_vol_by_path,
         _get_disabled_disks_elem,

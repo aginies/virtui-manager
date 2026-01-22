@@ -6,7 +6,7 @@ from textual.widgets import Select, Button, Label, Input
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual import on
-from modals.base_modals import BaseModal
+from .base_modals import BaseModal
 
 class InputModal(BaseModal[str | None]):
     """A generic modal for getting text input from the user."""

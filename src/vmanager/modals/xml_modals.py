@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Button, TextArea
 from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal
-from modals.base_modals import BaseModal
+from .base_modals import BaseModal
 
 class XMLDisplayModal(BaseModal[str | None]):
     """A modal screen for displaying and editing XML."""

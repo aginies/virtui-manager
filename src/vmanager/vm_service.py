@@ -9,12 +9,12 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Callable
 import libvirt
-from connection_manager import ConnectionManager
-from constants import VmStatus, VmAction, AppCacheTimeout
-from storage_manager import check_domain_volumes_in_use
-from utils import natural_sort_key
-from vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
-from vm_queries import (
+from .connection_manager import ConnectionManager
+from .constants import VmStatus, VmAction, AppCacheTimeout
+from .storage_manager import check_domain_volumes_in_use
+from .utils import natural_sort_key, extract_server_name_from_uri
+from .vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
+from .vm_queries import (
     get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
     get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
     get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
@@ -1527,7 +1527,6 @@ class VMService:
                 uri = internal_id.split("@", 1)[1]
                 uri_counts[uri] = uri_counts.get(uri, 0) + 1
 
-        from utils import extract_server_name_from_uri
 
         # We can just iterate active_uris provided
         for uri in active_uris:

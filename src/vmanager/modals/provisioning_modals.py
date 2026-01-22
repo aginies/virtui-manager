@@ -11,16 +11,16 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on, work
 
 import libvirt
-from config import load_config
-from constants import AppInfo
-from vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
-from storage_manager import list_storage_pools
-from vm_service import VMService
-from utils import remote_viewer_cmd
-from modals.base_modals import BaseModal
-from modals.utils_modals import FileSelectionModal
-from modals.vm_type_info_modal import VMTypeInfoModal
-from modals.input_modals import _sanitize_domain_name
+from ..config import load_config
+from ..constants import AppInfo
+from ..vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
+from ..storage_manager import list_storage_pools
+from ..vm_service import VMService
+from ..utils import remote_viewer_cmd
+from .base_modals import BaseModal
+from .utils_modals import FileSelectionModal
+from .vm_type_info_modal import VMTypeInfoModal
+from .input_modals import _sanitize_domain_name
 
 class InstallVMModal(BaseModal[str | None]):
     """

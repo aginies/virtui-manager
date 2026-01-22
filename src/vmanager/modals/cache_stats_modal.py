@@ -4,7 +4,7 @@ Basic modal to show stat of cache
 from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable
 from textual.containers import Vertical, Horizontal
-from modals.base_modals import BaseModal
+from .base_modals import BaseModal
 
 class CacheStatsModal(BaseModal[None]):
     """Modal displaying cache statistics in a table."""

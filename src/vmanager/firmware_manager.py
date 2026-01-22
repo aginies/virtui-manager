@@ -5,7 +5,7 @@ import os
 import json
 import libvirt
 import xml.etree.ElementTree as ET
-from utils import log_function_call
+from .utils import log_function_call
 
 FIRMWARE_META_BASE_DIR = "/usr/share/qemu/firmware/"
 

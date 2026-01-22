@@ -15,9 +15,9 @@ import socket
 import threading
 import libvirt
 import gi
-import vm_queries
-import vm_actions
-import libvirt_utils
+from . import vm_queries
+from . import vm_actions
+from . import libvirt_utils
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkVnc', '2.0')

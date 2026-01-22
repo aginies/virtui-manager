@@ -6,7 +6,7 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 from textual.widgets import Label, Button, Markdown, Static, RadioSet, RadioButton, Checkbox
 
-from modals.base_modals import BaseModal
+from .base_modals import BaseModal
 
 class BulkActionModal(BaseModal[None]):
     """Modal screen for performing bulk actions on selected VMs."""

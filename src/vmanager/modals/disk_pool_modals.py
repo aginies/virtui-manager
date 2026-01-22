@@ -11,10 +11,10 @@ from textual.widgets import (
         )
 from textual.app import ComposeResult
 from textual import on
-from storage_manager import create_storage_pool
-from modals.base_modals import BaseModal, ValueListItem
-from modals.utils_modals import DirectorySelectionModal, FileSelectionModal
-from modals.input_modals import _sanitize_input
+from ..storage_manager import create_storage_pool
+from .base_modals import BaseModal, ValueListItem
+from .utils_modals import DirectorySelectionModal, FileSelectionModal
+from .input_modals import _sanitize_input
 
 class SelectPoolModal(BaseModal[str | None]):
     """Modal screen for selecting a storage pool from a list."""

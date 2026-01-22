@@ -9,9 +9,9 @@ from textual.widgets import (
 from textual.containers import Horizontal, Vertical, Grid
 from textual.screen import ModalScreen
 
-from modals.base_modals import BaseModal
-from modals.utils_modals import LoadingModal
-from connection_manager import ConnectionManager
+from .base_modals import BaseModal
+from .utils_modals import LoadingModal
+from ..connection_manager import ConnectionManager
 
 
 class SelectServerModal(BaseModal[None]):
