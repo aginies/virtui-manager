@@ -1,9 +1,10 @@
 """
 Utility functions for libvirt XML parsing and common helpers.
 """
+import logging
 import xml.etree.ElementTree as ET
 from functools import lru_cache
-import logging
+
 import libvirt
 
 VIRTUI_MANAGER_NS = "http://github.com/aginies/virtui-manager"
@@ -20,7 +21,7 @@ def get_internal_id(domain: libvirt.virDomain, conn: libvirt.virConnect = None) 
         uri = conn.getURI()
     except libvirt.libvirtError:
         uri = "unknown" # Should not happen if connection is valid
-    
+
     try:
         uuid_str = domain.UUIDString()
     except libvirt.libvirtError:
@@ -326,6 +327,19 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
 
     except libvirt.libvirtError:
         return {}
+
+def get_host_numa_nodes(conn: libvirt.virConnect) -> int:
+    """
+    Returns the number of NUMA nodes on the host.
+    """
+    try:
+        caps_xml = conn.getCapabilities()
+        root = ET.fromstring(caps_xml)
+        cells = root.findall(".//host/topology/cells/cell")
+        return len(cells) if cells else 1
+    except (libvirt.libvirtError, ET.ParseError) as e:
+        logging.error(f"Error getting host NUMA topology: {e}")
+    return 1
 
 @lru_cache(maxsize=4)
 def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
