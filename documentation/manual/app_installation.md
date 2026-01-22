@@ -42,7 +42,7 @@ cd virtui-manager
 
 ```bash
 cd src/vmanager
-python3 virtui-dev.py
+python3 virtui_dev.py
 ```
 
 ### Generic / Virtual Environment (Pip)
