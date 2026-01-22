@@ -1447,9 +1447,9 @@ class VMCard(Static):
                     def finalize_snapshot():
                         loading_modal.dismiss()
                         if error:
-                            self.app.show_error_message(f"Snapshot error for **{vm_name}**: {error}")
+                            self.app.show_error_message(f"Snapshot error for [b]{vm_name}[/b]: {error}")
                         else:
-                            self.app.show_success_message(f"Snapshot **{name}** created successfully.")
+                            self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
                             # Defer refresh and restart stats to avoid racing
                             self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                         # Restart stats timer after a delay
