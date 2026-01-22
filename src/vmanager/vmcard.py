@@ -1118,6 +1118,7 @@ class VMCard(Static):
                     self.app.show_error_message("Overlay volume name cannot be empty after sanitization.")
                     return
 
+                self.app.vm_service.suppress_vm_events(self.internal_id)
                 try:
                     create_external_overlay(self.vm, target_disk, overlay_name)
                     self.app.show_success_message(f"Overlay [b]{overlay_name}[/b] created and attached.")
@@ -1127,6 +1128,8 @@ class VMCard(Static):
                     self.update_button_layout()
                 except Exception as e:
                     self.app.show_error_message(f"Error creating overlay: {e}")
+                finally:
+                    self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
             self.app.push_screen(InputModal("Enter name for new overlay volume:", default_name, restrict=r"[a-zA-Z0-9_-]*"), on_name_input)
 
@@ -1148,6 +1151,7 @@ class VMCard(Static):
 
                 def on_confirm(confirmed: bool):
                     if confirmed:
+                        self.app.vm_service.suppress_vm_events(self.internal_id)
                         try:
                             discard_overlay(self.vm, target_disk)
                             self.app.show_success_message(f"Overlay for [b]{target_disk}[/b] discarded and reverted to base image.")
@@ -1157,6 +1161,8 @@ class VMCard(Static):
                             self.update_button_layout()
                         except Exception as e:
                             self.app.show_error_message(f"Error discarding overlay: {e}")
+                        finally:
+                            self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
                 self.app.push_screen(
                     ConfirmationDialog(f"Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."),
@@ -1197,6 +1203,7 @@ class VMCard(Static):
                     self.app.push_screen(progress_modal)
 
                     def do_commit():
+                        self.app.vm_service.suppress_vm_events(self.internal_id)
                         try:
                             commit_disk_changes(self.vm, target_disk)
                             self.app.call_from_thread(self.app.show_success_message, "Disk changes committed successfully.")
@@ -1205,6 +1212,7 @@ class VMCard(Static):
                         except Exception as e:
                             self.app.call_from_thread(self.app.show_error_message, f"Error committing disk: {e}")
                         finally:
+                            self.app.vm_service.unsuppress_vm_events(self.internal_id)
                             self.app.call_from_thread(progress_modal.dismiss)
 
                     self.app.worker_manager.run(do_commit, name=f"commit_{self.name}")
@@ -1433,11 +1441,14 @@ class VMCard(Static):
                 self.app.push_screen(loading_modal)
 
                 def do_snapshot():
+                    self.app.vm_service.suppress_vm_events(internal_id)
                     error = None
                     try:
                         create_vm_snapshot(vm, name, description, quiesce=quiesce)
                     except Exception as e:
                         error = e
+                    finally:
+                        self.app.vm_service.unsuppress_vm_events(internal_id)
 
                     # Invalidate caches in worker thread to avoid blocking main thread
                     if not error:
@@ -1497,18 +1508,22 @@ class VMCard(Static):
                         self.app.push_screen(restore_loading_modal)
 
                         def do_restore():
+                            self.app.vm_service.suppress_vm_events(internal_id)
                             error = None
                             try:
                                 restore_vm_snapshot(vm, snapshot_name)
                             except Exception as e:
                                 error = e
+                            finally:
+                                self.app.vm_service.unsuppress_vm_events(internal_id)
 
                             # Invalidate caches in worker thread to avoid blocking main thread
                             if not error:
                                 try:
                                     self.app.vm_service.invalidate_vm_state_cache(internal_id)
                                     self.app.vm_service.invalidate_domain_cache()
-                                except Exception:
+                                except Exception as e:
+                                    logging.warning(f"[do_restore] Cache invalidation FAILED for {vm_name}: {e}")
                                     pass
 
                             def finalize_ui():
@@ -1561,19 +1576,40 @@ class VMCard(Static):
                         def on_confirm(confirmed: bool) -> None:
                             if confirmed:
                                 self.stop_background_activities()
-                                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{internal_id}")
-                                try:
-                                    delete_vm_snapshot(vm, snapshot_name)
-                                    self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")
-                                    self.app.vm_service.invalidate_vm_cache(internal_id)
-                                    self.app.vm_service.invalidate_domain_cache() # Force refresh of domain objects
-                                    self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
-                                    logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {vm_name}")
-                                except Exception as e:
-                                    self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot delete': {e}")
-                                finally:
-                                    # Restart stats timer
-                                    self.update_stats()
+                                loading_modal = LoadingModal(message=f"Deleting snapshot {snapshot_name}...")
+                                self.app.push_screen(loading_modal)
+                                def do_delete():
+                                    self.app.vm_service.suppress_vm_events(internal_id)
+                                    error = None
+                                    try:
+                                        delete_vm_snapshot(vm, snapshot_name)
+                                    except Exception as e:
+                                        error = e
+                                    finally:
+                                        self.app.vm_service.unsuppress_vm_events(internal_id)
+
+                                    # Invalidate caches
+                                    if not error:
+                                        try:
+                                            self.app.vm_service.invalidate_vm_cache(internal_id)
+                                            self.app.vm_service.invalidate_domain_cache()
+                                        except Exception:
+                                            pass
+
+                                    def finalize_ui():
+                                        loading_modal.dismiss()
+                                        if error:
+                                            self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot delete': {error}")
+                                        else:
+                                            self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")
+                                            logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {vm_name}")
+                                            self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
+                                        # Restart stats timer
+                                        self.update_stats()
+
+                                    self.app.call_from_thread(finalize_ui)
+
+                                self.app.worker_manager.run(do_delete, name=f"snapshot_delete_{internal_id}")
 
                         self.app.push_screen(
                             ConfirmationDialog(DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(name=snapshot_name)), on_confirm
@@ -1695,6 +1731,7 @@ class VMCard(Static):
                 self.app.worker_manager.cancel(f"update_stats_{internal_id}")
                 self.app.worker_manager.cancel(f"actions_state_{internal_id}")
 
+                self.app.vm_service.suppress_vm_events(internal_id)
                 try:
                     # delete_vm handles opening its own connection
                     delete_vm(self.vm, delete_storage=delete_storage, delete_nvram=True, log_callback=log_callback)
@@ -1707,9 +1744,11 @@ class VMCard(Static):
                     if internal_id in self.app.selected_vm_uuids:
                         self.app.selected_vm_uuids.discard(internal_id)
 
+                    self.app.vm_service.unsuppress_vm_events(internal_id)
                     self.app.call_from_thread(self.app.refresh_vm_list, force=True)
 
                 except Exception as e:
+                    self.app.vm_service.unsuppress_vm_events(internal_id)
                     self.app.call_from_thread(self.app.show_error_message, f"Error deleting VM '{vm_name}': {e}")
                 finally:
                     self.app.call_from_thread(progress_modal.dismiss)
@@ -1749,6 +1788,9 @@ class VMCard(Static):
                     self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
 
                 app.call_from_thread(stop_stats_workers)
+
+                # Suppress events for the source VM
+                app.vm_service.suppress_vm_events(self.internal_id)
 
                 try:
                     existing_vm_names = set()
@@ -1816,6 +1858,8 @@ class VMCard(Static):
                     app.call_from_thread(progress_modal.dismiss)
 
                 finally:
+                    # Unsuppress events
+                    app.vm_service.unsuppress_vm_events(self.internal_id)
                     # Restart stats worker
                     app.call_from_thread(self.update_stats)
 
@@ -1853,6 +1897,8 @@ class VMCard(Static):
                 return
 
             def do_rename():
+                internal_id = self.internal_id
+                self.app.vm_service.suppress_vm_events(internal_id)
                 try:
                     rename_vm(self.vm, new_name)
                     msg = f"VM '{self.name}' renamed to '{new_name}' successfully."
@@ -1863,6 +1909,8 @@ class VMCard(Static):
                     logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
                 except Exception as e:
                     self.app.show_error_message(f"Error renaming VM [b]{self.name}[/b]: {e}")
+                finally:
+                    self.app.vm_service.unsuppress_vm_events(internal_id)
 
             num_snapshots = self.vm.snapshotNum(0)
 
