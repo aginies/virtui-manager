@@ -1,18 +1,26 @@
 """
 Usefull Modal screen
 """
-import os
-import re
-import pathlib
-from typing import Iterable
 import logging
+import os
+import pathlib
+import re
+from typing import Iterable
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
-        Label, Button, DirectoryTree, LoadingIndicator,
-        Markdown, ProgressBar, Log
-        )
-from modals.base_modals import BaseModal, BaseDialog
+    Button,
+    DirectoryTree,
+    Label,
+    LoadingIndicator,
+    Log,
+    Markdown,
+    ProgressBar,
+)
+
+from modals.base_modals import BaseDialog, BaseModal
+
 
 def _sanitize_message(message: str) -> str:
     """
@@ -27,7 +35,7 @@ def _sanitize_message(message: str) -> str:
                  return match.group(0)
              # Invalid closing tag -> escape
              return f"\\[{content}]"
-        
+
         # Rich doesn't support / in style names (except for closing tag prefix).
         if '/' in content and '=' not in content:
              return f"\\[{content}]"
@@ -215,3 +223,21 @@ class ConfirmationDialog(BaseDialog[bool]):
     def action_cancel_modal(self) -> None:
         """Cancel the modal."""
         self.dismiss(False)
+
+class InfoModal(BaseModal[None]):
+    """A modal that shows an information message."""
+
+    def __init__(self, title: str, message: str) -> None:
+        super().__init__()
+        self._title = title
+        self._message = message
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="info-modal-dialog", classes="dialog"):
+            yield Label(self._title, classes="dialog-title")
+            yield Markdown(self._message, classes="dialog-message")
+            with Horizontal(classes="dialog-buttons"):
+                yield Button("OK", variant="primary", id="ok-btn")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss()
