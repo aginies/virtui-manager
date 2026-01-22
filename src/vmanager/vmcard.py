@@ -1441,13 +1441,13 @@ class VMCard(Static):
                     # Invalidate caches in worker thread to avoid blocking main thread
                     if not error:
                         try:
-                            self.app.vmservice.invalidatedomaincache()
+                            self.app.vm_service.invalidate_domain_cache()
                         except Exception:
                             pass
                     def finalize_snapshot():
                         loading_modal.dismiss()
                         if error:
-                            self.app.showerrormessage(f"Snapshot error for **{vm_name}**: {error}")
+                            self.app.show_error_message(f"Snapshot error for **{vm_name}**: {error}")
                         else:
                             self.app.show_success_message(f"Snapshot **{name}** created successfully.")
                             # Defer refresh and restart stats to avoid racing
