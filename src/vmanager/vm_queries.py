@@ -1296,3 +1296,52 @@ def is_qemu_agent_running(domain: libvirt.virDomain) -> bool:
         pass
 
     return False
+
+def get_vm_cputune(root: ET.Element) -> dict:
+    """
+    Extracts cputune information from a VM's XML definition.
+    """
+    cputune_info = {
+        'vcpupin': []
+    }
+    if root is None:
+        return cputune_info
+
+    try:
+        cputune = root.find('cputune')
+        if cputune is not None:
+            for vcpupin in cputune.findall('vcpupin'):
+                cputune_info['vcpupin'].append({
+                    'vcpu': vcpupin.get('vcpu'),
+                    'cpuset': vcpupin.get('cpuset')
+                })
+            # Sort by vcpu id
+            cputune_info['vcpupin'].sort(key=lambda x: int(x['vcpu']))
+    except Exception:
+        pass
+
+    return cputune_info
+
+def get_vm_numatune(root: ET.Element) -> dict:
+    """
+    Extracts numatune information from a VM's XML definition.
+    """
+    numatune_info = {
+        'memory': {'mode': 'strict', 'nodeset': ''}
+    }
+    if root is None:
+        return numatune_info
+
+    try:
+        numatune = root.find('numatune')
+        if numatune is not None:
+            memory = numatune.find('memory')
+            if memory is not None:
+                numatune_info['memory'] = {
+                    'mode': memory.get('mode', 'strict'),
+                    'nodeset': memory.get('nodeset', '')
+                }
+    except Exception:
+        pass
+
+    return numatune_info
