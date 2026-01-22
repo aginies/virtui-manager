@@ -1231,6 +1231,7 @@ class VMCard(Static):
                 self.timer = None
         self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
         self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+        self.app.worker_manager.cancel(f"refresh_snapshot_tab_{self.internal_id}")
 
     def _handle_stop_button(self, event: Button.Pressed) -> None:
         """Handles the stop button press."""
@@ -1441,6 +1442,7 @@ class VMCard(Static):
                     # Invalidate caches in worker thread to avoid blocking main thread
                     if not error:
                         try:
+                            self.app.vm_service.invalidate_vm_state_cache(internal_id)
                             self.app.vm_service.invalidate_domain_cache()
                         except Exception:
                             pass
@@ -1497,13 +1499,18 @@ class VMCard(Static):
                         def do_restore():
                             error = None
                             try:
-                                restore_vm_snapshot(self.vm, snapshot_name)
-                                # Invalidate cache in worker to avoid Main Thread lock contention
-                                self.app.vm_service.invalidate_vm_state_cache(internal_id)
-                                self.app.vm_service.invalidate_domain_cache()
+                                restore_vm_snapshot(vm, snapshot_name)
                             except Exception as e:
                                 error = e
-                            
+
+                            # Invalidate caches in worker thread to avoid blocking main thread
+                            if not error:
+                                try:
+                                    self.app.vm_service.invalidate_vm_state_cache(internal_id)
+                                    self.app.vm_service.invalidate_domain_cache()
+                                except Exception:
+                                    pass
+
                             def finalize_ui():
                                 restore_loading_modal.dismiss()
                                 if error:
@@ -1513,9 +1520,7 @@ class VMCard(Static):
                                     self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
                                     logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {vm_name}")
                                     self.app.refresh_vm_list(force=True)
-                            
                             self.app.call_from_thread(finalize_ui)
-
                         self.app.worker_manager.run(do_restore, name=f"snapshot_restore_{internal_id}")
 
                 self.app.call_from_thread(
