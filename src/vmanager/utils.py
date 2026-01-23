@@ -212,9 +212,9 @@ def remote_viewer_cmd(uri: str, domain_name: str, viewer_cmd: str = None) -> lis
         check_which_one = check_r_viewer()
 
     if check_which_one == "virt-viewer":
-        command = [ check_which_one, "--connect", uri, domain_name]
+        command = [ check_which_one, "--connect", uri, "--wait", domain_name]
     else:
-        command = [ check_which_one, "--connect", uri, "--domain-name", domain_name]
+        command = [ check_which_one, "--connect", uri, "--wait", "--domain-name", domain_name]
     return command
 
 def check_firewalld() -> bool:
