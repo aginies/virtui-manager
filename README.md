@@ -2,6 +2,8 @@
 
 A powerful, text-based Terminal User Interface (TUI) application for managing QEMU/KVM virtual machines using the libvirt Python API. 
 
+![Main](documentation/manual/images/main.png)
+
 ## Why VirtUI Manager?
 
 Managing virtual machines in a terminal environment has never been easier or more powerful. **VirtUI Manager** bridges the gap between the simplicity of command-line tools and the rich functionality of GUI-based solutions, offering the best of both worlds for virtualization administrators.
