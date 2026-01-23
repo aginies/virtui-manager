@@ -46,6 +46,7 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Manual:
+    - Introduction: introduction.md
     - VirtUI Manager Installation: app_installation.md
     - Management Main Window: main_window.md
     - VirtUI Manager Configuration: app_configuration.md

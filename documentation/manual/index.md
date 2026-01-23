@@ -6,6 +6,7 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 
 ## Table of Contents
 
+- [Introduction](introduction.md)
 - [VirtUI Manager Installation](app_installation.md)
 - [Management Main Window](main_window.md)
 - [VirtUI Manager Configuration](app_configuration.md)
