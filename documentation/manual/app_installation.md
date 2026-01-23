@@ -14,16 +14,24 @@ VirtUI Manager is a Python-based application that leverages `libvirt` for virtua
 
 ## OpenSUSE / SLE Installation
 
-VirtUI Manager is available as a package in the [Virtualization](https://build.opensuse.org/package/show/Virtualization/virtui-manager) repository. Choose the right repository, go to it and download packages and install them. IE for 16.0:
+VirtUI Manager is available as a package in the [Virtualization](https://build.opensuse.org/package/show/Virtualization/virtui-manager) repository. Choose the right repository, go to it and download packages and install them.
 
-* go to [16 repo](https://download.opensuse.org/repositories/Virtualization/16.0/noarch/)
-* Search for **virtui-manager**
+* Repository:
+  * [15.6 repo](https://download.opensuse.org/repositories/Virtualization/15.6/noarch/)
+  * [15.7 repo](hhttps://download.opensuse.org/repositories/Virtualization/15.7/noarch/)
+  * [16 repo](https://download.opensuse.org/repositories/Virtualization/16.0/noarch/)
+  * [Slowroll](https://download.opensuse.org/repositories/Virtualization/openSUSE_Slowroll/noarch/)
+  * [Tumbleweed](https://download.opensuse.org/repositories/Virtualization/openSUSE_Tumbleweed/)
+* Search for **virtui**
 * Download the rpm packages: **virtui-manager**, **virtui-manager-doc**, **virtui-remote-viewer**
-* install the packages
+* install the packages with zypper.
 
 ```bash
 sudo zypper in virtui-*.rpm
 ```
+
+!!! note
+    You can also add the repository but these means all the packages from this repository will be used later on update of the system, if you dont want that you need to remove it after the installation of the packages.
 
 ## Installation Steps from Source Code
 
@@ -58,7 +66,7 @@ Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd** will be av
 
 ### openSUSE / SLE (Zypper)
 
-To install dependencies manually from official repositories (this is done automatically when installing the packages):
+To install dependencies manually from official repositories (this is done automatically when installing the package):
 
 ```bash
 sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py
