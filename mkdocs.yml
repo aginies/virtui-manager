@@ -29,6 +29,13 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
+plugins:
+  - with-pdf:
+      custom_template_path: documentation/pdf_templates
+      copyright: GPLv3
+      cover_subtitle: TUI to manage Virtual Machine
+      author: Antoine Ginies
+
 extra_css:
   - style.css
 
