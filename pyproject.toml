@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "virtui-manager"
-version = "1.0.5"
+version = "1.0.7"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
 authors = [
@@ -14,7 +14,7 @@ maintainers = [
     {name = "Antoine Ginies", email = "antoine@ginies.org"}
 ]
 license = "GPL-3.0-or-later"
-requires-python = ">=3.7"
+requires-python = ">=3.6"
 keywords = ["virtualization", "libvirt", "kvm", "qemu", "tui", "terminal", "manager", "virt"]
 classifiers = [
     "Development Status :: 4 - Beta",
