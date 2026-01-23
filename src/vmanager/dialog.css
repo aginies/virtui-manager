@@ -113,7 +113,6 @@ CustomMigrationModal Select {
   margin-bottom: 0;
 }
 #iso-select {
-  height: 8;
   width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
@@ -124,22 +123,15 @@ SelectDiskModal > #select-disk-dialog,
 SelectSnapshotDialog > #dialog {
   width: 68;
 }
-#expert-mode {
-  height: 5;
-}
-#vm-type,
-#repo-iso-container, {
-  height: 6;
-}
-#checksum-container,
 #vminstall-storage-label {
   margin-top: 1;
   padding: 0 0;
 }
-#install-dialog,
 #expert-mode-collapsible {
   width: 100%;
-  height: auto;
+}
+#expert-mode {
+  height: 4;
 }
 #howto-vmtype-dialog, {
   width: 80;
