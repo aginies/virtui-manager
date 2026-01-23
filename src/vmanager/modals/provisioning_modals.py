@@ -41,34 +41,36 @@ class InstallVMModal(BaseModal[str | None]):
         active_pools = [(p['name'], p['name']) for p in pools if p['status'] == 'active']
         default_pool = 'default' if any(p[0] == 'default' for p in active_pools) else (active_pools[0][1] if active_pools else None)
 
-        with Vertical(id="install-dialog"):
-            yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
+        with ScrollableContainer(id="install-dialog"):
+            with Vertical():
+                yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
+                yield Label("VM Name:", classes="label")
+                yield Input(placeholder="my-new-vm", id="vm-name")
 
-            yield Label("VM Name:", classes="label")
-            yield Input(placeholder="my-new-vm", id="vm-name")
+                yield Label("VM Type:", classes="label")
+                with Horizontal(classes="label-row"):
+                    yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
+                    yield Button("Info", id="vm-type-info-btn", variant="primary")
 
-            yield Label("VM Type:", classes="label")
-            with Horizontal(classes="label-row"):
-                yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
-                yield Button("Info", id="vm-type-info-btn", variant="primary")
+                yield Label("Distribution:", classes="label")
+                distro_options = [(d.value, d) for d in OpenSUSEDistro]
+                distro_options.insert(0, ("Cached ISOs", "cached"))
+                custom_repos = self.provisioner.get_custom_repos()
+                for repo in custom_repos:
+                    # Use URI as value, Name as label
+                    name = repo.get('name', repo['uri'])
+                    uri = repo['uri']
+                    # Insert before CUSTOM option (last one usually)
+                    distro_options.insert(-1, (name, uri))
 
-            yield Label("Distribution:", classes="label")
-            distro_options = [(d.value, d) for d in OpenSUSEDistro]
-            distro_options.insert(0, ("Cached ISOs", "cached"))
-            custom_repos = self.provisioner.get_custom_repos()
-            for repo in custom_repos:
-                # Use URI as value, Name as label
-                name = repo.get('name', repo['uri'])
-                uri = repo['uri']
-                # Insert before CUSTOM option (last one usually)
-                distro_options.insert(-1, (name, uri))
+                # Add option to select from storage pool volumes
+                distro_options.insert(-1, ("From Storage Pool", "pool_volumes"))
 
-            yield Select(distro_options, value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
+                yield Select(distro_options, value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
                 yield Label("ISO Image (Repo):", classes="label")
-                # Show download path
                 config = load_config()
                 iso_path = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
                 yield Label(f"ISOs will be downloaded to: {iso_path}", classes="info-text", id="iso-path-label")
@@ -85,39 +87,41 @@ class InstallVMModal(BaseModal[str | None]):
                     yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
                     yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
                     yield Label("", id="checksum-status", classes="status-text")
+            
+            # Container for ISO selection from Storage Pools
+            with Vertical(id="pool-iso-container"):
+                yield Label("Select Storage Pool:", classes="label")
+                yield Select(active_pools, prompt="Select Pool...", id="storage-pool-select", allow_blank=False)
+                yield Label("Select ISO Volume:", classes="label")
+                yield Select([], prompt="Select ISO Volume...", id="iso-volume-select", disabled=True)
 
-            # Container for Autoinstall (Disabled for now)
-            #with Vertical(id="autoinstall-container"):
-            #    yield Label("Autoinstall File (Optional):", disabled=True)
-            #    with Horizontal(classes="input-row"):
-            #        yield Input(placeholder="/path/to/autoinstall.xml", id="autoinstall-path", classes="path-input", disabled=True)
-            #        yield Button("Browse", id="browse-autoinstall-btn", disabled=True)
-
-            with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
-                with Horizontal(id="expert-mode"):
-                    with Vertical(id="expert-mem"):
-                        yield Label(" Memory (MB)", classes="label")
-                        yield Input("4096", id="memory-input", type="integer")
-                    with Vertical(id="expert-cpu"):
-                        yield Label(" CPUs", classes="label")
-                        yield Input("2", id="cpu-input", type="integer")
-                    with Vertical(id="expert-disk-size"):
-                        yield Label(" Disk Size(GB)", classes="label")
-                        yield Input("8", id="disk-size-input", type="integer")
-                    with Vertical(id="expert-disk-format"):
-                        yield Label(" Disk Format", classes="label")
-                        yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
-                    with Vertical(id="expert-firmware"):
-                        yield Label(" Firmware", classes="label")
-                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
-
-            yield Label("Storage Pool:", id="vminstall-storage-label")
-            yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
-
-            yield ProgressBar(total=100, show_eta=False, id="progress-bar")
-            yield Label("", id="status-label")
+                #with Vertical():
 
             with Vertical():
+                yield Label("Storage Pool:", id="vminstall-storage-label")
+                yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+                with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
+                    with Horizontal(id="expert-mode"):
+                        with Vertical(id="expert-mem"):
+                            yield Label(" Memory (MB)", classes="label")
+                            yield Input("4096", id="memory-input", type="integer")
+                        with Vertical(id="expert-cpu"):
+                            yield Label(" CPUs", classes="label")
+                            yield Input("2", id="cpu-input", type="integer")
+                        with Vertical(id="expert-disk-size"):
+                            yield Label(" Disk Size(GB)", classes="label")
+                            yield Input("8", id="disk-size-input", type="integer")
+                        with Vertical(id="expert-disk-format"):
+                            yield Label(" Disk Format", classes="label")
+                            yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
+                        with Vertical(id="expert-firmware"):
+                            yield Label(" Firmware", classes="label")
+                            yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
+
+                yield ProgressBar(total=100, show_eta=False, id="progress-bar")
+                yield Label("", id="status-label")
+
+            #with Vertical():
                 with Horizontal(classes="buttons"):
                     yield Button("Install", variant="primary", id="install-btn", disabled=True)
                     yield Button("Cancel", variant="default", id="cancel-btn")
@@ -126,11 +130,18 @@ class InstallVMModal(BaseModal[str | None]):
         """Called when modal is mounted."""
         # Initial state
         self.query_one("#custom-iso-container").styles.display = "none"
+        self.query_one("#pool-iso-container").styles.display = "none" # Hide new container
         # Default to showing cached ISOs first
         self.query_one("#distro", Select).value = "cached"
         self.fetch_isos("cached")
         # Ensure expert defaults are set correctly based on initial selection
         self._update_expert_defaults(self.query_one("#vm-type", Select).value)
+        
+        # Populate initial storage pool volumes if "From Storage Pool" is default
+        storage_pool_select = self.query_one("#storage-pool-select", Select)
+        if storage_pool_select.value:
+            self.fetch_pool_isos(storage_pool_select.value)
+
 
     def _update_expert_defaults(self, vm_type):
         mem = 4096
@@ -149,7 +160,11 @@ class InstallVMModal(BaseModal[str | None]):
         elif vm_type == VMType.DESKTOP:
             mem = 4096
             vcpu = 4
-            disk_size = 18
+            disk_size = 30
+        elif vm_type == VMType.WDESKTOP:
+            mem = 8192
+            vcpu = 8
+            disk_size = 40
         elif vm_type == VMType.SECURE:
             mem = 4096
             vcpu = 2
@@ -166,14 +181,29 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#distro")
     def on_distro_changed(self, event: Select.Changed):
         self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
+        
+        # Hide all ISO source containers first
+        self.query_one("#repo-iso-container").styles.display = "none"
+        self.query_one("#custom-iso-container").styles.display = "none"
+        self.query_one("#pool-iso-container").styles.display = "none"
+
         if event.value == OpenSUSEDistro.CUSTOM:
-            self.query_one("#repo-iso-container").styles.display = "none"
             self.query_one("#custom-iso-container").styles.display = "block"
-            self._check_form_validity()
-        else:
-            self.query_one("#repo-iso-container").styles.display = "block"
+        elif event.value == "pool_volumes":
+            self.query_one("#repo-iso-container").styles.display = "none"
             self.query_one("#custom-iso-container").styles.display = "none"
+            self.query_one("#pool-iso-container").styles.display = "block"
+            # Trigger fetching volumes for the currently selected storage pool
+            pool_select = self.query_one("#storage-pool-select", Select)
+            if pool_select.value:
+                self.fetch_pool_isos(pool_select.value)
+            else:
+                self.query_one("#iso-volume-select", Select).clear() # No pool selected, clear volumes
+        else: # Repo or Cached
+            self.query_one("#repo-iso-container").styles.display = "block"
             self.fetch_isos(event.value)
+        self._check_form_validity()
+
 
     @on(Checkbox.Changed, "#validate-checksum")
     def on_checksum_toggle(self, event: Checkbox.Changed):
@@ -186,6 +216,58 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Input.Changed, "#checksum-input")
     def on_checksum_changed(self):
         self._check_form_validity()
+    
+    @on(Select.Changed, "#storage-pool-select")
+    def on_storage_pool_selected(self, event: Select.Changed):
+        """Handles when a storage pool is selected for ISO volumes."""
+        if event.value:
+            self.fetch_pool_isos(event.value)
+        else:
+            self.query_one("#iso-volume-select", Select).clear() # No pool selected, clear volumes
+        self._check_form_validity()
+
+    @on(Select.Changed, "#iso-volume-select")
+    def on_iso_volume_selected(self, event: Select.Changed):
+        """Handles when an ISO volume is selected."""
+        self._check_form_validity()
+
+    @work(exclusive=True, thread=True)
+    def fetch_pool_isos(self, pool_name: str):
+        """Fetches and populates the list of ISO volumes in a given storage pool."""
+        self.app.call_from_thread(self._update_iso_status, f"Fetching ISO volumes from {pool_name}...", True)
+        iso_volume_select = self.query_one("#iso-volume-select", Select)
+        try:
+            pool = self.conn.storagePoolLookupByName(pool_name)
+            volumes = pool.listAllVolumes(0)
+            
+            iso_volumes_options = []
+            for vol in volumes:
+                # Filter for ISO images - often ending in .iso or .img
+                # This is a heuristic, actual content type is harder to determine without reading
+                if vol.name().lower().endswith((".iso", ".img")):
+                    iso_volumes_options.append((vol.name(), vol.path())) # Display name, store full path
+            
+            iso_volumes_options.sort(key=lambda x: x[0]) # Sort by name
+
+            def update_iso_volume_select():
+                if iso_volumes_options:
+                    iso_volume_select.set_options(iso_volumes_options)
+                    iso_volume_select.value = iso_volumes_options[0][1] # Select first
+                    iso_volume_select.disabled = False
+                else:
+                    iso_volume_select.clear()
+                    iso_volume_select.disabled = True
+                self._update_iso_status("", False)
+                self._check_form_validity()
+
+            self.app.call_from_thread(update_iso_volume_select)
+
+        except Exception as e:
+            self.app.call_from_thread(self.app.show_error_message, f"Failed to fetch ISO volumes from {pool_name}: {e}")
+            self.app.call_from_thread(self._update_iso_status, "Error fetching volumes", False)
+            self.app.call_from_thread(iso_volume_select.clear)
+            self.app.call_from_thread(lambda: setattr(iso_volume_select, 'disabled', True))
+
 
     @work(exclusive=True, thread=True)
     def fetch_isos(self, distro: OpenSUSEDistro | str):
@@ -252,6 +334,9 @@ class InstallVMModal(BaseModal[str | None]):
         if distro == OpenSUSEDistro.CUSTOM:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path) # Basic check, validation happens on install
+        elif distro == "pool_volumes":
+            iso_volume = self.query_one("#iso-volume-select", Select).value
+            valid_iso = (iso_volume and iso_volume != Select.BLANK)
         else:
             iso = self.query_one("#iso-select", Select).value
             valid_iso = (iso and iso != Select.BLANK)
@@ -275,15 +360,6 @@ class InstallVMModal(BaseModal[str | None]):
                 self._check_form_validity()
 
         self.app.push_screen(FileSelectionModal(), set_path)
-
-    #@on(Button.Pressed, "#browse-autoinstall-btn")
-    #def on_browse_autoinstall(self):
-    #    """Open file picker for Autoinstall file."""
-    #    def set_path(path: str | None) -> None:
-    #        if path:
-    #            self.query_one("#autoinstall-path", Input).value = path
-
-    #    self.app.push_screen(FileSelectionModal(), set_path)
 
     @on(Button.Pressed, "#vm-type-info-btn")
     def on_vm_type_info(self):
@@ -336,26 +412,25 @@ class InstallVMModal(BaseModal[str | None]):
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:
                 checksum = self.query_one("#checksum-input", Input).value.strip()
+        elif distro == "pool_volumes":
+            iso_url = self.query_one("#iso-volume-select", Select).value
         else:
             iso_url = self.query_one("#iso-select", Select).value
 
         # Expert Mode Settings
-        expert_mode = not self.query_one("#expert-mode-collapsible", Collapsible).collapsed
-        memory_mb = 4096
-        vcpu = 2
-        disk_size = 20
-        disk_format = "qcow2"
-        boot_uefi = True
-
-        if expert_mode:
-            try:
-                memory_mb = int(self.query_one("#memory-input", Input).value)
-                vcpu = int(self.query_one("#cpu-input", Input).value)
-                disk_size = int(self.query_one("#disk-size-input", Input).value)
-                disk_format = self.query_one("#disk-format", Select).value
-                boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
-            except ValueError:
-                self.app.show_error_message("Invalid input for expert settings. Using defaults.")
+        try:
+            memory_mb = int(self.query_one("#memory-input", Input).value)
+            vcpu = int(self.query_one("#cpu-input", Input).value)
+            disk_size = int(self.query_one("#disk-size-input", Input).value)
+            disk_format = self.query_one("#disk-format", Select).value
+            boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
+        except ValueError:
+            self.app.show_error_message("Invalid input for expert settings. Using defaults.")
+            memory_mb = 4096
+            vcpu = 2
+            disk_size = 20
+            disk_format = "qcow2"
+            boot_uefi = True
 
         # Disable inputs
         for widget in self.query("Input"): widget.disabled = True
@@ -379,7 +454,7 @@ class InstallVMModal(BaseModal[str | None]):
         try:
             final_iso_url = iso_url
 
-            if custom_path:
+            if custom_path: # This path is for custom local ISO (not from pool)
                 # 1. Validate Checksum
                 if validate:
                     progress_cb("Validating Checksum...", 0)
@@ -401,7 +476,7 @@ class InstallVMModal(BaseModal[str | None]):
                 dom = self.provisioner.provision_vm(
                     vm_name=name,
                     vm_type=vm_type,
-                    iso_url=final_iso_url,
+                    iso_url=final_iso_url, # This will now be the selected pool volume path if "pool_volumes" was chosen
                     storage_pool_name=pool_name,
                     memory_mb=memory_mb,
                     vcpu=vcpu,
