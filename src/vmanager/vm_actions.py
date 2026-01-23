@@ -1897,7 +1897,7 @@ def force_off_vm(domain: libvirt.virDomain):
     invalidate_cache(get_internal_id(domain))
     domain.destroy()
 
-def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None):
+def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None, conn: libvirt.virConnect = None):
     """
     Deletes a VM and optionally its associated storage and NVRAM.
     If the VM has snapshots, their metadata will be removed as well.
@@ -1927,11 +1927,16 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
     log(f"Starting deletion process for VM '{vm_name}'...")
 
     # Open a dedicated connection for the deletion operation to avoid blocking the main connection
-    original_conn = domain.connect()
-    uri = original_conn.getURI()
-    delete_conn = libvirt.open(uri)
-    if not delete_conn:
-        raise libvirt.libvirtError(f"Failed to open new connection to {uri} for deletion")
+    should_close_conn = False
+    if conn:
+        delete_conn = conn
+    else:
+        original_conn = domain.connect()
+        uri = original_conn.getURI()
+        delete_conn = libvirt.open(uri)
+        should_close_conn = True
+        if not delete_conn:
+            raise libvirt.libvirtError(f"Failed to open new connection to {uri} for deletion")
 
     try:
         # Get XML from original domain first (if possible) to avoid issues if it's already gone
@@ -2046,7 +2051,7 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                     log(f"  - [red]ERROR:[/] Unexpected error deleting storage {disk_path}: {e}")
 
     finally:
-        if delete_conn:
+        if should_close_conn and delete_conn:
             delete_conn.close()
 
     log(f"Finished deletion process for VM '{vm_name}'.")

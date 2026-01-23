@@ -1057,7 +1057,7 @@ class VMManagerTUI(App):
                 elif message.action == VmAction.DELETE:
                     self.bulk_operation_in_progress = True
                     self.vm_service.delete_vm(domain, delete_storage=message.delete_storage, delete_nvram=True)
-                    self.vm_service.invalidate_vm_cache(message.internal_id)
+                    #self.vm_service.invalidate_vm_cache(message.internal_id)
                     if message.internal_id in self.selected_vm_uuids:
                         self.selected_vm_uuids.discard(message.internal_id)
                     self.call_from_thread(self.refresh_vm_list, force=True)

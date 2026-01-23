@@ -1167,6 +1167,8 @@ class VMService:
 
         found_domains = self.find_domains_by_uuids(active_uris, vm_uuids)
 
+        delete_conns = {}
+
         # Suppress events for these VMs to avoid callback storm during bulk action
         with self._cache_lock:
             for uuid in vm_uuids:
@@ -1198,8 +1200,20 @@ class VMService:
                     elif action_type == VmAction.DELETE:
                         # Special case for delete action's own callback
                         delete_log_callback = lambda m: progress_callback("log", message=m)
+                        
+                        # Optimization: Reuse connection for bulk delete
+                        conn_uri = self.get_uri_for_connection(domain.connect())
+                        target_conn = None
+                        if conn_uri:
+                             if conn_uri not in delete_conns:
+                                 try:
+                                     delete_conns[conn_uri] = libvirt.open(conn_uri)
+                                 except Exception as e:
+                                     logging.warning(f"Failed to open dedicated connection for {conn_uri}: {e}")
+                             target_conn = delete_conns.get(conn_uri)
+
                         #time.sleep(0.5)
-                        self.delete_vm(domain, delete_storage=delete_storage_flag, log_callback=delete_log_callback, invalidate_cache=False)
+                        self.delete_vm(domain, delete_storage=delete_storage_flag, log_callback=delete_log_callback, invalidate_cache=False, conn=target_conn)
                         vms_to_invalidate.append(internal_id)
                     else:
                         msg = f"Unknown bulk action type: {action_type}"
@@ -1223,6 +1237,13 @@ class VMService:
             with self._cache_lock:
                 for uuid in vm_uuids:
                     self._suppressed_uuids.discard(uuid)
+            
+            # Close temporary deletion connections
+            for conn in delete_conns.values():
+                try:
+                    conn.close()
+                except:
+                    pass
 
         # Invalidate caches in bulk at the end
         for internal_id in vms_to_invalidate:
@@ -1372,11 +1393,11 @@ class VMService:
             self.invalidate_vm_state_cache(internal_id)
             self._force_update_event.set()
 
-    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None, invalidate_cache: bool = True) -> None:
+    def delete_vm(self, domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None, invalidate_cache: bool = True, conn: libvirt.virConnect = None) -> None:
         """Deletes the VM."""
         internal_id = self._get_internal_id(domain)
         logging.info(f"Deleting VM: {domain.name()} (ID: {internal_id}, delete_storage={delete_storage}, delete_nvram={delete_nvram})")
-        delete_vm(domain, delete_storage=delete_storage, delete_nvram=delete_nvram, log_callback=log_callback)
+        delete_vm(domain, delete_storage=delete_storage, delete_nvram=delete_nvram, log_callback=log_callback, conn=conn)
         if invalidate_cache:
             self.invalidate_vm_cache(internal_id)
             self._force_update_event.set()
