@@ -395,6 +395,11 @@ class VMDetailModal(ModalScreen):
         else:
             networks_table.add_row("No network interfaces found.", "", "", "", "", "", key="none")
 
+    @on(TabbedContent.TabActivated)
+    def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
+        if event.pane.id == "detail-boot-tab":
+            self._populate_boot_lists()
+
     def _populate_boot_lists(self):
         """Populates the boot order and available devices lists."""
         boot_order_list = self.query_one("#boot-order-list", ListView)
