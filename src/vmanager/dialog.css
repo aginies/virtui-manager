@@ -183,13 +183,16 @@ HowToOverlayModal #howto-overlay-dialog,
 HowToDiskModal > #howto-disk-dialog,
 HowToVirtIOFSModal #howto-virtiofs-dialog,
 HowToNetworkModal #howto-network-dialog,
-VMTypeInfoModal #howto-vmtype-dialog,
 InfoModal #info-modal-dialog,
 HowToSSHModal #howto-ssh-dialog {
     width: 80;
     height: 95%;
 }
 
+VMTypeInfoModal #howto-vmtype-dialog, {
+    width: 92;
+    padding: 0 0;
+}
 RenameVMDialog > #dialog { height: 13; }
 ChangeNetworkDialog > #dialog { height: 20; }
 InputModal > #input-modal-container { height: 16; }
