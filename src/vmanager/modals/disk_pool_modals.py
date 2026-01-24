@@ -11,7 +11,7 @@ from textual.widgets import (
         )
 from textual.app import ComposeResult
 from textual import on
-from ..storage_manager import create_storage_pool
+from ..storage_manager import create_storage_pool, list_storage_pools
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import DirectorySelectionModal, FileSelectionModal
 from .input_modals import _sanitize_input
@@ -488,19 +488,17 @@ class MoveVolumeModal(BaseModal[dict]):
     """Modal to move a volume to another storage pool."""
 
     def __init__(self, conn: libvirt.virConnect, source_pool_name: str, volume_name: str):
-        import storage_manager
         super().__init__()
         self.conn = conn
         self.source_pool_name = source_pool_name
         self.volume_name = volume_name
-        self.storage_manager = storage_manager
 
     def compose(self) -> ComposeResult:
         with Vertical(id="move-volume-dialog"):
             yield Label(f"Move Volume: {self.volume_name}", id="move-volume-title")
             yield Static(f"From Pool: {self.source_pool_name}", classes="label-like")
 
-            pools = self.storage_manager.list_storage_pools(self.conn)
+            pools = list_storage_pools(self.conn)
             # Filter out the source pool from the destination choices
             dest_pools = [(p['name'], p['name']) for p in pools if p['name'] != self.source_pool_name and p['status'] == 'active']
 
