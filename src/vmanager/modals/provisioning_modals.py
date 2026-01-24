@@ -162,9 +162,13 @@ class InstallVMModal(BaseModal[str | None]):
             vcpu = 4
             disk_size = 30
         elif vm_type == VMType.WDESKTOP:
-            mem = 8192
+            mem = 16384
             vcpu = 8
             disk_size = 40
+        elif vm_type == VMType.WLDESKTOP:
+            mem = 4096
+            vcpu = 4
+            disk_size = 30
         elif vm_type == VMType.SECURE:
             mem = 4096
             vcpu = 2
