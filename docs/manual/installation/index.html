@@ -997,26 +997,31 @@
 <li>
 <p><strong>VM Type:</strong></p>
 <ul>
-<li>Select a preset profile that automatically adjusts hardware resources (CPU, RAM, Disk) based on the intended use case.</li>
-<li><strong>Desktop:</strong> Balanced resources for general use (Default).</li>
-<li><strong>Server:</strong> More CPU/RAM, larger disk, optimized for workloads.</li>
-<li><strong>Computation:</strong> High CPU/RAM ratio for compute-intensive tasks.</li>
-<li><strong>Secure:</strong> Minimal resources, hardened configuration.</li>
+<li>Select a preset profile that automatically adjusts hardware resources (CPU, RAM, Disk) based on the intended use case. Click the <strong>Info</strong> button next to the dropdown to see a detailed comparison of the different types.</li>
+<li><strong>Desktop (Linux):</strong> Balanced resources for general Linux desktop use (Default).</li>
+<li><strong>Windows:</strong> Optimized for modern Windows installations (SATA bus, TPM enabled).</li>
+<li><strong>Windows Legacy:</strong> Optimized for older Windows versions or specific compatibility needs (SATA bus, BIOS boot, USB input).</li>
+<li><strong>Server:</strong> More CPU/RAM, larger disk, optimized for server workloads.</li>
+<li><strong>Computation:</strong> High CPU/RAM ratio for compute-intensive tasks, uses raw disk format and virtio networking.</li>
+<li><strong>Secure VM:</strong> Hardened configuration with TPM and SEV (Secure Encrypted Virtualization) support.</li>
 </ul>
 </li>
 <li>
 <p><strong>Distribution:</strong></p>
 <ul>
 <li>Choose the operating system source.</li>
-<li><strong>Cached ISOs:</strong> Select from ISO images already downloaded to your local cache.</li>
+<li><strong>Cached ISOs:</strong> Select from ISO images already downloaded to your local cache. The path to the cache is displayed below the selection.</li>
 <li><strong>OpenSUSE Variants:</strong> Select a specific OpenSUSE distribution (e.g., Leap, Tumbleweed, Slowroll) to automatically fetch the latest ISO.</li>
+<li><strong>From Storage Pool:</strong> Select an ISO image directly from an existing libvirt storage pool.</li>
 <li><strong>Custom:</strong> Use a local ISO file from your file system.</li>
 </ul>
 </li>
 <li>
-<p><strong>ISO Image (Repo):</strong></p>
+<p><strong>ISO Image (Repo / Volume):</strong></p>
 <ul>
-<li>If you selected a distribution or "Cached ISOs", pick the specific image version from the dropdown. New images will be downloaded automatically to the configured ISO path.</li>
+<li>Depending on the selected Distribution, pick the specific image from the dropdown. </li>
+<li>If a remote distribution is selected, the ISO will be downloaded automatically to the displayed <strong>ISO Download Path</strong>.</li>
+<li>If <strong>From Storage Pool</strong> is selected, you will first select the storage pool, then the specific volume (ISO) within it.</li>
 </ul>
 </li>
 </ul>
