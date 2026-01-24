@@ -9,6 +9,7 @@ import re
 import hashlib
 import subprocess
 import tempfile
+import shutil
 from datetime import datetime
 from enum import Enum
 from typing import Callable, Optional, Dict, Any, List
@@ -27,7 +28,9 @@ from .constants import AppInfo
 class VMType(Enum):
     SECURE = "Secure VM"
     COMPUTATION = "Computation"
-    DESKTOP = "Desktop"
+    DESKTOP = "Desktop (Linux)"
+    WDESKTOP = "Windows"
+    WLDESKTOP = "Windows Legacy"
     SERVER = "Server"
 
 class OpenSUSEDistro(Enum):
@@ -106,6 +109,38 @@ class VMProvisioner:
 
         return isos
 
+    def _get_local_iso_list(self, path: str) -> List[Dict[str, Any]]:
+        """
+        Lists ISO files from a local directory.
+        """
+        if path.startswith("file://"):
+            path = path[7:]
+
+        results = []
+        try:
+            path_obj = Path(path)
+            if not path_obj.exists() or not path_obj.is_dir():
+                logging.warning(f"Local path {path} does not exist or is not a directory.")
+                return []
+
+            for f in path_obj.glob("*.iso"):
+                try:
+                    stats = f.stat()
+                    dt_str = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
+                    results.append({
+                        'name': f.name,
+                        'url': str(f.absolute()),
+                        'date': dt_str
+                    })
+                except Exception as e:
+                     logging.warning(f"Error reading file {f}: {e}")
+
+            results.sort(key=lambda x: x['name'], reverse=True)
+        except Exception as e:
+            logging.error(f"Error listing local ISOs from {path}: {e}")
+
+        return results
+
     def get_iso_list(self, distro: OpenSUSEDistro | str) -> List[Dict[str, Any]]:
         """
         Retrieves a list of available ISOs with details for the specified distribution or custom repo URL.
@@ -117,10 +152,14 @@ class VMProvisioner:
         if isinstance(distro, OpenSUSEDistro):
             base_url = self.distro_base_urls.get(distro)
         elif isinstance(distro, str):
-             base_url = distro
+            base_url = distro
 
         if not base_url:
             return []
+
+        # Check for local directory or file URI
+        if base_url.startswith("/") or base_url.startswith("file://") or os.path.isdir(base_url):
+            return self._get_local_iso_list(base_url)
 
         logging.info(f"Fetching ISO list from {base_url} for arch {self.host_arch}")
 
@@ -573,11 +612,38 @@ class VMProvisioner:
         xml = ET.fromstring(pool.XMLDesc(0))
         return xml.find("target/path").text
 
-    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None, boot_uefi: bool = True) -> str:
+    def _find_iso_volume_by_path(self, path: str) -> str | None:
         """
-        Generates the Libvirt XML for the VM based on the type and default settings.
+        Checks if the given path corresponds to an existing libvirt storage volume
+        across all active pools. Returns the volume's path if found, otherwise None.
         """
+        if path.startswith("file://"):
+            path = path[7:]
+        
+        try:
+            # List all active pools
+            pools = self.conn.listAllStoragePools(libvirt.VIR_STORAGE_POOL_RUNNING)
+            for pool in pools:
+                try:
+                    # Check if the path matches any volume in this pool
+                    # We can't directly lookup by path, so we list volumes and check their paths
+                    volumes = pool.listAllVolumes(0)
+                    for vol in volumes:
+                        if vol.path() == path:
+                            logging.info(f"Found existing ISO volume: {path} in pool {pool.name()}")
+                            return path
+                except libvirt.libvirtError:
+                    # Ignore pools that might be in a bad state
+                    pass
+        except libvirt.libvirtError as e:
+            logging.warning(f"Failed to list storage pools to find ISO volume: {e}")
+            
+        return None
 
+    def _get_vm_settings(self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None) -> Dict[str, Any]:
+        """
+        Returns a dictionary of VM settings based on type and options.
+        """
         settings = {
             # Storage
             'disk_bus': 'virtio',
@@ -591,10 +657,15 @@ class VMProvisioner:
             'suspend_to_disk': 'off',
             'boot_uefi': boot_uefi,
             'iothreads': 0,
+            'input_bus': 'virtio',
             # Features
             'sev': False,
             'tpm': False,
             'mem_backing': False,
+            'watchdog': False,
+            'on_poweroff': 'destroy',
+            'on_reboot': 'restart',
+            'on_crash': 'destroy',
         }
         if vm_type == VMType.SECURE:
             settings.update({
@@ -603,6 +674,7 @@ class VMProvisioner:
                 'video': 'qxl',
                 'tpm': True,
                 'sev': True,
+                'input_bus': 'ps2',
                 'mem_backing': False, # Explicitly off in table
                 'on_poweroff': 'destroy',
                 'on_reboot': 'destroy',
@@ -616,6 +688,7 @@ class VMProvisioner:
                 'network_model': 'virtio',
                 'iothreads': 4,
                 'mem_backing': 'memfd', # memfd/shared
+                'watchdog': True,
                 'on_poweroff': 'restart',
                 'on_reboot': 'restart',
                 'on_crash': 'restart',
@@ -633,6 +706,25 @@ class VMProvisioner:
                 'on_reboot': 'restart',
                 'on_crash': 'destroy',
             })
+        elif vm_type == VMType.WDESKTOP or vm_type == VMType.WLDESKTOP:
+            settings.update({
+                'disk_bus': 'sata',
+                'disk_cache': 'none',
+                'disk_format': 'qcow2',
+                'video': 'virtio',
+                'network_model': 'e1000',
+                'suspend_to_mem': 'on',
+                'suspend_to_disk': 'on',
+                'mem_backing': 'memfd',
+                'tpm': True if vm_type == VMType.WDESKTOP else False,
+                'on_poweroff': 'destroy',
+                'on_reboot': 'restart',
+                'on_crash': 'destroy',
+            })
+            if vm_type == VMType.WLDESKTOP:
+                settings['machine'] = 'pc-i440fx-10.1'
+                settings['input_bus'] = 'usb'
+
         elif vm_type == VMType.SERVER:
             settings.update({
                 'disk_cache': 'none',
@@ -650,6 +742,14 @@ class VMProvisioner:
         # Override disk format if provided
         if disk_format:
             settings['disk_format'] = disk_format
+            
+        return settings
+
+    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None, boot_uefi: bool = True) -> str:
+        """
+        Generates the Libvirt XML for the VM based on the type and default settings.
+        """
+        settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
 
         # --- XML Construction ---
         # UUID generation handled by libvirt if omitted
@@ -763,7 +863,7 @@ class VMProvisioner:
     </tpm>
 """
         # Watchdog (Computation)
-        if vm_type == VMType.COMPUTATION:
+        if settings['watchdog']:
             xml += """
     <watchdog model='i6300esb' action='poweroff'/>
 """
@@ -775,11 +875,18 @@ class VMProvisioner:
     </console>
 """
 
-        # Input devices (Tablet for better mouse)
+        # QEMU Guest Agent
         xml += """
+    <channel type='unix'>
+      <target type='virtio' name='org.qemu.guest_agent.0'/>
+    </channel>
+"""
+
+        # Input devices (Tablet for better mouse)
+        xml += f"""
     <input type='tablet' bus='usb'/>
-    <input type='mouse' bus='ps2'/>
-    <input type='keyboard' bus='ps2'/>
+    <input type='mouse' bus='{settings['input_bus']}'/>
+    <input type='keyboard' bus='{settings['input_bus']}'/>
 """
 
         xml += "  </devices>\n"
@@ -792,9 +899,100 @@ class VMProvisioner:
         xml += "</domain>"
         return xml
 
+    def check_virt_install(self) -> bool:
+        """Checks if virt-install is available on the system."""
+        return shutil.which("virt-install") is not None
+
+    def _run_virt_install(self, vm_name: str, settings: Dict[str, Any], disk_path: str, iso_path: str,
+                          memory_mb: int, vcpu: int, loader_path: str | None, nvram_path: str | None):
+        """
+        Executes virt-install to create the VM using the provided settings.
+        """
+        cmd = ["virt-install"]
+        cmd.extend(["--connect", self.conn.getURI()])
+        cmd.extend(["--name", vm_name])
+        cmd.extend(["--memory", str(memory_mb)])
+        cmd.extend(["--vcpus", str(vcpu)])
+
+        # OS info
+        cmd.extend(["--osinfo", "detect=on,name=generic"])
+
+        # Disk
+        disk_opt = f"path={disk_path},bus={settings['disk_bus']},format={settings['disk_format']},cache={settings['disk_cache']}"
+        cmd.extend(["--disk", disk_opt])
+
+        # ISO
+        cmd.extend(["--cdrom", iso_path])
+
+        # Network
+        cmd.extend(["--network", f"default,model={settings['network_model']}"])
+
+        # Graphics
+        cmd.extend(["--graphics", "vnc,port=-1,listen=0.0.0.0"])
+
+        # Video
+        cmd.extend(["--video", settings['video']])
+
+        # Console
+        cmd.extend(["--console", "pty,target.type=serial"])
+
+        # QEMU Guest Agent
+        cmd.extend(["--channel", "unix,target.type=virtio,name=org.qemu.guest_agent.0"])
+
+        # Machine
+        cmd.extend(["--machine", settings['machine']])
+
+        # Boot / Firmware
+        if settings['boot_uefi']:
+            if loader_path and nvram_path:
+                # Explicit paths
+                cmd.extend(["--boot", f"loader={loader_path},loader.readonly=yes,loader.type=pflash,nvram={nvram_path},nvram.templateFormat=qcow2"])
+            else:
+                # Auto
+                cmd.extend(["--boot", "uefi"])
+
+        # Features
+        if settings['sev']:
+            sev_caps = self._get_sev_capabilities()
+            cmd.extend(["--launchSecurity", f"sev,cbitpos={sev_caps['cbitpos']},reducedPhysBits={sev_caps['reducedPhysBits']},policy={sev_caps['policy']}"])
+
+        if settings['tpm']:
+            cmd.extend(["--tpm", "model=tpm-crb,backend.type=emulator,backend.version=2.0"])
+
+        if settings['watchdog']:
+            cmd.extend(["--watchdog", "model=i6300esb,action=poweroff"])
+
+        # PM
+        if settings['suspend_to_mem'] == 'on' or settings['suspend_to_disk'] == 'on':
+            pm_opts = []
+            if settings['suspend_to_mem'] == 'on': pm_opts.append("suspend_to_mem=on")
+            if settings['suspend_to_disk'] == 'on': pm_opts.append("suspend_to_disk=on")
+            cmd.extend(["--pm", ",".join(pm_opts)])
+
+        # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
+
+        cmd.extend(["--noautoconsole"])
+        cmd.extend(["--wait", "0"]) 
+
+        logging.info(f"Running: {(' '.join(cmd))}")
+        try:
+            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if result.stdout:
+                logging.info(f"virt-install stdout: {result.stdout.strip()}")
+            if result.stderr:
+                logging.warning(f"virt-install stderr: {result.stderr.strip()}")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"virt-install command failed with exit code {e.returncode}")
+            logging.error(f"virt-install stdout: {e.stdout.strip()}")
+            logging.error(f"virt-install stderr: {e.stderr.strip()}")
+            raise Exception(f"virt-install failed: {e.stderr.strip()}") from e
+        except Exception as e:
+            logging.error(f"An unexpected error occurred while running virt-install: {e}")
+            raise
+
     def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
                      memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8, disk_format: str | None = None,
-                     boot_uefi: bool = True,
+                     boot_uefi: bool = True, use_virt_install: bool = True,
                      progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -828,40 +1026,61 @@ class VMProvisioner:
         iso_cache_dir = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
         iso_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Derive name from URL
-        iso_name = iso_url.split('/')[-1]
-        iso_cache_path = str(iso_cache_dir / iso_name)
+        # Helper function to determine the final ISO path
+        def _determine_iso_path(current_iso_url: str) -> str:
+            # Check if iso_url already points to an existing libvirt storage volume
+            existing_iso_volume_path = self._find_iso_volume_by_path(current_iso_url)
+            if existing_iso_volume_path:
+                report(f"Using existing ISO volume: {existing_iso_volume_path}", 55)
+                return existing_iso_volume_path
+            else: # original behavior, downloads/copies to cache and then uploads to storage pool
+                iso_name = current_iso_url.split('/')[-1]
+                is_local_source = current_iso_url.startswith("/") or current_iso_url.startswith("file://") or os.path.exists(current_iso_url)
 
-        def download_cb(percent):
-            report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4)) # 10-50%
+                if is_local_source:
+                    if current_iso_url.startswith("file://"):
+                        local_iso_path_for_upload = current_iso_url[7:]
+                    else:
+                        local_iso_path_for_upload = current_iso_url
+                    report("Using local ISO image", 50)
+                    return local_iso_path_for_upload
+                else:
+                    local_iso_path_for_upload = str(iso_cache_dir / iso_name)
 
-        if not os.path.exists(iso_cache_path):
-            self.download_iso(iso_url, iso_cache_path, download_cb)
-        else:
-            report("ISO found, skipping download", 50)
+                    def download_cb(percent):
+                        report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4)) # 10-50%
 
-        # Upload ISO from cache to storage pool
-        report("Uploading ISO to storage pool", 55)
-        def upload_cb(percent):
-            # This stage is quick, allocate a small progress percentage (e.g., 5%)
-            report(f"Uploading ISO: {percent}%", 55 + int(percent * 0.05))
+                    if not os.path.exists(local_iso_path_for_upload):
+                        self.download_iso(current_iso_url, local_iso_path_for_upload, download_cb)
+                    else:
+                        report("ISO found in cache, skipping download", 50)
 
-        iso_path = self.upload_iso(iso_cache_path, storage_pool_name, upload_cb)
+                # Return the local cached path directly
+                return local_iso_path_for_upload
+
+        iso_path = _determine_iso_path(iso_url)
+
+        # Setup NVRAM if UEFI
+
 
         # Setup NVRAM if UEFI
         loader_path = None
         nvram_path = None
 
-        if boot_uefi:
+        is_virt_install_available = use_virt_install and self.check_virt_install()
+
+        if boot_uefi and not is_virt_install_available:
             report("Setting up UEFI Firmware", 75)
+            # Only setup NVRAM if we are not using virt-install
+            # virt-install --boot uefi will handle this automatically if we don't pass paths
             loader_path, nvram_path = self._setup_uefi_nvram(vm_name, storage_pool_name, vm_type)
 
         # Create Disk
         report("Creating Storage", 78) # Adjusted percentage
 
-        preallocation = 'metadata' if vm_type in [VMType.SECURE, VMType.DESKTOP] else 'off'
+        preallocation = 'metadata' if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP] else 'off'
         lazy_refcounts = True if vm_type in [VMType.SECURE, VMType.COMPUTATION] else False
-        cluster_size = '1024k' if vm_type in [VMType.SECURE, VMType.DESKTOP] else None
+        cluster_size = '1024k' if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP] else None
 
         create_volume(
             pool,
@@ -873,14 +1092,26 @@ class VMProvisioner:
             cluster_size=cluster_size
         )
 
-        # Generate XML
-        report("Configuring VM", 80)
-        xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path, boot_uefi=boot_uefi)
+        if is_virt_install_available:
+            report("Configuring VM (virt-install)", 80)
+            settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
+            try:
+                self._run_virt_install(vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path)
+            except Exception as e:
+                logging.info(f"Can't install domain {vm_name}: {e}")
 
-        # Define and Start VM
-        report("Starting VM", 90)
-        dom = self.conn.defineXML(xml_desc)
-        dom.create()
+            report("Waiting for VM", 95)
+            # Fetch the domain object
+            dom = self.conn.lookupByName(vm_name)
+        else:
+            # Generate XML
+            report("Configuring VM (XML)", 80)
+            xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path, boot_uefi=boot_uefi)
+
+            # Define and Start VM
+            report("Starting VM", 90)
+            dom = self.conn.defineXML(xml_desc)
+            dom.create()
 
         report("Provisioning Complete", 100)
         return dom
