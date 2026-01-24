@@ -348,6 +348,8 @@ class VMService:
                             del self._vm_data_cache[internal_id]['info']
                         if 'vm_details' in self._vm_data_cache[internal_id]:
                             del self._vm_data_cache[internal_id]['vm_details']
+                        if 'xml' in self._vm_data_cache[internal_id]:
+                            del self._vm_data_cache[internal_id]['xml']
 
                         # Notify for specific VM update with debouncing
                         if self._vm_update_callback:
