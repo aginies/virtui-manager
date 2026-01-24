@@ -467,20 +467,6 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     source_info = source_vol.info()
     source_capacity = source_info[1]  # in bytes
 
-    # 1. Check for space in the temporary directory for the pipe
-    tmp_dir = tempfile.gettempdir()
-    try:
-        tmp_free_space = shutil.disk_usage(tmp_dir).free
-        if tmp_free_space < source_capacity:
-            msg = (
-                   f"Not enough space in temporary directory '{tmp_dir}'. "
-                   f"Required: {source_capacity // 1024**2} MB, "
-                   f"Available: {tmp_free_space // 1024**2} MB.")
-            log_and_callback(f"ERROR: {msg}")
-            raise Exception(msg)
-    except FileNotFoundError:
-        log_and_callback(f"WARNING: Could not check disk space for temporary directory '{tmp_dir}'.")
-
     # Check if the volume is in use by any running VMs before starting the move
     vms_using_volume = find_vms_using_volume(conn, source_vol.path(), source_vol.name())
     running_vms = [vm.name() for vm in vms_using_volume if vm.state()[0] == libvirt.VIR_DOMAIN_RUNNING]
