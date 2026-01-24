@@ -477,7 +477,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
         raise Exception(msg)
 
     if vms_using_volume:
-        log_and_callback(f"Volume is used by offline VM(s): {[vm.name() for vm in vms_using_volume]}.  Their configuration will be updated after the move.  Wait Until the process is finished (can take a lot of time).")
+        log_and_callback(f"Volume is used by offline VM(s):\n{[vm.name() for vm in vms_using_volume]}.\nTheir configuration will be updated after the move.\nWait Until the process is finished (can take a lot of time).")
 
     source_info = source_vol.info()
     source_capacity = source_info[1]
