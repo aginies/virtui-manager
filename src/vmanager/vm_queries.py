@@ -1345,3 +1345,48 @@ def get_vm_numatune(root: ET.Element) -> dict:
         pass
 
     return numatune_info
+
+def get_domain_info_dict(domain: libvirt.virDomain, conn: libvirt.virConnect) -> dict:
+    """
+    Retrieves comprehensive information about a domain and returns it as a dictionary.
+    This is useful for initializing VM detail views without relying on VMService caching.
+    """
+    try:
+        xml_content, root = _get_domain_root(domain)
+        state, _ = domain.state()
+        info = domain.info()
+
+        # Helper to get internal ID if possible, otherwise simple UUID
+        internal_id = domain.UUIDString()
+        try:
+            uri = conn.getURI()
+            if uri:
+                internal_id = f"{internal_id}@{uri}"
+        except:
+            pass
+
+        vm_info = {
+            'name': domain.name(),
+            'uuid': domain.UUIDString(),
+            'internal_id': internal_id,
+            'status': get_status(domain, state=state),
+            'description': get_vm_description(domain),
+            'cpu': info[3],
+            'cpu_model': get_vm_cpu_model(root),
+            'memory': info[1] // 1024,
+            'machine_type': get_vm_machine_info(root),
+            'firmware': get_vm_firmware_info(root),
+            'shared_memory': get_vm_shared_memory_info(root),
+            'networks': get_vm_networks_info(root),
+            'detail_network': get_vm_network_ip(domain),
+            'network_dns_gateway': get_vm_network_dns_gateway_info(domain, root=root),
+            'disks': get_vm_disks_info(conn, root),
+            'devices': get_vm_devices_info(root),
+            'boot': get_boot_info(conn, root),
+            'video_model': get_vm_video_model(root),
+            'xml': xml_content,
+        }
+        return vm_info
+    except libvirt.libvirtError as e:
+        logging.error(f"Error getting domain info dict: {e}")
+        return {}
