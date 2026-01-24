@@ -17,20 +17,25 @@ The wizard guides you through the necessary steps to configure your new VM.
     *   *Note:* The name will be automatically sanitized to ensure compatibility (e.g., spaces replaced with hyphens).
 
 *   **VM Type:**
-    *   Select a preset profile that automatically adjusts hardware resources (CPU, RAM, Disk) based on the intended use case.
-    *   **Desktop:** Balanced resources for general use (Default).
-    *   **Server:** More CPU/RAM, larger disk, optimized for workloads.
-    *   **Computation:** High CPU/RAM ratio for compute-intensive tasks.
-    *   **Secure:** Minimal resources, hardened configuration.
+    *   Select a preset profile that automatically adjusts hardware resources (CPU, RAM, Disk) based on the intended use case. Click the **Info** button next to the dropdown to see a detailed comparison of the different types.
+    *   **Desktop (Linux):** Balanced resources for general Linux desktop use (Default).
+    *   **Windows:** Optimized for modern Windows installations (SATA bus, TPM enabled).
+    *   **Windows Legacy:** Optimized for older Windows versions or specific compatibility needs (SATA bus, BIOS boot, USB input).
+    *   **Server:** More CPU/RAM, larger disk, optimized for server workloads.
+    *   **Computation:** High CPU/RAM ratio for compute-intensive tasks, uses raw disk format and virtio networking.
+    *   **Secure VM:** Hardened configuration with TPM and SEV (Secure Encrypted Virtualization) support.
 
 *   **Distribution:**
     *   Choose the operating system source.
-    *   **Cached ISOs:** Select from ISO images already downloaded to your local cache.
+    *   **Cached ISOs:** Select from ISO images already downloaded to your local cache. The path to the cache is displayed below the selection.
     *   **OpenSUSE Variants:** Select a specific OpenSUSE distribution (e.g., Leap, Tumbleweed, Slowroll) to automatically fetch the latest ISO.
+    *   **From Storage Pool:** Select an ISO image directly from an existing libvirt storage pool.
     *   **Custom:** Use a local ISO file from your file system.
 
-*   **ISO Image (Repo):**
-    *   If you selected a distribution or "Cached ISOs", pick the specific image version from the dropdown. New images will be downloaded automatically to the configured ISO path.
+*   **ISO Image (Repo / Volume):**
+    *   Depending on the selected Distribution, pick the specific image from the dropdown. 
+    *   If a remote distribution is selected, the ISO will be downloaded automatically to the displayed **ISO Download Path**.
+    *   If **From Storage Pool** is selected, you will first select the storage pool, then the specific volume (ISO) within it.
 
 ### Custom ISO Repositories
 
