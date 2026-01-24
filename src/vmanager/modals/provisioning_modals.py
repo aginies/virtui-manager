@@ -143,11 +143,13 @@ class InstallVMModal(BaseModal[str | None]):
         vcpu = 2
         disk_size = 8
         disk_format = "qcow2"
+        boot_uefi = True
 
         if vm_type == VMType.COMPUTATION:
             mem = 8
             vcpu = 4
             disk_format = "raw"
+            boot_uefi = False
         elif vm_type == VMType.SERVER:
             mem = 4
             vcpu = 6
@@ -164,6 +166,7 @@ class InstallVMModal(BaseModal[str | None]):
             mem = 4
             vcpu = 4
             disk_size = 30
+            boot_uefi = False
         elif vm_type == VMType.SECURE:
             mem = 4
             vcpu = 2
@@ -172,6 +175,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#cpu-input", Input).value = str(vcpu)
         self.query_one("#disk-size-input", Input).value = str(disk_size)
         self.query_one("#disk-format", Select).value = disk_format
+        self.query_one("#boot-uefi-checkbox", Checkbox).value = boot_uefi
 
     @on(Select.Changed, "#vm-type")
     def on_vm_type_changed(self, event: Select.Changed):
