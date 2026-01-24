@@ -42,31 +42,30 @@ class InstallVMModal(BaseModal[str | None]):
         default_pool = 'default' if any(p[0] == 'default' for p in active_pools) else (active_pools[0][1] if active_pools else None)
 
         with ScrollableContainer(id="install-dialog"):
-            with Vertical():
-                yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
-                yield Label("VM Name:", classes="label")
-                yield Input(placeholder="my-new-vm", id="vm-name")
+            yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
+            yield Label("VM Name:", classes="label")
+            yield Input(placeholder="my-new-vm", id="vm-name")
 
-                yield Label("VM Type:", classes="label")
-                with Horizontal(classes="label-row"):
-                    yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
-                    yield Button("Info", id="vm-type-info-btn", variant="primary")
+            yield Label("VM Type:", classes="label")
+            with Horizontal(classes="label-row"):
+                yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
+                yield Button("Info", id="vm-type-info-btn", variant="primary")
 
-                yield Label("Distribution:", classes="label")
-                distro_options = [(d.value, d) for d in OpenSUSEDistro]
-                distro_options.insert(0, ("Cached ISOs", "cached"))
-                custom_repos = self.provisioner.get_custom_repos()
-                for repo in custom_repos:
-                    # Use URI as value, Name as label
-                    name = repo.get('name', repo['uri'])
-                    uri = repo['uri']
-                    # Insert before CUSTOM option (last one usually)
-                    distro_options.insert(-1, (name, uri))
+            yield Label("Distribution:", classes="label")
+            distro_options = [(d.value, d) for d in OpenSUSEDistro]
+            distro_options.insert(0, ("Cached ISOs", "cached"))
+            custom_repos = self.provisioner.get_custom_repos()
+            for repo in custom_repos:
+                # Use URI as value, Name as label
+                name = repo.get('name', repo['uri'])
+                uri = repo['uri']
+                # Insert before CUSTOM option (last one usually)
+                distro_options.insert(-1, (name, uri))
 
-                # Add option to select from storage pool volumes
-                distro_options.insert(-1, ("From Storage Pool", "pool_volumes"))
+            # Add option to select from storage pool volumes
+            distro_options.insert(-1, ("From Storage Pool", "pool_volumes"))
 
-                yield Select(distro_options, value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
+            yield Select(distro_options, value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
@@ -95,36 +94,32 @@ class InstallVMModal(BaseModal[str | None]):
                 yield Label("Select ISO Volume:", classes="label")
                 yield Select([], prompt="Select ISO Volume...", id="iso-volume-select", disabled=True)
 
-                #with Vertical():
+            yield Label("Storage Pool:", id="vminstall-storage-label")
+            yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+            with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
+                with Horizontal(id="expert-mode"):
+                    with Vertical(id="expert-mem"):
+                        yield Label(" Memory (GB)", classes="label")
+                        yield Input("4", id="memory-input", type="integer")
+                    with Vertical(id="expert-cpu"):
+                        yield Label(" CPUs", classes="label")
+                        yield Input("2", id="cpu-input", type="integer")
+                    with Vertical(id="expert-disk-size"):
+                        yield Label(" Disk Size(GB)", classes="label")
+                        yield Input("8", id="disk-size-input", type="integer")
+                    with Vertical(id="expert-disk-format"):
+                        yield Label(" Disk Format", classes="label")
+                        yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
+                    with Vertical(id="expert-firmware"):
+                        yield Label(" Firmware", classes="label")
+                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
-            with Vertical():
-                yield Label("Storage Pool:", id="vminstall-storage-label")
-                yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
-                with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
-                    with Horizontal(id="expert-mode"):
-                        with Vertical(id="expert-mem"):
-                            yield Label(" Memory (MB)", classes="label")
-                            yield Input("4096", id="memory-input", type="integer")
-                        with Vertical(id="expert-cpu"):
-                            yield Label(" CPUs", classes="label")
-                            yield Input("2", id="cpu-input", type="integer")
-                        with Vertical(id="expert-disk-size"):
-                            yield Label(" Disk Size(GB)", classes="label")
-                            yield Input("8", id="disk-size-input", type="integer")
-                        with Vertical(id="expert-disk-format"):
-                            yield Label(" Disk Format", classes="label")
-                            yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
-                        with Vertical(id="expert-firmware"):
-                            yield Label(" Firmware", classes="label")
-                            yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
+            yield ProgressBar(total=100, show_eta=False, id="progress-bar")
+            yield Label("", id="status-label")
 
-                yield ProgressBar(total=100, show_eta=False, id="progress-bar")
-                yield Label("", id="status-label")
-
-            #with Vertical():
-                with Horizontal(classes="buttons"):
-                    yield Button("Install", variant="primary", id="install-btn", disabled=True)
-                    yield Button("Cancel", variant="default", id="cancel-btn")
+            with Horizontal(classes="buttons"):
+                yield Button("Install", variant="primary", id="install-btn", disabled=True)
+                yield Button("Cancel", variant="default", id="cancel-btn")
 
     def on_mount(self):
         """Called when modal is mounted."""
@@ -144,33 +139,33 @@ class InstallVMModal(BaseModal[str | None]):
 
 
     def _update_expert_defaults(self, vm_type):
-        mem = 4096
+        mem = 4
         vcpu = 2
         disk_size = 8
         disk_format = "qcow2"
 
         if vm_type == VMType.COMPUTATION:
-            mem = 8192
+            mem = 8
             vcpu = 4
             disk_format = "raw"
         elif vm_type == VMType.SERVER:
-            mem = 4096
+            mem = 4
             vcpu = 6
             disk_size = 18
         elif vm_type == VMType.DESKTOP:
-            mem = 4096
+            mem = 4
             vcpu = 4
             disk_size = 30
         elif vm_type == VMType.WDESKTOP:
-            mem = 16384
+            mem = 16
             vcpu = 8
             disk_size = 40
         elif vm_type == VMType.WLDESKTOP:
-            mem = 4096
+            mem = 4
             vcpu = 4
             disk_size = 30
         elif vm_type == VMType.SECURE:
-            mem = 4096
+            mem = 4
             vcpu = 2
 
         self.query_one("#memory-input", Input).value = str(mem)
@@ -423,14 +418,15 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Expert Mode Settings
         try:
-            memory_mb = int(self.query_one("#memory-input", Input).value)
+            memory_gb = int(self.query_one("#memory-input", Input).value)
+            memory_mb = memory_gb * 1024
             vcpu = int(self.query_one("#cpu-input", Input).value)
             disk_size = int(self.query_one("#disk-size-input", Input).value)
             disk_format = self.query_one("#disk-format", Select).value
             boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
         except ValueError:
             self.app.show_error_message("Invalid input for expert settings. Using defaults.")
-            memory_mb = 4096
+            memory_mb = 4 * 1024
             vcpu = 2
             disk_size = 20
             disk_format = "qcow2"
