@@ -399,6 +399,12 @@ class VMDetailModal(ModalScreen):
     def on_tab_activated(self, event: TabbedContent.TabActivated) -> None:
         if event.pane.id == "detail-boot-tab":
             self._populate_boot_lists()
+        elif event.pane.id == "detail-virtiofs-tab":
+            try:
+                shared_mem_enabled = self.query_one("#shared-memory-checkbox", Checkbox).value
+                self.query_one("#virtiofs-shared-mem-warning").display = not shared_mem_enabled
+            except Exception:
+                pass
 
     def _populate_boot_lists(self):
         """Populates the boot order and available devices lists."""
@@ -1748,8 +1754,10 @@ class VMDetailModal(ModalScreen):
 
                     if self.vm_info.get("devices"):
                         with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
-                            if not self.vm_info.get('shared_memory'):
-                                yield Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", classes="tabd-warning")
+                            # Always create label, toggle visibility
+                            lbl = Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", id="virtiofs-shared-mem-warning", classes="tabd-warning")
+                            lbl.display = not self.vm_info.get('shared_memory')
+                            yield lbl
                             with ScrollableContainer(classes="info-details"):
                                 virtiofs_table = DataTable(id="virtiofs-table")
                                 virtiofs_table.cursor_type = "row"
