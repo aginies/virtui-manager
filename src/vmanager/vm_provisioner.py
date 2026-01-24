@@ -658,6 +658,7 @@ class VMProvisioner:
             'boot_uefi': boot_uefi,
             'iothreads': 0,
             'input_bus': 'virtio',
+            'sound_model': 'none',
             # Features
             'sev': False,
             'tpm': False,
@@ -702,6 +703,7 @@ class VMProvisioner:
                 'suspend_to_mem': 'on',
                 'suspend_to_disk': 'on',
                 'mem_backing': 'memfd',
+                'sound_model': 'ich9',
                 'on_poweroff': 'destroy',
                 'on_reboot': 'restart',
                 'on_crash': 'destroy',
@@ -716,6 +718,7 @@ class VMProvisioner:
                 'suspend_to_mem': 'on',
                 'suspend_to_disk': 'on',
                 'mem_backing': 'memfd',
+                'sound_model': 'ich9',
                 'tpm': True if vm_type == VMType.WDESKTOP else False,
                 'on_poweroff': 'destroy',
                 'on_reboot': 'restart',
@@ -854,6 +857,11 @@ class VMProvisioner:
       <listen type='address' address='0.0.0.0'/>
     </graphics>
 """
+        # Sound
+        if settings.get('sound_model') and settings['sound_model'] != 'none':
+            xml += f"""
+    <sound model='{settings['sound_model']}'/>
+"""
 
         # TPM (Secure VM)
         if settings['tpm']:
@@ -932,6 +940,10 @@ class VMProvisioner:
 
         # Video
         cmd.extend(["--video", settings['video']])
+
+        # Sound
+        if settings.get('sound_model') and settings['sound_model'] != 'none':
+            cmd.extend(["--sound", f"model={settings['sound_model']}"])
 
         # Console
         cmd.extend(["--console", "pty,target.type=serial"])

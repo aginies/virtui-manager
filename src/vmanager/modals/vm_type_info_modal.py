@@ -28,6 +28,7 @@ VM_TYPE_INFO_TEXT = """
 | [vTPM](https://libvirt.org/formatdomain.html#tpm-device) | tpm-crb 2.0 | none | none | tpm-crb 2.0 | none | none |
 | [iothreads](https://libvirt.org/formatdomain.html#iothreads-allocation) | disable | 4 | disable | disable | disable | disable |
 | [video](https://libvirt.org/formatdomain.html#video-devices) | qxl | qxl | virtio | virtio | virtio | virtio |
+| [sound](https://libvirt.org/formatdomain.html#sound-devices) | none | none | ich9 | ich9 | ich9 | none |
 | [network](https://libvirt.org/formatdomain.html#network-interfaces) | e1000 | virtio | e1000 | e1000 | e1000 | virtio |
 | [keyboard](https://libvirt.org/formatdomain.html#input-devices) | ps2 | virtio | virtio | virtio | usb | virtio |
 | [memory backing](https://libvirt.org/formatdomain.html#memory-backing) | off | memfd/shared | memfd/shared | memfd/shared | memfd/shared | off |
