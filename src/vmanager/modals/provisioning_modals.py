@@ -114,7 +114,7 @@ class InstallVMModal(BaseModal[str | None]):
                         yield Label(" Firmware", classes="label")
                         yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
-            yield Checkbox("Customize before installation", id="customize-checkbox", value=False, disabled=True)
+            yield Checkbox("Customize before installation", id="customize-checkbox", value=False, disabled=True, tooltip="Not yet Ready")
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
             yield Label("", id="status-label")
 
