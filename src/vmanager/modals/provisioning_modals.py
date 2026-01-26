@@ -461,6 +461,8 @@ class InstallVMModal(BaseModal[str | None]):
             if custom_path: # This path is for custom local ISO (not from pool)
                 # 1. Validate Checksum
                 if validate:
+                    if not checksum:
+                        raise Exception("Checksum validation enabled but no checksum provided")
                     progress_cb("Validating Checksum...", 0)
                     if not self.provisioner.validate_iso(custom_path, checksum):
                         raise Exception("Checksum validation failed!")
