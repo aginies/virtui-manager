@@ -17,7 +17,7 @@ license = "GPL-3.0-or-later"
 requires-python = ">=3.6"
 keywords = ["virtualization", "libvirt", "kvm", "qemu", "tui", "terminal", "manager", "virt"]
 classifiers = [
-    "Development Status :: 1 - RC",
+    "Development Status :: 5 - Beta",
     "Environment :: Console",
     "Intended Audience :: System Administrators",
     "Operating System :: POSIX :: Linux",
