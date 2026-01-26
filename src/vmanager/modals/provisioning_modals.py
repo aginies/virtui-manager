@@ -132,7 +132,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.fetch_isos("cached")
         # Ensure expert defaults are set correctly based on initial selection
         self._update_expert_defaults(self.query_one("#vm-type", Select).value)
-        
+
         # Populate initial storage pool volumes if "From Storage Pool" is default
         storage_pool_select = self.query_one("#storage-pool-select", Select)
         if storage_pool_select.value:
@@ -185,7 +185,7 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#distro")
     def on_distro_changed(self, event: Select.Changed):
         self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
-        
+
         # Hide all ISO source containers first
         self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#custom-iso-container").styles.display = "none"
@@ -220,7 +220,7 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Input.Changed, "#checksum-input")
     def on_checksum_changed(self):
         self._check_form_validity()
-    
+
     @on(Select.Changed, "#storage-pool-select")
     def on_storage_pool_selected(self, event: Select.Changed):
         """Handles when a storage pool is selected for ISO volumes."""
@@ -242,15 +242,17 @@ class InstallVMModal(BaseModal[str | None]):
         iso_volume_select = self.query_one("#iso-volume-select", Select)
         try:
             pool = self.conn.storagePoolLookupByName(pool_name)
-            volumes = pool.listAllVolumes(0)
-            
+            if not pool.isActive():
+                raise Exception(f"Storage pool '{pool_name}' is not active")
+            volumes = pool.listAllVolumes(0) if pool else []
+
             iso_volumes_options = []
             for vol in volumes:
                 # Filter for ISO images - often ending in .iso or .img
                 # This is a heuristic, actual content type is harder to determine without reading
                 if vol.name().lower().endswith((".iso", ".img")):
                     iso_volumes_options.append((vol.name(), vol.path())) # Display name, store full path
-            
+
             iso_volumes_options.sort(key=lambda x: x[0]) # Sort by name
 
             def update_iso_volume_select():
@@ -407,6 +409,11 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
         customize = self.query_one("#customize-checkbox", Checkbox).value
 
+        # Validate storage pool
+        if not pool_name or pool_name == Select.BLANK:
+            self.app.show_error_message("Please select a valid storage pool.")
+            return
+
         iso_url = None
         custom_path = None
         checksum = None
@@ -419,6 +426,13 @@ class InstallVMModal(BaseModal[str | None]):
                 checksum = self.query_one("#checksum-input", Input).value.strip()
         elif distro == "pool_volumes":
             iso_url = self.query_one("#iso-volume-select", Select).value
+            if not iso_url or iso_url == Select.BLANK:
+                self.app.show_error_message("Please select a valid ISO volume from the storage pool.")
+                return
+            # Validate that the volume path exists and is accessible
+            if not os.path.exists(iso_url):
+                self.app.show_error_message(f"Selected ISO volume does not exist: {iso_url}")
+                return
         else:
             iso_url = self.query_one("#iso-select", Select).value
 
@@ -432,18 +446,33 @@ class InstallVMModal(BaseModal[str | None]):
             boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
         except ValueError:
             self.app.show_error_message("Invalid input for expert settings. Using defaults.")
-            memory_mb = 4 * 1024
-            vcpu = 2
-            disk_size = 20
-            disk_format = "qcow2"
-            boot_uefi = True
+            return
+
+        # Validate expert mode inputs
+        if memory_gb < 1 or memory_gb > 8192:
+            self.app.show_error_message("Memory must be between 1 and 8192 GB.")
+            return
+        if vcpu < 1 or vcpu > 768:
+            self.app.show_error_message("CPU count must be between 1 and 768.")
+            return
+        if disk_size < 1 or disk_size > 10000:
+            self.app.show_error_message("Disk size must be between 1 and 10000 GB.")
+            return
+
+        try:
+            pool = self.conn.storagePoolLookupByName(pool_name)
+            if not pool.isActive():
+                self.app.show_error_message(f"Storage pool '{pool_name}' is not active. Please activate it first.")
+                return
+        except Exception as e:
+            self.app.show_error_message(f"Error accessing storage pool '{pool_name}': {e}")
+            return
 
         # Disable inputs
         for widget in self.query("Input"): widget.disabled = True
         for widget in self.query("Select"): widget.disabled = True
         for widget in self.query("Button"): widget.disabled = True
         self.query_one("#customize-checkbox", Checkbox).disabled = True
-
         self.query_one("#progress-bar").styles.display = "block"
         self.query_one("#status-label").styles.display = "block"
 
@@ -461,7 +490,13 @@ class InstallVMModal(BaseModal[str | None]):
         try:
             final_iso_url = iso_url
 
-            if custom_path: # This path is for custom local ISO (not from pool)
+            if custom_path:
+                # Validate custom path exists
+                if not os.path.exists(custom_path):
+                    raise Exception(f"Custom ISO path does not exist: {custom_path}")
+                if not os.path.isfile(custom_path):
+                    raise Exception(f"Custom ISO path is not a file: {custom_path}")
+
                 # 1. Validate Checksum
                 if validate:
                     if not checksum:
@@ -477,6 +512,8 @@ class InstallVMModal(BaseModal[str | None]):
                     progress_cb(f"Uploading: {p}%", 10 + int(p * 0.4))
 
                 final_iso_url = self.provisioner.upload_iso(custom_path, pool_name, upload_progress)
+                if not final_iso_url:
+                    raise Exception("No ISO URL specified for provisioning")
 
             # 3. Provision
             # Suspend global updates to prevent UI freeze during heavy provisioning ops
@@ -485,7 +522,7 @@ class InstallVMModal(BaseModal[str | None]):
                 dom = self.provisioner.provision_vm(
                     vm_name=name,
                     vm_type=vm_type,
-                    iso_url=final_iso_url, # This will now be the selected pool volume path if "pool_volumes" was chosen
+                    iso_url=final_iso_url,
                     storage_pool_name=pool_name,
                     memory_mb=memory_mb,
                     vcpu=vcpu,
@@ -511,7 +548,6 @@ class InstallVMModal(BaseModal[str | None]):
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         preexec_fn=os.setsid,
-                        #env=env
                     )
                     logging.info(f"{self.app.r_viewer} started with PID {proc.pid} for {domain_name}")
                     self.app.show_quick_message(f"Remote viewer {self.app.r_viewer} started for {domain_name}")
@@ -522,7 +558,6 @@ class InstallVMModal(BaseModal[str | None]):
                         f"{self.app.r_viewer} failed to start for {domain_name}: {e}"
                     )
                     return
-
 
             self.app.call_from_thread(launch_viewer)
             self.app.call_from_thread(self.dismiss, True)
