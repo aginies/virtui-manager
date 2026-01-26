@@ -912,7 +912,8 @@ class VMProvisioner:
         return shutil.which("virt-install") is not None
 
     def _run_virt_install(self, vm_name: str, settings: Dict[str, Any], disk_path: str, iso_path: str,
-                          memory_mb: int, vcpu: int, loader_path: str | None, nvram_path: str | None):
+                          memory_mb: int, vcpu: int, loader_path: str | None, nvram_path: str | None,
+                          print_xml: bool = False) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
         """
@@ -921,6 +922,8 @@ class VMProvisioner:
         cmd.extend(["--name", vm_name])
         cmd.extend(["--memory", str(memory_mb)])
         cmd.extend(["--vcpus", str(vcpu)])
+        if print_xml:
+            cmd.append("--print-xml")
 
         # OS info
         cmd.extend(["--osinfo", "detect=on,name=generic"])
@@ -989,6 +992,8 @@ class VMProvisioner:
         logging.info(f"Running: {(' '.join(cmd))}")
         try:
             result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if print_xml:
+                return result.stdout
             if result.stdout:
                 logging.info(f"virt-install stdout: {result.stdout.strip()}")
             if result.stderr:
