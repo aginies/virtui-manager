@@ -972,7 +972,11 @@ class VMService:
                 xml_content = vm_cache.get('xml')
 
             if not xml_content:
-                # Skip I/O stats calculation if XML is not cached
+                # Try to fetch XML if not cached to enable I/O stats
+                xml_content = self._get_domain_xml(domain, internal_id=uuid)
+
+            if not xml_content:
+                # Skip I/O stats calculation if XML is still not available
                 stats['disk_read_kbps'] = 0
                 stats['disk_write_kbps'] = 0
                 stats['net_rx_kbps'] = 0
