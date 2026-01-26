@@ -19,7 +19,6 @@ While most settings can be managed via the UI, VirtUI Manager stores its configu
 
 ```yaml
 # Performance and UI
-CACHE_TTL: 300
 STATS_INTERVAL: 15
 REMOTE_VIEWER: null
 
@@ -64,7 +63,6 @@ servers:
 ### Key Fields Explained
 
 *   **`servers`**: A list of Libvirt connections. Each entry requires a `name` (for display), a `uri` (the Libvirt connection string), and an optional `autoconnect` boolean.
-*   **`CACHE_TTL`**: Time in seconds to cache VM states and stats to reduce load (Default: 300).
 *   **`ISO_DOWNLOAD_PATH`**: The directory where downloaded ISO images are stored.
 *   **`custom_ISO_repo`**: A list of remote or local repositories. Each entry needs a `name` and a `uri` (HTTP/HTTPS URL or local path).
 
