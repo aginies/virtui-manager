@@ -83,7 +83,6 @@ class VMService:
 
         self._info_cache_ttl: int = AppCacheTimeout.INFO_CACHE_TTL
         self._xml_cache_ttl: int = AppCacheTimeout.XML_CACHE_TTL
-        self._details_cache_ttl: int = AppCacheTimeout.DETAILS_CACHE_TTL
         self._visible_uuids: set[str] = set()
         self._suppressed_uuids: set[str] = set()
         self._global_updates_suspended: bool = False
@@ -878,7 +877,7 @@ class VMService:
             if vm_cache:
                 details = vm_cache.get('vm_details')
                 details_ts = vm_cache.get('vm_details_ts', 0)
-                if details and (now - details_ts < self._details_cache_ttl):
+                if details and (now - details_ts < self._xml_cache_ttl):
                     logging.debug(f"Cache HIT for VM details (cached method): {uuid}")
                     return details
         return None
