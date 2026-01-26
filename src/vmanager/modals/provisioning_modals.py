@@ -114,6 +114,7 @@ class InstallVMModal(BaseModal[str | None]):
                         yield Label(" Firmware", classes="label")
                         yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
+            yield Checkbox("Customize before installation", id="customize-checkbox", value=False, disabled=True)
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
             yield Label("", id="status-label")
 
@@ -404,6 +405,7 @@ class InstallVMModal(BaseModal[str | None]):
         vm_type = self.query_one("#vm-type", Select).value
         pool_name = self.query_one("#pool", Select).value
         distro = self.query_one("#distro", Select).value
+        customize = self.query_one("#customize-checkbox", Checkbox).value
 
         iso_url = None
         custom_path = None
@@ -440,14 +442,15 @@ class InstallVMModal(BaseModal[str | None]):
         for widget in self.query("Input"): widget.disabled = True
         for widget in self.query("Select"): widget.disabled = True
         for widget in self.query("Button"): widget.disabled = True
+        self.query_one("#customize-checkbox", Checkbox).disabled = True
 
         self.query_one("#progress-bar").styles.display = "block"
         self.query_one("#status-label").styles.display = "block"
 
-        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi)
+        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi, customize)
 
     @work(exclusive=True, thread=True)
-    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi):
+    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi, customize):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
 
