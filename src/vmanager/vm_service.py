@@ -552,17 +552,13 @@ class VMService:
                     state, reason = domain.state()
                     now = time.time()
 
-                   # Read from cache
-                    state = None
                     with self._cache_lock:
-                        vm_cache = self._vm_data_cache.get(uuid, {})
-                        state = vm_cache.get('state')
-
+                        vm_cache = self._vm_data_cache.setdefault(uuid, {})
                         vm_cache['state'] = (state, reason)
                         vm_cache['state_ts'] = now
 
-                        # Only fetch full info for running/paused VMs
-                        if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                        # Only fetch full info for running/paused/blocked VMs
+                        if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED, libvirt.VIR_DOMAIN_BLOCKED]:
                             try:
                                 info = domain.info()
                                 # Ensure vm_cache is still valid after releasing lock
@@ -900,7 +896,7 @@ class VMService:
             state, _ = self._get_domain_state(domain, internal_id=uuid) or domain.state()
             status = get_status(domain, state=state)
 
-            if state not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+            if state not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED, libvirt.VIR_DOMAIN_BLOCKED]:
                 return {
                     "status": status,
                     "cpu_percent": 0.0,
@@ -1405,10 +1401,20 @@ class VMService:
             self._force_update_event.set()
 
     def resume_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
-        """Resumes the VM."""
+        """Resumes the VM (handles both PAUSED and PMSUSPENDED states)."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Resuming VM: {domain.name()} (ID: {internal_id})")
-        domain.resume()
+        logging.info(f"Resuming/Waking up VM: {domain.name()} (ID: {internal_id})")
+        
+        try:
+            state, _ = domain.state()
+            if state == libvirt.VIR_DOMAIN_PMSUSPENDED:
+                domain.pmWakeup(0)
+            else:
+                domain.resume()
+        except libvirt.libvirtError as e:
+            logging.error(f"Error resuming/waking up VM {domain.name()}: {e}")
+            raise
+
         if invalidate_cache:
             self.invalidate_vm_state_cache(internal_id)
             self._force_update_event.set()
@@ -1597,8 +1603,12 @@ class VMService:
                         return state == libvirt.VIR_DOMAIN_RUNNING
                     if sort_by == VmStatus.PAUSED:
                         return state == libvirt.VIR_DOMAIN_PAUSED
+                    if sort_by == VmStatus.PMSUSPENDED:
+                        return state == libvirt.VIR_DOMAIN_PMSUSPENDED
+                    if sort_by == VmStatus.BLOCKED:
+                        return state == libvirt.VIR_DOMAIN_BLOCKED
                     if sort_by == VmStatus.STOPPED:
-                        return state not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]
+                        return state not in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED, libvirt.VIR_DOMAIN_PMSUSPENDED, libvirt.VIR_DOMAIN_BLOCKED]
                     return True
 
                 domains_to_display = [(d, c) for d, c in domains_to_display if status_match(d)]

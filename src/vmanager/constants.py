@@ -55,6 +55,8 @@ class VmStatus:
     DEFAULT = "default"
     RUNNING = "running"
     PAUSED = "paused"
+    PMSUSPENDED = "pmsuspended"
+    BLOCKED = "blocked"
     STOPPED = "stopped"
     SELECTED = "selected"
 
@@ -153,6 +155,8 @@ class StatusText:
     STOPPED = "Stopped"
     RUNNING = "Running"
     PAUSED = "Paused"
+    PMSUSPENDED = "PMSuspended"
+    BLOCKED = "Blocked"
     LOADING = "Loading"
 
 class SparklineLabels:

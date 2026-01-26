@@ -549,11 +549,15 @@ If no VM names are provided, it will resume the selected VMs."""
             for vm_name in vm_list:
                 try:
                     domain = conn.lookupByName(vm_name)
-                    if domain.info()[0] != libvirt.VIR_DOMAIN_PAUSED:
-                        print(f"VM '{vm_name}' is not paused.")
-                        continue
-                    domain.resume()
-                    print(f"VM '{vm_name}' resumed.")
+                    state = domain.info()[0]
+                    if state == libvirt.VIR_DOMAIN_PAUSED:
+                        domain.resume()
+                        print(f"VM '{vm_name}' resumed.")
+                    elif state == libvirt.VIR_DOMAIN_PMSUSPENDED:
+                        domain.pmWakeup(0)
+                        print(f"VM '{vm_name}' woken up.")
+                    else:
+                        print(f"VM '{vm_name}' is not paused or suspended.")
                 except libvirt.libvirtError as e:
                     print(f"Error resuming VM '{vm_name}': {e}")
 

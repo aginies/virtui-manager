@@ -114,6 +114,10 @@ def get_status(domain, state=None):
         return 'Running'
     elif state == libvirt.VIR_DOMAIN_PAUSED:
         return 'Paused'
+    elif state == libvirt.VIR_DOMAIN_PMSUSPENDED:
+        return 'PMSuspended'
+    elif state == libvirt.VIR_DOMAIN_BLOCKED:
+        return 'Blocked'
     else:
         return 'Stopped'
 

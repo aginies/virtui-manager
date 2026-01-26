@@ -40,6 +40,8 @@ class FilterModal(BaseModal[None]):
                     yield RadioButton("All", id=f"status_{VmStatus.DEFAULT}", value=self.current_status == VmStatus.DEFAULT)
                     yield RadioButton("Running", id=f"status_{VmStatus.RUNNING}", value=self.current_status == VmStatus.RUNNING)
                     yield RadioButton("Paused", id=f"status_{VmStatus.PAUSED}", value=self.current_status == VmStatus.PAUSED)
+                    yield RadioButton("PMSuspended", id=f"status_{VmStatus.PMSUSPENDED}", value=self.current_status == VmStatus.PMSUSPENDED)
+                    yield RadioButton("Blocked", id=f"status_{VmStatus.BLOCKED}", value=self.current_status == VmStatus.BLOCKED)
                     yield RadioButton("Stopped", id=f"status_{VmStatus.STOPPED}", value=self.current_status == VmStatus.STOPPED)
                     yield RadioButton("Manually Selected", id=f"status_{VmStatus.SELECTED}", value=self.current_status == VmStatus.SELECTED)
 

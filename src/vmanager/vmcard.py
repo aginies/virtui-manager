@@ -882,25 +882,27 @@ class VMCard(Static):
         is_stopped = self.status == StatusText.STOPPED
         is_running = self.status == StatusText.RUNNING
         is_paused = self.status == StatusText.PAUSED
+        is_pmsuspended = self.status == StatusText.PMSUSPENDED
+        is_blocked = self.status == StatusText.BLOCKED
 
         if not self.ui.get(ButtonIds.RENAME_BUTTON):
             return
 
         self.ui[ButtonIds.START].display = is_stopped
-        self.ui[ButtonIds.SHUTDOWN].display = is_running
-        self.ui[ButtonIds.STOP].display = is_running or is_paused
-        self.ui[ButtonIds.DELETE].display = is_running or is_paused or is_stopped
+        self.ui[ButtonIds.SHUTDOWN].display = is_running or is_blocked
+        self.ui[ButtonIds.STOP].display = is_running or is_paused or is_pmsuspended or is_blocked
+        self.ui[ButtonIds.DELETE].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
         self.ui[ButtonIds.CLONE].display = is_stopped
         self.ui[ButtonIds.MIGRATION].display = not is_loading
         self.ui[ButtonIds.RENAME_BUTTON].display = is_stopped
         self.ui[ButtonIds.PAUSE].display = is_running
-        self.ui[ButtonIds.RESUME].display = is_paused
+        self.ui[ButtonIds.RESUME].display = is_paused or is_pmsuspended
         self.ui[ButtonIds.CONNECT].display = self.app.r_viewer_available
-        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused)
+        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused or is_blocked)
         self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
         self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
         self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading #is_running or is_paused
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading
+        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading and not is_blocked
 
         xml_button = self.ui[ButtonIds.XML]
         if is_stopped:
@@ -1024,13 +1026,15 @@ class VMCard(Static):
         is_running = self.status == StatusText.RUNNING
         is_stopped = self.status == StatusText.STOPPED
         is_loading = self.status == StatusText.LOADING
+        is_pmsuspended = self.status == StatusText.PMSUSPENDED
+        is_blocked = self.status == StatusText.BLOCKED
 
         has_snapshots = snapshot_count > 0
 
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading
+        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading and not is_blocked
         self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
 
-        self.ui[ButtonIds.COMMIT_DISK].display = is_running and has_overlay
+        self.ui[ButtonIds.COMMIT_DISK].display = (is_running or is_blocked) and has_overlay
         self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay
         self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay
 
@@ -1039,9 +1043,13 @@ class VMCard(Static):
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
         if status_widget:
-            status_widget.remove_class("stopped", "running", "paused", "loading")
+            status_widget.remove_class("stopped", "running", "paused", "loading", "pmsuspended", "blocked")
             if self.status == StatusText.LOADING:
                 status_widget.add_class("loading")
+            elif self.status == StatusText.PMSUSPENDED:
+                status_widget.add_class("pmsuspended")
+            elif self.status == StatusText.BLOCKED:
+                status_widget.add_class("blocked")
             else:
                 status_widget.add_class(self.status.lower())
 
