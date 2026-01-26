@@ -31,7 +31,7 @@ class AppCacheTimeout:
     """ All Cache timeout value"""
     INFO_CACHE_TTL = 60
     DETAILS_CACHE_TTL = 300
-    XML_CACHE_TTL = 600
+    XML_CACHE_TTL = 3600 # 1 hour
     DONT_DISPLAY_DISK_USAGE = 50
 
 class AppInfo:
