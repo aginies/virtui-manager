@@ -916,6 +916,7 @@ class VMProvisioner:
                           print_xml: bool = False) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
+        If print_xml is True, it returns the generated XML instead of creating the VM.
         """
         cmd = ["virt-install"]
         cmd.extend(["--connect", self.conn.getURI()])
