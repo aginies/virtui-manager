@@ -70,7 +70,7 @@ class ConnectionManager:
         
         with self._alive_lock:
             last = self._last_check.get(uri, 0)
-            if now - last < AppCacheTimeout.CACHE_TTL:  # 30s default cache TTL
+            if now - last < AppCacheTimeout.INFO_CACHE_TTL:
                 return self._alive_cache.get(uri, True)
 
         # Perform libvirt call outside lock

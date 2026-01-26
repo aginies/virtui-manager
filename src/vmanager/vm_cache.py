@@ -19,7 +19,7 @@ def get_from_cache(uuid: str) -> Optional[Dict[str, Any]]:
     with _lock:
         if uuid in _cache:
             entry = _cache[uuid]
-            if time.time() - entry['timestamp'] < AppCacheTimeout.CACHE_TTL:
+            if time.time() - entry['timestamp'] < AppCacheTimeout.INFO_CACHE_TTL:
                 return entry['data']
             else:
                 # Clean up expired entry

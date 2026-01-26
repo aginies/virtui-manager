@@ -29,8 +29,7 @@ class ServerPallette:
 
 class AppCacheTimeout:
     """ All Cache timeout value"""
-    CACHE_TTL = 30
-    INFO_CACHE_TTL = 5
+    INFO_CACHE_TTL = 60
     DETAILS_CACHE_TTL = 300
     XML_CACHE_TTL = 600
     DONT_DISPLAY_DISK_USAGE = 50
@@ -39,7 +38,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.1.0"
+    version = "1.1.1"
 
 class VmAction:
     """Defines constants for VM action types."""
