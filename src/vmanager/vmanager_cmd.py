@@ -554,7 +554,7 @@ If no VM names are provided, it will resume the selected VMs."""
                         domain.resume()
                         print(f"VM '{vm_name}' resumed.")
                     elif state == libvirt.VIR_DOMAIN_PMSUSPENDED:
-                        domain.pmWakeup(0)
+                        domain.pMWakeup(0)
                         print(f"VM '{vm_name}' woken up.")
                     else:
                         print(f"VM '{vm_name}' is not paused or suspended.")

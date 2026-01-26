@@ -1408,7 +1408,7 @@ class VMService:
         try:
             state, _ = domain.state()
             if state == libvirt.VIR_DOMAIN_PMSUSPENDED:
-                domain.pmWakeup(0)
+                domain.pMWakeup(0)
             else:
                 domain.resume()
         except libvirt.libvirtError as e:
