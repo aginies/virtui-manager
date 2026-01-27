@@ -29,18 +29,40 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
         pools = conn.listAllStoragePools(0)
         for pool in pools:
             try:
+                # Try to get basic info
+                try:
+                    name = pool.name()
+                except libvirt.libvirtError:
+                    name = "Unknown Pool"
+
                 is_active = pool.isActive()
                 info = pool.info()
                 pools_info.append({
-                    'name': pool.name(),
+                    'name': name,
                     'pool': pool,
                     'status': 'active' if is_active else 'inactive',
                     'autostart': pool.autostart() == 1,
                     'capacity': info[1],
                     'allocation': info[2],
                 })
-            except libvirt.libvirtError:
-                continue
+            except libvirt.libvirtError as e:
+                # If we fail to get details (e.g. NFS down), still list the pool but as unavailable
+                if 'name' not in locals():
+                     try:
+                        name = pool.name()
+                     except:
+                        name = "Unknown Pool"
+
+                logging.warning(f"Failed to get details for pool '{name}': {e}")
+                pools_info.append({
+                    'name': name,
+                    'pool': pool,
+                    'status': 'unavailable',
+                    'autostart': False,
+                    'capacity': 0,
+                    'allocation': 0,
+                    'error': str(e)
+                })
     except libvirt.libvirtError:
         return []
 
