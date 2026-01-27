@@ -118,12 +118,12 @@ class VMService:
     def suspend_global_updates(self):
         """Suspend all update callbacks globally."""
         self._global_updates_suspended = True
-        logging.info("Global update callbacks suspended")
+        logging.debug("Global update callbacks suspended")
 
     def resume_global_updates(self):
         """Resume all update callbacks globally."""
         self._global_updates_suspended = False
-        logging.info("Global update callbacks resumed")
+        logging.debug("Global update callbacks resumed")
 
     def update_visible_uuids(self, uuids: set[str]):
         """Updates the set of UUIDs currently visible in the UI."""
@@ -194,7 +194,7 @@ class VMService:
             if uri in self._uuid_to_name_cache:
                 del self._uuid_to_name_cache[uri]
 
-            logging.info(f"Invalidated {len(keys_to_invalidate)} cache entries for URI: {uri}")
+            logging.debug(f"Invalidated {len(keys_to_invalidate)} cache entries for URI: {uri}")
 
     def _connection_close_callback(self, conn, reason, opaque):
         """Callback for when a connection is closed."""
@@ -366,7 +366,7 @@ class VMService:
                                 try:
                                     self._vm_update_callback(internal_id)
                                 except Exception as e:
-                                    logging.info(f"Error invoking update callback for {internal_id}: {e}")
+                                    logging.debug(f"Error invoking update callback for {internal_id}: {e}")
                                 finally:
                                     self._vm_data_cache[internal_id]['last_cb_ts'] = now
 
@@ -655,7 +655,7 @@ class VMService:
                         if uri in self._name_to_uuid_cache and name in self._name_to_uuid_cache[uri]:
                             del self._name_to_uuid_cache[uri][name]
 
-                logging.info(f"Invalidated VM cache for: {k}")
+                logging.debug(f"Invalidated VM cache for: {k}")
 
     def _update_domain_cache(self, active_uris: list[str], force: bool = False, preload: bool = False):
         """Updates the domain and connection cache."""
@@ -820,7 +820,7 @@ class VMService:
                     vm_cache = self._vm_data_cache.setdefault(uuid, {})
                     vm_cache['xml'] = xml
                     vm_cache['xml_ts'] = now
-                    logging.info(f"Cache WRITE for VM XML: {uuid}")
+                    logging.debug(f"Cache WRITE for VM XML: {uuid}")
             except libvirt.libvirtError:
                 return None
         else:
@@ -1453,7 +1453,7 @@ class VMService:
                         # Update IPs if provided and fresh
                         if cached_ips is not None:
                             details['detail_network'] = cached_ips
-                        logging.info(f"Cache HIT for VM details: {vm_uuid}")
+                        logging.debug(f"Cache HIT for VM details: {vm_uuid}")
                         return (details, domain, conn_for_domain)
                     except libvirt.libvirtError:
                         pass # If we can't get status, maybe domain is gone or invalid, drop through to refresh
@@ -1520,7 +1520,7 @@ class VMService:
                 self._vm_data_cache.setdefault(vm_uuid, {})
                 self._vm_data_cache[vm_uuid]['vm_details'] = vm_info
                 self._vm_data_cache[vm_uuid]['vm_details_ts'] = time.time()
-                logging.info(f"Cache WRITE for VM details: {vm_uuid}")
+                logging.debug(f"Cache WRITE for VM details: {vm_uuid}")
 
             return (vm_info, domain, conn_for_domain)
         except libvirt.libvirtError:
@@ -1635,7 +1635,7 @@ class VMService:
         total_filtered_vms = len(domains_to_display)
         if page_start is not None and page_end is not None and force:
             paginated_domains = domains_to_display[page_start:page_end]
-            logging.info(f"Optimized cache refresh: updating only {len(paginated_domains)} VMs ({page_start}-{page_end})")
+            logging.debug(f"Optimized cache refresh: updating only {len(paginated_domains)} VMs ({page_start}-{page_end})")
 
             for domain, _ in paginated_domains:
                 try:
