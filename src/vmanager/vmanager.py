@@ -173,6 +173,8 @@ class VMManagerTUI(App):
         Binding(key="ctrl+u", action="unselect_all", description="Unselect All"),
         Binding(key="left", action="previous_page", description="Previous Page", show=False),
         Binding(key="right", action="next_page", description="Next Page", show=False),
+        Binding(key="up", action="filter_running", description="Running VMs", show=False),
+        Binding(key="down", action="filter_all", description="All VMs", show=False),
         Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
         Binding(key="i", action="install_vm", description="InstallVM", show=True),
         Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
@@ -862,6 +864,22 @@ class VMManagerTUI(App):
         selected_servers = self.filtered_server_uris if self.filtered_server_uris is not None else list(self.active_uris)
 
         self.push_screen(FilterModal(current_search=self.search_text, current_status=self.sort_by, available_servers=available_servers, selected_servers=selected_servers))
+
+    def action_filter_running(self) -> None:
+        """Filter to show only running VMs (shortcut: Up)."""
+        if self.sort_by != VmStatus.RUNNING:
+            self.sort_by = VmStatus.RUNNING
+            self.current_page = 0
+            self.show_quick_message("Filter: Running VMs")
+            self.refresh_vm_list()
+
+    def action_filter_all(self) -> None:
+        """Reset filter to show all VMs (shortcut: Down)."""
+        if self.sort_by != VmStatus.DEFAULT:
+            self.sort_by = VmStatus.DEFAULT
+            self.current_page = 0
+            self.show_quick_message("Filter: All VMs")
+            self.refresh_vm_list()
 
     @on(FilterModal.FilterChanged)
     def on_filter_changed(self, message: FilterModal.FilterChanged) -> None:
