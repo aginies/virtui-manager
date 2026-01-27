@@ -512,7 +512,7 @@ Toast.-inprogress {
 .button-details { height: 1; padding: 0 0; }
 .ctrlpage { height: 3vh; width: auto; margin: 0 0; padding: 0 0; color: white; text-style: underline; background: $background; }
 .close-button { height: 1; width: auto; color: white; background: red; border: hidden; margin: 1 1; }
-.delete-button, .cancel-button { background: red; width: 25% }
+#delete-server-btn, #delete-button, .cancel-button { background: red; width: 25% }
 .rename-button, .edit-button, .add-button { background: green; }
 .done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
 #add-channel-btn,
