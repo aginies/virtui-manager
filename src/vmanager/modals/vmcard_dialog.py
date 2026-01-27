@@ -358,9 +358,15 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                 label_text = self.text_remote if remote_console_enabled else "Run Web console on local machine"
                 yield Markdown(label_text, id="console-location-label")
                 with Vertical():
+                    switch_widget = Switch(value=remote_console_enabled, id="remote-console-switch")
+                    if remote_console_enabled:
+                        switch_widget.add_class("switch-on")
+                    else:
+                        switch_widget.add_class("switch-off")
+
                     yield Grid(
-                        Label("Remote or Local:"),
-                        Switch(value=remote_console_enabled, id="remote-console-switch"),
+                        Label("Remote"),
+                        switch_widget,
                         id="grid-remote-local"
                         )
 
@@ -387,7 +393,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
         if event.control.id == "remote-console-switch":
             markdown = self.query_one("#console-location-label", Markdown)
             remote_opts = self.query_one("#remote-options")
-            switch = event.switch
+            switch = event.control
             if event.value:
                 switch.add_class("switch-on")
                 switch.remove_class("switch-off")
