@@ -25,6 +25,7 @@ DEFAULT_CONFIG = {
     ],
     'custom_ISO_repo': [],
     'LOG_FILE_PATH': str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
+    'LOG_LEVEL': 'INFO',
     'ISO_DOWNLOAD_PATH': str(Path.home() / ".cache" / AppInfo.name / "isos"),
 }
 
