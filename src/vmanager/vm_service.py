@@ -868,7 +868,7 @@ class VMService:
             info_ts = vm_cache.get('info_ts', 0)
 
             if info and (now - info_ts < self._info_cache_ttl):
-                logging.debug(f"Cache HIT for VM info: {uuid}")
+                #logging.debug(f"Cache HIT for VM info: {uuid}")
                 return info
         return None
 
