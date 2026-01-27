@@ -1011,9 +1011,25 @@ class VMProvisioner:
     def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
                      memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8, disk_format: str | None = None,
                      boot_uefi: bool = True, use_virt_install: bool = True,
+                     configure_before_install: bool = False,
+                     show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
                      progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
+
+        Args:
+            vm_name: Name of the VM to create.
+            vm_type: Type of the VM (e.g., Desktop, Server).
+            iso_url: URL or path to the ISO for installation.
+            storage_pool_name: Name of the storage pool where the disk will be created.
+            memory_mb: RAM in megabytes.
+            vcpu: Number of virtual CPUs.
+            disk_size_gb: Disk size in gigabytes.
+            disk_format: Disk format (e.g., qcow2).
+            boot_uefi: Whether to use UEFI boot.
+            use_virt_install: If True, uses virt-install CLI tool.
+            configure_before_install: If True, defines VM and shows details modal before starting.
+            show_config_modal_callback: Optional callback to show configuration modal. Takes (domain) as parameters.
         """
         def report(stage, percent):
             if progress_callback:
@@ -1110,6 +1126,30 @@ class VMProvisioner:
             cluster_size=cluster_size
         )
 
+        # Handle Configure Before Install feature
+        if configure_before_install:
+            # Generate the XML configuration that would be used
+            if is_virt_install_available:
+                settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
+                xml_desc = self._run_virt_install(vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path, print_xml=True)
+            else:
+                xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path, boot_uefi=boot_uefi)
+
+            # Define the VM
+            report("Defining VM", 85)
+            dom = self.conn.defineXML(xml_desc)
+
+            # Show the configuration in a modal if callback is provided
+            if show_config_modal_callback:
+                show_config_modal_callback(dom)
+            else:
+                # Fallback: just log the configuration
+                logging.info(f"VM configuration defined for {vm_name}")
+
+            report("Provisioning Complete (Configuration Mode)", 100)
+            return dom
+
+        # Continue with normal VM creation
         if is_virt_install_available:
             report("Configuring VM (virt-install)", 80)
             settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)

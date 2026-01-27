@@ -20,6 +20,7 @@ from ..utils import remote_viewer_cmd
 from .base_modals import BaseModal
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
+from .vmdetails_modals import VMDetailModal
 from .input_modals import _sanitize_domain_name
 
 class InstallVMModal(BaseModal[str | None]):
@@ -114,7 +115,7 @@ class InstallVMModal(BaseModal[str | None]):
                         yield Label(" Firmware", classes="label")
                         yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
-            yield Checkbox("Customize before installation", id="customize-checkbox", value=False, disabled=True, tooltip="Not yet Ready")
+            yield Checkbox("Configure before install", id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
             yield Label("", id="status-label")
 
@@ -407,7 +408,7 @@ class InstallVMModal(BaseModal[str | None]):
         vm_type = self.query_one("#vm-type", Select).value
         pool_name = self.query_one("#pool", Select).value
         distro = self.query_one("#distro", Select).value
-        customize = self.query_one("#customize-checkbox", Checkbox).value
+        configure_before_install = self.query_one("#configure-before-install-checkbox", Checkbox).value
 
         # Validate storage pool
         if not pool_name or pool_name == Select.BLANK:
@@ -472,14 +473,14 @@ class InstallVMModal(BaseModal[str | None]):
         for widget in self.query("Input"): widget.disabled = True
         for widget in self.query("Select"): widget.disabled = True
         for widget in self.query("Button"): widget.disabled = True
-        self.query_one("#customize-checkbox", Checkbox).disabled = True
+        self.query_one("#configure-before-install-checkbox", Checkbox).disabled = True
         self.query_one("#progress-bar").styles.display = "block"
         self.query_one("#status-label").styles.display = "block"
 
-        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi, customize)
+        self.run_provisioning(vm_name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi, configure_before_install)
 
     @work(exclusive=True, thread=True)
-    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi, customize):
+    def run_provisioning(self, name, vm_type, iso_url, pool_name, custom_path, validate, checksum, memory_mb, vcpu, disk_size, disk_format, boot_uefi, configure_before_install):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
 
@@ -519,6 +520,56 @@ class InstallVMModal(BaseModal[str | None]):
             # Suspend global updates to prevent UI freeze during heavy provisioning ops
             self.app.call_from_thread(self.app.vm_service.suspend_global_updates)
             try:
+                def show_config_modal(domain):
+                    """Callback to show VM configuration in a modal."""
+                    vm_name = domain.name()
+                    uuid = domain.UUIDString()
+
+                    def push_details():
+                        app = self.app
+                        # Close the install modal
+                        self.dismiss()
+
+                        result = app.vm_service.get_vm_details(
+                            [self.uri],
+                            uuid,
+                            domain=domain,
+                            conn=self.conn
+                        )
+                        if result:
+                            vm_info, domain_obj, conn_for_domain = result
+
+                            def on_details_closed(res):
+                                def start_and_view():
+                                    try:
+                                        if not domain_obj.isActive():
+                                            domain_obj.create()
+                                            app.call_from_thread(app.show_success_message, f"VM '{vm_name}' started.")
+                                        # Launch viewer
+                                        domain_name = domain_obj.name()
+                                        cmd = remote_viewer_cmd(self.uri, domain_name, app.r_viewer)
+                                        proc = subprocess.Popen(
+                                            cmd,
+                                            stdout=subprocess.DEVNULL,
+                                            stderr=subprocess.DEVNULL,
+                                            preexec_fn=os.setsid,
+                                        )
+                                        logging.info(f"{app.r_viewer} started with PID {proc.pid} for {domain_name}")
+                                        app.call_from_thread(app.show_quick_message, f"Remote viewer {app.r_viewer} started for {domain_name}")
+                                    except Exception as e:
+                                        logging.error(f"Failed to start VM or viewer: {e}")
+                                        app.call_from_thread(app.show_error_message, f"Failed to start VM or viewer: {e}")
+
+                                app.worker_manager.run(start_and_view, name=f"start_view_{vm_name}")
+
+                            app.push_screen(
+                                VMDetailModal(vm_name, vm_info, domain_obj, conn_for_domain, app.vm_service.invalidate_vm_state_cache),
+                                on_details_closed
+                            )
+                        else:
+                            app.show_error_message(f"Could not get details for {vm_name}")
+                    self.app.call_from_thread(push_details)
+
                 dom = self.provisioner.provision_vm(
                     vm_name=name,
                     vm_type=vm_type,
@@ -529,12 +580,19 @@ class InstallVMModal(BaseModal[str | None]):
                     disk_size_gb=disk_size,
                     disk_format=disk_format,
                     boot_uefi=boot_uefi,
+                    configure_before_install=configure_before_install,
+                    show_config_modal_callback=show_config_modal if configure_before_install else None,
                     progress_callback=progress_cb
                 )
             finally:
                 self.app.call_from_thread(self.app.vm_service.resume_global_updates)
+                self.app.call_from_thread(self.app.vm_service.invalidate_domain_cache)
                 # Manually trigger a refresh as we suppressed the events
                 self.app.call_from_thread(self.app.on_vm_data_update)
+
+            if configure_before_install:
+                self.app.call_from_thread(self.app.show_success_message, f"VM '{name}' defined. Please configure and start it.")
+                return
 
             self.app.call_from_thread(self.app.show_success_message, f"VM '{name}' created successfully!")
 
