@@ -16,7 +16,7 @@ The interface is divided into intuitive sections to streamline your workflow:
 Located at the top-left, these tools control your connection contexts:
 
 *   **Select Servers (`s`):** Switch the "Single Pane of Glass" view to specific servers (local or remote SSH).
-*   **Manage Servers:** Add, remove, or edit the list of available Libvirt connections.
+*   **Manage Servers (`l`):** Add, remove, or edit the list of available Libvirt connections.
 *   **Server Prefs:** Configure connection details, auto-connect behaviors, and default storage/network pools for new VMs.
 
 ### Server List & Navigation
@@ -66,8 +66,9 @@ The "Bulk Command" mode puts the power of fleet management at your fingertips.
 | Key | Action |
 | :--- | :--- |
 | **`s`** | Select Servers |
+| **`l`** | Servers List |
 | **`f`** | Filter View |
-| **`i`** | Install New VM |
+| **`i`** | Install New Virtual Machine |
 | **`k`** | Toggle Compact View |
 | **`b`** | Bulk Command Mode |
 | **`p`** | Pattern Select |
