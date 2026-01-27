@@ -296,24 +296,27 @@ class VMService:
                     event_msg = "Crashed"
                     msg_level = "error"
 
-                if self._message_callback:
-                    try:
-                        _, vm_name = self.get_vm_identity(domain, conn, known_uri=uri)
+                try:
+                    _, vm_name = self.get_vm_identity(domain, conn, known_uri=uri)
 
-                        final_msg = None
-                        if event_msg:
-                            final_msg = f"VM [b]{vm_name}[/b] {event_msg}"
-                        elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
-                            # Use detail to differentiate? 0=Added, 1=Updated
-                            action_str = "Configuration Updated" if detail == 1 else "Defined"
-                            final_msg = f"VM [b]{vm_name}[/b] {action_str}"
-                        elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
-                            final_msg = f"VM [b]{vm_name}[/b] Undefined (Deleted)"
+                    final_msg = None
+                    if event_msg:
+                        final_msg = f"VM [b]{vm_name}[/b] {event_msg}"
+                    elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
+                        # Use detail to differentiate? 0=Added, 1=Updated
+                        action_str = "Configuration Updated" if detail == 1 else "Defined"
+                        final_msg = f"VM [b]{vm_name}[/b] {action_str}"
+                    elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
+                        final_msg = f"VM [b]{vm_name}[/b] Undefined (Deleted)"
 
-                        if final_msg:
+                    if final_msg:
+                        clean_msg = final_msg.replace("[b]", "").replace("[/b]", "")
+                        logging.info(f"Event: {clean_msg}")
+
+                        if self._message_callback:
                             self._message_callback(msg_level, final_msg)
-                    except Exception:
-                        pass # Don't let notification errors break the handler
+                except Exception:
+                    pass # Don't let notification errors break the handler
 
                 with self._cache_lock:
                     if event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
