@@ -74,5 +74,9 @@ The "Bulk Command" mode puts the power of fleet management at your fingertips.
 | **`c`** | Open App Configuration |
 | **`Ctrl+a`** | Select All Visible VMs |
 | **`Ctrl+u`** | Unselect All VMs |
+| **`Up Arrow`** | Filter: Show Running VMs Only |
+| **`Down Arrow`** | Filter: Show All VMs |
+| **`Left Arrow`** | Previous Page |
+| **`Right Arrow`** | Next Page |
 | **`Ctrl+v`** | Open Virsh Shell |
 | **`q`** | Quit Application |

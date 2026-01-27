@@ -27,6 +27,7 @@ ISO_DOWNLOAD_PATH: /home/isos
 
 # Logging
 LOG_FILE_PATH: /home/aginies/.cache/virtui-manager/vm_manager.log
+LOG_LEVEL: INFO
 
 # Web Console (noVNC)
 REMOTE_WEBCONSOLE: true
@@ -78,6 +79,11 @@ servers:
 *   **Log File Path:**
     *   The full path where the application writes its log file.
     *   Useful for troubleshooting issues.
+
+*   **Log Level:**
+    *   Sets the verbosity of the log file.
+    *   **Options:** `DEBUG`, `INFO` (Default), `WARNING`, `ERROR`, `CRITICAL`.
+    *   **Tip:** Use `DEBUG` for detailed troubleshooting, but be aware that it can generate large log files.
 
 ## Remote Viewer
 
