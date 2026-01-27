@@ -24,7 +24,6 @@ from .config import load_config, save_config, get_log_path
 from .constants import (
         VmAction, VmStatus, ButtonLabels, ButtonIds,
         ErrorMessages, AppInfo, StatusText, ServerPallette,
-        DialogMessages
         )
 from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from .libvirt_error_handler import register_error_handler
@@ -67,12 +66,11 @@ from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
 
-# Configure logging
-logging.basicConfig(
-    filename=get_log_path(),
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+log_config = load_config()
+log_level_str = log_config.get("LOG_LEVEL", "INFO")
+log_level = getattr(logging, log_level_str, logging.INFO)
+file_handler = logging.FileHandler(get_log_path())
+file_handler.setLevel(log_level)
 
 class WorkerManager:
     """A class to manage and track Textual workers."""
@@ -906,6 +904,7 @@ class VMManagerTUI(App):
 
     def action_config(self) -> None:
         """Open the configuration modal."""
+        self.old_log_level = self.config.get("LOG_LEVEL", "INFO")
         self.push_screen(ConfigModal(self.config), self.handle_config_result)
 
     def handle_config_result(self, result: dict | None) -> None:
@@ -914,6 +913,13 @@ class VMManagerTUI(App):
             old_stats_interval = self.config.get("STATS_INTERVAL")
 
             self.config = result
+            new_log_level_str = self.config.get("LOG_LEVEL", "INFO")
+            if self.old_log_level != new_log_level_str:
+                new_log_level = getattr(logging, new_log_level_str.upper(), logging.INFO)
+                logging.getLogger().setLevel(new_log_level)
+                for handler in logging.getLogger().handlers:
+                    handler.setLevel(new_log_level)
+                self.show_success_message(f"Log level changed to {new_log_level_str}")
 
             # Update remote viewer if changed
             self.r_viewer = check_r_viewer(self.config.get("REMOTE_VIEWER"))
