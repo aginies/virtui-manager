@@ -43,12 +43,26 @@ class ConfigModal(BaseModal[None]):
                     tooltip="Full path to the application log file"
                 )
 
+                yield Label("Logging Level:")
+                yield Select(
+                    [
+                        ("DEBUG", "DEBUG"),
+                        ("INFO", "INFO"),
+                        ("WARNING", "WARNING"),
+                        ("ERROR", "ERROR"),
+                        ("CRITICAL", "CRITICAL"),
+                    ],
+                    value=self.config.get("LOG_LEVEL", "INFO"),
+                    id="log-level-select",
+                    prompt="Select a logging level"
+                )
+
                 # Remote Viewer Settings
                 yield Label("Remote Viewer")
 
                 viewers = []
-                if shutil.which("virtui-remote-viewer.py"):
-                    viewers.append(("virtui-remote-viewer.py", "virtui-remote-viewer.py"))
+                if shutil.which("virtui-remote-viewer"):
+                    viewers.append(("virtui-remote-viewer", "virtui-remote-viewer"))
                 if shutil.which("virt-viewer"):
                     viewers.append(("virt-viewer", "virt-viewer"))
 
@@ -57,7 +71,7 @@ class ConfigModal(BaseModal[None]):
                     current_viewer = Select.BLANK
 
                 if not viewers:
-                     yield Label("No remote viewers found (virt-viewer or virtui-remote-viewer.py)")
+                     yield Label("No remote viewers found (virt-viewer or virtui-remote-viewer)")
                 else:
                     auto_detected = check_r_viewer()
                     yield Label(f"Select Default Remote Viewer (Auto-detect: {auto_detected}):")
@@ -138,6 +152,7 @@ class ConfigModal(BaseModal[None]):
                 self.config["VNC_COMPRESSION"] = int(self.query_one("#vnc-compression-input", Input).value)
                 self.config["STATS_INTERVAL"] = int(self.query_one("#stats-interval-input", Input).value)
                 self.config["LOG_FILE_PATH"] = self.query_one("#log-file-path-input", Input).value
+                self.config["LOG_LEVEL"] = self.query_one("#log-level-select", Select).value
 
                 try:
                     viewer_select = self.query_one("#remote-viewer-select", Select)
