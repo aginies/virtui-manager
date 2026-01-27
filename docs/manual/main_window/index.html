@@ -1022,9 +1022,10 @@
 <img alt="Select Server to Display" src="../images/select_server_display.jpg" /></p>
 <ul>
 <li><strong>Card View:</strong> Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines, and IP addresses.</li>
-<li><strong>Compact View (<code>k</code>):</strong> Toggles a high-density view showing only selection, name, and status.</li>
+<li><strong>Compact View (<code>k</code>):</strong> Toggles a high-density view showing only selection, name, and status. Ideal for managing large numbers of VMs or when screen space is limited.</li>
 <li><strong>Interaction:</strong><ul>
-<li><strong>Double-Click Name:</strong> Triggers a background fetch of full VM data.</li>
+<li><strong>Double-Click Name:</strong> Triggers a background fetch of full VM data (in detailed view only).</li>
+<li><strong>Sparkline Click:</strong> Toggles between Resource View (CPU/Memory) and I/O View (Disk/Network) performance metrics.</li>
 <li><strong>Navigation:</strong> Use <strong>Arrow Keys</strong> to move focus.</li>
 <li><strong>Pagination:</strong> Use <strong>Left/Right</strong> buttons or keys (when focused) to navigate pages of VMs.</li>
 </ul>
@@ -1053,8 +1054,8 @@
 <h3 id="advanced-tools">Advanced Tools<a class="headerlink" href="#advanced-tools" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Virsh Shell (<code>Ctrl+v</code>):</strong> Opens a direct shell to run <code>virsh</code> commands against a selected server.</li>
-<li><strong>Stats Logging (<code>Ctrl+l</code>):</strong> Toggles background logging of performance statistics to the log file.</li>
-<li><strong>Cache Stats (<code>Ctrl+s</code>):</strong> Displays internal cache hit/miss statistics for debugging.</li>
+<li><strong>Stats Logging (<code>Ctrl+l</code>):</strong> Toggles background logging of performance statistics to the log file. When enabled, logs detailed libvirt call statistics and cache performance every 10 seconds.</li>
+<li><strong>Cache Stats (<code>Ctrl+s</code>):</strong> Displays internal cache hit/miss statistics for debugging. Shows detailed information about VM data caching efficiency.</li>
 </ul>
 <h2 id="keyboard-shortcuts-cheat-sheet">Keyboard Shortcuts Cheat Sheet<a class="headerlink" href="#keyboard-shortcuts-cheat-sheet" title="Permanent link">&para;</a></h2>
 <table>
@@ -1106,8 +1107,32 @@
 <td style="text-align: left;">Unselect All VMs</td>
 </tr>
 <tr>
+<td style="text-align: left;"><strong><code>Up Arrow</code></strong></td>
+<td style="text-align: left;">Filter: Show Running VMs Only</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Down Arrow</code></strong></td>
+<td style="text-align: left;">Filter: Show All VMs</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Left Arrow</code></strong></td>
+<td style="text-align: left;">Previous Page</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Right Arrow</code></strong></td>
+<td style="text-align: left;">Next Page</td>
+</tr>
+<tr>
 <td style="text-align: left;"><strong><code>Ctrl+v</code></strong></td>
 <td style="text-align: left;">Open Virsh Shell</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Ctrl+l</code></strong></td>
+<td style="text-align: left;">Toggle Statistics Logging</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong><code>Ctrl+s</code></strong></td>
+<td style="text-align: left;">Show Cache Statistics</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong><code>q</code></strong></td>

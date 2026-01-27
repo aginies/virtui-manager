@@ -761,6 +761,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#statistics-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statistics Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cache-monitoring" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -836,6 +847,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#statistics-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statistics Logging
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#cache-monitoring" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -882,9 +904,25 @@
 <h2 id="accessing-debug-information">Accessing Debug Information<a class="headerlink" href="#accessing-debug-information" title="Permanent link">&para;</a></h2>
 <p>You can access debug information and internal statistics directly from within the VirtUI Manager application using keyboard shortcuts:</p>
 <ul>
-<li><strong><code>Ctrl+L</code></strong>: Toggles the <strong>Log Viewer</strong> modal. This modal displays recent application logs, which can be useful for identifying errors or unexpected behavior.</li>
-<li><strong><code>Ctrl+S</code></strong>: Opens the <strong>Cache Statistics</strong> modal. This modal provides detailed insights into the <code>lru_cache</code> hit rates and usage patterns for various internal functions, as well as a summary of <code>libvirt</code> API calls.</li>
+<li><strong><code>Ctrl+l</code></strong>: Toggles <strong>Statistics Logging</strong>. When enabled, logs detailed performance statistics including libvirt API calls and cache performance every 10 seconds to the application log file.</li>
+<li><strong><code>Ctrl+s</code></strong>: Opens the <strong>Cache Statistics</strong> modal. This modal provides detailed insights into the <code>lru_cache</code> hit rates and usage patterns for various internal functions, as well as a summary of <code>libvirt</code> API calls.</li>
+<li><strong><code>v</code></strong>: Opens the <strong>Log Viewer</strong> modal to view recent application logs and debugging information.</li>
 </ul>
+<h2 id="statistics-logging">Statistics Logging<a class="headerlink" href="#statistics-logging" title="Permanent link">&para;</a></h2>
+<p>The <strong>Statistics Logging</strong> feature (<code>Ctrl+l</code>) provides continuous monitoring of application performance. When enabled, it logs detailed statistics every 10 seconds including:</p>
+<ul>
+<li><strong>Cache Performance:</strong> Hit rates and usage patterns for all cached functions</li>
+<li><strong>Libvirt API Calls:</strong> Detailed breakdown of all libvirt method calls by server</li>
+<li><strong>Performance Trends:</strong> Shows percentage changes in call volumes to identify performance issues</li>
+</ul>
+<p>This feature is particularly useful for:</p>
+<ul>
+<li>Identifying performance bottlenecks</li>
+<li>Monitoring libvirt API usage patterns</li>
+<li>Debugging connection issues</li>
+<li>Optimizing cache configurations</li>
+</ul>
+<p><strong>Note:</strong> Statistics logging writes to the application log file, not the console. Use the Log Viewer (<code>v</code>) to see the output.</p>
 <h2 id="cache-monitoring">Cache Monitoring<a class="headerlink" href="#cache-monitoring" title="Permanent link">&para;</a></h2>
 <p>The Cache Statistics modal (<code>Ctrl+S</code>) presents a breakdown of how effectively the application's caching mechanisms are working. High hit rates indicate efficient data retrieval, while low hit rates might suggest areas for optimization.</p>
 <p><img alt="Cache stats" src="../images/cache_performance.jpg" /></p>
