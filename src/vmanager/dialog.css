@@ -573,8 +573,16 @@ LoadingModal LoadingIndicator {
 }
 
 #status-label {
-    display: none;
     text-align: center;
     color: $accent;
     margin-bottom: 1;
+}
+
+Button:hover {
+    background: $primary-lighten-2;
+    color: $text;
+}
+
+Button.-active {
+    background: $primary-darken-2;
 }

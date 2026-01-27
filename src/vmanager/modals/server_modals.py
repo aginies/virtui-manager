@@ -109,7 +109,7 @@ class ServerManagementModal(BaseModal [str | None]):
                 with Horizontal():
                     yield Button("Add", id="add-server-btn", classes="add-button", variant="success")
                     yield Button("Edit", id="edit-server-btn", disabled=True, classes="edit-button")
-                    yield Button("Delete", id="delete-server-btn", disabled=True, classes="delete-button")
+                    yield Button("Delete", id="delete-server-btn", disabled=True,)
                 with Horizontal():
                     yield Button("Connect", id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
                     yield Button("Custom URL", id="custom-conn-btn", classes="Buttonpage")

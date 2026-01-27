@@ -509,6 +509,7 @@ Toast.-inprogress {
 
 /* Specific button variants */
 .Buttonpage { height: auto; width: auto; margin: 0 0; padding: 1 1; color: white; background: black; border: round; }
+.Buttonpage:hover { background: $primary-darken-2; }
 .button-details { height: 1; padding: 0 0; }
 .ctrlpage { height: 3vh; width: auto; margin: 0 0; padding: 0 0; color: white; text-style: underline; background: $background; }
 .close-button { height: 1; width: auto; color: white; background: red; border: hidden; margin: 1 1; }
