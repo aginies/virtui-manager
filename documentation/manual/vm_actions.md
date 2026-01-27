@@ -36,9 +36,35 @@ This tab contains the most common power management and connectivity controls.
 *   **Web Console / Show Console:**
     *   **Web Console:** Configures and starts a secure noVNC session, allowing you to access the VM's display via a web browser. Useful for remote access without a dedicated client.
     *   **Show Console:** appears when a session is active; clicking it opens the browser or reconnects.
+    *   **Status Indicator:** Shows "(WebC On)" next to the VM status when a web console session is active.
 
 *   **Connect:**
     *   Launches the configured desktop remote viewer (e.g., `virt-viewer`) for a high-performance native connection to the VM's display (SPICE/VNC).
+
+## VM Card Interactive Features
+
+### Sparkline View Toggle
+
+The VM card displays real-time performance data using sparklines. You can toggle between two different views:
+
+*   **Resource View:** Shows CPU usage and Memory usage sparklines
+*   **I/O View:** Shows Disk I/O (read/write) and Network I/O (receive/transmit) sparklines
+
+**To toggle views:** Click on any sparkline area to switch between Resource and I/O views.
+
+### Detailed Tooltip Information
+
+Hover over the VM name to see a comprehensive tooltip with detailed information including:
+
+*   UUID and hypervisor connection details
+*   Current status and IP addresses
+*   Boot device configuration
+*   CPU model and memory allocation
+*   Server connection information
+
+### Double-Click Refresh
+
+**Double-click** on the VM name to trigger a background refresh of the VM's detailed information, including XML configuration data.
 
 ## Snapshot/Overlay Tab
 

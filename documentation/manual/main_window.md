@@ -25,9 +25,10 @@ The core view displaying your virtual machines.
 ![Select Server to Display](images/select_server_display.jpg)
 
 *   **Card View:** Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines, and IP addresses.
-*   **Compact View (`k`):** Toggles a high-density view showing only selection, name, and status.
+*   **Compact View (`k`):** Toggles a high-density view showing only selection, name, and status. Ideal for managing large numbers of VMs or when screen space is limited.
 *   **Interaction:**
-    *   **Double-Click Name:** Triggers a background fetch of full VM data.
+    *   **Double-Click Name:** Triggers a background fetch of full VM data (in detailed view only).
+    *   **Sparkline Click:** Toggles between Resource View (CPU/Memory) and I/O View (Disk/Network) performance metrics.
     *   **Navigation:** Use **Arrow Keys** to move focus.
     *   **Pagination:** Use **Left/Right** buttons or keys (when focused) to navigate pages of VMs.
 
@@ -57,8 +58,8 @@ The "Bulk Command" mode puts the power of fleet management at your fingertips.
 ### Advanced Tools
 
 *   **Virsh Shell (`Ctrl+v`):** Opens a direct shell to run `virsh` commands against a selected server.
-*   **Stats Logging (`Ctrl+l`):** Toggles background logging of performance statistics to the log file.
-*   **Cache Stats (`Ctrl+s`):** Displays internal cache hit/miss statistics for debugging.
+*   **Stats Logging (`Ctrl+l`):** Toggles background logging of performance statistics to the log file. When enabled, logs detailed libvirt call statistics and cache performance every 10 seconds.
+*   **Cache Stats (`Ctrl+s`):** Displays internal cache hit/miss statistics for debugging. Shows detailed information about VM data caching efficiency.
 
 ## Keyboard Shortcuts Cheat Sheet
 
@@ -79,4 +80,6 @@ The "Bulk Command" mode puts the power of fleet management at your fingertips.
 | **`Left Arrow`** | Previous Page |
 | **`Right Arrow`** | Next Page |
 | **`Ctrl+v`** | Open Virsh Shell |
+| **`Ctrl+l`** | Toggle Statistics Logging |
+| **`Ctrl+s`** | Show Cache Statistics |
 | **`q`** | Quit Application |

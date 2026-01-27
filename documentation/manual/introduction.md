@@ -36,6 +36,8 @@ Managing virtual infrastructure often involves a trade-off between convenience a
 *   **Lifecycle Management:** Start, Stop, Pause, Resume, Force Off, and Delete VM, etc...
 *   **Configuration:** detailed editing of CPU, Memory, Disks, Networks, and Boot options and mode.
 *   **Snapshots & Overlays:** Create, restore, and manage internal snapshots and external disk overlays.
+*   **Real-time Monitoring:** Interactive sparklines showing CPU, Memory, Disk I/O, and Network performance with toggleable views.
+*   **Compact View Mode:** High-density display for managing large numbers of VMs efficiently.
 
 ### 📦 Advanced Operations
 *   **Bulk Actions:** Select multiple VMs (using patterns or manual selection) to perform mass start/stop/delete operations or configuration changes.
@@ -45,6 +47,13 @@ Managing virtual infrastructure often involves a trade-off between convenience a
 ### 🖥️ Remote Access
 *   **VirtUI Remote Viewer:** A custom-built, native graphical viewer for accessing VM consoles (VNC/SPICE) with support for USB redirection.
 *   **Web Console:** Integrated support for `noVNC` to access VM consoles via a web browser, even for remote servers.
+
+### 📊 Monitoring & Debugging
+*   **Real-time Stats:** View CPU, Memory, Disk, and Network usage for each VM with interactive sparkline views.
+*   **Event-Driven Updates:** UI updates automatically when VM states change.
+*   **Log Viewer:** Built-in log viewer for troubleshooting.
+*   **Statistics Logging:** Continuous performance monitoring with detailed libvirt call statistics and cache analysis.
+*   **Cache Statistics:** Real-time monitoring of caching efficiency and performance optimization.
 
 ## Comparison
 

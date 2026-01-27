@@ -6,8 +6,26 @@ VirtUI Manager provides built-in tools to help users debug issues and monitor th
 
 You can access debug information and internal statistics directly from within the VirtUI Manager application using keyboard shortcuts:
 
-*   **`Ctrl+L`**: Toggles the **Log Viewer** modal. This modal displays recent application logs, which can be useful for identifying errors or unexpected behavior.
-*   **`Ctrl+S`**: Opens the **Cache Statistics** modal. This modal provides detailed insights into the `lru_cache` hit rates and usage patterns for various internal functions, as well as a summary of `libvirt` API calls.
+*   **`Ctrl+l`**: Toggles **Statistics Logging**. When enabled, logs detailed performance statistics including libvirt API calls and cache performance every 10 seconds to the application log file.
+*   **`Ctrl+s`**: Opens the **Cache Statistics** modal. This modal provides detailed insights into the `lru_cache` hit rates and usage patterns for various internal functions, as well as a summary of `libvirt` API calls.
+*   **`v`**: Opens the **Log Viewer** modal to view recent application logs and debugging information.
+
+## Statistics Logging
+
+The **Statistics Logging** feature (`Ctrl+l`) provides continuous monitoring of application performance. When enabled, it logs detailed statistics every 10 seconds including:
+
+*   **Cache Performance:** Hit rates and usage patterns for all cached functions
+*   **Libvirt API Calls:** Detailed breakdown of all libvirt method calls by server
+*   **Performance Trends:** Shows percentage changes in call volumes to identify performance issues
+
+This feature is particularly useful for:
+
+*   Identifying performance bottlenecks
+*   Monitoring libvirt API usage patterns
+*   Debugging connection issues
+*   Optimizing cache configurations
+
+**Note:** Statistics logging writes to the application log file, not the console. Use the Log Viewer (`v`) to see the output.
 
 ## Cache Monitoring
 
