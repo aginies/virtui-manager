@@ -159,6 +159,37 @@ class ErrorMessages:
     BULK_ACTION_FAILED_TEMPLATE = "Bulk action [b]{action_type}[/b] failed for {count} VMs."
     PREFERENCES_LAUNCH_ERROR = "Error launching preferences: {error}"
     BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED = "Could not retrieve names for selected VMs."
+    VM_CLONE_FAILED_TEMPLATE = "Failed to clone to: {vm_names}"
+    NO_SUITABLE_DISKS_FOR_OVERLAY = "No suitable disks found for overlay."
+    OVERLAY_NAME_EMPTY_AFTER_SANITIZATION = "Overlay volume name cannot be empty after sanitization."
+    ERROR_CREATING_OVERLAY_TEMPLATE = "Error creating overlay: {error}"
+    ERROR_PREPARING_OVERLAY_CREATION_TEMPLATE = "Error preparing overlay creation: {error}"
+    NO_OVERLAY_DISKS_FOUND = "No overlay disks found."
+    ERROR_DISCARDING_OVERLAY_TEMPLATE = "Error discarding overlay: {error}"
+    ERROR_PREPARING_DISCARD_OVERLAY_TEMPLATE = "Error preparing discard overlay: {error}"
+    NO_DISKS_FOUND_TO_COMMIT = "No disks found to commit."
+    ERROR_COMMITTING_DISK_TEMPLATE = "Error committing disk: {error}"
+    ERROR_PREPARING_COMMIT_TEMPLATE = "Error preparing commit: {error}"
+    INVALID_XML_TEMPLATE = "Invalid XML for '[b]{vm_name}[/b]': {error}. Your changes have been discarded."
+    ERROR_GETTING_XML_TEMPLATE = "Error getting XML for VM [b]{vm_name}[/b]: {error}"
+    UNEXPECTED_ERROR_OCCURRED_TEMPLATE = "An unexpected error occurred: {error}"
+    CONNECTION_INFO_NOT_AVAILABLE = "Connection info not available for this VM."
+    REMOTE_VIEWER_FAILED_TO_START_TEMPLATE = "{viewer} failed to start for {domain_name}: {error}"
+    ERROR_GETTING_VM_DETAILS_TEMPLATE = "Error getting VM details for [b]{vm_name}[/b]: {error}"
+    UNEXPECTED_ERROR_CONNECTING = "An unexpected error occurred while trying to connect."
+    ERROR_CHECKING_WEB_CONSOLE_STATUS_TEMPLATE = "Error checking web console status for [b]{vm_name}[/b]: {error}"
+    SNAPSHOT_ERROR_TEMPLATE = "Snapshot error for [b]{vm_name}[/b]: {error}"
+    NO_SNAPSHOTS_TO_RESTORE = "No snapshots to restore."
+    ERROR_FETCHING_SNAPSHOTS_TEMPLATE = "Error fetching snapshots: {error}"
+    NO_SNAPSHOTS_TO_DELETE = "No snapshots to delete."
+    ERROR_DELETING_VM_TEMPLATE = "Error deleting VM '{vm_name}': {error}"
+    VM_NAME_EMPTY_AFTER_SANITIZATION = "VM name cannot be empty after sanitization."
+    ERROR_RENAMING_VM_TEMPLATE = "Error renaming VM [b]{vm_name}[/b]: {error}"
+    VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = "VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active server."
+    ERROR_GETTING_ID_TEMPLATE = "Error getting ID for [b]{vm_name}[/b]: {error}"
+    SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION = "Please select at least two servers in 'Select Servers' to enable migration."
+    SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = "Selected VM with ID [b]{uuid}[/b] not found on any active server."
+
 
 class DialogMessages:
     """Constants for dialog messages"""
@@ -182,6 +213,8 @@ class WarningMessages:
     """Constants for warning messages"""
     COMPACT_VIEW_LOCKED = "Compact view is locked during bulk operations."
     VMS_PER_PAGE_PERFORMANCE_WARNING = "Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
+    VM_NOT_PAUSABLE = "VM '{vm_name}' is not in a pausable state."
+    LIBVIRT_XML_NO_EFFECTIVE_CHANGE = "VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away."
 
 
 class SuccessMessages:
@@ -197,6 +230,21 @@ class SuccessMessages:
     LOG_LEVEL_CHANGED = "Log level changed to {level}"
     BULK_ACTION_SUCCESS_TEMPLATE = "Bulk action [b]{action_type}[/b] successful for {count} VMs."
     SERVER_CONNECTED = "Connected to [b]{name}[/b]"
+    INPUT_SANITIZED = "Input sanitized: '{original_input}' changed to '{sanitized_input}'"
+    OVERLAY_CREATED = "Overlay [b]{overlay_name}[/b] created and attached."
+    OVERLAY_DISCARDED = "Overlay for [b]{target_disk}[/b] discarded and reverted to base image."
+    DISK_COMMITTED = "Disk changes committed successfully."
+    VM_CONFIG_UPDATED = "VM [b]{vm_name}[/b] configuration updated successfully."
+    NO_XML_CHANGES = "No changes made to the XML configuration."
+    SNAPSHOT_CREATED = "Snapshot [b]{snapshot_name}[/b] created successfully."
+    SNAPSHOT_RESTORED = "Restored to snapshot [b]{snapshot_name}[/b] successfully."
+    SNAPSHOT_DELETED = "Snapshot [b]{snapshot_name}[/b] deleted successfully."
+    VM_DELETED = "VM '{vm_name}' deleted successfully."
+    VM_RENAMED = "VM '{old_name}' renamed to '{new_name}' successfully."
+    VM_RENAME_CANCELLED = "VM rename cancelled."
+    VM_RENAME_NO_CHANGE = "New VM name is the same as the old name. No rename performed."
+    VM_CLONED = "Successfully cloned to: {vm_names}"
+
 
 
 class ProgressMessages:
