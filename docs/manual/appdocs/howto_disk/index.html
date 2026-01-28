@@ -12,31 +12,31 @@
         <meta name="author" content="aginies">
       
       
-        <link rel="canonical" href="https://aginies.github.io/virtui-manager/cli/">
+        <link rel="canonical" href="https://aginies.github.io/virtui-manager/appdocs/howto_disk/">
       
       
-        <link rel="prev" href="../remote_viewer/">
+        <link rel="prev" href="../../debugging_and_statistics/">
       
       
-        <link rel="next" href="../debugging_and_statistics/">
+        <link rel="next" href="../howto_network/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
-        <title>VirtUI Manager CMD - VirtUI Manager Documentation</title>
+        <title>Managing VM Disks - VirtUI Manager Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -55,9 +55,9 @@
       
     
     
-      <link rel="stylesheet" href="../style.css">
+      <link rel="stylesheet" href="../../style.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#command-line-interface-cli" class="md-skip">
+        <a href="#managing-vm-disks" class="md-skip">
           Skip to content
         </a>
       
@@ -94,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="VirtUI Manager Documentation" class="md-header__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
+    <a href="../.." title="VirtUI Manager Documentation" class="md-header__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
       
-  <img src="../images/virtui-manager_logo_notext_inverted.png" alt="logo">
+  <img src="../../images/virtui-manager_logo_notext_inverted.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              VirtUI Manager CMD
+              Managing VM Disks
             
           </span>
         </div>
@@ -158,7 +158,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -175,13 +175,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../introduction/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../introduction/" class="md-tabs__link">
           
   
   
@@ -197,11 +195,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../appdocs/howto_disk/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -235,9 +235,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="VirtUI Manager Documentation" class="md-nav__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
+    <a href="../.." title="VirtUI Manager Documentation" class="md-nav__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
       
-  <img src="../images/virtui-manager_logo_notext_inverted.png" alt="logo">
+  <img src="../../images/virtui-manager_logo_notext_inverted.png" alt="logo">
 
     </a>
     VirtUI Manager Documentation
@@ -264,7 +264,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -288,31 +288,26 @@
       
   
   
-    
   
   
-  
     
     
     
     
-      
-        
-        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
             
   
   
@@ -330,7 +325,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_2">
             <span class="md-nav__icon md-icon"></span>
             
@@ -348,7 +343,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../introduction/" class="md-nav__link">
+      <a href="../../introduction/" class="md-nav__link">
         
   
   
@@ -376,7 +371,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../app_installation/" class="md-nav__link">
+      <a href="../../app_installation/" class="md-nav__link">
         
   
   
@@ -404,7 +399,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../main_window/" class="md-nav__link">
+      <a href="../../main_window/" class="md-nav__link">
         
   
   
@@ -432,7 +427,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../app_configuration/" class="md-nav__link">
+      <a href="../../app_configuration/" class="md-nav__link">
         
   
   
@@ -460,7 +455,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vm_configuration/" class="md-nav__link">
+      <a href="../../vm_configuration/" class="md-nav__link">
         
   
   
@@ -488,7 +483,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vm_actions/" class="md-nav__link">
+      <a href="../../vm_actions/" class="md-nav__link">
         
   
   
@@ -516,7 +511,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../selection/" class="md-nav__link">
+      <a href="../../selection/" class="md-nav__link">
         
   
   
@@ -544,7 +539,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../bulk_ops/" class="md-nav__link">
+      <a href="../../bulk_ops/" class="md-nav__link">
         
   
   
@@ -572,7 +567,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../migration/" class="md-nav__link">
+      <a href="../../migration/" class="md-nav__link">
         
   
   
@@ -600,7 +595,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../web_console/" class="md-nav__link">
+      <a href="../../web_console/" class="md-nav__link">
         
   
   
@@ -628,7 +623,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
+      <a href="../../installation/" class="md-nav__link">
         
   
   
@@ -656,7 +651,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../remote_viewer/" class="md-nav__link">
+      <a href="../../remote_viewer/" class="md-nav__link">
         
   
   
@@ -681,37 +676,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    VirtUI Manager CMD
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../cli/" class="md-nav__link">
         
   
   
@@ -727,92 +695,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#core-concepts" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Core Concepts
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#connection-management" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Connection Management
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#selection-targeting" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Selection &amp; Targeting
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#vm-operations" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        VM Operations
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#information-discovery" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Information &amp; Discovery
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#usage-example" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Usage Example
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -825,7 +707,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging_and_statistics/" class="md-nav__link">
+      <a href="../../debugging_and_statistics/" class="md-nav__link">
         
   
   
@@ -857,26 +739,31 @@
       
   
   
+    
   
   
+  
     
     
     
     
+      
+        
+        
       
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -894,7 +781,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -909,10 +796,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../appdocs/howto_disk/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managing VM Disks
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -928,6 +842,92 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#add-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Add Disk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attach-existing-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attach Existing Disk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#edit-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Edit Disk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remove-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remove Disk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disable-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disable Disk
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enable-disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enable Disk
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -940,7 +940,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../appdocs/howto_network/" class="md-nav__link">
+      <a href="../howto_network/" class="md-nav__link">
         
   
   
@@ -968,7 +968,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../appdocs/howto_overlay/" class="md-nav__link">
+      <a href="../howto_overlay/" class="md-nav__link">
         
   
   
@@ -996,7 +996,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../appdocs/howto_ssh/" class="md-nav__link">
+      <a href="../howto_ssh/" class="md-nav__link">
         
   
   
@@ -1024,7 +1024,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../appdocs/howto_virtiofs/" class="md-nav__link">
+      <a href="../howto_virtiofs/" class="md-nav__link">
         
   
   
@@ -1079,10 +1079,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-concepts" class="md-nav__link">
+  <a href="#add-disk" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Concepts
+        Add Disk
       
     </span>
   </a>
@@ -1090,10 +1090,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#connection-management" class="md-nav__link">
+  <a href="#attach-existing-disk" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connection Management
+        Attach Existing Disk
       
     </span>
   </a>
@@ -1101,10 +1101,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#selection-targeting" class="md-nav__link">
+  <a href="#edit-disk" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Selection &amp; Targeting
+        Edit Disk
       
     </span>
   </a>
@@ -1112,10 +1112,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#vm-operations" class="md-nav__link">
+  <a href="#remove-disk" class="md-nav__link">
     <span class="md-ellipsis">
       
-        VM Operations
+        Remove Disk
       
     </span>
   </a>
@@ -1123,10 +1123,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#information-discovery" class="md-nav__link">
+  <a href="#disable-disk" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Information &amp; Discovery
+        Disable Disk
       
     </span>
   </a>
@@ -1134,10 +1134,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#usage-example" class="md-nav__link">
+  <a href="#enable-disk" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Usage Example
+        Enable Disk
       
     </span>
   </a>
@@ -1164,83 +1164,55 @@
   
 
 
-<h1 id="command-line-interface-cli">Command Line Interface (CLI)<a class="headerlink" href="#command-line-interface-cli" title="Permanent link">&para;</a></h1>
-<p>VirtUI Manager includes a powerful interactive shell mode, allowing for scriptable and direct management of your virtualization infrastructure without the TUI overhead.</p>
-<p>To launch the CLI mode:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>virtui-manager<span class="w"> </span>--cmd
-</code></pre></div></p>
-<h2 id="core-concepts">Core Concepts<a class="headerlink" href="#core-concepts" title="Permanent link">&para;</a></h2>
-<p>The CLI operates on a context-based system:</p>
-<ol>
-<li><strong>Connect</strong> to one or more servers.</li>
-<li><strong>Select</strong> the VMs you want to manage.</li>
-<li><strong>Execute</strong> commands on the selection.</li>
-</ol>
-<p>The prompt dynamically updates to show your active context:
-<code>(&lt;server_names&gt;) [&lt;selected_vms&gt;]</code></p>
-<h2 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h2>
+<h1 id="managing-vm-disks">Managing VM Disks<a class="headerlink" href="#managing-vm-disks" title="Permanent link">&para;</a></h1>
+<p>This guide explains the functions of the buttons available in the "Disks" tab.</p>
+<hr />
+<h3 id="add-disk">Add Disk<a class="headerlink" href="#add-disk" title="Permanent link">&para;</a></h3>
+<p>This button allows you to create a <strong>brand new virtual disk</strong> and attach it to the VM.</p>
 <ul>
-<li><strong><code>connect &lt;server&gt; [server2 ...]</code></strong>
-    Connects to specific servers defined in your configuration. Use <code>connect all</code> to connect to every configured server.<ul>
-<li><em>Example:</em> <code>connect Localhost ryzen9</code></li>
+<li>You will be prompted to select a <strong>Storage Pool</strong> where the new disk image file will be created.</li>
+<li>You must provide a <strong>Volume Name</strong> for the new disk (e.g., <code>new-data-disk.qcow2</code>).</li>
+<li>You must specify its <strong>Size</strong> and <strong>Format</strong> (<code>qcow2</code> or <code>raw</code>).</li>
+<li>The VM does <strong>not</strong> need to be stopped to add a new disk.</li>
 </ul>
-</li>
-<li><strong><code>disconnect &lt;server&gt; [server2 ...]</code></strong>
-    Closes connections to specific servers. Use <code>disconnect all</code> to close all sessions.</li>
-</ul>
-<h2 id="selection-targeting">Selection &amp; Targeting<a class="headerlink" href="#selection-targeting" title="Permanent link">&para;</a></h2>
-<p>Most commands operate on the "current selection" if no arguments are provided.</p>
+<hr />
+<h3 id="attach-existing-disk">Attach Existing Disk<a class="headerlink" href="#attach-existing-disk" title="Permanent link">&para;</a></h3>
+<p>This attaches a <strong>pre-existing disk image</strong> to your VM. This is useful if you have an existing <code>.qcow2</code>, <code>.raw</code>, or <code>.iso</code> file you want to use.</p>
 <ul>
-<li><strong><code>select_vm &lt;name&gt; [name2 ...]</code></strong>
-    Selects specific VMs by name from any connected server.</li>
-<li><strong><code>select_vm re:&lt;pattern&gt;</code></strong>
-    Selects VMs using regex patterns.<ul>
-<li><em>Example:</em> <code>select_vm re:^web-.*</code> (Selects all VMs starting with "web-")</li>
+<li>The system will first ask you to select a <strong>Storage Pool</strong> that contains the disk volume you want to attach.</li>
+<li>If the disk file is not part of a libvirt storage pool yet, you should first use the "Attach" button in the <strong>Server Preferences -&gt; Storage</strong> tab to make it known to libvirt. This might involve creating a new storage pool for the directory containing your disk file.</li>
 </ul>
-</li>
-<li><strong><code>unselect_vm &lt;name&gt; | re:&lt;pattern&gt; | all</code></strong>
-    Removes VMs from the current selection.</li>
-</ul>
-<h2 id="vm-operations">VM Operations<a class="headerlink" href="#vm-operations" title="Permanent link">&para;</a></h2>
-<p>All operations can take specific VM names as arguments. If omitted, they apply to the <strong>currently selected VMs</strong>.</p>
+<hr />
+<h3 id="edit-disk">Edit Disk<a class="headerlink" href="#edit-disk" title="Permanent link">&para;</a></h3>
+<p><em>(This button is enabled only when a disk is selected in the table)</em></p>
+<p>Allows you to modify properties of an attached disk, such as:
+- <strong>Bus Type:</strong> <code>virtio</code>, <code>sata</code>, <code>scsi</code>, etc.
+- <strong>Cache Mode:</strong> <code>none</code>, <code>writeback</code>, etc.
+- <strong>Discard Mode:</strong> <code>unmap</code>, <code>ignore</code>.</p>
+<blockquote>
+<p><strong>Important:</strong> The VM must be <strong>stopped</strong> to edit disk properties.</p>
+</blockquote>
+<hr />
+<h3 id="remove-disk">Remove Disk<a class="headerlink" href="#remove-disk" title="Permanent link">&para;</a></h3>
+<p><em>(This button is enabled only when a disk is selected)</em></p>
+<p>This <strong>detaches</strong> the selected disk from the virtual machine.</p>
 <ul>
-<li><strong><code>status</code></strong>: Shows state, vCPU count, and memory usage.</li>
-<li><strong><code>start</code></strong>: Boots up the target VMs.</li>
-<li><strong><code>stop</code></strong>: Sends a graceful shutdown signal (ACPI).</li>
-<li><strong><code>force_off</code></strong>: Immediately cuts power (hard shutdown).</li>
-<li><strong><code>pause</code> / <code>resume</code></strong>: Freezes or unfreezes VM execution.</li>
-<li><strong><code>delete [--force-storage-delete]</code></strong>: Permanently deletes the VM. Optional flag removes associated disk images.</li>
-<li><strong><code>clone_vm &lt;source&gt; &lt;new_name&gt;</code></strong>: Creates a full clone of a VM on the same server.</li>
+<li><strong>This action does NOT delete the disk image file.</strong> The file remains in its storage pool or on your filesystem.</li>
+<li>It only removes the disk from this specific VM's configuration.</li>
+<li>The VM must be <strong>stopped</strong> to remove most types of disks.</li>
 </ul>
-<h2 id="information-discovery">Information &amp; Discovery<a class="headerlink" href="#information-discovery" title="Permanent link">&para;</a></h2>
+<hr />
+<h3 id="disable-disk">Disable Disk<a class="headerlink" href="#disable-disk" title="Permanent link">&para;</a></h3>
+<p><em>(This button is enabled for active disks)</em></p>
+<p>This temporarily "unplugs" the disk from the VM <strong>without removing its configuration</strong>.</p>
 <ul>
-<li><strong><code>list_vms</code></strong>: Lists all VMs on all connected servers with their current status.</li>
-<li><strong><code>list_pool</code></strong>: Displays all storage pools, their capacity, and usage.</li>
-<li><strong><code>list_unused_volumes [pool_name]</code></strong>: Finds orphaned disk images that are not attached to any VM.</li>
+<li>The disk will become invisible to the guest operating system but remains in the disk list with a <code>(disabled)</code> status.</li>
+<li>This is useful for troubleshooting or temporarily preventing access to a disk without fully removing it.</li>
 </ul>
-<h2 id="usage-example">Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Connect to infrastructure</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">(</span>VirtUI<span class="o">)</span>&gt;<span class="w"> </span>connect<span class="w"> </span>Localhost
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Select all web servers</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>select_vm<span class="w"> </span>re:web-.*
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Check their status</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>status
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>---<span class="w"> </span>Status<span class="w"> </span>on<span class="w"> </span>Localhost<span class="w"> </span>---
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>VM<span class="w"> </span>Name<span class="w">                        </span>Status<span class="w">          </span>vCPUs<span class="w">   </span>Memory<span class="w"> </span><span class="o">(</span>MiB<span class="o">)</span><span class="w">   </span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>------------------------------<span class="w"> </span>---------------<span class="w"> </span>-------<span class="w"> </span>---------------
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>web-01<span class="w">                         </span>Stopped<span class="w">         </span><span class="m">2</span><span class="w">       </span><span class="m">4096</span><span class="w">           </span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>web-02<span class="w">                         </span>Stopped<span class="w">         </span><span class="m">2</span><span class="w">       </span><span class="m">4096</span><span class="w">           </span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1"># Start them up</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>start
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>VM<span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>VM<span class="w"> </span><span class="s1">&#39;web-02&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-</code></pre></div>
+<hr />
+<h3 id="enable-disk">Enable Disk<a class="headerlink" href="#enable-disk" title="Permanent link">&para;</a></h3>
+<p><em>(This button is enabled for disabled disks)</em></p>
+<p>This "re-plugs" a disabled disk back into the VM, making it available to the guest operating system again.</p>
 
 
 
@@ -1276,7 +1248,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../remote_viewer/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Virtui Remote Viewer">
+          <a href="../../debugging_and_statistics/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Debugging and Statistics">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1286,20 +1258,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Virtui Remote Viewer
+                Debugging and Statistics
               </div>
             </div>
           </a>
         
         
           
-          <a href="../debugging_and_statistics/" class="md-footer__link md-footer__link--next" aria-label="Next: Debugging and Statistics">
+          <a href="../howto_network/" class="md-footer__link md-footer__link--next" aria-label="Next: Understanding Network Configuration">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Debugging and Statistics
+                Understanding Network Configuration
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -1336,10 +1308,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.footer", "navigation.tracking", "content.code.copy", "navigation.instant", "navigation.top", "search.suggest", "search.highlight", "search.share"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.footer", "navigation.tracking", "content.code.copy", "navigation.instant", "navigation.top", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>

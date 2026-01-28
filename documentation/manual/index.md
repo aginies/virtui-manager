@@ -20,3 +20,10 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [VirtUI Remote Viewer](remote_viewer.md)
 - [VirtUI Manager CMD](cli.md)
 - [Debugging and Statistics](debugging_and_statistics.md)
+
+## How to Guide
+- [Managing VM Disks](appdocs/howto_disk.md)
+- [Understanding Network Configuration](appdocs/howto_network.md)
+- [Understanding Snapshots and Disk Overlays](appdocs/howto_overlay.md)
+- [Using an SSH Agent](appdocs/howto_ssh.md)
+- [Using VirtIO-FS](appdocs/howto_virtiofs.md)

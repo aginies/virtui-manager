@@ -12,31 +12,31 @@
         <meta name="author" content="aginies">
       
       
-        <link rel="canonical" href="https://aginies.github.io/virtui-manager/cli/">
+        <link rel="canonical" href="https://aginies.github.io/virtui-manager/appdocs/howto_ssh/">
       
       
-        <link rel="prev" href="../remote_viewer/">
+        <link rel="prev" href="../howto_overlay/">
       
       
-        <link rel="next" href="../debugging_and_statistics/">
+        <link rel="next" href="../howto_virtiofs/">
       
       
         
       
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
     
     
       
-        <title>VirtUI Manager CMD - VirtUI Manager Documentation</title>
+        <title>Using an SSH Agent - VirtUI Manager Documentation</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
       
       
 
@@ -55,9 +55,9 @@
       
     
     
-      <link rel="stylesheet" href="../style.css">
+      <link rel="stylesheet" href="../../style.css">
     
-    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#command-line-interface-cli" class="md-skip">
+        <a href="#using-an-ssh-agent-for-passwordless-connections" class="md-skip">
           Skip to content
         </a>
       
@@ -94,9 +94,9 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="VirtUI Manager Documentation" class="md-header__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
+    <a href="../.." title="VirtUI Manager Documentation" class="md-header__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
       
-  <img src="../images/virtui-manager_logo_notext_inverted.png" alt="logo">
+  <img src="../../images/virtui-manager_logo_notext_inverted.png" alt="logo">
 
     </a>
     <label class="md-header__button md-icon" for="__drawer">
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              VirtUI Manager CMD
+              Using an SSH Agent
             
           </span>
         </div>
@@ -158,7 +158,7 @@
   
   
     <li class="md-tabs__item">
-      <a href=".." class="md-tabs__link">
+      <a href="../.." class="md-tabs__link">
         
   
   
@@ -175,13 +175,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../introduction/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../introduction/" class="md-tabs__link">
           
   
   
@@ -197,11 +195,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../appdocs/howto_disk/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../howto_disk/" class="md-tabs__link">
           
   
   
@@ -235,9 +235,9 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="VirtUI Manager Documentation" class="md-nav__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
+    <a href="../.." title="VirtUI Manager Documentation" class="md-nav__button md-logo" aria-label="VirtUI Manager Documentation" data-md-component="logo">
       
-  <img src="../images/virtui-manager_logo_notext_inverted.png" alt="logo">
+  <img src="../../images/virtui-manager_logo_notext_inverted.png" alt="logo">
 
     </a>
     VirtUI Manager Documentation
@@ -264,7 +264,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         
   
   
@@ -280,6 +280,457 @@
   
 
       </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Manual
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Manual
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../introduction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Introduction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../app_installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VirtUI Manager Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../main_window/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Management Main Window
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../app_configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VirtUI Manager Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../vm_configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Virtual Machine Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../vm_actions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Control Virtual Machine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../selection/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Selection & Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bulk_ops/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Bulk Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Virtual Machine Migration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web_console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Web Console (VM)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Virtual Machine Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../remote_viewer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Virtui Remote Viewer
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VirtUI Manager CMD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../debugging_and_statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Debugging and Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
     </li>
   
 
@@ -309,17 +760,17 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
   <span class="md-ellipsis">
     
   
-    Manual
+    How-To Guides
   
 
     
@@ -330,12 +781,12 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
-    Manual
+    How-To Guides
   
 
           </label>
@@ -348,14 +799,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../introduction/" class="md-nav__link">
+      <a href="../howto_disk/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Introduction
+    Managing VM Disks
   
 
     
@@ -376,14 +827,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../app_installation/" class="md-nav__link">
+      <a href="../howto_network/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    VirtUI Manager Installation
+    Understanding Network Configuration
   
 
     
@@ -404,266 +855,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../main_window/" class="md-nav__link">
+      <a href="../howto_overlay/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    Management Main Window
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../app_configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    VirtUI Manager Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../vm_configuration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Virtual Machine Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../vm_actions/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Control Virtual Machine
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../selection/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Selection & Filtering
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../bulk_ops/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Bulk Operations
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../migration/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Virtual Machine Migration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../web_console/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Remote Web Console (VM)
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../installation/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Virtual Machine Installation
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../remote_viewer/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Virtui Remote Viewer
+    Understanding Snapshots and Disk Overlays
   
 
     
@@ -700,7 +899,7 @@
   <span class="md-ellipsis">
     
   
-    VirtUI Manager CMD
+    Using an SSH Agent
   
 
     
@@ -718,7 +917,7 @@
   <span class="md-ellipsis">
     
   
-    VirtUI Manager CMD
+    Using an SSH Agent
   
 
     
@@ -744,10 +943,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-concepts" class="md-nav__link">
+  <a href="#what-is-an-ssh-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Concepts
+        What is an SSH Agent?
       
     </span>
   </a>
@@ -755,10 +954,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#connection-management" class="md-nav__link">
+  <a href="#step-1-start-the-ssh-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connection Management
+        Step 1: Start the ssh-agent
       
     </span>
   </a>
@@ -766,10 +965,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#selection-targeting" class="md-nav__link">
+  <a href="#step-2-add-your-ssh-key-to-the-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Selection &amp; Targeting
+        Step 2: Add Your SSH Key to the Agent
       
     </span>
   </a>
@@ -777,10 +976,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#vm-operations" class="md-nav__link">
+  <a href="#step-3-connect" class="md-nav__link">
     <span class="md-ellipsis">
       
-        VM Operations
+        Step 3: Connect
       
     </span>
   </a>
@@ -788,21 +987,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#information-discovery" class="md-nav__link">
+  <a href="#ssh-compression-for-performance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Information &amp; Discovery
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#usage-example" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Usage Example
+        SSH Compression for Performance
       
     </span>
   </a>
@@ -825,206 +1013,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../debugging_and_statistics/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Debugging and Statistics
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-          </ul>
-        </nav>
-      
-    </li>
-  
-
-    
-      
-      
-  
-  
-  
-  
-    
-    
-    
-    
-      
-      
-        
-      
-    
-    
-    <li class="md-nav__item md-nav__item--nested">
-      
-        
-        
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
-        
-          
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
-            
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    How-To Guides
-  
-
-    
-  </span>
-  
-  
-
-            <span class="md-nav__icon md-icon"></span>
-          </label>
-        
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
-            <span class="md-nav__icon md-icon"></span>
-            
-  
-    How-To Guides
-  
-
-          </label>
-          <ul class="md-nav__list" data-md-scrollfix>
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../appdocs/howto_disk/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Managing VM Disks
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../appdocs/howto_network/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Understanding Network Configuration
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../appdocs/howto_overlay/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Understanding Snapshots and Disk Overlays
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../appdocs/howto_ssh/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Using an SSH Agent
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../appdocs/howto_virtiofs/" class="md-nav__link">
+      <a href="../howto_virtiofs/" class="md-nav__link">
         
   
   
@@ -1079,10 +1068,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#core-concepts" class="md-nav__link">
+  <a href="#what-is-an-ssh-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Core Concepts
+        What is an SSH Agent?
       
     </span>
   </a>
@@ -1090,10 +1079,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#connection-management" class="md-nav__link">
+  <a href="#step-1-start-the-ssh-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Connection Management
+        Step 1: Start the ssh-agent
       
     </span>
   </a>
@@ -1101,10 +1090,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#selection-targeting" class="md-nav__link">
+  <a href="#step-2-add-your-ssh-key-to-the-agent" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Selection &amp; Targeting
+        Step 2: Add Your SSH Key to the Agent
       
     </span>
   </a>
@@ -1112,10 +1101,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#vm-operations" class="md-nav__link">
+  <a href="#step-3-connect" class="md-nav__link">
     <span class="md-ellipsis">
       
-        VM Operations
+        Step 3: Connect
       
     </span>
   </a>
@@ -1123,21 +1112,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#information-discovery" class="md-nav__link">
+  <a href="#ssh-compression-for-performance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Information &amp; Discovery
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#usage-example" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Usage Example
+        SSH Compression for Performance
       
     </span>
   </a>
@@ -1164,83 +1142,41 @@
   
 
 
-<h1 id="command-line-interface-cli">Command Line Interface (CLI)<a class="headerlink" href="#command-line-interface-cli" title="Permanent link">&para;</a></h1>
-<p>VirtUI Manager includes a powerful interactive shell mode, allowing for scriptable and direct management of your virtualization infrastructure without the TUI overhead.</p>
-<p>To launch the CLI mode:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>virtui-manager<span class="w"> </span>--cmd
-</code></pre></div></p>
-<h2 id="core-concepts">Core Concepts<a class="headerlink" href="#core-concepts" title="Permanent link">&para;</a></h2>
-<p>The CLI operates on a context-based system:</p>
-<ol>
-<li><strong>Connect</strong> to one or more servers.</li>
-<li><strong>Select</strong> the VMs you want to manage.</li>
-<li><strong>Execute</strong> commands on the selection.</li>
-</ol>
-<p>The prompt dynamically updates to show your active context:
-<code>(&lt;server_names&gt;) [&lt;selected_vms&gt;]</code></p>
-<h2 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><code>connect &lt;server&gt; [server2 ...]</code></strong>
-    Connects to specific servers defined in your configuration. Use <code>connect all</code> to connect to every configured server.<ul>
-<li><em>Example:</em> <code>connect Localhost ryzen9</code></li>
-</ul>
-</li>
-<li><strong><code>disconnect &lt;server&gt; [server2 ...]</code></strong>
-    Closes connections to specific servers. Use <code>disconnect all</code> to close all sessions.</li>
-</ul>
-<h2 id="selection-targeting">Selection &amp; Targeting<a class="headerlink" href="#selection-targeting" title="Permanent link">&para;</a></h2>
-<p>Most commands operate on the "current selection" if no arguments are provided.</p>
-<ul>
-<li><strong><code>select_vm &lt;name&gt; [name2 ...]</code></strong>
-    Selects specific VMs by name from any connected server.</li>
-<li><strong><code>select_vm re:&lt;pattern&gt;</code></strong>
-    Selects VMs using regex patterns.<ul>
-<li><em>Example:</em> <code>select_vm re:^web-.*</code> (Selects all VMs starting with "web-")</li>
-</ul>
-</li>
-<li><strong><code>unselect_vm &lt;name&gt; | re:&lt;pattern&gt; | all</code></strong>
-    Removes VMs from the current selection.</li>
-</ul>
-<h2 id="vm-operations">VM Operations<a class="headerlink" href="#vm-operations" title="Permanent link">&para;</a></h2>
-<p>All operations can take specific VM names as arguments. If omitted, they apply to the <strong>currently selected VMs</strong>.</p>
-<ul>
-<li><strong><code>status</code></strong>: Shows state, vCPU count, and memory usage.</li>
-<li><strong><code>start</code></strong>: Boots up the target VMs.</li>
-<li><strong><code>stop</code></strong>: Sends a graceful shutdown signal (ACPI).</li>
-<li><strong><code>force_off</code></strong>: Immediately cuts power (hard shutdown).</li>
-<li><strong><code>pause</code> / <code>resume</code></strong>: Freezes or unfreezes VM execution.</li>
-<li><strong><code>delete [--force-storage-delete]</code></strong>: Permanently deletes the VM. Optional flag removes associated disk images.</li>
-<li><strong><code>clone_vm &lt;source&gt; &lt;new_name&gt;</code></strong>: Creates a full clone of a VM on the same server.</li>
-</ul>
-<h2 id="information-discovery">Information &amp; Discovery<a class="headerlink" href="#information-discovery" title="Permanent link">&para;</a></h2>
-<ul>
-<li><strong><code>list_vms</code></strong>: Lists all VMs on all connected servers with their current status.</li>
-<li><strong><code>list_pool</code></strong>: Displays all storage pools, their capacity, and usage.</li>
-<li><strong><code>list_unused_volumes [pool_name]</code></strong>: Finds orphaned disk images that are not attached to any VM.</li>
-</ul>
-<h2 id="usage-example">Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Connect to infrastructure</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">(</span>VirtUI<span class="o">)</span>&gt;<span class="w"> </span>connect<span class="w"> </span>Localhost
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Select all web servers</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>select_vm<span class="w"> </span>re:web-.*
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Check their status</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>status
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>---<span class="w"> </span>Status<span class="w"> </span>on<span class="w"> </span>Localhost<span class="w"> </span>---
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>VM<span class="w"> </span>Name<span class="w">                        </span>Status<span class="w">          </span>vCPUs<span class="w">   </span>Memory<span class="w"> </span><span class="o">(</span>MiB<span class="o">)</span><span class="w">   </span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>------------------------------<span class="w"> </span>---------------<span class="w"> </span>-------<span class="w"> </span>---------------
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>web-01<span class="w">                         </span>Stopped<span class="w">         </span><span class="m">2</span><span class="w">       </span><span class="m">4096</span><span class="w">           </span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>web-02<span class="w">                         </span>Stopped<span class="w">         </span><span class="m">2</span><span class="w">       </span><span class="m">4096</span><span class="w">           </span>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="c1"># Start them up</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>start
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>VM<span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>VM<span class="w"> </span><span class="s1">&#39;web-02&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
+<h1 id="using-an-ssh-agent-for-passwordless-connections">Using an SSH Agent for Passwordless Connections<a class="headerlink" href="#using-an-ssh-agent-for-passwordless-connections" title="Permanent link">&para;</a></h1>
+<p>Using an <code>ssh-agent</code> is the standard and most secure way to handle passphrase-protected SSH keys, allowing you to connect without repeatedly entering your passphrase.</p>
+<h3 id="what-is-an-ssh-agent">What is an SSH Agent?<a class="headerlink" href="#what-is-an-ssh-agent" title="Permanent link">&para;</a></h3>
+<p>An <code>ssh-agent</code> is a background program that securely stores your private SSH keys in memory. When you try to connect to a remote server, SSH can ask the agent for the key, and the agent provides it. You only need to "unlock" your key once.</p>
+<hr />
+<h3 id="step-1-start-the-ssh-agent">Step 1: Start the <code>ssh-agent</code><a class="headerlink" href="#step-1-start-the-ssh-agent" title="Permanent link">&para;</a></h3>
+<p>On most modern desktop environments, an agent is often started automatically. If not, run this in your terminal:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nb">eval</span><span class="w"> </span><span class="s2">&quot;</span><span class="k">$(</span>ssh-agent<span class="w"> </span>-s<span class="k">)</span><span class="s2">&quot;</span>
 </code></pre></div>
+<blockquote>
+<p>To make this permanent, add the command to your shell's startup file (e.g., <code>~/.bashrc</code> or <code>~/.zshrc</code>).</p>
+</blockquote>
+<hr />
+<h3 id="step-2-add-your-ssh-key-to-the-agent">Step 2: Add Your SSH Key to the Agent<a class="headerlink" href="#step-2-add-your-ssh-key-to-the-agent" title="Permanent link">&para;</a></h3>
+<p>Use the <code>ssh-add</code> command. If your key is in a default location (<code>~/.ssh/id_rsa</code>, etc.), you can just run:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>ssh-add
+</code></pre></div>
+<p>If your key is elsewhere, specify the path to the <strong>private key</strong>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>ssh-add<span class="w"> </span>/path/to/your/private_key
+</code></pre></div>
+<p>You will be prompted for your key's passphrase <strong>one time</strong>.</p>
+<p>To verify the key was added, list the agent's keys:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ssh-add<span class="w"> </span>-l
+</code></pre></div></p>
+<hr />
+<h3 id="step-3-connect">Step 3: Connect<a class="headerlink" href="#step-3-connect" title="Permanent link">&para;</a></h3>
+<p>That's it! <code>Virtui Manager</code> will now use the agent to authenticate for any <code>qemu+ssh://</code> connections without any more prompts.</p>
+<hr />
+<h3 id="ssh-compression-for-performance">SSH Compression for Performance<a class="headerlink" href="#ssh-compression-for-performance" title="Permanent link">&para;</a></h3>
+<p>For connections over slower networks, enabling SSH compression can significantly improve performance. This is configured in your SSH client's configuration file.</p>
+<p>To enable compression for a specific host, add the following to your <code>~/.ssh/config</code> file:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>Host your_remote_host_name
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  Compression yes
+</code></pre></div>
+<p>Replace <code>your_remote_host_name</code> with the actual hostname or IP address you use in your <code>qemu+ssh://</code> URI. If you want to enable compression for all SSH connections, you can use <code>Host *</code>.</p>
 
 
 
@@ -1276,7 +1212,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../remote_viewer/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Virtui Remote Viewer">
+          <a href="../howto_overlay/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Understanding Snapshots and Disk Overlays">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1286,20 +1222,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Virtui Remote Viewer
+                Understanding Snapshots and Disk Overlays
               </div>
             </div>
           </a>
         
         
           
-          <a href="../debugging_and_statistics/" class="md-footer__link md-footer__link--next" aria-label="Next: Debugging and Statistics">
+          <a href="../howto_virtiofs/" class="md-footer__link md-footer__link--next" aria-label="Next: Using VirtIO-FS">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Debugging and Statistics
+                Using VirtIO-FS
               </div>
             </div>
             <div class="md-footer__button md-icon">
@@ -1336,10 +1272,10 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.footer", "navigation.tracking", "content.code.copy", "navigation.instant", "navigation.top", "search.suggest", "search.highlight", "search.share"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.footer", "navigation.tracking", "content.code.copy", "navigation.instant", "navigation.top", "search.suggest", "search.highlight", "search.share"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
       
     
   </body>
