@@ -136,6 +136,22 @@ class ErrorMessages:
     MIXED_VM_STATES = "Cannot migrate running/paused and stopped VMs at the same time."
     WEBSOCKIFY_NOT_FOUND = "websockify is not installed. 'Web Console' button will be disabled."
     NOVNC_NOT_FOUND = "novnc is not installed. 'Web Console' button will be disabled."
+    FAILED_TO_OPEN_CONNECTION = "Failed to open connection to [b]{uri}[/b]"
+    NOT_CONNECTED_TO_ANY_SERVER = "Not connected to any server."
+    COULD_NOT_CONNECT_TO_SERVER = "Could not connect to {uri}"
+    NO_ACTION_TYPE_BULK_MODAL = "No action type received from bulk action modal."
+    VM_NOT_FOUND_FOR_EDITING = "Could not find any of the selected VMs for editing."
+    VMS_MUST_BE_STOPPED_FOR_BULK_EDITING = "All VMs must be stopped for bulk editing. Running VMs: {running_vms}"
+    COULD_NOT_LOAD_DETAILS_FOR_REFERENCE_VM = "Could not load details for reference VM."
+    SERVER_DISCONNECTED_AUTOCONNECT_DISABLED = "Server(s) {names} disconnected and autoconnect disabled due to connection failures."
+    NO_ACTIVE_SERVERS = "No active servers."
+    NO_VMS_IN_CACHE = "No VMs found in cache. Try refreshing first."
+    NO_VMS_SELECTED = "No VMs selected."
+    ERROR_FETCHING_VM_DATA = "Error fetching VM data: {error}"
+    ERROR_DURING_INITIAL_CACHE_LOADING = "Error during initial cache loading: {error}"
+    ERROR_ON_VM_DURING_ACTION = "Error on VM [b]{vm_name}[/b] during '{action}': {error}"
+    FATAL_ERROR_BULK_ACTION = "A fatal error occurred during bulk action: {error}"
+    ERROR_FETCHING_VM_DATA = "Error fetching VM data: {error}"
 
 class DialogMessages:
     """Constants for dialog messages"""
@@ -143,3 +159,30 @@ class DialogMessages:
     DELETE_SNAPSHOT_CONFIRMATION = "Are you sure you want to delete snapshot '{name}'?"
     DELETE_SNAPSHOTS_AND_RENAME = "VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"
     EXPERIMENTAL = "Experimental Feature! Still contains bugs, fix in progress. You have been informed"
+
+
+class QuickMessages:
+    """Constants for quick messages"""
+    REMOTE_VIEWER_SELECTED = "The remove viewer {viewer} has been selected."
+    VM_DATA_LOADED = "VM data loaded. Displaying VMs..."
+    FILTER_RUNNING_VMS = "Filter: Running VMs"
+    FILTER_ALL_VMS = "Filter: All VMs"
+    ALL_VMS_UNSELECTED = "All VMs unselected."
+    CACHING_VM_STATE = "Caching VM state for: {vms_list}"
+
+
+class SuccessMessages:
+    """Constants for success messages"""
+    REMOTE_VIEWER_SELECTED = "The remove viewer {viewer} has been selected."
+    CONNECTED_TO_SERVER = "Connected to [b]{uri}[/b]"
+    STATS_LOGGING_DISABLED = "Statistics logging and monitoring disabled."
+    STATS_LOGGING_ENABLED = "Statistics logging and monitoring enabled (every 10s)."
+    CONFIG_UPDATED = "Configuration updated."
+    VMS_SELECTED_BY_PATTERN = "Selected {count} VMs matching pattern."
+
+
+class ProgressMessages:
+    """Constants for success messages"""
+    CONNECTING_TO_SERVER = "Connecting to [b]{uri}[/b]..."
+    CONFIG_UPDATED_REFRESHING_VM_LIST = "Configuration updated. Refreshing VM list..."
+    LOADING_VM_DATA_FROM_REMOTE_SERVERS = "Loading VM data from remote server(s)..."

@@ -23,7 +23,7 @@ from textual.worker import Worker, WorkerState
 from .config import load_config, save_config, get_log_path
 from .constants import (
         VmAction, VmStatus, ButtonLabels,
-        ErrorMessages, AppInfo, StatusText, ServerPallette,
+        ErrorMessages, AppInfo, StatusText, ServerPallette, QuickMessages, ProgressMessages,
         )
 from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from .libvirt_error_handler import register_error_handler
@@ -400,7 +400,7 @@ class VMManagerTUI(App):
             )
             self.r_viewer_available = False
         else:
-            self.show_quick_message(f"The remove viewer {self.r_viewer} has been selected.")
+            self.show_quick_message(QuickMessages.REMOTE_VIEWER_SELECTED.format(viewer=self.r_viewer))
 
         if not check_websockify():
             self.show_error_message(
@@ -575,14 +575,14 @@ class VMManagerTUI(App):
 
             if active_vms_on_page:
                 vms_list_str = ", ".join(active_vms_on_page)
-                self.call_from_thread(self.show_quick_message, f"Caching VM state for: {vms_list_str}")
+                self.call_from_thread(self.show_quick_message, QuickMessages.CACHING_VM_STATE.format(vms_list=vms_list_str))
 
             self.call_from_thread(self._on_initial_cache_complete)
 
         except Exception as e:
             self.call_from_thread(
                 self.show_error_message, 
-                f"Error during initial cache loading: {e}"
+                ErrorMessages.ERROR_DURING_INITIAL_CACHE_LOADING.format(error=e)
             )
 
     def _on_initial_cache_complete(self):
@@ -590,7 +590,7 @@ class VMManagerTUI(App):
         self.initial_cache_loading = False
         self.initial_cache_complete = True
         if self.servers:
-            self.show_quick_message("VM data loaded. Displaying VMs...")
+            self.show_quick_message(QuickMessages.VM_DATA_LOADED)
             self.refresh_vm_list()
 
     def _update_layout_for_size(self):
@@ -678,7 +678,7 @@ class VMManagerTUI(App):
             if conn:
                 yield conn
             else:
-                self.show_error_message(f"Failed to open connection to [b]{uri}[/b]")
+                self.show_error_message(ErrorMessages.FAILED_TO_OPEN_CONNECTION.format(uri=uri))
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
@@ -756,8 +756,7 @@ class VMManagerTUI(App):
         uris_to_connect = [uri for uri in selected_uris if uri not in self.active_uris]
         # Show connecting message for each new server
         for uri in uris_to_connect:
-            self.show_in_progress_message(f"Connecting to [b]{uri}[/b]...")
-
+            self.show_in_progress_message(ProgressMessages.CONNECTING_TO_SERVER.format(uri=uri))
         for uri in uris_to_disconnect:
             # Cleanup UI caches for VMs on this server
             uuids_to_release = [
@@ -870,7 +869,7 @@ class VMManagerTUI(App):
         if self.sort_by != VmStatus.RUNNING:
             self.sort_by = VmStatus.RUNNING
             self.current_page = 0
-            self.show_quick_message("Filter: Running VMs")
+            self.show_quick_message(QuickMessages.FILTER_RUNNING_VMS)
             self.refresh_vm_list()
 
     def action_filter_all(self) -> None:
@@ -878,7 +877,7 @@ class VMManagerTUI(App):
         if self.sort_by != VmStatus.DEFAULT:
             self.sort_by = VmStatus.DEFAULT
             self.current_page = 0
-            self.show_quick_message("Filter: All VMs")
+            self.show_quick_message(QuickMessages.FILTER_ALL_VMS)
             self.refresh_vm_list()
 
     @on(FilterModal.FilterChanged)
@@ -901,7 +900,7 @@ class VMManagerTUI(App):
             self.search_text = new_search
             self.filtered_server_uris = new_selected_servers
             self.current_page = 0
-            self.show_in_progress_message("Loading VM data from remote server(s)...")
+            self.show_in_progress_message(ProgressMessages.LOADING_VM_DATA_FROM_REMOTE_SERVERS)
             self.refresh_vm_list()
 
     def action_config(self) -> None:
@@ -932,7 +931,7 @@ class VMManagerTUI(App):
                 self.r_viewer_available = True
 
             if (self.config.get("STATS_INTERVAL") != old_stats_interval):
-                self.show_in_progress_message("Configuration updated. Refreshing VM list...")
+                self.show_in_progress_message(ProgressMessages.CONFIG_UPDATED_REFRESHING_VM_LIST)
                 self.refresh_vm_list(force=False, optimize_for_current_page=True)
             else:
                 self.show_success_message("Configuration updated.")
@@ -1006,7 +1005,7 @@ class VMManagerTUI(App):
         Handles 0, 1, or multiple active servers.
         """
         if len(self.active_uris) == 0:
-            self.show_error_message("Not connected to any server.")
+            self.show_error_message(ErrorMessages.NOT_CONNECTED_TO_ANY_SERVER)
             return
 
         if len(self.active_uris) == 1:
@@ -1047,7 +1046,7 @@ class VMManagerTUI(App):
             if conn:
                 self.push_screen(CapabilitiesTreeModal(conn))
             else:
-                self.show_error_message(f"Could not connect to {uri}")
+                self.show_error_message(ErrorMessages.COULD_NOT_CONNECT_TO_SERVER.format(uri=uri))
 
         self._select_server_and_run(launch_caps_modal, "Select a server for Capabilities", "View")
 
@@ -1101,7 +1100,7 @@ class VMManagerTUI(App):
             except Exception as e:
                 self.call_from_thread(
                     self.show_error_message,
-                    f"Error on VM [b]{vm_name}[/b] during '{message.action}': {e}",
+                    ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(vm_name=vm_name, action=message.action, error=e),
                 )
             finally:
                 self.vm_service.unsuppress_vm_events(message.internal_id)
@@ -1142,7 +1141,7 @@ class VMManagerTUI(App):
         for card in self.query(VMCard):
             card.is_selected = False
 
-        self.show_quick_message("All VMs unselected.")
+        self.show_quick_message(QuickMessages.ALL_VMS_UNSELECTED)
 
     @on(VMSelectionChanged)
     def on_vm_selection_changed(self, message: VMSelectionChanged) -> None:
@@ -1163,7 +1162,7 @@ class VMManagerTUI(App):
         delete_storage_flag = result.get('delete_storage', False)
 
         if not action_type:
-            self.show_error_message("No action type received from bulk action modal.")
+            self.show_error_message(ErrorMessages.NO_ACTION_TYPE_BULK_MODAL)
             return
 
         selected_uuids_copy = list(self.selected_vm_uuids)  # Take a copy for the worker
@@ -1175,7 +1174,7 @@ class VMManagerTUI(App):
             selected_domains = list(found_domains_map.values())
 
             if not selected_domains:
-                self.show_error_message("Could not find any of the selected VMs for editing.")
+                self.show_error_message(ErrorMessages.VM_NOT_FOUND_FOR_EDITING)
                 return
 
             # Check if all selected VMs are stopped
@@ -1185,7 +1184,7 @@ class VMManagerTUI(App):
                     active_vms.append(domain.name())
 
             if active_vms:
-                self.show_error_message(f"All VMs must be stopped for bulk editing. Running VMs: {', '.join(active_vms)}")
+                self.show_error_message(ErrorMessages.VMS_MUST_BE_STOPPED_FOR_BULK_EDITING.format(running_vms=', '.join(active_vms)))
                 # Restore selection since we are aborting
                 self.selected_vm_uuids = set(selected_uuids_copy)
                 return
@@ -1222,7 +1221,7 @@ class VMManagerTUI(App):
                         # Clear selection after launching modal
                         self.selected_vm_uuids.clear()
                     else:
-                        self.show_error_message("Could not load details for reference VM.")
+                        self.show_error_message(ErrorMessages.COULD_NOT_LOAD_DETAILS_FOR_REFERENCE_VM)
                 except Exception as e:
                     self.app.show_error_message(f"Error preparing bulk edit: {e}")
 
@@ -1279,7 +1278,7 @@ class VMManagerTUI(App):
 
         except Exception as e:
             logging.error(f"An unexpected error occurred during bulk action service call: {e}", exc_info=True)
-            self.call_from_thread(self.show_error_message, f"A fatal error occurred during bulk action: {e}")
+            self.call_from_thread(self.show_error_message, ErrorMessages.FATAL_ERROR_BULK_ACTION.format(error=e))
 
         finally:
             # Ensure these are called on the main thread
@@ -1563,7 +1562,7 @@ class VMManagerTUI(App):
                         self.filtered_server_uris = [u for u in self.filtered_server_uris if u not in uris_to_remove]
 
                     if removed_names:
-                        self.show_error_message(f"Server(s) {', '.join(removed_names)} disconnected and autoconnect disabled due to connection failures.")
+                        self.show_error_message(ErrorMessages.SERVER_DISCONNECTED_AUTOCONNECT_DISABLED.format(names=', '.join(removed_names)))
 
                 if config_changed:
                     self.config['servers'] = self.servers
@@ -1576,7 +1575,7 @@ class VMManagerTUI(App):
             self.call_from_thread(update_ui_on_main_thread)
 
         except Exception as e:
-            self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
+            self.call_from_thread(self.show_error_message, ErrorMessages.ERROR_FETCHING_VM_DATA.format(error=e))
         finally:
             if on_complete:
                 self.call_from_thread(on_complete)
@@ -1626,7 +1625,7 @@ class VMManagerTUI(App):
     def action_pattern_select(self) -> None:
         """Handles the 'Pattern Sel' button press."""
         if not self.active_uris:
-            self.show_error_message("No active servers.")
+            self.show_error_message(ErrorMessages.NO_ACTIVE_SERVERS)
             return
 
         # Gather all known VMs from cache
@@ -1651,7 +1650,7 @@ class VMManagerTUI(App):
                     continue
 
         if not available_vms:
-            self.show_error_message("No VMs found in cache. Try refreshing first.")
+            self.show_error_message(ErrorMessages.NO_VMS_IN_CACHE)
             return
 
         # Prepare server list for the modal, matching FilterModal logic
@@ -1685,7 +1684,7 @@ class VMManagerTUI(App):
         """Handles the 'Bulk Selected' button press."""
         self._collapse_all_action_collapsibles()
         if not self.selected_vm_uuids:
-            self.show_error_message("No VMs selected.")
+            self.show_error_message(ErrorMessages.NO_VMS_SELECTED)
             return
 
         uuids_snapshot = list(self.selected_vm_uuids)
