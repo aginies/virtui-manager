@@ -28,6 +28,7 @@ Select:focus {
 Toast.-inprogress {
     background: $primary;
     color: $text;
+    border-left: tall $primary;
 }
 
 /* --- Base Dialog & Container Styles --- */
