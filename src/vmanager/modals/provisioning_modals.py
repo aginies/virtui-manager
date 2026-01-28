@@ -12,7 +12,7 @@ from textual import on, work
 
 import libvirt
 from ..config import load_config
-from ..constants import AppInfo, ErrorMessages, SuccessMessages
+from ..constants import AppInfo, ErrorMessages, SuccessMessages, ButtonLabels
 from ..vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
 from ..storage_manager import list_storage_pools
 from ..vm_service import VMService
@@ -50,7 +50,7 @@ class InstallVMModal(BaseModal[str | None]):
             yield Label("VM Type:", classes="label")
             with Horizontal(classes="label-row"):
                 yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
-                yield Button("Info", id="vm-type-info-btn", variant="primary")
+                yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
             yield Label("Distribution:", classes="label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
@@ -81,7 +81,7 @@ class InstallVMModal(BaseModal[str | None]):
                 yield Label("Custom ISO (Local Path):", classes="label")
                 with Horizontal(classes="input-row"):
                     yield Input(placeholder="/path/to/local.iso", id="custom-iso-path", classes="path-input")
-                    yield Button("Browse", id="browse-iso-btn")
+                    yield Button(ButtonLabels.BROWSE, id="browse-iso-btn")
 
                 with Vertical(id="checksum-container"):
                     yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
@@ -120,8 +120,8 @@ class InstallVMModal(BaseModal[str | None]):
             yield Label("", id="status-label")
 
             with Horizontal(classes="buttons"):
-                yield Button("Install", variant="primary", id="install-btn", disabled=True)
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True)
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self):
         """Called when modal is mounted."""

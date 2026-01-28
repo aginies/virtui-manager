@@ -25,7 +25,10 @@ from ..network_manager import (
 from .. import storage_manager
 from ..storage_manager import list_storage_volumes
 
-from ..constants import AppCacheTimeout, ErrorMessages, SuccessMessages
+from ..constants import (
+        AppCacheTimeout, ErrorMessages, SuccessMessages,
+        ButtonLabels, WarningMessages
+        )
 from .base_modals import BaseModal
 from .network_modals import AddEditNetworkModal, NetworkXMLModal
 from .disk_pool_modals import (
@@ -109,15 +112,15 @@ class ServerPrefModal(BaseModal[None]):
                        variant="primary", disabled=True, tooltip="Enable or Disable autostart for the selected network."),
             ),
             Horizontal(
-                Button("Add", id="add-net-btn", variant="success", classes="toggle-detail-button",
+                Button(ButtonLabels.ADD, id="add-net-btn", variant="success", classes="toggle-detail-button",
                        tooltip="Add a new network."),
-                Button("Edit", id="edit-net-btn", variant="success", classes="toggle-detail-button",
+                Button(ButtonLabels.EDIT, id="edit-net-btn", variant="success", classes="toggle-detail-button",
                        disabled=True, tooltip="Edit the selected network."),
-                Button("View", id="view-net-btn", variant="success", classes="toggle-detail-button",
+                Button(ButtonLabels.VIEW, id="view-net-btn", variant="success", classes="toggle-detail-button",
                        disabled=True, tooltip="View XML details of the selected network."),
-                Button("Delete", id="delete-net-btn", variant="error", classes="toggle-detail-button",
+                Button(ButtonLabels.DELETE, id="delete-net-btn", variant="error", classes="toggle-detail-button",
                        disabled=True, tooltip="Delete the selected network."),
-                Button("Help", id="help-net-btn", variant="success", classes="toggle-detail-button",
+                Button(ButtonLabels.HELP, id="help-net-btn", variant="success", classes="toggle-detail-button",
                        tooltip="Show network configuration help."),
             ),
             classes="server-pref-button"
@@ -177,25 +180,25 @@ class ServerPrefModal(BaseModal[None]):
                 Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button",
                        tooltip="Enable or Disable autostart for the selected storage pool."),
                 Vertical(
-                    Button("Add Pool", id="add-pool-btn", variant="success", classes="toggle-detail-button",
+                    Button(ButtonLabels.ADD_POOL, id="add-pool-btn", variant="success", classes="toggle-detail-button",
                            tooltip="Add a new storage pool."),
-                    Button("Delete Pool", id="del-pool-btn", variant="error", classes="toggle-detail-button",
+                    Button(ButtonLabels.DELETE_POOL, id="del-pool-btn", variant="error", classes="toggle-detail-button",
                            tooltip="Delete the selected storage pool."),
                 ),
                 Vertical(
-                    Button("New Volume", id="add-vol-btn", variant="success", classes="toggle-detail-button",
+                    Button(ButtonLabels.NEW_VOLUME, id="add-vol-btn", variant="success", classes="toggle-detail-button",
                            tooltip="Create a new volume in the selected pool."),
-                    Button("Attach Vol", id="attach-vol-btn", variant="success", classes="toggle-detail-button",
+                    Button(ButtonLabels.ATTACH_VOL, id="attach-vol-btn", variant="success", classes="toggle-detail-button",
                            tooltip="Attach an existing disk file as a volume."),
-                    Button("Move Volume", id="move-vol-btn", variant="success", classes="toggle-detail-button",
+                    Button(ButtonLabels.MOVE_VOLUME, id="move-vol-btn", variant="success", classes="toggle-detail-button",
                            tooltip="Move the selected volume to another pool."),
-                    Button("Delete Volume", id="del-vol-btn", variant="error", classes="toggle-detail-button",
+                    Button(ButtonLabels.DELETE_VOLUME, id="del-vol-btn", variant="error", classes="toggle-detail-button",
                            tooltip="Delete the selected volume."),
                 ),
                 Vertical(
-                    Button("View XML", id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button",
+                    Button(ButtonLabels.VIEW_XML, id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button",
                            tooltip="View XML details of the selected pool or volume."),
-                    Button("Edit XML", id="edit-pool-xml-btn", variant="primary", classes="toggle-detail-button",
+                    Button(ButtonLabels.EDIT_XML, id="edit-pool-xml-btn", variant="primary", classes="toggle-detail-button",
                            tooltip="Edit XML of the selected pool."),
                 ),
             ),
@@ -286,7 +289,7 @@ class ServerPrefModal(BaseModal[None]):
 
         table.clear()
 
-        self.app.show_warning_message(ErrorMessages.RUNNING_NETWORK_USAGE_SCAN_WARNING)
+        self.app.show_warning_message(WarningMessages.RUNNING_NETWORK_USAGE_SCAN_WARNING)
         network_usage = get_all_network_usage(self.conn)
         self.networks_list = list_networks(self.conn)
 

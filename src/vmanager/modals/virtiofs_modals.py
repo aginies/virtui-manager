@@ -6,7 +6,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import (
         Button, Input, Label, Checkbox,
         )
-from ..constants import ErrorMessages
+from ..constants import ErrorMessages, ButtonLabels
 from .base_modals import BaseModal
 
 class AddEditVirtIOFSModal(BaseModal[dict | None]):
@@ -26,8 +26,8 @@ class AddEditVirtIOFSModal(BaseModal[dict | None]):
             yield Input(placeholder="Target Path (e.g., /share)", id="virtiofs-target-input", value=self.target_path)
             yield Checkbox("Export filesystem as readonly mount", id="virtiofs-readonly-checkbox", value=self.readonly)
             with Horizontal():
-                yield Button("Save" if self.is_edit else "Add", variant="primary", id="save-add-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.SAVE if self.is_edit else ButtonLabels.ADD, variant="primary", id="save-add-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-add-btn":

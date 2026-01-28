@@ -12,7 +12,7 @@ from textual.widgets import (
 from textual.app import ComposeResult
 from textual import on
 from ..storage_manager import create_storage_pool, list_storage_pools
-from ..constants import ErrorMessages, SuccessMessages
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import DirectorySelectionModal, FileSelectionModal
 from .input_modals import _sanitize_input
@@ -131,7 +131,7 @@ class AddDiskModal(BaseModal[dict | None]):
                 id="disk-bus-select", value="virtio"
             )
             with Horizontal():
-                yield Button("Add", variant="primary", id="add-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.ADD, variant="primary", id="add-btn", classes="Buttonpage")
                 yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
 
     def _update_device_type_from_path(self, path: str) -> None:
@@ -294,7 +294,7 @@ class AddPoolModal(BaseModal[bool | None]):
                     yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
 
             with Horizontal():
-                yield Button("Add", variant="primary", id="add-btn")
+                yield Button(ButtonLabels.ADD, variant="primary", id="add-btn")
                 yield Button("Cancel", variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:

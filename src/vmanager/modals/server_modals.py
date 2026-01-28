@@ -11,7 +11,7 @@ from .howto_ssh_modal import HowToSSHModal
 from .base_modals import BaseModal
 
 from ..config import save_config
-from ..constants import ErrorMessages, SuccessMessages
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels
 
 class ConnectionModal(BaseModal[str | None]):
 
@@ -23,8 +23,8 @@ class ConnectionModal(BaseModal[str | None]):
                 id="uri-input",
             )
             with Horizontal():
-                yield Button("Connect", variant="primary", id="connect-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CONNECT, variant="primary", id="connect-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "connect-btn":
@@ -44,8 +44,8 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
             yield Label("")
             yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=False)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -76,8 +76,8 @@ class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
             yield Label("")
             yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=self.autoconnect)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -108,13 +108,13 @@ class ServerManagementModal(BaseModal [str | None]):
                 yield DataTable(id="server-table", classes="server-list")
             with Vertical(classes="server-list"):
                 with Horizontal():
-                    yield Button("Add", id="add-server-btn", classes="add-button", variant="success")
-                    yield Button("Edit", id="edit-server-btn", disabled=True, classes="edit-button")
-                    yield Button("Delete", id="delete-server-btn", disabled=True,)
+                    yield Button(ButtonLabels.ADD, id="add-server-btn", classes="add-button", variant="success")
+                    yield Button(ButtonLabels.EDIT, id="edit-server-btn", disabled=True, classes="edit-button")
+                    yield Button(ButtonLabels.DELETE, id="delete-server-btn", disabled=True,)
                 with Horizontal():
-                    yield Button("Connect", id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
-                    yield Button("Custom URL", id="custom-conn-btn", classes="Buttonpage")
-                    yield Button("SSH Help", id="ssh-help-btn", classes="Buttonpage")
+                    yield Button(ButtonLabels.CONNECT, id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
+                    yield Button(ButtonLabels.CUSTOM_URL, id="custom-conn-btn", classes="Buttonpage")
+                    yield Button(ButtonLabels.SSH_HELP, id="ssh-help-btn", classes="Buttonpage")
              #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:

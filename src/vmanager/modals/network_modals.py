@@ -8,7 +8,7 @@ from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 
-from ..constants import ErrorMessages, SuccessMessages
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels
 from .base_modals import BaseModal, BaseDialog
 from ..network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
@@ -61,8 +61,8 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             )
 
             with Horizontal(id="dialog-buttons"):
-                yield Button("Save" if self.is_edit else "Add", variant="success", id="save")
-                yield Button("Cancel", variant="error", id="cancel")
+                yield Button(ButtonLabels.SAVE if self.is_edit else ButtonLabels.ADD, variant="success", id="save")
+                yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save":
@@ -95,7 +95,7 @@ class AddEditNetworkModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         title = "Edit Network" if self.is_edit else "Create New Network"
-        button_label = "Save Changes" if self.is_edit else "Create Network"
+        button_label = ButtonLabels.SAVE_CHANGES if self.is_edit else ButtonLabels.CREATE_NETWORK
 
         name_val = ""
         forward_mode = "nat"
