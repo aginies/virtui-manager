@@ -100,7 +100,7 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             Button(ButtonLabels.CLONE, variant="success", id="clone"),
             Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="clone-dialog"
-        )
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "clone":
