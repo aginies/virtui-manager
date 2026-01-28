@@ -233,8 +233,32 @@ class ErrorMessages:
     SUBNET_OVERLAPS_TEMPLATE = "Subnet {subnet} overlaps with an existing network."
     ERROR_CREATING_NETWORK_TEMPLATE = "Error creating network: {error}"
     ERROR_UPDATING_NETWORK_TEMPLATE = "Error updating network: {error}"
-        class DialogMessages:
-    
+    NETWORK_NOT_FOUND_TEMPLATE_2 = "Network '{network}' not found. Please select an available network."
+    VM_NAME_ALREADY_EXISTS_TEMPLATE = "A VM with the name '{vm_name}' already exists. Please choose a different name."
+    ERROR_CHECKING_VM_NAME_TEMPLATE = "Error checking VM name: {error}"
+    PLEASE_SELECT_VALID_STORAGE_POOL = "Please select a valid storage pool."
+    ISO_VOLUME_NOT_FOUND_TEMPLATE = "Selected ISO volume does not exist: {iso_url}"
+    SELECT_VALID_ISO_VOLUME = "Please select a valid ISO volume from the storage pool."
+    INVALID_EXPERT_SETTINGS = "Invalid input for expert settings. Using defaults."
+    MEMORY_RANGE_ERROR = "Memory must be between 1 and 8192 GB."
+    CPU_RANGE_ERROR = "CPU count must be between 1 and 768."
+    DISK_SIZE_RANGE_ERROR = "Disk size must be between 1 and 10000 GB."
+    STORAGE_POOL_NOT_ACTIVE_TEMPLATE = "Storage pool '{pool_name}' is not active. Please activate it first."
+    ERROR_ACCESSING_STORAGE_POOL_TEMPLATE = "Error accessing storage pool '{pool_name}': {error}"
+    CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE = "Custom ISO path does not exist: {path}"
+    CUSTOM_ISO_NOT_FILE_TEMPLATE = "Custom ISO path is not a file: {path}"
+    CHECKSUM_MISSING = "Checksum validation enabled but no checksum provided"
+    CHECKSUM_VALIDATION_FAILED = "Checksum validation failed!"
+    NO_ISO_URL_SPECIFIED = "No ISO URL specified for provisioning"
+    COULD_NOT_GET_VM_DETAILS_TEMPLATE = "Could not get details for {vm_name}"
+    FAILED_TO_START_VM_OR_VIEWER_TEMPLATE = "Failed to start VM or viewer: {error}"
+    PROVISIONING_FAILED_TEMPLATE = "Provisioning failed: {error}"
+    FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE = "Failed to fetch ISO volumes from {pool_name}: {error}"
+    FAILED_TO_FETCH_ISOS_TEMPLATE = "Failed to fetch ISOs: {error}"
+    VM_NAME_CANNOT_BE_EMPTY = "VM name cannot be empty."
+
+
+class DialogMessages:
     """Constants for dialog messages"""
     DELETE_VM_CONFIRMATION = "Are you sure you want to delete '{name}'?"
     DELETE_SNAPSHOT_CONFIRMATION = "Are you sure you want to delete snapshot '{name}'?"
@@ -300,6 +324,11 @@ class SuccessMessages:
     STORAGE_POOL_CREATED_TEMPLATE = "Storage pool '{name}' created and started."
     NETWORK_CREATED_TEMPLATE = "Network {name} created successfully."
     NETWORK_UPDATED_TEMPLATE = "Network {name} updated successfully."
+    VM_NAME_SANITIZED_TEMPLATE = "VM name sanitized: '{original}' -> '{sanitized}'"
+    VM_STARTED_TEMPLATE = "VM '{vm_name}' started."
+    REMOTE_VIEWER_STARTED_TEMPLATE = "Remote viewer {viewer} started for {vm_name}"
+    VM_DEFINED_CONFIGURE_TEMPLATE = "VM '{vm_name}' defined. Please configure and start it."
+    VM_CREATED_SUCCESSFULLY_TEMPLATE = "VM '{vm_name}' created successfully!"
 
 
 class ProgressMessages:
