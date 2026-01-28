@@ -34,6 +34,7 @@ from .modals.server_modals import ServerManagementModal
 from .modals.server_prefs_modals import ServerPrefModal
 from .modals.select_server_modals import SelectOneServerModal, SelectServerModal
 from .modals.selection_modals import PatternSelectModal
+from .modals.capabilities_modal import CapabilitiesTreeModal
 from .modals.cache_stats_modal import CacheStatsModal
 from .modals.utils_modals import (
     show_error_message,
@@ -174,6 +175,7 @@ class VMManagerTUI(App):
         Binding(key="up", action="filter_running", description="Running VMs", show=False),
         Binding(key="down", action="filter_all", description="All VMs", show=False),
         Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
+        Binding(key="h", action="host_capabilities", description="Host Caps", show=False),
         Binding(key="i", action="install_vm", description="InstallVM", show=True),
         Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
         Binding(key="ctrl+s", action="show_cache_stats", description="Show cache Stats", show=False),
@@ -1037,6 +1039,17 @@ class VMManagerTUI(App):
     def on_virsh_shell_button_pressed(self, event: Button.Pressed) -> None:
         """Callback for the virsh shell button."""
         self.action_virsh_shell()
+
+    def action_host_capabilities(self) -> None:
+        """Show Host Capabilities."""
+        def launch_caps_modal(uri: str):
+            conn = self.vm_service.connect(uri)
+            if conn:
+                self.push_screen(CapabilitiesTreeModal(conn))
+            else:
+                self.show_error_message(f"Could not connect to {uri}")
+
+        self._select_server_and_run(launch_caps_modal, "Select a server for Capabilities", "View")
 
     def action_install_vm(self) -> None:
         """Launch the VM Installation Modal."""

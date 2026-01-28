@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 from functools import lru_cache
 import libvirt
 from .utils import log_function_call
+from .libvirt_utils import get_host_domain_capabilities
 
 
 @lru_cache(maxsize=16)
@@ -246,7 +247,9 @@ def get_host_network_info(conn: libvirt.virConnect):
     """
     networks = []
     try:
-        caps_xml = conn.getCapabilities()
+        caps_xml = get_host_domain_capabilities(conn)
+        if not caps_xml:
+            return networks
         root = ET.fromstring(caps_xml)
         for interface in root.findall(".//interface"):
             ip_elem = interface.find("ip")

@@ -11,6 +11,7 @@ SelectOneServerModal,
 ConfirmationDialog,
 ChangeNetworkDialog,
 XMLDisplayModal,
+CapabilitiesTreeModal,
 SelectDiskModal,
 AddDiskModal,
 EditDiskModal,
@@ -227,6 +228,7 @@ AddDiskModal,
 EditDiskModal,
 WebConsoleDialog,
 XMLDisplayModal,
+CapabilitiesTreeModal,
 MigrationModal,
 MoveVolumeModal,
 SelectDiskModal > #dialog,
@@ -585,4 +587,26 @@ Button:hover {
 
 Button.-active {
     background: $primary-darken-2;
+}
+
+/* === Capabilities Tree Modal === */
+CapabilitiesTreeModal > #capabilities-dialog {
+  width: 90%;
+  height: 90%;
+  border: round $primary;
+  background: $surface;
+  padding: 1;
+}
+
+CapabilitiesTreeModal #xml-tree {
+  height: 80%;
+  border: round $primary;
+  margin-bottom: 1;
+}
+
+CapabilitiesTreeModal #dialog-title {
+  width: 100%;
+  content-align: center middle;
+  margin-bottom: 1;
+  text-style: bold;
 }

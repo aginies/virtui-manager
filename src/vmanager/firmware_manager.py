@@ -6,6 +6,7 @@ import json
 import libvirt
 import xml.etree.ElementTree as ET
 from .utils import log_function_call
+from .libvirt_utils import get_host_domain_capabilities
 
 FIRMWARE_META_BASE_DIR = "/usr/share/qemu/firmware/"
 
@@ -92,7 +93,9 @@ def get_host_sev_capabilities(conn):
     if conn is None:
         return sev_caps
     try:
-        caps_xml = conn.getCapabilities()
+        caps_xml = get_host_domain_capabilities(conn)
+        if not caps_xml:
+            return sev_caps
         root = ET.fromstring(caps_xml)
         sev_elem = root.find('.//host/cpu/sev')
         if sev_elem is not None:
