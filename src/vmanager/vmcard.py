@@ -53,7 +53,7 @@ from .utils import (
         remote_viewer_cmd,
 )
 from .constants import (
-    ButtonLabels, ButtonIds, TabTitles, StatusText,
+    ButtonLabels, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction
 )
 
@@ -63,29 +63,29 @@ class VMCardActions(Static):
         super().__init__()
 
     def compose(self):
-        self.card.ui[ButtonIds.START] = Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
-        self.card.ui[ButtonIds.SHUTDOWN] = Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
-        self.card.ui[ButtonIds.STOP] = Button(ButtonLabels.FORCE_OFF, id=ButtonIds.STOP, variant="error")
-        self.card.ui[ButtonIds.PAUSE] = Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
-        self.card.ui[ButtonIds.RESUME] = Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
-        self.card.ui[ButtonIds.CONFIGURE_BUTTON] = Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
-        self.card.ui[ButtonIds.WEB_CONSOLE] = Button(ButtonLabels.WEB_CONSOLE, id=ButtonIds.WEB_CONSOLE, variant="default")
-        self.card.ui[ButtonIds.CONNECT] = Button(ButtonLabels.CONNECT, id=ButtonIds.CONNECT, variant="default")
+        self.card.ui["start"] = Button(ButtonLabels.START, id="start", variant="success")
+        self.card.ui["shutdown"] = Button(ButtonLabels.SHUTDOWN, id="shutdown", variant="primary")
+        self.card.ui["stop"] = Button(ButtonLabels.FORCE_OFF, id="stop", variant="error")
+        self.card.ui["pause"] = Button(ButtonLabels.PAUSE, id="pause", variant="primary")
+        self.card.ui["resume"] = Button(ButtonLabels.RESUME, id="resume", variant="success")
+        self.card.ui["configure-button"] = Button(ButtonLabels.CONFIGURE, id="configure-button", variant="primary")
+        self.card.ui["web_console"] = Button(ButtonLabels.WEB_CONSOLE, id="web_console", variant="default")
+        self.card.ui["connect"] = Button(ButtonLabels.CONNECT, id="connect", variant="default")
         
-        self.card.ui[ButtonIds.SNAPSHOT_TAKE] = Button(ButtonLabels.SNAPSHOT, id=ButtonIds.SNAPSHOT_TAKE, variant="primary")
-        self.card.ui[ButtonIds.SNAPSHOT_RESTORE] = Button(ButtonLabels.RESTORE_SNAPSHOT, id=ButtonIds.SNAPSHOT_RESTORE, variant="primary")
-        self.card.ui[ButtonIds.SNAPSHOT_DELETE] = Button(ButtonLabels.DELETE_SNAPSHOT, id=ButtonIds.SNAPSHOT_DELETE, variant="error")
+        self.card.ui["snapshot_take"] = Button(ButtonLabels.SNAPSHOT, id="snapshot_take", variant="primary")
+        self.card.ui["snapshot_restore"] = Button(ButtonLabels.RESTORE_SNAPSHOT, id="snapshot_restore", variant="primary")
+        self.card.ui["snapshot_delete"] = Button(ButtonLabels.DELETE_SNAPSHOT, id="snapshot_delete", variant="error")
 
-        self.card.ui[ButtonIds.DELETE] = Button(ButtonLabels.DELETE, id=ButtonIds.DELETE, variant="error", classes="delete-button")
-        self.card.ui[ButtonIds.CLONE] = Button(ButtonLabels.CLONE, id=ButtonIds.CLONE, classes="clone-button")
-        self.card.ui[ButtonIds.MIGRATION] = Button(ButtonLabels.MIGRATION, id=ButtonIds.MIGRATION, variant="primary", classes="migration-button")
-        self.card.ui[ButtonIds.XML] = Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
-        self.card.ui[ButtonIds.RENAME_BUTTON] = Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
+        self.card.ui["delete"] = Button(ButtonLabels.DELETE, id="delete", variant="error", classes="delete-button")
+        self.card.ui["clone"] = Button(ButtonLabels.CLONE, id="clone", classes="clone-button")
+        self.card.ui["migration"] = Button(ButtonLabels.MIGRATION, id="migration", variant="primary", classes="migration-button")
+        self.card.ui["xml"] = Button(ButtonLabels.VIEW_XML, id="xml")
+        self.card.ui["rename-button"] = Button(ButtonLabels.RENAME, id="rename-button", variant="primary", classes="rename-button")
 
-        self.card.ui[ButtonIds.CREATE_OVERLAY] = Button(ButtonLabels.CREATE_OVERLAY, id=ButtonIds.CREATE_OVERLAY, variant="primary")
-        self.card.ui[ButtonIds.COMMIT_DISK] = Button(ButtonLabels.COMMIT_DISK, id=ButtonIds.COMMIT_DISK, variant="error")
-        self.card.ui[ButtonIds.DISCARD_OVERLAY] = Button(ButtonLabels.DISCARD_OVERLAY, id=ButtonIds.DISCARD_OVERLAY, variant="error")
-        self.card.ui[ButtonIds.SNAP_OVERLAY_HELP] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id=ButtonIds.SNAP_OVERLAY_HELP, variant="default")
+        self.card.ui["create_overlay"] = Button(ButtonLabels.CREATE_OVERLAY, id="create_overlay", variant="primary")
+        self.card.ui["commit_disk"] = Button(ButtonLabels.COMMIT_DISK, id="commit_disk", variant="error")
+        self.card.ui["discard_overlay"] = Button(ButtonLabels.DISCARD_OVERLAY, id="discard_overlay", variant="error")
+        self.card.ui["snap_overlay_help"] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id="snap_overlay_help", variant="default")
 
         self.card.ui["tabbed_content"] = TabbedContent(id="button-container")
 
@@ -93,37 +93,37 @@ class VMCardActions(Static):
             with TabPane(TabTitles.MANAGE, id="manage-tab"):
                 with Horizontal():
                     with Vertical():
-                        yield self.card.ui[ButtonIds.START]
-                        yield self.card.ui[ButtonIds.SHUTDOWN]
-                        yield self.card.ui[ButtonIds.STOP]
-                        yield self.card.ui[ButtonIds.PAUSE]
-                        yield self.card.ui[ButtonIds.RESUME]
+                        yield self.card.ui["start"]
+                        yield self.card.ui["shutdown"]
+                        yield self.card.ui["stop"]
+                        yield self.card.ui["pause"]
+                        yield self.card.ui["resume"]
                     with Vertical():
-                        yield self.card.ui[ButtonIds.CONFIGURE_BUTTON]
-                        yield self.card.ui[ButtonIds.WEB_CONSOLE]
-                        yield self.card.ui[ButtonIds.CONNECT]
+                        yield self.card.ui["configure-button"]
+                        yield self.card.ui["web_console"]
+                        yield self.card.ui["connect"]
             with TabPane(self.card._get_snapshot_tab_title(num_snapshots=0), id="snapshot-tab"):
                 with Horizontal():
                     with Vertical():
-                        yield self.card.ui[ButtonIds.SNAPSHOT_TAKE]
-                        yield self.card.ui[ButtonIds.SNAPSHOT_RESTORE]
-                        yield self.card.ui[ButtonIds.SNAPSHOT_DELETE]
+                        yield self.card.ui["snapshot_take"]
+                        yield self.card.ui["snapshot_restore"]
+                        yield self.card.ui["snapshot_delete"]
                     with Vertical():
-                        yield self.card.ui[ButtonIds.CREATE_OVERLAY]
-                        yield self.card.ui[ButtonIds.COMMIT_DISK]
-                        yield self.card.ui[ButtonIds.DISCARD_OVERLAY]
-                        yield self.card.ui[ButtonIds.SNAP_OVERLAY_HELP]
+                        yield self.card.ui["create_overlay"]
+                        yield self.card.ui["commit_disk"]
+                        yield self.card.ui["discard_overlay"]
+                        yield self.card.ui["snap_overlay_help"]
             with TabPane(TabTitles.OTHER, id="special-tab"):
                 with Horizontal():
                     with Vertical():
-                        yield self.card.ui[ButtonIds.DELETE]
+                        yield self.card.ui["delete"]
                         yield Static(classes="button-separator")
-                        yield self.card.ui[ButtonIds.CLONE]
-                        yield self.card.ui[ButtonIds.MIGRATION]
+                        yield self.card.ui["clone"]
+                        yield self.card.ui["migration"]
                     with Vertical():
-                        yield self.card.ui[ButtonIds.XML]
+                        yield self.card.ui["xml"]
                         yield Static(classes="button-separator")
-                        yield self.card.ui[ButtonIds.RENAME_BUTTON]
+                        yield self.card.ui["rename-button"]
 
 
 class VMCard(Static):
@@ -228,7 +228,7 @@ class VMCard(Static):
             self.webc_status_indicator = new_indicator
 
         # Update button label and style
-        web_console_button = self.ui.get(ButtonIds.WEB_CONSOLE)
+        web_console_button = self.ui.get("web_console")
         if web_console_button:
             if webc_is_running:
                 web_console_button.label = "Show Console"
@@ -864,8 +864,7 @@ class VMCard(Static):
         self._update_fast_buttons()
         self._update_webc_status()
 
-        # Trigger background fetch for heavy data (snapshots, overlays) only if actions are visible
-        if self.ui.get(ButtonIds.RENAME_BUTTON):
+        if self.ui.get("rename-button"):
             # Check if collapsible is expanded before fetching heavy data
             collapsible = self.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
@@ -885,26 +884,26 @@ class VMCard(Static):
         is_pmsuspended = self.status == StatusText.PMSUSPENDED
         is_blocked = self.status == StatusText.BLOCKED
 
-        if not self.ui.get(ButtonIds.RENAME_BUTTON):
+        if not self.ui.get("rename-button"):
             return
 
-        self.ui[ButtonIds.START].display = is_stopped
-        self.ui[ButtonIds.SHUTDOWN].display = is_running or is_blocked
-        self.ui[ButtonIds.STOP].display = is_running or is_paused or is_pmsuspended or is_blocked
-        self.ui[ButtonIds.DELETE].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
-        self.ui[ButtonIds.CLONE].display = is_stopped
-        self.ui[ButtonIds.MIGRATION].display = not is_loading
-        self.ui[ButtonIds.RENAME_BUTTON].display = is_stopped
-        self.ui[ButtonIds.PAUSE].display = is_running
-        self.ui[ButtonIds.RESUME].display = is_paused or is_pmsuspended
-        self.ui[ButtonIds.CONNECT].display = self.app.r_viewer_available
-        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused or is_blocked)
-        self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
-        self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
-        self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading #is_running or is_paused
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading and not is_blocked
+        self.ui["start"].display = is_stopped
+        self.ui["shutdown"].display = is_running or is_blocked
+        self.ui["stop"].display = is_running or is_paused or is_pmsuspended or is_blocked
+        self.ui["delete"].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
+        self.ui["clone"].display = is_stopped
+        self.ui["migration"].display = not is_loading
+        self.ui["rename-button"].display = is_stopped
+        self.ui["pause"].display = is_running
+        self.ui["resume"].display = is_paused or is_pmsuspended
+        self.ui["connect"].display = self.app.r_viewer_available
+        self.ui["web_console"].display = (is_running or is_paused or is_blocked)
+        self.ui["configure-button"].display = not is_loading
+        self.ui["snap_overlay_help"].display = not is_loading
+        self.ui["snapshot_take"].display = not is_loading #is_running or is_paused
+        self.ui["snapshot_restore"].display = not is_running and not is_loading and not is_blocked
 
-        xml_button = self.ui[ButtonIds.XML]
+        xml_button = self.ui["xml"]
         if is_stopped:
             xml_button.label = "Edit XML"
             self.stats_view_mode = "resources"
@@ -1004,7 +1003,7 @@ class VMCard(Static):
 
     def _update_slow_buttons(self, snapshot_summary: dict, has_overlay: bool):
         """Updates buttons that rely on heavy state."""
-        if not self.ui.get(ButtonIds.RENAME_BUTTON):
+        if not self.ui.get("rename-button"):
             return
 
         snapshot_count = snapshot_summary.get('count', 0)
@@ -1031,12 +1030,12 @@ class VMCard(Static):
 
         has_snapshots = snapshot_count > 0
 
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading and not is_blocked
-        self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+        self.ui["snapshot_restore"].display = has_snapshots and not is_running and not is_loading and not is_blocked
+        self.ui["snapshot_delete"].display = has_snapshots
 
-        self.ui[ButtonIds.COMMIT_DISK].display = (is_running or is_blocked) and has_overlay
-        self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay
-        self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay
+        self.ui["commit_disk"].display = (is_running or is_blocked) and has_overlay
+        self.ui["discard_overlay"].display = is_stopped and has_overlay
+        self.ui["create_overlay"].display = is_stopped and not has_overlay
 
         self.update_snapshot_tab_title(snapshot_count)
 
@@ -1055,30 +1054,30 @@ class VMCard(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == ButtonIds.START:
+        if event.button.id == "start":
             self.post_message(VmActionRequest(self.internal_id, VmAction.START))
             return
 
         button_handlers = {
-            ButtonIds.SHUTDOWN: self._handle_shutdown_button,
-            ButtonIds.STOP: self._handle_stop_button,
-            ButtonIds.PAUSE: self._handle_pause_button,
-            ButtonIds.RESUME: self._handle_resume_button,
-            ButtonIds.XML: self._handle_xml_button,
-            ButtonIds.CONNECT: self._handle_connect_button,
-            ButtonIds.WEB_CONSOLE: self._handle_web_console_button,
-            ButtonIds.SNAPSHOT_TAKE: self._handle_snapshot_take_button,
-            ButtonIds.SNAPSHOT_RESTORE: self._handle_snapshot_restore_button,
-            ButtonIds.SNAPSHOT_DELETE: self._handle_snapshot_delete_button,
-            ButtonIds.DELETE: self._handle_delete_button,
-            ButtonIds.CLONE: self._handle_clone_button,
-            ButtonIds.MIGRATION: self._handle_migration_button,
-            ButtonIds.RENAME_BUTTON: self._handle_rename_button,
-            ButtonIds.CONFIGURE_BUTTON: self._handle_configure_button,
-            ButtonIds.CREATE_OVERLAY: self._handle_create_overlay,
-            ButtonIds.COMMIT_DISK: self._handle_commit_disk,
-            ButtonIds.DISCARD_OVERLAY: self._handle_discard_overlay,
-            ButtonIds.SNAP_OVERLAY_HELP: self._handle_overlay_help,
+            "shutdown": self._handle_shutdown_button,
+            "stop": self._handle_stop_button,
+            "pause": self._handle_pause_button,
+            "resume": self._handle_resume_button,
+            "xml": self._handle_xml_button,
+            "connect": self._handle_connect_button,
+            "web_console": self._handle_web_console_button,
+            "snapshot_take": self._handle_snapshot_take_button,
+            "snapshot_restore": self._handle_snapshot_restore_button,
+            "snapshot_delete": self._handle_snapshot_delete_button,
+            "delete": self._handle_delete_button,
+            "clone": self._handle_clone_button,
+            "migration": self._handle_migration_button,
+            "rename-button": self._handle_rename_button,
+            "configure-button": self._handle_configure_button,
+            "create_overlay": self._handle_create_overlay,
+            "commit_disk": self._handle_commit_disk,
+            "discard_overlay": self._handle_discard_overlay,
+            "snap_overlay_help": self._handle_overlay_help,
         }
         handler = button_handlers.get(event.button.id)
         if handler:
@@ -1685,12 +1684,12 @@ class VMCard(Static):
                                 pass
 
                         # Also update button visibility
-                        if self.ui.get(ButtonIds.RENAME_BUTTON):
+                        if self.ui.get("rename-button"):
                             has_snapshots = snapshot_count > 0
                             is_running = self.status == StatusText.RUNNING
                             is_loading = self.status == StatusText.LOADING
-                            self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading
-                            self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+                            self.ui["snapshot_restore"].display = has_snapshots and not is_running and not is_loading
+                            self.ui["snapshot_delete"].display = has_snapshots
 
                 self.app.call_from_thread(update_ui)
 

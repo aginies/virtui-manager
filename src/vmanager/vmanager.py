@@ -22,7 +22,7 @@ from textual.worker import Worker, WorkerState
 
 from .config import load_config, save_config, get_log_path
 from .constants import (
-        VmAction, VmStatus, ButtonLabels, ButtonIds,
+        VmAction, VmStatus, ButtonLabels,
         ErrorMessages, AppInfo, StatusText, ServerPallette,
         )
 from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
@@ -339,10 +339,10 @@ class VMManagerTUI(App):
         self.ui["error_footer"] = Static(id="error-footer", classes="error-message")
         self.ui["page_info"] = Label("", id="page-info", classes="")
         self.ui["prev_button"] = Button(
-                ButtonLabels.PREVIOUS_PAGE, id=ButtonIds.PREV_BUTTON, variant="primary", classes="ctrlpage"
+                ButtonLabels.PREVIOUS_PAGE, id="prev-button", variant="primary", classes="ctrlpage"
             )
         self.ui["next_button"] = Button(
-                ButtonLabels.NEXT_PAGE, id=ButtonIds.NEXT_BUTTON, variant="primary", classes="ctrlpage"
+                ButtonLabels.NEXT_PAGE, id="next-button", variant="primary", classes="ctrlpage"
             )
         self.ui["pagination_controls"] = Horizontal(
             self.ui["prev_button"],
@@ -358,20 +358,20 @@ class VMManagerTUI(App):
         yield Header()
         with Horizontal(classes="top-controls"):
             yield Button(
-                ButtonLabels.SELECT_SERVER, id=ButtonIds.SELECT_SERVER_BUTTON, classes="Buttonpage"
+                ButtonLabels.SELECT_SERVER, id="select_server_button", classes="Buttonpage"
             )
-            yield Button(ButtonLabels.MANAGE_SERVERS, id=ButtonIds.MANAGE_SERVERS_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.MANAGE_SERVERS, id="manage_servers_button", classes="Buttonpage")
             yield Button(
-                ButtonLabels.SERVER_PREFERENCES, id=ButtonIds.SERVER_PREFERENCES_BUTTON, classes="Buttonpage"
+                ButtonLabels.SERVER_PREFERENCES, id="server_preferences_button", classes="Buttonpage"
             )
-            yield Button(ButtonLabels.FILTER_VM, id=ButtonIds.FILTER_BUTTON, classes="Buttonpage")
-            #yield Button(ButtonLabels.VIEW_LOG, id=ButtonIds.VIEW_LOG_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.FILTER_VM, id="filter_button", classes="Buttonpage")
+            #yield Button(ButtonLabels.VIEW_LOG, id="view-log-button", classes="Buttonpage")
             # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
-            yield Button(ButtonLabels.BULK_CMD, id=ButtonIds.BULK_SELECTED_VMS, classes="Buttonpage")
-            yield Button(ButtonLabels.PATTERN_SELECT, id=ButtonIds.PATTERN_SELECT_BUTTON, classes="Buttonpage")
-            #yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.BULK_CMD, id="bulk_selected_vms", classes="Buttonpage")
+            yield Button(ButtonLabels.PATTERN_SELECT, id="pattern_select_button", classes="Buttonpage")
+            #yield Button(ButtonLabels.CONFIG, id="config-button", classes="Buttonpage")
             #yield Button(
-            #    ButtonLabels.COMPACT_VIEW, id=ButtonIds.COMPACT_VIEW_BUTTON, classes="Buttonpage"
+            #    ButtonLabels.COMPACT_VIEW, id="compact-view-button", classes="Buttonpage"
             #)
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
@@ -707,7 +707,7 @@ class VMManagerTUI(App):
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
 
-    @on(Button.Pressed, f"#{ButtonIds.COMPACT_VIEW_BUTTON}")
+    @on(Button.Pressed, f"#compact-view-button")
     def action_compact_view(self) -> None:
         """Toggle compact view."""
         if self.bulk_operation_in_progress:

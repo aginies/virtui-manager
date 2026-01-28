@@ -14,7 +14,7 @@ from .utils_modals import (
     BaseDialog, show_warning_message
 )
 from ..config import load_config, save_config
-from ..constants import ButtonLabels, ButtonIds
+from ..constants import ButtonLabels
 from ..vm_queries import is_qemu_agent_running
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
@@ -30,15 +30,15 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
             Checkbox("Delete storage volumes", id="delete-storage-checkbox", value=True),
             Label(""),
             Horizontal(
-                Button(ButtonLabels.YES, variant="error", id=ButtonIds.YES, classes="dialog-buttons"),
-                Button(ButtonLabels.NO, variant="primary", id=ButtonIds.NO, classes="dialog-buttons"),
+                Button(ButtonLabels.YES, variant="error", id="yes", classes="dialog-buttons"),
+                Button(ButtonLabels.NO, variant="primary", id="no", classes="dialog-buttons"),
                 id="dialog-buttons",
             ),
             id="delete-vm-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.YES:
+        if event.button.id == "yes":
             delete_storage = self.query_one("#delete-storage-checkbox", Checkbox).value
             self.dismiss((True, delete_storage))
         else:
@@ -65,11 +65,11 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
             yield Select(interface_options, id="interface-select")
             yield Select(network_options, id="network-select")
             with Horizontal(id="dialog-buttons"):
-                yield Button(ButtonLabels.CHANGE, variant="success", id=ButtonIds.CHANGE)
-                yield Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL)
+                yield Button(ButtonLabels.CHANGE, variant="success", id="change")
+                yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CHANGE:
+        if event.button.id == "change":
             interface_select = self.query_one("#interface-select", Select)
             network_select = self.query_one("#network-select", Select)
 
@@ -97,13 +97,13 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             Input(value="1", id="clone_count_input", type="integer"),
             Label("Do Not Clone storage"),
             Checkbox("", id="skip_storage_checkbox", value=False),
-            Button(ButtonLabels.CLONE, variant="success", id=ButtonIds.CLONE),
-            Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+            Button(ButtonLabels.CLONE, variant="success", id="clone"),
+            Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="clone-dialog"
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CLONE:
+        if event.button.id == "clone":
             base_name_input = self.query_one("#base_name_input", Input)
             clone_count_input = self.query_one("#clone_count_input", Input)
             clone_suffix_input = self.query_one("#clone_suffix_input", Input)
@@ -173,8 +173,8 @@ class RenameVMDialog(BaseDialog[str | None]):
             Label("Enter new VM name", id="question"),
             Input(placeholder="new_vm_name", restrict=r"[a-zA-Z0-9_-]*"),
             Horizontal(
-                Button(ButtonLabels.RENAME, variant="success", id=ButtonIds.RENAME_BUTTON),
-                Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+                Button(ButtonLabels.RENAME, variant="success", id="rename-button"),
+                Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
                 id="dialog-buttons",
             ),
             id="dialog",
@@ -182,7 +182,7 @@ class RenameVMDialog(BaseDialog[str | None]):
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.RENAME_BUTTON:
+        if event.button.id == "rename-button":
             input_widget = self.query_one(Input)
             new_name_raw = input_widget.value
 
@@ -220,7 +220,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
         yield Vertical(
             Label(self.prompt, id="prompt-label"),
             DataTable(id="snapshot-table"),
-            Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+            Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="dialog",
             classes="snapshot-select-dialog"
         )
@@ -243,7 +243,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
         self.dismiss(str(event.row_key.value))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CANCEL:
+        if event.button.id == "cancel":
             self.dismiss(None)
 
 class SnapshotNameDialog(BaseDialog[dict | None]):
@@ -273,8 +273,8 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
                      id="quiesce-checkbox",
                      tooltip="Pause the guest filesystem to ensure a clean snapshot. Requires QEMU Guest Agent to be running in the VM."),
             Horizontal(
-                Button(ButtonLabels.CREATE, variant="success", id=ButtonIds.CREATE),
-                Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+                Button(ButtonLabels.CREATE, variant="success", id="create"),
+                Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
                 id="dialog-buttons",
             ),
             id="dialog",
@@ -282,7 +282,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CREATE:
+        if event.button.id == "create":
             name_input = self.query_one("#name-input", Input)
             description_input = self.query_one("#description-input", Input)
             quiesce_checkbox = self.query_one("#quiesce-checkbox", Checkbox)
@@ -327,15 +327,15 @@ class WebConsoleDialog(BaseDialog[str | None]):
             Markdown("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console."),
             Label(""),
             Horizontal(
-                Button(ButtonLabels.STOP, variant="error", id=ButtonIds.STOP),
-                Button(ButtonLabels.CLOSE, variant="primary", id=ButtonIds.CLOSE),
+                Button(ButtonLabels.STOP, variant="error", id="stop"),
+                Button(ButtonLabels.CLOSE, variant="primary", id="close"),
                 id="dialog-buttons",
             ),
             id="webconsole-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.STOP:
+        if event.button.id == "stop":
             self.dismiss("stop")
         else:
             self.dismiss(None)
@@ -386,8 +386,8 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             else:
                 yield Markdown("Web console will run locally.")
 
-            yield Button(ButtonLabels.START, variant="primary", id=ButtonIds.START)
-            yield Button(ButtonLabels.CANCEL, variant="default", id=ButtonIds.CANCEL)
+            yield Button(ButtonLabels.START, variant="primary", id="start")
+            yield Button(ButtonLabels.CANCEL, variant="default", id="cancel")
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
         if event.control.id == "remote-console-switch":
@@ -406,7 +406,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                 remote_opts.display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.START:
+        if event.button.id == "start":
             config_changed = False
             if self.is_remote:
                 remote_switch = self.query_one("#remote-console-switch", Switch)
@@ -436,5 +436,5 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             if config_changed:
                 save_config(self.config)
             self.dismiss(True)
-        elif event.button.id == ButtonIds.CANCEL:
+        elif event.button.id == "cancel":
             self.dismiss(False)
