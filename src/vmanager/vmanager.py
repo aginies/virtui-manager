@@ -380,9 +380,7 @@ class VMManagerTUI(App):
         yield self.ui["vms_container"]
         yield self.ui["error_footer"]
         yield Footer()
-        self.show_success_message(
-            "In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it."
-        )
+        self.show_success_message(SuccessMessages.TERMINAL_COPY_HINT)
 
     def reload_servers(self, new_servers):
         self.servers = new_servers
@@ -429,9 +427,7 @@ class VMManagerTUI(App):
             vms_container.styles.grid_size_columns = 2
 
         if not self.servers:
-            self.show_success_message(
-                "No servers configured. Please add one via 'Servers List'."
-            )
+            self.show_success_message(SuccessMessages.NO_SERVERS_CONFIGURED)
         else:
             # Launch initial connection and cache loading in background
             if self.active_uris:
@@ -797,7 +793,7 @@ class VMManagerTUI(App):
                         server_name = s['name']
                         break
                 if success:
-                    self.call_from_thread(self.show_success_message, f"Connected to [b]{server_name}[/b]")
+                    self.call_from_thread(self.show_success_message, SuccessMessages.SERVER_CONNECTED.format(name=server_name))
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
@@ -921,7 +917,7 @@ class VMManagerTUI(App):
                 logging.getLogger().setLevel(new_log_level)
                 for handler in logging.getLogger().handlers:
                     handler.setLevel(new_log_level)
-                self.show_success_message(f"Log level changed to {new_log_level_str}")
+                self.show_success_message(SuccessMessages.LOG_LEVEL_CHANGED.format(level=new_log_level_str))
 
             # Update remote viewer if changed
             self.r_viewer = check_r_viewer(self.config.get("REMOTE_VIEWER"))
@@ -1273,7 +1269,7 @@ class VMManagerTUI(App):
             logging.info(summary) 
 
             if successful_vms:
-                self.call_from_thread(self.show_success_message, f"Bulk action [b]{action_type}[/b] successful for {len(successful_vms)} VMs.")
+                self.call_from_thread(self.show_success_message, SuccessMessages.BULK_ACTION_SUCCESS_TEMPLATE.format(action_type=action_type, count=len(successful_vms)))
             if failed_vms:
                 self.call_from_thread(self.show_error_message, f"Bulk action [b]{action_type}[/b] failed for {len(failed_vms)} VMs.")
 

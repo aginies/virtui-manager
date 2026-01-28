@@ -179,6 +179,11 @@ class SuccessMessages:
     STATS_LOGGING_ENABLED = "Statistics logging and monitoring enabled (every 10s)."
     CONFIG_UPDATED = "Configuration updated."
     VMS_SELECTED_BY_PATTERN = "Selected {count} VMs matching pattern."
+    TERMINAL_COPY_HINT = "In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it."
+    NO_SERVERS_CONFIGURED = "No servers configured. Please add one via 'Servers List'."
+    LOG_LEVEL_CHANGED = "Log level changed to {level}"
+    BULK_ACTION_SUCCESS_TEMPLATE = "Bulk action [b]{action_type}[/b] successful for {count} VMs."
+    SERVER_CONNECTED = "Connected to [b]{name}[/b]"
 
 
 class ProgressMessages:
