@@ -5,6 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable
 from textual.containers import Vertical, Horizontal
 from .base_modals import BaseModal
+from ..constants import SuccessMessages
 
 class CacheStatsModal(BaseModal[None]):
     """Modal displaying cache statistics in a table."""
@@ -58,6 +59,6 @@ class CacheStatsModal(BaseModal[None]):
         elif event.button.id == "clear-btn":
             self.cache_monitor.clear_all_caches()
             self._update_table()
-            self.app.show_success_message("All caches cleared")
+            self.app.show_success_message(SuccessMessages.ALL_CACHES_CLEARED)
         elif event.button.id == "close-btn":
             self.dismiss()

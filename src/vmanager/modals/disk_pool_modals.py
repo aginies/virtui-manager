@@ -12,6 +12,7 @@ from textual.widgets import (
 from textual.app import ComposeResult
 from textual import on
 from ..storage_manager import create_storage_pool, list_storage_pools
+from ..constants import ErrorMessages, SuccessMessages
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import DirectorySelectionModal, FileSelectionModal
 from .input_modals import _sanitize_input
@@ -223,7 +224,7 @@ class AddDiskModal(BaseModal[dict | None]):
                 disk_format = self.query_one("#disk-format-select", Select).value
 
                 if not all([pool, vol_name, disk_size_str]):
-                    self.app.show_error_message("Pool, Volume Name, and Size are required to create a new disk.")
+                    self.app.show_error_message(ErrorMessages.CREATE_DISK_REQUIRED_FIELDS)
                     return
                 
                 numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
@@ -238,7 +239,7 @@ class AddDiskModal(BaseModal[dict | None]):
             else:
                 disk_path = self.query_one("#disk-path-input", Input).value
                 if not disk_path:
-                    self.app.show_error_message("Path to disk image is required.")
+                    self.app.show_error_message(ErrorMessages.DISK_IMAGE_PATH_REQUIRED)
                     return
                 result["disk_path"] = disk_path
             
@@ -328,10 +329,10 @@ class AddPoolModal(BaseModal[bool | None]):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{pool_name_raw}' changed to '{pool_name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=pool_name_raw, sanitized_input=pool_name))
 
             if not pool_name:
-                self.app.show_error_message("Pool name is required.")
+                self.app.show_error_message(ErrorMessages.POOL_NAME_REQUIRED)
                 return
 
             pool_details = {"name": pool_name, "type": pool_type}
@@ -339,7 +340,7 @@ class AddPoolModal(BaseModal[bool | None]):
             if pool_type == "dir":
                 target_path = self.query_one("#dir-target-path-input", Input).value
                 if not target_path:
-                    self.app.show_error_message("Target Path is required for `dir` type.")
+                    self.app.show_error_message(ErrorMessages.TARGET_PATH_REQUIRED_FOR_DIR)
                     return
                 if target_path == "/var/lib/libvirt/images/":
                     target_path = os.path.join(target_path, pool_name)
@@ -350,7 +351,7 @@ class AddPoolModal(BaseModal[bool | None]):
                 host = self.query_one("#netfs-host-input", Input).value
                 source_path = self.query_one("#netfs-source-path-input", Input).value
                 if not all([target_path, host, source_path]):
-                    self.app.show_error_message("For `netfs`, all fields are required.")
+                    self.app.show_error_message(ErrorMessages.NETFS_FIELDS_REQUIRED)
                     return
                 pool_details["target"] = target_path
                 pool_details["format"] = netfs_format
@@ -378,13 +379,13 @@ class AddPoolModal(BaseModal[bool | None]):
                         )
                     self.app.call_from_thread(
                         self.app.show_success_message, 
-                        f"Storage pool '{pool_details['name']}' created and started."
+                        SuccessMessages.STORAGE_POOL_CREATED_TEMPLATE.format(name=pool_details['name'])
                     )
                     self.app.call_from_thread(self.dismiss, True)
                 except Exception as e:
                     self.app.call_from_thread(
                         self.app.show_error_message, 
-                        f"Error creating storage pool: {e}"
+                        ErrorMessages.ERROR_CREATING_STORAGE_POOL_TEMPLATE.format(error=e)
                     )
             
             self.app.worker_manager.run(
@@ -420,16 +421,16 @@ class CreateVolumeModal(BaseModal[dict | None]):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{name_raw}' changed to '{name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
 
             if not name or not size:
-                self.app.show_error_message("Name and size are required.")
+                self.app.show_error_message(ErrorMessages.NAME_AND_SIZE_REQUIRED)
                 return
 
             try:
                 size_gb = int(size)
             except ValueError:
-                self.app.show_error_message("Size must be an integer.")
+                self.app.show_error_message(ErrorMessages.SIZE_MUST_BE_INTEGER)
                 return
 
             self.dismiss({'name': name, 'size_gb': size_gb, 'format': vol_format})
@@ -530,7 +531,7 @@ class MoveVolumeModal(BaseModal[dict]):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{new_name_input_raw}' changed to '{new_name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=new_name_input_raw, sanitized_input=new_name))
 
             if dest_pool_select.value and new_name:
                 self.dismiss({
@@ -538,7 +539,7 @@ class MoveVolumeModal(BaseModal[dict]):
                     "new_name": new_name
                 })
             else:
-                self.app.show_error_message("Destination pool and new name are required.")
+                self.app.show_error_message(ErrorMessages.DEST_POOL_AND_NAME_REQUIRED)
 
 
 class AttachVolumeModal(BaseModal[dict | None]):
@@ -567,7 +568,7 @@ class AttachVolumeModal(BaseModal[dict | None]):
             try:
                 sanitized_name, was_modified = _sanitize_input(os.path.basename(event.value))
                 if was_modified:
-                    self.app.show_success_message(f"Input sanitized: '{os.path.basename(event.value)}' changed to '{sanitized_name}'")
+                    self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=os.path.basename(event.value), sanitized_input=sanitized_name))
                 
                 vol_name_input.value = sanitized_name
             except ValueError as e:
@@ -610,10 +611,10 @@ class AttachVolumeModal(BaseModal[dict | None]):
                 return
             
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{name_raw}' changed to '{name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
 
             if not name or not path or not vol_format:
-                self.app.show_error_message("Name, path, and format are required. Ensure a file is selected.")
+                self.app.show_error_message(ErrorMessages.NAME_PATH_FORMAT_REQUIRED)
                 return
 
             self.dismiss({'name': name, 'path': path, 'format': vol_format})

@@ -8,7 +8,7 @@ from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
 from ..config import save_config, get_user_config_path
-from ..constants import AppInfo
+from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages
 from .base_modals import BaseModal
 from ..utils import check_r_viewer
 
@@ -160,14 +160,14 @@ class ConfigModal(BaseModal[None]):
                         self.config["REMOTE_VIEWER"] = viewer_select.value
                     else:
                         self.config["REMOTE_VIEWER"] = None
-                        self.app.show_warning_message("No remote viewer selected. Auto-detection will be used.")
+                        self.app.show_warning_message(WarningMessages.NO_REMOTE_VIEWER_SELECTED)
                 except Exception:
                     pass
 
                 save_config(self.config)
-                self.app.show_success_message("Configuration saved successfully.")
+                self.app.show_success_message(SuccessMessages.CONFIGURATION_SAVED)
                 self.dismiss(self.config)
             except Exception as e:
-                self.app.show_error_message(f"Error saving configuration: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_SAVING_CONFIGURATION_TEMPLATE.format(e=e))
         elif event.button.id == "cancel-btn":
             self.dismiss(None)

@@ -8,6 +8,7 @@ from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 
+from ..constants import ErrorMessages, SuccessMessages
 from .base_modals import BaseModal, BaseDialog
 from ..network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
@@ -35,7 +36,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
         if self.is_edit and self.interface_info:
             network_value = self.interface_info.get("network")
             if network_value not in self.networks:
-                self.app.show_error_message(f"Network '{network_value}' not found. Please select an available network.")
+                self.app.show_error_message(ErrorMessages.NETWORK_NOT_FOUND_TEMPLATE.format(network=network_value))
                 network_value = self.networks[0] if self.networks else None # Set to first available network if any, otherwise None
             model_value = self.interface_info.get("model", "virtio")
             mac_value = self.interface_info.get("mac", "")
@@ -72,7 +73,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             new_model = model_select.value
 
             if new_network is Select.BLANK:
-                self.app.show_error_message("Please select a network.")
+                self.app.show_error_message(ErrorMessages.SELECT_NETWORK)
                 return
 
             result = {"network": new_network, "model": new_model}
@@ -225,7 +226,7 @@ class AddEditNetworkModal(BaseModal[None]):
                         else:
                             select.clear()
                             self.app.show_error_message(
-                                f"Warning: Forward device '{forward_dev}' not found on host."
+                                ErrorMessages.FORWARD_DEVICE_NOT_FOUND_TEMPLATE.format(device=forward_dev)
                             )
                     else:
                         select.clear()
@@ -234,7 +235,7 @@ class AddEditNetworkModal(BaseModal[None]):
         except Exception as e:
             self.app.call_from_thread(
                 self.app.show_error_message,
-                f"Error getting host interfaces: {e}"
+                ErrorMessages.ERROR_GETTING_HOST_INTERFACES_TEMPLATE.format(error=e)
             )
 
     @on(Checkbox.Changed, "#dhcp-checkbox")
@@ -274,9 +275,9 @@ class AddEditNetworkModal(BaseModal[None]):
             try:
                 name, name_modified = _sanitize_input(name_raw)
                 if name_modified:
-                    self.app.show_success_message(f"Network name sanitized: '{name_raw}' changed to '{name}'")
+                    self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
             except ValueError as e:
-                self.app.show_error_message(f"Invalid Network Name: {e}")
+                self.app.show_error_message(ErrorMessages.INVALID_NETWORK_NAME_TEMPLATE.format(error=e))
                 return
 
             domain_name_raw = self.query_one("#dns-custom-domain-input", Input).value
@@ -285,13 +286,13 @@ class AddEditNetworkModal(BaseModal[None]):
                 try:
                     domain_name, domain_name_modified = _sanitize_domain_name(domain_name_raw)
                     if domain_name_modified:
-                        self.app.show_success_message(f"Custom DNS Domain sanitized: '{domain_name_raw}' changed to '{domain_name}'")
+                        self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=domain_name_raw, sanitized_input=domain_name))
                 except ValueError as e:
-                    self.app.show_error_message(f"Invalid Custom DNS Domain: {e}")
+                    self.app.show_error_message(ErrorMessages.INVALID_CUSTOM_DNS_DOMAIN_TEMPLATE.format(error=e))
                     return
 
             if not name:
-                self.app.show_error_message("Network Name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.NETWORK_NAME_REQUIRED)
                 return
 
             if ip:
@@ -302,16 +303,16 @@ class AddEditNetworkModal(BaseModal[None]):
                         dhcp_start_ip = ipaddress.ip_address(dhcp_start)
                         dhcp_end_ip = ipaddress.ip_address(dhcp_end)
                         if dhcp_start_ip not in ip_network or dhcp_end_ip not in ip_network:
-                            self.app.show_error_message(f"DHCP IPs are not in the network {ip_network}")
+                            self.app.show_error_message(ErrorMessages.DHCP_IPS_NOT_IN_NETWORK_TEMPLATE.format(network=ip_network))
                             return
                         if dhcp_start_ip >= dhcp_end_ip:
-                            self.app.show_error_message("DHCP start IP must be before the end IP.")
+                            self.app.show_error_message(ErrorMessages.DHCP_START_BEFORE_END)
                             return
                 except ValueError as e:
-                    self.app.show_error_message(f"Invalid IP address or network: {e}")
+                    self.app.show_error_message(ErrorMessages.INVALID_IP_OR_NETWORK_TEMPLATE.format(error=e))
                     return
             elif dhcp:
-                self.app.show_error_message("DHCP cannot be enabled without an IP network.")
+                self.app.show_error_message(ErrorMessages.DHCP_REQUIRES_IP)
                 return
 
             def do_create_or_update_network():
@@ -344,20 +345,29 @@ class AddEditNetworkModal(BaseModal[None]):
                             if ip_network.overlaps(existing_subnet):
                                 self.app.call_from_thread(
                                     self.app.show_error_message,
-                                    f"Subnet {ip_network} overlaps with an existing network."
+                                    ErrorMessages.SUBNET_OVERLAPS_TEMPLATE.format(subnet=ip_network)
                                 )
                                 return
 
                     uuid = self.network_info.get('uuid') if self.is_edit and self.network_info else None
                     create_network(self.conn, name, typenet, forward, ip, dhcp, dhcp_start, dhcp_end, domain_name, uuid=uuid)
 
-                    message = f"Network {name} {'updated' if self.is_edit else 'created'} successfully."
+                    if self.is_edit:
+                        message = SuccessMessages.NETWORK_UPDATED_TEMPLATE.format(name=name)
+                    else:
+                        message = SuccessMessages.NETWORK_CREATED_TEMPLATE.format(name=name)
+                        
                     self.app.call_from_thread(self.app.show_success_message, message)
                     self.app.call_from_thread(self.dismiss, True)
                 except Exception as e:
+                    if self.is_edit:
+                        err_msg = ErrorMessages.ERROR_UPDATING_NETWORK_TEMPLATE.format(error=e)
+                    else:
+                        err_msg = ErrorMessages.ERROR_CREATING_NETWORK_TEMPLATE.format(error=e)
+
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"Error {'updating' if self.is_edit else 'creating'} network: {e}"
+                        err_msg
                     )
 
             self.app.worker_manager.run(

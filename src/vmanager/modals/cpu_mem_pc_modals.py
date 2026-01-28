@@ -5,6 +5,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Input, Label, ListView, Select
 
+from ..constants import ErrorMessages
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import InfoModal
 
@@ -135,9 +136,9 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
                             vcpupin_list.append({'vcpu': vcpu, 'cpuset': cpuset})
                 self.dismiss(vcpupin_list)
             except ValueError as e:
-                self.app.show_error_message(f"Validation error: {e}")
+                self.app.show_error_message(ErrorMessages.VALIDATION_ERROR_TEMPLATE.format(error=e))
             except Exception as e:
-                self.app.show_error_message(f"Invalid format: {e}")
+                self.app.show_error_message(ErrorMessages.INVALID_FORMAT_TEMPLATE.format(error=e))
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
         elif event.button.id == "help-btn":
@@ -194,7 +195,7 @@ class EditNumaTuneModal(BaseModal[dict | None]):
             # Validate nodeset syntax
             if nodeset:
                 if not all(c.isdigit() or c in ',-' for c in nodeset):
-                     self.app.show_error_message(f"Invalid nodeset syntax: {nodeset}")
+                     self.app.show_error_message(ErrorMessages.INVALID_NODESET_SYNTAX_TEMPLATE.format(nodeset=nodeset))
                      return
 
             self.dismiss({'mode': mode, 'nodeset': nodeset})

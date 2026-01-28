@@ -201,9 +201,40 @@ class ErrorMessages:
     FAILED_TO_CREATE_SSH_TUNNEL_TEMPLATE = "Failed to create SSH tunnel: {error}"
     SSH_COMMAND_NOT_FOUND = "SSH command not found. Cannot create tunnel."
     FAILED_TO_CREATE_SSH_TUNNEL_GENERIC = "Failed to create SSH tunnel..."
-
-
-class DialogMessages:
+    PLEASE_SELECT_ACTION = "Please select an action."
+    ERROR_SAVING_CONFIGURATION_TEMPLATE = "Error saving configuration: {e}"
+    VALIDATION_ERROR_TEMPLATE = "Validation error: {error}"
+    INVALID_FORMAT_TEMPLATE = "Invalid format: {error}"
+    INVALID_NODESET_SYNTAX_TEMPLATE = "Invalid nodeset syntax: {nodeset}"
+    CREATE_DISK_REQUIRED_FIELDS = "Pool, Volume Name, and Size are required to create a new disk."
+    DISK_IMAGE_PATH_REQUIRED = "Path to disk image is required."
+    POOL_NAME_REQUIRED = "Pool name is required."
+    TARGET_PATH_REQUIRED_FOR_DIR = "Target Path is required for `dir` type."
+    NETFS_FIELDS_REQUIRED = "For `netfs`, all fields are required."
+    NAME_AND_SIZE_REQUIRED = "Name and size are required."
+    SIZE_MUST_BE_INTEGER = "Size must be an integer."
+    DEST_POOL_AND_NAME_REQUIRED = "Destination pool and new name are required."
+    NAME_PATH_FORMAT_REQUIRED = "Name, path, and format are required. Ensure a file is selected."
+    ERROR_CREATING_STORAGE_POOL_TEMPLATE = "Error creating storage pool: {error}"
+    SELECT_DESTINATION_SERVER = "Please select a destination server."
+    RUN_COMPATIBILITY_CHECK_FIRST = "Please run compatibility check first."
+    MIGRATION_COMPATIBILITY_ERRORS = "Cannot start migration due to compatibility errors."
+    NETWORK_NOT_FOUND_TEMPLATE = "Network '{network}' not found. Please select an available network."
+    SELECT_NETWORK = "Please select a network."
+    FORWARD_DEVICE_NOT_FOUND_TEMPLATE = "Forward device '{device}' not found on host."
+    ERROR_GETTING_HOST_INTERFACES_TEMPLATE = "Error getting host interfaces: {error}"
+    INVALID_NETWORK_NAME_TEMPLATE = "Invalid Network Name: {error}"
+    INVALID_CUSTOM_DNS_DOMAIN_TEMPLATE = "Invalid Custom DNS Domain: {error}"
+    NETWORK_NAME_REQUIRED = "Network Name cannot be empty."
+    DHCP_IPS_NOT_IN_NETWORK_TEMPLATE = "DHCP IPs are not in the network {network}"
+    DHCP_START_BEFORE_END = "DHCP start IP must be before the end IP."
+    INVALID_IP_OR_NETWORK_TEMPLATE = "Invalid IP address or network: {error}"
+    DHCP_REQUIRES_IP = "DHCP cannot be enabled without an IP network."
+    SUBNET_OVERLAPS_TEMPLATE = "Subnet {subnet} overlaps with an existing network."
+    ERROR_CREATING_NETWORK_TEMPLATE = "Error creating network: {error}"
+    ERROR_UPDATING_NETWORK_TEMPLATE = "Error updating network: {error}"
+        class DialogMessages:
+    
     """Constants for dialog messages"""
     DELETE_VM_CONFIRMATION = "Are you sure you want to delete '{name}'?"
     DELETE_SNAPSHOT_CONFIRMATION = "Are you sure you want to delete snapshot '{name}'?"
@@ -227,6 +258,7 @@ class WarningMessages:
     VMS_PER_PAGE_PERFORMANCE_WARNING = "Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
     VM_NOT_PAUSABLE = "VM '{vm_name}' is not in a pausable state."
     LIBVIRT_XML_NO_EFFECTIVE_CHANGE = "VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away."
+    NO_REMOTE_VIEWER_SELECTED = "No remote viewer selected. Auto-detection will be used."
 
 
 class SuccessMessages:
@@ -263,7 +295,11 @@ class SuccessMessages:
     NO_REMOTE_CERT_CHECK_INSECURE = "Could not check for remote cert/key, using insecure ws connection."
     REMOTE_CONNECTION_SSH_TUNNEL_SETUP = "Remote connection detected. Setting up SSH tunnel..."
     LOCAL_CERT_FOUND = "Found cert/key, using secure wss connection."
-
+    ALL_CACHES_CLEARED = "All caches cleared"
+    CONFIGURATION_SAVED = "Configuration saved successfully."
+    STORAGE_POOL_CREATED_TEMPLATE = "Storage pool '{name}' created and started."
+    NETWORK_CREATED_TEMPLATE = "Network {name} created successfully."
+    NETWORK_UPDATED_TEMPLATE = "Network {name} updated successfully."
 
 
 class ProgressMessages:

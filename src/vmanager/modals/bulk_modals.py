@@ -7,6 +7,7 @@ from textual import on
 from textual.widgets import Label, Button, Markdown, Static, RadioSet, RadioButton, Checkbox
 
 from .base_modals import BaseModal
+from ..constants import ErrorMessages
 
 class BulkActionModal(BaseModal[None]):
     """Modal screen for performing bulk actions on selected VMs."""
@@ -60,6 +61,6 @@ class BulkActionModal(BaseModal[None]):
                     result['delete_storage'] = checkbox.value
                 self.dismiss(result)
             else:
-                self.app.show_error_message("Please select an action.")
+                self.app.show_error_message(ErrorMessages.PLEASE_SELECT_ACTION)
         elif event.button.id == "cancel-btn":
             self.dismiss(None)

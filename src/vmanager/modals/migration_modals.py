@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static, Select, Checkbox, Label, ProgressBar
 from textual import on, work
 
+from ..constants import ErrorMessages
 from ..vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
 from ..storage_manager import find_shared_storage_pools
 from ..utils import extract_server_name_from_uri
@@ -403,17 +404,17 @@ class MigrationModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "check":
             if not self.dest_conn:
-                self.app.show_error_message("Please select a destination server.")
+                self.app.show_error_message(ErrorMessages.SELECT_DESTINATION_SERVER)
                 return
             self._clear_log()
             self.run_compatibility_checks()
 
         elif event.button.id == "start":
             if not self.compatibility_checked:
-                self.app.show_error_message("Please run compatibility check first.")
+                self.app.show_error_message(ErrorMessages.RUN_COMPATIBILITY_CHECK_FIRST)
                 return
             if not self.checks_passed:
-                self.app.show_error_message("Cannot start migration due to compatibility errors.")
+                self.app.show_error_message(ErrorMessages.MIGRATION_COMPATIBILITY_ERRORS)
                 return
 
             self._clear_log()
