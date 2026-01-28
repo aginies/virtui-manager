@@ -248,20 +248,28 @@ class ServerPrefModal(BaseModal[None]):
         pools = storage_manager.list_storage_pools(self.conn)
         node_to_select = None
         for pool_data in pools:
-            pool_name = pool_data['name']
-            status = pool_data['status']
-            autostart = "autostart" if pool_data['autostart'] else "no autostart"
-            label = f"{pool_name} [{status}, {autostart}]"
-            pool_node = tree.root.add(label, data=pool_data)
-            pool_node.data["type"] = "pool"
-            # Add a dummy node to make the pool node expandable
-            pool_node.add_leaf("Loading volumes...")
+            try:
+                pool_name = pool_data['name']
+                status = pool_data['status']
+                autostart = "autostart" if pool_data['autostart'] else "no autostart"
+                label = f"{pool_name} [{status}, {autostart}]"
+                pool_node = tree.root.add(label, data=pool_data)
+                pool_node.data["type"] = "pool"
+                # Add a dummy node to make the pool node expandable
+                pool_node.add_leaf("Loading volumes...")
 
-            if expand_pools and pool_name in expand_pools:
-                self.app.call_later(pool_node.expand)
+                if expand_pools and pool_name in expand_pools:
+                    self.app.call_later(pool_node.expand)
 
-            if select_pool and pool_name == select_pool:
-                node_to_select = pool_node
+                if select_pool and pool_name == select_pool:
+                    node_to_select = pool_node
+            except libvirt.libvirtError:
+                # Handle cases where pool might be listed but inaccessible (e.g. NFS down)
+                pool_name = pool_data.get('name', 'Unknown')
+                label = f"{pool_name} [unavailable]"
+                pool_node = tree.root.add(label, data=pool_data)
+                pool_node.data["type"] = "pool"
+                pool_node.add_leaf("Pool unavailable")
 
         if node_to_select:
             self.app.call_later(tree.select_node, node_to_select)
@@ -308,7 +316,8 @@ class ServerPrefModal(BaseModal[None]):
         if len(node.children) == 1 and node.children[0].data is None:
             node.remove_children()
             pool = node_data.get('pool')
-            if pool and pool.isActive():
+            # Check cached status instead of calling pool.isActive() to avoid blocking
+            if pool and node_data.get('status') == 'active':
                 volumes = storage_manager.list_storage_volumes(pool)
                 for vol_data in volumes:
                     vol_name = vol_data['name']
@@ -404,7 +413,7 @@ class ServerPrefModal(BaseModal[None]):
             self.app.show_error_message("Could not find pool object to edit.")
             return
 
-        if pool.isActive():
+        if node_data.get('status') == 'active':
             self.app.show_error_message("Pool must be inactive to edit its XML definition.")
             return
 
