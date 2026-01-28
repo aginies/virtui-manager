@@ -145,9 +145,9 @@ class ServerPrefModal(BaseModal[None]):
 
 
             if num_vms > AppCacheTimeout.DONT_DISPLAY_DISK_USAGE:
-                self.app.show_warning_message(ErrorMessages.TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE.format(count=AppCacheTimeout.DONT_DISPLAY_DISK_USAGE))
+                self.app.show_warning_message(WarningMessages.TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE.format(count=AppCacheTimeout.DONT_DISPLAY_DISK_USAGE))
             else:
-                self.app.show_warning_message(ErrorMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
+                self.app.show_warning_message(WarningMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
                 disk_map = get_all_vm_disk_usage(self.conn)
                 nvram_map = get_all_vm_nvram_usage(self.conn)
                 #overlay_map = get_all_vm_overlay_usage(self.conn)

@@ -54,6 +54,7 @@ from ..libvirt_utils import (
         get_host_usb_devices, get_host_pci_devices,
         get_host_numa_nodes
         )
+from ..constants import ErrorMessages, SuccessMessages, WarningMessages, DialogMessages
 from .utils_modals import ConfirmationDialog, ProgressModal
 from .cpu_mem_pc_modals import (
         EditCpuModal, EditMemoryModal, SelectMachineTypeModal,
@@ -147,7 +148,7 @@ class VMDetailModal(ModalScreen):
                     ui_update_callback()
                 return
             except Exception as e:
-                self.app.show_error_message(f"{error_msg_fmt}: {e}")
+                self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
                 return
 
         progress = ProgressModal("Applying changes...")
@@ -236,7 +237,7 @@ class VMDetailModal(ModalScreen):
             all_networks_info = list_networks(self.conn)
             self.available_networks = [net['name'] for net in all_networks_info]
         except (libvirt.libvirtError, Exception) as e:
-            self.app.show_error_message(f"Could not load networks: {e}")
+            self.app.show_error_message(ErrorMessages.VM_DETAIL_COULD_NOT_LOAD_NETWORKS.format(error=e))
             self.available_networks = []
 
         try:
@@ -545,10 +546,10 @@ class VMDetailModal(ModalScreen):
         try:
             set_boot_info(self.domain, menu_enabled, new_boot_order)
             self._invalidate_cache()
-            self.app.show_success_message("Boot order saved successfully.")
+            self.app.show_success_message(SuccessMessages.BOOT_ORDER_SAVED_SUCCESSFULLY)
             self.boot_order = new_boot_order
         except libvirt.libvirtError as e:
-            self.app.show_error_message(f"Error saving boot order: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_SAVING_BOOT_ORDER_TEMPLATE.format(error=e))
 
 
     def _get_bootable_devices(self) -> list[BootDevice]:
@@ -721,13 +722,13 @@ class VMDetailModal(ModalScreen):
         try:
             change_vm_network(self.domain, mac_address, new_network)
             self._invalidate_cache()
-            self.app.show_success_message(f"Interface {mac_address} switched to {new_network}")
+            self.app.show_success_message(SuccessMessages.VM_NETWORK_INTERFACE_CHANGED_TEMPLATE.format(mac_address=mac_address, new_network=new_network))
             for i in self.vm_info["networks"]:
                 if i["mac"] == mac_address:
                     i["network"] = new_network
                     break
         except (libvirt.libvirtError, ValueError, Exception) as e:
-            self.app.show_error_message(f"Error updating network: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_UPDATING_NETWORK_TEMPLATE_SHORT.format(error=e))
             event.control.value = original_network
 
         self.available_networks = []
@@ -753,7 +754,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"CPU model set to {new_cpu_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_CPU_MODEL_SET_SUCCESS.format(new_cpu_model=new_cpu_model) + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting CPU model",
             ui_update
         )
@@ -783,7 +784,7 @@ class VMDetailModal(ModalScreen):
                 self.query_one("#firmware-path-label").update(msg_text)
                 self.vm_info['firmware']['path'] = new_uefi_path
 
-        msg_template = f"UEFI file set to {os.path.basename(new_uefi_path) if new_uefi_path else 'BIOS'}"
+        msg_template = SuccessMessages.VM_UEFI_FILE_SET_SUCCESS.format(uefi_file_name=os.path.basename(new_uefi_path) if new_uefi_path else 'BIOS')
         if self.is_bulk:
             msg_template += " for {count} VMs ({names})"
 
@@ -838,7 +839,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Video model set to {new_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_VIDEO_MODEL_SET_SUCCESS.format(new_model=new_model) + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting video model",
             ui_update
         )
@@ -862,7 +863,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_3D_ACCELERATION_SET_SUCCESS.format(state='enabled' if accel3d_enabled else 'disabled') + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting 3D acceleration",
             ui_update
         )
@@ -889,7 +890,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Sound model set to {new_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_SOUND_MODEL_SET_SUCCESS.format(new_model=new_model) + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting sound model",
             ui_update
         )
@@ -900,7 +901,7 @@ class VMDetailModal(ModalScreen):
 
         current_uefi_path = self.vm_info['firmware'].get('path')
         if not current_uefi_path and event.value: # Trying to enable secure boot without a UEFI file
-            self.app.show_error_message("Cannot enable secure boot without a UEFI file selected.")
+            self.app.show_error_message(ErrorMessages.CANNOT_ENABLE_SECURE_BOOT_WITHOUT_UEFI)
             event.checkbox.value = not event.value # Revert checkbox
             self._update_uefi_options() # Revert options
             return
@@ -917,7 +918,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Secure Boot {'enabled' if event.value else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_SECURE_BOOT_SET_SUCCESS.format(state='enabled' if event.value else 'disabled') + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting Secure Boot",
             ui_update
         )
@@ -940,7 +941,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Shared memory {'enabled' if event.value else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_SHARED_MEMORY_SET_SUCCESS.format(state='enabled' if event.value else 'disabled') + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting shared memory",
             ui_update
         )
@@ -998,7 +999,7 @@ class VMDetailModal(ModalScreen):
     @on(Button.Pressed, "#graphics-apply-btn")
     def on_graphics_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply graphics settings.")
+            self.app.show_error_message(ErrorMessages.GRAPHICS_VM_MUST_BE_STOPPED)
             return
 
         original_graphics_type = self.original_graphics_info.get('type')
@@ -1054,7 +1055,7 @@ class VMDetailModal(ModalScreen):
             self._run_bulk_operation(
                 targets,
                 operation,
-                "Graphics settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                SuccessMessages.GRAPHICS_SETTINGS_APPLIED_SUCCESSFULLY + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
                 "Errors applying graphics settings",
                 ui_update
             )
@@ -1080,16 +1081,16 @@ class VMDetailModal(ModalScreen):
                     self._run_bulk_operation(
                         targets,
                         removal_operation,
-                        "Removed associated SPICE devices" + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                        SuccessMessages.SPICE_DEVICES_REMOVED_SUCCESS + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
                         "Error removing SPICE devices",
                         do_apply_graphics_settings
                     )
                 else:
                     do_apply_graphics_settings()
 
-            msg = "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
+            msg = ErrorMessages.SPICE_REMOVAL_CONFIRMATION_SINGLE
             if self.is_bulk:
-                msg = "Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?"
+                msg = ErrorMessages.SPICE_REMOVAL_CONFIRMATION_BULK
 
             self.app.push_screen(
                 ConfirmationDialog(msg),
@@ -1102,12 +1103,12 @@ class VMDetailModal(ModalScreen):
     @on(Button.Pressed, "#apply-rng-btn")
     def on_rng_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply RNG settings.")
+            self.app.show_error_message(ErrorMessages.RNG_VM_MUST_BE_STOPPED)
             return
 
         rng_device = self.query_one("#rng-host-device", Input).value
         if not rng_device:
-            self.app.show_error_message("RNG device path cannot be empty.")
+            self.app.show_error_message(ErrorMessages.RNG_DEVICE_PATH_EMPTY)
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
@@ -1118,7 +1119,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"RNG settings applied successfully. Device: {rng_device}" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+            SuccessMessages.RNG_SETTINGS_APPLIED_SUCCESSFULLY.format(rng_device=rng_device) + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
             "Error applying RNG settings"
         )
 
@@ -1141,7 +1142,7 @@ class VMDetailModal(ModalScreen):
     @on(Button.Pressed, "#apply-tpm-btn")
     def on_tpm_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply TPM settings.")
+            self.app.show_error_message(ErrorMessages.TPM_VM_MUST_BE_STOPPED)
             return
 
         tpm_model = self.query_one("#tpm-model-select", Select).value
@@ -1152,7 +1153,7 @@ class VMDetailModal(ModalScreen):
 
         # Basic validation for passthrough
         if tpm_type == 'passthrough' and not device_path:
-            self.app.show_error_message("Device path is required for passthrough TPM.")
+            self.app.show_error_message(ErrorMessages.DEVICE_PATH_REQUIRED_FOR_PASSTHROUGH_TPM)
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
@@ -1179,14 +1180,13 @@ class VMDetailModal(ModalScreen):
                 self.tpm_info = get_vm_tpm_info(root) # Refresh info
                 self._update_tpm_ui()
 
-        self._run_bulk_operation(
-            targets,
-            operation,
-            "TPM settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
-            "Error applying TPM settings",
-            ui_update
-        )
-
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    SuccessMessages.TPM_SETTINGS_APPLIED_SUCCESSFULLY + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                    "Error applying TPM settings",
+                    ui_update
+                )
     @on(ListView.Highlighted, "#available-devices-list")
     def on_available_devices_list_highlighted(self, event: ListView.Highlighted) -> None:
         if not self.is_vm_stopped:
@@ -1276,11 +1276,11 @@ class VMDetailModal(ModalScreen):
             try:
                 attach_usb_device(self.domain, vendor_id, product_id)
                 self._invalidate_cache()
-                self.app.show_success_message(f"Attached USB device: {device_to_attach['description']}")
+                self.app.show_success_message(SuccessMessages.USB_DEVICE_ATTACHED_TEMPLATE.format(description=device_to_attach['description']))
                 self.xml_desc = self.vm_service._get_domain_xml(self.domain)
                 self._populate_usb_lists()
             except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error attaching USB device: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_ATTACHING_USB_DEVICE_TEMPLATE.format(error=e))
 
     @on(Button.Pressed, "#detach-usb-btn")
     def on_detach_usb_button_pressed(self, event: Button.Pressed) -> None:
@@ -1292,11 +1292,11 @@ class VMDetailModal(ModalScreen):
             try:
                 detach_usb_device(self.domain, vendor_id, product_id)
                 self._invalidate_cache()
-                self.app.show_success_message(f"Detached USB device: {device_to_detach['description']}")
+                self.app.show_success_message(SuccessMessages.USB_DEVICE_DETACHED_TEMPLATE.format(description=device_to_detach['description']))
                 self.xml_desc = self.vm_service._get_domain_xml(self.domain)
                 self._populate_usb_lists()
             except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error detaching USB device: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_DETACHING_USB_DEVICE_TEMPLATE.format(error=e))
 
     def _populate_pci_lists(self):
         """Populates the PCI device lists."""
@@ -1348,11 +1348,11 @@ class VMDetailModal(ModalScreen):
 
     @on(Button.Pressed, "#attach-pci-btn")
     def on_attach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        self.app.show_error_message("PCI passthrough not implemented yet.")
+        self.app.show_error_message(ErrorMessages.PCI_PASSTHROUGH_NOT_IMPLEMENTED)
 
     @on(Button.Pressed, "#detach-pci-btn")
     def on_detach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        self.app.show_error_message("PCI passthrough not implemented yet.")
+        self.app.show_error_message(ErrorMessages.PCI_PASSTHROUGH_NOT_IMPLEMENTED)
 
     def _populate_serial_table(self):
         """Populates the serial devices table."""
@@ -1555,10 +1555,10 @@ class VMDetailModal(ModalScreen):
                         result["target_name"]
                     )
                     self._invalidate_cache()
-                    self.app.show_success_message("Channel added successfully.")
+                    self.app.show_success_message(SuccessMessages.CHANNEL_ADDED_SUCCESSFULLY)
                     self._update_channel_table()
                 except libvirt.libvirtError as e:
-                    self.app.show_error_message(f"Error adding channel: {e}")
+                    self.app.show_error_message(ErrorMessages.ERROR_ADDING_CHANNEL_TEMPLATE.format(error=e))
 
         self.app.push_screen(AddChannelModal(), add_channel_callback)
 
@@ -1567,19 +1567,19 @@ class VMDetailModal(ModalScreen):
         if self.selected_channel:
             target_name = self.selected_channel.get('name')
             if not target_name:
-                self.app.show_error_message("Selected channel has no target name.")
+                self.app.show_error_message(ErrorMessages.ADD_CHANNEL_NO_TARGET_NAME)
                 return
 
-            message = f"Are you sure you want to remove channel '{target_name}'?"
+            message = DialogMessages.CONFIRM_REMOVE_CHANNEL_TEMPLATE.format(target_name=target_name)
             def on_confirm(confirmed: bool) -> None:
                 if confirmed:
                     try:
                         remove_vm_channel(self.domain, target_name)
                         self._invalidate_cache()
-                        self.app.show_success_message(f"Channel '{target_name}' removed successfully.")
+                        self.app.show_success_message(SuccessMessages.CHANNEL_REMOVED_SUCCESSFULLY_TEMPLATE.format(target_name=target_name))
                         self._update_channel_table()
                     except libvirt.libvirtError as e:
-                        self.app.show_error_message(f"Error removing channel: {e}")
+                        self.app.show_error_message(ErrorMessages.ERROR_REMOVING_CHANNEL_TEMPLATE.format(error=e))
             self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
     def compose(self) -> ComposeResult:
@@ -1755,7 +1755,7 @@ class VMDetailModal(ModalScreen):
                     if self.vm_info.get("devices"):
                         with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
                             # Always create label, toggle visibility
-                            lbl = Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", id="virtiofs-shared-mem-warning", classes="tabd-warning")
+                            lbl = Label(WarningMessages.VIRTIOFS_SHARED_MEM_WARNING, id="virtiofs-shared-mem-warning", classes="tabd-warning")
                             lbl.display = not self.vm_info.get('shared_memory')
                             yield lbl
                             with ScrollableContainer(classes="info-details"):
