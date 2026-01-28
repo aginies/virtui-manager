@@ -22,6 +22,7 @@ from textual.worker import Worker, WorkerState
 
 from .config import load_config, save_config, get_log_path
 from .constants import (
+        WarningMessages,
         SuccessMessages,
         VmAction, VmStatus, ButtonLabels,
         ErrorMessages, AppInfo, StatusText, ServerPallette, QuickMessages, ProgressMessages,
@@ -440,7 +441,7 @@ class VMManagerTUI(App):
         """Connects to servers in background and then triggers cache loading."""
         if self.active_uris:
             for uri in self.active_uris:
-                self.call_from_thread(self.show_in_progress_message, f"Connecting to [b]{uri}[/b]...")
+                self.call_from_thread(self.show_in_progress_message, ProgressMessages.CONNECTING_TO_SERVER.format(uri=uri))
                 success = self.connect_libvirt(uri)
                 if success:
                     self.call_from_thread(self.show_success_message, SuccessMessages.CONNECTED_TO_SERVER.format(uri=uri))
@@ -544,7 +545,7 @@ class VMManagerTUI(App):
                             if s['uri'] == uri:
                                 server_name = s['name']
                                 break
-                        self.call_from_thread(self.show_error_message, f"Server [b]{server_name}[/b]: {error_msg}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.SERVER_CONNECTION_ERROR.format(server_name=server_name, error_msg=error_msg))
 
                         if self.vm_service.connection_manager.is_max_retries_reached(uri):
                              self.call_from_thread(self.remove_active_uri, uri)
@@ -645,9 +646,7 @@ class VMManagerTUI(App):
         self.vm_card_pool.prefill_pool()
 
         if self.VMS_PER_PAGE > 9 and old_vms_per_page <= 9 and not self.compact_view:
-            self.show_warning_message(
-                f"Displaying [b]{self.VMS_PER_PAGE}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
-            )
+            self.show_warning_message(WarningMessages.VMS_PER_PAGE_PERFORMANCE_WARNING.format(vms_per_page=self.VMS_PER_PAGE))
 
         self.refresh_vm_list(force=True)
 
@@ -708,7 +707,7 @@ class VMManagerTUI(App):
     def action_compact_view(self) -> None:
         """Toggle compact view."""
         if self.bulk_operation_in_progress:
-            self.show_warning_message("Compact view is locked during bulk operations.")
+            self.show_warning_message(WarningMessages.COMPACT_VIEW_LOCKED)
             return
 
         if not self.compact_view:
@@ -797,7 +796,7 @@ class VMManagerTUI(App):
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
-                        self.call_from_thread(self.show_error_message, f"Failed to connect to [b]{server_name}[/b]: {error_msg}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.SERVER_FAILED_TO_CONNECT.format(server_name=server_name, error_msg=error_msg))
 
         if uris_to_connect:
             self.worker_manager.run(show_connection_results, name="show_connection_results")
@@ -983,7 +982,7 @@ class VMManagerTUI(App):
                         self.call_from_thread(self.push_screen, modal)
                     except Exception as e:
                         self.call_from_thread(loading.dismiss)
-                        self.call_from_thread(self.show_error_message, f"Error launching preferences: {e}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.PREFERENCES_LAUNCH_ERROR.format(error=e))
 
                 self.worker_manager.run(show_prefs, name="launch_server_prefs")
             else:
@@ -1066,7 +1065,7 @@ class VMManagerTUI(App):
         def action_worker():
             domain = self.vm_service.find_domain_by_uuid(self.active_uris, message.internal_id)
             if not domain:
-                self.call_from_thread(self.show_error_message, f"Could not find VM with ID [b]{message.internal_id}[/b]")
+                self.call_from_thread(self.show_error_message, ErrorMessages.VM_NOT_FOUND_BY_ID.format(vm_id=message.internal_id))
                 return
 
             #vm_name = domain.name()
@@ -1220,7 +1219,7 @@ class VMManagerTUI(App):
                     else:
                         self.show_error_message(ErrorMessages.COULD_NOT_LOAD_DETAILS_FOR_REFERENCE_VM)
                 except Exception as e:
-                    self.app.show_error_message(f"Error preparing bulk edit: {e}")
+                    self.app.show_error_message(ErrorMessages.BULK_EDIT_PREP_ERROR.format(error=e))
 
             warning_message = "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
             self.app.push_screen(ConfirmationDialog(warning_message), on_confirm)
@@ -1271,7 +1270,7 @@ class VMManagerTUI(App):
             if successful_vms:
                 self.call_from_thread(self.show_success_message, SuccessMessages.BULK_ACTION_SUCCESS_TEMPLATE.format(action_type=action_type, count=len(successful_vms)))
             if failed_vms:
-                self.call_from_thread(self.show_error_message, f"Bulk action [b]{action_type}[/b] failed for {len(failed_vms)} VMs.")
+                self.call_from_thread(self.show_error_message, ErrorMessages.BULK_ACTION_FAILED_TEMPLATE.format(action_type=action_type, count=len(failed_vms)))
 
         except Exception as e:
             logging.error(f"An unexpected error occurred during bulk action service call: {e}", exc_info=True)
@@ -1425,7 +1424,7 @@ class VMManagerTUI(App):
                             name_for_error = vm_name if 'vm_name' in locals() else domain.name()
                         except:
                             name_for_error = "Unknown"
-                        self.call_from_thread(self.show_error_message, f"Error getting info for VM '{name_for_error}': {e}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.VM_INFO_ERROR.format(vm_name=name_for_error, error=e))
                         continue
 
             # Cleanup cache: remove cards for VMs that no longer exist at all
@@ -1710,9 +1709,7 @@ class VMManagerTUI(App):
                     self.push_screen, BulkActionModal(vm_names_list), self.handle_bulk_action_result
                 )
             else:
-                self.call_from_thread(
-                    self.show_error_message, "Could not retrieve names for selected VMs."
-                )
+                self.call_from_thread(self.show_error_message, ErrorMessages.BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED)
 
         self.worker_manager.run(
             get_names_and_show_modal,

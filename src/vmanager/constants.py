@@ -151,7 +151,14 @@ class ErrorMessages:
     ERROR_DURING_INITIAL_CACHE_LOADING = "Error during initial cache loading: {error}"
     ERROR_ON_VM_DURING_ACTION = "Error on VM [b]{vm_name}[/b] during '{action}': {error}"
     FATAL_ERROR_BULK_ACTION = "A fatal error occurred during bulk action: {error}"
-    ERROR_FETCHING_VM_DATA = "Error fetching VM data: {error}"
+    VM_INFO_ERROR = "Error getting info for VM '{vm_name}': {error}"
+    VM_NOT_FOUND_BY_ID = "Could not find VM with ID [b]{vm_id}[/b]"
+    BULK_EDIT_PREP_ERROR = "Error preparing bulk edit: {error}"
+    SERVER_CONNECTION_ERROR = "Server [b]{server_name}[/b]: {error_msg}"
+    SERVER_FAILED_TO_CONNECT = "Failed to connect to [b]{server_name}[/b]: {error_msg}"
+    BULK_ACTION_FAILED_TEMPLATE = "Bulk action [b]{action_type}[/b] failed for {count} VMs."
+    PREFERENCES_LAUNCH_ERROR = "Error launching preferences: {error}"
+    BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED = "Could not retrieve names for selected VMs."
 
 class DialogMessages:
     """Constants for dialog messages"""
@@ -169,6 +176,12 @@ class QuickMessages:
     FILTER_ALL_VMS = "Filter: All VMs"
     ALL_VMS_UNSELECTED = "All VMs unselected."
     CACHING_VM_STATE = "Caching VM state for: {vms_list}"
+
+
+class WarningMessages:
+    """Constants for warning messages"""
+    COMPACT_VIEW_LOCKED = "Compact view is locked during bulk operations."
+    VMS_PER_PAGE_PERFORMANCE_WARNING = "Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
 
 
 class SuccessMessages:
