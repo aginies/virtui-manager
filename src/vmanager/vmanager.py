@@ -22,6 +22,7 @@ from textual.worker import Worker, WorkerState
 
 from .config import load_config, save_config, get_log_path
 from .constants import (
+        SuccessMessages,
         VmAction, VmStatus, ButtonLabels,
         ErrorMessages, AppInfo, StatusText, ServerPallette, QuickMessages, ProgressMessages,
         )
@@ -446,7 +447,7 @@ class VMManagerTUI(App):
                 self.call_from_thread(self.show_in_progress_message, f"Connecting to [b]{uri}[/b]...")
                 success = self.connect_libvirt(uri)
                 if success:
-                    self.call_from_thread(self.show_success_message, f"Connected to [b]{uri}[/b]")
+                    self.call_from_thread(self.show_success_message, SuccessMessages.CONNECTED_TO_SERVER.format(uri=uri))
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
@@ -512,13 +513,13 @@ class VMManagerTUI(App):
                 self._stats_interval_timer = None
             self._stats_logging_active = False
             setup_cache_monitoring(enable=False)
-            self.show_success_message("Statistics logging and monitoring disabled.")
+            self.show_success_message(SuccessMessages.STATS_LOGGING_DISABLED)
         else:
             setup_cache_monitoring(enable=True)
             self._log_cache_statistics()
             self._stats_interval_timer = self.set_interval(10, self._log_cache_statistics)
             self._stats_logging_active = True
-            self.show_success_message("Statistics logging and monitoring enabled (every 10s).")
+            self.show_success_message(SuccessMessages.STATS_LOGGING_ENABLED)
 
     def _initial_cache_worker(self):
         """Pre-loads VM cache before displaying the UI."""
@@ -934,7 +935,7 @@ class VMManagerTUI(App):
                 self.show_in_progress_message(ProgressMessages.CONFIG_UPDATED_REFRESHING_VM_LIST)
                 self.refresh_vm_list(force=False, optimize_for_current_page=True)
             else:
-                self.show_success_message("Configuration updated.")
+                self.show_success_message(SuccessMessages.CONFIG_UPDATED)
 
     @on(Button.Pressed, "#config_button")
     def on_config_button_pressed(self, event: Button.Pressed) -> None:
@@ -1673,7 +1674,7 @@ class VMManagerTUI(App):
             if selected_uuids:
                 # Add found UUIDs to current selection
                 self.selected_vm_uuids.update(selected_uuids)
-                self.show_success_message(f"Selected {len(selected_uuids)} VMs matching pattern.")
+                self.show_success_message(SuccessMessages.VMS_SELECTED_BY_PATTERN.format(count=len(selected_uuids)))
                 self.refresh_vm_list()
 
         self.push_screen(PatternSelectModal(available_vms, available_servers, selected_servers), handle_result)
