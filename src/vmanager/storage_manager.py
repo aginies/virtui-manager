@@ -16,6 +16,119 @@ from .libvirt_utils import (
         )
 from .vm_queries import get_vm_disks_info
 
+
+def _safe_is_pool_active(pool: libvirt.virStoragePool) -> bool:
+    """
+    Safely check if a storage pool is active without blocking the UI.
+    Returns False if the check fails or times out.
+    """
+    try:
+        return pool.isActive()
+    except libvirt.libvirtError as e:
+        logging.debug(f"Failed to check if pool '{pool.name()}' is active: {e}")
+        return False
+    except Exception as e:
+        logging.debug(f"Unexpected error checking pool '{pool.name()}' status: {e}")
+        return False
+
+
+def _ensure_pool_active(pool: libvirt.virStoragePool) -> bool:
+    """
+    Ensure a storage pool is active. If not active, try to activate it.
+    Returns True if pool is active (or was successfully activated), False otherwise.
+    """
+    if _safe_is_pool_active(pool):
+        return True
+    
+    try:
+        logging.info(f"Pool '{pool.name()}' is not active, attempting to activate...")
+        pool.create(0)
+        return True
+    except libvirt.libvirtError as e:
+        logging.error(f"Failed to activate pool '{pool.name()}': {e}")
+        return False
+    except Exception as e:
+        logging.error(f"Unexpected error activating pool '{pool.name()}': {e}")
+        return False
+
+
+def _safe_get_pool_info(pool: libvirt.virStoragePool) -> tuple:
+    """
+    Safely get pool info without blocking the UI.
+    Returns (capacity, allocation, available) or (0, 0, 0) on failure.
+    """
+    try:
+        info = pool.info()
+        return info[1], info[2], info[3]  # capacity, allocation, available
+    except libvirt.libvirtError as e:
+        logging.debug(f"Failed to get info for pool '{pool.name()}': {e}")
+        return 0, 0, 0
+    except Exception as e:
+        logging.debug(f"Unexpected error getting info for pool '{pool.name()}': {e}")
+        return 0, 0, 0
+
+
+def _safe_get_pool_autostart(pool: libvirt.virStoragePool) -> bool:
+    """
+    Safely get pool autostart setting without blocking the UI.
+    Returns False on failure.
+    """
+    try:
+        return pool.autostart() == 1
+    except libvirt.libvirtError as e:
+        logging.debug(f"Failed to get autostart for pool '{pool.name()}': {e}")
+        return False
+    except Exception as e:
+        logging.debug(f"Unexpected error getting autostart for pool '{pool.name()}': {e}")
+        return False
+
+
+def _safe_refresh_pool(pool: libvirt.virStoragePool) -> bool:
+    """
+    Safely refresh a storage pool without blocking the UI.
+    Returns True on success, False on failure.
+    """
+    try:
+        pool.refresh(0)
+        return True
+    except libvirt.libvirtError as e:
+        logging.debug(f"Failed to refresh pool '{pool.name()}': {e}")
+        return False
+    except Exception as e:
+        logging.debug(f"Unexpected error refreshing pool '{pool.name()}': {e}")
+        return False
+
+
+def _safe_get_volume_info(vol: libvirt.virStorageVol) -> tuple:
+    """
+    Safely get volume info without blocking the UI.
+    Returns (type, capacity, allocation) or (0, 0, 0) on failure.
+    """
+    try:
+        vol_type, capacity, allocation = _safe_get_volume_info(vol)
+        return vol_type, capacity, allocation
+    except libvirt.libvirtError as e:
+        logging.debug(f"Failed to get info for volume '{vol.name()}': {e}")
+        return 0, 0, 0
+    except Exception as e:
+        logging.debug(f"Unexpected error getting info for volume '{vol.name()}': {e}")
+        return 0, 0, 0
+
+
+def _safe_get_volume_path(vol: libvirt.virStorageVol) -> str:
+    """
+    Safely get volume path without blocking the UI.
+    Returns empty string on failure.
+    """
+    try:
+        return vol.path()
+    except libvirt.libvirtError as e:
+        logging.debug(f"Failed to get path for volume '{vol.name()}': {e}")
+        return ""
+    except Exception as e:
+        logging.debug(f"Unexpected error getting path for volume '{vol.name()}': {e}")
+        return ""
+
 @lru_cache(maxsize=16)
 def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     """
@@ -35,15 +148,17 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                 except libvirt.libvirtError:
                     name = "Unknown Pool"
 
-                is_active = pool.isActive()
-                info = pool.info()
+                is_active = _safe_is_pool_active(pool)
+                capacity, allocation, _ = _safe_get_pool_info(pool)
+                autostart = _safe_get_pool_autostart(pool)
+                
                 pools_info.append({
                     'name': name,
                     'pool': pool,
                     'status': 'active' if is_active else 'inactive',
-                    'autostart': pool.autostart() == 1,
-                    'capacity': info[1],
-                    'allocation': info[2],
+                    'autostart': autostart,
+                    'capacity': capacity,
+                    'allocation': allocation,
                 })
             except libvirt.libvirtError as e:
                 # If we fail to get details (e.g. NFS down), still list the pool but as unavailable
@@ -74,7 +189,7 @@ def list_storage_volumes(pool: libvirt.virStoragePool) -> List[Dict[str, Any]]:
     Lists all storage volumes in a given pool.
     """
     volumes_info = []
-    if not pool or not pool.isActive():
+    if not pool or not _safe_is_pool_active(pool):
         return volumes_info
 
     try:
@@ -82,13 +197,13 @@ def list_storage_volumes(pool: libvirt.virStoragePool) -> List[Dict[str, Any]]:
         for name in vol_names:
             try:
                 vol = pool.storageVolLookupByName(name)
-                info = vol.info() # type, capacity, allocation
+                vol_type, capacity, allocation = _safe_get_volume_info(vol)
                 volumes_info.append({
                     'name': name,
                     'volume': vol,
-                    'type': info[0],
-                    'capacity': info[1],
-                    'allocation': info[2],
+                    'type': vol_type,
+                    'capacity': capacity,
+                    'allocation': allocation,
                 })
             except libvirt.libvirtError:
                 continue
@@ -178,8 +293,8 @@ def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_for
     """
     Creates a new storage volume in a pool.
     """
-    if not pool.isActive():
-        msg = f"Pool '{pool.name()}' is not active."
+    if not _ensure_pool_active(pool):
+        msg = f"Pool '{pool.name()}' is not active and could not be activated."
         logging.error(msg)
         raise Exception(msg)
 
@@ -252,8 +367,8 @@ def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format
     """
     Attaches an existing file as a storage volume in a pool.
     """
-    if not pool.isActive():
-        msg = f"Pool '{pool.name()}' is not active."
+    if not _ensure_pool_active(pool):
+        msg = f"Pool '{pool.name()}' is not active and could not be activated."
         logging.error(msg)
         raise Exception(msg)
 
@@ -309,7 +424,7 @@ def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format
 
     try:
         # Refresh the pool to make sure libvirt knows about the file if it was just copied.
-        pool.refresh(0)
+        _safe_refresh_pool(pool)
         vol = pool.storageVolLookupByName(name)
         if vol:
             logging.warning(f"Volume '{name}' already exists in pool '{pool.name()}'. Not creating.")
@@ -320,7 +435,7 @@ def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format
     try:
         pool.createXML(vol_xml, 0)
         # Refresh again after creating the volume from XML
-        pool.refresh(0)
+        _safe_refresh_pool(pool)
     except libvirt.libvirtError as e:
         # If creation fails, attempt to clean up the copied file
         if pool_type == 'dir' and 'dest_path' in locals() and os.path.exists(dest_path):
@@ -336,8 +451,8 @@ def create_overlay_volume(pool: libvirt.virStoragePool, name: str, backing_vol_p
     Creates a qcow2 overlay volume backed by another volume (backing file).
     The new volume will record changes, while the backing file remains untouched.
     """
-    if not pool.isActive():
-        msg = f"Pool '{pool.name()}' is not active."
+    if not _ensure_pool_active(pool):
+        msg = f"Pool '{pool.name()}' is not active and could not be activated."
         logging.error(msg)
         raise Exception(msg)
 
@@ -347,7 +462,7 @@ def create_overlay_volume(pool: libvirt.virStoragePool, name: str, backing_vol_p
     if not backing_vol:
         raise Exception(f"Could not find backing volume for path '{backing_vol_path}' to determine capacity.")
 
-    capacity = backing_vol.info()[1]
+    _, capacity, _ = _safe_get_volume_info(backing_vol)
 
     vol_xml = f"""
     <volume>
@@ -418,7 +533,7 @@ def find_vms_using_volume(conn: libvirt.virConnect, vol_path: str, vol_name: str
                         try:
                             p = conn.storagePoolLookupByName(pool_name)
                             v = p.storageVolLookupByName(volume_name_from_xml)
-                            if v.path() == vol_path:
+                            if _safe_get_volume_path(v) == vol_path:
                                 vms_using_volume.append(domain)
                                 break  # Found it, move to the next domain
                         except libvirt.libvirtError:
@@ -486,11 +601,11 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     source_vol = source_pool.storageVolLookupByName(volume_name)
 
     # Check for available space before starting the move
-    source_info = source_vol.info()
-    source_capacity = source_info[1]  # in bytes
+    _, source_capacity, _ = _safe_get_volume_info(source_vol)  # in bytes
 
     # Check if the volume is in use by any running VMs before starting the move
-    vms_using_volume = find_vms_using_volume(conn, source_vol.path(), source_vol.name())
+    source_path = _safe_get_volume_path(source_vol)
+    vms_using_volume = find_vms_using_volume(conn, source_path, source_vol.name())
     running_vms = [vm.name() for vm in vms_using_volume if vm.state()[0] == libvirt.VIR_DOMAIN_RUNNING]
 
     if running_vms:
@@ -501,8 +616,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
     if vms_using_volume:
         log_and_callback(f"Volume is used by offline VM(s):\n{[vm.name() for vm in vms_using_volume]}.\nTheir configuration will be updated after the move.\nWait Until the process is finished (can take a lot of time).")
 
-    source_info = source_vol.info()
-    source_capacity = source_info[1]
+    _, source_capacity, _ = _safe_get_volume_info(source_vol)
     source_format = "qcow2"  # Default
     try:
         source_format = ET.fromstring(source_vol.XMLDesc(0)).findtext("target/format[@type]", "qcow2")
@@ -626,11 +740,11 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
 
         # Refresh destination pool to make the new volume visible
         log_and_callback(f"Refreshing destination pool '{dest_pool.name()}'...")
-        dest_pool.refresh(0)
+        _safe_refresh_pool(dest_pool)
 
         # Update any VM configurations that use this volume
-        old_path = source_vol.path()
-        new_path = new_vol.path()
+        old_path = _safe_get_volume_path(source_vol)
+        new_path = _safe_get_volume_path(new_vol)
         old_pool_name = source_pool.name()
         new_pool_name = dest_pool.name()
 
@@ -673,7 +787,7 @@ def move_volume(conn: libvirt.virConnect, source_pool_name: str, dest_pool_name:
 
         # Refresh source pool to remove the old volume from listings
         log_and_callback(f"Refreshing source pool '{source_pool.name()}'...")
-        source_pool.refresh(0)
+        _safe_refresh_pool(source_pool)
         log_and_callback("\nMove Finished, you can close this window")
 
     except Exception as e:
@@ -708,8 +822,12 @@ def delete_storage_pool(pool: libvirt.virStoragePool):
     """
     try:
         # If pool is active, destroy it first (make it inactive)
-        if pool.isActive():
-            pool.destroy()
+        if _safe_is_pool_active(pool):
+            try:
+                pool.destroy()
+            except libvirt.libvirtError as e:
+                logging.warning(f"Failed to destroy active pool '{pool.name()}': {e}")
+                # Continue with undefine even if destroy fails
         # Undefine the pool (delete it)
         pool.undefine()
     except libvirt.libvirtError as e:
@@ -729,7 +847,7 @@ def get_all_storage_volumes(conn: libvirt.virConnect) -> List[libvirt.virStorage
     pools_info = list_storage_pools(conn)
     for pool_info in pools_info:
         pool = pool_info['pool']
-        if pool.isActive():
+        if _safe_is_pool_active(pool):
             try:
                 all_volumes.extend(pool.listAllVolumes())
             except libvirt.libvirtError:
@@ -749,7 +867,7 @@ def list_unused_volumes(conn: libvirt.virConnect, pool_name: str = None) -> List
     if pool_name:
         try:
             pool = conn.storagePoolLookupByName(pool_name)
-            if not pool.isActive():
+            if not _safe_is_pool_active(pool):
                 return []
             all_volumes = pool.listAllVolumes()
         except libvirt.libvirtError:
@@ -795,7 +913,8 @@ def list_unused_volumes(conn: libvirt.virConnect, pool_name: str = None) -> List
 
     unused_volumes = []
     for vol in all_volumes:
-        if vol.path() not in used_disk_paths:
+        vol_path = _safe_get_volume_path(vol)
+        if vol_path and vol_path not in used_disk_paths:
             unused_volumes.append(vol)
 
     return unused_volumes
@@ -916,8 +1035,7 @@ def copy_volume_across_hosts(source_conn: libvirt.virConnect, dest_conn: libvirt
         log_and_callback(f"[red]ERROR:[/ ] Could not find source/destination resources: {e}")
         raise
 
-    source_info = source_vol.info()
-    source_capacity = source_info[1]
+    _, source_capacity, _ = _safe_get_volume_info(source_vol)
     source_format = "qcow2"
     try:
         source_format = ET.fromstring(source_vol.XMLDesc(0)).findtext("target/format[@type]", "qcow2")
@@ -1093,13 +1211,13 @@ def copy_volume_across_hosts(source_conn: libvirt.virConnect, dest_conn: libvirt
             if upload_error: raise upload_error
 
         log_and_callback("Transfer complete.")
-        dest_pool.refresh(0)
+        _safe_refresh_pool(dest_pool)
 
         return {
-            "old_disk_path": source_vol.path(),
+            "old_disk_path": _safe_get_volume_path(source_vol),
             "new_pool_name": dest_pool.name(),
             "new_volume_name": dest_vol.name(),
-            "new_disk_path": dest_vol.path(),
+            "new_disk_path": _safe_get_volume_path(dest_vol),
         }
 
     except Exception as e:
