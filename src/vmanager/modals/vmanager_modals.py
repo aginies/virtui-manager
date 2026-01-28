@@ -8,7 +8,7 @@ from textual.widgets import (
         Button, Input, Label,
         RadioButton, RadioSet, Checkbox
         )
-from ..constants import VmStatus, ErrorMessages, SuccessMessages
+from ..constants import VmStatus, ErrorMessages, SuccessMessages, ButtonLabels
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 
@@ -62,8 +62,8 @@ class FilterModal(BaseModal[None]):
                 yield grid
 
             with Horizontal():
-                yield Button("Apply", id="apply-btn", variant="success")
-                yield Button("Cancel", id="cancel-btn")
+                yield Button(ButtonLabels.APPLY, id="apply-btn", variant="success")
+                yield Button(ButtonLabels.CANCEL, id="cancel-btn")
 
     def _get_selected_servers(self) -> list[str]:
         selected = []
@@ -134,8 +134,8 @@ class CreateVMModal(BaseModal[dict | None]):
             yield Input(placeholder="Disk Image Path (e.g., /var/lib/libvirt/images/myvm.qcow2)", id="vm-disk-input", value="/var/lib/libvirt/images/new_vm.qcow2")
             # For simplicity, we won't add network details yet.
             with Horizontal():
-                yield Button("Create", variant="primary", id="create-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CREATE, variant="primary", id="create-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create-btn":
