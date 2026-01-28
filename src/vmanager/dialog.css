@@ -599,7 +599,7 @@ CapabilitiesTreeModal > #capabilities-dialog {
 }
 
 CapabilitiesTreeModal #xml-tree {
-  height: 1fr;
+  height: 80%;
   border: round $primary;
   margin-bottom: 1;
 }
