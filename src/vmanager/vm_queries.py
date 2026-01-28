@@ -13,6 +13,7 @@ from .libvirt_utils import (
         _get_disabled_disks_elem,
         get_overlay_backing_path,
         _get_backing_chain_elem,
+        get_host_domain_capabilities,
         )
 #from utils import log_function_call
 
@@ -644,7 +645,9 @@ def get_supported_machine_types(conn, domain):
         arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64' # default
 
         # Get capabilities
-        caps_xml = conn.getCapabilities()
+        caps_xml = get_host_domain_capabilities(conn)
+        if not caps_xml:
+            return []
         caps_root = ET.fromstring(caps_xml)
 
         # Find machines for that arch

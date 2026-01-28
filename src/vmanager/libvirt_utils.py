@@ -136,7 +136,9 @@ def get_host_architecture(conn: libvirt.virConnect) -> str:
     """
     try:
         # getCapabilities returns an XML string describing the host capabilities
-        caps_xml = conn.getCapabilities()
+        caps_xml = get_host_domain_capabilities(conn)
+        if not caps_xml:
+            return 'x86_64'
         root = ET.fromstring(caps_xml)
 
         arch = root.findtext('host/cpu/arch')
@@ -332,12 +334,14 @@ def get_host_numa_nodes(conn: libvirt.virConnect) -> int:
     """
     Returns the number of NUMA nodes on the host.
     """
+    caps_xml = get_host_domain_capabilities(conn)
+    if not caps_xml:
+        return 1
     try:
-        caps_xml = conn.getCapabilities()
         root = ET.fromstring(caps_xml)
         cells = root.findall(".//host/topology/cells/cell")
         return len(cells) if cells else 1
-    except (libvirt.libvirtError, ET.ParseError) as e:
+    except ET.ParseError as e:
         logging.error(f"Error getting host NUMA topology: {e}")
     return 1
 
@@ -439,3 +443,17 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> list[dict]:
     except (libvirt.libvirtError, AttributeError) as e:
         logging.error(f"Error getting host PCI devices: {e}")
     return pci_devices
+
+@lru_cache(maxsize=8)
+def get_host_domain_capabilities(conn: libvirt.virConnect) -> str | None:
+    """
+    Get the host capabilities XML (which describes host and guest capabilities).
+    The result is cached per connection.
+    """
+    if not conn:
+        return None
+    try:
+        return conn.getCapabilities()
+    except libvirt.libvirtError as e:
+        logging.error(f"Error getting host capabilities: {e}")
+        return None

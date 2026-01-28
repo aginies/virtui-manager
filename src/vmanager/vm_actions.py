@@ -13,7 +13,8 @@ from .libvirt_utils import (
         _get_disabled_disks_elem,
         _get_backing_chain_elem,
         get_overlay_backing_path,
-        get_internal_id
+        get_internal_id,
+        get_host_domain_capabilities
         )
 from .utils import log_function_call
 from .vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root, get_vm_snapshots
@@ -2186,30 +2187,33 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
         source_tpm_info = get_vm_tpm_info(source_root)
         if source_tpm_info:
             try:
-                dest_caps_xml = dest_conn.getCapabilities()
-                dest_caps_root = ET.fromstring(dest_caps_xml)
+                dest_caps_xml = get_host_domain_capabilities(dest_conn)
+                if dest_caps_xml:
+                    dest_caps_root = ET.fromstring(dest_caps_xml)
 
-                # Check if destination host supports TPM devices at all
-                if not dest_caps_root.find(".//devices/tpm"):
-                    issues.append({
-                        'severity': 'ERROR',
-                        'message': f"Source VM '{domain_name}' uses TPM, but destination host '{dest_conn.getURI()}' does not appear to support TPM devices."
-                    })
+                    # Check if destination host supports TPM devices at all
+                    if not dest_caps_root.find(".//devices/tpm"):
+                        issues.append({
+                            'severity': 'ERROR',
+                            'message': f"Source VM '{domain_name}' uses TPM, but destination host '{dest_conn.getURI()}' does not appear to support TPM devices."
+                        })
+                    else:
+                        for tpm_dev in source_tpm_info:
+                            if tpm_dev['type'] == 'passthrough':
+                                # More specific check for passthrough TPM
+                                issues.append({
+                                    'severity': 'WARNING',
+                                    'message': f"Source VM '{domain_name}' uses passthrough TPM ({tpm_dev['model']}). Passthrough TPM migration is often problematic due to hardware dependencies. Manual verification on destination host '{dest_conn.getURI()}' recommended."
+                                })
+                            elif tpm_dev['type'] == 'emulated' and is_live:
+                                # Emulated TPM should generally be fine for cold migration.
+                                # Live migration of emulated TPM might be tricky.
+                                issues.append({
+                                    'severity': 'WARNING',
+                                    'message': f"Source VM '{domain_name}' uses emulated TPM. Live migration with TPM can sometimes have issues; cold migration is safer."
+                                })
                 else:
-                    for tpm_dev in source_tpm_info:
-                        if tpm_dev['type'] == 'passthrough':
-                            # More specific check for passthrough TPM
-                            issues.append({
-                                'severity': 'WARNING',
-                                'message': f"Source VM '{domain_name}' uses passthrough TPM ({tpm_dev['model']}). Passthrough TPM migration is often problematic due to hardware dependencies. Manual verification on destination host '{dest_conn.getURI()}' recommended."
-                            })
-                        elif tpm_dev['type'] == 'emulated' and is_live:
-                            # Emulated TPM should generally be fine for cold migration.
-                            # Live migration of emulated TPM might be tricky.
-                            issues.append({
-                                'severity': 'WARNING',
-                                'message': f"Source VM '{domain_name}' uses emulated TPM. Live migration with TPM can sometimes have issues; cold migration is safer."
-                            })
+                    issues.append({'severity': 'WARNING', 'message': f"Could not retrieve destination host capabilities for TPM check."})
 
             except libvirt.libvirtError as e:
                 issues.append({'severity': 'WARNING', 'message': f"Could not retrieve destination host capabilities for TPM check: {e}"})
