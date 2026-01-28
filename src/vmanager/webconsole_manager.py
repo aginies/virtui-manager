@@ -569,7 +569,7 @@ wp.websockify_init()
 
         tunnel_port = self._get_next_available_port(None)
         if not tunnel_port:
-            self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the SSH tunnel.")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.NO_FREE_LOCAL_PORT_FOR_SSH_TUNNEL)
             return None, None, {}
 
 
