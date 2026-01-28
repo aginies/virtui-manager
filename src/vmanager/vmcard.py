@@ -1811,8 +1811,8 @@ class VMCard(Static):
                             existing_vm_names.add(name)
 
                     except libvirt.libvirtError as e:
-                        log_callback(f"ERROR: Error getting existing VM names: {e}")
-                        app.call_from_thread(app.show_error_message, f"Error getting existing VM names: {e}")
+                        log_callback(f"ERROR: {ErrorMessages.ERROR_GETTING_EXISTING_VM_NAMES_TEMPLATE.format(error=e)}")
+                        app.call_from_thread(app.show_error_message, ErrorMessages.ERROR_GETTING_EXISTING_VM_NAMES_TEMPLATE.format(error=e))
                         app.call_from_thread(progress_modal.dismiss)
                         return
 
@@ -2033,7 +2033,7 @@ class VMCard(Static):
             source_conns.add(uri)
 
         if len(source_conns) > 1:
-            self.app.show_error_message("Cannot migrate VMs from different source hosts at the same time.")
+            self.app.show_error_message(ErrorMessages.DIFFERENT_SOURCE_HOSTS)
             return
 
         #active_vms = [vm for vm in selected_vms if vm.isActive()]
@@ -2054,7 +2054,7 @@ class VMCard(Static):
 
         is_live = len(active_vms) > 0
         if is_live and len(active_vms) < len(selected_vms):
-            self.app.show_error_message("Cannot migrate running/paused and stopped VMs at the same time.")
+            self.app.show_error_message(ErrorMessages.MIXED_VM_STATES)
             return
 
         active_uris = self.app.vm_service.get_all_uris()

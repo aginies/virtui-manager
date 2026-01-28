@@ -189,6 +189,18 @@ class ErrorMessages:
     ERROR_GETTING_ID_TEMPLATE = "Error getting ID for [b]{vm_name}[/b]: {error}"
     SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION = "Please select at least two servers in 'Select Servers' to enable migration."
     SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = "Selected VM with ID [b]{uuid}[/b] not found on any active server."
+    ERROR_GETTING_EXISTING_VM_NAMES_TEMPLATE = "Error getting existing VM names: {error}"
+    WEBCONSOLE_VNC_ONLY = "Web console only supports VNC graphics."
+    COULD_NOT_DETERMINE_VNC_PORT = "Could not determine VNC port for the VM."
+    FAILED_TO_START_WEBCONSOLE_TEMPLATE = "Failed to start web console: {error}"
+    NO_FREE_WEBCONSOLE_PORT = "Could not find a free port for the web console (all ports in range used by other sessions)."
+    REMOTE_KEY_GENERATION_FAILED = "Remote key generation failed. Falling back to insecure ws connection."
+    FAILED_TO_START_REMOTE_WEBSOCKIFY_TEMPLATE = "Failed to start remote websockify for [b]{vm_name}[/b]. Check logs."
+    REMOTE_WEBCONSOLE_CRASHED_TEMPLATE = "Remote web console process for [b]{vm_name}[/b] failed to start or crashed. Check remote logs."
+    NO_FREE_LOCAL_PORT_FOR_SSH_TUNNEL = "Could not find a free local port for SSH tunnel."
+    FAILED_TO_CREATE_SSH_TUNNEL_TEMPLATE = "Failed to create SSH tunnel: {error}"
+    SSH_COMMAND_NOT_FOUND = "SSH command not found. Cannot create tunnel."
+    FAILED_TO_CREATE_SSH_TUNNEL_GENERIC = "Failed to create SSH tunnel..."
 
 
 class DialogMessages:
@@ -244,6 +256,13 @@ class SuccessMessages:
     VM_RENAME_CANCELLED = "VM rename cancelled."
     VM_RENAME_NO_CHANGE = "New VM name is the same as the old name. No rename performed."
     VM_CLONED = "Successfully cloned to: {vm_names}"
+    WEBCONSOLE_STOPPED = "Web console stopped."
+    REMOTE_USER_CERT_FOUND = "Remote user cert/key found, using secure wss connection."
+    REMOTE_SYSTEM_CERT_FOUND = "Remote system cert/key found, using secure wss connection."
+    NO_REMOTE_CERT_FOUND_GENERATING = "No remote cert/key found. Attempting to generate in system directory..."
+    NO_REMOTE_CERT_CHECK_INSECURE = "Could not check for remote cert/key, using insecure ws connection."
+    REMOTE_CONNECTION_SSH_TUNNEL_SETUP = "Remote connection detected. Setting up SSH tunnel..."
+    LOCAL_CERT_FOUND = "Found cert/key, using secure wss connection."
 
 
 

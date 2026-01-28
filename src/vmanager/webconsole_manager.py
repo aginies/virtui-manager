@@ -153,12 +153,12 @@ wp.websockify_init()
             graphics_info = get_vm_graphics_info(root)
 
             if graphics_info.get('type') != 'vnc':
-                self.app.call_from_thread(self.app.show_error_message, "Web console only supports VNC graphics.")
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.WEBCONSOLE_VNC_ONLY)
                 return
 
             vnc_port = graphics_info.get('port')
             if not vnc_port or vnc_port == '-1':
-                self.app.call_from_thread(self.app.show_error_message, "Could not determine VNC port for the VM.")
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.COULD_NOT_DETERMINE_VNC_PORT)
                 return
 
             is_remote_ssh = WebConsoleManager.is_remote_connection(conn.getURI())
@@ -173,7 +173,7 @@ wp.websockify_init()
                     self._launch_websockify(uuid, vm_name, vnc_target_host, vnc_target_port, ssh_info)
 
         except (libvirt.libvirtError, FileNotFoundError, Exception) as e:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to start web console: {e}")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_START_WEBCONSOLE_TEMPLATE.format(error=e))
             logging.error(f"Error during web console startup for VM {vm_name}: {e}", exc_info=True)
 
     def stop_console(self, uuid: str, vm_name: str):
@@ -217,7 +217,7 @@ wp.websockify_init()
 
         self.remove_session(uuid)
         self.app.post_message(VmCardUpdateRequest(uuid))
-        self.app.call_from_thread(self.app.show_success_message, "Web console stopped.")
+        self.app.call_from_thread(self.app.show_success_message, SuccessMessages.WEBCONSOLE_STOPPED)
 
     def _get_next_available_port(self, remote_host: str | None = None) -> int | None:
         """
@@ -296,7 +296,7 @@ wp.websockify_init()
         # Find a free port for websockify on the remote server.
         web_port = self._get_next_available_port(remote_user_host)
         if not web_port:
-            self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the web console (all ports in range used by other sessions).")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.NO_FREE_WEBCONSOLE_PORT)
             return
 
         remote_websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
@@ -342,15 +342,15 @@ wp.websockify_init()
                 cert_status = stdout_lines[0]
                 if "user_cert" in cert_status:
                     url_scheme = "https"
-                    self.app.call_from_thread(self.app.show_success_message, "Remote user cert/key found, using secure wss connection.")
+                    self.app.call_from_thread(self.app.show_success_message, SuccessMessages.REMOTE_USER_CERT_FOUND)
                     remote_websockify_cmd_list.extend(["--cert", remote_cert_file, "--key", remote_key_file])
                 elif "system_cert" in cert_status:
                     url_scheme = "https"
-                    self.app.call_from_thread(self.app.show_success_message, "Remote system cert/key found, using secure wss connection.")
+                    self.app.call_from_thread(self.app.show_success_message, SuccessMessages.REMOTE_SYSTEM_CERT_FOUND)
                     remote_websockify_cmd_list.extend(["--cert", system_cert_file, "--key", system_key_file])
                 else:
                     # Attempt to generate keys remotely
-                    self.app.call_from_thread(self.app.show_success_message, "No remote cert/key found. Attempting to generate in system directory...")
+                    self.app.call_from_thread(self.app.show_success_message, SuccessMessages.NO_REMOTE_CERT_FOUND_GENERATING)
                     gen_msgs = generate_webconsole_keys_if_needed(config_dir="/etc/" + AppInfo.name + "/keys", remote_host=remote_user_host)
 
                     failed_gen = False
@@ -366,7 +366,7 @@ wp.websockify_init()
                         url_scheme = "https"
                         remote_websockify_cmd_list.extend(["--cert", system_cert_file, "--key", system_key_file])
                     else:
-                        self.app.call_from_thread(self.app.show_error_message, f"Remote key generation failed. Falling back to insecure ws connection.")
+                        self.app.call_from_thread(self.app.show_error_message, ErrorMessages.REMOTE_KEY_GENERATION_FAILED)
 
                 if len(stdout_lines) > 1:
                     remote_novnc_path = stdout_lines[1]
@@ -381,7 +381,7 @@ wp.websockify_init()
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
             logging.warning(f"Could not check for remote certs/novnc: {e}. Proceeding without SSL options and default novnc path.")
-            self.app.call_from_thread(self.app.show_success_message, "Could not check for remote cert/key, using insecure ws connection.")
+            self.app.call_from_thread(self.app.show_success_message, SuccessMessages.NO_REMOTE_CERT_CHECK_INSECURE)
 
         # Build SSH command with custom port if needed
         ssh_base_args = ["ssh"]
@@ -433,7 +433,7 @@ wp.websockify_init()
             proc.stdout.close()
 
         if remote_pid is None:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to start remote websockify for [b]{vm_name}[/b]. Check logs.")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_START_REMOTE_WEBSOCKIFY_TEMPLATE.format(vm_name=vm_name))
             try:
                 proc.terminate()
             except:
@@ -448,7 +448,7 @@ wp.websockify_init()
             if result.returncode != 0:
                 # Process is not alive
                 logging.error(f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch.")
-                self.app.call_from_thread(self.app.show_error_message, f"Remote web console process for [b]{vm_name}[/b] failed to start or crashed. Check remote logs.")
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.REMOTE_WEBCONSOLE_CRASHED_TEMPLATE.format(vm_name=vm_name))
                 # Clean up the local ssh process
                 try:
                     proc.terminate()
@@ -472,7 +472,7 @@ wp.websockify_init()
                 )
             except:
                 pass
-            self.app.call_from_thread(self.app.show_error_message, "Could not find a free local port for SSH tunnel.")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.NO_FREE_LOCAL_PORT_FOR_SSH_TUNNEL)
             return
 
         # Create control socket for the tunnel
@@ -510,7 +510,7 @@ wp.websockify_init()
                 )
             except:
                 pass
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to create SSH tunnel: {e}")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_CREATE_SSH_TUNNEL_TEMPLATE.format(error=e))
             return
 
 
@@ -557,7 +557,7 @@ wp.websockify_init()
         if not is_remote_ssh:
             return vnc_target_host, vnc_port, {}
 
-        self.app.call_from_thread(self.app.show_success_message, "Remote connection detected. Setting up SSH tunnel...")
+        self.app.call_from_thread(self.app.show_success_message, SuccessMessages.REMOTE_CONNECTION_SSH_TUNNEL_SETUP)
         parsed_uri = urlparse(conn.getURI())
         user = parsed_uri.username
         host = parsed_uri.hostname
@@ -591,9 +591,9 @@ wp.websockify_init()
             logging.info(f"SSH tunnel created for VM {vm_name} via {control_socket}")
             return '127.0.0.1', tunnel_port, {"control_socket": control_socket}
         except FileNotFoundError:
-            self.app.call_from_thread(self.app.show_error_message, "SSH command not found. Cannot create tunnel.")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.SSH_COMMAND_NOT_FOUND)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to create SSH tunnel...")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_CREATE_SSH_TUNNEL_GENERIC)
             logging.error(f"SSH tunnel command failed: {' '.join(ssh_cmd)}")
 
         return None, None, {}
@@ -614,7 +614,7 @@ wp.websockify_init()
         """Launches the websockify process and shows the console dialog."""
         web_port = self._get_next_available_port(None)
         if not web_port:
-            self.app.call_from_thread(self.app.show_error_message, "Could not find a free port for the web console.")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.NO_FREE_WEBCONSOLE_PORT)
             return
 
         websockify_path = self.config.get('websockify_path', '/usr/bin/websockify')
@@ -638,7 +638,7 @@ wp.websockify_init()
             if cert_file.exists() and key_file.exists():
                 websockify_cmd.extend(["--cert", str(cert_file), "--key", str(key_file)])
                 url_scheme = "https"
-                self.app.call_from_thread(self.app.show_success_message, "Found cert/key, using secure wss connection.")
+                self.app.call_from_thread(self.app.show_success_message, SuccessMessages.LOCAL_CERT_FOUND)
 
             # Detach local process
             proc = subprocess.Popen(
@@ -686,7 +686,7 @@ wp.websockify_init()
             subprocess.run(stop_cmd, check=True, timeout=5, capture_output=True)
             logging.info(f"SSH tunnel stopped for VM {vm_name} using socket {control_socket}")
         except FileNotFoundError:
-            self.app.call_from_thread(self.app.show_error_message, "[b]ssh[/b] command not found.")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.SSH_COMMAND_NOT_FOUND)
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
             logging.warning(f"Could not stop SSH tunnel cleanly for VM {vm_name}: {e.stderr.decode() if e.stderr else e}")
         finally:
