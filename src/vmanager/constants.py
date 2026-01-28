@@ -256,6 +256,10 @@ class ErrorMessages:
     FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE = "Failed to fetch ISO volumes from {pool_name}: {error}"
     FAILED_TO_FETCH_ISOS_TEMPLATE = "Failed to fetch ISOs: {error}"
     VM_NAME_CANNOT_BE_EMPTY = "VM name cannot be empty."
+    CONNECTING_TO_SERVER_TEMPLATE = "Connecting to {uri}..."
+    FAILED_TO_CONNECT_TO_SERVER_TEMPLATE = "Failed to connect to {uri}"
+    ERROR_DELETING_SERVER_TEMPLATE = "Error deleting server '{server_name}': {error}"
+    DELETE_SERVER_CONFIRMATION_TEMPLATE = "Are you sure you want to delete Server;\n'{server_name}'\nfrom list?"
 
 
 class DialogMessages:
@@ -329,6 +333,7 @@ class SuccessMessages:
     REMOTE_VIEWER_STARTED_TEMPLATE = "Remote viewer {viewer} started for {vm_name}"
     VM_DEFINED_CONFIGURE_TEMPLATE = "VM '{vm_name}' defined. Please configure and start it."
     VM_CREATED_SUCCESSFULLY_TEMPLATE = "VM '{vm_name}' created successfully!"
+    SERVER_DELETED_TEMPLATE = "Server '{server_name}' deleted successfully."
 
 
 class ProgressMessages:

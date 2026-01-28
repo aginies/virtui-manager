@@ -11,6 +11,7 @@ from .howto_ssh_modal import HowToSSHModal
 from .base_modals import BaseModal
 
 from ..config import save_config
+from ..constants import ErrorMessages, SuccessMessages
 
 class ConnectionModal(BaseModal[str | None]):
 
@@ -193,13 +194,13 @@ class ServerManagementModal(BaseModal [str | None]):
                         self.query_one("#edit-server-btn").disabled = True
                         self.query_one("#delete-server-btn").disabled = True
                         self.query_one("#select-btn").disabled = True
-                        self.app.show_success_message(f"Server '{server_name_to_delete}' deleted successfully.")
+                        self.app.show_success_message(SuccessMessages.SERVER_DELETED_TEMPLATE.format(server_name=server_name_to_delete))
                         logging.info(f"Successfully deleted Server '{server_name_to_delete}'")
                     except Exception as e:
-                        self.app.show_error_message(f"Error deleting server '{server_name_to_delete}': {e}")
+                        self.app.show_error_message(ErrorMessages.ERROR_DELETING_SERVER_TEMPLATE.format(server_name=server_name_to_delete, error=e))
 
             self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to delete Server;\n'{server_name_to_delete}'\nfrom list?"), on_confirm)
+                ConfirmationDialog(ErrorMessages.DELETE_SERVER_CONFIRMATION_TEMPLATE.format(server_name=server_name_to_delete)), on_confirm)
 
         elif event.button.id == "custom-conn-btn":
             def connection_callback(uri: str | None):

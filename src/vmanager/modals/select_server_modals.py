@@ -12,6 +12,7 @@ from textual.screen import ModalScreen
 from .base_modals import BaseModal
 from .utils_modals import LoadingModal
 from ..connection_manager import ConnectionManager
+from ..constants import ErrorMessages
 
 
 class SelectServerModal(BaseModal[None]):
@@ -57,7 +58,7 @@ class SelectServerModal(BaseModal[None]):
             return
 
         if event.value:  # If checkbox is checked
-            loading_modal = LoadingModal(f"Connecting to {uri}...")
+            loading_modal = LoadingModal(ErrorMessages.CONNECTING_TO_SERVER_TEMPLATE.format(uri=uri))
             self.app.push_screen(loading_modal)
 
             def connect_and_update():
@@ -66,7 +67,7 @@ class SelectServerModal(BaseModal[None]):
                 if conn is None:
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"Failed to connect to {uri}"
+                        ErrorMessages.FAILED_TO_CONNECT_TO_SERVER_TEMPLATE.format(uri=uri)
                     )
                     # Revert checkbox state on failure
                     checkbox = self.query(f"#{checkbox_id}").first()
