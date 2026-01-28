@@ -8,7 +8,7 @@ from textual.widgets import (
         Button, Input, Label,
         RadioButton, RadioSet, Checkbox
         )
-from ..constants import VmStatus
+from ..constants import VmStatus, ErrorMessages, SuccessMessages
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 
@@ -81,11 +81,11 @@ class FilterModal(BaseModal[None]):
             try:
                 search_text, was_modified = _sanitize_input(search_text_raw)
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if was_modified and search_text_raw != search_text: # Only show if actual chars were removed, not just empty
-                self.app.show_success_message(f"Input sanitized: '{search_text_raw}' changed to '{search_text}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=search_text_raw, sanitized_input=search_text))
 
             radioset = self.query_one(RadioSet)
             status_button = radioset.pressed_button
@@ -105,11 +105,11 @@ class FilterModal(BaseModal[None]):
         try:
             search_text, was_modified = _sanitize_input(search_text_raw)
         except ValueError as e:
-            self.app.show_error_message(str(e))
+            self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
             return
 
         if was_modified and search_text_raw != search_text: # Only show if actual chars were removed, not just empty
-            self.app.show_success_message(f"Input sanitized: '{search_text_raw}' changed to '{search_text}'")
+            self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=search_text_raw, sanitized_input=search_text))
 
         radioset = self.query_one(RadioSet)
         status_button = radioset.pressed_button

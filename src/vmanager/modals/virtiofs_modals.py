@@ -6,6 +6,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import (
         Button, Input, Label, Checkbox,
         )
+from ..constants import ErrorMessages
 from .base_modals import BaseModal
 
 class AddEditVirtIOFSModal(BaseModal[dict | None]):
@@ -35,7 +36,7 @@ class AddEditVirtIOFSModal(BaseModal[dict | None]):
             readonly = self.query_one("#virtiofs-readonly-checkbox", Checkbox).value
 
             if not source_path or not target_path:
-                self.app.show_error_message("Source Path and Target Path cannot be empty.")
+                self.app.show_error_message(ErrorMessages.VIRTIOFS_PATH_EMPTY)
                 return
 
             self.dismiss({'source_path': source_path, 'target_path': target_path, 'readonly': readonly})

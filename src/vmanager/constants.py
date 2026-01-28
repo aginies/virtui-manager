@@ -302,6 +302,16 @@ class ErrorMessages:
     DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE = "Are you sure you want to delete storage pool:\n' {pool_name}'\nThis will delete the pool definition but not the data on it."
     VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = "Volume '{volume_name}' deleted successfully."
     DELETE_VOLUME_CONFIRMATION_TEMPLATE = "Are you sure you want to delete volume:\n'{vol_name}'"
+    VIRTIOFS_PATH_EMPTY = "Source Path and Target Path cannot be empty."
+    SANITIZATION_ERROR_TEMPLATE = "{error}"
+    PLEASE_SELECT_INTERFACE_AND_NETWORK = "Please select an interface and a network."
+    BASE_NAME_EMPTY = "Base name cannot be empty."
+    INVALID_CHARS_IN_SUFFIX = "Invalid characters in suffix: {error}"
+    CLONE_COUNT_POSITIVE_INTEGER = "Number of clones must be a positive integer."
+    SUFFIX_MANDATORY_FOR_MULTIPLE_CLONES = "Suffix is mandatory when creating multiple clones."
+    VM_NAME_CANNOT_BE_EMPTY_RENAME = "VM name cannot be empty."
+    SNAPSHOT_NAME_CANNOT_BE_EMPTY = "Snapshot name cannot be empty."
+    QEMU_GUEST_AGENT_RECOMMENDATION = "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot."
 
 
 class DialogMessages:
@@ -381,6 +391,9 @@ class SuccessMessages:
     POOL_MANAGED_BY_EXISTING_POOL_TEMPLATE = "A pool named '{pool_name}' already manages this directory.\nRefreshed pool to include the new volume."
     NETWORK_ACTIVATION_CHANGE_TEMPLATE = "Network '{net_name}' is now {'inactive' if is_active else 'active'}."
     NETWORK_AUTOSTART_CHANGE_TEMPLATE = "Autostart for network '{net_name}' is now {'off' if autostart else 'on'}."
+    BASE_NAME_SANITIZED_TEMPLATE = "Base name sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
+    SUFFIX_SANITIZED_TEMPLATE = "Suffix sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
+    INPUT_SANITIZED_TEMPLATE = "Input sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
 
 
 class ProgressMessages:

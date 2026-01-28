@@ -11,10 +11,10 @@ from textual.widgets import (
         )
 from .input_modals import _sanitize_input
 from .utils_modals import (
-    BaseDialog, show_warning_message
+    BaseDialog
 )
 from ..config import load_config, save_config
-from ..constants import ButtonLabels
+from ..constants import ButtonLabels, ErrorMessages, SuccessMessages, WarningMessages
 from ..vm_queries import is_qemu_agent_running
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
@@ -77,7 +77,7 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
             new_network = network_select.value
 
             if mac_address is Select.BLANK or new_network is Select.BLANK:
-                self.app.show_error_message("Please select an interface and a network.")
+                self.app.show_error_message(ErrorMessages.PLEASE_SELECT_INTERFACE_AND_NETWORK)
                 return
 
             self.dismiss({"mac_address": mac_address, "new_network": new_network})
@@ -116,13 +116,13 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             try:
                 base_name, base_name_modified = _sanitize_input(base_name_raw)
                 if base_name_modified:
-                    self.app.show_success_message(f"Base name sanitized: [b]{base_name_raw}[/b] changed to [b]{base_name}[/b]")
+                    self.app.show_success_message(SuccessMessages.BASE_NAME_SANITIZED_TEMPLATE.format(original=base_name_raw, sanitized=base_name))
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if not base_name:
-                self.app.show_error_message("Base name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.BASE_NAME_EMPTY)
                 return
             
             # Sanitize suffix only if it's provided, otherwise keep it empty string
@@ -131,9 +131,9 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
                 try:
                     clone_suffix, suffix_modified = _sanitize_input(clone_suffix_raw)
                     if suffix_modified:
-                        self.app.show_success_message(f"Suffix sanitized: [b]{clone_suffix_raw}[/b] changed to [b]{clone_suffix}[/b]")
+                        self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=clone_suffix_raw, sanitized=clone_suffix))
                 except ValueError as e:
-                    self.app.show_error_message(f"Invalid characters in suffix: {e}")
+                    self.app.show_error_message(ErrorMessages.INVALID_CHARS_IN_SUFFIX.format(error=e))
                     return
 
             try:
@@ -141,11 +141,11 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
                 if clone_count < 1:
                     raise ValueError()
             except ValueError:
-                self.app.show_error_message("Number of clones must be a positive integer.")
+                self.app.show_error_message(ErrorMessages.CLONE_COUNT_POSITIVE_INTEGER)
                 return
 
             if clone_count > 1 and not clone_suffix:
-                self.app.show_error_message("Suffix is mandatory when creating multiple clones.")
+                self.app.show_error_message(ErrorMessages.SUFFIX_MANDATORY_FOR_MULTIPLE_CLONES)
                 return
 
             clone_storage = not skip_storage_checkbox.value
@@ -189,14 +189,14 @@ class RenameVMDialog(BaseDialog[str | None]):
             try:
                 new_name, was_modified = _sanitize_input(new_name_raw)
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: [b]{new_name_raw}[/b] changed to [b]{new_name}[/b]")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=new_name_raw, sanitized=new_name))
 
             if not new_name:
-                self.app.show_error_message("VM name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.VM_NAME_CANNOT_BE_EMPTY_RENAME)
                 return
 
             error = self.validate_name(new_name)
@@ -259,7 +259,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         agent_running = is_qemu_agent_running(self.domain) if self.domain else False
 
         if not agent_running and self.domain:
-            show_warning_message(self.app, "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot.")
+            self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)
 
         yield Vertical(
             Label(f"Current time: {now}", id="timestamp-label"),
@@ -294,14 +294,14 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             try:
                 snapshot_name, was_modified = _sanitize_input(snapshot_name_raw)
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: [b]{snapshot_name_raw}[/b] changed to [b]{snapshot_name}[/b]")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=snapshot_name_raw, sanitized=snapshot_name))
 
             if not snapshot_name:
-                self.app.show_error_message("Snapshot name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.SNAPSHOT_NAME_CANNOT_BE_EMPTY)
                 return
 
             error = self.validate_name(snapshot_name)
