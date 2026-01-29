@@ -301,7 +301,7 @@ class StaticText:
     EDIT_DISK_TITLE = _("Edit Disk: {path}")
     MOVE_VOLUME_TITLE = _("Move Volume: {volume_name}")
     MIGRATE_VMS_TITLE = _("[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
-    EMPTY_LABEL = _("")
+    EMPTY_LABEL = ""
     SERVER_PREFERENCES = _("Server Preferences")
     SELECT_DIRECTORY = _("Select a Directory")
     SELECT_FILE = _("Select a File")
