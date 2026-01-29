@@ -11,13 +11,13 @@ from .howto_ssh_modal import HowToSSHModal
 from .base_modals import BaseModal
 
 from ..config import save_config
-from ..constants import ErrorMessages, SuccessMessages, ButtonLabels
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 
 class ConnectionModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connection-dialog"):
-            yield Label("Enter QEMU Connection URI:")
+            yield Label(StaticText.ENTER_QEMU_CONNECTION_URI)
             yield Input(
                 placeholder="qemu+ssh://user@host/system or qemu:///system",
                 id="uri-input",
@@ -38,11 +38,11 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
     """Modal for adding a new server with autoconnect option."""
     def compose(self) -> ComposeResult:
         with Vertical(id="add-server-dialog"):
-            yield Label("Add New Server")
+            yield Label(StaticText.ADD_NEW_SERVER)
             yield Input(placeholder="Server Name", id="server-name-input")
             yield Input(placeholder="qemu+ssh://user@host/system", id="server-uri-input")
             yield Label("")
-            yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=False)
+            yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=False)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
@@ -70,11 +70,11 @@ class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-server-dialog"):
-            yield Label("Edit Server")
+            yield Label(StaticText.EDIT_SERVER)
             yield Input(value=self.server_name, id="server-name-input")
             yield Input(value=self.server_uri, id="server-uri-input")
             yield Label("")
-            yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=self.autoconnect)
+            yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=self.autoconnect)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
@@ -103,7 +103,7 @@ class ServerManagementModal(BaseModal [str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="server-management-dialog"): #, classes="info-details"):
-            yield Label("Server List Management") #, id="server-list-title")
+            yield Label(StaticText.SERVER_LIST_MANAGEMENT) #, id="server-list-title")
             with ScrollableContainer(classes="info-details"):
                 yield DataTable(id="server-table", classes="server-list")
             with Vertical(classes="server-list"):

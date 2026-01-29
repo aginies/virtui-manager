@@ -8,6 +8,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll, Grid
 from textual.widgets import Button, Input, Label, DataTable, Checkbox
 from textual import on
 from .base_modals import BaseModal
+from ..constants import StaticText
 
 class PatternSelectModal(BaseModal[set[str] | None]):
     """Modal for selecting VMs by pattern across servers."""
@@ -23,7 +24,7 @@ class PatternSelectModal(BaseModal[set[str] | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="pattern-select-container", classes="modal-container"):
-            yield Label("Select VMs by Pattern (ctrl+u to unselect All VMS)", id="pattern-select-title")
+            yield Label(StaticText.SELECT_VMS_BY_PATTERN, id="pattern-select-title")
 
             with Horizontal(classes="pattern-input-row"):
                 yield Input(
@@ -31,7 +32,7 @@ class PatternSelectModal(BaseModal[set[str] | None]):
                     id="pattern-input",
                     restrict=r"[a-zA-Z0-9_\-\*\?\.\^\|\$\( \[ \] \+\{\}\\]*"
                 )
-                yield Checkbox("Regex", id="regex-checkbox")
+                yield Checkbox(StaticText.REGEX, id="regex-checkbox")
 
             if self.available_servers:
                 #yield Label("Search in Servers:")
@@ -50,7 +51,7 @@ class PatternSelectModal(BaseModal[set[str] | None]):
 
             yield Button("Search VMs", variant="primary", id="search-vms-btn")
 
-            yield Label("Matching VMs:", id="results-label")
+            yield Label(StaticText.MATCHING_VMS, id="results-label")
             with VerticalScroll(id="results-container"):
                 yield DataTable(id="results-table", cursor_type="row")
 

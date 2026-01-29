@@ -8,7 +8,7 @@ from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 
-from ..constants import ErrorMessages, SuccessMessages, ButtonLabels
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal, BaseDialog
 from ..network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
@@ -44,7 +44,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             network_value = self.networks[0]
 
         with Vertical(id="add-edit-network-dialog"):
-            yield Label("Select network and model")
+            yield Label(StaticText.SELECT_NETWORK_AND_MODEL)
 
             if self.networks:
                 yield Select(network_options, id="network-select", prompt="Select a network", value=network_value)
@@ -151,8 +151,8 @@ class AddEditNetworkModal(BaseModal[None]):
                         disabled=self.is_edit
                     )
                     with RadioSet(id="type-network", classes="type-network-radioset"):
-                        yield RadioButton("Nat network", id="type-network-nat", value=(forward_mode == "nat"))
-                        yield RadioButton("Routed network", id="type-network-routed", value=(forward_mode == "route"))
+                        yield RadioButton(StaticText.NAT_NETWORK, id="type-network-nat", value=(forward_mode == "nat"))
+                        yield RadioButton(StaticText.ROUTED_NETWORK, id="type-network-routed", value=(forward_mode == "route"))
                     yield Select(
                         [("Loading...", "")],
                         prompt="Select Forward Interface",
@@ -161,33 +161,33 @@ class AddEditNetworkModal(BaseModal[None]):
                         disabled=True
                     )
                     yield Input(
-                        placeholder="IPv4 Network (e.g., 192.168.100.0/24)", id="net-ip-input", value=ip_val
+                        placeholder=StaticText.IPV4_NETWORK_EXAMPLE, id="net-ip-input", value=ip_val
                     )
-                    yield Checkbox("Enable DHCPv4", id="dhcp-checkbox", value=dhcp_val)
+                    yield Checkbox(StaticText.ENABLE_DHCPV4, id="dhcp-checkbox", value=dhcp_val)
                     with Vertical(id="dhcp-inputs-horizontal"):
                         dhcp_options_classes = "" if dhcp_val else "hidden"
                         with Horizontal(id="dhcp-options", classes=dhcp_options_classes):
                             yield Input(
-                                placeholder="DHCP Start (e.192.168.100.100)",
+                                placeholder=StaticText.DHCP_START_EXAMPLE,
                                 id="dhcp-start-input",
                                 classes="dhcp-input",
                                 value=dhcp_start_val
                             )
                             yield Input(
-                                placeholder="DHCP End (e.g., 192.168.100.254)",
+                                placeholder=StaticText.DHCP_END_EXAMPLE,
                                 id="dhcp-end-input",
                                 classes="dhcp-input",
                                 value=dhcp_end_val
                             )
                     with RadioSet(id="dns-domain-radioset", classes="dns-domain-radioset"):
                         yield RadioButton(
-                            "Use Network Name for DNS Domain", id="dns-use-net-name", value=not use_custom_domain
+                            StaticText.USE_NETWORK_NAME_FOR_DNS, id="dns-use-net-name", value=not use_custom_domain
                         )
-                        yield RadioButton("Use Custom DNS Domain", id="dns-use-custom", value=use_custom_domain)
+                        yield RadioButton(StaticText.USE_CUSTOM_DNS_DOMAIN, id="dns-use-custom", value=use_custom_domain)
 
                     custom_domain_classes = "hidden" if not use_custom_domain else ""
                     yield Input(
-                        placeholder="Custom DNS Domain",
+                        placeholder=StaticText.CUSTOM_DNS_DOMAIN,
                         id="dns-custom-domain-input",
                         value=domain_name,
                         classes=custom_domain_classes
@@ -384,7 +384,7 @@ class NetworkXMLModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="network-detail-dialog"):
-            yield Label(f"Network Details: {self.network_name}", id="title")
+            yield Label(StaticText.NETWORK_DETAILS.format(network_name=self.network_name), id="title")
             with ScrollableContainer():
                 text_area = TextArea(self.network_xml, read_only=True)
                 try:

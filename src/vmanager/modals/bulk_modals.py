@@ -7,7 +7,7 @@ from textual import on
 from textual.widgets import Label, Button, Markdown, Static, RadioSet, RadioButton, Checkbox
 
 from .base_modals import BaseModal
-from ..constants import ErrorMessages
+from ..constants import ErrorMessages, StaticText
 
 class BulkActionModal(BaseModal[None]):
     """Modal screen for performing bulk actions on selected VMs."""
@@ -33,7 +33,7 @@ class BulkActionModal(BaseModal[None]):
                 yield RadioButton("Delete VMs", id="action_delete")
                 yield RadioButton("Edit Configuration", id="action_edit_config")
 
-            yield Checkbox("Delete associated storage", id="delete-storage-checkbox")
+            yield Checkbox(StaticText.DELETE_ASSOCIATED_STORAGE, id="delete-storage-checkbox")
 
             with Horizontal():
                 yield Button("Execute", variant="primary", id="execute-action-btn", classes="button-container")

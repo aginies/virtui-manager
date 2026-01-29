@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from .base_modals import BaseModal
 from .utils_modals import LoadingModal
 from ..connection_manager import ConnectionManager
-from ..constants import ErrorMessages
+from ..constants import ErrorMessages, StaticText
 
 
 class SelectServerModal(BaseModal[None]):
@@ -27,7 +27,7 @@ class SelectServerModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="select-server-container", classes="info-details"):
-            yield Label("Select Servers to Display")
+            yield Label(StaticText.SELECT_SERVERS_TO_DISPLAY)
             
             checkboxes = []
             for i, server in enumerate(self.servers):

@@ -8,7 +8,7 @@ from textual.widgets import (
         Button, Input, Label,
         RadioButton, RadioSet, Checkbox
         )
-from ..constants import VmStatus, ErrorMessages, SuccessMessages, ButtonLabels
+from ..constants import VmStatus, ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 
@@ -33,20 +33,20 @@ class FilterModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="filter-dialog"):
-            yield Label("Filter by Name")
+            yield Label(StaticText.FILTER_BY_NAME)
             with Vertical(classes="info-details"):
                 yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
                 with RadioSet(id="status-radioset"):
-                    yield RadioButton("All", id=f"status_{VmStatus.DEFAULT}", value=self.current_status == VmStatus.DEFAULT)
-                    yield RadioButton("Running", id=f"status_{VmStatus.RUNNING}", value=self.current_status == VmStatus.RUNNING)
-                    yield RadioButton("Paused", id=f"status_{VmStatus.PAUSED}", value=self.current_status == VmStatus.PAUSED)
-                    yield RadioButton("PMSuspended", id=f"status_{VmStatus.PMSUSPENDED}", value=self.current_status == VmStatus.PMSUSPENDED)
-                    yield RadioButton("Blocked", id=f"status_{VmStatus.BLOCKED}", value=self.current_status == VmStatus.BLOCKED)
-                    yield RadioButton("Stopped", id=f"status_{VmStatus.STOPPED}", value=self.current_status == VmStatus.STOPPED)
-                    yield RadioButton("Manually Selected", id=f"status_{VmStatus.SELECTED}", value=self.current_status == VmStatus.SELECTED)
+                    yield RadioButton(StaticText.ALL, id=f"status_{VmStatus.DEFAULT}", value=self.current_status == VmStatus.DEFAULT)
+                    yield RadioButton(StaticText.RUNNING, id=f"status_{VmStatus.RUNNING}", value=self.current_status == VmStatus.RUNNING)
+                    yield RadioButton(StaticText.PAUSED, id=f"status_{VmStatus.PAUSED}", value=self.current_status == VmStatus.PAUSED)
+                    yield RadioButton(StaticText.PMSUSPENDED, id=f"status_{VmStatus.PMSUSPENDED}", value=self.current_status == VmStatus.PMSUSPENDED)
+                    yield RadioButton(StaticText.BLOCKED, id=f"status_{VmStatus.BLOCKED}", value=self.current_status == VmStatus.BLOCKED)
+                    yield RadioButton(StaticText.STOPPED, id=f"status_{VmStatus.STOPPED}", value=self.current_status == VmStatus.STOPPED)
+                    yield RadioButton(StaticText.MANUALLY_SELECTED, id=f"status_{VmStatus.SELECTED}", value=self.current_status == VmStatus.SELECTED)
 
             if self.available_servers:
-                yield Label("Select Servers to Display")
+                yield Label(StaticText.SELECT_SERVERS_TO_DISPLAY)
 
                 checkboxes = []
                 for i, server in enumerate(self.available_servers):
@@ -127,7 +127,7 @@ class CreateVMModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="create-vm-dialog"):
-            yield Label("Create New VM")
+            yield Label(StaticText.CREATE_NEW_VM)
             yield Input(placeholder="VM Name", id="vm-name-input", value="new_vm")
             yield Input(placeholder="Memory (MB, e.g., 2048)", id="vm-memory-input", value="2048")
             yield Input(placeholder="VCPU (e.g., 2)", id="vm-vcpu-input", value="2")

@@ -12,7 +12,7 @@ from textual.widgets import (
 from textual.app import ComposeResult
 from textual import on
 from ..storage_manager import create_storage_pool, list_storage_pools
-from ..constants import ErrorMessages, SuccessMessages, ButtonLabels
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import DirectorySelectionModal, FileSelectionModal
 from .input_modals import _sanitize_input
@@ -112,7 +112,7 @@ class AddDiskModal(BaseModal[dict | None]):
             with Horizontal():
                 yield Input(placeholder="Path to existing disk image or ISO", id="disk-path-input")
                 yield Button("Browse", id="browse-disk-btn")
-            yield Checkbox("Create new disk image", id="create-disk-checkbox")
+            yield Checkbox(StaticText.CREATE_NEW_DISK_IMAGE, id="create-disk-checkbox")
 
             # Fields for creating a new disk
             yield Select(
@@ -125,7 +125,7 @@ class AddDiskModal(BaseModal[dict | None]):
             yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2")
 
-            yield Checkbox("CD-ROM", id="cdrom-checkbox")
+            yield Checkbox(StaticText.CD_ROM, id="cdrom-checkbox")
             yield Select(
                 [("virtio", "virtio"), ("sata", "sata"), ("scsi", "scsi"), ("ide", "ide"), ("usb", "usb")],
                 id="disk-bus-select", value="virtio"
@@ -497,7 +497,7 @@ class MoveVolumeModal(BaseModal[dict]):
     def compose(self) -> ComposeResult:
         with Vertical(id="move-volume-dialog"):
             yield Label(f"Move Volume: {self.volume_name}", id="move-volume-title")
-            yield Static(f"From Pool: {self.source_pool_name}", classes="label-like")
+            yield Static(StaticText.FROM_POOL.format(source_pool_name=self.source_pool_name), classes="label-like")
 
             pools = list_storage_pools(self.conn)
             # Filter out the source pool from the destination choices

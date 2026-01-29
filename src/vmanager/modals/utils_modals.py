@@ -96,8 +96,8 @@ class DirectorySelectionModal(BaseModal[str | None]):
             yield Label("Select a Directory")
             yield SafeDirectoryTree(self.start_path, id="dir-tree")
             with Horizontal():
-                yield Button("Select", variant="primary", id="select-btn", disabled=True)
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.SELECT, variant="primary", id="select-btn", disabled=True)
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:
         self.query_one(SafeDirectoryTree).focus()
@@ -129,8 +129,8 @@ class FileSelectionModal(BaseModal[str | None]):
             yield Label("Select a File")
             yield SafeDirectoryTree(self.start_path, id="file-tree")
             with Horizontal():
-                yield Button("Select", variant="primary", id="select-btn", disabled=True)
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.SELECT, variant="primary", id="select-btn", disabled=True)
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:
         self.query_one(SafeDirectoryTree).focus()
@@ -207,8 +207,8 @@ class ConfirmationDialog(BaseDialog[bool]):
         yield Vertical(
             Markdown(self.prompt, id="question"),
             Horizontal(
-                Button("Yes", variant="error", id="yes", classes="dialog-buttons"),
-                Button("No", variant="primary", id="no", classes="dialog-buttons"),
+                Button(ButtonLabels.YES, variant="error", id="yes", classes="dialog-buttons"),
+                Button(ButtonLabels.NO, variant="primary", id="no", classes="dialog-buttons"),
                 id="dialog-buttons",
             ),
             id="dialog",
@@ -237,7 +237,7 @@ class InfoModal(BaseModal[None]):
             yield Label(self._title, classes="dialog-title")
             yield Markdown(self._message, classes="dialog-message")
             with Horizontal(classes="dialog-buttons"):
-                yield Button("OK", variant="primary", id="ok-btn")
+                yield Button(ButtonLabels.OK, variant="primary", id="ok-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss()

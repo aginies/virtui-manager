@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Input, Label, ListView, Select
 
-from ..constants import ErrorMessages
+from ..constants import ErrorMessages, StaticText
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import InfoModal
 
@@ -19,7 +19,7 @@ class EditCpuModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-cpu-dialog", classes="edit-cpu-dialog"):
-            yield Label("Enter new VCPU count")
+            yield Label(StaticText.ENTER_NEW_VCPU_COUNT)
             yield Input(placeholder="e.g., 2", id="cpu-input", type="integer", value=self.current_cpu)
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn")
@@ -41,7 +41,7 @@ class EditMemoryModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-memory-dialog", classes="edit-memory-dialog"):
-            yield Label("Enter new memory size (MB)")
+            yield Label(StaticText.ENTER_NEW_MEMORY_SIZE)
             yield Input(placeholder="e.g., 2048", id="memory-input", type="integer", value=self.current_memory)
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn")
@@ -64,7 +64,7 @@ class SelectMachineTypeModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="select-machine-type-dialog", classes="select-machine-type-dialog"):
-            yield Label("Select Machine Type:")
+            yield Label(StaticText.SELECT_MACHINE_TYPE)
             with ScrollableContainer():
                 yield ListView(
                     *[ValueListItem(Label(mt), value=mt) for mt in self.machine_types],
@@ -103,8 +103,8 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
         current_val = "; ".join([f"{p['vcpu']}:{p['cpuset']}" for p in self.current_vcpupin])
 
         with Vertical(id="edit-cpu-tune-dialog", classes="edit-cpu-dialog"):
-            yield Label(f"Enter CPU Pinning (max vcpu: {self.max_vcpus - 1})")
-            yield Label("Format: 0:0-3; 1:4-7", classes="help-text")
+            yield Label(StaticText.ENTER_CPU_PINNING.format(max_vcpus=self.max_vcpus - 1))
+            yield Label(StaticText.CPU_PINNING_FORMAT, classes="help-text")
             yield Input(placeholder="e.g., 0:0-1; 1:2-3", id="cputune-input", value=current_val)
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn")
@@ -174,9 +174,9 @@ class EditNumaTuneModal(BaseModal[dict | None]):
         modes = [("strict", "strict"), ("preferred", "preferred"), ("interleave", "interleave"), ("None", "None")]
 
         with Vertical(id="edit-numatune-dialog", classes="edit-cpu-dialog"):
-            yield Label("NUMA Memory Mode")
+            yield Label(StaticText.NUMA_MEMORY_MODE)
             yield Select(modes, value=self.current_mode, id="numa-mode-select", allow_blank=False)
-            yield Label("Nodeset")
+            yield Label(StaticText.NODESET)
             yield Input(placeholder="e.g., 0-1", id="numa-nodeset-input", value=self.current_nodeset)
             with Horizontal():
                 yield Button("Save", variant="primary", id="save-btn")

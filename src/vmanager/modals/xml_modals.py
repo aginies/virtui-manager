@@ -6,6 +6,7 @@ from textual.widgets import Button, TextArea
 from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal
 from .base_modals import BaseModal
+from ..constants import ButtonLabels
 
 class XMLDisplayModal(BaseModal[str | None]):
     """A modal screen for displaying and editing XML."""
@@ -32,8 +33,8 @@ class XMLDisplayModal(BaseModal[str | None]):
             with Vertical(id="dialog-buttons"):
                 with Horizontal():
                     if not self.read_only:
-                        yield Button("Save", variant="primary", id="save-btn")
-                    yield Button("Close", id="close-btn")
+                        yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
+                    yield Button(ButtonLabels.CLOSE, id="close-btn")
 
     def on_mount(self) -> None:
         self.query_one(TextArea).focus()

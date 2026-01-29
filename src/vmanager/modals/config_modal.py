@@ -8,7 +8,7 @@ from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
 from ..config import save_config, get_user_config_path
-from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages
+from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages, StaticText
 from .base_modals import BaseModal
 from ..utils import check_r_viewer
 
@@ -22,7 +22,7 @@ class ConfigModal(BaseModal[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="config-dialog"):
             yield Label(f"{AppInfo.namecase} Configuration", id="config-title")
-            yield Static(f"(Editing: {get_user_config_path()})", id="config-title-file") #classes="config-path-label")
+            yield Static(StaticText.EDITING_CONFIG_PATH.format(get_user_config_path=get_user_config_path()), id="config-title-file") #classes="config-path-label")
             with ScrollableContainer():
                 # Performance settings
                 yield Label("Performance", classes="config-section-label")
@@ -85,7 +85,7 @@ class ConfigModal(BaseModal[None]):
 
                 # Web console settings                yield Label("Web Console (novnc)", classes="config-section-label")
                 yield Checkbox(
-                    "Enable remote web console",
+                    StaticText.ENABLE_REMOTE_WEBCONSOLE,
                     self.config.get("REMOTE_WEBCONSOLE", False),
                     id="remote-webconsole-checkbox",
                     tooltip="Enable secure SSH and noVNC remote viewing for headless server environments"

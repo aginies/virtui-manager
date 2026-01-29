@@ -12,7 +12,7 @@ from textual import on, work
 
 import libvirt
 from ..config import load_config
-from ..constants import AppInfo, ErrorMessages, SuccessMessages, ButtonLabels
+from ..constants import AppInfo, ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from ..vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
 from ..storage_manager import list_storage_pools
 from ..vm_service import VMService
@@ -43,16 +43,16 @@ class InstallVMModal(BaseModal[str | None]):
         default_pool = 'default' if any(p[0] == 'default' for p in active_pools) else (active_pools[0][1] if active_pools else None)
 
         with ScrollableContainer(id="install-dialog"):
-            yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
-            yield Label("VM Name:", classes="label")
+            yield Label(StaticText.INSTALL_OPENSUSE_VM.format(uri=self.uri), classes="title")
+            yield Label(StaticText.VM_NAME, classes="label")
             yield Input(placeholder="my-new-vm", id="vm-name")
 
-            yield Label("VM Type:", classes="label")
+            yield Label(StaticText.VM_TYPE, classes="label")
             with Horizontal(classes="label-row"):
                 yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
                 yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            yield Label("Distribution:", classes="label")
+            yield Label(StaticText.DISTRIBUTION, classes="label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
             distro_options.insert(0, ("Cached ISOs", "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -70,52 +70,52 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
-                yield Label("ISO Image (Repo):", classes="label")
+                yield Label(StaticText.ISO_IMAGE_REPO, classes="label")
                 config = load_config()
                 iso_path = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
-                yield Label(f"ISOs will be downloaded to: {iso_path}", classes="info-text", id="iso-path-label")
+                yield Label(StaticText.ISOS_DOWNLOAD_PATH.format(iso_path=iso_path), classes="info-text", id="iso-path-label")
                 yield Select([], prompt="Select ISO...", id="iso-select", disabled=True)
 
             # Container for Custom ISO
             with Vertical(id="custom-iso-container"):
-                yield Label("Custom ISO (Local Path):", classes="label")
+                yield Label(StaticText.CUSTOM_ISO_LOCAL_PATH, classes="label")
                 with Horizontal(classes="input-row"):
                     yield Input(placeholder="/path/to/local.iso", id="custom-iso-path", classes="path-input")
                     yield Button(ButtonLabels.BROWSE, id="browse-iso-btn")
 
                 with Vertical(id="checksum-container"):
-                    yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
+                    yield Checkbox(StaticText.VALIDATE_CHECKSUM, id="validate-checksum", value=False)
                     yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
                     yield Label("", id="checksum-status", classes="status-text")
             
             # Container for ISO selection from Storage Pools
             with Vertical(id="pool-iso-container"):
-                yield Label("Select Storage Pool:", classes="label")
+                yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
                 yield Select(active_pools, prompt="Select Pool...", id="storage-pool-select", allow_blank=False)
-                yield Label("Select ISO Volume:", classes="label")
+                yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
                 yield Select([], prompt="Select ISO Volume...", id="iso-volume-select", disabled=True)
 
-            yield Label("Storage Pool:", id="vminstall-storage-label")
+            yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
             with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
-                        yield Label(" Memory (GB)", classes="label")
+                        yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
                         yield Input("4", id="memory-input", type="integer")
                     with Vertical(id="expert-cpu"):
-                        yield Label(" CPUs", classes="label")
+                        yield Label(StaticText.CPUS_LABEL, classes="label")
                         yield Input("2", id="cpu-input", type="integer")
                     with Vertical(id="expert-disk-size"):
-                        yield Label(" Disk Size(GB)", classes="label")
+                        yield Label(StaticText.DISK_SIZE_GB_LABEL, classes="label")
                         yield Input("8", id="disk-size-input", type="integer")
                     with Vertical(id="expert-disk-format"):
-                        yield Label(" Disk Format", classes="label")
+                        yield Label(StaticText.DISK_FORMAT_LABEL, classes="label")
                         yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
                     with Vertical(id="expert-firmware"):
-                        yield Label(" Firmware", classes="label")
-                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
+                        yield Label(StaticText.FIRMWARE_LABEL, classes="label")
+                        yield Checkbox(StaticText.UEFI, id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
-            yield Checkbox("Configure before install", id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
+            yield Checkbox(StaticText.CONFIGURE_BEFORE_INSTALL, id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
             yield Label("", id="status-label")
 

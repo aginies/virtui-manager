@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable
 from textual.containers import Vertical, Horizontal
 from .base_modals import BaseModal
-from ..constants import SuccessMessages
+from ..constants import StaticText, SuccessMessages
 
 class CacheStatsModal(BaseModal[None]):
     """Modal displaying cache statistics in a table."""
@@ -16,7 +16,7 @@ class CacheStatsModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="cache-stats-dialog"):
-            yield Static("Cache Performance Statistics", classes="dialog-title")
+            yield Static(StaticText.CACHE_PERFORMANCE_STATISTICS, classes="dialog-title")
             yield DataTable(id="stats-table")
         with Vertical():
             with Horizontal():

@@ -14,7 +14,7 @@ from .utils_modals import (
     BaseDialog
 )
 from ..config import load_config, save_config
-from ..constants import ButtonLabels, ErrorMessages, SuccessMessages, WarningMessages
+from ..constants import ButtonLabels, ErrorMessages, SuccessMessages, WarningMessages, StaticText
 from ..vm_queries import is_qemu_agent_running
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
@@ -27,7 +27,7 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     def compose(self):
         yield Vertical(
             Markdown(f"Are you sure you want to delete VM '{self.vm_name}'?", id="question"),
-            Checkbox("Delete storage volumes", id="delete-storage-checkbox", value=True),
+            Checkbox(StaticText.DELETE_STORAGE_VOLUMES, id="delete-storage-checkbox", value=True),
             Label(""),
             Horizontal(
                 Button(ButtonLabels.YES, variant="error", id="yes", classes="dialog-buttons"),
@@ -61,7 +61,7 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
         network_options = [(str(net), str(net)) for net in self.networks]
 
         with Vertical(id="dialog"):
-            yield Label("Select interface and new network")
+            yield Label(StaticText.SELECT_INTERFACE_AND_NETWORK)
             yield Select(interface_options, id="interface-select")
             yield Select(network_options, id="network-select")
             with Horizontal(id="dialog-buttons"):
@@ -89,13 +89,13 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
 
     def compose(self):
         yield Grid(
-            Label("Enter base name for new VM(s)"),
+            Label(StaticText.ENTER_BASE_NAME),
             Input(placeholder="new_vm_base_name", id="base_name_input", restrict=r"[a-zA-Z0-9_-]*"),
-            Label("Suffix for clone names (e.g., _C)"),
+            Label(StaticText.SUFFIX_FOR_CLONE_NAMES),
             Input(placeholder="e.g., -clone", id="clone_suffix_input", restrict=r"[a-zA-Z0-9_-]*"),
-            Label("Number of clones to create"),
+            Label(StaticText.NUMBER_OF_CLONES_TO_CREATE),
             Input(value="1", id="clone_count_input", type="integer"),
-            Label("Do Not Clone storage"),
+            Label(StaticText.DO_NOT_CLONE_STORAGE),
             Checkbox("", id="skip_storage_checkbox", value=False),
             Button(ButtonLabels.CLONE, variant="success", id="clone"),
             Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
@@ -169,8 +169,8 @@ class RenameVMDialog(BaseDialog[str | None]):
 
     def compose(self):
         yield Vertical(
-            Label(f"Current name: {self.current_name}"),
-            Label("Enter new VM name", id="question"),
+            Label(StaticText.CURRENT_NAME.format(current_name=self.current_name)),
+            Label(StaticText.ENTER_NEW_VM_NAME, id="question"),
             Input(placeholder="new_vm_name", restrict=r"[a-zA-Z0-9_-]*"),
             Horizontal(
                 Button(ButtonLabels.RENAME, variant="success", id="rename-button"),
@@ -262,12 +262,12 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)
 
         yield Vertical(
-            Label(f"Current time: {now}", id="timestamp-label"),
-            Label("Enter snapshot name", id="question"),
+            Label(StaticText.CURRENT_TIME.format(now=now), id="timestamp-label"),
+            Label(StaticText.ENTER_SNAPSHOT_NAME, id="question"),
             Input(value=default_name, placeholder="snapshot_name", id="name-input", restrict=r"[a-zA-Z0-9_-]*"),
-            Label("Description (optional)"),
+            Label(StaticText.DESCRIPTION_OPTIONAL),
             Input(placeholder="snapshot description", id="description-input"),
-            Checkbox("Quiesce guest (requires agent)",
+            Checkbox(StaticText.QUIESCE_GUEST,
                      value=agent_running,
                      disabled=not agent_running,
                      id="quiesce-checkbox",
@@ -351,7 +351,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="webconsole-config-dialog"):
-            yield Label("Web Console Configuration", id="webconsole-config-title")
+            yield Label(StaticText.WEB_CONSOLE_CONFIGURATION, id="webconsole-config-title")
 
             if self.is_remote:
                 remote_console_enabled = self.config.get('REMOTE_WEBCONSOLE', False)
@@ -365,7 +365,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                         switch_widget.add_class("switch-off")
 
                     yield Grid(
-                        Label("Remote"),
+                        Label(StaticText.REMOTE),
                         switch_widget,
                         id="grid-remote-local"
                         )
