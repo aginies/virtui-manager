@@ -105,7 +105,7 @@ class SelectOneServerModal(BaseModal[str]):
         with Vertical(id="select-one-server-container"):
             yield Label(self.title_text)
             yield Select(self.server_options, prompt="Select server...", id="server-select")
-            yield Label("")
+            yield Label(StaticText.EMPTY_LABEL)
             with Horizontal():
                 yield Button(self.button_label, id="launch-btn", variant="primary", disabled=True)
                 yield Button(ButtonLabels.CANCEL, id="cancel-btn")

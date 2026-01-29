@@ -11,6 +11,7 @@ from textual.widgets import (
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual import on
+from ..constants import StaticText
 
 class VirshShellScreen(ModalScreen):
     """Screen for an interactive virsh shell."""
@@ -26,8 +27,8 @@ class VirshShellScreen(ModalScreen):
     def compose(self) -> ComposeResult:
         with Vertical(id="virsh-shell-container"):
             yield Header()
-            yield Label("Virsh Interactive Shell (esc to quit)", id="virsh-shell-title")
-            yield Label("Note: This shell starts a new `virsh` process, which may require re-authentication for remote connections. Using SSH keys is recommended.", classes="virsh-shell-note")
+            yield Label(StaticText.VIRSH_SHELL_TITLE, id="virsh-shell-title")
+            yield Label(StaticText.VIRSH_SHELL_NOTE, classes="virsh-shell-note")
             yield TextArea(
                 id="virsh-output",
                 read_only=True,

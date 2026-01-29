@@ -75,7 +75,7 @@ class MigrationModal(ModalScreen):
 
         with Vertical(id="migration-dialog",):
             with Vertical(id="migration-content-wrapper"):
-                yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
+                yield Label(StaticText.MIGRATE_VMS_TITLE.format(migration_type=migration_type, vm_names=vm_names))
                 yield Static(StaticText.SELECT_DESTINATION_SERVER)
                 yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
 

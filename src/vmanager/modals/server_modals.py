@@ -41,7 +41,7 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
             yield Label(StaticText.ADD_NEW_SERVER)
             yield Input(placeholder="Server Name", id="server-name-input")
             yield Input(placeholder="qemu+ssh://user@host/system", id="server-uri-input")
-            yield Label("")
+            yield Label(StaticText.EMPTY_LABEL)
             yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=False)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
@@ -73,7 +73,7 @@ class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
             yield Label(StaticText.EDIT_SERVER)
             yield Input(value=self.server_name, id="server-name-input")
             yield Input(value=self.server_uri, id="server-uri-input")
-            yield Label("")
+            yield Label(StaticText.EMPTY_LABEL)
             yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=self.autoconnect)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")

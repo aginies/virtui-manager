@@ -296,6 +296,11 @@ class StaticText:
     USE_NETWORK_NAME_FOR_DNS = "Use Network Name for DNS"
     CUSTOM_DNS_DOMAIN = "Custom DNS Domain"
     NETWORK_DETAILS = "Network Details"
+    UNDEFINE_SOURCE_VM = "Undefine source VM"
+    EDIT_DISK_TITLE = "Edit Disk: {path}"
+    MOVE_VOLUME_TITLE = "Move Volume: {volume_name}"
+    MIGRATE_VMS_TITLE = "[{migration_type}] Migrate VMs: [b]{vm_names}[/b]"
+    EMPTY_LABEL = ""
     SERVER_PREFERENCES = "Server Preferences"
     SELECT_DIRECTORY = "Select a Directory"
     SELECT_FILE = "Select a File"
@@ -351,6 +356,13 @@ class StaticText:
     VNC_QUALITY = "VNC Quality (0-9):"
     VNC_COMPRESSION = "VNC Compression (0-9):"
     HOST_CAPABILITIES = "Host Capabilities"
+    CAPABILITIES_TREE_LABEL = "Capabilities"
+    SELECT_A_DIRECTORY = "Select a Directory"
+    SELECT_A_FILE = "Select a File"
+    EXPORT_READONLY_MOUNT = "Export filesystem as readonly mount"
+    WEBCONSOLE_LOCAL_RUN = "Web console will run locally."
+    ENABLE_BOOT_MENU = "Enable boot menu"
+    WEB_CONSOLE_NOVNC = "Web Console (novnc)"
 
 
 class SparklineLabels:

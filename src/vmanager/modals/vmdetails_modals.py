@@ -1693,19 +1693,19 @@ class VMDetailModal(ModalScreen):
 
                     with TabPane("Boot", id="detail-boot-tab"):
                         with Vertical():
-                            yield Checkbox("Enable boot menu", id="boot-menu-enable", disabled=not self.is_vm_stopped)
+                            yield Checkbox(StaticText.ENABLE_BOOT_MENU, id="boot-menu-enable", disabled=not self.is_vm_stopped)
                             with Horizontal(classes="boot-manager"):
                                 with Vertical(classes="boot-main-container"):
-                                    yield Label("Boot Order")
+                                    yield Label(StaticText.BOOT_ORDER)
                                     yield ListView(id="boot-order-list", classes="boot-list-container")
                                 with Vertical(classes="boot-buttons-container"):
-                                    yield Label("")
+                                    yield Label(StaticText.EMPTY_LABEL)
                                     yield Button(ButtonLabels.BOOT_ADD, id="boot-add", disabled=not self.is_vm_stopped)
                                     yield Button(ButtonLabels.BOOT_REMOVE, id="boot-remove", disabled=not self.is_vm_stopped)
                                     yield Button(ButtonLabels.BOOT_UP, id="boot-up", disabled=not self.is_vm_stopped)
                                     yield Button(ButtonLabels.BOOT_DOWN, id="boot-down", disabled=not self.is_vm_stopped)
                                 with Vertical(classes="boot-main-container"):
-                                    yield Label("Available Devices")
+                                    yield Label(StaticText.AVAILABLE_DEVICES)
                                     yield ListView(id="available-devices-list", classes="boot-list-container")
                             yield Button(ButtonLabels.SAVE_BOOT_ORDER, id="save-boot-order", disabled=not self.is_vm_stopped, variant="primary")
 
@@ -1854,21 +1854,21 @@ class VMDetailModal(ModalScreen):
 
                 with TabPane("Graphics", id="detail-graphics-tab"):
                     with ScrollableContainer(classes="info-details"):
-                        yield Label("Type:")
+                        yield Label(StaticText.TYPE_LABEL)
                         yield Select(
                             [("VNC", "vnc"), ("Spice", "spice"), ("None", "")],
                             value=self.graphics_info['type'],
                             id="graphics-type-select",
                             disabled=not self.is_vm_stopped
                         )
-                        yield Label("Listen Type:")
+                        yield Label(StaticText.LISTEN_TYPE)
                         yield Select(
                             [("Address", "address"), ("None", "none")],
                             value=self.graphics_info['listen_type'],
                             id="graphics-listen-type-select",
                             disabled=not self.is_vm_stopped
                         )
-                        yield Label("Address:")
+                        yield Label(StaticText.ADDRESS_LABEL)
                         with RadioSet(id="graphics-address-radioset", disabled=not self.is_vm_stopped or self.graphics_info['listen_type'] != 'address'):
                             yield RadioButton(StaticText.HYPERVISOR_DEFAULT, id="graphics-address-default", value=self.graphics_info['address'] not in ['127.0.0.1', '0.0.0.0'])
                             yield RadioButton(StaticText.LOCALHOST_ONLY, id="graphics-address-localhost", value=self.graphics_info['address'] == '127.0.0.1')
@@ -1908,7 +1908,7 @@ class VMDetailModal(ModalScreen):
                     tpm_backend_path = self.tpm_info[0].get('backend_path', '') if self.tpm_info else ''
 
                     with Vertical(classes="info-details"):
-                        yield Label("TPM Model:")
+                        yield Label(StaticText.TPM_MODEL)
                         yield Select(
                             [("None", "none"), ("tpm-crb", "tpm-crb"), ("tpm-tis", "tpm-tis")],
                             value=tpm_model,
@@ -1916,7 +1916,7 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
                         )
-                        yield Label("TPM Type:")
+                        yield Label(StaticText.TPM_TYPE)
                         yield Select(
                             [("Emulated", "emulated"), ("Passthrough", "passthrough")],
                             value=tpm_type,
@@ -1924,21 +1924,21 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
                         )
-                        yield Label("Device Path (for passthrough):")
+                        yield Label(StaticText.DEVICE_PATH_PASSTHROUGH)
                         yield Input(
                             value=tpm_device_path,
                             id="tpm-device-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder="/dev/tpm0"
+                            placeholder="=/dev/tpm0"
                         )
-                        yield Label("Backend Type (for passthrough):")
+                        yield Label(StaticText.BACKEND_TYPE_PASSTHROUGH)
                         yield Input(
                             value=tpm_backend_type,
                             id="tpm-backend-type-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
                             placeholder="emulator or passthrough"
                         )
-                        yield Label("Backend Path (for passthrough):")
+                        yield Label(StaticText.BACKEND_PATH_PASSTHROUGH)
                         yield Input(
                             value=tpm_backend_path,
                             id="tpm-backend-path-input",
@@ -1952,7 +1952,7 @@ class VMDetailModal(ModalScreen):
                 with TabPane("RNG", id="detail-rng-tab"):
                     with Vertical(classes="info-details"):
                         current_path = self.rng_info["backend_path"]
-                        yield Label("Host device")
+                        yield Label(StaticText.HOST_DEVICE)
                         yield Input(value=current_path, id="rng-host-device")
                         yield Button(ButtonLabels.APPLY_RNG_SETTINGS, id="apply-rng-btn", variant="primary")
 
@@ -1968,7 +1968,7 @@ class VMDetailModal(ModalScreen):
                     watchdog_action = self.watchdog_info.get('action') if self.watchdog_info and self.watchdog_info.get('action') else 'reset'
 
                     with Vertical(classes="info-details"):
-                        yield Label("Watchdog Model:")
+                        yield Label(StaticText.WATCHDOG_MODEL)
 
                         watchdog_models = [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")]
 
@@ -1984,7 +1984,7 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False
                         )
-                        yield Label("Action:")
+                        yield Label(StaticText.ACTION_LABEL)
                         yield Select(
                             [("Reset", "reset"), ("Shutdown", "shutdown"), ("Poweroff", "poweroff"), ("Pause", "pause"), ("None", "none"), ("Dump", "dump"), ("Inject-NMI", "inject-nmi")],
                             value=watchdog_action,
@@ -2019,24 +2019,24 @@ class VMDetailModal(ModalScreen):
                     with TabPane("USB Host", id="detail-usbhost-tab"):
                         with Horizontal(classes="boot-manager"):
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Available Host USB Devices")
+                                yield Label(StaticText.AVAILABLE_HOST_USB)
                                 yield ListView(id="available-usb-list", classes="boot-list-container")
                             with Vertical(classes="boot-buttons-container"):
                                 yield Button(ButtonLabels.ATTACH_ARROW, id="attach-usb-btn", disabled=True)
                                 yield Button(ButtonLabels.DETACH_ARROW, id="detach-usb-btn", disabled=True)
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Attached to VM")
+                                yield Label(StaticText.ATTACHED_TO_VM)
                                 yield ListView(id="attached-usb-list", classes="boot-list-container")
                     with TabPane("PCI Host", id="detail-PCIhost-tab"):
                         with Horizontal(classes="boot-manager"):
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Available Host PCI Devices")
+                                yield Label(StaticText.AVAILABLE_HOST_PCI)
                                 yield ListView(id="available-pci-list", classes="boot-list-container")
                             with Vertical(classes="boot-buttons-container"):
                                 yield Button(ButtonLabels.ATTACH_ARROW, id="attach-pci-btn", disabled=True)
                                 yield Button(ButtonLabels.DETACH_ARROW, id="detach-pci-btn", disabled=True)
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Attached to VM")
+                                yield Label(StaticText.ATTACHED_TO_VM)
                                 yield ListView(id="attached-pci-list", classes="boot-list-container")
                 #with TabPane("PCIe", id="detail-pcie-tab"):
                 #    yield Label("PCIe")

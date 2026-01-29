@@ -384,7 +384,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                         id="grid-vnc-config"
                         )
             else:
-                yield Markdown("Web console will run locally.")
+                yield Markdown(StaticText.WEBCONSOLE_LOCAL_RUN)
 
             yield Button(ButtonLabels.START, variant="primary", id="start")
             yield Button(ButtonLabels.CANCEL, variant="default", id="cancel")

@@ -20,6 +20,7 @@ from textual.widgets import (
 )
 
 from .base_modals import BaseDialog, BaseModal
+from ..constants import ButtonLabels
 
 
 def _sanitize_message(message: str) -> str:
@@ -93,7 +94,7 @@ class DirectorySelectionModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="directory-selection-dialog"):
-            yield Label("Select a Directory")
+            yield Label(StaticText.SELECT_A_DIRECTORY)
             yield SafeDirectoryTree(self.start_path, id="dir-tree")
             with Horizontal():
                 yield Button(ButtonLabels.SELECT, variant="primary", id="select-btn", disabled=True)
@@ -126,7 +127,7 @@ class FileSelectionModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="file-selection-dialog", classes="file-selection-dialog"):
-            yield Label("Select a File")
+            yield Label(StaticText.SELECT_A_FILE)
             yield SafeDirectoryTree(self.start_path, id="file-tree")
             with Horizontal():
                 yield Button(ButtonLabels.SELECT, variant="primary", id="select-btn", disabled=True)

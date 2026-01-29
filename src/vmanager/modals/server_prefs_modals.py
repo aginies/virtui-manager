@@ -27,7 +27,8 @@ from ..storage_manager import list_storage_volumes
 
 from ..constants import (
         AppCacheTimeout, ErrorMessages, SuccessMessages,
-        ButtonLabels, WarningMessages
+        ButtonLabels, WarningMessages,
+        StaticText
         )
 from .base_modals import BaseModal
 from .network_modals import AddEditNetworkModal, NetworkXMLModal

@@ -34,7 +34,7 @@ class CustomMigrationModal(ModalScreen[dict | None]):
                     yield Static(StaticText.DISK_PATH.format(disk_path=action['disk_path']))
                     yield Static(StaticText.ACTION_MESSAGE.format(message=action['message']))
 
-            yield Checkbox("Undefine source VM", value=True, id="undefine-checkbox")
+            yield Checkbox(StaticText.UNDEFINE_SOURCE_VM, value=True, id="undefine-checkbox")
 
             with Vertical(classes="modal-buttons"):
                 yield Button(ButtonLabels.CONFIRM, variant="primary", id="confirm")

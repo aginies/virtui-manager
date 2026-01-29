@@ -86,8 +86,8 @@ class InstallVMModal(BaseModal[str | None]):
                 with Vertical(id="checksum-container"):
                     yield Checkbox(StaticText.VALIDATE_CHECKSUM, id="validate-checksum", value=False)
                     yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
-                    yield Label("", id="checksum-status", classes="status-text")
-            
+                    yield Label(StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text")
+
             # Container for ISO selection from Storage Pools
             with Vertical(id="pool-iso-container"):
                 yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
@@ -117,7 +117,7 @@ class InstallVMModal(BaseModal[str | None]):
 
             yield Checkbox(StaticText.CONFIGURE_BEFORE_INSTALL, id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
-            yield Label("", id="status-label")
+            yield Label(StaticText.EMPTY_LABEL, id="status-label")
 
             with Horizontal(classes="buttons"):
                 yield Button(ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True)

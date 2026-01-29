@@ -18,13 +18,13 @@ class BulkActionModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="bulk-action-dialog"):
-            yield Label("Selected VMs for Bulk Action")
+            yield Label(StaticText.SELECTED_VMS_BULK)
             yield Static(classes="button-separator")
             with ScrollableContainer():
                 all_vms = ", ".join(self.vm_names)
                 yield Markdown(all_vms, id="selected-vms-list")
 
-            yield Label("Choose Action:")
+            yield Label(StaticText.CHOOSE_ACTION)
             with RadioSet(id="bulk-action-radioset"):
                 yield RadioButton(StaticText.START_VMS, id="action_start")
                 yield RadioButton(StaticText.STOP_VMS_GRACEFUL, id="action_stop")

@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual import on
 from .base_modals import BaseModal
-from ..constants import ButtonLabels
+from ..constants import ButtonLabels, StaticText
 
 class InputModal(BaseModal[str | None]):
     """A generic modal for getting text input from the user."""
@@ -41,7 +41,7 @@ class AddInputDeviceModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-input-container"):
-            yield Label("Input Device")
+            yield Label(StaticText.INPUT_DEVICE)
             yield Select(
                 [(t, t) for t in self.available_types],
                 prompt="Input Type",
@@ -83,21 +83,21 @@ class AddChannelModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-channel-container"):
-            yield Label("Add Channel Device")
+            yield Label(StaticText.ADD_CHANNEL_DEVICE)
             yield Select(
                 [("unix", "unix"), ("virtio", "virtio"), ("spicevmc", "spicevmc")],
                 prompt="Channel Type",
                 id="channel-type-select",
                 value="unix"
             )
-            yield Label("Standard Target Names:")
+            yield Label(StaticText.STANDARD_TARGET_NAMES)
             yield Select(
                 [],
                 id="target-preset-select",
                 prompt="Select a standard target or type below",
                 value=Select.BLANK
             )
-            yield Label("Target Name:")
+            yield Label(StaticText.TARGET_NAME)
             yield Input(placeholder="Target Name (e.g. org.qemu.guest_agent.0)", id="target-name-input")
 
             with Horizontal():

@@ -81,7 +81,7 @@ class RemoveDiskModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="remove-disk-dialog"):
-            yield Label("Select Disk to Remove")
+            yield Label(StaticText.SELECT_DISK_TO_REMOVE)
             yield ListView(
                 *[ValueListItem(Label(disk), value=disk) for disk in self.disks],
                 id="remove-disk-list"
@@ -108,7 +108,7 @@ class AddDiskModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="add-disk-dialog"):
-            yield Label("Add New Disk")
+            yield Label(StaticText.ADD_NEW_DISK)
             with Horizontal():
                 yield Input(placeholder="Path to existing disk image or ISO", id="disk-path-input")
                 yield Button(ButtonLabels.BROWSE, id="browse-disk-btn")
@@ -256,7 +256,7 @@ class AddPoolModal(BaseModal[bool | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-pool-dialog"):
-            yield Label("Add New Storage Pool")
+            yield Label(StaticText.ADD_NEW_STORAGE_POOL)
             yield Input(placeholder="Pool Name (e.g., my_pool)", id="pool-name-input")
             yield Select(
                 [
@@ -270,7 +270,7 @@ class AddPoolModal(BaseModal[bool | None]):
 
             # Fields for `dir` type
             with Vertical(id="dir-fields"):
-                yield Label("Target Path (for volumes)")
+                yield Label(StaticText.TARGET_PATH_VOLUMES)
                 with Vertical():
                     with Horizontal():
                         yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/>")
@@ -279,7 +279,7 @@ class AddPoolModal(BaseModal[bool | None]):
             # Fields for `netfs` type
             with Vertical(id="netfs-fields"):
                 with ScrollableContainer():
-                    yield Label("Target Path (on this host)")
+                    yield Label(StaticText.TARGET_PATH_HOST)
                     with Vertical():
                         yield Input(placeholder="/mnt/nfs", id="netfs-target-path-input")
                         yield Button(ButtonLabels.BROWSE, id="browse-netfs-btn")
@@ -288,9 +288,9 @@ class AddPoolModal(BaseModal[bool | None]):
                         id="netfs-format-select",
                         value="auto"
                     )
-                    yield Label("Source Hostname")
+                    yield Label(StaticText.SOURCE_HOSTNAME)
                     yield Input(placeholder="nfs.example.com", id="netfs-host-input")
-                    yield Label("Source Path (on remote host)")
+                    yield Label(StaticText.SOURCE_PATH_REMOTE)
                     yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
 
             with Horizontal():
@@ -400,7 +400,7 @@ class CreateVolumeModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="create-volume-dialog"):
-            yield Label("Create New Storage Volume")
+            yield Label(StaticText.CREATE_NEW_STORAGE_VOLUME)
             yield Input(placeholder="Volume Name (e.g., new_disk.qcow2)", id="vol-name-input")
             yield Input(placeholder="Size in GB (e.g., 10)", id="vol-size-input", type="integer")
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="vol-format-select", value="qcow2")
@@ -450,22 +450,22 @@ class EditDiskModal(BaseModal[dict | None]):
         device_options = [("disk", "disk"), ("cdrom", "cdrom"), ("lun", "lun")]
 
         with Vertical(id="edit-disk-dialog"):
-            yield Label(f"Edit Disk: {self.disk_info['path']}", id="edit-disk-title")
+            yield Label(StaticText.EDIT_DISK_TITLE.format(path=self.disk_info['path']), id="edit-disk-title")
 
-            yield Label("Device Type:")
+            yield Label(StaticText.DEVICE_TYPE)
             yield Select(device_options, value=self.disk_info.get('device_type') or 'disk', id="edit-device-type", disabled=not self.is_stopped)
 
-            yield Label("Bus Type:")
+            yield Label(StaticText.BUS_TYPE)
             yield Select(bus_options, value=self.disk_info.get('bus'), id="edit-bus-type", disabled=not self.is_stopped)
 
-            yield Label("Cache Mode:")
+            yield Label(StaticText.CACHE_MODE)
             yield Select(cache_options, value=self.disk_info.get('cache_mode') or 'none', id="edit-cache-mode", disabled=not self.is_stopped)
 
-            yield Label("Discard Mode:")
+            yield Label(StaticText.DISCARD_MODE)
             yield Select(discard_options, value=self.disk_info.get('discard_mode') or 'unmap', id="edit-discard-mode", disabled=not self.is_stopped)
 
             if not self.is_stopped:
-                yield Label("VM must be stopped to edit disk settings.", classes="warning")
+                yield Label(StaticText.VM_MUST_BE_STOPPED_EDIT_DISK, classes="warning")
 
             with Horizontal(classes="modal-buttons"):
                 yield Button(ButtonLabels.APPLY, variant="primary", id="apply-disk-edit", disabled=not self.is_stopped)
@@ -496,7 +496,7 @@ class MoveVolumeModal(BaseModal[dict]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="move-volume-dialog"):
-            yield Label(f"Move Volume: {self.volume_name}", id="move-volume-title")
+            yield Label(StaticText.MOVE_VOLUME_TITLE.format(volume_name=self.volume_name), id="move-volume-title")
             yield Static(StaticText.FROM_POOL.format(source_pool_name=self.source_pool_name), classes="label-like")
 
             pools = list_storage_pools(self.conn)
@@ -504,13 +504,13 @@ class MoveVolumeModal(BaseModal[dict]):
             dest_pools = [(p['name'], p['name']) for p in pools if p['name'] != self.source_pool_name and p['status'] == 'active']
 
             if not dest_pools:
-                yield Label("No other active pools available to move to.", classes="error-text")
+                yield Label(StaticText.NO_OTHER_ACTIVE_POOLS, classes="error-text")
                 yield Button(ButtonLabels.CANCEL, id="cancel-btn", variant="default")
             else:
-                yield Label("Destination Pool:", classes="label-like")
+                yield Label(StaticText.DESTINATION_POOL, classes="label-like")
                 yield Select(dest_pools, id="dest-pool-select")
 
-                yield Label("New Volume Name:", classes="label-like")
+                yield Label(StaticText.NEW_VOLUME_NAME, classes="label-like")
                 yield Input(value=self.volume_name, id="new-volume-name-input")
 
                 with Horizontal(classes="button-bar"):
@@ -551,7 +551,7 @@ class AttachVolumeModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="attach-volume-dialog"):
-            yield Label("Attach Existing Disk as Volume")
+            yield Label(StaticText.ATTACH_EXISTING_DISK_AS_VOLUME)
             yield Input(placeholder="Volume Name (e.g., existing_disk.qcow2)", id="vol-name-input", disabled=True)
             with Horizontal():
                 yield Input(placeholder="Path to disk image", id="vol-path-input")
