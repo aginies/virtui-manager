@@ -7,11 +7,12 @@ Thank you for your interest in improving Virtui Manager! This project provides a
 * **Testing:** You must test your code against a live libvirt environment.
 * **AI Assistance:** Use of AI asssit is permitted but **must be carefully reviewed**. You are responsible for every line of code submitted. This project is human driven, so we don't do change because an AI assist says that the code could be improved on this area.
 
-## Technical Constraints (Workers & Caching)
+## Technical Constraints (Workers, Caching, Text)
 Virtui Manager uses an asynchronous worker system and metadata caching to prevent the UI from freezing.
 * **Do Not Block:** Never use `time.sleep()` or blocking I/O in the main thread. This will freeze the TUI.
 * **Use Workers:** Long-running tasks (cloning, migration) must be wrapped in Textual workers.
 * **Cache Awareness:** Ensure that actions modifying a VM's state invalidate the corresponding cache.
+* **Text:** All text must be put into `constants.py` file for translation, don't hard code text into the phyton code
 
 ## Impact Analysis
 When submitting a PR, you must explain:
