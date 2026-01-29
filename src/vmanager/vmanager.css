@@ -636,3 +636,48 @@ NetworkListItem { height: auto; margin-bottom: 0; }
 .net-mode { width: 15%; }
 #net-active-check { width: 25%; }
 #net-autostart-check { width: 25%; }
+
+/* Host Dashboard Styles */
+#host-dashboard-dialog {
+    width: 80;
+    height: auto;
+    border: round $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+.info-section-dashboard {
+    background: $panel;
+    margin-bottom: 1;
+    border: round $primary;
+    padding: 0 1;
+    height: auto;
+}
+
+.section-title-dashboard {
+    text-style: bold;
+    background: $primary;
+    color: $text;
+    width: 100%;
+    margin-bottom: 1;
+}
+
+.host-info-grid {
+    grid-size-columns: 2;
+    grid-gutter: 1;
+    height: auto;
+}
+
+.usage-row {
+    height: 3;
+    align: center middle;
+}
+
+.usage-row Label {
+    width: auto;
+    margin-right: 2;
+}
+
+#mem-bar, #cpu-alloc-bar, #mem-alloc-bar {
+    width: 1fr;
+}

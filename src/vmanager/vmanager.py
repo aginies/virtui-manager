@@ -52,6 +52,7 @@ from .modals.vmanager_modals import (
 )
 from .modals.virsh_modals import VirshShellScreen
 from .modals.provisioning_modals import InstallVMModal
+from .modals.host_dashboard_modal import HostDashboardModal
 from .utils import (
     check_novnc_path,
     check_r_viewer,
@@ -175,6 +176,7 @@ class VMManagerTUI(App):
         Binding(key="down", action="filter_all", description=BindingDescriptions.ALL_VMS, show=False),
         Binding(key="ctrl+v", action="virsh_shell", description=BindingDescriptions.VIRSH_SHELL, show=False ),
         Binding(key="h", action="host_capabilities", description=BindingDescriptions.HOST_CAPABILITIES, show=False),
+        Binding(key="H", action="host_dashboard", description=BindingDescriptions.HOST_DASHBOARD, show=False),
         Binding(key="i", action="install_vm", description=BindingDescriptions.INSTALL_VM, show=True),
         Binding(key="ctrl+l", action="toggle_stats_logging", description=BindingDescriptions.TOGGLE_STATS, show=False),
         Binding(key="ctrl+s", action="show_cache_stats", description=BindingDescriptions.CACHE_STATS, show=False),
@@ -1031,6 +1033,23 @@ class VMManagerTUI(App):
     def on_virsh_shell_button_pressed(self, event: Button.Pressed) -> None:
         """Callback for the virsh shell button."""
         self.action_virsh_shell()
+
+    def action_host_dashboard(self) -> None:
+        """Show Host Resource Dashboard."""
+        def launch_dashboard_modal(uri: str):
+            conn = self.vm_service.connect(uri)
+            if conn:
+                # Find server name
+                server_name = uri
+                for s in self.servers:
+                    if s['uri'] == uri:
+                        server_name = s['name']
+                        break
+                self.push_screen(HostDashboardModal(conn, server_name))
+            else:
+                self.show_error_message(ErrorMessages.COULD_NOT_CONNECT_TO_SERVER.format(uri=uri))
+
+        self._select_server_and_run(launch_dashboard_modal, "Select a server for Dashboard", "View Dashboard")
 
     def action_host_capabilities(self) -> None:
         """Show Host Capabilities."""
