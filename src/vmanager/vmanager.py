@@ -24,7 +24,7 @@ from .config import load_config, save_config, get_log_path
 from .constants import (
         WarningMessages,
         SuccessMessages,
-        VmAction, VmStatus, ButtonLabels,
+        VmAction, VmStatus, ButtonLabels, BindingDescriptions,
         ErrorMessages, AppInfo, StatusText, ServerPallette, QuickMessages, ProgressMessages,
         )
 from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
@@ -161,27 +161,27 @@ class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = [
-        Binding(key="v", action="view_log", description="Log"),
-        Binding(key="f", action="filter_view", description="Filter", show=False),
-        Binding(key="k", action="compact_view", description="CompactView", show=True),
-        #Binding(key="p", action="server_preferences", description="ServerPrefs"),
-        Binding(key="c", action="config", description="Config", show=True),
-        Binding(key="b", action="bulk_cmd", description="BulkCMD", show=False),
-        Binding(key="s", action="select_server", description="SelServers", show=False),
-        Binding(key="l", action="manage_server", description="ServList", show=False),
-        Binding(key="p", action="pattern_select", description="PatternSel", show=False),
-        Binding(key="ctrl+a", action="toggle_select_all", description="Sel/Des All"),
-        Binding(key="ctrl+u", action="unselect_all", description="Unselect All"),
-        Binding(key="left", action="previous_page", description="Previous Page", show=False),
-        Binding(key="right", action="next_page", description="Next Page", show=False),
-        Binding(key="up", action="filter_running", description="Running VMs", show=False),
-        Binding(key="down", action="filter_all", description="All VMs", show=False),
-        Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
-        Binding(key="h", action="host_capabilities", description="Host Caps", show=False),
-        Binding(key="i", action="install_vm", description="InstallVM", show=True),
-        Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
-        Binding(key="ctrl+s", action="show_cache_stats", description="Show cache Stats", show=False),
-        Binding(key="q", action="quit", description="Quit"),
+        Binding(key="v", action="view_log", description=BindingDescriptions.LOG),
+        Binding(key="f", action="filter_view", description=BindingDescriptions.FILTER, show=False),
+        Binding(key="k", action="compact_view", description=BindingDescriptions.COMPACT_VIEW, show=True),
+        #Binding(key="p", action="server_preferences", description=BindingDescriptions.SERVER_PREFS),
+        Binding(key="c", action="config", description=BindingDescriptions.CONFIG, show=True),
+        Binding(key="b", action="bulk_cmd", description=BindingDescriptions.BULK_CMD, show=False),
+        Binding(key="s", action="select_server", description=BindingDescriptions.SELECT_SERVERS, show=False),
+        Binding(key="l", action="manage_server", description=BindingDescriptions.MANAGE_SERVERS, show=False),
+        Binding(key="p", action="pattern_select", description=BindingDescriptions.PATTERN_SELECT, show=False),
+        Binding(key="ctrl+a", action="toggle_select_all", description=BindingDescriptions.SELECT_ALL),
+        Binding(key="ctrl+u", action="unselect_all", description=BindingDescriptions.UNSELECT_ALL),
+        Binding(key="left", action="previous_page", description=BindingDescriptions.PREVIOUS_PAGE, show=False),
+        Binding(key="right", action="next_page", description=BindingDescriptions.NEXT_PAGE, show=False),
+        Binding(key="up", action="filter_running", description=BindingDescriptions.RUNNING_VMS, show=False),
+        Binding(key="down", action="filter_all", description=BindingDescriptions.ALL_VMS, show=False),
+        Binding(key="ctrl+v", action="virsh_shell", description=BindingDescriptions.VIRSH_SHELL, show=False ),
+        Binding(key="h", action="host_capabilities", description=BindingDescriptions.HOST_CAPABILITIES, show=False),
+        Binding(key="i", action="install_vm", description=BindingDescriptions.INSTALL_VM, show=True),
+        Binding(key="ctrl+l", action="toggle_stats_logging", description=BindingDescriptions.TOGGLE_STATS, show=False),
+        Binding(key="ctrl+s", action="show_cache_stats", description=BindingDescriptions.CACHE_STATS, show=False),
+        Binding(key="q", action="quit", description=BindingDescriptions.QUIT),
     ]
 
     config = load_config()

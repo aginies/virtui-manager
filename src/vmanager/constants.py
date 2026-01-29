@@ -175,6 +175,31 @@ class ButtonLabels:
     OK = _("OK")
 
 
+class BindingDescriptions:
+    """Descriptions for app bindings"""
+    LOG = _("Log")
+    FILTER = _("Filter")
+    COMPACT_VIEW = _("CompactView")
+    SERVER_PREFS = _("ServerPrefs")
+    CONFIG = _("Config")
+    BULK_CMD = _("BulkCMD")
+    SELECT_SERVERS = _("SelServers")
+    MANAGE_SERVERS = _("ServList")
+    PATTERN_SELECT = _("PatternSel")
+    SELECT_ALL = _("Sel/Des All")
+    UNSELECT_ALL = _("Unselect All")
+    PREVIOUS_PAGE = _("Previous Page")
+    NEXT_PAGE = _("Next Page")
+    RUNNING_VMS = _("Running VMs")
+    ALL_VMS = _("All VMs")
+    VIRSH_SHELL = _("Virsh")
+    HOST_CAPABILITIES = _("Host Caps")
+    INSTALL_VM = _("InstallVM")
+    TOGGLE_STATS = _("Log Stats")
+    CACHE_STATS = _("Show cache Stats")
+    QUIT = _("Quit")
+
+
 class TabTitles:
     """Constants for tab titles"""
     MANAGE = _("Manage")
