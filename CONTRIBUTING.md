@@ -19,3 +19,4 @@ When submitting a PR, you must explain:
 1.  **Use Case:** What scenario does this fix/add?
 2.  **Benefits:** How does this help the user (e.g., lower bandwidth, faster UI)?
 3.  **Component Changes:** Which other parts of the app are affected?
+4.  **Translation update:** Any translation needs to be updated?
