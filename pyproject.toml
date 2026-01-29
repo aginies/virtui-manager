@@ -72,7 +72,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-vmanager = ["*.css", "*.md"]
+vmanager = ["*.css", "*.md", "locales/*.pot", "locales/*/LC_MESSAGES/*.mo", "locales/*/LC_MESSAGES/*.po"]
 
 [tool.black]
 line-length = 100
