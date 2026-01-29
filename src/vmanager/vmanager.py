@@ -59,6 +59,7 @@ from .utils import (
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
     setup_cache_monitoring,
+    setup_logging
 )
 from .libvirt_utils import get_internal_id
 from .vm_queries import (
@@ -69,11 +70,7 @@ from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
 
-log_config = load_config()
-log_level_str = log_config.get("LOG_LEVEL", "INFO")
-log_level = getattr(logging, log_level_str, logging.INFO)
-file_handler = logging.FileHandler(get_log_path())
-file_handler.setLevel(log_level)
+setup_logging()
 
 class WorkerManager:
     """A class to manage and track Textual workers."""
@@ -461,7 +458,7 @@ class VMManagerTUI(App):
         # Log libvirt call statistics
         call_stats = self.vm_service.connection_manager.get_stats()
         if call_stats:
-            logging.info("=== Libvirt Call Statistics ===")
+            logging.debug("=== Libvirt Call Statistics ===")
             for uri, methods in sorted(call_stats.items()):
                 server_name = uri
                 for s in self.servers:
@@ -479,7 +476,7 @@ class VMManagerTUI(App):
                 if total_increase > 0:
                     increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
-                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
+                logging.debug(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
                 previous_how_many_more = how_many_more
 
                 # Initialize previous method calls dict for this URI if needed
@@ -493,7 +490,7 @@ class VMManagerTUI(App):
 
                     self.last_method_calls[uri][method] = count
                     how_many_more_count = count - prev_method_count
-                    logging.info(f"  - {method}: {count} calls (+{how_many_more_count})")
+                    logging.debug(f"  - {method}: {count} calls (+{how_many_more_count})")
 
                 self.last_increase[uri] = how_many_more
                 self.last_total_calls[uri] = total_calls
