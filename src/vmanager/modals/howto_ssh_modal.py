@@ -7,6 +7,7 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.widgets import Button, Markdown
 from textual import on
 from .base_modals import BaseModal
+from ..constants import ButtonLabels
 
 class HowToSSHModal(BaseModal[None]):
     """A modal to display instructions for using an ssh-agent."""
@@ -24,7 +25,7 @@ class HowToSSHModal(BaseModal[None]):
             with ScrollableContainer(id="howto-ssh-content"):
                 yield Markdown(content, id="howto-ssh-markdown")
         with Horizontal(id="dialog-buttons"):
-            yield Button("Close", id="close-btn", variant="primary")
+            yield Button(ButtonLabels.CLOSE, id="close-btn", variant="primary")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:

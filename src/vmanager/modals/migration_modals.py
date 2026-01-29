@@ -11,6 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static, Select, Checkbox, Label, ProgressBar
 from textual import on, work
 
+from ..constants import ErrorMessages, StaticText, ButtonLabels
 from ..vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
 from ..storage_manager import find_shared_storage_pools
 from ..utils import extract_server_name_from_uri
@@ -74,38 +75,39 @@ class MigrationModal(ModalScreen):
 
         with Vertical(id="migration-dialog",):
             with Vertical(id="migration-content-wrapper"):
-                yield Label(f"[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
-                yield Static("Select destination server:")
+                yield Label(StaticText.MIGRATE_VMS_TITLE.format(migration_type=migration_type, vm_names=vm_names))
+                yield Static(StaticText.SELECT_DESTINATION_SERVER)
                 yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
 
-                yield Static("Migration Options:")
+                yield Static(StaticText.MIGRATION_OPTIONS)
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox("Copy storage all", id="copy-storage-all", tooltip="Copy all disk files during migration", value=False)
-                    yield Checkbox("Unsafe migration", id="unsafe", tooltip="Perform unsafe migration (may lose data)", disabled=not self.is_live)
-                    yield Checkbox("Persistent migration", id="persistent", tooltip="Keep VM persistent on destination", value=True)
+                    yield Checkbox(StaticText.COPY_STORAGE_ALL, id="copy-storage-all", tooltip="Copy all disk files during migration", value=False)
+                    yield Checkbox(StaticText.UNSAFE_MIGRATION, id="unsafe", tooltip="Perform unsafe migration (may lose data)", disabled=not self.is_live)
+                    yield Checkbox(StaticText.PERSISTENT_MIGRATION, id="persistent", tooltip="Keep VM persistent on destination", value=True)
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox("Compress data", id="compress", tooltip="Compress data during migration", disabled=not self.is_live)
-                    yield Checkbox("Tunnelled migration", id="tunnelled", tooltip="Tunnel migration data through libvirt daemon", disabled=not self.is_live)
-                    yield Checkbox("Custom migration", id="custom", tooltip="Use custom migration workflow", value=False)
-                yield Static("Compatibility Check Results / Migration Log:")
+                    yield Checkbox(StaticText.COMPRESS_DATA, id="compress", tooltip="Compress data during migration", disabled=not self.is_live)
+                    yield Checkbox(StaticText.TUNNELLED_MIGRATION, id="tunnelled", tooltip="Tunnel migration data through libvirt daemon", disabled=not self.is_live)
+                    yield Checkbox(StaticText.CUSTOM_MIGRATION, id="custom", tooltip="Use custom migration workflow", value=False)
+                yield Static(StaticText.COMPATIBILITY_CHECK_RESULTS)
                 yield ProgressBar(total=100, show_eta=False, id="migration-progress")
                 yield Static(id="results-log")
                 yield Grid(
                     ScrollableContainer(
-                        Static("[b]VMs [green]Ready[/] for Migration[/b]", classes="summary-title"),
+                        Static(StaticText.VMS_READY_FOR_MIGRATION, classes="summary-title"),
                         Static(id="can-migrate-list"),
                     ),
                     ScrollableContainer(
-                        Static("[b]VMs [red]Not[/] Ready for Migration[/b]", classes="summary-title"),
+                        Static(StaticText.VMS_NOT_READY_FOR_MIGRATION, classes="summary-title"),
                         Static(id="cannot-migrate-list"),
                     ),
                     id="migration-summary-grid"
                 )
 
             with Horizontal(classes="modal-buttons"):
-                yield Button("Check Compatibility", variant="primary", id="check", classes="Buttonpage")
-                yield Button("Start Migration", variant="success", id="start", disabled=True, classes="Buttonpage")
-                yield Button("Close", variant="default", id="close", disabled=False, classes="close-button")
+                yield Button(ButtonLabels.CHECK_COMPATIBILITY, variant="primary", id="check", classes="Buttonpage")
+                yield Button(ButtonLabels.START_MIGRATION, variant="success", id="start", disabled=True, classes="Buttonpage")
+                yield Button(ButtonLabels.CLOSE, variant="default", id="close", disabled=False, classes="close-button")
+
 
     def _lock_controls(self, lock: bool):
         self.query_one("#check").disabled = lock
@@ -403,17 +405,17 @@ class MigrationModal(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "check":
             if not self.dest_conn:
-                self.app.show_error_message("Please select a destination server.")
+                self.app.show_error_message(ErrorMessages.SELECT_DESTINATION_SERVER)
                 return
             self._clear_log()
             self.run_compatibility_checks()
 
         elif event.button.id == "start":
             if not self.compatibility_checked:
-                self.app.show_error_message("Please run compatibility check first.")
+                self.app.show_error_message(ErrorMessages.RUN_COMPATIBILITY_CHECK_FIRST)
                 return
             if not self.checks_passed:
-                self.app.show_error_message("Cannot start migration due to compatibility errors.")
+                self.app.show_error_message(ErrorMessages.MIGRATION_COMPATIBILITY_ERRORS)
                 return
 
             self._clear_log()

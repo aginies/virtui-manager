@@ -7,6 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual import on
 from .base_modals import BaseModal
+from ..constants import ButtonLabels, StaticText
 
 class InputModal(BaseModal[str | None]):
     """A generic modal for getting text input from the user."""
@@ -21,8 +22,8 @@ class InputModal(BaseModal[str | None]):
             yield Label(self.prompt)
             yield Input(value=self.initial_value, id="text-input", restrict=self.restrict)
             with Horizontal():
-                yield Button("OK", variant="primary", id="ok-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.OK, variant="primary", id="ok-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "ok-btn":
@@ -40,7 +41,7 @@ class AddInputDeviceModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-input-container"):
-            yield Label("Input Device")
+            yield Label(StaticText.INPUT_DEVICE)
             yield Select(
                 [(t, t) for t in self.available_types],
                 prompt="Input Type",
@@ -53,8 +54,8 @@ class AddInputDeviceModal(BaseModal[None]):
             )
             with Vertical():
                 with Horizontal():
-                    yield Button("Add", variant="primary", id="add-input", disabled=True)
-                    yield Button("Cancel", variant="default", id="cancel-input")
+                    yield Button(ButtonLabels.ADD, variant="primary", id="add-input", disabled=True)
+                    yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-input")
 
     @on(Select.Changed)
     def on_select_changed(self) -> None:
@@ -82,26 +83,26 @@ class AddChannelModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-channel-container"):
-            yield Label("Add Channel Device")
+            yield Label(StaticText.ADD_CHANNEL_DEVICE)
             yield Select(
                 [("unix", "unix"), ("virtio", "virtio"), ("spicevmc", "spicevmc")],
                 prompt="Channel Type",
                 id="channel-type-select",
                 value="unix"
             )
-            yield Label("Standard Target Names:")
+            yield Label(StaticText.STANDARD_TARGET_NAMES)
             yield Select(
                 [],
                 id="target-preset-select",
                 prompt="Select a standard target or type below",
                 value=Select.BLANK
             )
-            yield Label("Target Name:")
+            yield Label(StaticText.TARGET_NAME)
             yield Input(placeholder="Target Name (e.g. org.qemu.guest_agent.0)", id="target-name-input")
 
             with Horizontal():
-                yield Button("Add", variant="primary", id="add-channel-btn")
-                yield Button("Cancel", variant="default", id="cancel-channel-btn")
+                yield Button(ButtonLabels.ADD, variant="primary", id="add-channel-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-channel-btn")
 
     def on_mount(self) -> None:
         # Initialize presets for default type (unix)

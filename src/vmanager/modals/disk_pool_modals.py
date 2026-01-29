@@ -12,6 +12,7 @@ from textual.widgets import (
 from textual.app import ComposeResult
 from textual import on
 from ..storage_manager import create_storage_pool, list_storage_pools
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import DirectorySelectionModal, FileSelectionModal
 from .input_modals import _sanitize_input
@@ -33,7 +34,7 @@ class SelectPoolModal(BaseModal[str | None]):
                     *[ValueListItem(Label(pool), value=pool) for pool in self.pools],
                     id="pool-selection-list"
                 )
-            yield Button("Cancel", variant="error", id="cancel")
+            yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         self.selected_pool = event.item.value
@@ -61,7 +62,7 @@ class SelectDiskModal(BaseModal[str | None]):
                     *[ValueListItem(Label(os.path.basename(disk)), value=disk) for disk in self.disks],
                     id="disk-selection-list"
                 )
-            yield Button("Cancel", variant="error", id="cancel")
+            yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         self.selected_disk = event.item.value
@@ -80,14 +81,14 @@ class RemoveDiskModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="remove-disk-dialog"):
-            yield Label("Select Disk to Remove")
+            yield Label(StaticText.SELECT_DISK_TO_REMOVE)
             yield ListView(
                 *[ValueListItem(Label(disk), value=disk) for disk in self.disks],
                 id="remove-disk-list"
             )
             with Horizontal():
-                yield Button("Remove", variant="error", id="remove-btn", classes="Buttonpage delete-button")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.REMOVE, variant="error", id="remove-btn", classes="Buttonpage delete-button")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         self.selected_disk = event.item.value
@@ -107,11 +108,11 @@ class AddDiskModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="add-disk-dialog"):
-            yield Label("Add New Disk")
+            yield Label(StaticText.ADD_NEW_DISK)
             with Horizontal():
                 yield Input(placeholder="Path to existing disk image or ISO", id="disk-path-input")
-                yield Button("Browse", id="browse-disk-btn")
-            yield Checkbox("Create new disk image", id="create-disk-checkbox")
+                yield Button(ButtonLabels.BROWSE, id="browse-disk-btn")
+            yield Checkbox(StaticText.CREATE_NEW_DISK_IMAGE, id="create-disk-checkbox")
 
             # Fields for creating a new disk
             yield Select(
@@ -124,14 +125,14 @@ class AddDiskModal(BaseModal[dict | None]):
             yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2")
 
-            yield Checkbox("CD-ROM", id="cdrom-checkbox")
+            yield Checkbox(StaticText.CD_ROM, id="cdrom-checkbox")
             yield Select(
                 [("virtio", "virtio"), ("sata", "sata"), ("scsi", "scsi"), ("ide", "ide"), ("usb", "usb")],
                 id="disk-bus-select", value="virtio"
             )
             with Horizontal():
-                yield Button("Add", variant="primary", id="add-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.ADD, variant="primary", id="add-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def _update_device_type_from_path(self, path: str) -> None:
         """Automatically sets CD-ROM checkbox based on file extension."""
@@ -223,7 +224,7 @@ class AddDiskModal(BaseModal[dict | None]):
                 disk_format = self.query_one("#disk-format-select", Select).value
 
                 if not all([pool, vol_name, disk_size_str]):
-                    self.app.show_error_message("Pool, Volume Name, and Size are required to create a new disk.")
+                    self.app.show_error_message(ErrorMessages.CREATE_DISK_REQUIRED_FIELDS)
                     return
                 
                 numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
@@ -238,7 +239,7 @@ class AddDiskModal(BaseModal[dict | None]):
             else:
                 disk_path = self.query_one("#disk-path-input", Input).value
                 if not disk_path:
-                    self.app.show_error_message("Path to disk image is required.")
+                    self.app.show_error_message(ErrorMessages.DISK_IMAGE_PATH_REQUIRED)
                     return
                 result["disk_path"] = disk_path
             
@@ -255,7 +256,7 @@ class AddPoolModal(BaseModal[bool | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-pool-dialog"):
-            yield Label("Add New Storage Pool")
+            yield Label(StaticText.ADD_NEW_STORAGE_POOL)
             yield Input(placeholder="Pool Name (e.g., my_pool)", id="pool-name-input")
             yield Select(
                 [
@@ -269,32 +270,32 @@ class AddPoolModal(BaseModal[bool | None]):
 
             # Fields for `dir` type
             with Vertical(id="dir-fields"):
-                yield Label("Target Path (for volumes)")
+                yield Label(StaticText.TARGET_PATH_VOLUMES)
                 with Vertical():
                     with Horizontal():
                         yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/>")
-                        yield Button("Browse", id="browse-dir-btn")
+                        yield Button(ButtonLabels.BROWSE, id="browse-dir-btn")
 
             # Fields for `netfs` type
             with Vertical(id="netfs-fields"):
                 with ScrollableContainer():
-                    yield Label("Target Path (on this host)")
+                    yield Label(StaticText.TARGET_PATH_HOST)
                     with Vertical():
                         yield Input(placeholder="/mnt/nfs", id="netfs-target-path-input")
-                        yield Button("Browse", id="browse-netfs-btn")
+                        yield Button(ButtonLabels.BROWSE, id="browse-netfs-btn")
                     yield Select(
                         [("auto", "auto"), ("nfs", "nfs"), ("glusterfs", "glusterfs"), ("cifs", "cifs")],
                         id="netfs-format-select",
                         value="auto"
                     )
-                    yield Label("Source Hostname")
+                    yield Label(StaticText.SOURCE_HOSTNAME)
                     yield Input(placeholder="nfs.example.com", id="netfs-host-input")
-                    yield Label("Source Path (on remote host)")
+                    yield Label(StaticText.SOURCE_PATH_REMOTE)
                     yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
 
             with Horizontal():
-                yield Button("Add", variant="primary", id="add-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.ADD, variant="primary", id="add-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:
         self.query_one("#netfs-fields").display = False
@@ -328,10 +329,10 @@ class AddPoolModal(BaseModal[bool | None]):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{pool_name_raw}' changed to '{pool_name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=pool_name_raw, sanitized_input=pool_name))
 
             if not pool_name:
-                self.app.show_error_message("Pool name is required.")
+                self.app.show_error_message(ErrorMessages.POOL_NAME_REQUIRED)
                 return
 
             pool_details = {"name": pool_name, "type": pool_type}
@@ -339,7 +340,7 @@ class AddPoolModal(BaseModal[bool | None]):
             if pool_type == "dir":
                 target_path = self.query_one("#dir-target-path-input", Input).value
                 if not target_path:
-                    self.app.show_error_message("Target Path is required for `dir` type.")
+                    self.app.show_error_message(ErrorMessages.TARGET_PATH_REQUIRED_FOR_DIR)
                     return
                 if target_path == "/var/lib/libvirt/images/":
                     target_path = os.path.join(target_path, pool_name)
@@ -350,7 +351,7 @@ class AddPoolModal(BaseModal[bool | None]):
                 host = self.query_one("#netfs-host-input", Input).value
                 source_path = self.query_one("#netfs-source-path-input", Input).value
                 if not all([target_path, host, source_path]):
-                    self.app.show_error_message("For `netfs`, all fields are required.")
+                    self.app.show_error_message(ErrorMessages.NETFS_FIELDS_REQUIRED)
                     return
                 pool_details["target"] = target_path
                 pool_details["format"] = netfs_format
@@ -378,13 +379,13 @@ class AddPoolModal(BaseModal[bool | None]):
                         )
                     self.app.call_from_thread(
                         self.app.show_success_message, 
-                        f"Storage pool '{pool_details['name']}' created and started."
+                        SuccessMessages.STORAGE_POOL_CREATED_TEMPLATE.format(name=pool_details['name'])
                     )
                     self.app.call_from_thread(self.dismiss, True)
                 except Exception as e:
                     self.app.call_from_thread(
                         self.app.show_error_message, 
-                        f"Error creating storage pool: {e}"
+                        ErrorMessages.ERROR_CREATING_STORAGE_POOL_TEMPLATE.format(error=e)
                     )
             
             self.app.worker_manager.run(
@@ -399,13 +400,13 @@ class CreateVolumeModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="create-volume-dialog"):
-            yield Label("Create New Storage Volume")
+            yield Label(StaticText.CREATE_NEW_STORAGE_VOLUME)
             yield Input(placeholder="Volume Name (e.g., new_disk.qcow2)", id="vol-name-input")
             yield Input(placeholder="Size in GB (e.g., 10)", id="vol-size-input", type="integer")
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="vol-format-select", value="qcow2")
             with Horizontal():
-                yield Button("Create", variant="primary", id="create-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.CREATE, variant="primary", id="create-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create-btn":
@@ -420,16 +421,16 @@ class CreateVolumeModal(BaseModal[dict | None]):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{name_raw}' changed to '{name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
 
             if not name or not size:
-                self.app.show_error_message("Name and size are required.")
+                self.app.show_error_message(ErrorMessages.NAME_AND_SIZE_REQUIRED)
                 return
 
             try:
                 size_gb = int(size)
             except ValueError:
-                self.app.show_error_message("Size must be an integer.")
+                self.app.show_error_message(ErrorMessages.SIZE_MUST_BE_INTEGER)
                 return
 
             self.dismiss({'name': name, 'size_gb': size_gb, 'format': vol_format})
@@ -449,26 +450,26 @@ class EditDiskModal(BaseModal[dict | None]):
         device_options = [("disk", "disk"), ("cdrom", "cdrom"), ("lun", "lun")]
 
         with Vertical(id="edit-disk-dialog"):
-            yield Label(f"Edit Disk: {self.disk_info['path']}", id="edit-disk-title")
+            yield Label(StaticText.EDIT_DISK_TITLE.format(path=self.disk_info['path']), id="edit-disk-title")
 
-            yield Label("Device Type:")
+            yield Label(StaticText.DEVICE_TYPE)
             yield Select(device_options, value=self.disk_info.get('device_type') or 'disk', id="edit-device-type", disabled=not self.is_stopped)
 
-            yield Label("Bus Type:")
+            yield Label(StaticText.BUS_TYPE)
             yield Select(bus_options, value=self.disk_info.get('bus'), id="edit-bus-type", disabled=not self.is_stopped)
 
-            yield Label("Cache Mode:")
+            yield Label(StaticText.CACHE_MODE)
             yield Select(cache_options, value=self.disk_info.get('cache_mode') or 'none', id="edit-cache-mode", disabled=not self.is_stopped)
 
-            yield Label("Discard Mode:")
+            yield Label(StaticText.DISCARD_MODE)
             yield Select(discard_options, value=self.disk_info.get('discard_mode') or 'unmap', id="edit-discard-mode", disabled=not self.is_stopped)
 
             if not self.is_stopped:
-                yield Label("VM must be stopped to edit disk settings.", classes="warning")
+                yield Label(StaticText.VM_MUST_BE_STOPPED_EDIT_DISK, classes="warning")
 
             with Horizontal(classes="modal-buttons"):
-                yield Button("Apply", variant="primary", id="apply-disk-edit", disabled=not self.is_stopped)
-                yield Button("Cancel", id="cancel-disk-edit")
+                yield Button(ButtonLabels.APPLY, variant="primary", id="apply-disk-edit", disabled=not self.is_stopped)
+                yield Button(ButtonLabels.CANCEL, id="cancel-disk-edit")
 
     @on(Button.Pressed, "#apply-disk-edit")
     def on_apply(self):
@@ -495,26 +496,26 @@ class MoveVolumeModal(BaseModal[dict]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="move-volume-dialog"):
-            yield Label(f"Move Volume: {self.volume_name}", id="move-volume-title")
-            yield Static(f"From Pool: {self.source_pool_name}", classes="label-like")
+            yield Label(StaticText.MOVE_VOLUME_TITLE.format(volume_name=self.volume_name), id="move-volume-title")
+            yield Static(StaticText.FROM_POOL.format(source_pool_name=self.source_pool_name), classes="label-like")
 
             pools = list_storage_pools(self.conn)
             # Filter out the source pool from the destination choices
             dest_pools = [(p['name'], p['name']) for p in pools if p['name'] != self.source_pool_name and p['status'] == 'active']
 
             if not dest_pools:
-                yield Label("No other active pools available to move to.", classes="error-text")
-                yield Button("Cancel", id="cancel-btn", variant="default")
+                yield Label(StaticText.NO_OTHER_ACTIVE_POOLS, classes="error-text")
+                yield Button(ButtonLabels.CANCEL, id="cancel-btn", variant="default")
             else:
-                yield Label("Destination Pool:", classes="label-like")
+                yield Label(StaticText.DESTINATION_POOL, classes="label-like")
                 yield Select(dest_pools, id="dest-pool-select")
 
-                yield Label("New Volume Name:", classes="label-like")
+                yield Label(StaticText.NEW_VOLUME_NAME, classes="label-like")
                 yield Input(value=self.volume_name, id="new-volume-name-input")
 
                 with Horizontal(classes="button-bar"):
-                    yield Button("Move", id="move-btn", variant="primary")
-                    yield Button("Cancel", id="cancel-btn", variant="default")
+                    yield Button(ButtonLabels.MOVE, id="move-btn", variant="primary")
+                    yield Button(ButtonLabels.CANCEL, id="cancel-btn", variant="default")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel-btn":
@@ -530,7 +531,7 @@ class MoveVolumeModal(BaseModal[dict]):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{new_name_input_raw}' changed to '{new_name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=new_name_input_raw, sanitized_input=new_name))
 
             if dest_pool_select.value and new_name:
                 self.dismiss({
@@ -538,7 +539,7 @@ class MoveVolumeModal(BaseModal[dict]):
                     "new_name": new_name
                 })
             else:
-                self.app.show_error_message("Destination pool and new name are required.")
+                self.app.show_error_message(ErrorMessages.DEST_POOL_AND_NAME_REQUIRED)
 
 
 class AttachVolumeModal(BaseModal[dict | None]):
@@ -550,14 +551,14 @@ class AttachVolumeModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="attach-volume-dialog"):
-            yield Label("Attach Existing Disk as Volume")
+            yield Label(StaticText.ATTACH_EXISTING_DISK_AS_VOLUME)
             yield Input(placeholder="Volume Name (e.g., existing_disk.qcow2)", id="vol-name-input", disabled=True)
             with Horizontal():
                 yield Input(placeholder="Path to disk image", id="vol-path-input")
-                yield Button("Browse", id="browse-vol-btn")
+                yield Button(ButtonLabels.BROWSE, id="browse-vol-btn")
             with Horizontal():
-                yield Button("Attach", variant="primary", id="attach-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.ATTACH, variant="primary", id="attach-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     @on(Input.Changed, "#vol-path-input")
     def on_vol_path_input_changed(self, event: Input.Changed) -> None:
@@ -567,7 +568,7 @@ class AttachVolumeModal(BaseModal[dict | None]):
             try:
                 sanitized_name, was_modified = _sanitize_input(os.path.basename(event.value))
                 if was_modified:
-                    self.app.show_success_message(f"Input sanitized: '{os.path.basename(event.value)}' changed to '{sanitized_name}'")
+                    self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=os.path.basename(event.value), sanitized_input=sanitized_name))
                 
                 vol_name_input.value = sanitized_name
             except ValueError as e:
@@ -610,10 +611,10 @@ class AttachVolumeModal(BaseModal[dict | None]):
                 return
             
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: '{name_raw}' changed to '{name}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
 
             if not name or not path or not vol_format:
-                self.app.show_error_message("Name, path, and format are required. Ensure a file is selected.")
+                self.app.show_error_message(ErrorMessages.NAME_PATH_FORMAT_REQUIRED)
                 return
 
             self.dismiss({'name': name, 'path': path, 'format': vol_format})

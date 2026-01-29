@@ -8,6 +8,7 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.widgets import Button, Markdown
 from textual import on
 from .base_modals import BaseModal
+from ..constants import ButtonLabels
 
 class HowToOverlayModal(BaseModal[None]):
     """A modal to display instructions for disk overlays."""
@@ -25,7 +26,7 @@ class HowToOverlayModal(BaseModal[None]):
             with ScrollableContainer(id="howto-overlay-content"):
                 yield Markdown(content, id="howto-overlay-markdown")
         with Horizontal(id="dialog-buttons"):
-            yield Button("Close", id="close-btn", variant="primary")
+            yield Button(ButtonLabels.CLOSE, id="close-btn", variant="primary")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:

@@ -8,6 +8,7 @@ from textual.widgets.text_area import LanguageDoesNotExist
 from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
 
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal, BaseDialog
 from ..network_manager import (
     create_network, get_host_network_interfaces, get_existing_subnets
@@ -35,7 +36,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
         if self.is_edit and self.interface_info:
             network_value = self.interface_info.get("network")
             if network_value not in self.networks:
-                self.app.show_error_message(f"Network '{network_value}' not found. Please select an available network.")
+                self.app.show_error_message(ErrorMessages.NETWORK_NOT_FOUND_TEMPLATE.format(network=network_value))
                 network_value = self.networks[0] if self.networks else None # Set to first available network if any, otherwise None
             model_value = self.interface_info.get("model", "virtio")
             mac_value = self.interface_info.get("mac", "")
@@ -43,7 +44,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             network_value = self.networks[0]
 
         with Vertical(id="add-edit-network-dialog"):
-            yield Label("Select network and model")
+            yield Label(StaticText.SELECT_NETWORK_AND_MODEL)
 
             if self.networks:
                 yield Select(network_options, id="network-select", prompt="Select a network", value=network_value)
@@ -60,8 +61,8 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             )
 
             with Horizontal(id="dialog-buttons"):
-                yield Button("Save" if self.is_edit else "Add", variant="success", id="save")
-                yield Button("Cancel", variant="error", id="cancel")
+                yield Button(ButtonLabels.SAVE if self.is_edit else ButtonLabels.ADD, variant="success", id="save")
+                yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save":
@@ -72,7 +73,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             new_model = model_select.value
 
             if new_network is Select.BLANK:
-                self.app.show_error_message("Please select a network.")
+                self.app.show_error_message(ErrorMessages.SELECT_NETWORK)
                 return
 
             result = {"network": new_network, "model": new_model}
@@ -94,7 +95,7 @@ class AddEditNetworkModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         title = "Edit Network" if self.is_edit else "Create New Network"
-        button_label = "Save Changes" if self.is_edit else "Create Network"
+        button_label = ButtonLabels.SAVE_CHANGES if self.is_edit else ButtonLabels.CREATE_NETWORK
 
         name_val = ""
         forward_mode = "nat"
@@ -137,7 +138,6 @@ class AddEditNetworkModal(BaseModal[None]):
             dhcp_end_val = "192.168.11.30"
 
 
-
         with Vertical(id="create-network-dialog"):
             yield Label(title, id="create-network-title")
 
@@ -150,8 +150,8 @@ class AddEditNetworkModal(BaseModal[None]):
                         disabled=self.is_edit
                     )
                     with RadioSet(id="type-network", classes="type-network-radioset"):
-                        yield RadioButton("Nat network", id="type-network-nat", value=(forward_mode == "nat"))
-                        yield RadioButton("Routed network", id="type-network-routed", value=(forward_mode == "route"))
+                        yield RadioButton(StaticText.NAT_NETWORK, id="type-network-nat", value=(forward_mode == "nat"))
+                        yield RadioButton(StaticText.ROUTED_NETWORK, id="type-network-routed", value=(forward_mode == "route"))
                     yield Select(
                         [("Loading...", "")],
                         prompt="Select Forward Interface",
@@ -160,33 +160,33 @@ class AddEditNetworkModal(BaseModal[None]):
                         disabled=True
                     )
                     yield Input(
-                        placeholder="IPv4 Network (e.g., 192.168.100.0/24)", id="net-ip-input", value=ip_val
+                        placeholder=StaticText.IPV4_NETWORK_EXAMPLE, id="net-ip-input", value=ip_val
                     )
-                    yield Checkbox("Enable DHCPv4", id="dhcp-checkbox", value=dhcp_val)
+                    yield Checkbox(StaticText.ENABLE_DHCPV4, id="dhcp-checkbox", value=dhcp_val)
                     with Vertical(id="dhcp-inputs-horizontal"):
                         dhcp_options_classes = "" if dhcp_val else "hidden"
                         with Horizontal(id="dhcp-options", classes=dhcp_options_classes):
                             yield Input(
-                                placeholder="DHCP Start (e.192.168.100.100)",
+                                placeholder=StaticText.DHCP_START_EXAMPLE,
                                 id="dhcp-start-input",
                                 classes="dhcp-input",
                                 value=dhcp_start_val
                             )
                             yield Input(
-                                placeholder="DHCP End (e.g., 192.168.100.254)",
+                                placeholder=StaticText.DHCP_END_EXAMPLE,
                                 id="dhcp-end-input",
                                 classes="dhcp-input",
                                 value=dhcp_end_val
                             )
                     with RadioSet(id="dns-domain-radioset", classes="dns-domain-radioset"):
                         yield RadioButton(
-                            "Use Network Name for DNS Domain", id="dns-use-net-name", value=not use_custom_domain
+                            StaticText.USE_NETWORK_NAME_FOR_DNS, id="dns-use-net-name", value=not use_custom_domain
                         )
-                        yield RadioButton("Use Custom DNS Domain", id="dns-use-custom", value=use_custom_domain)
+                        yield RadioButton(StaticText.USE_CUSTOM_DNS_DOMAIN, id="dns-use-custom", value=use_custom_domain)
 
                     custom_domain_classes = "hidden" if not use_custom_domain else ""
                     yield Input(
-                        placeholder="Custom DNS Domain",
+                        placeholder=StaticText.CUSTOM_DNS_DOMAIN,
                         id="dns-custom-domain-input",
                         value=domain_name,
                         classes=custom_domain_classes
@@ -195,9 +195,9 @@ class AddEditNetworkModal(BaseModal[None]):
                         with Horizontal(classes="action-buttons"):
                             yield Button(
                                 button_label, variant="primary", id="create-net-btn", classes="create-net-btn"
-                            )
-            yield Button("Close", variant="default", id="close-btn", classes="close-button")
-
+                                )
+            yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-button")
+                            
     def on_mount(self) -> None:
         """Called when the modal is mounted to populate network interfaces."""
         self.run_worker(self.populate_interfaces, thread=True)
@@ -225,7 +225,7 @@ class AddEditNetworkModal(BaseModal[None]):
                         else:
                             select.clear()
                             self.app.show_error_message(
-                                f"Warning: Forward device '{forward_dev}' not found on host."
+                                ErrorMessages.FORWARD_DEVICE_NOT_FOUND_TEMPLATE.format(device=forward_dev)
                             )
                     else:
                         select.clear()
@@ -234,7 +234,7 @@ class AddEditNetworkModal(BaseModal[None]):
         except Exception as e:
             self.app.call_from_thread(
                 self.app.show_error_message,
-                f"Error getting host interfaces: {e}"
+                ErrorMessages.ERROR_GETTING_HOST_INTERFACES_TEMPLATE.format(error=e)
             )
 
     @on(Checkbox.Changed, "#dhcp-checkbox")
@@ -270,13 +270,13 @@ class AddEditNetworkModal(BaseModal[None]):
             dhcp_end = self.query_one("#dhcp-end-input", Input).value
 
             domain_radio = self.query_one("#dns-domain-radioset", RadioSet).pressed_button.id
-            
+
             try:
                 name, name_modified = _sanitize_input(name_raw)
                 if name_modified:
-                    self.app.show_success_message(f"Network name sanitized: '{name_raw}' changed to '{name}'")
+                    self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
             except ValueError as e:
-                self.app.show_error_message(f"Invalid Network Name: {e}")
+                self.app.show_error_message(ErrorMessages.INVALID_NETWORK_NAME_TEMPLATE.format(error=e))
                 return
 
             domain_name_raw = self.query_one("#dns-custom-domain-input", Input).value
@@ -285,13 +285,13 @@ class AddEditNetworkModal(BaseModal[None]):
                 try:
                     domain_name, domain_name_modified = _sanitize_domain_name(domain_name_raw)
                     if domain_name_modified:
-                        self.app.show_success_message(f"Custom DNS Domain sanitized: '{domain_name_raw}' changed to '{domain_name}'")
+                        self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=domain_name_raw, sanitized_input=domain_name))
                 except ValueError as e:
-                    self.app.show_error_message(f"Invalid Custom DNS Domain: {e}")
+                    self.app.show_error_message(ErrorMessages.INVALID_CUSTOM_DNS_DOMAIN_TEMPLATE.format(error=e))
                     return
 
             if not name:
-                self.app.show_error_message("Network Name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.NETWORK_NAME_REQUIRED)
                 return
 
             if ip:
@@ -302,16 +302,16 @@ class AddEditNetworkModal(BaseModal[None]):
                         dhcp_start_ip = ipaddress.ip_address(dhcp_start)
                         dhcp_end_ip = ipaddress.ip_address(dhcp_end)
                         if dhcp_start_ip not in ip_network or dhcp_end_ip not in ip_network:
-                            self.app.show_error_message(f"DHCP IPs are not in the network {ip_network}")
+                            self.app.show_error_message(ErrorMessages.DHCP_IPS_NOT_IN_NETWORK_TEMPLATE.format(network=ip_network))
                             return
                         if dhcp_start_ip >= dhcp_end_ip:
-                            self.app.show_error_message("DHCP start IP must be before the end IP.")
+                            self.app.show_error_message(ErrorMessages.DHCP_START_BEFORE_END)
                             return
                 except ValueError as e:
-                    self.app.show_error_message(f"Invalid IP address or network: {e}")
+                    self.app.show_error_message(ErrorMessages.INVALID_IP_OR_NETWORK_TEMPLATE.format(error=e))
                     return
             elif dhcp:
-                self.app.show_error_message("DHCP cannot be enabled without an IP network.")
+                self.app.show_error_message(ErrorMessages.DHCP_REQUIRES_IP)
                 return
 
             def do_create_or_update_network():
@@ -344,20 +344,29 @@ class AddEditNetworkModal(BaseModal[None]):
                             if ip_network.overlaps(existing_subnet):
                                 self.app.call_from_thread(
                                     self.app.show_error_message,
-                                    f"Subnet {ip_network} overlaps with an existing network."
+                                    ErrorMessages.SUBNET_OVERLAPS_TEMPLATE.format(subnet=ip_network)
                                 )
                                 return
 
                     uuid = self.network_info.get('uuid') if self.is_edit and self.network_info else None
                     create_network(self.conn, name, typenet, forward, ip, dhcp, dhcp_start, dhcp_end, domain_name, uuid=uuid)
 
-                    message = f"Network {name} {'updated' if self.is_edit else 'created'} successfully."
+                    if self.is_edit:
+                        message = SuccessMessages.NETWORK_UPDATED_TEMPLATE.format(name=name)
+                    else:
+                        message = SuccessMessages.NETWORK_CREATED_TEMPLATE.format(name=name)
+
                     self.app.call_from_thread(self.app.show_success_message, message)
                     self.app.call_from_thread(self.dismiss, True)
                 except Exception as e:
+                    if self.is_edit:
+                        err_msg = ErrorMessages.ERROR_UPDATING_NETWORK_TEMPLATE.format(error=e)
+                    else:
+                        err_msg = ErrorMessages.ERROR_CREATING_NETWORK_TEMPLATE.format(error=e)
+
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"Error {'updating' if self.is_edit else 'creating'} network: {e}"
+                        err_msg
                     )
 
             self.app.worker_manager.run(
@@ -374,7 +383,7 @@ class NetworkXMLModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="network-detail-dialog"):
-            yield Label(f"Network Details: {self.network_name}", id="title")
+            yield Label(StaticText.NETWORK_DETAILS.format(network_name=self.network_name), id="title")
             with ScrollableContainer():
                 text_area = TextArea(self.network_xml, read_only=True)
                 try:
@@ -384,7 +393,7 @@ class NetworkXMLModal(BaseModal[None]):
                 text_area.styles.height = "auto"
                 yield text_area
             with Horizontal():
-                yield Button("Close", variant="default", id="close-btn", classes="close-btn")
+                yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":

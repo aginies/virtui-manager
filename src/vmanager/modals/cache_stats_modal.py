@@ -5,6 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable
 from textual.containers import Vertical, Horizontal
 from .base_modals import BaseModal
+from ..constants import StaticText, SuccessMessages, ButtonLabels
 
 class CacheStatsModal(BaseModal[None]):
     """Modal displaying cache statistics in a table."""
@@ -15,13 +16,13 @@ class CacheStatsModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="cache-stats-dialog"):
-            yield Static("Cache Performance Statistics", classes="dialog-title")
+            yield Static(StaticText.CACHE_PERFORMANCE_STATISTICS, classes="dialog-title")
             yield DataTable(id="stats-table")
         with Vertical():
             with Horizontal():
-                yield Button("Refresh", id="refresh-btn", variant="primary")
-                yield Button("Clear All Caches", id="clear-btn", variant="error")
-                yield Button("Close", id="close-btn", variant="default")
+                yield Button(ButtonLabels.REFRESH, id="refresh-btn", variant="primary")
+                yield Button(ButtonLabels.CLEAR_CACHES, id="clear-btn", variant="error")
+                yield Button(ButtonLabels.CLOSE, id="close-btn", variant="default")
 
     def on_mount(self) -> None:
         """Setup the table."""
@@ -58,6 +59,6 @@ class CacheStatsModal(BaseModal[None]):
         elif event.button.id == "clear-btn":
             self.cache_monitor.clear_all_caches()
             self._update_table()
-            self.app.show_success_message("All caches cleared")
+            self.app.show_success_message(SuccessMessages.ALL_CACHES_CLEARED)
         elif event.button.id == "close-btn":
             self.dismiss()

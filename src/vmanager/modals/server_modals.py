@@ -11,19 +11,20 @@ from .howto_ssh_modal import HowToSSHModal
 from .base_modals import BaseModal
 
 from ..config import save_config
+from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 
 class ConnectionModal(BaseModal[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="connection-dialog"):
-            yield Label("Enter QEMU Connection URI:")
+            yield Label(StaticText.ENTER_QEMU_CONNECTION_URI)
             yield Input(
                 placeholder="qemu+ssh://user@host/system or qemu:///system",
                 id="uri-input",
             )
             with Horizontal():
-                yield Button("Connect", variant="primary", id="connect-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CONNECT, variant="primary", id="connect-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "connect-btn":
@@ -37,14 +38,14 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
     """Modal for adding a new server with autoconnect option."""
     def compose(self) -> ComposeResult:
         with Vertical(id="add-server-dialog"):
-            yield Label("Add New Server")
+            yield Label(StaticText.ADD_NEW_SERVER)
             yield Input(placeholder="Server Name", id="server-name-input")
             yield Input(placeholder="qemu+ssh://user@host/system", id="server-uri-input")
-            yield Label("")
-            yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=False)
+            yield Label(StaticText.EMPTY_LABEL)
+            yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=False)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -69,14 +70,14 @@ class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-server-dialog"):
-            yield Label("Edit Server")
+            yield Label(StaticText.EDIT_SERVER)
             yield Input(value=self.server_name, id="server-name-input")
             yield Input(value=self.server_uri, id="server-uri-input")
-            yield Label("")
-            yield Checkbox("Autoconnect at startup", id="autoconnect-checkbox", value=self.autoconnect)
+            yield Label(StaticText.EMPTY_LABEL)
+            yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=self.autoconnect)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -102,18 +103,18 @@ class ServerManagementModal(BaseModal [str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="server-management-dialog"): #, classes="info-details"):
-            yield Label("Server List Management") #, id="server-list-title")
+            yield Label(StaticText.SERVER_LIST_MANAGEMENT) #, id="server-list-title")
             with ScrollableContainer(classes="info-details"):
                 yield DataTable(id="server-table", classes="server-list")
             with Vertical(classes="server-list"):
                 with Horizontal():
-                    yield Button("Add", id="add-server-btn", classes="add-button", variant="success")
-                    yield Button("Edit", id="edit-server-btn", disabled=True, classes="edit-button")
-                    yield Button("Delete", id="delete-server-btn", disabled=True,)
+                    yield Button(ButtonLabels.ADD, id="add-server-btn", classes="add-button", variant="success")
+                    yield Button(ButtonLabels.EDIT, id="edit-server-btn", disabled=True, classes="edit-button")
+                    yield Button(ButtonLabels.DELETE, id="delete-server-btn", disabled=True,)
                 with Horizontal():
-                    yield Button("Connect", id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
-                    yield Button("Custom URL", id="custom-conn-btn", classes="Buttonpage")
-                    yield Button("SSH Help", id="ssh-help-btn", classes="Buttonpage")
+                    yield Button(ButtonLabels.CONNECT, id="select-btn", variant="primary", disabled=True, classes="Buttonpage")
+                    yield Button(ButtonLabels.CUSTOM_URL, id="custom-conn-btn", classes="Buttonpage")
+                    yield Button(ButtonLabels.SSH_HELP, id="ssh-help-btn", classes="Buttonpage")
              #yield Button("Close", id="close-btn", classes="close-button")
 
     def on_mount(self) -> None:
@@ -193,13 +194,13 @@ class ServerManagementModal(BaseModal [str | None]):
                         self.query_one("#edit-server-btn").disabled = True
                         self.query_one("#delete-server-btn").disabled = True
                         self.query_one("#select-btn").disabled = True
-                        self.app.show_success_message(f"Server '{server_name_to_delete}' deleted successfully.")
+                        self.app.show_success_message(SuccessMessages.SERVER_DELETED_TEMPLATE.format(server_name=server_name_to_delete))
                         logging.info(f"Successfully deleted Server '{server_name_to_delete}'")
                     except Exception as e:
-                        self.app.show_error_message(f"Error deleting server '{server_name_to_delete}': {e}")
+                        self.app.show_error_message(ErrorMessages.ERROR_DELETING_SERVER_TEMPLATE.format(server_name=server_name_to_delete, error=e))
 
             self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to delete Server;\n'{server_name_to_delete}'\nfrom list?"), on_confirm)
+                ConfirmationDialog(ErrorMessages.DELETE_SERVER_CONFIRMATION_TEMPLATE.format(server_name=server_name_to_delete)), on_confirm)
 
         elif event.button.id == "custom-conn-btn":
             def connection_callback(uri: str | None):

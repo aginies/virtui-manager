@@ -8,7 +8,7 @@ from textual.widgets import (
         Button, Input, Label,
         RadioButton, RadioSet, Checkbox
         )
-from ..constants import VmStatus
+from ..constants import VmStatus, ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 
@@ -33,20 +33,20 @@ class FilterModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="filter-dialog"):
-            yield Label("Filter by Name")
+            yield Label(StaticText.FILTER_BY_NAME)
             with Vertical(classes="info-details"):
                 yield Input(placeholder="Enter VM name...", id="search-input", value=self.current_search)
                 with RadioSet(id="status-radioset"):
-                    yield RadioButton("All", id=f"status_{VmStatus.DEFAULT}", value=self.current_status == VmStatus.DEFAULT)
-                    yield RadioButton("Running", id=f"status_{VmStatus.RUNNING}", value=self.current_status == VmStatus.RUNNING)
-                    yield RadioButton("Paused", id=f"status_{VmStatus.PAUSED}", value=self.current_status == VmStatus.PAUSED)
-                    yield RadioButton("PMSuspended", id=f"status_{VmStatus.PMSUSPENDED}", value=self.current_status == VmStatus.PMSUSPENDED)
-                    yield RadioButton("Blocked", id=f"status_{VmStatus.BLOCKED}", value=self.current_status == VmStatus.BLOCKED)
-                    yield RadioButton("Stopped", id=f"status_{VmStatus.STOPPED}", value=self.current_status == VmStatus.STOPPED)
-                    yield RadioButton("Manually Selected", id=f"status_{VmStatus.SELECTED}", value=self.current_status == VmStatus.SELECTED)
+                    yield RadioButton(StaticText.ALL, id=f"status_{VmStatus.DEFAULT}", value=self.current_status == VmStatus.DEFAULT)
+                    yield RadioButton(StaticText.RUNNING, id=f"status_{VmStatus.RUNNING}", value=self.current_status == VmStatus.RUNNING)
+                    yield RadioButton(StaticText.PAUSED, id=f"status_{VmStatus.PAUSED}", value=self.current_status == VmStatus.PAUSED)
+                    yield RadioButton(StaticText.PMSUSPENDED, id=f"status_{VmStatus.PMSUSPENDED}", value=self.current_status == VmStatus.PMSUSPENDED)
+                    yield RadioButton(StaticText.BLOCKED, id=f"status_{VmStatus.BLOCKED}", value=self.current_status == VmStatus.BLOCKED)
+                    yield RadioButton(StaticText.STOPPED, id=f"status_{VmStatus.STOPPED}", value=self.current_status == VmStatus.STOPPED)
+                    yield RadioButton(StaticText.MANUALLY_SELECTED, id=f"status_{VmStatus.SELECTED}", value=self.current_status == VmStatus.SELECTED)
 
             if self.available_servers:
-                yield Label("Select Servers to Display")
+                yield Label(StaticText.SELECT_SERVERS_TO_DISPLAY)
 
                 checkboxes = []
                 for i, server in enumerate(self.available_servers):
@@ -62,8 +62,8 @@ class FilterModal(BaseModal[None]):
                 yield grid
 
             with Horizontal():
-                yield Button("Apply", id="apply-btn", variant="success")
-                yield Button("Cancel", id="cancel-btn")
+                yield Button(ButtonLabels.APPLY, id="apply-btn", variant="success")
+                yield Button(ButtonLabels.CANCEL, id="cancel-btn")
 
     def _get_selected_servers(self) -> list[str]:
         selected = []
@@ -81,11 +81,11 @@ class FilterModal(BaseModal[None]):
             try:
                 search_text, was_modified = _sanitize_input(search_text_raw)
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if was_modified and search_text_raw != search_text: # Only show if actual chars were removed, not just empty
-                self.app.show_success_message(f"Input sanitized: '{search_text_raw}' changed to '{search_text}'")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=search_text_raw, sanitized_input=search_text))
 
             radioset = self.query_one(RadioSet)
             status_button = radioset.pressed_button
@@ -105,11 +105,11 @@ class FilterModal(BaseModal[None]):
         try:
             search_text, was_modified = _sanitize_input(search_text_raw)
         except ValueError as e:
-            self.app.show_error_message(str(e))
+            self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
             return
 
         if was_modified and search_text_raw != search_text: # Only show if actual chars were removed, not just empty
-            self.app.show_success_message(f"Input sanitized: '{search_text_raw}' changed to '{search_text}'")
+            self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=search_text_raw, sanitized_input=search_text))
 
         radioset = self.query_one(RadioSet)
         status_button = radioset.pressed_button
@@ -127,15 +127,15 @@ class CreateVMModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="create-vm-dialog"):
-            yield Label("Create New VM")
+            yield Label(StaticText.CREATE_NEW_VM)
             yield Input(placeholder="VM Name", id="vm-name-input", value="new_vm")
             yield Input(placeholder="Memory (MB, e.g., 2048)", id="vm-memory-input", value="2048")
             yield Input(placeholder="VCPU (e.g., 2)", id="vm-vcpu-input", value="2")
             yield Input(placeholder="Disk Image Path (e.g., /var/lib/libvirt/images/myvm.qcow2)", id="vm-disk-input", value="/var/lib/libvirt/images/new_vm.qcow2")
             # For simplicity, we won't add network details yet.
             with Horizontal():
-                yield Button("Create", variant="primary", id="create-btn", classes="Buttonpage")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CREATE, variant="primary", id="create-btn", classes="Buttonpage")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create-btn":

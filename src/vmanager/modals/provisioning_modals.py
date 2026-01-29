@@ -12,7 +12,7 @@ from textual import on, work
 
 import libvirt
 from ..config import load_config
-from ..constants import AppInfo
+from ..constants import AppInfo, ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from ..vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
 from ..storage_manager import list_storage_pools
 from ..vm_service import VMService
@@ -43,16 +43,16 @@ class InstallVMModal(BaseModal[str | None]):
         default_pool = 'default' if any(p[0] == 'default' for p in active_pools) else (active_pools[0][1] if active_pools else None)
 
         with ScrollableContainer(id="install-dialog"):
-            yield Label(f"Install OpenSUSE VM on {self.uri}", classes="title")
-            yield Label("VM Name:", classes="label")
+            yield Label(StaticText.INSTALL_OPENSUSE_VM.format(uri=self.uri), classes="title")
+            yield Label(StaticText.VM_NAME, classes="label")
             yield Input(placeholder="my-new-vm", id="vm-name")
 
-            yield Label("VM Type:", classes="label")
+            yield Label(StaticText.VM_TYPE, classes="label")
             with Horizontal(classes="label-row"):
                 yield Select([(t.value, t) for t in VMType], value=VMType.DESKTOP, id="vm-type", allow_blank=False)
-                yield Button("Info", id="vm-type-info-btn", variant="primary")
+                yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            yield Label("Distribution:", classes="label")
+            yield Label(StaticText.DISTRIBUTION, classes="label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
             distro_options.insert(0, ("Cached ISOs", "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -70,58 +70,58 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
-                yield Label("ISO Image (Repo):", classes="label")
+                yield Label(StaticText.ISO_IMAGE_REPO, classes="label")
                 config = load_config()
                 iso_path = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
-                yield Label(f"ISOs will be downloaded to: {iso_path}", classes="info-text", id="iso-path-label")
+                yield Label(StaticText.ISOS_DOWNLOAD_PATH.format(iso_path=iso_path), classes="info-text", id="iso-path-label")
                 yield Select([], prompt="Select ISO...", id="iso-select", disabled=True)
 
             # Container for Custom ISO
             with Vertical(id="custom-iso-container"):
-                yield Label("Custom ISO (Local Path):", classes="label")
+                yield Label(StaticText.CUSTOM_ISO_LOCAL_PATH, classes="label")
                 with Horizontal(classes="input-row"):
                     yield Input(placeholder="/path/to/local.iso", id="custom-iso-path", classes="path-input")
-                    yield Button("Browse", id="browse-iso-btn")
+                    yield Button(ButtonLabels.BROWSE, id="browse-iso-btn")
 
                 with Vertical(id="checksum-container"):
-                    yield Checkbox("Validate Checksum", id="validate-checksum", value=False)
+                    yield Checkbox(StaticText.VALIDATE_CHECKSUM, id="validate-checksum", value=False)
                     yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
-                    yield Label("", id="checksum-status", classes="status-text")
-            
+                    yield Label(StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text")
+
             # Container for ISO selection from Storage Pools
             with Vertical(id="pool-iso-container"):
-                yield Label("Select Storage Pool:", classes="label")
+                yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
                 yield Select(active_pools, prompt="Select Pool...", id="storage-pool-select", allow_blank=False)
-                yield Label("Select ISO Volume:", classes="label")
+                yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
                 yield Select([], prompt="Select ISO Volume...", id="iso-volume-select", disabled=True)
 
-            yield Label("Storage Pool:", id="vminstall-storage-label")
+            yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
             with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
-                        yield Label(" Memory (GB)", classes="label")
+                        yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
                         yield Input("4", id="memory-input", type="integer")
                     with Vertical(id="expert-cpu"):
-                        yield Label(" CPUs", classes="label")
+                        yield Label(StaticText.CPUS_LABEL, classes="label")
                         yield Input("2", id="cpu-input", type="integer")
                     with Vertical(id="expert-disk-size"):
-                        yield Label(" Disk Size(GB)", classes="label")
+                        yield Label(StaticText.DISK_SIZE_GB_LABEL, classes="label")
                         yield Input("8", id="disk-size-input", type="integer")
                     with Vertical(id="expert-disk-format"):
-                        yield Label(" Disk Format", classes="label")
+                        yield Label(StaticText.DISK_FORMAT_LABEL, classes="label")
                         yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
                     with Vertical(id="expert-firmware"):
-                        yield Label(" Firmware", classes="label")
-                        yield Checkbox("UEFI", id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
+                        yield Label(StaticText.FIRMWARE_LABEL, classes="label")
+                        yield Checkbox(StaticText.UEFI, id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
 
-            yield Checkbox("Configure before install", id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
+            yield Checkbox(StaticText.CONFIGURE_BEFORE_INSTALL, id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
-            yield Label("", id="status-label")
+            yield Label(StaticText.EMPTY_LABEL, id="status-label")
 
             with Horizontal(classes="buttons"):
-                yield Button("Install", variant="primary", id="install-btn", disabled=True)
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True)
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self):
         """Called when modal is mounted."""
@@ -270,7 +270,7 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(update_iso_volume_select)
 
         except Exception as e:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to fetch ISO volumes from {pool_name}: {e}")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE.format(pool_name=pool_name, error=e))
             self.app.call_from_thread(self._update_iso_status, "Error fetching volumes", False)
             self.app.call_from_thread(iso_volume_select.clear)
             self.app.call_from_thread(lambda: setattr(iso_volume_select, 'disabled', True))
@@ -311,7 +311,7 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(update_select)
 
         except Exception as e:
-            self.app.call_from_thread(self.app.show_error_message, f"Failed to fetch ISOs: {e}")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_FETCH_ISOS_TEMPLATE.format(error=e))
             self.app.call_from_thread(self._update_iso_status, "Error fetching ISOs", False)
 
     def _update_iso_status(self, message, loading):
@@ -385,24 +385,24 @@ class InstallVMModal(BaseModal[str | None]):
             return
 
         if was_modified:
-            self.app.show_quick_message(f"VM name sanitized: '{vm_name_raw}' -> '{vm_name}'")
+            self.app.show_quick_message(SuccessMessages.VM_NAME_SANITIZED_TEMPLATE.format(original=vm_name_raw, sanitized=vm_name))
             self.query_one("#vm-name", Input).value = vm_name
 
         if not vm_name:
-            self.app.show_error_message("VM name cannot be empty.")
+            self.app.show_error_message(ErrorMessages.VM_NAME_CANNOT_BE_EMPTY)
             return
 
         # 2. Check if VM exists
         try:
             self.conn.lookupByName(vm_name)
-            self.app.show_error_message(f"A VM with the name '{vm_name}' already exists. Please choose a different name.")
+            self.app.show_error_message(ErrorMessages.VM_NAME_ALREADY_EXISTS_TEMPLATE.format(vm_name=vm_name))
             return
         except libvirt.libvirtError as e:
             if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-                self.app.show_error_message(f"Error checking VM name: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_CHECKING_VM_NAME_TEMPLATE.format(error=e))
                 return
         except Exception as e:
-            self.app.show_error_message(f"An unexpected error occurred: {e}")
+            self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE.format(error=e))
             return
 
         vm_type = self.query_one("#vm-type", Select).value
@@ -412,7 +412,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Validate storage pool
         if not pool_name or pool_name == Select.BLANK:
-            self.app.show_error_message("Please select a valid storage pool.")
+            self.app.show_error_message(ErrorMessages.PLEASE_SELECT_VALID_STORAGE_POOL)
             return
 
         iso_url = None
@@ -428,11 +428,11 @@ class InstallVMModal(BaseModal[str | None]):
         elif distro == "pool_volumes":
             iso_url = self.query_one("#iso-volume-select", Select).value
             if not iso_url or iso_url == Select.BLANK:
-                self.app.show_error_message("Please select a valid ISO volume from the storage pool.")
+                self.app.show_error_message(ErrorMessages.SELECT_VALID_ISO_VOLUME)
                 return
             # Validate that the volume path exists and is accessible
             if not os.path.exists(iso_url):
-                self.app.show_error_message(f"Selected ISO volume does not exist: {iso_url}")
+                self.app.show_error_message(ErrorMessages.ISO_VOLUME_NOT_FOUND_TEMPLATE.format(iso_url=iso_url))
                 return
         else:
             iso_url = self.query_one("#iso-select", Select).value
@@ -446,27 +446,27 @@ class InstallVMModal(BaseModal[str | None]):
             disk_format = self.query_one("#disk-format", Select).value
             boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
         except ValueError:
-            self.app.show_error_message("Invalid input for expert settings. Using defaults.")
+            self.app.show_error_message(ErrorMessages.INVALID_EXPERT_SETTINGS)
             return
 
         # Validate expert mode inputs
         if memory_gb < 1 or memory_gb > 8192:
-            self.app.show_error_message("Memory must be between 1 and 8192 GB.")
+            self.app.show_error_message(ErrorMessages.MEMORY_RANGE_ERROR)
             return
         if vcpu < 1 or vcpu > 768:
-            self.app.show_error_message("CPU count must be between 1 and 768.")
+            self.app.show_error_message(ErrorMessages.CPU_RANGE_ERROR)
             return
         if disk_size < 1 or disk_size > 10000:
-            self.app.show_error_message("Disk size must be between 1 and 10000 GB.")
+            self.app.show_error_message(ErrorMessages.DISK_SIZE_RANGE_ERROR)
             return
 
         try:
             pool = self.conn.storagePoolLookupByName(pool_name)
             if not pool.isActive():
-                self.app.show_error_message(f"Storage pool '{pool_name}' is not active. Please activate it first.")
+                self.app.show_error_message(ErrorMessages.STORAGE_POOL_NOT_ACTIVE_TEMPLATE.format(pool_name=pool_name))
                 return
         except Exception as e:
-            self.app.show_error_message(f"Error accessing storage pool '{pool_name}': {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_ACCESSING_STORAGE_POOL_TEMPLATE.format(pool_name=pool_name, error=e))
             return
 
         # Disable inputs
@@ -494,17 +494,17 @@ class InstallVMModal(BaseModal[str | None]):
             if custom_path:
                 # Validate custom path exists
                 if not os.path.exists(custom_path):
-                    raise Exception(f"Custom ISO path does not exist: {custom_path}")
+                    raise Exception(ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(path=custom_path))
                 if not os.path.isfile(custom_path):
-                    raise Exception(f"Custom ISO path is not a file: {custom_path}")
+                    raise Exception(ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path))
 
                 # 1. Validate Checksum
                 if validate:
                     if not checksum:
-                        raise Exception("Checksum validation enabled but no checksum provided")
+                        raise Exception(ErrorMessages.CHECKSUM_MISSING)
                     progress_cb("Validating Checksum...", 0)
                     if not self.provisioner.validate_iso(custom_path, checksum):
-                        raise Exception("Checksum validation failed!")
+                        raise Exception(ErrorMessages.CHECKSUM_VALIDATION_FAILED)
                     progress_cb("Checksum Validated", 10)
 
                 # 2. Upload
@@ -514,7 +514,7 @@ class InstallVMModal(BaseModal[str | None]):
 
                 final_iso_url = self.provisioner.upload_iso(custom_path, pool_name, upload_progress)
                 if not final_iso_url:
-                    raise Exception("No ISO URL specified for provisioning")
+                    raise Exception(ErrorMessages.NO_ISO_URL_SPECIFIED)
 
             # 3. Provision
             # Suspend global updates to prevent UI freeze during heavy provisioning ops
@@ -544,7 +544,7 @@ class InstallVMModal(BaseModal[str | None]):
                                     try:
                                         if not domain_obj.isActive():
                                             domain_obj.create()
-                                            app.call_from_thread(app.show_success_message, f"VM '{vm_name}' started.")
+                                            app.call_from_thread(app.show_success_message, SuccessMessages.VM_STARTED_TEMPLATE.format(vm_name=vm_name))
                                         # Launch viewer
                                         domain_name = domain_obj.name()
                                         cmd = remote_viewer_cmd(self.uri, domain_name, app.r_viewer)
@@ -555,10 +555,10 @@ class InstallVMModal(BaseModal[str | None]):
                                             preexec_fn=os.setsid,
                                         )
                                         logging.info(f"{app.r_viewer} started with PID {proc.pid} for {domain_name}")
-                                        app.call_from_thread(app.show_quick_message, f"Remote viewer {app.r_viewer} started for {domain_name}")
+                                        app.call_from_thread(app.show_quick_message, SuccessMessages.REMOTE_VIEWER_STARTED_TEMPLATE.format(viewer=app.r_viewer, vm_name=domain_name))
                                     except Exception as e:
                                         logging.error(f"Failed to start VM or viewer: {e}")
-                                        app.call_from_thread(app.show_error_message, f"Failed to start VM or viewer: {e}")
+                                        app.call_from_thread(app.show_error_message, ErrorMessages.FAILED_TO_START_VM_OR_VIEWER_TEMPLATE.format(error=e))
 
                                 app.worker_manager.run(start_and_view, name=f"start_view_{vm_name}")
 
@@ -567,7 +567,7 @@ class InstallVMModal(BaseModal[str | None]):
                                 on_details_closed
                             )
                         else:
-                            app.show_error_message(f"Could not get details for {vm_name}")
+                            app.show_error_message(ErrorMessages.COULD_NOT_GET_VM_DETAILS_TEMPLATE.format(vm_name=vm_name))
                     self.app.call_from_thread(push_details)
 
                 dom = self.provisioner.provision_vm(
@@ -591,10 +591,10 @@ class InstallVMModal(BaseModal[str | None]):
                 self.app.call_from_thread(self.app.on_vm_data_update)
 
             if configure_before_install:
-                self.app.call_from_thread(self.app.show_success_message, f"VM '{name}' defined. Please configure and start it.")
+                self.app.call_from_thread(self.app.show_success_message, SuccessMessages.VM_DEFINED_CONFIGURE_TEMPLATE.format(vm_name=name))
                 return
 
-            self.app.call_from_thread(self.app.show_success_message, f"VM '{name}' created successfully!")
+            self.app.call_from_thread(self.app.show_success_message, SuccessMessages.VM_CREATED_SUCCESSFULLY_TEMPLATE.format(vm_name=name))
 
             # 4. Auto-connect Remote Viewer
             def launch_viewer():
@@ -608,12 +608,12 @@ class InstallVMModal(BaseModal[str | None]):
                         preexec_fn=os.setsid,
                     )
                     logging.info(f"{self.app.r_viewer} started with PID {proc.pid} for {domain_name}")
-                    self.app.show_quick_message(f"Remote viewer {self.app.r_viewer} started for {domain_name}")
+                    self.app.show_quick_message(SuccessMessages.REMOTE_VIEWER_STARTED_TEMPLATE.format(viewer=self.app.r_viewer, vm_name=domain_name))
                 except Exception as e:
                     logging.error(f"Failed to spawn {self.app.r_viewer} for {domain_name}: {e}")
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"{self.app.r_viewer} failed to start for {domain_name}: {e}"
+                        ErrorMessages.REMOTE_VIEWER_FAILED_TO_START_TEMPLATE.format(viewer=self.app.r_viewer, domain_name=domain_name, error=e)
                     )
                     return
 
@@ -621,5 +621,5 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(self.dismiss, True)
 
         except Exception as e:
-            self.app.call_from_thread(self.app.show_error_message, f"Provisioning failed: {e}")
+            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.PROVISIONING_FAILED_TEMPLATE.format(error=e))
             self.app.call_from_thread(self.dismiss)

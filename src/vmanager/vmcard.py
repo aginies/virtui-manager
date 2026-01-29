@@ -53,8 +53,9 @@ from .utils import (
         remote_viewer_cmd,
 )
 from .constants import (
-    ButtonLabels, ButtonIds, TabTitles, StatusText,
-    SparklineLabels, ErrorMessages, DialogMessages, VmAction
+    ButtonLabels, TabTitles, StatusText,
+    SparklineLabels, ErrorMessages, DialogMessages, VmAction,
+    WarningMessages, SuccessMessages
 )
 
 class VMCardActions(Static):
@@ -63,29 +64,29 @@ class VMCardActions(Static):
         super().__init__()
 
     def compose(self):
-        self.card.ui[ButtonIds.START] = Button(ButtonLabels.START, id=ButtonIds.START, variant="success")
-        self.card.ui[ButtonIds.SHUTDOWN] = Button(ButtonLabels.SHUTDOWN, id=ButtonIds.SHUTDOWN, variant="primary")
-        self.card.ui[ButtonIds.STOP] = Button(ButtonLabels.FORCE_OFF, id=ButtonIds.STOP, variant="error")
-        self.card.ui[ButtonIds.PAUSE] = Button(ButtonLabels.PAUSE, id=ButtonIds.PAUSE, variant="primary")
-        self.card.ui[ButtonIds.RESUME] = Button(ButtonLabels.RESUME, id=ButtonIds.RESUME, variant="success")
-        self.card.ui[ButtonIds.CONFIGURE_BUTTON] = Button(ButtonLabels.CONFIGURE, id=ButtonIds.CONFIGURE_BUTTON, variant="primary")
-        self.card.ui[ButtonIds.WEB_CONSOLE] = Button(ButtonLabels.WEB_CONSOLE, id=ButtonIds.WEB_CONSOLE, variant="default")
-        self.card.ui[ButtonIds.CONNECT] = Button(ButtonLabels.CONNECT, id=ButtonIds.CONNECT, variant="default")
+        self.card.ui["start"] = Button(ButtonLabels.START, id="start", variant="success")
+        self.card.ui["shutdown"] = Button(ButtonLabels.SHUTDOWN, id="shutdown", variant="primary")
+        self.card.ui["stop"] = Button(ButtonLabels.FORCE_OFF, id="stop", variant="error")
+        self.card.ui["pause"] = Button(ButtonLabels.PAUSE, id="pause", variant="primary")
+        self.card.ui["resume"] = Button(ButtonLabels.RESUME, id="resume", variant="success")
+        self.card.ui["configure-button"] = Button(ButtonLabels.CONFIGURE, id="configure-button", variant="primary")
+        self.card.ui["web_console"] = Button(ButtonLabels.WEB_CONSOLE, id="web_console", variant="default")
+        self.card.ui["connect"] = Button(ButtonLabels.CONNECT, id="connect", variant="default")
         
-        self.card.ui[ButtonIds.SNAPSHOT_TAKE] = Button(ButtonLabels.SNAPSHOT, id=ButtonIds.SNAPSHOT_TAKE, variant="primary")
-        self.card.ui[ButtonIds.SNAPSHOT_RESTORE] = Button(ButtonLabels.RESTORE_SNAPSHOT, id=ButtonIds.SNAPSHOT_RESTORE, variant="primary")
-        self.card.ui[ButtonIds.SNAPSHOT_DELETE] = Button(ButtonLabels.DELETE_SNAPSHOT, id=ButtonIds.SNAPSHOT_DELETE, variant="error")
+        self.card.ui["snapshot_take"] = Button(ButtonLabels.SNAPSHOT, id="snapshot_take", variant="primary")
+        self.card.ui["snapshot_restore"] = Button(ButtonLabels.RESTORE_SNAPSHOT, id="snapshot_restore", variant="primary")
+        self.card.ui["snapshot_delete"] = Button(ButtonLabels.DELETE_SNAPSHOT, id="snapshot_delete", variant="error")
 
-        self.card.ui[ButtonIds.DELETE] = Button(ButtonLabels.DELETE, id=ButtonIds.DELETE, variant="error", classes="delete-button")
-        self.card.ui[ButtonIds.CLONE] = Button(ButtonLabels.CLONE, id=ButtonIds.CLONE, classes="clone-button")
-        self.card.ui[ButtonIds.MIGRATION] = Button(ButtonLabels.MIGRATION, id=ButtonIds.MIGRATION, variant="primary", classes="migration-button")
-        self.card.ui[ButtonIds.XML] = Button(ButtonLabels.VIEW_XML, id=ButtonIds.XML)
-        self.card.ui[ButtonIds.RENAME_BUTTON] = Button(ButtonLabels.RENAME, id=ButtonIds.RENAME_BUTTON, variant="primary", classes="rename-button")
+        self.card.ui["delete"] = Button(ButtonLabels.DELETE, id="delete", variant="error", classes="delete-button")
+        self.card.ui["clone"] = Button(ButtonLabels.CLONE, id="clone", classes="clone-button")
+        self.card.ui["migration"] = Button(ButtonLabels.MIGRATION, id="migration", variant="primary", classes="migration-button")
+        self.card.ui["xml"] = Button(ButtonLabels.VIEW_XML, id="xml")
+        self.card.ui["rename-button"] = Button(ButtonLabels.RENAME, id="rename-button", variant="primary", classes="rename-button")
 
-        self.card.ui[ButtonIds.CREATE_OVERLAY] = Button(ButtonLabels.CREATE_OVERLAY, id=ButtonIds.CREATE_OVERLAY, variant="primary")
-        self.card.ui[ButtonIds.COMMIT_DISK] = Button(ButtonLabels.COMMIT_DISK, id=ButtonIds.COMMIT_DISK, variant="error")
-        self.card.ui[ButtonIds.DISCARD_OVERLAY] = Button(ButtonLabels.DISCARD_OVERLAY, id=ButtonIds.DISCARD_OVERLAY, variant="error")
-        self.card.ui[ButtonIds.SNAP_OVERLAY_HELP] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id=ButtonIds.SNAP_OVERLAY_HELP, variant="default")
+        self.card.ui["create_overlay"] = Button(ButtonLabels.CREATE_OVERLAY, id="create_overlay", variant="primary")
+        self.card.ui["commit_disk"] = Button(ButtonLabels.COMMIT_DISK, id="commit_disk", variant="error")
+        self.card.ui["discard_overlay"] = Button(ButtonLabels.DISCARD_OVERLAY, id="discard_overlay", variant="error")
+        self.card.ui["snap_overlay_help"] = Button(ButtonLabels.SNAP_OVERLAY_HELP, id="snap_overlay_help", variant="default")
 
         self.card.ui["tabbed_content"] = TabbedContent(id="button-container")
 
@@ -93,37 +94,37 @@ class VMCardActions(Static):
             with TabPane(TabTitles.MANAGE, id="manage-tab"):
                 with Horizontal():
                     with Vertical():
-                        yield self.card.ui[ButtonIds.START]
-                        yield self.card.ui[ButtonIds.SHUTDOWN]
-                        yield self.card.ui[ButtonIds.STOP]
-                        yield self.card.ui[ButtonIds.PAUSE]
-                        yield self.card.ui[ButtonIds.RESUME]
+                        yield self.card.ui["start"]
+                        yield self.card.ui["shutdown"]
+                        yield self.card.ui["stop"]
+                        yield self.card.ui["pause"]
+                        yield self.card.ui["resume"]
                     with Vertical():
-                        yield self.card.ui[ButtonIds.CONFIGURE_BUTTON]
-                        yield self.card.ui[ButtonIds.WEB_CONSOLE]
-                        yield self.card.ui[ButtonIds.CONNECT]
+                        yield self.card.ui["configure-button"]
+                        yield self.card.ui["web_console"]
+                        yield self.card.ui["connect"]
             with TabPane(self.card._get_snapshot_tab_title(num_snapshots=0), id="snapshot-tab"):
                 with Horizontal():
                     with Vertical():
-                        yield self.card.ui[ButtonIds.SNAPSHOT_TAKE]
-                        yield self.card.ui[ButtonIds.SNAPSHOT_RESTORE]
-                        yield self.card.ui[ButtonIds.SNAPSHOT_DELETE]
+                        yield self.card.ui["snapshot_take"]
+                        yield self.card.ui["snapshot_restore"]
+                        yield self.card.ui["snapshot_delete"]
                     with Vertical():
-                        yield self.card.ui[ButtonIds.CREATE_OVERLAY]
-                        yield self.card.ui[ButtonIds.COMMIT_DISK]
-                        yield self.card.ui[ButtonIds.DISCARD_OVERLAY]
-                        yield self.card.ui[ButtonIds.SNAP_OVERLAY_HELP]
+                        yield self.card.ui["create_overlay"]
+                        yield self.card.ui["commit_disk"]
+                        yield self.card.ui["discard_overlay"]
+                        yield self.card.ui["snap_overlay_help"]
             with TabPane(TabTitles.OTHER, id="special-tab"):
                 with Horizontal():
                     with Vertical():
-                        yield self.card.ui[ButtonIds.DELETE]
+                        yield self.card.ui["delete"]
                         yield Static(classes="button-separator")
-                        yield self.card.ui[ButtonIds.CLONE]
-                        yield self.card.ui[ButtonIds.MIGRATION]
+                        yield self.card.ui["clone"]
+                        yield self.card.ui["migration"]
                     with Vertical():
-                        yield self.card.ui[ButtonIds.XML]
+                        yield self.card.ui["xml"]
                         yield Static(classes="button-separator")
-                        yield self.card.ui[ButtonIds.RENAME_BUTTON]
+                        yield self.card.ui["rename-button"]
 
 
 class VMCard(Static):
@@ -228,7 +229,7 @@ class VMCard(Static):
             self.webc_status_indicator = new_indicator
 
         # Update button label and style
-        web_console_button = self.ui.get(ButtonIds.WEB_CONSOLE)
+        web_console_button = self.ui.get("web_console")
         if web_console_button:
             if webc_is_running:
                 web_console_button.label = "Show Console"
@@ -249,7 +250,7 @@ class VMCard(Static):
     def compose(self):
         self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected, tooltip="Select VM")
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
-        self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status", classes=self.status.lower())
+        self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
 
         # Create all sparkline components
         self.ui["cpu_label"] = Static("", classes="sparkline-label")
@@ -864,8 +865,7 @@ class VMCard(Static):
         self._update_fast_buttons()
         self._update_webc_status()
 
-        # Trigger background fetch for heavy data (snapshots, overlays) only if actions are visible
-        if self.ui.get(ButtonIds.RENAME_BUTTON):
+        if self.ui.get("rename-button"):
             # Check if collapsible is expanded before fetching heavy data
             collapsible = self.ui.get("collapsible")
             if collapsible and not collapsible.collapsed:
@@ -885,26 +885,26 @@ class VMCard(Static):
         is_pmsuspended = self.status == StatusText.PMSUSPENDED
         is_blocked = self.status == StatusText.BLOCKED
 
-        if not self.ui.get(ButtonIds.RENAME_BUTTON):
+        if not self.ui.get("rename-button"):
             return
 
-        self.ui[ButtonIds.START].display = is_stopped
-        self.ui[ButtonIds.SHUTDOWN].display = is_running or is_blocked
-        self.ui[ButtonIds.STOP].display = is_running or is_paused or is_pmsuspended or is_blocked
-        self.ui[ButtonIds.DELETE].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
-        self.ui[ButtonIds.CLONE].display = is_stopped
-        self.ui[ButtonIds.MIGRATION].display = not is_loading
-        self.ui[ButtonIds.RENAME_BUTTON].display = is_stopped
-        self.ui[ButtonIds.PAUSE].display = is_running
-        self.ui[ButtonIds.RESUME].display = is_paused or is_pmsuspended
-        self.ui[ButtonIds.CONNECT].display = self.app.r_viewer_available
-        self.ui[ButtonIds.WEB_CONSOLE].display = (is_running or is_paused or is_blocked)
-        self.ui[ButtonIds.CONFIGURE_BUTTON].display = not is_loading
-        self.ui[ButtonIds.SNAP_OVERLAY_HELP].display = not is_loading
-        self.ui[ButtonIds.SNAPSHOT_TAKE].display = not is_loading #is_running or is_paused
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = not is_running and not is_loading and not is_blocked
+        self.ui["start"].display = is_stopped
+        self.ui["shutdown"].display = is_running or is_blocked
+        self.ui["stop"].display = is_running or is_paused or is_pmsuspended or is_blocked
+        self.ui["delete"].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
+        self.ui["clone"].display = is_stopped
+        self.ui["migration"].display = not is_loading
+        self.ui["rename-button"].display = is_stopped
+        self.ui["pause"].display = is_running
+        self.ui["resume"].display = is_paused or is_pmsuspended
+        self.ui["connect"].display = self.app.r_viewer_available
+        self.ui["web_console"].display = (is_running or is_paused or is_blocked)
+        self.ui["configure-button"].display = not is_loading
+        self.ui["snap_overlay_help"].display = not is_loading
+        self.ui["snapshot_take"].display = not is_loading #is_running or is_paused
+        self.ui["snapshot_restore"].display = not is_running and not is_loading and not is_blocked
 
-        xml_button = self.ui[ButtonIds.XML]
+        xml_button = self.ui["xml"]
         if is_stopped:
             xml_button.label = "Edit XML"
             self.stats_view_mode = "resources"
@@ -1004,7 +1004,7 @@ class VMCard(Static):
 
     def _update_slow_buttons(self, snapshot_summary: dict, has_overlay: bool):
         """Updates buttons that rely on heavy state."""
-        if not self.ui.get(ButtonIds.RENAME_BUTTON):
+        if not self.ui.get("rename-button"):
             return
 
         snapshot_count = snapshot_summary.get('count', 0)
@@ -1031,12 +1031,12 @@ class VMCard(Static):
 
         has_snapshots = snapshot_count > 0
 
-        self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading and not is_blocked
-        self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+        self.ui["snapshot_restore"].display = has_snapshots and not is_running and not is_loading and not is_blocked
+        self.ui["snapshot_delete"].display = has_snapshots
 
-        self.ui[ButtonIds.COMMIT_DISK].display = (is_running or is_blocked) and has_overlay
-        self.ui[ButtonIds.DISCARD_OVERLAY].display = is_stopped and has_overlay
-        self.ui[ButtonIds.CREATE_OVERLAY].display = is_stopped and not has_overlay
+        self.ui["commit_disk"].display = (is_running or is_blocked) and has_overlay
+        self.ui["discard_overlay"].display = is_stopped and has_overlay
+        self.ui["create_overlay"].display = is_stopped and not has_overlay
 
         self.update_snapshot_tab_title(snapshot_count)
 
@@ -1046,39 +1046,43 @@ class VMCard(Static):
             status_widget.remove_class("stopped", "running", "paused", "loading", "pmsuspended", "blocked")
             if self.status == StatusText.LOADING:
                 status_widget.add_class("loading")
+            elif self.status == StatusText.RUNNING:
+                status_widget.add_class("running")
+            elif self.status == StatusText.STOPPED:
+                status_widget.add_class("stopped")
+            elif self.status == StatusText.PAUSED:
+                status_widget.add_class("paused")
             elif self.status == StatusText.PMSUSPENDED:
                 status_widget.add_class("pmsuspended")
             elif self.status == StatusText.BLOCKED:
                 status_widget.add_class("blocked")
-            else:
-                status_widget.add_class(self.status.lower())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
-        if event.button.id == ButtonIds.START:
+        if event.button.id == "start":
             self.post_message(VmActionRequest(self.internal_id, VmAction.START))
             return
 
         button_handlers = {
-            ButtonIds.SHUTDOWN: self._handle_shutdown_button,
-            ButtonIds.STOP: self._handle_stop_button,
-            ButtonIds.PAUSE: self._handle_pause_button,
-            ButtonIds.RESUME: self._handle_resume_button,
-            ButtonIds.XML: self._handle_xml_button,
-            ButtonIds.CONNECT: self._handle_connect_button,
-            ButtonIds.WEB_CONSOLE: self._handle_web_console_button,
-            ButtonIds.SNAPSHOT_TAKE: self._handle_snapshot_take_button,
-            ButtonIds.SNAPSHOT_RESTORE: self._handle_snapshot_restore_button,
-            ButtonIds.SNAPSHOT_DELETE: self._handle_snapshot_delete_button,
-            ButtonIds.DELETE: self._handle_delete_button,
-            ButtonIds.CLONE: self._handle_clone_button,
-            ButtonIds.MIGRATION: self._handle_migration_button,
-            ButtonIds.RENAME_BUTTON: self._handle_rename_button,
-            ButtonIds.CONFIGURE_BUTTON: self._handle_configure_button,
-            ButtonIds.CREATE_OVERLAY: self._handle_create_overlay,
-            ButtonIds.COMMIT_DISK: self._handle_commit_disk,
-            ButtonIds.DISCARD_OVERLAY: self._handle_discard_overlay,
-            ButtonIds.SNAP_OVERLAY_HELP: self._handle_overlay_help,
+            "shutdown": self._handle_shutdown_button,
+            "stop": self._handle_stop_button,
+            "pause": self._handle_pause_button,
+            "resume": self._handle_resume_button,
+            "xml": self._handle_xml_button,
+            "connect": self._handle_connect_button,
+            "web_console": self._handle_web_console_button,
+            "snapshot_take": self._handle_snapshot_take_button,
+            "snapshot_restore": self._handle_snapshot_restore_button,
+            "snapshot_delete": self._handle_snapshot_delete_button,
+            "delete": self._handle_delete_button,
+            "clone": self._handle_clone_button,
+            "migration": self._handle_migration_button,
+            "rename-button": self._handle_rename_button,
+            "configure-button": self._handle_configure_button,
+            "create_overlay": self._handle_create_overlay,
+            "commit_disk": self._handle_commit_disk,
+            "discard_overlay": self._handle_discard_overlay,
+            "snap_overlay_help": self._handle_overlay_help,
         }
         handler = button_handlers.get(event.button.id)
         if handler:
@@ -1100,7 +1104,7 @@ class VMCard(Static):
             valid_disks = [d['path'] for d in disks if d.get('device_type') == 'disk']
 
             if not valid_disks:
-                self.app.show_error_message("No suitable disks found for overlay.")
+                self.app.show_error_message(ErrorMessages.NO_SUITABLE_DISKS_FOR_OVERLAY)
                 return
 
             target_disk = valid_disks[0]
@@ -1120,29 +1124,29 @@ class VMCard(Static):
                     return
 
                 if was_modified:
-                    self.app.show_success_message(f"Input sanitized: '{overlay_name_raw}' changed to '{overlay_name}'")
+                    self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=overlay_name_raw, sanitized_input=overlay_name))
 
                 if not overlay_name:
-                    self.app.show_error_message("Overlay volume name cannot be empty after sanitization.")
+                    self.app.show_error_message(ErrorMessages.OVERLAY_NAME_EMPTY_AFTER_SANITIZATION)
                     return
 
                 self.app.vm_service.suppress_vm_events(self.internal_id)
                 try:
                     create_external_overlay(self.vm, target_disk, overlay_name)
-                    self.app.show_success_message(f"Overlay [b]{overlay_name}[/b] created and attached.")
+                    self.app.show_success_message(SuccessMessages.OVERLAY_CREATED.format(overlay_name=overlay_name))
                     self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                     self._boot_device_checked = False
                     self.post_message(VmCardUpdateRequest(self.internal_id))
                     self.update_button_layout()
                 except Exception as e:
-                    self.app.show_error_message(f"Error creating overlay: {e}")
+                    self.app.show_error_message(ErrorMessages.ERROR_CREATING_OVERLAY_TEMPLATE.format(error=e))
                 finally:
                     self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
             self.app.push_screen(InputModal("Enter name for new overlay volume:", default_name, restrict=r"[a-zA-Z0-9_-]*"), on_name_input)
 
         except Exception as e:
-            self.app.show_error_message(f"Error preparing overlay creation: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_PREPARING_OVERLAY_CREATION_TEMPLATE.format(error=e))
 
     def _handle_discard_overlay(self, event: Button.Pressed) -> None:
         """Handles the discard overlay button press."""
@@ -1150,7 +1154,7 @@ class VMCard(Static):
             overlay_disks = get_overlay_disks(self.vm)
 
             if not overlay_disks:
-                self.app.show_error_message("No overlay disks found.")
+                self.app.show_error_message(ErrorMessages.NO_OVERLAY_DISKS_FOUND)
                 return
 
             def proceed_with_discard(target_disk: str | None):
@@ -1162,13 +1166,13 @@ class VMCard(Static):
                         self.app.vm_service.suppress_vm_events(self.internal_id)
                         try:
                             discard_overlay(self.vm, target_disk)
-                            self.app.show_success_message(f"Overlay for [b]{target_disk}[/b] discarded and reverted to base image.")
+                            self.app.show_success_message(SuccessMessages.OVERLAY_DISCARDED.format(target_disk=target_disk))
                             self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.post_message(VmCardUpdateRequest(self.internal_id))
                             self.update_button_layout()
                         except Exception as e:
-                            self.app.show_error_message(f"Error discarding overlay: {e}")
+                            self.app.show_error_message(ErrorMessages.ERROR_DISCARDING_OVERLAY_TEMPLATE.format(error=e))
                         finally:
                             self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
@@ -1186,7 +1190,7 @@ class VMCard(Static):
                 )
 
         except Exception as e:
-            self.app.show_error_message(f"Error preparing discard overlay: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_PREPARING_DISCARD_OVERLAY_TEMPLATE.format(error=e))
 
 
     def _handle_commit_disk(self, event: Button.Pressed) -> None:
@@ -1202,7 +1206,7 @@ class VMCard(Static):
                     break
 
             if not target_disk:
-                self.app.show_error_message("No disks found to commit.")
+                self.app.show_error_message(ErrorMessages.NO_DISKS_FOUND_TO_COMMIT)
                 return
 
             def on_confirm(confirmed: bool):
@@ -1214,11 +1218,11 @@ class VMCard(Static):
                         self.app.vm_service.suppress_vm_events(self.internal_id)
                         try:
                             commit_disk_changes(self.vm, target_disk)
-                            self.app.call_from_thread(self.app.show_success_message, "Disk changes committed successfully.")
+                            self.app.call_from_thread(self.app.show_success_message, SuccessMessages.DISK_COMMITTED)
                             self.app.call_from_thread(self.app.refresh_vm_list)
                             self.app.call_from_thread(self.update_button_layout)
                         except Exception as e:
-                            self.app.call_from_thread(self.app.show_error_message, f"Error committing disk: {e}")
+                            self.app.call_from_thread(self.app.show_error_message, ErrorMessages.ERROR_COMMITTING_DISK_TEMPLATE.format(error=e))
                         finally:
                             self.app.vm_service.unsuppress_vm_events(self.internal_id)
                             self.app.call_from_thread(progress_modal.dismiss)
@@ -1231,7 +1235,7 @@ class VMCard(Static):
             )
 
         except Exception as e:
-            self.app.show_error_message(f"Error preparing commit: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_PREPARING_COMMIT_TEMPLATE.format(error=e))
 
     def _handle_shutdown_button(self, event: Button.Pressed) -> None:
         """Handles the shutdown button press."""
@@ -1273,7 +1277,7 @@ class VMCard(Static):
             self.stop_background_activities()
             self.post_message(VmActionRequest(self.internal_id, VmAction.PAUSE))
         else:
-            self.app.show_warning_message(f"VM '{self.name}' is not in a pausable state.")
+            self.app.show_warning_message(WarningMessages.LIBVIRT_XML_NO_EFFECTIVE_CHANGE.format(vm_name=self.name))
 
     def _handle_resume_button(self, event: Button.Pressed) -> None:
         """Handles the resume button press."""
@@ -1304,42 +1308,41 @@ class VMCard(Static):
                         try:
                             conn = self.vm.connect()
                             new_domain = conn.defineXML(modified_xml)
-                            
+
                             # Verify if changes were effectively applied
                             new_xml = new_domain.XMLDesc(xml_flags)
-                            
+
                             if original_xml == new_xml:
-                                self.app.show_warning_message(f"VM [b]{self.name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away.")
+                                self.app.show_warning_message(WarningMessages.LIBVIRT_XML_NO_EFFECTIVE_CHANGE.format(vm_name=self.name))
                                 logging.warning(f"XML update for {self.name} resulted in no effective changes.")
                             else:
-                                self.app.show_success_message(f"VM [b]{self.name}[/b] configuration updated successfully.")
+                                self.app.show_success_message(SuccessMessages.VM_CONFIG_UPDATED.format(vm_name=self.name))
                                 logging.info(f"Successfully updated XML for VM: {self.name}")
-                            
+
                             self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
                             self._boot_device_checked = False
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
-                            error_msg = f"Invalid XML for '{self.name}': {e}. Your changes have been discarded."
-                            self.app.show_error_message(error_msg)
+                            self.app.show_error_message(ErrorMessages.INVALID_XML_TEMPLATE.format(vm_name=self.name, error=e))
                             logging.error(error_msg)
                     else:
-                        self.app.show_success_message("No changes made to the XML configuration.")
+                        self.app.show_success_message(SuccessMessages.NO_XML_CHANGES)
 
             self.app.push_screen(
                 XMLDisplayModal(original_xml, read_only=not is_stopped),
                 handle_xml_modal_result
             )
         except libvirt.libvirtError as e:
-            self.app.show_error_message(f"Error getting XML for VM [b]{self.name}[/b]: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_GETTING_XML_TEMPLATE.format(vm_name=self.name, error=e))
         except Exception as e:
-            self.app.show_error_message(f"An unexpected error occurred: {e}")
+            self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE.format(error=e))
             logging.error(f"Unexpected error handling XML button: {traceback.format_exc()}")
 
     def _handle_connect_button(self, event: Button.Pressed) -> None:
         """Handles the connect button press by running the remove virt viewer in a worker."""
         logging.info(f"Attempting to connect to VM: {self.name}")
         if not hasattr(self, 'conn') or not self.conn:
-            self.app.show_error_message("Connection info not available for this VM.")
+            self.app.show_error_message(ErrorMessages.CONNECTION_INFO_NOT_AVAILABLE)
             return
 
         def do_connect() -> None:
@@ -1368,7 +1371,7 @@ class VMCard(Static):
                     logging.error(f"Failed to spawn {self.app.r_viewer} for {domain_name}: {e}")
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        f"{self.app.r_viewer} failed to start for {domain_name}: {e}"
+                        ErrorMessages.REMOTE_VIEWER_FAILED_TO_START_TEMPLATE.format(viewer=self.app.r_viewer, domain_name=domain_name, error=e)
                     )
                     return
 
@@ -1380,13 +1383,13 @@ class VMCard(Static):
             except libvirt.libvirtError as e:
                 self.app.call_from_thread(
                     self.app.show_error_message,
-                    f"Error getting VM details for [b]{self.name}[/b]: {e}"
+                    ErrorMessages.ERROR_GETTING_VM_DETAILS_TEMPLATE.format(vm_name=self.name, error=e)
                 )
             except Exception as e:
                 logging.error(f"An unexpected error occurred during connect: {e}", exc_info=True)
                 self.app.call_from_thread(
                     self.app.show_error_message,
-                    "An unexpected error occurred while trying to connect."
+                    ErrorMessages.UNEXPECTED_ERROR_CONNECTING
                 )
 
         self.app.worker_manager.run(do_connect, name=f"r_viewer_{self.name}")
@@ -1403,7 +1406,7 @@ class VMCard(Static):
                 )
                 return
         except Exception as e:
-            self.app.show_error_message(f"Error checking web console status for [b]{self.name}[/b]: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_CHECKING_WEB_CONSOLE_STATUS_TEMPLATE.format(vm_name=self.name, error=e))
             return
 
         #is_remote = self.app.webconsole_manager.is_remote_connection(self.conn.getURI())
@@ -1468,9 +1471,9 @@ class VMCard(Static):
                     def finalize_snapshot():
                         loading_modal.dismiss()
                         if error:
-                            self.app.show_error_message(f"Snapshot error for [b]{vm_name}[/b]: {error}")
+                            self.app.show_error_message(ErrorMessages.SNAPSHOT_ERROR_TEMPLATE.format(vm_name=vm_name, error=error))
                         else:
-                            self.app.show_success_message(f"Snapshot [b]{name}[/b] created successfully.")
+                            self.app.show_success_message(SuccessMessages.SNAPSHOT_CREATED.format(snapshot_name=name))
                             # Defer refresh and restart stats to avoid racing
                             self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                         # Restart stats timer after a delay
@@ -1498,7 +1501,7 @@ class VMCard(Static):
                 self.app.call_from_thread(loading_modal.dismiss)
 
                 if not snapshots_info:
-                    self.app.call_from_thread(self.app.show_error_message, "No snapshots to restore.")
+                    self.app.call_from_thread(self.app.show_error_message, ErrorMessages.NO_SNAPSHOTS_TO_RESTORE)
                     return
 
                 def restore_snapshot_callback(snapshot_name: str | None) -> None:
@@ -1537,10 +1540,10 @@ class VMCard(Static):
                             def finalize_ui():
                                 restore_loading_modal.dismiss()
                                 if error:
-                                    self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot restore': {error}")
+                                    self.app.show_error_message(ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(vm_name=vm_name, action='snapshot restore', error=error))
                                 else:
                                     self._boot_device_checked = False
-                                    self.app.show_success_message(f"Restored to snapshot [b]{snapshot_name}[/b] successfully.")
+                                    self.app.show_success_message(SuccessMessages.SNAPSHOT_RESTORED.format(snapshot_name=snapshot_name))
                                     logging.info(f"Successfully restored snapshot [b]{snapshot_name}[/b] for VM: {vm_name}")
                                     self.app.refresh_vm_list(force=True)
                             self.app.call_from_thread(finalize_ui)
@@ -1550,11 +1553,11 @@ class VMCard(Static):
                     self.app.push_screen,
                     SelectSnapshotDialog(snapshots_info, "Select snapshot to restore"),
                     restore_snapshot_callback
-                )
+                    )
 
             except Exception as e:
                 self.app.call_from_thread(loading_modal.dismiss)
-                self.app.call_from_thread(self.app.show_error_message, f"Error fetching snapshots: {e}")
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.ERROR_FETCHING_SNAPSHOTS_TEMPLATE.format(error=e))
 
         self.app.worker_manager.run(fetch_and_show_worker, name=f"snapshot_restore_fetch_{self.internal_id}")
 
@@ -1575,7 +1578,7 @@ class VMCard(Static):
                 self.app.call_from_thread(loading_modal.dismiss)
 
                 if not snapshots_info:
-                    self.app.call_from_thread(self.app.show_error_message, "No snapshots to delete.")
+                    self.app.call_from_thread(self.app.show_error_message, ErrorMessages.NO_SNAPSHOTS_TO_DELETE)
                     return
 
                 def delete_snapshot_callback(snapshot_name: str | None) -> None:
@@ -1607,9 +1610,9 @@ class VMCard(Static):
                                     def finalize_ui():
                                         loading_modal.dismiss()
                                         if error:
-                                            self.app.show_error_message(f"Error on VM [b]{vm_name}[/b] during 'snapshot delete': {error}")
+                                            self.app.show_error_message(ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(vm_name=vm_name, action='snapshot delete', error=error))
                                         else:
-                                            self.app.show_success_message(f"Snapshot [b]{snapshot_name}[/b] deleted successfully.")
+                                            self.app.show_success_message(SuccessMessages.SNAPSHOT_DELETED.format(snapshot_name=snapshot_name))
                                             logging.info(f"Successfully deleted snapshot '{snapshot_name}' for VM: {vm_name}")
                                             self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                                         # Restart stats timer
@@ -1631,7 +1634,7 @@ class VMCard(Static):
 
             except Exception as e:
                 self.app.call_from_thread(loading_modal.dismiss)
-                self.app.call_from_thread(self.app.show_error_message, f"Error fetching snapshots: {e}")
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.ERROR_FETCHING_SNAPSHOTS_TEMPLATE.format(error=e))
 
         self.app.worker_manager.run(fetch_and_show_worker, name=f"snapshot_delete_fetch_{self.internal_id}")
 
@@ -1685,12 +1688,12 @@ class VMCard(Static):
                                 pass
 
                         # Also update button visibility
-                        if self.ui.get(ButtonIds.RENAME_BUTTON):
+                        if self.ui.get("rename-button"):
                             has_snapshots = snapshot_count > 0
                             is_running = self.status == StatusText.RUNNING
                             is_loading = self.status == StatusText.LOADING
-                            self.ui[ButtonIds.SNAPSHOT_RESTORE].display = has_snapshots and not is_running and not is_loading
-                            self.ui[ButtonIds.SNAPSHOT_DELETE].display = has_snapshots
+                            self.ui["snapshot_restore"].display = has_snapshots and not is_running and not is_loading
+                            self.ui["snapshot_delete"].display = has_snapshots
 
                 self.app.call_from_thread(update_ui)
 
@@ -1744,7 +1747,7 @@ class VMCard(Static):
                     # delete_vm handles opening its own connection
                     delete_vm(self.vm, delete_storage=delete_storage, delete_nvram=True, log_callback=log_callback)
 
-                    self.app.call_from_thread(self.app.show_success_message, f"VM '{vm_name}' deleted successfully.")
+                    self.app.call_from_thread(self.app.show_success_message, SuccessMessages.VM_DELETED.format(vm_name=vm_name))
 
                     # Invalidate cache
                     self.app.vm_service.invalidate_vm_cache(internal_id)
@@ -1757,7 +1760,7 @@ class VMCard(Static):
 
                 except Exception as e:
                     self.app.vm_service.unsuppress_vm_events(internal_id)
-                    self.app.call_from_thread(self.app.show_error_message, f"Error deleting VM '{vm_name}': {e}")
+                    self.app.call_from_thread(self.app.show_error_message, ErrorMessages.ERROR_DELETING_VM_TEMPLATE.format(vm_name=vm_name, error=e))
                 finally:
                     self.app.call_from_thread(progress_modal.dismiss)
 
@@ -1812,8 +1815,8 @@ class VMCard(Static):
                             existing_vm_names.add(name)
 
                     except libvirt.libvirtError as e:
-                        log_callback(f"ERROR: Error getting existing VM names: {e}")
-                        app.call_from_thread(app.show_error_message, f"Error getting existing VM names: {e}")
+                        log_callback(f"ERROR: {ErrorMessages.ERROR_GETTING_EXISTING_VM_NAMES_TEMPLATE.format(error=e)}")
+                        app.call_from_thread(app.show_error_message, ErrorMessages.ERROR_GETTING_EXISTING_VM_NAMES_TEMPLATE.format(error=e))
                         app.call_from_thread(progress_modal.dismiss)
                         return
 
@@ -1852,12 +1855,10 @@ class VMCard(Static):
                             app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").advance(1))
 
                     if success_clones:
-                        msg = f"Successfully cloned to: {', '.join(success_clones)}"
-                        app.call_from_thread(app.show_success_message, msg)
+                        app.call_from_thread(app.show_success_message, SuccessMessages.VM_CLONED.format(vm_names=', '.join(success_clones)))
                         log_callback(msg)
                     if failed_clones:
-                        msg = f"Failed to clone to: {', '.join(failed_clones)}"
-                        app.call_from_thread(app.show_error_message, msg)
+                        app.call_from_thread(app.show_error_message, ErrorMessages.VM_CLONE_FAILED_TEMPLATE.format(vm_names=', '.join(failed_clones)))
                         log_callback(f"ERROR: {msg}")
 
                     if success_clones:
@@ -1895,13 +1896,13 @@ class VMCard(Static):
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: [b]{new_name_raw}[/b] changed to [b]{new_name}[/b]")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=new_name_raw, sanitized_input=new_name))
 
             if not new_name:
-                self.app.show_error_message("VM name cannot be empty after sanitization.")
+                self.app.show_error_message(ErrorMessages.VM_NAME_EMPTY_AFTER_SANITIZATION)
                 return
             if new_name == self.name:
-                self.app.show_success_message("New VM name is the same as the old name. No rename performed.")
+                self.app.show_success_message(SuccessMessages.VM_RENAME_NO_CHANGE)
                 return
 
             def do_rename():
@@ -1909,14 +1910,13 @@ class VMCard(Static):
                 self.app.vm_service.suppress_vm_events(internal_id)
                 try:
                     rename_vm(self.vm, new_name)
-                    msg = f"VM '{self.name}' renamed to '{new_name}' successfully."
-                    self.app.show_success_message(msg)
+                    self.app.show_success_message(SuccessMessages.VM_RENAMED.format(old_name=self.name, new_name=new_name))
                     self.app.vm_service.invalidate_domain_cache()
                     self._boot_device_checked = False
                     self.app.refresh_vm_list()
                     logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
                 except Exception as e:
-                    self.app.show_error_message(f"Error renaming VM [b]{self.name}[/b]: {e}")
+                    self.app.show_error_message(ErrorMessages.ERROR_RENAMING_VM_TEMPLATE.format(vm_name=self.name, error=e))
                 finally:
                     self.app.vm_service.unsuppress_vm_events(internal_id)
 
@@ -1928,7 +1928,7 @@ class VMCard(Static):
                     if delete_snapshots:
                         self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                 else:
-                    self.app.show_success_message("VM rename cancelled.")
+                    self.app.show_success_message(SuccessMessages.VM_RENAME_CANCELLED)
 
             msg = f"Are you sure you want to rename VM {self.name} to {new_name}?\n\nWarning: This operation involves undefining and redefining the VM."
             self.app.push_screen(
@@ -1968,7 +1968,7 @@ class VMCard(Static):
                     def show_details():
                         loading_modal.dismiss()
                         if not result:
-                            self.app.show_error_message(f"VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active server.")
+                            self.app.show_error_message(ErrorMessages.VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE.format(vm_name=vm_name, uuid=uuid))
                             return
 
                         vm_info, domain, conn_for_domain = result
@@ -1987,18 +1987,18 @@ class VMCard(Static):
                 except Exception as e:
                     def show_error():
                         loading_modal.dismiss()
-                        self.app.show_error_message(f"Error getting details for [b]{vm_name}[/b]: {e}")
+                        self.app.show_error_message(ErrorMessages.ERROR_GETTING_VM_DETAILS_TEMPLATE.format(vm_name=vm_name, error=e))
                     self.app.call_from_thread(show_error)
 
             self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
 
         except Exception as e:
-            self.app.show_error_message(f"Error getting ID for [b]{self.name}[/b]: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_GETTING_ID_TEMPLATE.format(vm_name=self.name, error=e))
 
     def _handle_migration_button(self, event: Button.Pressed) -> None:
         """Handles the migration button press."""
         if len(self.app.active_uris) < 2:
-            self.app.show_error_message("Please select at least two servers in 'Select Servers' to enable migration.")
+            self.app.show_error_message(ErrorMessages.SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION)
             return
 
         selected_vm_uuids = self.app.selected_vm_uuids
@@ -2019,8 +2019,8 @@ class VMCard(Static):
                         found_domain = False
                 else:
                     found_domain = False
-                if not found_domain:
-                    self.app.show_error_message(f"Selected VM with ID [b]{uuid}[/b] not found on any active server.")
+            if not vm_info:
+                self.app.show_error_message(ErrorMessages.SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE.format(uuid=uuid))
 
         if not selected_vms:
             selected_vms = [self.vm]
@@ -2037,7 +2037,7 @@ class VMCard(Static):
             source_conns.add(uri)
 
         if len(source_conns) > 1:
-            self.app.show_error_message("Cannot migrate VMs from different source hosts at the same time.")
+            self.app.show_error_message(ErrorMessages.DIFFERENT_SOURCE_HOSTS)
             return
 
         #active_vms = [vm for vm in selected_vms if vm.isActive()]
@@ -2058,7 +2058,7 @@ class VMCard(Static):
 
         is_live = len(active_vms) > 0
         if is_live and len(active_vms) < len(selected_vms):
-            self.app.show_error_message("Cannot migrate running/paused and stopped VMs at the same time.")
+            self.app.show_error_message(ErrorMessages.MIXED_VM_STATES)
             return
 
         active_uris = self.app.vm_service.get_all_uris()

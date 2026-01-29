@@ -22,8 +22,10 @@ from textual.worker import Worker, WorkerState
 
 from .config import load_config, save_config, get_log_path
 from .constants import (
-        VmAction, VmStatus, ButtonLabels, ButtonIds,
-        ErrorMessages, AppInfo, StatusText, ServerPallette,
+        WarningMessages,
+        SuccessMessages,
+        VmAction, VmStatus, ButtonLabels, BindingDescriptions,
+        ErrorMessages, AppInfo, StatusText, ServerPallette, QuickMessages, ProgressMessages,
         )
 from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
 from .libvirt_error_handler import register_error_handler
@@ -159,27 +161,27 @@ class VMManagerTUI(App):
     """A Textual application to manage VMs."""
 
     BINDINGS = [
-        Binding(key="v", action="view_log", description="Log"),
-        Binding(key="f", action="filter_view", description="Filter", show=False),
-        Binding(key="k", action="compact_view", description="CompactView", show=True),
-        #Binding(key="p", action="server_preferences", description="ServerPrefs"),
-        Binding(key="c", action="config", description="Config", show=True),
-        Binding(key="b", action="bulk_cmd", description="BulkCMD", show=False),
-        Binding(key="s", action="select_server", description="SelServers", show=False),
-        Binding(key="l", action="manage_server", description="ServList", show=False),
-        Binding(key="p", action="pattern_select", description="PatternSel", show=False),
-        Binding(key="ctrl+a", action="toggle_select_all", description="Sel/Des All"),
-        Binding(key="ctrl+u", action="unselect_all", description="Unselect All"),
-        Binding(key="left", action="previous_page", description="Previous Page", show=False),
-        Binding(key="right", action="next_page", description="Next Page", show=False),
-        Binding(key="up", action="filter_running", description="Running VMs", show=False),
-        Binding(key="down", action="filter_all", description="All VMs", show=False),
-        Binding(key="ctrl+v", action="virsh_shell", description="Virsh", show=False ),
-        Binding(key="h", action="host_capabilities", description="Host Caps", show=False),
-        Binding(key="i", action="install_vm", description="InstallVM", show=True),
-        Binding(key="ctrl+l", action="toggle_stats_logging", description="Log Stats", show=False),
-        Binding(key="ctrl+s", action="show_cache_stats", description="Show cache Stats", show=False),
-        Binding(key="q", action="quit", description="Quit"),
+        Binding(key="v", action="view_log", description=BindingDescriptions.LOG),
+        Binding(key="f", action="filter_view", description=BindingDescriptions.FILTER, show=False),
+        Binding(key="k", action="compact_view", description=BindingDescriptions.COMPACT_VIEW, show=True),
+        #Binding(key="p", action="server_preferences", description=BindingDescriptions.SERVER_PREFS),
+        Binding(key="c", action="config", description=BindingDescriptions.CONFIG, show=True),
+        Binding(key="b", action="bulk_cmd", description=BindingDescriptions.BULK_CMD, show=False),
+        Binding(key="s", action="select_server", description=BindingDescriptions.SELECT_SERVERS, show=False),
+        Binding(key="l", action="manage_server", description=BindingDescriptions.MANAGE_SERVERS, show=False),
+        Binding(key="p", action="pattern_select", description=BindingDescriptions.PATTERN_SELECT, show=False),
+        Binding(key="ctrl+a", action="toggle_select_all", description=BindingDescriptions.SELECT_ALL),
+        Binding(key="ctrl+u", action="unselect_all", description=BindingDescriptions.UNSELECT_ALL),
+        Binding(key="left", action="previous_page", description=BindingDescriptions.PREVIOUS_PAGE, show=False),
+        Binding(key="right", action="next_page", description=BindingDescriptions.NEXT_PAGE, show=False),
+        Binding(key="up", action="filter_running", description=BindingDescriptions.RUNNING_VMS, show=False),
+        Binding(key="down", action="filter_all", description=BindingDescriptions.ALL_VMS, show=False),
+        Binding(key="ctrl+v", action="virsh_shell", description=BindingDescriptions.VIRSH_SHELL, show=False ),
+        Binding(key="h", action="host_capabilities", description=BindingDescriptions.HOST_CAPABILITIES, show=False),
+        Binding(key="i", action="install_vm", description=BindingDescriptions.INSTALL_VM, show=True),
+        Binding(key="ctrl+l", action="toggle_stats_logging", description=BindingDescriptions.TOGGLE_STATS, show=False),
+        Binding(key="ctrl+s", action="show_cache_stats", description=BindingDescriptions.CACHE_STATS, show=False),
+        Binding(key="q", action="quit", description=BindingDescriptions.QUIT),
     ]
 
     config = load_config()
@@ -339,10 +341,10 @@ class VMManagerTUI(App):
         self.ui["error_footer"] = Static(id="error-footer", classes="error-message")
         self.ui["page_info"] = Label("", id="page-info", classes="")
         self.ui["prev_button"] = Button(
-                ButtonLabels.PREVIOUS_PAGE, id=ButtonIds.PREV_BUTTON, variant="primary", classes="ctrlpage"
+                ButtonLabels.PREVIOUS_PAGE, id="prev-button", variant="primary", classes="ctrlpage"
             )
         self.ui["next_button"] = Button(
-                ButtonLabels.NEXT_PAGE, id=ButtonIds.NEXT_BUTTON, variant="primary", classes="ctrlpage"
+                ButtonLabels.NEXT_PAGE, id="next-button", variant="primary", classes="ctrlpage"
             )
         self.ui["pagination_controls"] = Horizontal(
             self.ui["prev_button"],
@@ -358,20 +360,20 @@ class VMManagerTUI(App):
         yield Header()
         with Horizontal(classes="top-controls"):
             yield Button(
-                ButtonLabels.SELECT_SERVER, id=ButtonIds.SELECT_SERVER_BUTTON, classes="Buttonpage"
+                ButtonLabels.SELECT_SERVER, id="select_server_button", classes="Buttonpage"
             )
-            yield Button(ButtonLabels.MANAGE_SERVERS, id=ButtonIds.MANAGE_SERVERS_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.MANAGE_SERVERS, id="manage_servers_button", classes="Buttonpage")
             yield Button(
-                ButtonLabels.SERVER_PREFERENCES, id=ButtonIds.SERVER_PREFERENCES_BUTTON, classes="Buttonpage"
+                ButtonLabels.SERVER_PREFERENCES, id="server_preferences_button", classes="Buttonpage"
             )
-            yield Button(ButtonLabels.FILTER_VM, id=ButtonIds.FILTER_BUTTON, classes="Buttonpage")
-            #yield Button(ButtonLabels.VIEW_LOG, id=ButtonIds.VIEW_LOG_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.FILTER_VM, id="filter_button", classes="Buttonpage")
+            #yield Button(ButtonLabels.VIEW_LOG, id="view-log-button", classes="Buttonpage")
             # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
-            yield Button(ButtonLabels.BULK_CMD, id=ButtonIds.BULK_SELECTED_VMS, classes="Buttonpage")
-            yield Button(ButtonLabels.PATTERN_SELECT, id=ButtonIds.PATTERN_SELECT_BUTTON, classes="Buttonpage")
-            #yield Button(ButtonLabels.CONFIG, id=ButtonIds.CONFIG_BUTTON, classes="Buttonpage")
+            yield Button(ButtonLabels.BULK_CMD, id="bulk_selected_vms", classes="Buttonpage")
+            yield Button(ButtonLabels.PATTERN_SELECT, id="pattern_select_button", classes="Buttonpage")
+            #yield Button(ButtonLabels.CONFIG, id="config-button", classes="Buttonpage")
             #yield Button(
-            #    ButtonLabels.COMPACT_VIEW, id=ButtonIds.COMPACT_VIEW_BUTTON, classes="Buttonpage"
+            #    ButtonLabels.COMPACT_VIEW, id="compact-view-button", classes="Buttonpage"
             #)
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
@@ -379,9 +381,7 @@ class VMManagerTUI(App):
         yield self.ui["vms_container"]
         yield self.ui["error_footer"]
         yield Footer()
-        self.show_success_message(
-            "In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it."
-        )
+        self.show_success_message(SuccessMessages.TERMINAL_COPY_HINT)
 
     def reload_servers(self, new_servers):
         self.servers = new_servers
@@ -400,7 +400,7 @@ class VMManagerTUI(App):
             )
             self.r_viewer_available = False
         else:
-            self.show_quick_message(f"The remove viewer {self.r_viewer} has been selected.")
+            self.show_quick_message(QuickMessages.REMOTE_VIEWER_SELECTED.format(viewer=self.r_viewer))
 
         if not check_websockify():
             self.show_error_message(
@@ -428,9 +428,7 @@ class VMManagerTUI(App):
             vms_container.styles.grid_size_columns = 2
 
         if not self.servers:
-            self.show_success_message(
-                "No servers configured. Please add one via 'Servers List'."
-            )
+            self.show_success_message(SuccessMessages.NO_SERVERS_CONFIGURED)
         else:
             # Launch initial connection and cache loading in background
             if self.active_uris:
@@ -443,10 +441,10 @@ class VMManagerTUI(App):
         """Connects to servers in background and then triggers cache loading."""
         if self.active_uris:
             for uri in self.active_uris:
-                self.call_from_thread(self.show_in_progress_message, f"Connecting to [b]{uri}[/b]...")
+                self.call_from_thread(self.show_in_progress_message, ProgressMessages.CONNECTING_TO_SERVER.format(uri=uri))
                 success = self.connect_libvirt(uri)
                 if success:
-                    self.call_from_thread(self.show_success_message, f"Connected to [b]{uri}[/b]")
+                    self.call_from_thread(self.show_success_message, SuccessMessages.CONNECTED_TO_SERVER.format(uri=uri))
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
@@ -512,13 +510,13 @@ class VMManagerTUI(App):
                 self._stats_interval_timer = None
             self._stats_logging_active = False
             setup_cache_monitoring(enable=False)
-            self.show_success_message("Statistics logging and monitoring disabled.")
+            self.show_success_message(SuccessMessages.STATS_LOGGING_DISABLED)
         else:
             setup_cache_monitoring(enable=True)
             self._log_cache_statistics()
             self._stats_interval_timer = self.set_interval(10, self._log_cache_statistics)
             self._stats_logging_active = True
-            self.show_success_message("Statistics logging and monitoring enabled (every 10s).")
+            self.show_success_message(SuccessMessages.STATS_LOGGING_ENABLED)
 
     def _initial_cache_worker(self):
         """Pre-loads VM cache before displaying the UI."""
@@ -547,7 +545,7 @@ class VMManagerTUI(App):
                             if s['uri'] == uri:
                                 server_name = s['name']
                                 break
-                        self.call_from_thread(self.show_error_message, f"Server [b]{server_name}[/b]: {error_msg}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.SERVER_CONNECTION_ERROR.format(server_name=server_name, error_msg=error_msg))
 
                         if self.vm_service.connection_manager.is_max_retries_reached(uri):
                              self.call_from_thread(self.remove_active_uri, uri)
@@ -575,14 +573,14 @@ class VMManagerTUI(App):
 
             if active_vms_on_page:
                 vms_list_str = ", ".join(active_vms_on_page)
-                self.call_from_thread(self.show_quick_message, f"Caching VM state for: {vms_list_str}")
+                self.call_from_thread(self.show_quick_message, QuickMessages.CACHING_VM_STATE.format(vms_list=vms_list_str))
 
             self.call_from_thread(self._on_initial_cache_complete)
 
         except Exception as e:
             self.call_from_thread(
                 self.show_error_message, 
-                f"Error during initial cache loading: {e}"
+                ErrorMessages.ERROR_DURING_INITIAL_CACHE_LOADING.format(error=e)
             )
 
     def _on_initial_cache_complete(self):
@@ -590,7 +588,7 @@ class VMManagerTUI(App):
         self.initial_cache_loading = False
         self.initial_cache_complete = True
         if self.servers:
-            self.show_quick_message("VM data loaded. Displaying VMs...")
+            self.show_quick_message(QuickMessages.VM_DATA_LOADED)
             self.refresh_vm_list()
 
     def _update_layout_for_size(self):
@@ -648,9 +646,7 @@ class VMManagerTUI(App):
         self.vm_card_pool.prefill_pool()
 
         if self.VMS_PER_PAGE > 9 and old_vms_per_page <= 9 and not self.compact_view:
-            self.show_warning_message(
-                f"Displaying [b]{self.VMS_PER_PAGE}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
-            )
+            self.show_warning_message(WarningMessages.VMS_PER_PAGE_PERFORMANCE_WARNING.format(vms_per_page=self.VMS_PER_PAGE))
 
         self.refresh_vm_list(force=True)
 
@@ -678,7 +674,7 @@ class VMManagerTUI(App):
             if conn:
                 yield conn
             else:
-                self.show_error_message(f"Failed to open connection to [b]{uri}[/b]")
+                self.show_error_message(ErrorMessages.FAILED_TO_OPEN_CONNECTION.format(uri=uri))
 
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
@@ -707,11 +703,11 @@ class VMManagerTUI(App):
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
 
-    @on(Button.Pressed, f"#{ButtonIds.COMPACT_VIEW_BUTTON}")
+    @on(Button.Pressed, f"#compact-view-button")
     def action_compact_view(self) -> None:
         """Toggle compact view."""
         if self.bulk_operation_in_progress:
-            self.show_warning_message("Compact view is locked during bulk operations.")
+            self.show_warning_message(WarningMessages.COMPACT_VIEW_LOCKED)
             return
 
         if not self.compact_view:
@@ -756,8 +752,7 @@ class VMManagerTUI(App):
         uris_to_connect = [uri for uri in selected_uris if uri not in self.active_uris]
         # Show connecting message for each new server
         for uri in uris_to_connect:
-            self.show_in_progress_message(f"Connecting to [b]{uri}[/b]...")
-
+            self.show_in_progress_message(ProgressMessages.CONNECTING_TO_SERVER.format(uri=uri))
         for uri in uris_to_disconnect:
             # Cleanup UI caches for VMs on this server
             uuids_to_release = [
@@ -797,11 +792,11 @@ class VMManagerTUI(App):
                         server_name = s['name']
                         break
                 if success:
-                    self.call_from_thread(self.show_success_message, f"Connected to [b]{server_name}[/b]")
+                    self.call_from_thread(self.show_success_message, SuccessMessages.SERVER_CONNECTED.format(name=server_name))
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
-                        self.call_from_thread(self.show_error_message, f"Failed to connect to [b]{server_name}[/b]: {error_msg}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.SERVER_FAILED_TO_CONNECT.format(server_name=server_name, error_msg=error_msg))
 
         if uris_to_connect:
             self.worker_manager.run(show_connection_results, name="show_connection_results")
@@ -870,7 +865,7 @@ class VMManagerTUI(App):
         if self.sort_by != VmStatus.RUNNING:
             self.sort_by = VmStatus.RUNNING
             self.current_page = 0
-            self.show_quick_message("Filter: Running VMs")
+            self.show_quick_message(QuickMessages.FILTER_RUNNING_VMS)
             self.refresh_vm_list()
 
     def action_filter_all(self) -> None:
@@ -878,7 +873,7 @@ class VMManagerTUI(App):
         if self.sort_by != VmStatus.DEFAULT:
             self.sort_by = VmStatus.DEFAULT
             self.current_page = 0
-            self.show_quick_message("Filter: All VMs")
+            self.show_quick_message(QuickMessages.FILTER_ALL_VMS)
             self.refresh_vm_list()
 
     @on(FilterModal.FilterChanged)
@@ -901,7 +896,7 @@ class VMManagerTUI(App):
             self.search_text = new_search
             self.filtered_server_uris = new_selected_servers
             self.current_page = 0
-            self.show_in_progress_message("Loading VM data from remote server(s)...")
+            self.show_in_progress_message(ProgressMessages.LOADING_VM_DATA_FROM_REMOTE_SERVERS)
             self.refresh_vm_list()
 
     def action_config(self) -> None:
@@ -921,7 +916,7 @@ class VMManagerTUI(App):
                 logging.getLogger().setLevel(new_log_level)
                 for handler in logging.getLogger().handlers:
                     handler.setLevel(new_log_level)
-                self.show_success_message(f"Log level changed to {new_log_level_str}")
+                self.show_success_message(SuccessMessages.LOG_LEVEL_CHANGED.format(level=new_log_level_str))
 
             # Update remote viewer if changed
             self.r_viewer = check_r_viewer(self.config.get("REMOTE_VIEWER"))
@@ -932,10 +927,10 @@ class VMManagerTUI(App):
                 self.r_viewer_available = True
 
             if (self.config.get("STATS_INTERVAL") != old_stats_interval):
-                self.show_in_progress_message("Configuration updated. Refreshing VM list...")
+                self.show_in_progress_message(ProgressMessages.CONFIG_UPDATED_REFRESHING_VM_LIST)
                 self.refresh_vm_list(force=False, optimize_for_current_page=True)
             else:
-                self.show_success_message("Configuration updated.")
+                self.show_success_message(SuccessMessages.CONFIG_UPDATED)
 
     @on(Button.Pressed, "#config_button")
     def on_config_button_pressed(self, event: Button.Pressed) -> None:
@@ -987,7 +982,7 @@ class VMManagerTUI(App):
                         self.call_from_thread(self.push_screen, modal)
                     except Exception as e:
                         self.call_from_thread(loading.dismiss)
-                        self.call_from_thread(self.show_error_message, f"Error launching preferences: {e}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.PREFERENCES_LAUNCH_ERROR.format(error=e))
 
                 self.worker_manager.run(show_prefs, name="launch_server_prefs")
             else:
@@ -1006,7 +1001,7 @@ class VMManagerTUI(App):
         Handles 0, 1, or multiple active servers.
         """
         if len(self.active_uris) == 0:
-            self.show_error_message("Not connected to any server.")
+            self.show_error_message(ErrorMessages.NOT_CONNECTED_TO_ANY_SERVER)
             return
 
         if len(self.active_uris) == 1:
@@ -1047,7 +1042,7 @@ class VMManagerTUI(App):
             if conn:
                 self.push_screen(CapabilitiesTreeModal(conn))
             else:
-                self.show_error_message(f"Could not connect to {uri}")
+                self.show_error_message(ErrorMessages.COULD_NOT_CONNECT_TO_SERVER.format(uri=uri))
 
         self._select_server_and_run(launch_caps_modal, "Select a server for Capabilities", "View")
 
@@ -1070,7 +1065,7 @@ class VMManagerTUI(App):
         def action_worker():
             domain = self.vm_service.find_domain_by_uuid(self.active_uris, message.internal_id)
             if not domain:
-                self.call_from_thread(self.show_error_message, f"Could not find VM with ID [b]{message.internal_id}[/b]")
+                self.call_from_thread(self.show_error_message, ErrorMessages.VM_NOT_FOUND_BY_ID.format(vm_id=message.internal_id))
                 return
 
             #vm_name = domain.name()
@@ -1101,7 +1096,7 @@ class VMManagerTUI(App):
             except Exception as e:
                 self.call_from_thread(
                     self.show_error_message,
-                    f"Error on VM [b]{vm_name}[/b] during '{message.action}': {e}",
+                    ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(vm_name=vm_name, action=message.action, error=e),
                 )
             finally:
                 self.vm_service.unsuppress_vm_events(message.internal_id)
@@ -1142,7 +1137,7 @@ class VMManagerTUI(App):
         for card in self.query(VMCard):
             card.is_selected = False
 
-        self.show_quick_message("All VMs unselected.")
+        self.show_quick_message(QuickMessages.ALL_VMS_UNSELECTED)
 
     @on(VMSelectionChanged)
     def on_vm_selection_changed(self, message: VMSelectionChanged) -> None:
@@ -1163,7 +1158,7 @@ class VMManagerTUI(App):
         delete_storage_flag = result.get('delete_storage', False)
 
         if not action_type:
-            self.show_error_message("No action type received from bulk action modal.")
+            self.show_error_message(ErrorMessages.NO_ACTION_TYPE_BULK_MODAL)
             return
 
         selected_uuids_copy = list(self.selected_vm_uuids)  # Take a copy for the worker
@@ -1175,7 +1170,7 @@ class VMManagerTUI(App):
             selected_domains = list(found_domains_map.values())
 
             if not selected_domains:
-                self.show_error_message("Could not find any of the selected VMs for editing.")
+                self.show_error_message(ErrorMessages.VM_NOT_FOUND_FOR_EDITING)
                 return
 
             # Check if all selected VMs are stopped
@@ -1185,7 +1180,7 @@ class VMManagerTUI(App):
                     active_vms.append(domain.name())
 
             if active_vms:
-                self.show_error_message(f"All VMs must be stopped for bulk editing. Running VMs: {', '.join(active_vms)}")
+                self.show_error_message(ErrorMessages.VMS_MUST_BE_STOPPED_FOR_BULK_EDITING.format(running_vms=', '.join(active_vms)))
                 # Restore selection since we are aborting
                 self.selected_vm_uuids = set(selected_uuids_copy)
                 return
@@ -1222,9 +1217,9 @@ class VMManagerTUI(App):
                         # Clear selection after launching modal
                         self.selected_vm_uuids.clear()
                     else:
-                        self.show_error_message("Could not load details for reference VM.")
+                        self.show_error_message(ErrorMessages.COULD_NOT_LOAD_DETAILS_FOR_REFERENCE_VM)
                 except Exception as e:
-                    self.app.show_error_message(f"Error preparing bulk edit: {e}")
+                    self.app.show_error_message(ErrorMessages.BULK_EDIT_PREP_ERROR.format(error=e))
 
             warning_message = "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
             self.app.push_screen(ConfirmationDialog(warning_message), on_confirm)
@@ -1273,13 +1268,13 @@ class VMManagerTUI(App):
             logging.info(summary) 
 
             if successful_vms:
-                self.call_from_thread(self.show_success_message, f"Bulk action [b]{action_type}[/b] successful for {len(successful_vms)} VMs.")
+                self.call_from_thread(self.show_success_message, SuccessMessages.BULK_ACTION_SUCCESS_TEMPLATE.format(action_type=action_type, count=len(successful_vms)))
             if failed_vms:
-                self.call_from_thread(self.show_error_message, f"Bulk action [b]{action_type}[/b] failed for {len(failed_vms)} VMs.")
+                self.call_from_thread(self.show_error_message, ErrorMessages.BULK_ACTION_FAILED_TEMPLATE.format(action_type=action_type, count=len(failed_vms)))
 
         except Exception as e:
             logging.error(f"An unexpected error occurred during bulk action service call: {e}", exc_info=True)
-            self.call_from_thread(self.show_error_message, f"A fatal error occurred during bulk action: {e}")
+            self.call_from_thread(self.show_error_message, ErrorMessages.FATAL_ERROR_BULK_ACTION.format(error=e))
 
         finally:
             # Ensure these are called on the main thread
@@ -1429,7 +1424,7 @@ class VMManagerTUI(App):
                             name_for_error = vm_name if 'vm_name' in locals() else domain.name()
                         except:
                             name_for_error = "Unknown"
-                        self.call_from_thread(self.show_error_message, f"Error getting info for VM '{name_for_error}': {e}")
+                        self.call_from_thread(self.show_error_message, ErrorMessages.VM_INFO_ERROR.format(vm_name=name_for_error, error=e))
                         continue
 
             # Cleanup cache: remove cards for VMs that no longer exist at all
@@ -1563,7 +1558,7 @@ class VMManagerTUI(App):
                         self.filtered_server_uris = [u for u in self.filtered_server_uris if u not in uris_to_remove]
 
                     if removed_names:
-                        self.show_error_message(f"Server(s) {', '.join(removed_names)} disconnected and autoconnect disabled due to connection failures.")
+                        self.show_error_message(ErrorMessages.SERVER_DISCONNECTED_AUTOCONNECT_DISABLED.format(names=', '.join(removed_names)))
 
                 if config_changed:
                     self.config['servers'] = self.servers
@@ -1576,7 +1571,7 @@ class VMManagerTUI(App):
             self.call_from_thread(update_ui_on_main_thread)
 
         except Exception as e:
-            self.call_from_thread(self.show_error_message, f"Error fetching VM data: {e}")
+            self.call_from_thread(self.show_error_message, ErrorMessages.ERROR_FETCHING_VM_DATA.format(error=e))
         finally:
             if on_complete:
                 self.call_from_thread(on_complete)
@@ -1626,7 +1621,7 @@ class VMManagerTUI(App):
     def action_pattern_select(self) -> None:
         """Handles the 'Pattern Sel' button press."""
         if not self.active_uris:
-            self.show_error_message("No active servers.")
+            self.show_error_message(ErrorMessages.NO_ACTIVE_SERVERS)
             return
 
         # Gather all known VMs from cache
@@ -1651,7 +1646,7 @@ class VMManagerTUI(App):
                     continue
 
         if not available_vms:
-            self.show_error_message("No VMs found in cache. Try refreshing first.")
+            self.show_error_message(ErrorMessages.NO_VMS_IN_CACHE)
             return
 
         # Prepare server list for the modal, matching FilterModal logic
@@ -1674,7 +1669,7 @@ class VMManagerTUI(App):
             if selected_uuids:
                 # Add found UUIDs to current selection
                 self.selected_vm_uuids.update(selected_uuids)
-                self.show_success_message(f"Selected {len(selected_uuids)} VMs matching pattern.")
+                self.show_success_message(SuccessMessages.VMS_SELECTED_BY_PATTERN.format(count=len(selected_uuids)))
                 self.refresh_vm_list()
 
         self.push_screen(PatternSelectModal(available_vms, available_servers, selected_servers), handle_result)
@@ -1685,7 +1680,7 @@ class VMManagerTUI(App):
         """Handles the 'Bulk Selected' button press."""
         self._collapse_all_action_collapsibles()
         if not self.selected_vm_uuids:
-            self.show_error_message("No VMs selected.")
+            self.show_error_message(ErrorMessages.NO_VMS_SELECTED)
             return
 
         uuids_snapshot = list(self.selected_vm_uuids)
@@ -1714,9 +1709,7 @@ class VMManagerTUI(App):
                     self.push_screen, BulkActionModal(vm_names_list), self.handle_bulk_action_result
                 )
             else:
-                self.call_from_thread(
-                    self.show_error_message, "Could not retrieve names for selected VMs."
-                )
+                self.call_from_thread(self.show_error_message, ErrorMessages.BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED)
 
         self.worker_manager.run(
             get_names_and_show_modal,

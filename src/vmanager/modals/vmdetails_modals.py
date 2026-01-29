@@ -54,6 +54,7 @@ from ..libvirt_utils import (
         get_host_usb_devices, get_host_pci_devices,
         get_host_numa_nodes
         )
+from ..constants import ErrorMessages, SuccessMessages, WarningMessages, DialogMessages, ButtonLabels, StaticText
 from .utils_modals import ConfirmationDialog, ProgressModal
 from .cpu_mem_pc_modals import (
         EditCpuModal, EditMemoryModal, SelectMachineTypeModal,
@@ -147,7 +148,7 @@ class VMDetailModal(ModalScreen):
                     ui_update_callback()
                 return
             except Exception as e:
-                self.app.show_error_message(f"{error_msg_fmt}: {e}")
+                self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
                 return
 
         progress = ProgressModal("Applying changes...")
@@ -236,7 +237,7 @@ class VMDetailModal(ModalScreen):
             all_networks_info = list_networks(self.conn)
             self.available_networks = [net['name'] for net in all_networks_info]
         except (libvirt.libvirtError, Exception) as e:
-            self.app.show_error_message(f"Could not load networks: {e}")
+            self.app.show_error_message(ErrorMessages.VM_DETAIL_COULD_NOT_LOAD_NETWORKS.format(error=e))
             self.available_networks = []
 
         try:
@@ -545,10 +546,10 @@ class VMDetailModal(ModalScreen):
         try:
             set_boot_info(self.domain, menu_enabled, new_boot_order)
             self._invalidate_cache()
-            self.app.show_success_message("Boot order saved successfully.")
+            self.app.show_success_message(SuccessMessages.BOOT_ORDER_SAVED_SUCCESSFULLY)
             self.boot_order = new_boot_order
         except libvirt.libvirtError as e:
-            self.app.show_error_message(f"Error saving boot order: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_SAVING_BOOT_ORDER_TEMPLATE.format(error=e))
 
 
     def _get_bootable_devices(self) -> list[BootDevice]:
@@ -721,13 +722,13 @@ class VMDetailModal(ModalScreen):
         try:
             change_vm_network(self.domain, mac_address, new_network)
             self._invalidate_cache()
-            self.app.show_success_message(f"Interface {mac_address} switched to {new_network}")
+            self.app.show_success_message(SuccessMessages.VM_NETWORK_INTERFACE_CHANGED_TEMPLATE.format(mac_address=mac_address, new_network=new_network))
             for i in self.vm_info["networks"]:
                 if i["mac"] == mac_address:
                     i["network"] = new_network
                     break
         except (libvirt.libvirtError, ValueError, Exception) as e:
-            self.app.show_error_message(f"Error updating network: {e}")
+            self.app.show_error_message(ErrorMessages.ERROR_UPDATING_NETWORK_TEMPLATE_SHORT.format(error=e))
             event.control.value = original_network
 
         self.available_networks = []
@@ -753,7 +754,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"CPU model set to {new_cpu_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_CPU_MODEL_SET_SUCCESS.format(new_cpu_model=new_cpu_model) + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting CPU model",
             ui_update
         )
@@ -783,7 +784,7 @@ class VMDetailModal(ModalScreen):
                 self.query_one("#firmware-path-label").update(msg_text)
                 self.vm_info['firmware']['path'] = new_uefi_path
 
-        msg_template = f"UEFI file set to {os.path.basename(new_uefi_path) if new_uefi_path else 'BIOS'}"
+        msg_template = SuccessMessages.VM_UEFI_FILE_SET_SUCCESS.format(uefi_file_name=os.path.basename(new_uefi_path) if new_uefi_path else 'BIOS')
         if self.is_bulk:
             msg_template += " for {count} VMs ({names})"
 
@@ -838,7 +839,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Video model set to {new_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_VIDEO_MODEL_SET_SUCCESS.format(new_model=new_model) + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting video model",
             ui_update
         )
@@ -862,7 +863,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"3D Acceleration {'enabled' if accel3d_enabled else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_3D_ACCELERATION_SET_SUCCESS.format(state='enabled' if accel3d_enabled else 'disabled') + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting 3D acceleration",
             ui_update
         )
@@ -889,7 +890,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Sound model set to {new_model}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_SOUND_MODEL_SET_SUCCESS.format(new_model=new_model) + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting sound model",
             ui_update
         )
@@ -900,7 +901,7 @@ class VMDetailModal(ModalScreen):
 
         current_uefi_path = self.vm_info['firmware'].get('path')
         if not current_uefi_path and event.value: # Trying to enable secure boot without a UEFI file
-            self.app.show_error_message("Cannot enable secure boot without a UEFI file selected.")
+            self.app.show_error_message(ErrorMessages.CANNOT_ENABLE_SECURE_BOOT_WITHOUT_UEFI)
             event.checkbox.value = not event.value # Revert checkbox
             self._update_uefi_options() # Revert options
             return
@@ -917,7 +918,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Secure Boot {'enabled' if event.value else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_SECURE_BOOT_SET_SUCCESS.format(state='enabled' if event.value else 'disabled') + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting Secure Boot",
             ui_update
         )
@@ -940,7 +941,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"Shared memory {'enabled' if event.value else 'disabled'}" + (" for {count} VMs ({names})" if self.is_bulk else ""),
+            SuccessMessages.VM_SHARED_MEMORY_SET_SUCCESS.format(state='enabled' if event.value else 'disabled') + (" for {count} VMs ({names})" if self.is_bulk else ""),
             "Errors setting shared memory",
             ui_update
         )
@@ -998,7 +999,7 @@ class VMDetailModal(ModalScreen):
     @on(Button.Pressed, "#graphics-apply-btn")
     def on_graphics_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply graphics settings.")
+            self.app.show_error_message(ErrorMessages.GRAPHICS_VM_MUST_BE_STOPPED)
             return
 
         original_graphics_type = self.original_graphics_info.get('type')
@@ -1054,7 +1055,7 @@ class VMDetailModal(ModalScreen):
             self._run_bulk_operation(
                 targets,
                 operation,
-                "Graphics settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                SuccessMessages.GRAPHICS_SETTINGS_APPLIED_SUCCESSFULLY + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
                 "Errors applying graphics settings",
                 ui_update
             )
@@ -1080,16 +1081,16 @@ class VMDetailModal(ModalScreen):
                     self._run_bulk_operation(
                         targets,
                         removal_operation,
-                        "Removed associated SPICE devices" + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                        SuccessMessages.SPICE_DEVICES_REMOVED_SUCCESS + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
                         "Error removing SPICE devices",
                         do_apply_graphics_settings
                     )
                 else:
                     do_apply_graphics_settings()
 
-            msg = "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
+            msg = ErrorMessages.SPICE_REMOVAL_CONFIRMATION_SINGLE
             if self.is_bulk:
-                msg = "Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?"
+                msg = ErrorMessages.SPICE_REMOVAL_CONFIRMATION_BULK
 
             self.app.push_screen(
                 ConfirmationDialog(msg),
@@ -1102,12 +1103,12 @@ class VMDetailModal(ModalScreen):
     @on(Button.Pressed, "#apply-rng-btn")
     def on_rng_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply RNG settings.")
+            self.app.show_error_message(ErrorMessages.RNG_VM_MUST_BE_STOPPED)
             return
 
         rng_device = self.query_one("#rng-host-device", Input).value
         if not rng_device:
-            self.app.show_error_message("RNG device path cannot be empty.")
+            self.app.show_error_message(ErrorMessages.RNG_DEVICE_PATH_EMPTY)
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
@@ -1118,7 +1119,7 @@ class VMDetailModal(ModalScreen):
         self._run_bulk_operation(
             targets,
             operation,
-            f"RNG settings applied successfully. Device: {rng_device}" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+            SuccessMessages.RNG_SETTINGS_APPLIED_SUCCESSFULLY.format(rng_device=rng_device) + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
             "Error applying RNG settings"
         )
 
@@ -1141,7 +1142,7 @@ class VMDetailModal(ModalScreen):
     @on(Button.Pressed, "#apply-tpm-btn")
     def on_tpm_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply TPM settings.")
+            self.app.show_error_message(ErrorMessages.TPM_VM_MUST_BE_STOPPED)
             return
 
         tpm_model = self.query_one("#tpm-model-select", Select).value
@@ -1152,7 +1153,7 @@ class VMDetailModal(ModalScreen):
 
         # Basic validation for passthrough
         if tpm_type == 'passthrough' and not device_path:
-            self.app.show_error_message("Device path is required for passthrough TPM.")
+            self.app.show_error_message(ErrorMessages.DEVICE_PATH_REQUIRED_FOR_PASSTHROUGH_TPM)
             return
 
         targets = self.selected_domains if self.is_bulk else [self.domain]
@@ -1179,14 +1180,13 @@ class VMDetailModal(ModalScreen):
                 self.tpm_info = get_vm_tpm_info(root) # Refresh info
                 self._update_tpm_ui()
 
-        self._run_bulk_operation(
-            targets,
-            operation,
-            "TPM settings applied successfully" + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
-            "Error applying TPM settings",
-            ui_update
-        )
-
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    SuccessMessages.TPM_SETTINGS_APPLIED_SUCCESSFULLY + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                    "Error applying TPM settings",
+                    ui_update
+                )
     @on(ListView.Highlighted, "#available-devices-list")
     def on_available_devices_list_highlighted(self, event: ListView.Highlighted) -> None:
         if not self.is_vm_stopped:
@@ -1276,11 +1276,11 @@ class VMDetailModal(ModalScreen):
             try:
                 attach_usb_device(self.domain, vendor_id, product_id)
                 self._invalidate_cache()
-                self.app.show_success_message(f"Attached USB device: {device_to_attach['description']}")
+                self.app.show_success_message(SuccessMessages.USB_DEVICE_ATTACHED_TEMPLATE.format(description=device_to_attach['description']))
                 self.xml_desc = self.vm_service._get_domain_xml(self.domain)
                 self._populate_usb_lists()
             except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error attaching USB device: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_ATTACHING_USB_DEVICE_TEMPLATE.format(error=e))
 
     @on(Button.Pressed, "#detach-usb-btn")
     def on_detach_usb_button_pressed(self, event: Button.Pressed) -> None:
@@ -1292,11 +1292,11 @@ class VMDetailModal(ModalScreen):
             try:
                 detach_usb_device(self.domain, vendor_id, product_id)
                 self._invalidate_cache()
-                self.app.show_success_message(f"Detached USB device: {device_to_detach['description']}")
+                self.app.show_success_message(SuccessMessages.USB_DEVICE_DETACHED_TEMPLATE.format(description=device_to_detach['description']))
                 self.xml_desc = self.vm_service._get_domain_xml(self.domain)
                 self._populate_usb_lists()
             except libvirt.libvirtError as e:
-                self.app.show_error_message(f"Error detaching USB device: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_DETACHING_USB_DEVICE_TEMPLATE.format(error=e))
 
     def _populate_pci_lists(self):
         """Populates the PCI device lists."""
@@ -1348,11 +1348,11 @@ class VMDetailModal(ModalScreen):
 
     @on(Button.Pressed, "#attach-pci-btn")
     def on_attach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        self.app.show_error_message("PCI passthrough not implemented yet.")
+        self.app.show_error_message(ErrorMessages.PCI_PASSTHROUGH_NOT_IMPLEMENTED)
 
     @on(Button.Pressed, "#detach-pci-btn")
     def on_detach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        self.app.show_error_message("PCI passthrough not implemented yet.")
+        self.app.show_error_message(ErrorMessages.PCI_PASSTHROUGH_NOT_IMPLEMENTED)
 
     def _populate_serial_table(self):
         """Populates the serial devices table."""
@@ -1555,10 +1555,10 @@ class VMDetailModal(ModalScreen):
                         result["target_name"]
                     )
                     self._invalidate_cache()
-                    self.app.show_success_message("Channel added successfully.")
+                    self.app.show_success_message(SuccessMessages.CHANNEL_ADDED_SUCCESSFULLY)
                     self._update_channel_table()
                 except libvirt.libvirtError as e:
-                    self.app.show_error_message(f"Error adding channel: {e}")
+                    self.app.show_error_message(ErrorMessages.ERROR_ADDING_CHANNEL_TEMPLATE.format(error=e))
 
         self.app.push_screen(AddChannelModal(), add_channel_callback)
 
@@ -1567,19 +1567,19 @@ class VMDetailModal(ModalScreen):
         if self.selected_channel:
             target_name = self.selected_channel.get('name')
             if not target_name:
-                self.app.show_error_message("Selected channel has no target name.")
+                self.app.show_error_message(ErrorMessages.ADD_CHANNEL_NO_TARGET_NAME)
                 return
 
-            message = f"Are you sure you want to remove channel '{target_name}'?"
+            message = DialogMessages.CONFIRM_REMOVE_CHANNEL_TEMPLATE.format(target_name=target_name)
             def on_confirm(confirmed: bool) -> None:
                 if confirmed:
                     try:
                         remove_vm_channel(self.domain, target_name)
                         self._invalidate_cache()
-                        self.app.show_success_message(f"Channel '{target_name}' removed successfully.")
+                        self.app.show_success_message(SuccessMessages.CHANNEL_REMOVED_SUCCESSFULLY_TEMPLATE.format(target_name=target_name))
                         self._update_channel_table()
                     except libvirt.libvirtError as e:
-                        self.app.show_error_message(f"Error removing channel: {e}")
+                        self.app.show_error_message(ErrorMessages.ERROR_REMOVING_CHANNEL_TEMPLATE.format(error=e))
             self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
     def compose(self) -> ComposeResult:
@@ -1600,12 +1600,12 @@ class VMDetailModal(ModalScreen):
             if not self.is_bulk:
                 yield Label(f"ID: {self.vm_info.get('internal_id', 'N/A')}", id="vm-details-uuid")
 
-            yield Button("Other Tabs", id="toggle-detail-button", classes="toggle-detail-button")
+            yield Button(ButtonLabels.OTHER_TABS, id="toggle-detail-button", classes="toggle-detail-button")
             with TabbedContent(id="detail-vm"):
                 with TabPane("CPU", id="detail-cpu-tab"):
                     with Vertical(classes="info-details"):
                         yield Label(f"CPU: {self.vm_info.get('cpu', 'N/A')}", id="cpu-label", classes="tabd")
-                        yield Button("Edit", id="edit-cpu", classes="edit-detail-btn")
+                        yield Button(ButtonLabels.EDIT, id="edit-cpu", classes="edit-detail-btn")
                         yield Static(classes="button-separator")
 
                         # CPU Model Selection
@@ -1636,7 +1636,7 @@ class VMDetailModal(ModalScreen):
                         # CPU Tune
                         vcpupin_count = len(self.cputune_info.get('vcpupin', []))
                         yield Label(f"CPU Pinning: {vcpupin_count} rules", id="cputune-label", classes="tabd")
-                        yield Button("Edit CPU Tune", id="edit-cputune", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
+                        yield Button(ButtonLabels.EDIT_CPU_TUNE, id="edit-cputune", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
 
                         yield Static(classes="button-separator")
 
@@ -1645,12 +1645,12 @@ class VMDetailModal(ModalScreen):
                         yield Label(f"NUMA Mode: {numa_mode}", id="numatune-label", classes="tabd")
 
                         numa_btn_disabled = not self.is_vm_stopped or self.host_numa_nodes <= 1
-                        yield Button("Edit NUMA Tune", id="edit-numatune", classes="edit-detail-btn", disabled=numa_btn_disabled)
+                        yield Button(ButtonLabels.EDIT_NUMA_TUNE, id="edit-numatune", classes="edit-detail-btn", disabled=numa_btn_disabled)
 
                 with TabPane("Mem", id="detail-mem-tab", ):
                     with Vertical(classes="info-details"):
                         yield Label(f"Memory: {self.vm_info.get('memory', 'N/A')} MB", id="memory-label", classes="tabd")
-                        yield Button("Edit", id="edit-memory", classes="edit-detail-btn")
+                        yield Button(ButtonLabels.EDIT, id="edit-memory", classes="edit-detail-btn")
                         yield Static(classes="button-separator")
                         yield Checkbox("Shared Memory", value=self.vm_info.get('shared_memory', False), id="shared-memory-checkbox", classes="shared-memory", disabled=not self.is_vm_stopped)
                 if not self.is_bulk:
@@ -1680,34 +1680,34 @@ class VMDetailModal(ModalScreen):
                                     allow_blank=True,
                                 )
                                 yield Static(classes="button-separator")
-                                yield Button("Switch to BIOS", id="switch-to-bios", disabled=not self.is_vm_stopped)
+                                yield Button(ButtonLabels.SWITCH_TO_BIOS, id="switch-to-bios", disabled=not self.is_vm_stopped)
                             else:
-                                yield Button("Switch to UEFI", id="switch-to-uefi", disabled=not self.is_vm_stopped)
+                                yield Button(ButtonLabels.SWITCH_TO_UEFI, id="switch-to-uefi", disabled=not self.is_vm_stopped)
 
 
                             if "machine_type" in self.vm_info:
                                 yield Static(classes="button-separator")
                                 yield Label(f"Machine Type: {self.vm_info['machine_type']}", id="machine-type-label", classes="tabd")
-                                yield Button("Edit", id="edit-machine-type", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
+                                yield Button(ButtonLabels.EDIT, id="edit-machine-type", classes="edit-detail-btn", disabled=not self.is_vm_stopped)
 
 
                     with TabPane("Boot", id="detail-boot-tab"):
                         with Vertical():
-                            yield Checkbox("Enable boot menu", id="boot-menu-enable", disabled=not self.is_vm_stopped)
+                            yield Checkbox(StaticText.ENABLE_BOOT_MENU, id="boot-menu-enable", disabled=not self.is_vm_stopped)
                             with Horizontal(classes="boot-manager"):
                                 with Vertical(classes="boot-main-container"):
-                                    yield Label("Boot Order")
+                                    yield Label(StaticText.BOOT_ORDER)
                                     yield ListView(id="boot-order-list", classes="boot-list-container")
                                 with Vertical(classes="boot-buttons-container"):
-                                    yield Label("")
-                                    yield Button("<", id="boot-add", disabled=not self.is_vm_stopped)
-                                    yield Button(">", id="boot-remove", disabled=not self.is_vm_stopped)
-                                    yield Button("Up", id="boot-up", disabled=not self.is_vm_stopped)
-                                    yield Button("Down", id="boot-down", disabled=not self.is_vm_stopped)
+                                    yield Label(StaticText.EMPTY_LABEL)
+                                    yield Button(ButtonLabels.BOOT_ADD, id="boot-add", disabled=not self.is_vm_stopped)
+                                    yield Button(ButtonLabels.BOOT_REMOVE, id="boot-remove", disabled=not self.is_vm_stopped)
+                                    yield Button(ButtonLabels.BOOT_UP, id="boot-up", disabled=not self.is_vm_stopped)
+                                    yield Button(ButtonLabels.BOOT_DOWN, id="boot-down", disabled=not self.is_vm_stopped)
                                 with Vertical(classes="boot-main-container"):
-                                    yield Label("Available Devices")
+                                    yield Label(StaticText.AVAILABLE_DEVICES)
                                     yield ListView(id="available-devices-list", classes="boot-list-container")
-                            yield Button("Save Boot Order", id="save-boot-order", disabled=not self.is_vm_stopped, variant="primary")
+                            yield Button(ButtonLabels.SAVE_BOOT_ORDER, id="save-boot-order", disabled=not self.is_vm_stopped, variant="primary")
 
                     with TabPane("Disks", id="detail-disk-tab"):
                         with ScrollableContainer(classes="info-details"):
@@ -1716,20 +1716,20 @@ class VMDetailModal(ModalScreen):
                         disks_info = self.vm_info.get("disks", [])
                         has_enabled_disks = any(d['status'] == 'enabled' for d in disks_info)
                         has_disabled_disks = any(d['status'] == 'disabled' for d in disks_info)
-                        remove_button = Button("Remove Disk", id="detail_remove_disk", classes="detail-disks")
-                        disable_button = Button("Disable Disk", id="detail_disable_disk", classes="detail-disks")
-                        enable_button = Button("Enable Disk", id="detail_enable_disk", classes="detail-disks")
+                        remove_button = Button(ButtonLabels.REMOVE_DISK, id="detail_remove_disk", classes="detail-disks")
+                        disable_button = Button(ButtonLabels.DISABLE_DISK, id="detail_disable_disk", classes="detail-disks")
+                        enable_button = Button(ButtonLabels.ENABLE_DISK, id="detail_enable_disk", classes="detail-disks")
                         remove_button.display = has_enabled_disks
                         disable_button.display = has_enabled_disks
                         enable_button.display = has_disabled_disks
 
                         with Vertical(classes="button-details"):
                             with Horizontal():
-                                yield Button("Add Disk", id="detail_add_disk", classes="detail-disks")
-                                yield Button("Attach Existing Disk", id="detail_attach_disk", classes="detail-disks")
-                                yield Button("Edit Disk", id="detail_edit_disk", classes="detail-disks", disabled=True)
+                                yield Button(ButtonLabels.ADD_DISK, id="detail_add_disk", classes="detail-disks")
+                                yield Button(ButtonLabels.ATTACH_EXISTING_DISK, id="detail_attach_disk", classes="detail-disks")
+                                yield Button(ButtonLabels.EDIT_DISK, id="detail_edit_disk", classes="detail-disks", disabled=True)
                                 yield remove_button
-                                yield Button("Help", id="detail_disk_help", classes="detail-disks")
+                                yield Button(ButtonLabels.DISK_HELP, id="detail_disk_help", classes="detail-disks")
 
                         with Horizontal(classes="button-details"):
                             yield disable_button
@@ -1748,14 +1748,14 @@ class VMDetailModal(ModalScreen):
 
                         with Vertical(classes="button-details"):
                             with Horizontal():
-                                yield Button("Edit Interface", id="edit-network-interface-button", classes="detail-disks", variant="primary", disabled=True)
-                                yield Button("Add Interface", id="add-network-interface-button", classes="detail-disks", variant="primary")
-                                yield Button("Remove Interface", id="remove-network-interface-button", classes="detail-disks", variant="error", disabled=True)
+                                yield Button(ButtonLabels.EDIT_INTERFACE, id="edit-network-interface-button", classes="detail-disks", variant="primary", disabled=True)
+                                yield Button(ButtonLabels.ADD_INTERFACE, id="add-network-interface-button", classes="detail-disks", variant="primary")
+                                yield Button(ButtonLabels.REMOVE_INTERFACE, id="remove-network-interface-button", classes="detail-disks", variant="error", disabled=True)
 
                     if self.vm_info.get("devices"):
                         with TabPane("VirtIO-FS", id="detail-virtiofs-tab"):
                             # Always create label, toggle visibility
-                            lbl = Label("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.", id="virtiofs-shared-mem-warning", classes="tabd-warning")
+                            lbl = Label(WarningMessages.VIRTIOFS_SHARED_MEM_WARNING, id="virtiofs-shared-mem-warning", classes="tabd-warning")
                             lbl.display = not self.vm_info.get('shared_memory')
                             yield lbl
                             with ScrollableContainer(classes="info-details"):
@@ -1774,10 +1774,10 @@ class VMDetailModal(ModalScreen):
                                 yield virtiofs_table
                             with Vertical(classes="button-details"):
                                 with Horizontal():
-                                    yield Button("Add", variant="primary", id="add-virtiofs-btn", classes="detail-disks")
-                                    yield Button("Edit", variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")
-                                    yield Button("Delete", variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
-                                    yield Button("Help", id="detail_virtiofs_help", classes="detail-disks")
+                                    yield Button(ButtonLabels.ADD, variant="primary", id="add-virtiofs-btn", classes="detail-disks")
+                                    yield Button(ButtonLabels.EDIT, variant="default", id="edit-virtiofs-btn", disabled=True, classes="detail-disks")
+                                    yield Button(ButtonLabels.DELETE, variant="error", id="delete-virtiofs-btn", disabled=True, classes="detail-disks")
+                                    yield Button(ButtonLabels.VIRTIOFS_HELP, id="detail_virtiofs_help", classes="detail-disks")
 
                 with TabPane("Video", id="detail-video-tab"):
                     with Vertical(classes="info-details"):
@@ -1854,25 +1854,25 @@ class VMDetailModal(ModalScreen):
 
                 with TabPane("Graphics", id="detail-graphics-tab"):
                     with ScrollableContainer(classes="info-details"):
-                        yield Label("Type:")
+                        yield Label(StaticText.TYPE_LABEL)
                         yield Select(
                             [("VNC", "vnc"), ("Spice", "spice"), ("None", "")],
                             value=self.graphics_info['type'],
                             id="graphics-type-select",
                             disabled=not self.is_vm_stopped
                         )
-                        yield Label("Listen Type:")
+                        yield Label(StaticText.LISTEN_TYPE)
                         yield Select(
                             [("Address", "address"), ("None", "none")],
                             value=self.graphics_info['listen_type'],
                             id="graphics-listen-type-select",
                             disabled=not self.is_vm_stopped
                         )
-                        yield Label("Address:")
+                        yield Label(StaticText.ADDRESS_LABEL)
                         with RadioSet(id="graphics-address-radioset", disabled=not self.is_vm_stopped or self.graphics_info['listen_type'] != 'address'):
-                            yield RadioButton("Hypervisor default", id="graphics-address-default", value=self.graphics_info['address'] not in ['127.0.0.1', '0.0.0.0'])
-                            yield RadioButton("Localhost only", id="graphics-address-localhost", value=self.graphics_info['address'] == '127.0.0.1')
-                            yield RadioButton("All interfaces", id="graphics-address-all", value=self.graphics_info['address'] == '0.0.0.0')
+                            yield RadioButton(StaticText.HYPERVISOR_DEFAULT, id="graphics-address-default", value=self.graphics_info['address'] not in ['127.0.0.1', '0.0.0.0'])
+                            yield RadioButton(StaticText.LOCALHOST_ONLY, id="graphics-address-localhost", value=self.graphics_info['address'] == '127.0.0.1')
+                            yield RadioButton(StaticText.ALL_INTERFACES, id="graphics-address-all", value=self.graphics_info['address'] == '0.0.0.0')
                         yield Checkbox(
                             "Auto Port",
                             value=self.graphics_info['autoport'],
@@ -1899,7 +1899,7 @@ class VMDetailModal(ModalScreen):
                             password=True, # Hide password input
                             disabled=not self.is_vm_stopped or not self.graphics_info['password_enabled']
                         )
-                    yield Button("Apply Graphics Settings", id="graphics-apply-btn", variant="primary", disabled=not self.is_vm_stopped)
+                    yield Button(ButtonLabels.APPLY_GRAPHICS_SETTINGS, id="graphics-apply-btn", variant="primary", disabled=not self.is_vm_stopped)
                 with TabPane("TPM", id="detail-tpm-tab"):
                     tpm_model = self.tpm_info[0].get('model') if self.tpm_info else 'none'
                     tpm_type = self.tpm_info[0].get('type') if self.tpm_info else 'emulated'
@@ -1908,7 +1908,7 @@ class VMDetailModal(ModalScreen):
                     tpm_backend_path = self.tpm_info[0].get('backend_path', '') if self.tpm_info else ''
 
                     with Vertical(classes="info-details"):
-                        yield Label("TPM Model:")
+                        yield Label(StaticText.TPM_MODEL)
                         yield Select(
                             [("None", "none"), ("tpm-crb", "tpm-crb"), ("tpm-tis", "tpm-tis")],
                             value=tpm_model,
@@ -1916,7 +1916,7 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
                         )
-                        yield Label("TPM Type:")
+                        yield Label(StaticText.TPM_TYPE)
                         yield Select(
                             [("Emulated", "emulated"), ("Passthrough", "passthrough")],
                             value=tpm_type,
@@ -1924,51 +1924,51 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
                         )
-                        yield Label("Device Path (for passthrough):")
+                        yield Label(StaticText.DEVICE_PATH_PASSTHROUGH)
                         yield Input(
                             value=tpm_device_path,
                             id="tpm-device-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder="/dev/tpm0"
+                            placeholder="=/dev/tpm0"
                         )
-                        yield Label("Backend Type (for passthrough):")
+                        yield Label(StaticText.BACKEND_TYPE_PASSTHROUGH)
                         yield Input(
                             value=tpm_backend_type,
                             id="tpm-backend-type-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
                             placeholder="emulator or passthrough"
                         )
-                        yield Label("Backend Path (for passthrough):")
+                        yield Label(StaticText.BACKEND_PATH_PASSTHROUGH)
                         yield Input(
                             value=tpm_backend_path,
                             id="tpm-backend-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
                             placeholder="/dev/tpmrm0"
                         )
-                    yield Button("Apply TPM Settings", id="apply-tpm-btn", variant="primary", disabled=not self.is_vm_stopped)
+                    yield Button(ButtonLabels.APPLY_TPM_SETTINGS, id="apply-tpm-btn", variant="primary", disabled=not self.is_vm_stopped)
 
 
             with TabbedContent(id="detail2-vm"):
                 with TabPane("RNG", id="detail-rng-tab"):
                     with Vertical(classes="info-details"):
                         current_path = self.rng_info["backend_path"]
-                        yield Label("Host device")
+                        yield Label(StaticText.HOST_DEVICE)
                         yield Input(value=current_path, id="rng-host-device")
-                        yield Button("Apply RNG Settings", id="apply-rng-btn", variant="primary")
+                        yield Button(ButtonLabels.APPLY_RNG_SETTINGS, id="apply-rng-btn", variant="primary")
 
                 with TabPane("Serial", id="detail-serial-tab"):
                     with ScrollableContainer(classes="info-details"):
                         yield DataTable(id="serial-table", cursor_type="row")
                     with Vertical(classes="button-details"):
                         with Horizontal():
-                            yield Button("Add PTY Console", id="add-serial-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Remove Console", id="remove-serial-btn", variant="error", disabled=True)
+                            yield Button(ButtonLabels.ADD_PTY_CONSOLE, id="add-serial-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button(ButtonLabels.REMOVE_CONSOLE, id="remove-serial-btn", variant="error", disabled=True)
                 with TabPane("Watchdog", id="detail-watchdog-tab"):
                     watchdog_model = self.watchdog_info.get('model') if self.watchdog_info and self.watchdog_info.get('model') else 'none'
                     watchdog_action = self.watchdog_info.get('action') if self.watchdog_info and self.watchdog_info.get('action') else 'reset'
 
                     with Vertical(classes="info-details"):
-                        yield Label("Watchdog Model:")
+                        yield Label(StaticText.WATCHDOG_MODEL)
 
                         watchdog_models = [("None", "none"), ("i6300esb", "i6300esb"), ("ib700", "ib700"), ("diag288", "diag288")]
 
@@ -1984,7 +1984,7 @@ class VMDetailModal(ModalScreen):
                             disabled=not self.is_vm_stopped,
                             allow_blank=False
                         )
-                        yield Label("Action:")
+                        yield Label(StaticText.ACTION_LABEL)
                         yield Select(
                             [("Reset", "reset"), ("Shutdown", "shutdown"), ("Poweroff", "poweroff"), ("Pause", "pause"), ("None", "none"), ("Dump", "dump"), ("Inject-NMI", "inject-nmi")],
                             value=watchdog_action,
@@ -1994,8 +1994,8 @@ class VMDetailModal(ModalScreen):
                         )
                     with Vertical(classes="button-details"):
                         with Horizontal():
-                            yield Button("Apply Watchdog Settings", id="apply-watchdog-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Remove Watchdog", id="remove-watchdog-btn", variant="error", disabled=not self.is_vm_stopped or watchdog_model == 'none')
+                            yield Button(ButtonLabels.APPLY_WATCHDOG_SETTINGS, id="apply-watchdog-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button(ButtonLabels.REMOVE_WATCHDOG, id="remove-watchdog-btn", variant="error", disabled=not self.is_vm_stopped or watchdog_model == 'none')
 
                 if not self.is_bulk:
                     with TabPane("Input", id="detail-input-tab"):
@@ -2003,41 +2003,40 @@ class VMDetailModal(ModalScreen):
                             yield DataTable(id="input-table", cursor_type="row")
                         with Vertical(classes="button-details"):
                             with Horizontal():
-                                yield Button("Add Input", id="add-input-btn", variant="primary", disabled=not self.is_vm_stopped)
-                                yield Button("Remove Input", id="remove-input-btn", variant="error", disabled=True)
+                                yield Button(ButtonLabels.ADD_INPUT, id="add-input-btn", variant="primary", disabled=not self.is_vm_stopped)
+                                yield Button(ButtonLabels.REMOVE_INPUT, id="remove-input-btn", variant="error", disabled=True)
 
                 with TabPane("Controller", id="detail-controler-tab"):
                     with ScrollableContainer(classes="info-details"):
                         yield DataTable(id="controller-table", cursor_type="row")
                     with Vertical(classes="button-details"):
                         with Horizontal():
-                            yield Button("Add USB2", id="add-usb2-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Add USB3", id="add-usb3-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Add SCSI", id="add-scsi-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Remove", id="remove-controller-btn", variant="error", disabled=True)
-
+                            yield Button(ButtonLabels.ADD_USB2, id="add-usb2-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button(ButtonLabels.ADD_USB3, id="add-usb3-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button(ButtonLabels.ADD_SCSI, id="add-scsi-controller-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button(ButtonLabels.REMOVE, id="remove-controller-btn", variant="error", disabled=True)
                 if not self.is_bulk:
                     with TabPane("USB Host", id="detail-usbhost-tab"):
                         with Horizontal(classes="boot-manager"):
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Available Host USB Devices")
+                                yield Label(StaticText.AVAILABLE_HOST_USB)
                                 yield ListView(id="available-usb-list", classes="boot-list-container")
                             with Vertical(classes="boot-buttons-container"):
-                                yield Button("Attach >", id="attach-usb-btn", disabled=True)
-                                yield Button("< Detach", id="detach-usb-btn", disabled=True)
+                                yield Button(ButtonLabels.ATTACH_ARROW, id="attach-usb-btn", disabled=True)
+                                yield Button(ButtonLabels.DETACH_ARROW, id="detach-usb-btn", disabled=True)
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Attached to VM")
+                                yield Label(StaticText.ATTACHED_TO_VM)
                                 yield ListView(id="attached-usb-list", classes="boot-list-container")
                     with TabPane("PCI Host", id="detail-PCIhost-tab"):
                         with Horizontal(classes="boot-manager"):
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Available Host PCI Devices")
+                                yield Label(StaticText.AVAILABLE_HOST_PCI)
                                 yield ListView(id="available-pci-list", classes="boot-list-container")
                             with Vertical(classes="boot-buttons-container"):
-                                yield Button("Attach >", id="attach-pci-btn", disabled=True)
-                                yield Button("< Detach", id="detach-pci-btn", disabled=True)
+                                yield Button(ButtonLabels.ATTACH_ARROW, id="attach-pci-btn", disabled=True)
+                                yield Button(ButtonLabels.DETACH_ARROW, id="detach-pci-btn", disabled=True)
                             with Vertical(classes="boot-main-container"):
-                                yield Label("Attached to VM")
+                                yield Label(StaticText.ATTACHED_TO_VM)
                                 yield ListView(id="attached-pci-list", classes="boot-list-container")
                 #with TabPane("PCIe", id="detail-pcie-tab"):
                 #    yield Label("PCIe")
@@ -2048,10 +2047,10 @@ class VMDetailModal(ModalScreen):
                         yield DataTable(id="channel-table", cursor_type="row")
                     with Vertical(classes="button-details"):
                         with Horizontal():
-                            yield Button("Add Channel", id="add-channel-btn", variant="primary", disabled=not self.is_vm_stopped)
-                            yield Button("Remove Channel", id="remove-channel-btn", variant="error", disabled=True)
+                            yield Button(ButtonLabels.ADD_CHANNEL, id="add-channel-btn", variant="primary", disabled=not self.is_vm_stopped)
+                            yield Button(ButtonLabels.REMOVE_CHANNEL, id="remove-channel-btn", variant="error", disabled=True)
 
-            yield Button("Close", variant="default", id="close-btn", classes="close-button")
+            yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-button")
 
     def _update_tpm_ui(self) -> None:
         """Updates the UI elements for the TPM tab based on self.tpm_info."""

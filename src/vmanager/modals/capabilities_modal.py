@@ -10,6 +10,7 @@ from textual.widgets.tree import TreeNode
 
 from .base_modals import BaseModal
 from ..libvirt_utils import get_host_domain_capabilities
+from ..constants import ButtonLabels, StaticText
 
 class CapabilitiesTreeModal(BaseModal[None]):
     """Modal to show host capabilities XML as a tree."""
@@ -21,11 +22,11 @@ class CapabilitiesTreeModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Container(id="capabilities-dialog"):
-            yield Label("Host Capabilities", id="dialog-title")
+            yield Label(StaticText.HOST_CAPABILITIES, id="dialog-title")
             yield Input(placeholder="Search...", id="search-input")
-            yield Tree("Capabilities", id="xml-tree")
+            yield Tree(StaticText.CAPABILITIES_TREE_LABEL, id="xml-tree")
             with Horizontal(id="dialog-buttons"):
-                yield Button("Close", id="close-btn")
+                yield Button(ButtonLabels.CLOSE, id="close-btn")
 
     def on_mount(self) -> None:
         tree = self.query_one("#xml-tree", Tree)

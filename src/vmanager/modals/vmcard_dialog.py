@@ -11,10 +11,10 @@ from textual.widgets import (
         )
 from .input_modals import _sanitize_input
 from .utils_modals import (
-    BaseDialog, show_warning_message
+    BaseDialog
 )
 from ..config import load_config, save_config
-from ..constants import ButtonLabels, ButtonIds
+from ..constants import ButtonLabels, ErrorMessages, SuccessMessages, WarningMessages, StaticText
 from ..vm_queries import is_qemu_agent_running
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
@@ -27,18 +27,18 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     def compose(self):
         yield Vertical(
             Markdown(f"Are you sure you want to delete VM '{self.vm_name}'?", id="question"),
-            Checkbox("Delete storage volumes", id="delete-storage-checkbox", value=True),
+            Checkbox(StaticText.DELETE_STORAGE_VOLUMES, id="delete-storage-checkbox", value=True),
             Label(""),
             Horizontal(
-                Button(ButtonLabels.YES, variant="error", id=ButtonIds.YES, classes="dialog-buttons"),
-                Button(ButtonLabels.NO, variant="primary", id=ButtonIds.NO, classes="dialog-buttons"),
+                Button(ButtonLabels.YES, variant="error", id="yes", classes="dialog-buttons"),
+                Button(ButtonLabels.NO, variant="primary", id="no", classes="dialog-buttons"),
                 id="dialog-buttons",
             ),
             id="delete-vm-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.YES:
+        if event.button.id == "yes":
             delete_storage = self.query_one("#delete-storage-checkbox", Checkbox).value
             self.dismiss((True, delete_storage))
         else:
@@ -61,15 +61,15 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
         network_options = [(str(net), str(net)) for net in self.networks]
 
         with Vertical(id="dialog"):
-            yield Label("Select interface and new network")
+            yield Label(StaticText.SELECT_INTERFACE_AND_NETWORK)
             yield Select(interface_options, id="interface-select")
             yield Select(network_options, id="network-select")
             with Horizontal(id="dialog-buttons"):
-                yield Button(ButtonLabels.CHANGE, variant="success", id=ButtonIds.CHANGE)
-                yield Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL)
+                yield Button(ButtonLabels.CHANGE, variant="success", id="change")
+                yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CHANGE:
+        if event.button.id == "change":
             interface_select = self.query_one("#interface-select", Select)
             network_select = self.query_one("#network-select", Select)
 
@@ -77,7 +77,7 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
             new_network = network_select.value
 
             if mac_address is Select.BLANK or new_network is Select.BLANK:
-                self.app.show_error_message("Please select an interface and a network.")
+                self.app.show_error_message(ErrorMessages.PLEASE_SELECT_INTERFACE_AND_NETWORK)
                 return
 
             self.dismiss({"mac_address": mac_address, "new_network": new_network})
@@ -89,21 +89,21 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
 
     def compose(self):
         yield Grid(
-            Label("Enter base name for new VM(s)"),
+            Label(StaticText.ENTER_BASE_NAME),
             Input(placeholder="new_vm_base_name", id="base_name_input", restrict=r"[a-zA-Z0-9_-]*"),
-            Label("Suffix for clone names (e.g., _C)"),
+            Label(StaticText.SUFFIX_FOR_CLONE_NAMES),
             Input(placeholder="e.g., -clone", id="clone_suffix_input", restrict=r"[a-zA-Z0-9_-]*"),
-            Label("Number of clones to create"),
+            Label(StaticText.NUMBER_OF_CLONES_TO_CREATE),
             Input(value="1", id="clone_count_input", type="integer"),
-            Label("Do Not Clone storage"),
+            Label(StaticText.DO_NOT_CLONE_STORAGE),
             Checkbox("", id="skip_storage_checkbox", value=False),
-            Button(ButtonLabels.CLONE, variant="success", id=ButtonIds.CLONE),
-            Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+            Button(ButtonLabels.CLONE, variant="success", id="clone"),
+            Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="clone-dialog"
-        )
+            )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CLONE:
+        if event.button.id == "clone":
             base_name_input = self.query_one("#base_name_input", Input)
             clone_count_input = self.query_one("#clone_count_input", Input)
             clone_suffix_input = self.query_one("#clone_suffix_input", Input)
@@ -116,13 +116,13 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             try:
                 base_name, base_name_modified = _sanitize_input(base_name_raw)
                 if base_name_modified:
-                    self.app.show_success_message(f"Base name sanitized: [b]{base_name_raw}[/b] changed to [b]{base_name}[/b]")
+                    self.app.show_success_message(SuccessMessages.BASE_NAME_SANITIZED_TEMPLATE.format(original=base_name_raw, sanitized=base_name))
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if not base_name:
-                self.app.show_error_message("Base name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.BASE_NAME_EMPTY)
                 return
             
             # Sanitize suffix only if it's provided, otherwise keep it empty string
@@ -131,9 +131,9 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
                 try:
                     clone_suffix, suffix_modified = _sanitize_input(clone_suffix_raw)
                     if suffix_modified:
-                        self.app.show_success_message(f"Suffix sanitized: [b]{clone_suffix_raw}[/b] changed to [b]{clone_suffix}[/b]")
+                        self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=clone_suffix_raw, sanitized=clone_suffix))
                 except ValueError as e:
-                    self.app.show_error_message(f"Invalid characters in suffix: {e}")
+                    self.app.show_error_message(ErrorMessages.INVALID_CHARS_IN_SUFFIX.format(error=e))
                     return
 
             try:
@@ -141,11 +141,11 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
                 if clone_count < 1:
                     raise ValueError()
             except ValueError:
-                self.app.show_error_message("Number of clones must be a positive integer.")
+                self.app.show_error_message(ErrorMessages.CLONE_COUNT_POSITIVE_INTEGER)
                 return
 
             if clone_count > 1 and not clone_suffix:
-                self.app.show_error_message("Suffix is mandatory when creating multiple clones.")
+                self.app.show_error_message(ErrorMessages.SUFFIX_MANDATORY_FOR_MULTIPLE_CLONES)
                 return
 
             clone_storage = not skip_storage_checkbox.value
@@ -169,12 +169,12 @@ class RenameVMDialog(BaseDialog[str | None]):
 
     def compose(self):
         yield Vertical(
-            Label(f"Current name: {self.current_name}"),
-            Label("Enter new VM name", id="question"),
+            Label(StaticText.CURRENT_NAME.format(current_name=self.current_name)),
+            Label(StaticText.ENTER_NEW_VM_NAME, id="question"),
             Input(placeholder="new_vm_name", restrict=r"[a-zA-Z0-9_-]*"),
             Horizontal(
-                Button(ButtonLabels.RENAME, variant="success", id=ButtonIds.RENAME_BUTTON),
-                Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+                Button(ButtonLabels.RENAME, variant="success", id="rename-button"),
+                Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
                 id="dialog-buttons",
             ),
             id="dialog",
@@ -182,21 +182,21 @@ class RenameVMDialog(BaseDialog[str | None]):
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.RENAME_BUTTON:
+        if event.button.id == "rename-button":
             input_widget = self.query_one(Input)
             new_name_raw = input_widget.value
 
             try:
                 new_name, was_modified = _sanitize_input(new_name_raw)
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: [b]{new_name_raw}[/b] changed to [b]{new_name}[/b]")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=new_name_raw, sanitized=new_name))
 
             if not new_name:
-                self.app.show_error_message("VM name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.VM_NAME_CANNOT_BE_EMPTY_RENAME)
                 return
 
             error = self.validate_name(new_name)
@@ -220,7 +220,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
         yield Vertical(
             Label(self.prompt, id="prompt-label"),
             DataTable(id="snapshot-table"),
-            Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+            Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="dialog",
             classes="snapshot-select-dialog"
         )
@@ -243,7 +243,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
         self.dismiss(str(event.row_key.value))
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CANCEL:
+        if event.button.id == "cancel":
             self.dismiss(None)
 
 class SnapshotNameDialog(BaseDialog[dict | None]):
@@ -259,22 +259,22 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         agent_running = is_qemu_agent_running(self.domain) if self.domain else False
 
         if not agent_running and self.domain:
-            show_warning_message(self.app, "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot.")
+            self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)
 
         yield Vertical(
-            Label(f"Current time: {now}", id="timestamp-label"),
-            Label("Enter snapshot name", id="question"),
+            Label(StaticText.CURRENT_TIME.format(now=now), id="timestamp-label"),
+            Label(StaticText.ENTER_SNAPSHOT_NAME, id="question"),
             Input(value=default_name, placeholder="snapshot_name", id="name-input", restrict=r"[a-zA-Z0-9_-]*"),
-            Label("Description (optional)"),
+            Label(StaticText.DESCRIPTION_OPTIONAL),
             Input(placeholder="snapshot description", id="description-input"),
-            Checkbox("Quiesce guest (requires agent)",
+            Checkbox(StaticText.QUIESCE_GUEST,
                      value=agent_running,
                      disabled=not agent_running,
                      id="quiesce-checkbox",
                      tooltip="Pause the guest filesystem to ensure a clean snapshot. Requires QEMU Guest Agent to be running in the VM."),
             Horizontal(
-                Button(ButtonLabels.CREATE, variant="success", id=ButtonIds.CREATE),
-                Button(ButtonLabels.CANCEL, variant="error", id=ButtonIds.CANCEL),
+                Button(ButtonLabels.CREATE, variant="success", id="create"),
+                Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
                 id="dialog-buttons",
             ),
             id="dialog",
@@ -282,7 +282,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.CREATE:
+        if event.button.id == "create":
             name_input = self.query_one("#name-input", Input)
             description_input = self.query_one("#description-input", Input)
             quiesce_checkbox = self.query_one("#quiesce-checkbox", Checkbox)
@@ -294,14 +294,14 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             try:
                 snapshot_name, was_modified = _sanitize_input(snapshot_name_raw)
             except ValueError as e:
-                self.app.show_error_message(str(e))
+                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
                 return
 
             if was_modified:
-                self.app.show_success_message(f"Input sanitized: [b]{snapshot_name_raw}[/b] changed to [b]{snapshot_name}[/b]")
+                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=snapshot_name_raw, sanitized=snapshot_name))
 
             if not snapshot_name:
-                self.app.show_error_message("Snapshot name cannot be empty.")
+                self.app.show_error_message(ErrorMessages.SNAPSHOT_NAME_CANNOT_BE_EMPTY)
                 return
 
             error = self.validate_name(snapshot_name)
@@ -327,15 +327,15 @@ class WebConsoleDialog(BaseDialog[str | None]):
             Markdown("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console."),
             Label(""),
             Horizontal(
-                Button(ButtonLabels.STOP, variant="error", id=ButtonIds.STOP),
-                Button(ButtonLabels.CLOSE, variant="primary", id=ButtonIds.CLOSE),
+                Button(ButtonLabels.STOP, variant="error", id="stop"),
+                Button(ButtonLabels.CLOSE, variant="primary", id="close"),
                 id="dialog-buttons",
             ),
             id="webconsole-dialog",
         )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.STOP:
+        if event.button.id == "stop":
             self.dismiss("stop")
         else:
             self.dismiss(None)
@@ -351,7 +351,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="webconsole-config-dialog"):
-            yield Label("Web Console Configuration", id="webconsole-config-title")
+            yield Label(StaticText.WEB_CONSOLE_CONFIGURATION, id="webconsole-config-title")
 
             if self.is_remote:
                 remote_console_enabled = self.config.get('REMOTE_WEBCONSOLE', False)
@@ -365,7 +365,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                         switch_widget.add_class("switch-off")
 
                     yield Grid(
-                        Label("Remote"),
+                        Label(StaticText.REMOTE),
                         switch_widget,
                         id="grid-remote-local"
                         )
@@ -384,10 +384,10 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                         id="grid-vnc-config"
                         )
             else:
-                yield Markdown("Web console will run locally.")
+                yield Markdown(StaticText.WEBCONSOLE_LOCAL_RUN)
 
-            yield Button(ButtonLabels.START, variant="primary", id=ButtonIds.START)
-            yield Button(ButtonLabels.CANCEL, variant="default", id=ButtonIds.CANCEL)
+            yield Button(ButtonLabels.START, variant="primary", id="start")
+            yield Button(ButtonLabels.CANCEL, variant="default", id="cancel")
 
     def on_switch_changed(self, event: Switch.Changed) -> None:
         if event.control.id == "remote-console-switch":
@@ -406,7 +406,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                 remote_opts.display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == ButtonIds.START:
+        if event.button.id == "start":
             config_changed = False
             if self.is_remote:
                 remote_switch = self.query_one("#remote-console-switch", Switch)
@@ -436,5 +436,5 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             if config_changed:
                 save_config(self.config)
             self.dismiss(True)
-        elif event.button.id == ButtonIds.CANCEL:
+        elif event.button.id == "cancel":
             self.dismiss(False)

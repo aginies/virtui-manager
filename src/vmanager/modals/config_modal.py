@@ -8,7 +8,7 @@ from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
 from ..config import save_config, get_user_config_path
-from ..constants import AppInfo
+from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages, StaticText, ButtonLabels
 from .base_modals import BaseModal
 from ..utils import check_r_viewer
 
@@ -22,12 +22,12 @@ class ConfigModal(BaseModal[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="config-dialog"):
             yield Label(f"{AppInfo.namecase} Configuration", id="config-title")
-            yield Static(f"(Editing: {get_user_config_path()})", id="config-title-file") #classes="config-path-label")
+            yield Static(StaticText.EDITING_CONFIG_PATH.format(get_user_config_path=get_user_config_path()), id="config-title-file") #classes="config-path-label")
             with ScrollableContainer():
                 # Performance settings
-                yield Label("Performance", classes="config-section-label")
+                yield Label(StaticText.PERFORMANCE, classes="config-section-label")
                 with Horizontal():
-                    yield Label("Stats Interval (seconds):")
+                    yield Label(StaticText.STATS_INTERVAL)
                     yield Input(
                         value=str(self.config.get("STATS_INTERVAL", 5)),
                         id="stats-interval-input",
@@ -36,14 +36,14 @@ class ConfigModal(BaseModal[None]):
                     )
 
                 # Logging settings
-                yield Label("Log File Path:")
+                yield Label(StaticText.LOG_FILE_PATH)
                 yield Input(
                     value=self.config.get("LOG_FILE_PATH", ""),
                     id="log-file-path-input",
                     tooltip="Full path to the application log file"
                 )
 
-                yield Label("Logging Level:")
+                yield Label(StaticText.LOGGING_LEVEL)
                 yield Select(
                     [
                         ("DEBUG", "DEBUG"),
@@ -55,11 +55,11 @@ class ConfigModal(BaseModal[None]):
                     value=self.config.get("LOG_LEVEL", "INFO"),
                     id="log-level-select",
                     prompt="Select a logging level"
-                )
-
+                    )
+                    
                 # Remote Viewer Settings
-                yield Label("Remote Viewer")
-
+                yield Label(StaticText.REMOTE_VIEWER)
+                   
                 viewers = []
                 if shutil.which("virtui-remote-viewer"):
                     viewers.append(("virtui-remote-viewer", "virtui-remote-viewer"))
@@ -71,7 +71,7 @@ class ConfigModal(BaseModal[None]):
                     current_viewer = Select.BLANK
 
                 if not viewers:
-                     yield Label("No remote viewers found (virt-viewer or virtui-remote-viewer)")
+                     yield Label(StaticText.NO_REMOTE_VIEWERS_FOUND)
                 else:
                     auto_detected = check_r_viewer()
                     yield Label(f"Select Default Remote Viewer (Auto-detect: {auto_detected}):")
@@ -81,29 +81,30 @@ class ConfigModal(BaseModal[None]):
                         id="remote-viewer-select",
                         allow_blank=True,
                         prompt="Select a viewer"
-                    )
+                        )
 
-                # Web console settings                yield Label("Web Console (novnc)", classes="config-section-label")
+                # Web console settings
+                yield Label(StaticText.WEB_CONSOLE_NOVNC, classes="config-section-label")
                 yield Checkbox(
-                    "Enable remote web console",
+                    StaticText.ENABLE_REMOTE_WEBCONSOLE,
                     self.config.get("REMOTE_WEBCONSOLE", False),
                     id="remote-webconsole-checkbox",
                     tooltip="Enable secure SSH and noVNC remote viewing for headless server environments"
                 )
-                yield Label("Websockify Path:")
+                yield Label(StaticText.WEBSOCKIFY_PATH)
                 yield Input(
                     value=self.config.get("websockify_path", "/usr/bin/websockify"),
                     id="websockify-path-input",
                     tooltip="Path to the websockify binary"
                 )
-                yield Label("noVNC Path:")
+                yield Label(StaticText.NOVNC_PATH)
                 yield Input(
                     value=self.config.get("novnc_path", "/usr/share/novnc/"),
                     id="novnc-path-input",
                     tooltip="Path to noVNC files"
                 )
                 with Horizontal(classes="port-range-container"):
-                    yield Label("Websockify Port Range:", classes="port-range-label")
+                    yield Label(StaticText.WEBSOCKIFY_PORT_RANGE, classes="port-range-label")
                     yield Input(
                         value=str(self.config.get("WC_PORT_RANGE_START", 40000)),
                         id="wc-port-start-input",
@@ -120,14 +121,14 @@ class ConfigModal(BaseModal[None]):
                     )
                 with Vertical():
                     with Horizontal():
-                        yield Label("VNC Quality (0-9):")
+                        yield Label(StaticText.VNC_QUALITY)
                         yield Input(
                             value=str(self.config.get("VNC_QUALITY", 0)),
                             id="vnc-quality-input",
                             type="integer",
                             tooltip="VNC quality setting (0-9)"
                         )
-                        yield Label("VNC Compression (0-9):")
+                        yield Label(StaticText.VNC_COMPRESSION)
                         yield Input(
                             value=str(self.config.get("VNC_COMPRESSION", 9)),
                             id="vnc-compression-input",
@@ -136,8 +137,8 @@ class ConfigModal(BaseModal[None]):
                         )
 
                 with Horizontal():
-                    yield Button("Save", variant="primary", id="save-config-btn")
-                    yield Button("Cancel", variant="default", id="cancel-btn")
+                    yield Button(ButtonLabels.SAVE, variant="primary", id="save-config-btn")
+                    yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -160,14 +161,14 @@ class ConfigModal(BaseModal[None]):
                         self.config["REMOTE_VIEWER"] = viewer_select.value
                     else:
                         self.config["REMOTE_VIEWER"] = None
-                        self.app.show_warning_message("No remote viewer selected. Auto-detection will be used.")
+                        self.app.show_warning_message(WarningMessages.NO_REMOTE_VIEWER_SELECTED)
                 except Exception:
                     pass
 
                 save_config(self.config)
-                self.app.show_success_message("Configuration saved successfully.")
+                self.app.show_success_message(SuccessMessages.CONFIGURATION_SAVED)
                 self.dismiss(self.config)
             except Exception as e:
-                self.app.show_error_message(f"Error saving configuration: {e}")
+                self.app.show_error_message(ErrorMessages.ERROR_SAVING_CONFIGURATION_TEMPLATE.format(e=e))
         elif event.button.id == "cancel-btn":
             self.dismiss(None)

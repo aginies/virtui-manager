@@ -6,6 +6,7 @@ from textual.widgets import Button, Label, TextArea
 from textual.containers import Vertical, Horizontal
 
 from .base_modals import BaseModal
+from ..constants import ButtonLabels
 
 class LogModal(BaseModal[None]):
     """ Modal Screen to show Log"""
@@ -22,7 +23,7 @@ class LogModal(BaseModal[None]):
             text_area.load_text(self.log_content)
             yield text_area
         with Horizontal():
-            yield Button("Close", variant="default", id="cancel-btn", classes="Buttonpage")
+            yield Button(ButtonLabels.CLOSE, variant="default", id="cancel-btn", classes="Buttonpage")
 
     def on_mount(self) -> None:
         """Called when the modal is mounted."""
