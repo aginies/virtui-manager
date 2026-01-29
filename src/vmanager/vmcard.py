@@ -906,10 +906,10 @@ class VMCard(Static):
 
         xml_button = self.ui["xml"]
         if is_stopped:
-            xml_button.label = "Edit XML"
+            xml_button.label = ButtonLabels.EDIT_XML
             self.stats_view_mode = "resources"
         else:
-            xml_button.label = "View XML"
+            xml_button.label = ButtonLabels.VIEW_XML
         xml_button.display = not is_loading
 
     def _fetch_actions_state_worker(self):
