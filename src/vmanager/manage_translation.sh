@@ -58,13 +58,12 @@ function update_po() {
         msgmerge --update --backup=none "$po_file" "$POT_FILE"
         found_po=true
     done < <(find "$LOCALES_DIR" -name "$DOMAIN.po")
-    
-    if [ "$found_po" = false ]; then
-        echo "No .po files found to update."
-        echo "To create a new language (e.g. French):"
-        echo "  mkdir -p $LOCALES_DIR/fr/LC_MESSAGES"
-        echo "  msginit --input=$POT_FILE --output=$LOCALES_DIR/fr/LC_MESSAGES/$DOMAIN.po --locale=fr"
-    fi
+}
+
+function show_create() {
+    echo "To create a new language (e.g. French):"
+    echo "  mkdir -p $LOCALES_DIR/fr/LC_MESSAGES"
+    echo "  msginit --input=$POT_FILE --output=$LOCALES_DIR/fr/LC_MESSAGES/$DOMAIN.po --locale=fr"
 }
 
 function compile_mo() {
@@ -90,6 +89,7 @@ function show_help() {
     echo "  gen-pot     Generate the template ($DOMAIN.pot) from constants.py"
     echo "  update-po   Update existing .po files from the .pot template"
     echo "  compile-mo  Compile .po files into .mo binary files"
+    echo "  show        Show how to create a new language"
     echo "  all         Run all steps in order"
 }
 
@@ -104,6 +104,9 @@ case "$1" in
     compile-mo)
         compile_mo
         ;;
+    show)
+        show_create
+	;;
     all)
         generate_pot
         update_po

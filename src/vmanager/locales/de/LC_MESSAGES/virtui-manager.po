@@ -1,169 +1,169 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR VirtUI Manager
+# German translations for VirtUI Manager package.
+# Copyright (C) 2026 VirtUI Manager
 # This file is distributed under the same license as the VirtUI Manager package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+# aginies <aginies@suse.com>, 2026.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 1.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
 "POT-Creation-Date: 2026-01-29 14:18+0100\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"PO-Revision-Date: 2026-01-29 17:39+0100\n"
+"Last-Translator: aginies <aginies@suse.com>\n"
+"Language-Team: German <translation-team-de@lists.sourceforge.net>\n"
+"Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
 #: constants.py:64
 msgid "Add"
-msgstr ""
+msgstr "Hinzufügen"
 
 #: constants.py:65
 msgid "Save"
-msgstr ""
+msgstr "Speichern"
 
 #: constants.py:66
 msgid "Save Changes"
-msgstr ""
+msgstr "Änderungen speichern"
 
 #: constants.py:67
 msgid "Create Network"
-msgstr ""
+msgstr "Netzwerk erstellen"
 
 #: constants.py:68
 msgid "Install"
-msgstr ""
+msgstr "Installieren"
 
 #: constants.py:69
 msgid "Info"
-msgstr ""
+msgstr "Info"
 
 #: constants.py:70
 msgid "Browse"
-msgstr ""
+msgstr "Durchsuchen"
 
 #: constants.py:71
 msgid "Start"
-msgstr ""
+msgstr "Starten"
 
 #: constants.py:72
 msgid "Shutdown"
-msgstr ""
+msgstr "Herunterfahren"
 
 #: constants.py:73
 msgid "Force Off"
-msgstr ""
+msgstr "Erzwingen aus"
 
 #: constants.py:74
 msgid "Remove"
-msgstr ""
+msgstr "Entfernen"
 
 #: constants.py:75
 msgid "Pause"
-msgstr ""
+msgstr "Pause"
 
 #: constants.py:76
 msgid "Resume"
-msgstr ""
+msgstr "Fortsetzen"
 
 #: constants.py:77
 msgid "Configure"
-msgstr ""
+msgstr "Konfigurieren"
 
 #: constants.py:78
 msgid "Web Console"
-msgstr ""
+msgstr "Web-Konsole"
 
 #: constants.py:79
 msgid "Connect"
-msgstr ""
+msgstr "Verbinden"
 
 #: constants.py:80 constants.py:207
 msgid "Snapshot"
-msgstr ""
+msgstr "Schnappschuss"
 
 #: constants.py:81
 msgid "Restore Snapshot"
-msgstr ""
+msgstr "Schnappschuss wiederherstellen"
 
 #: constants.py:82
 msgid "Del Snapshot"
-msgstr ""
+msgstr "Schnappschuss löschen"
 
 #: constants.py:83 constants.py:115
 msgid "Delete"
-msgstr ""
+msgstr "Löschen"
 
 #: constants.py:84
 msgid "Edit"
-msgstr ""
+msgstr "Bearbeiten"
 
 #: constants.py:85
 msgid "Custom URL"
-msgstr ""
+msgstr "Benutzerdefinierte URL"
 
 #: constants.py:86
 msgid "SSH Help"
-msgstr ""
+msgstr "SSH Hilfe"
 
 #: constants.py:87
 msgid "View"
-msgstr ""
+msgstr "Ansehen"
 
 #: constants.py:88 constants.py:111 constants.py:116 constants.py:172
 msgid "Help"
-msgstr ""
+msgstr "Hilfe"
 
 #: constants.py:89
 msgid "Add Pool"
-msgstr ""
+msgstr "Pool hinzufügen"
 
 #: constants.py:90
 msgid "Delete Pool"
-msgstr ""
+msgstr "Pool löschen"
 
 #: constants.py:91
 msgid "New Volume"
-msgstr ""
+msgstr "Neues Volume"
 
 #: constants.py:92
 msgid "Attach Vol"
-msgstr ""
+msgstr "Vol. anhängen"
 
 #: constants.py:93
 msgid "Move Volume"
-msgstr ""
+msgstr "Volume verschieben"
 
 #: constants.py:94
 msgid "Delete Volume"
-msgstr ""
+msgstr "Volume löschen"
 
 #: constants.py:95
 msgid "Edit XML"
-msgstr ""
+msgstr "XML bearbeiten"
 
 #: constants.py:96
 msgid "Edit CPU Tune"
-msgstr ""
+msgstr "CPU Tune bearbeiten"
 
 #: constants.py:97
 msgid "Edit NUMA Tune"
-msgstr ""
+msgstr "NUMA Tune bearbeiten"
 
 #: constants.py:98
 msgid "Switch to BIOS"
-msgstr ""
+msgstr "Zu BIOS wechseln"
 
 #: constants.py:99
 msgid "Switch to UEFI"
-msgstr ""
+msgstr "Zu UEFI wechseln"
 
 #: constants.py:100
 msgid "Save Boot Order"
-msgstr ""
+msgstr "Boot-Reihenfolge speichern"
 
 #: constants.py:101
 msgid "<"
@@ -451,119 +451,119 @@ msgstr ""
 
 #: constants.py:181
 msgid "Filter"
-msgstr ""
+msgstr "Filter"
 
 #: constants.py:182
 msgid "CompactView"
-msgstr ""
+msgstr "Kompaktansicht"
 
 #: constants.py:183
 msgid "ServerPrefs"
-msgstr ""
+msgstr "Server-Einst."
 
 #: constants.py:185
 msgid "BulkCMD"
-msgstr ""
+msgstr "Massenbefehl"
 
 #: constants.py:186
 msgid "SelServers"
-msgstr ""
+msgstr "Server wählen"
 
 #: constants.py:187
 msgid "ServList"
-msgstr ""
+msgstr "Serverliste"
 
 #: constants.py:188
 msgid "PatternSel"
-msgstr ""
+msgstr "Musterwahl"
 
 #: constants.py:189
 msgid "Sel/Des All"
-msgstr ""
+msgstr "Alle wählen/abwählen"
 
 #: constants.py:190
 msgid "Unselect All"
-msgstr ""
+msgstr "Alle abwählen"
 
 #: constants.py:193
 msgid "Running VMs"
-msgstr ""
+msgstr "Laufende VMs"
 
 #: constants.py:194
 msgid "All VMs"
-msgstr ""
+msgstr "Alle VMs"
 
 #: constants.py:195
 msgid "Virsh"
-msgstr ""
+msgstr "Virsh"
 
 #: constants.py:196
 msgid "Host Caps"
-msgstr ""
+msgstr "Host-Fähigk."
 
 #: constants.py:197
 msgid "InstallVM"
-msgstr ""
+msgstr "VM installieren"
 
 #: constants.py:198
 msgid "Log Stats"
-msgstr ""
+msgstr "Stats protokollieren"
 
 #: constants.py:199
 msgid "Show cache Stats"
-msgstr ""
+msgstr "Cache-Stats anzeigen"
 
 #: constants.py:200
 msgid "Quit"
-msgstr ""
+msgstr "Beenden"
 
 #: constants.py:205
 msgid "Manage"
-msgstr ""
+msgstr "Verwalten"
 
 #: constants.py:206
 msgid "Other"
-msgstr ""
+msgstr "Anderes"
 
 #: constants.py:208
 msgid "Snapshots"
-msgstr ""
+msgstr "Schnappschüsse"
 
 #: constants.py:209
 msgid "Overlay"
-msgstr ""
+msgstr "Overlay"
 
 #: constants.py:210
 msgid "Updating Data..."
-msgstr ""
+msgstr "Daten werden aktualisiert..."
 
 #: constants.py:214 constants.py:304
 msgid "Stopped"
-msgstr ""
+msgstr "Angehalten"
 
 #: constants.py:215 constants.py:300
 msgid "Running"
-msgstr ""
+msgstr "Läuft"
 
 #: constants.py:216 constants.py:301
 msgid "Paused"
-msgstr ""
+msgstr "Pausiert"
 
 #: constants.py:217 constants.py:302
 msgid "PMSuspended"
-msgstr ""
+msgstr "PMSuspended"
 
 #: constants.py:218 constants.py:303
 msgid "Blocked"
-msgstr ""
+msgstr "Blockiert"
 
 #: constants.py:219
 msgid "Loading"
-msgstr ""
+msgstr "Lädt"
 
 #: constants.py:220
 msgid "Unknown"
-msgstr ""
+msgstr "Unbekannt"
 
 #: constants.py:225
 msgid "Cache Performance Statistics"
