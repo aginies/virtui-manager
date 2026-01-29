@@ -8,6 +8,7 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.widgets import Button, Markdown
 from textual import on
 from .base_modals import BaseModal
+from ..constants import ButtonLabels
 
 class HowToDiskModal(BaseModal[None]):
     """A modal to display instructions for managing VM disks."""
@@ -25,7 +26,7 @@ class HowToDiskModal(BaseModal[None]):
             with ScrollableContainer(id="howto-disk-content"):
                 yield Markdown(content, id="howto-disk-markdown")
         with Horizontal(id="dialog-buttons"):
-            yield Button("Close", id="close-btn", variant="primary")
+            yield Button(ButtonLabels.CLOSE, id="close-btn", variant="primary")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:

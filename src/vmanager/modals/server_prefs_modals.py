@@ -54,7 +54,7 @@ class ServerPrefModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="server-pref-dialog",):
-            yield Label("Server Preferences", id="server-pref-title")
+            yield Label(StaticText.SERVER_PREFERENCES, id="server-pref-title")
             yield Static(classes="button-separator")
             with TabbedContent(id="server-pref-tabs"):
                 with TabPane("Network", id="tab-network"):
@@ -106,9 +106,9 @@ class ServerPrefModal(BaseModal[None]):
 
         button_container = Vertical(
             Horizontal(
-                Button("De/Active", id="toggle-net-active-btn", classes="toggle-detail-button",
+                Button(ButtonLabels.DE_ACTIVE, id="toggle-net-active-btn", classes="toggle-detail-button",
                        variant="primary", disabled=True, tooltip="Activate or Deactivate the selected network."),
-                Button("Autostart", id="toggle-net-autostart-btn", classes="toggle-detail-button",
+                Button(ButtonLabels.AUTOSTART, id="toggle-net-autostart-btn", classes="toggle-detail-button",
                        variant="primary", disabled=True, tooltip="Enable or Disable autostart for the selected network."),
             ),
             Horizontal(

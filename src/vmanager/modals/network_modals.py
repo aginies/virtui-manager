@@ -138,7 +138,6 @@ class AddEditNetworkModal(BaseModal[None]):
             dhcp_end_val = "192.168.11.30"
 
 
-
         with Vertical(id="create-network-dialog"):
             yield Label(title, id="create-network-title")
 
@@ -196,9 +195,9 @@ class AddEditNetworkModal(BaseModal[None]):
                         with Horizontal(classes="action-buttons"):
                             yield Button(
                                 button_label, variant="primary", id="create-net-btn", classes="create-net-btn"
-                            )
-            yield Button("Close", variant="default", id="close-btn", classes="close-button")
-
+                                )
+            yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-button")
+                            
     def on_mount(self) -> None:
         """Called when the modal is mounted to populate network interfaces."""
         self.run_worker(self.populate_interfaces, thread=True)
@@ -271,7 +270,7 @@ class AddEditNetworkModal(BaseModal[None]):
             dhcp_end = self.query_one("#dhcp-end-input", Input).value
 
             domain_radio = self.query_one("#dns-domain-radioset", RadioSet).pressed_button.id
-            
+
             try:
                 name, name_modified = _sanitize_input(name_raw)
                 if name_modified:
@@ -356,7 +355,7 @@ class AddEditNetworkModal(BaseModal[None]):
                         message = SuccessMessages.NETWORK_UPDATED_TEMPLATE.format(name=name)
                     else:
                         message = SuccessMessages.NETWORK_CREATED_TEMPLATE.format(name=name)
-                        
+
                     self.app.call_from_thread(self.app.show_success_message, message)
                     self.app.call_from_thread(self.dismiss, True)
                 except Exception as e:
@@ -394,7 +393,7 @@ class NetworkXMLModal(BaseModal[None]):
                 text_area.styles.height = "auto"
                 yield text_area
             with Horizontal():
-                yield Button("Close", variant="default", id="close-btn", classes="close-btn")
+                yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":

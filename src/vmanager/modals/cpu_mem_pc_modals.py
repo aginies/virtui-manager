@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Input, Label, ListView, Select
 
-from ..constants import ErrorMessages, StaticText
+from ..constants import ErrorMessages, StaticText, ButtonLabels
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import InfoModal
 
@@ -22,8 +22,8 @@ class EditCpuModal(BaseModal[str | None]):
             yield Label(StaticText.ENTER_NEW_VCPU_COUNT)
             yield Input(placeholder="e.g., 2", id="cpu-input", type="integer", value=self.current_cpu)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -44,8 +44,8 @@ class EditMemoryModal(BaseModal[str | None]):
             yield Label(StaticText.ENTER_NEW_MEMORY_SIZE)
             yield Input(placeholder="e.g., 2048", id="memory-input", type="integer", value=self.current_memory)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -72,7 +72,7 @@ class SelectMachineTypeModal(BaseModal[str | None]):
                     classes="machine-type-list"
                 )
             with Horizontal():
-                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self) -> None:
         list_view = self.query_one(ListView)
@@ -107,9 +107,9 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
             yield Label(StaticText.CPU_PINNING_FORMAT, classes="help-text")
             yield Input(placeholder="e.g., 0:0-1; 1:2-3", id="cputune-input", value=current_val)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
-                yield Button("Help", variant="default", id="help-btn")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.HELP, variant="default", id="help-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":
@@ -179,9 +179,9 @@ class EditNumaTuneModal(BaseModal[dict | None]):
             yield Label(StaticText.NODESET)
             yield Input(placeholder="e.g., 0-1", id="numa-nodeset-input", value=self.current_nodeset)
             with Horizontal():
-                yield Button("Save", variant="primary", id="save-btn")
-                yield Button("Cancel", variant="default", id="cancel-btn")
-                yield Button("Help", variant="default", id="help-btn")
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
+                yield Button(ButtonLabels.HELP, variant="default", id="help-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-btn":

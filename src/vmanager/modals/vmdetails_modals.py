@@ -54,7 +54,7 @@ from ..libvirt_utils import (
         get_host_usb_devices, get_host_pci_devices,
         get_host_numa_nodes
         )
-from ..constants import ErrorMessages, SuccessMessages, WarningMessages, DialogMessages, ButtonLabels
+from ..constants import ErrorMessages, SuccessMessages, WarningMessages, DialogMessages, ButtonLabels, StaticText
 from .utils_modals import ConfirmationDialog, ProgressModal
 from .cpu_mem_pc_modals import (
         EditCpuModal, EditMemoryModal, SelectMachineTypeModal,
@@ -1870,9 +1870,9 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Label("Address:")
                         with RadioSet(id="graphics-address-radioset", disabled=not self.is_vm_stopped or self.graphics_info['listen_type'] != 'address'):
-                            yield RadioButton("Hypervisor default", id="graphics-address-default", value=self.graphics_info['address'] not in ['127.0.0.1', '0.0.0.0'])
-                            yield RadioButton("Localhost only", id="graphics-address-localhost", value=self.graphics_info['address'] == '127.0.0.1')
-                            yield RadioButton("All interfaces", id="graphics-address-all", value=self.graphics_info['address'] == '0.0.0.0')
+                            yield RadioButton(StaticText.HYPERVISOR_DEFAULT, id="graphics-address-default", value=self.graphics_info['address'] not in ['127.0.0.1', '0.0.0.0'])
+                            yield RadioButton(StaticText.LOCALHOST_ONLY, id="graphics-address-localhost", value=self.graphics_info['address'] == '127.0.0.1')
+                            yield RadioButton(StaticText.ALL_INTERFACES, id="graphics-address-all", value=self.graphics_info['address'] == '0.0.0.0')
                         yield Checkbox(
                             "Auto Port",
                             value=self.graphics_info['autoport'],
@@ -2050,7 +2050,7 @@ class VMDetailModal(ModalScreen):
                             yield Button(ButtonLabels.ADD_CHANNEL, id="add-channel-btn", variant="primary", disabled=not self.is_vm_stopped)
                             yield Button(ButtonLabels.REMOVE_CHANNEL, id="remove-channel-btn", variant="error", disabled=True)
 
-            yield Button("Close", variant="default", id="close-btn", classes="close-button")
+            yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-button")
 
     def _update_tpm_ui(self) -> None:
         """Updates the UI elements for the TPM tab based on self.tpm_info."""

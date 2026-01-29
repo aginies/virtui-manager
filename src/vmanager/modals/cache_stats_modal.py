@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button, DataTable
 from textual.containers import Vertical, Horizontal
 from .base_modals import BaseModal
-from ..constants import StaticText, SuccessMessages
+from ..constants import StaticText, SuccessMessages, ButtonLabels
 
 class CacheStatsModal(BaseModal[None]):
     """Modal displaying cache statistics in a table."""
@@ -20,9 +20,9 @@ class CacheStatsModal(BaseModal[None]):
             yield DataTable(id="stats-table")
         with Vertical():
             with Horizontal():
-                yield Button("Refresh", id="refresh-btn", variant="primary")
-                yield Button("Clear All Caches", id="clear-btn", variant="error")
-                yield Button("Close", id="close-btn", variant="default")
+                yield Button(ButtonLabels.REFRESH, id="refresh-btn", variant="primary")
+                yield Button(ButtonLabels.CLEAR_CACHES, id="clear-btn", variant="error")
+                yield Button(ButtonLabels.CLOSE, id="close-btn", variant="default")
 
     def on_mount(self) -> None:
         """Setup the table."""

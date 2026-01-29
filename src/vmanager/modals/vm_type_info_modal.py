@@ -6,6 +6,7 @@ from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual.widgets import Button, Markdown
 from textual import on
 from .base_modals import BaseModal
+from ..constants import ButtonLabels
 
 VM_TYPE_INFO_TEXT = """
 | [Storage Settings](https://www.qemu.org/docs/master/system/qemu-block-drivers.html) | Secure VM | Computation | Desktop (Linux) | Windows | Win Legacy | Server |
@@ -55,7 +56,7 @@ class VMTypeInfoModal(BaseModal[None]):
     def compose(self) -> ComposeResult:
         with ScrollableContainer(id="howto-vmtype-dialog", classes="howto-dialog"):
             yield Markdown(VM_TYPE_INFO_TEXT, id="howto-vmtype-markdown")
-            yield Button("Close", id="close-btn", variant="primary")
+            yield Button(ButtonLabels.CLOSE, id="close-btn", variant="primary")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:

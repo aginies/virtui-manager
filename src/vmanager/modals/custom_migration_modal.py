@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.screen import ModalScreen
 from textual.widgets import Button, Static, Select, Checkbox
 from textual.containers import Vertical
-from ..constants import StaticText
+from ..constants import StaticText, ButtonLabels
 
 class CustomMigrationModal(ModalScreen[dict | None]):
     """A modal to confirm custom migration actions."""
@@ -37,8 +37,8 @@ class CustomMigrationModal(ModalScreen[dict | None]):
             yield Checkbox("Undefine source VM", value=True, id="undefine-checkbox")
 
             with Vertical(classes="modal-buttons"):
-                yield Button("Confirm", variant="primary", id="confirm")
-                yield Button("Cancel", variant="default", id="cancel")
+                yield Button(ButtonLabels.CONFIRM, variant="primary", id="confirm")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm":

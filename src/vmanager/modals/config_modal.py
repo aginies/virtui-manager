@@ -8,7 +8,7 @@ from textual import on
 from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
 from ..config import save_config, get_user_config_path
-from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages, StaticText
+from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages, StaticText, ButtonLabels
 from .base_modals import BaseModal
 from ..utils import check_r_viewer
 
@@ -136,8 +136,8 @@ class ConfigModal(BaseModal[None]):
                         )
 
                 with Horizontal():
-                    yield Button("Save", variant="primary", id="save-config-btn")
-                    yield Button("Cancel", variant="default", id="cancel-btn")
+                    yield Button(ButtonLabels.SAVE, variant="primary", id="save-config-btn")
+                    yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:

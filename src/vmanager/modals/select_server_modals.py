@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from .base_modals import BaseModal
 from .utils_modals import LoadingModal
 from ..connection_manager import ConnectionManager
-from ..constants import ErrorMessages, StaticText
+from ..constants import ErrorMessages, StaticText, ButtonLabels
 
 
 class SelectServerModal(BaseModal[None]):
@@ -45,8 +45,8 @@ class SelectServerModal(BaseModal[None]):
             yield grid
 
             with Horizontal(classes="button-details"):
-                yield Button("Done", id="done-servers", variant="primary", classes="done-button")
-                yield Button("Cancel", id="cancel-servers", classes="cancel-button")
+                yield Button(ButtonLabels.DONE, id="done-servers", variant="primary", classes="done-button")
+                yield Button(ButtonLabels.CANCEL, id="cancel-servers", classes="cancel-button")
 
     @on(Checkbox.Changed)
     def on_checkbox_changed(self, event: Checkbox.Changed) -> None:
@@ -108,7 +108,7 @@ class SelectOneServerModal(BaseModal[str]):
             yield Label("")
             with Horizontal():
                 yield Button(self.button_label, id="launch-btn", variant="primary", disabled=True)
-                yield Button("Cancel", id="cancel-btn")
+                yield Button(ButtonLabels.CANCEL, id="cancel-btn")
 
     @on(Select.Changed, "#server-select")
     def on_server_select_changed(self, event: Select.Changed) -> None:

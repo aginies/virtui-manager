@@ -7,7 +7,7 @@ from textual import on
 from textual.widgets import Label, Button, Markdown, Static, RadioSet, RadioButton, Checkbox
 
 from .base_modals import BaseModal
-from ..constants import ErrorMessages, StaticText
+from ..constants import ErrorMessages, StaticText, ButtonLabels
 
 class BulkActionModal(BaseModal[None]):
     """Modal screen for performing bulk actions on selected VMs."""
@@ -26,18 +26,18 @@ class BulkActionModal(BaseModal[None]):
 
             yield Label("Choose Action:")
             with RadioSet(id="bulk-action-radioset"):
-                yield RadioButton("Start VMs", id="action_start")
-                yield RadioButton("Stop VMs (Graceful Shutdown)", id="action_stop")
-                yield RadioButton("Force Off VMs", id="action_force_off")
-                yield RadioButton("Pause VMs", id="action_pause")
-                yield RadioButton("Delete VMs", id="action_delete")
-                yield RadioButton("Edit Configuration", id="action_edit_config")
+                yield RadioButton(StaticText.START_VMS, id="action_start")
+                yield RadioButton(StaticText.STOP_VMS_GRACEFUL, id="action_stop")
+                yield RadioButton(StaticText.FORCE_OFF_VMS, id="action_force_off")
+                yield RadioButton(StaticText.PAUSE_VMS, id="action_pause")
+                yield RadioButton(StaticText.DELETE_VMS, id="action_delete")
+                yield RadioButton(StaticText.EDIT_CONFIGURATION, id="action_edit_config")
 
             yield Checkbox(StaticText.DELETE_ASSOCIATED_STORAGE, id="delete-storage-checkbox")
 
             with Horizontal():
-                yield Button("Execute", variant="primary", id="execute-action-btn", classes="button-container")
-                yield Button("Cancel", variant="default", id="cancel-btn", classes="button-container")
+                yield Button(ButtonLabels.EXECUTE, variant="primary", id="execute-action-btn", classes="button-container")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="button-container")
 
     def on_mount(self) -> None:
         """Called when the modal is mounted to initially hide the checkbox."""

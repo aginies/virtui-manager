@@ -11,7 +11,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Static, Select, Checkbox, Label, ProgressBar
 from textual import on, work
 
-from ..constants import ErrorMessages, StaticText
+from ..constants import ErrorMessages, StaticText, ButtonLabels
 from ..vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
 from ..storage_manager import find_shared_storage_pools
 from ..utils import extract_server_name_from_uri
@@ -104,9 +104,9 @@ class MigrationModal(ModalScreen):
                 )
 
             with Horizontal(classes="modal-buttons"):
-                yield Button("Check Compatibility", variant="primary", id="check", classes="Buttonpage")
-                yield Button("Start Migration", variant="success", id="start", disabled=True, classes="Buttonpage")
-                yield Button("Close", variant="default", id="close", disabled=False, classes="close-button")
+                yield Button(ButtonLabels.CHECK_COMPATIBILITY, variant="primary", id="check", classes="Buttonpage")
+                yield Button(ButtonLabels.START_MIGRATION, variant="success", id="start", disabled=True, classes="Buttonpage")
+                yield Button(ButtonLabels.CLOSE, variant="default", id="close", disabled=False, classes="close-button")
 
 
     def _lock_controls(self, lock: bool):
