@@ -151,7 +151,7 @@ class ServerPrefModal(BaseModal[None]):
             if num_vms > AppCacheTimeout.DONT_DISPLAY_DISK_USAGE:
                 self.app.show_warning_message(WarningMessages.TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE.format(count=AppCacheTimeout.DONT_DISPLAY_DISK_USAGE))
             else:
-                self.app.show_warning_message(WarningMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
+                #self.app.show_warning_message(WarningMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
                 disk_map = get_all_vm_disk_usage(self.conn)
                 nvram_map = get_all_vm_nvram_usage(self.conn)
                 #overlay_map = get_all_vm_overlay_usage(self.conn)
@@ -290,7 +290,7 @@ class ServerPrefModal(BaseModal[None]):
 
         table.clear()
 
-        self.app.show_warning_message(WarningMessages.RUNNING_NETWORK_USAGE_SCAN_WARNING)
+        #self.app.show_warning_message(WarningMessages.RUNNING_NETWORK_USAGE_SCAN_WARNING)
         network_usage = get_all_network_usage(self.conn)
         self.networks_list = list_networks(self.conn)
 
@@ -467,7 +467,8 @@ class ServerPrefModal(BaseModal[None]):
         is_active = node_data.get('status') == 'active'
         try:
             storage_manager.set_pool_active(pool, not is_active)
-            self.app.show_success_message(SuccessMessages.POOL_ACTIVATION_CHANGE_TEMPLATE.format(pool_name=pool.name(), is_active=is_active))
+            status = 'inactive' if is_active else 'active'
+            self.app.show_success_message(SuccessMessages.POOL_ACTIVATION_CHANGE_TEMPLATE.format(pool_name=pool.name(), status=status))
             node_data['status'] = 'inactive' if is_active else 'active'
             storage_manager.list_storage_pools.cache_clear()
             self._load_storage_pools(select_pool=pool_name) # Refresh the tree
@@ -490,7 +491,8 @@ class ServerPrefModal(BaseModal[None]):
         has_autostart = node_data.get('autostart', False)
         try:
             storage_manager.set_pool_autostart(pool, not has_autostart)
-            self.app.show_success_message(SuccessMessages.POOL_AUTOSTART_CHANGE_TEMPLATE.format(pool_name=pool.name(), has_autostart=has_autostart))
+            status = 'off' if has_autostart else 'on'
+            self.app.show_success_message(SuccessMessages.POOL_AUTOSTART_CHANGE_TEMPLATE.format(pool_name=pool.name(), status=status))
             node_data['autostart'] = not has_autostart
             storage_manager.list_storage_pools.cache_clear()
             self._load_storage_pools(select_pool=pool_name) # Refresh the tree
@@ -793,7 +795,9 @@ class ServerPrefModal(BaseModal[None]):
         if net_info:
             try:
                 set_network_active(self.conn, net_name, not net_info['active'])
-                self.app.show_success_message(SuccessMessages.NETWORK_ACTIVATION_CHANGE_TEMPLATE.format(net_name=net_name, is_active=net_info['active']))
+                status = 'inactive' if net_info['active'] else 'active'
+                self.app.show_success_message(SuccessMessages.NETWORK_ACTIVATION_CHANGE_TEMPLATE.format(net_name=net_name, status=status))
+                list_networks.cache_clear()
                 self._load_networks()
             except Exception as e:
                 self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
@@ -811,7 +815,9 @@ class ServerPrefModal(BaseModal[None]):
         if net_info:
             try:
                 set_network_autostart(self.conn, net_name, not net_info['autostart'])
-                self.app.show_success_message(SuccessMessages.NETWORK_AUTOSTART_CHANGE_TEMPLATE.format(net_name=net_name, autostart=net_info['autostart']))
+                status = 'off' if net_info['autostart'] else 'on'
+                self.app.show_success_message(SuccessMessages.NETWORK_AUTOSTART_CHANGE_TEMPLATE.format(net_name=net_name, status=status))
+                list_networks.cache_clear()
                 self._load_networks()
             except Exception as e:
                 self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
@@ -854,12 +860,14 @@ class ServerPrefModal(BaseModal[None]):
 
             def on_create(success: bool):
                 if success:
+                    list_networks.cache_clear()
                     self._load_networks()
             self.app.push_screen(AddEditNetworkModal(self.conn, network_info=network_info), on_create)
 
         elif event.button.id == "add-net-btn":
             def on_create(success: bool):
                 if success:
+                    list_networks.cache_clear()
                     self._load_networks()
             self.app.push_screen(AddEditNetworkModal(self.conn), on_create)
 
@@ -882,6 +890,7 @@ class ServerPrefModal(BaseModal[None]):
                     try:
                         delete_network(self.conn, network_name)
                         self.app.show_success_message(SuccessMessages.NETWORK_DELETED_SUCCESSFULLY_TEMPLATE.format(network_name=network_name))
+                        list_networks.cache_clear()
                         self._load_networks()
                     except Exception as e:
                         self.app.show_error_message(ErrorMessages.ERROR_DELETING_NETWORK_TEMPLATE.format(network_name=network_name, error=e))
