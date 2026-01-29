@@ -566,6 +566,7 @@ def get_all_vm_overlay_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of backing file path to a list of VM names
     that use it via an overlay (checked via metadata).
+    Optimized to fetch VM XMLs in parallel.
     """
     backing_to_vms_map = {}
     if not conn:
@@ -576,30 +577,43 @@ def get_all_vm_overlay_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     except libvirt.libvirtError:
         return backing_to_vms_map
 
-    for domain in domains:
+    def process_domain_overlay_usage(domain):
+        """Helper to process a single domain for overlay usage."""
         try:
             _, root = _get_domain_root(domain)
             if root is not None:
                 # Check all disks to see if they are overlays in metadata
                 disks = get_vm_disks_info(conn, root)
                 vm_name = domain.name()
+                overlay_mappings = []
                 for disk in disks:
                     path = disk.get('path')
                     if path:
                         backing_path = get_overlay_backing_path(root, path)
                         if backing_path:
-                            if backing_path not in backing_to_vms_map:
-                                backing_to_vms_map[backing_path] = []
-                            if vm_name not in backing_to_vms_map[backing_path]:
-                                backing_to_vms_map[backing_path].append(vm_name)
+                            overlay_mappings.append((backing_path, vm_name))
+                return overlay_mappings
         except Exception:
-            continue
+            pass
+        return []
+
+    # Use ThreadPoolExecutor for parallel processing
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(process_domain_overlay_usage, domains)
+
+    for overlay_mappings in results:
+        for backing_path, vm_name in overlay_mappings:
+            if backing_path not in backing_to_vms_map:
+                backing_to_vms_map[backing_path] = []
+            if vm_name not in backing_to_vms_map[backing_path]:
+                backing_to_vms_map[backing_path].append(vm_name)
 
     return backing_to_vms_map
 
 def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of NVRAM file path to a list of VM names.
+    Optimized to fetch VM XMLs in parallel.
     """
     nvram_to_vms_map = {}
     if not conn:
@@ -610,7 +624,8 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     except libvirt.libvirtError:
         return nvram_to_vms_map
 
-    for domain in domains:
+    def process_domain_nvram_usage(domain):
+        """Helper to process a single domain for NVRAM usage."""
         try:
             _, root = _get_domain_root(domain)
             if root is not None:
@@ -618,13 +633,22 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
                 if nvram_elem is not None:
                     nvram_path = nvram_elem.text
                     if nvram_path:
-                        vm_name = domain.name()
-                        if nvram_path not in nvram_to_vms_map:
-                            nvram_to_vms_map[nvram_path] = []
-                        if vm_name not in nvram_to_vms_map[nvram_path]:
-                            nvram_to_vms_map[nvram_path].append(vm_name)
+                        return nvram_path, domain.name()
         except Exception:
-            continue
+            pass
+        return None, None
+
+    # Use ThreadPoolExecutor for parallel processing
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(process_domain_nvram_usage, domains)
+
+    for nvram_path, vm_name in results:
+        if nvram_path and vm_name:
+            if nvram_path not in nvram_to_vms_map:
+                nvram_to_vms_map[nvram_path] = []
+            if vm_name not in nvram_to_vms_map[nvram_path]:
+                nvram_to_vms_map[nvram_path].append(vm_name)
+
     return nvram_to_vms_map
 
 
@@ -1019,19 +1043,34 @@ def check_for_spice_vms(conn):
     """
     Checks if any VM uses Spice graphics.
     Returns a message if a Spice VM is found, otherwise None.
+    Optimized to fetch VM XMLs in parallel.
     """
     if not conn:
         return None
     try:
         all_domains = conn.listAllDomains(0) or []
-        for domain in all_domains:
+    except libvirt.libvirtError:
+        return None
+
+    def check_domain_for_spice(domain):
+        """Helper to check a single domain for Spice graphics."""
+        try:
             _, root = _get_domain_root(domain)
             if root is not None:
                 graphics_info = get_vm_graphics_info(root)
                 if graphics_info.get("type") == "spice":
-                    return "Some VMs use Spice graphics. 'Web Console' is only available for VNC."
-    except libvirt.libvirtError:
-        pass
+                    return True
+        except Exception:
+            pass
+        return False
+
+    # Use ThreadPoolExecutor for parallel processing
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(check_domain_for_spice, all_domains)
+        # Check if any domain uses Spice
+        if any(results):
+            return "Some VMs use Spice graphics. 'Web Console' is only available for VNC."
+
     return None
 
 def get_all_network_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
