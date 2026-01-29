@@ -475,7 +475,7 @@ msgstr "Arrêté"
 
 #: constants.py:190 constants.py:274
 msgid "Running"
-msgstr "En cours"
+msgstr "Active"
 
 #: constants.py:191 constants.py:275
 msgid "Paused"

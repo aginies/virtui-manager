@@ -192,6 +192,7 @@ class StatusText:
     PMSUSPENDED = _("PMSuspended")
     BLOCKED = _("Blocked")
     LOADING = _("Loading")
+    UNKNOWN = _("Unknown")
 
 
 class StaticText:

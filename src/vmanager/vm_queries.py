@@ -15,7 +15,7 @@ from .libvirt_utils import (
         _get_backing_chain_elem,
         get_host_domain_capabilities,
         )
-#from utils import log_function_call
+from .constants import StatusText
 
 def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | None:
     """
@@ -109,18 +109,18 @@ def get_status(domain, state=None):
         try:
             state, _ = domain.state()
         except libvirt.libvirtError:
-            return 'Unknown'
+            return StatusText.UNKNOWN
 
     if state == libvirt.VIR_DOMAIN_RUNNING:
-        return 'Running'
+        return StatusText.RUNNING
     elif state == libvirt.VIR_DOMAIN_PAUSED:
-        return 'Paused'
+        return StatusText.PAUSED
     elif state == libvirt.VIR_DOMAIN_PMSUSPENDED:
-        return 'PMSuspended'
+        return StatusText.PMSUSPENDED
     elif state == libvirt.VIR_DOMAIN_BLOCKED:
-        return 'Blocked'
+        return StatusText.BLOCKED
     else:
-        return 'Stopped'
+        return StatusText.STOPPED
 
 @lru_cache(maxsize=16)
 def get_vm_description(domain):

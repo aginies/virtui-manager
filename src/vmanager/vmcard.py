@@ -250,7 +250,7 @@ class VMCard(Static):
     def compose(self):
         self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected, tooltip="Select VM")
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
-        self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status", classes=self.status.lower())
+        self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
 
         # Create all sparkline components
         self.ui["cpu_label"] = Static("", classes="sparkline-label")
@@ -1046,12 +1046,16 @@ class VMCard(Static):
             status_widget.remove_class("stopped", "running", "paused", "loading", "pmsuspended", "blocked")
             if self.status == StatusText.LOADING:
                 status_widget.add_class("loading")
+            elif self.status == StatusText.RUNNING:
+                status_widget.add_class("running")
+            elif self.status == StatusText.STOPPED:
+                status_widget.add_class("stopped")
+            elif self.status == StatusText.PAUSED:
+                status_widget.add_class("paused")
             elif self.status == StatusText.PMSUSPENDED:
                 status_widget.add_class("pmsuspended")
             elif self.status == StatusText.BLOCKED:
                 status_widget.add_class("blocked")
-            else:
-                status_widget.add_class(self.status.lower())
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses."""
