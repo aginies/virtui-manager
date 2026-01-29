@@ -70,13 +70,6 @@ from .howto_virtiofs_modal import HowToVirtIOFSModal
 from .network_modals import AddEditNetworkInterfaceModal
 from .input_modals import AddInputDeviceModal, AddChannelModal
 
-# Configure logging
-logging.basicConfig(
-    filename=get_log_path(),
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-
 BootDevice = namedtuple("BootDevice", ["type", "id", "description", "boot_order_idx"])
 
 class VMDetailModal(ModalScreen):
