@@ -1324,7 +1324,7 @@ class VMCard(Static):
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
                             self.app.show_error_message(ErrorMessages.INVALID_XML_TEMPLATE.format(vm_name=self.name, error=e))
-                            logging.error(error_msg)
+                            logging.error(e)
                     else:
                         self.app.show_success_message(SuccessMessages.NO_XML_CHANGES)
 
@@ -1922,8 +1922,6 @@ class VMCard(Static):
                 finally:
                     self.app.vm_service.unsuppress_vm_events(internal_id)
 
-            num_snapshots = self.vm.snapshotNum(0)
-
             def on_confirm_rename(confirmed: bool, delete_snapshots=False) -> None:
                 if confirmed:
                     do_rename()
@@ -1987,10 +1985,10 @@ class VMCard(Static):
                     self.app.call_from_thread(show_details)
 
                 except Exception as e:
-                    def show_error():
+                    def show_error(error_instance):
                         loading_modal.dismiss()
-                        self.app.show_error_message(ErrorMessages.ERROR_GETTING_VM_DETAILS_TEMPLATE.format(vm_name=vm_name, error=e))
-                    self.app.call_from_thread(show_error)
+                        self.app.show_error_message(ErrorMessages.ERROR_GETTING_VM_DETAILS_TEMPLATE.format(vm_name=vm_name, error=error_instance))
+                    self.app.call_from_thread(show_error, e)
 
             self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
 
@@ -2053,7 +2051,7 @@ class VMCard(Static):
                     state, _ = state_tuple
                     if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
                         active_vms.append(vm)
-            except:
+            except Exception:
                 # Fallback to isActive() if cache lookup fails
                 if vm.isActive():
                     active_vms.append(vm)
