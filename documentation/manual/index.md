@@ -9,6 +9,7 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [Introduction](introduction.md)
 - [VirtUI Manager Installation](app_installation.md)
 - [Management Main Window](main_window.md)
+- [Host Management](host_management.md)
 - [VirtUI Manager Configuration](app_configuration.md)
 - [Virtual Machine Configuration](vm_configuration.md)
 - [Control Virtual Machine](vm_actions.md)

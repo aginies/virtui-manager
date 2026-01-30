@@ -130,6 +130,117 @@ def get_cpu_models(conn: libvirt.virConnect, arch: str):
         print(f"Error getting CPU models for arch {arch}: {e}")
         return []
 
+def get_host_resources(conn: libvirt.virConnect) -> dict:
+    """
+    Retrieves host resource information (CPU, Memory).
+    """
+    try:
+        node_info = conn.getInfo()
+        # node_info: [model, memory (KB), cpus, mhz, nodes, sockets, cores, threads]
+        mem_stats = conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
+        # mem_stats might have: total, free, buffers, cached
+        host_info = {
+            'model': node_info[0],
+            'total_memory': node_info[1] // 1024, # MB
+            'total_cpus': node_info[2],
+            'mhz': node_info[3],
+            'nodes': node_info[4],
+            'sockets': node_info[5],
+            'cores': node_info[6],
+            'threads': node_info[7],
+            'free_memory': mem_stats.get('free', 0) // 1024, # MB
+            'available_memory': mem_stats.get('total', 0) // 1024, # MB
+        }
+
+        if host_info['available_memory'] == 0:
+            host_info['available_memory'] = host_info['total_memory']
+
+        return host_info
+    except libvirt.libvirtError as e:
+        logging.error(f"Error getting host resources: {e}")
+        return {}
+
+def get_total_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> dict:
+    """
+    Calculates total resource allocation across all running or paused VMs on a host.
+    """
+    total_memory = 0
+    total_vcpus = 0
+    active_memory = 0
+    active_vcpus = 0
+
+    try:
+        domains = conn.listAllDomains(0)
+        total_vms = len(domains)
+
+        for i, domain in enumerate(domains):
+            if progress_callback:
+                progress_callback(i + 1, total_vms)
+
+            try:
+                # domain.info() returns [state, maxMem, memory, nrVirtCpu, cpuTime]
+                # memory is in Kilobytes
+                info = domain.info()
+                state = info[0]
+                max_mem = info[1]  # KB
+                n_cpus = info[3]
+
+                total_memory += max_mem
+                total_vcpus += n_cpus
+
+                if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                    active_memory += max_mem
+                    active_vcpus += n_cpus
+
+            except libvirt.libvirtError:
+                continue
+
+        return {
+            'total_allocated_memory': total_memory // 1024,  # Convert to MB
+            'total_allocated_vcpus': total_vcpus,
+            'active_allocated_memory': active_memory // 1024,  # Convert to MB
+            'active_allocated_vcpus': active_vcpus,
+        }
+    except libvirt.libvirtError as e:
+        logging.error(f"Error calculating VM allocation: {e}")
+        return {}
+
+def get_active_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> dict:
+    """
+    Calculates resource allocation for only active (running/paused) VMs.
+    More efficient than get_total_vm_allocation for large numbers of inactive VMs.
+    """
+    active_memory = 0
+    active_vcpus = 0
+
+    try:
+        # Only list active domains
+        domains = conn.listAllDomains(libvirt.VIR_CONNECT_LIST_DOMAINS_ACTIVE)
+        total_vms = len(domains)
+
+        for i, domain in enumerate(domains):
+            if progress_callback:
+                progress_callback(i + 1, total_vms)
+
+            try:
+                info = domain.info()
+                max_mem = info[1]  # KB
+                n_cpus = info[3]
+
+                active_memory += max_mem
+                active_vcpus += n_cpus
+
+            except libvirt.libvirtError:
+                continue
+
+        return {
+            'active_allocated_memory': active_memory // 1024,  # Convert to MB
+            'active_allocated_vcpus': active_vcpus,
+        }
+    except libvirt.libvirtError as e:
+        logging.error(f"Error calculating active VM allocation: {e}")
+        return {}
+
 def get_host_architecture(conn: libvirt.virConnect) -> str:
     """
     Returns the host architecture (e.g., 'x86_64', 'aarch64').

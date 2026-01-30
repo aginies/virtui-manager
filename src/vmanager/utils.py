@@ -428,9 +428,9 @@ class CacheMonitor:
     def log_stats(self) -> None:
         """Log cache statistics."""
         stats = self.get_all_stats()
-        logging.info("=== Cache Statistics ===")
+        logging.debug("=== Cache Statistics ===")
         for name, data in stats.items():
-            logging.info(
+            logging.debug(
                 f"{name}: {data['hit_rate']:.1f}% hit rate "
                 f"({data['hits']} hits, {data['misses']} misses, "
                 f"{data['current_size']}/{data['max_size']} entries)"
@@ -482,10 +482,10 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor = CacheMonitor()
     cache_monitor.tracked_functions.clear()
     if not enable:
-        logging.info("Cache monitoring disabled.")
+        logging.debug("Cache monitoring disabled.")
         return
 
-    logging.info("Cache monitoring enabled.")
+    logging.debug("Cache monitoring enabled.")
     cache_monitor.track(format_server_names)
     cache_monitor.track(extract_server_name_from_uri)
     cache_monitor.track(get_server_color_cached)
@@ -543,5 +543,38 @@ def setup_cache_monitoring(enable: bool = True):
 
     return cache_monitor
 
-# Disabled by default
-#setup_cache_monitoring(enable=False)
+
+def setup_logging():
+    """Configures the logging for the application."""
+    from .config import load_config, get_log_path
+    config = load_config()
+    log_level_str = config.get("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_str, logging.INFO)
+    log_path = get_log_path()
+
+    # Ensure directory exists
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    root_logger = logging.getLogger()
+
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            root_logger.removeHandler(handler)
+
+    # Check if we already added a FileHandler to this path
+    has_file_handler = False
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(log_path.absolute()):
+            has_file_handler = True
+            break
+
+    if not has_file_handler:
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        root_logger.addHandler(file_handler)
+    
+    root_logger.setLevel(log_level)
+
+    if not has_file_handler:
+        logging.info("--- Logging initialized ---")
+
+    setup_cache_monitoring(enable=False)

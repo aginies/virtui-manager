@@ -38,7 +38,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.2.0"
+    version = "1.3.0"
 
 class VmAction:
     """Defines constants for VM action types."""
@@ -198,6 +198,7 @@ class BindingDescriptions:
     TOGGLE_STATS = _("Log Stats")
     CACHE_STATS = _("Show cache Stats")
     QUIT = _("Quit")
+    HOST_DASHBOARD = _("Host Dashboard")
 
 
 class TabTitles:
@@ -208,6 +209,8 @@ class TabTitles:
     SNAPSHOTS = _("Snapshots")
     OVERLAY = _("Overlay")
     SNAP_OVER_UPDATE = _("Updating Data...")
+    ACTIVE_ALLOCATION = _("Active Allocation")
+    TOTAL_ALLOCATION = _("Total Allocation")
 
 class StatusText:
     """Constants for status text"""
@@ -390,7 +393,19 @@ class StaticText:
     WEBCONSOLE_LOCAL_RUN = _("Web console will run locally.")
     ENABLE_BOOT_MENU = _("Enable boot menu")
     WEB_CONSOLE_NOVNC = _("Web Console (novnc)")
-
+    HOST_RESOURCE_DASHBOARD = _("Host Resource Dashboard")
+    HOST_DETAILS = _("Host Details")
+    VM_ALLOCATION = _("VM Allocation")
+    CPU_USAGE = _("CPU Usage")
+    MEMORY_USAGE = _("Memory Usage")
+    ALLOCATED_VCPUS = _("Allocated VCPUs")
+    ALLOCATED_MEMORY = _("Allocated Memory")
+    ACTIVE_ALLOCATION = _("Active Allocation")
+    TOTAL_ALLOCATION = _("Total Allocation")
+    MODEL = _("Model:")
+    TOPOLOGY = _("Topology:")
+    WAITING_TO_START_COLLECTION = _("Waiting to start collection...")
+    COLLECTING_VM_INFO = _("Collecting VM info: {current}/{total}")
 
 class SparklineLabels:
     """Constants for sparkline labels"""

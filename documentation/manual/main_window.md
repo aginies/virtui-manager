@@ -74,7 +74,8 @@ The "Bulk Command" mode puts the power of fleet management at your fingertips.
 | **`p`** | Pattern Select |
 | **`v`** | View Application Log |
 | **`c`** | Open App Configuration |
-| **`h`** | Show Host capabilities |
+| **`h`** | [Show Host capabilities](host_management.md#host-capabilities) |
+| **`H`** | [Show VM allocation](host_management.md#host-resource-dashboard) |
 | **`Ctrl+a`** | Select All Visible VMs |
 | **`Ctrl+u`** | Unselect All VMs |
 | **`Up Arrow`** | Filter: Show Running VMs Only |

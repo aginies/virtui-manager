@@ -1297,7 +1297,7 @@ class VMService:
                 pass
         return None
 
-    def find_domains_by_uuids(self, active_uris: list[str], vm_uuids: list[str]) -> dict[str, libvirt.virDomain]:
+    def find_domains_by_uuids(self, active_uris: list[str], vm_uuids: list[str], check_validity: bool = True) -> dict[str, libvirt.virDomain]:
         """Finds and returns a dictionary of domain objects from a list of UUIDs."""
         self._update_target_uris(active_uris)
 
@@ -1327,11 +1327,14 @@ class VMService:
 
             valid = False
             if domain:
-                try:
-                    domain.info() # Check if domain is still valid
+                if check_validity:
+                    try:
+                        domain.info() # Check if domain is still valid
+                        valid = True
+                    except libvirt.libvirtError:
+                        valid = False
+                else:
                     valid = True
-                except libvirt.libvirtError:
-                    valid = False
 
             if valid:
                 found_domains[uuid] = domain

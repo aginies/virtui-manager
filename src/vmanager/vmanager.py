@@ -5,6 +5,7 @@ import os
 import sys
 import re
 from threading import RLock
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import argparse
 from collections import deque
@@ -52,6 +53,7 @@ from .modals.vmanager_modals import (
 )
 from .modals.virsh_modals import VirshShellScreen
 from .modals.provisioning_modals import InstallVMModal
+from .modals.host_dashboard_modal import HostDashboardModal
 from .utils import (
     check_novnc_path,
     check_r_viewer,
@@ -59,21 +61,21 @@ from .utils import (
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
     setup_cache_monitoring,
+    setup_logging
 )
-from .libvirt_utils import get_internal_id
 from .vm_queries import (
     get_status,
 )
+from .libvirt_utils import (
+        get_internal_id, get_host_resources,
+        get_total_vm_allocation, get_active_vm_allocation
+        )
 from .vm_service import VMService
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
 
-log_config = load_config()
-log_level_str = log_config.get("LOG_LEVEL", "INFO")
-log_level = getattr(logging, log_level_str, logging.INFO)
-file_handler = logging.FileHandler(get_log_path())
-file_handler.setLevel(log_level)
+setup_logging()
 
 class WorkerManager:
     """A class to manage and track Textual workers."""
@@ -178,6 +180,7 @@ class VMManagerTUI(App):
         Binding(key="down", action="filter_all", description=BindingDescriptions.ALL_VMS, show=False),
         Binding(key="ctrl+v", action="virsh_shell", description=BindingDescriptions.VIRSH_SHELL, show=False ),
         Binding(key="h", action="host_capabilities", description=BindingDescriptions.HOST_CAPABILITIES, show=False),
+        Binding(key="H", action="host_dashboard", description=BindingDescriptions.HOST_DASHBOARD, show=False),
         Binding(key="i", action="install_vm", description=BindingDescriptions.INSTALL_VM, show=True),
         Binding(key="ctrl+l", action="toggle_stats_logging", description=BindingDescriptions.TOGGLE_STATS, show=False),
         Binding(key="ctrl+s", action="show_cache_stats", description=BindingDescriptions.CACHE_STATS, show=False),
@@ -461,7 +464,7 @@ class VMManagerTUI(App):
         # Log libvirt call statistics
         call_stats = self.vm_service.connection_manager.get_stats()
         if call_stats:
-            logging.info("=== Libvirt Call Statistics ===")
+            logging.debug("=== Libvirt Call Statistics ===")
             for uri, methods in sorted(call_stats.items()):
                 server_name = uri
                 for s in self.servers:
@@ -479,7 +482,7 @@ class VMManagerTUI(App):
                 if total_increase > 0:
                     increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
-                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
+                logging.debug(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
                 previous_how_many_more = how_many_more
 
                 # Initialize previous method calls dict for this URI if needed
@@ -493,7 +496,7 @@ class VMManagerTUI(App):
 
                     self.last_method_calls[uri][method] = count
                     how_many_more_count = count - prev_method_count
-                    logging.info(f"  - {method}: {count} calls (+{how_many_more_count})")
+                    logging.debug(f"  - {method}: {count} calls (+{how_many_more_count})")
 
                 self.last_increase[uri] = how_many_more
                 self.last_total_calls[uri] = total_calls
@@ -1035,6 +1038,23 @@ class VMManagerTUI(App):
         """Callback for the virsh shell button."""
         self.action_virsh_shell()
 
+    def action_host_dashboard(self) -> None:
+        """Show Host Resource Dashboard."""
+        def launch_dashboard_modal(uri: str):
+            conn = self.vm_service.connect(uri)
+            if conn:
+                # Find server name
+                server_name = uri
+                for s in self.servers:
+                    if s['uri'] == uri:
+                        server_name = s['name']
+                        break
+                self.push_screen(HostDashboardModal(conn, server_name))
+            else:
+                self.show_error_message(ErrorMessages.COULD_NOT_CONNECT_TO_SERVER.format(uri=uri))
+
+        self._select_server_and_run(launch_dashboard_modal, "Select a server for Dashboard", "View Dashboard")
+
     def action_host_capabilities(self) -> None:
         """Show Host Capabilities."""
         def launch_caps_modal(uri: str):
@@ -1077,6 +1097,41 @@ class VMManagerTUI(App):
             try:
                 # Message are done by events
                 if message.action == VmAction.START:
+                    # Check resources
+                    try:
+                        conn = domain.connect()
+                        host_res = get_host_resources(conn)
+                        current_alloc = get_active_vm_allocation(conn)
+
+                        # domain.info() -> [state, maxMem(KB), memory(KB), nrVirtCpu, cpuTime]
+                        vm_info = domain.info()
+                        vm_mem_mb = vm_info[1] // 1024
+                        vm_vcpus = vm_info[3]
+
+                        host_mem_mb = host_res.get('available_memory', 0)
+                        host_cpus = host_res.get('total_cpus', 0)
+
+                        active_mem_mb = current_alloc.get('active_allocated_memory', 0)
+                        active_vcpus = current_alloc.get('active_allocated_vcpus', 0)
+
+                        overcommit_mem = (active_mem_mb + vm_mem_mb) > host_mem_mb
+                        overcommit_cpu = (active_vcpus + vm_vcpus) > host_cpus
+
+                        if overcommit_mem or overcommit_cpu:
+                            warnings = []
+                            if overcommit_mem:
+                                warnings.append(f"Memory: {active_mem_mb + vm_mem_mb} MB > {host_mem_mb} MB")
+                            if overcommit_cpu:
+                                warnings.append(f"vCPUs: {active_vcpus + vm_vcpus} > {host_cpus}")
+
+                            warning_msg = (
+                                f"Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n"
+                                f"{chr(10).join(warnings)}"
+                            )
+                            self.show_warning_message(warning_msg)
+                    except Exception as e:
+                        logging.error(f"Error checking resources before start: {e}")
+
                     self.vm_service.start_vm(domain)
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)
@@ -1318,7 +1373,7 @@ class VMManagerTUI(App):
                 vms_per_page,
                 uris_to_query,
                 force=force,
-                optimize_for_current_page=current_page,
+                optimize_for_current_page=optimize_for_current_page,
                 on_complete=on_complete,
             ),
             name="list_vms"
@@ -1361,22 +1416,18 @@ class VMManagerTUI(App):
             end_index = start_index + vms_per_page
             paginated_domains = domains_to_display[start_index:end_index]
 
-            # Collect data in worker thread
-            vm_data_list = []
-            page_uuids = set()
-
-            for domain, conn in paginated_domains:
+            # Parallelize fetching of VM info
+            def fetch_vm_data(item):
+                domain, conn = item
                 try:
                     uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
                     uuid, vm_name = self.vm_service.get_vm_identity(domain, conn, known_uri=uri)
-                    page_uuids.add(uuid)
 
-                    # Get info from cache or fetch if not present. This is safe as we are in a worker.
+                    # Get info from cache or fetch if not present
                     info = self.vm_service._get_domain_info(domain)
                     cached_details = self.vm_service.get_cached_vm_details(uuid)
 
-                    # Explicitly get state from cache/service which might be event-updated
-                    # This avoids flickering if domain.info() (fetched by _get_domain_info) lags behind events
+                    # Explicitly get state from cache/service
                     state_tuple = self.vm_service._get_domain_state(domain, internal_id=uuid)
 
                     effective_state = None
@@ -1402,7 +1453,7 @@ class VMManagerTUI(App):
                         cpu = 0
                         memory = 0
 
-                    vm_data = {
+                    return {
                         'uuid': uuid,
                         'name': vm_name,
                         'status': status,
@@ -1413,19 +1464,28 @@ class VMManagerTUI(App):
                         'conn': conn,
                         'uri': uri
                     }
-                    vm_data_list.append(vm_data)
-
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                         logging.warning(f"Skipping display of non-existent VM during refresh.")
-                        continue
+                        return None
                     else:
                         try:
                             name_for_error = vm_name if 'vm_name' in locals() else domain.name()
                         except:
                             name_for_error = "Unknown"
                         self.call_from_thread(self.show_error_message, ErrorMessages.VM_INFO_ERROR.format(vm_name=name_for_error, error=e))
-                        continue
+                        return None
+
+            vm_data_list = []
+            page_uuids = set()
+
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                results = list(executor.map(fetch_vm_data, paginated_domains))
+
+            for result in results:
+                if result:
+                    vm_data_list.append(result)
+                    page_uuids.add(result['uuid'])
 
             # Cleanup cache: remove cards for VMs that no longer exist at all
             all_uuids_from_libvirt = set(all_active_uuids)
@@ -1691,7 +1751,7 @@ class VMManagerTUI(App):
 
             # Use the service to find specific domains by their internal ID (UUID@URI)
             # This correctly handles cases where identical UUIDs exist on different servers
-            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, uuids)
+            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, uuids, check_validity=False)
 
             all_names = set()
             for domain in found_domains_map.values():
