@@ -554,30 +554,27 @@ def setup_logging():
 
     # Ensure directory exists
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    root_logger = logging.getLogger()
 
-    # Check if root logger already has handlers to avoid duplicates
-    if not logging.getLogger().handlers:
-        logging.basicConfig(
-            filename=str(log_path),
-            level=log_level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        )
+    for handler in root_logger.handlers[:]:
+        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+            root_logger.removeHandler(handler)
+
+    # Check if we already added a FileHandler to this path
+    has_file_handler = False
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(log_path.absolute()):
+            has_file_handler = True
+            break
+
+    if not has_file_handler:
+        file_handler = logging.FileHandler(log_path)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        root_logger.addHandler(file_handler)
+    
+    root_logger.setLevel(log_level)
+
+    if not has_file_handler:
         logging.info("--- Logging initialized ---")
-    else:
-        root_logger = logging.getLogger()
-        root_logger.setLevel(log_level)
-
-        # Check if we already added a FileHandler to this path
-        has_file_handler = False
-        for handler in root_logger.handlers:
-            if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(log_path.absolute()):
-                has_file_handler = True
-                break
-
-        if not has_file_handler:
-            file_handler = logging.FileHandler(log_path)
-            file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-            root_logger.addHandler(file_handler)
-            logging.info("--- Logging initialized (added handler) ---")
 
     setup_cache_monitoring(enable=False)
