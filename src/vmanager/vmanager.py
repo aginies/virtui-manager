@@ -283,7 +283,7 @@ class VMManagerTUI(App):
             target = self.show_warning_message
         elif level == "progress":
             target = self.show_in_progress_message
-        
+
         try:
             self.call_from_thread(target, message)
         except RuntimeError:
@@ -317,12 +317,12 @@ class VMManagerTUI(App):
                 description="Refreshing host stats"
             )
         except RuntimeError:
-           self.post_message(VmCardUpdateRequest(internal_id))
-           self.worker_manager.run(
+            self.post_message(VmCardUpdateRequest(internal_id))
+            self.worker_manager.run(
                 self.host_stats.refresh_stats,
                 name="host_stats_refresh",
                 description="Refreshing host stats"
-           )
+            )
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
@@ -564,7 +564,7 @@ class VMManagerTUI(App):
                         self.call_from_thread(self.show_error_message, ErrorMessages.SERVER_CONNECTION_ERROR.format(server_name=server_name, error_msg=error_msg))
 
                         if self.vm_service.connection_manager.is_max_retries_reached(uri):
-                             self.call_from_thread(self.remove_active_uri, uri)
+                            self.call_from_thread(self.remove_active_uri, uri)
 
             # Pre-cache info and XML only for the first page of VMs
             # Full info will be loaded on-demand when cards are displayed
@@ -595,7 +595,7 @@ class VMManagerTUI(App):
 
         except Exception as e:
             self.call_from_thread(
-                self.show_error_message, 
+                self.show_error_message,
                 ErrorMessages.ERROR_DURING_INITIAL_CACHE_LOADING.format(error=e)
             )
 
@@ -646,7 +646,7 @@ class VMManagerTUI(App):
         vms_container.styles.grid_size_columns = cols
 
         old_vms_per_page = self.VMS_PER_PAGE
-        
+
         self.VMS_PER_PAGE = cols * rows
         if self.compact_view:
             self.VMS_PER_PAGE = cols * rows + cols
@@ -1333,7 +1333,7 @@ class VMManagerTUI(App):
             )
 
             summary = f"Bulk action '{action_type}' complete. Successful: {len(successful_vms)}, Failed: {len(failed_vms)}"
-            logging.info(summary) 
+            logging.info(summary)
 
             if successful_vms:
                 self.call_from_thread(self.show_success_message, SuccessMessages.BULK_ACTION_SUCCESS_TEMPLATE.format(action_type=action_type, count=len(successful_vms)))
@@ -1845,7 +1845,7 @@ class VMManagerTUI(App):
                     else:
                         cpu = 0
                         memory = 0
-                
+
                 logging.debug(f"Updating card {vm_internal_id} with status {status}")
                 # Update card on main thread
                 def update_ui():
