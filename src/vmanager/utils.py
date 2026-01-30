@@ -464,7 +464,7 @@ def generate_tooltip_markdown(
 ) -> str:
     """Generate tooltip markdown (pure function, cacheable)."""
     mem_display = format_memory_display(memory)
-    cpu_display = f"{cpu} ({cpu_model})" if cpu_model else str(cpu)
+    cpu_display = f"{cpu} {cpu_model}" if cpu_model else str(cpu)
 
     return (
         f"`{uuid}`  \n"

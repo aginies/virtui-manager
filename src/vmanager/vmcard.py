@@ -388,7 +388,7 @@ class VMCard(Static):
             if ips:
                 ip_display = ", ".join(ips)
 
-        cpu_model_display = f" ({self.cpu_model})" if self.cpu_model else ""
+        cpu_model_display = f" {self.cpu_model}" if self.cpu_model else ""
 
         tooltip_md = generate_tooltip_markdown(
             uuid=uuid_display,
