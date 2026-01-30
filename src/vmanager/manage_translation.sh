@@ -10,7 +10,7 @@ LOCALES_DIR="locales"
 DOMAIN="virtui-manager"
 POT_FILE="$LOCALES_DIR/$DOMAIN.pot"
 PACKAGE_NAME="VirtUI Manager"
-PACKAGE_VERSION="1.2.0"
+PACKAGE_VERSION="1.3.0"
 
 function extract_version() {
     # Try to grep version from constants.py
