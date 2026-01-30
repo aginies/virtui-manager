@@ -1855,10 +1855,12 @@ class VMCard(Static):
                             app.call_from_thread(lambda: progress_modal.query_one("#progress-bar").advance(1))
 
                     if success_clones:
-                        app.call_from_thread(app.show_success_message, SuccessMessages.VM_CLONED.format(vm_names=', '.join(success_clones)))
+                        msg = SuccessMessages.VM_CLONED.format(vm_names=', '.join(success_clones))
+                        app.call_from_thread(app.show_success_message, msg)
                         log_callback(msg)
                     if failed_clones:
-                        app.call_from_thread(app.show_error_message, ErrorMessages.VM_CLONE_FAILED_TEMPLATE.format(vm_names=', '.join(failed_clones)))
+                        msg = ErrorMessages.VM_CLONE_FAILED_TEMPLATE.format(vm_names=', '.join(failed_clones))
+                        app.call_from_thread(app.show_error_message, msg)
                         log_callback(f"ERROR: {msg}")
 
                     if success_clones:
