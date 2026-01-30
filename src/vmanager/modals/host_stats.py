@@ -34,7 +34,6 @@ class SingleHostStat(Static):
     }
     .stat-label {
         color: $text;
-        text-style: bold;
     }
     """
 
@@ -51,6 +50,7 @@ class SingleHostStat(Static):
 
     def compose(self) -> ComposeResult:
         self.server_label.styles.color = self.server_color
+        self.server_label.styles.text_style = "bold"
         self.server_label.update(f"{self.server_name} ")
         yield self.server_label
         yield self.cpu_label
