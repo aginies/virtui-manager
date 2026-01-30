@@ -4,6 +4,7 @@ Main interface
 import os
 import sys
 import re
+import threading
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor
 import logging
@@ -68,12 +69,13 @@ from .vm_queries import (
 )
 from .libvirt_utils import (
         get_internal_id, get_host_resources,
-        get_total_vm_allocation, get_active_vm_allocation
+        get_active_vm_allocation
         )
 from .vm_service import VMService
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
+from .modals.host_stats import HostStats
 
 setup_logging()
 
@@ -251,6 +253,7 @@ class VMManagerTUI(App):
         self.last_increase = {}  # Dict {uri: last_how_many_more}
         self.last_method_increase = {}  # Dict {(uri, method): last_increase}
         self.r_viewer = None
+        self.host_stats = HostStats(self.vm_service, self.get_server_color)
 
     def on_unmount(self) -> None:
         """Called when the application is unmounted."""
@@ -307,8 +310,19 @@ class VMManagerTUI(App):
         """Callback from VMService for specific VM updates."""
         try:
             self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
+            self.call_from_thread(
+                self.worker_manager.run,
+                self.host_stats.refresh_stats,
+                name="host_stats_refresh",
+                description="Refreshing host stats"
+            )
         except RuntimeError:
-            self.post_message(VmCardUpdateRequest(internal_id))
+           self.post_message(VmCardUpdateRequest(internal_id))
+           self.worker_manager.run(
+                self.host_stats.refresh_stats,
+                name="host_stats_refresh",
+                description="Refreshing host stats"
+           )
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
@@ -341,7 +355,6 @@ class VMManagerTUI(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         self.ui["vms_container"] = Vertical(id="vms-container")
-        self.ui["error_footer"] = Static(id="error-footer", classes="error-message")
         self.ui["page_info"] = Label("", id="page-info", classes="")
         self.ui["prev_button"] = Button(
                 ButtonLabels.PREVIOUS_PAGE, id="prev-button", variant="primary", classes="ctrlpage"
@@ -381,8 +394,8 @@ class VMManagerTUI(App):
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
         yield self.ui["pagination_controls"]
+        yield self.host_stats
         yield self.ui["vms_container"]
-        yield self.ui["error_footer"]
         yield Footer()
         self.show_success_message(SuccessMessages.TERMINAL_COPY_HINT)
 
@@ -1391,6 +1404,12 @@ class VMManagerTUI(App):
             ):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
+            # Update Host Stats
+            if threading.current_thread() is threading.main_thread():
+                self.host_stats.update_hosts(uris_to_query, self.servers)
+            else:
+                self.call_from_thread(self.host_stats.update_hosts, uris_to_query, self.servers)
+
             start_index = current_page * vms_per_page
             end_index = start_index + vms_per_page
             page_start = start_index if optimize_for_current_page else None
