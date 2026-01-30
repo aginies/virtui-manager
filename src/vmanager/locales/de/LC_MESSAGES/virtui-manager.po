@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 1.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-01-30 10:19+0100\n"
+"POT-Creation-Date: 2026-01-30 17:18+0100\n"
 "PO-Revision-Date: 2026-01-29 17:39+0100\n"
 "Last-Translator: aginies <aginies@suse.com>\n"
 "Language-Team: German <translation-team-de@lists.sourceforge.net>\n"
@@ -337,13 +337,13 @@ msgstr ""
 msgid "Config"
 msgstr ""
 
-#: constants.py:147 constants.py:191
-msgid "Previous Page"
-msgstr ""
+#: constants.py:147
+msgid "\\[Previous Page]"
+msgstr "\\[Vorherige Seite]"
 
-#: constants.py:148 constants.py:192
-msgid "Next Page"
-msgstr ""
+#: constants.py:148
+msgid "\\[Next Page]"
+msgstr "\\[Nächste Seite]"
 
 #: constants.py:149
 msgid "Yes"
@@ -484,6 +484,14 @@ msgstr "Alle wählen/abwählen"
 #: constants.py:190
 msgid "Unselect All"
 msgstr "Alle abwählen"
+
+#: constants.py:191
+msgid "Previous Page"
+msgstr "Vorherige Seite"
+
+#: constants.py:192
+msgid "Next Page"
+msgstr "Nächste Seite"
 
 #: constants.py:193
 msgid "Running VMs"
