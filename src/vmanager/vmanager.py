@@ -1745,7 +1745,7 @@ class VMManagerTUI(App):
 
             # Use the service to find specific domains by their internal ID (UUID@URI)
             # This correctly handles cases where identical UUIDs exist on different servers
-            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, uuids)
+            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, uuids, check_validity=False)
 
             all_names = set()
             for domain in found_domains_map.values():
