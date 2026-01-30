@@ -1972,7 +1972,7 @@ class VMCard(Static):
 
                         vm_info, domain, conn_for_domain = result
 
-                        def on_detail_modal_dismissed():
+                        def on_detail_modal_dismissed(_=None):
                             self.post_message(VmCardUpdateRequest(self.internal_id))
                             self._perform_tooltip_update()
 
