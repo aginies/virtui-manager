@@ -6,6 +6,7 @@ import threading
 from textual.app import ComposeResult
 from textual.widgets import Static, Label
 from textual.reactive import reactive
+from textual.events import Click, Message
 
 from ..libvirt_utils import get_host_resources, get_active_vm_allocation
 from ..utils import extract_server_name_from_uri
@@ -15,6 +16,13 @@ class SingleHostStat(Static):
     Displays stats for a single host.
     """
     server_name = reactive("")
+
+    class ServerLabelClicked(Message):
+        """Posted when the server label is clicked."""
+        def __init__(self, server_uri: str, server_name: str) -> None:
+            super().__init__()
+            self.server_uri = server_uri
+            self.server_name = server_name
 
     DEFAULT_CSS = """
     SingleHostStat {
@@ -36,7 +44,7 @@ class SingleHostStat(Static):
         self.server_name = name
         self.vm_service = vm_service
         self.server_color = server_color
-        self.server_label = Label("")
+        self.server_label = Label("", id=f"single_host_stat_label_{self.server_name.replace(' ', '_').replace('.', '_')}")
         self.cpu_label = Label("", classes="stat-label")
         self.mem_label = Label("", classes="stat-label")
         self.host_res = None
@@ -46,7 +54,13 @@ class SingleHostStat(Static):
         self.server_label.update(f"{self.server_name} ")
         yield self.server_label
         yield self.cpu_label
+        yield Label(" ")
         yield self.mem_label
+
+    def on_click(self, event: Click) -> None:
+        """Called when the user clicks on a widget."""
+        if event.control.id == self.server_label.id:
+            self.post_message(self.ServerLabelClicked(self.uri, self.server_name))
 
     def update_stats(self):
         """Fetches and updates stats for this host."""

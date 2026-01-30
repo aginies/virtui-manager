@@ -75,7 +75,7 @@ from .vm_service import VMService
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
-from .modals.host_stats import HostStats
+from .modals.host_stats import HostStats, SingleHostStat
 
 setup_logging()
 
@@ -1863,6 +1863,27 @@ class VMManagerTUI(App):
 
         self.worker_manager.run(
             update_single_card, name=f"update_card_{vm_internal_id}"
+        )
+
+    @on(SingleHostStat.ServerLabelClicked)
+    def on_single_host_stat_server_label_clicked(self, message: SingleHostStat.ServerLabelClicked) -> None:
+        """Called when a server label is clicked in the host stats."""
+        available_servers = []
+        for uri in self.active_uris:
+            name = uri
+            for s in self.servers:
+                if s['uri'] == uri:
+                    name = s['name']
+                    break
+            available_servers.append({'name': name, 'uri': uri, 'color': self.get_server_color(uri)})
+
+        self.push_screen(
+            FilterModal(
+                current_search=self.search_text,
+                current_status=self.sort_by,
+                available_servers=available_servers,
+                selected_servers=[message.server_uri] # Pre-select the clicked server
+            )
         )
 
 
