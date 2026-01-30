@@ -205,6 +205,42 @@ def get_total_vm_allocation(conn: libvirt.virConnect, progress_callback=None) ->
         logging.error(f"Error calculating VM allocation: {e}")
         return {}
 
+def get_active_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> dict:
+    """
+    Calculates resource allocation for only active (running/paused) VMs.
+    More efficient than get_total_vm_allocation for large numbers of inactive VMs.
+    """
+    active_memory = 0
+    active_vcpus = 0
+
+    try:
+        # Only list active domains
+        domains = conn.listAllDomains(libvirt.VIR_CONNECT_LIST_DOMAINS_ACTIVE)
+        total_vms = len(domains)
+
+        for i, domain in enumerate(domains):
+            if progress_callback:
+                progress_callback(i + 1, total_vms)
+
+            try:
+                info = domain.info()
+                max_mem = info[1]  # KB
+                n_cpus = info[3]
+
+                active_memory += max_mem
+                active_vcpus += n_cpus
+
+            except libvirt.libvirtError:
+                continue
+
+        return {
+            'active_allocated_memory': active_memory // 1024,  # Convert to MB
+            'active_allocated_vcpus': active_vcpus,
+        }
+    except libvirt.libvirtError as e:
+        logging.error(f"Error calculating active VM allocation: {e}")
+        return {}
+
 def get_host_architecture(conn: libvirt.virConnect) -> str:
     """
     Returns the host architecture (e.g., 'x86_64', 'aarch64').

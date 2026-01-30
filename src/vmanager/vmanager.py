@@ -62,10 +62,13 @@ from .utils import (
     setup_cache_monitoring,
     setup_logging
 )
-from .libvirt_utils import get_internal_id
 from .vm_queries import (
     get_status,
 )
+from .libvirt_utils import (
+        get_internal_id, get_host_resources,
+        get_total_vm_allocation, get_active_vm_allocation
+        )
 from .vm_service import VMService
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
@@ -1093,6 +1096,41 @@ class VMManagerTUI(App):
             try:
                 # Message are done by events
                 if message.action == VmAction.START:
+                    # Check resources
+                    try:
+                        conn = domain.connect()
+                        host_res = get_host_resources(conn)
+                        current_alloc = get_active_vm_allocation(conn)
+
+                        # domain.info() -> [state, maxMem(KB), memory(KB), nrVirtCpu, cpuTime]
+                        vm_info = domain.info()
+                        vm_mem_mb = vm_info[1] // 1024
+                        vm_vcpus = vm_info[3]
+
+                        host_mem_mb = host_res.get('available_memory', 0)
+                        host_cpus = host_res.get('total_cpus', 0)
+
+                        active_mem_mb = current_alloc.get('active_allocated_memory', 0)
+                        active_vcpus = current_alloc.get('active_allocated_vcpus', 0)
+
+                        overcommit_mem = (active_mem_mb + vm_mem_mb) > host_mem_mb
+                        overcommit_cpu = (active_vcpus + vm_vcpus) > host_cpus
+
+                        if overcommit_mem or overcommit_cpu:
+                            warnings = []
+                            if overcommit_mem:
+                                warnings.append(f"Memory: {active_mem_mb + vm_mem_mb} MB > {host_mem_mb} MB")
+                            if overcommit_cpu:
+                                warnings.append(f"vCPUs: {active_vcpus + vm_vcpus} > {host_cpus}")
+
+                            warning_msg = (
+                                f"Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n"
+                                f"{chr(10).join(warnings)}"
+                            )
+                            self.show_warning_message(warning_msg)
+                    except Exception as e:
+                        logging.error(f"Error checking resources before start: {e}")
+
                     self.vm_service.start_vm(domain)
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)

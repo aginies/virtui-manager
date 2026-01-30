@@ -10,7 +10,7 @@ from textual import on, work
 
 from .base_modals import BaseModal
 from ..constants import StaticText, ButtonLabels
-from ..vm_queries import get_host_resources, get_total_vm_allocation
+from ..libvirt_utils import get_host_resources, get_total_vm_allocation
 from ..constants import TabTitles
 
 class HostDashboardModal(BaseModal[None]):
