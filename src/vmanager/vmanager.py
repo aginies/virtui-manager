@@ -5,6 +5,7 @@ import os
 import sys
 import re
 from threading import RLock
+from concurrent.futures import ThreadPoolExecutor
 import logging
 import argparse
 from collections import deque
@@ -1372,7 +1373,7 @@ class VMManagerTUI(App):
                 vms_per_page,
                 uris_to_query,
                 force=force,
-                optimize_for_current_page=current_page,
+                optimize_for_current_page=optimize_for_current_page,
                 on_complete=on_complete,
             ),
             name="list_vms"
@@ -1415,22 +1416,18 @@ class VMManagerTUI(App):
             end_index = start_index + vms_per_page
             paginated_domains = domains_to_display[start_index:end_index]
 
-            # Collect data in worker thread
-            vm_data_list = []
-            page_uuids = set()
-
-            for domain, conn in paginated_domains:
+            # Parallelize fetching of VM info
+            def fetch_vm_data(item):
+                domain, conn = item
                 try:
                     uri = self.vm_service.get_uri_for_connection(conn) or conn.getURI()
                     uuid, vm_name = self.vm_service.get_vm_identity(domain, conn, known_uri=uri)
-                    page_uuids.add(uuid)
 
-                    # Get info from cache or fetch if not present. This is safe as we are in a worker.
+                    # Get info from cache or fetch if not present
                     info = self.vm_service._get_domain_info(domain)
                     cached_details = self.vm_service.get_cached_vm_details(uuid)
 
-                    # Explicitly get state from cache/service which might be event-updated
-                    # This avoids flickering if domain.info() (fetched by _get_domain_info) lags behind events
+                    # Explicitly get state from cache/service
                     state_tuple = self.vm_service._get_domain_state(domain, internal_id=uuid)
 
                     effective_state = None
@@ -1456,7 +1453,7 @@ class VMManagerTUI(App):
                         cpu = 0
                         memory = 0
 
-                    vm_data = {
+                    return {
                         'uuid': uuid,
                         'name': vm_name,
                         'status': status,
@@ -1467,19 +1464,28 @@ class VMManagerTUI(App):
                         'conn': conn,
                         'uri': uri
                     }
-                    vm_data_list.append(vm_data)
-
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                         logging.warning(f"Skipping display of non-existent VM during refresh.")
-                        continue
+                        return None
                     else:
                         try:
                             name_for_error = vm_name if 'vm_name' in locals() else domain.name()
                         except:
                             name_for_error = "Unknown"
                         self.call_from_thread(self.show_error_message, ErrorMessages.VM_INFO_ERROR.format(vm_name=name_for_error, error=e))
-                        continue
+                        return None
+
+            vm_data_list = []
+            page_uuids = set()
+
+            with ThreadPoolExecutor(max_workers=20) as executor:
+                results = list(executor.map(fetch_vm_data, paginated_domains))
+
+            for result in results:
+                if result:
+                    vm_data_list.append(result)
+                    page_uuids.add(result['uuid'])
 
             # Cleanup cache: remove cards for VMs that no longer exist at all
             all_uuids_from_libvirt = set(all_active_uuids)
