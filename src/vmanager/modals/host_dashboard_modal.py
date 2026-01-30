@@ -46,7 +46,7 @@ class HostDashboardModal(BaseModal[None]):
                 
                 with Horizontal(classes="usage-row"):
                     yield Label(f"{used_mem/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_pct:.1f}%)")
-                    yield ProgressBar(total=100, show_percentage=False, id="mem-bar")
+                    yield ProgressBar(total=100, show_percentage=False, show_eta=False, id="mem-bar")
             
             with Vertical(classes="info-section-dashboard"):
                 yield Label(StaticText.VM_ALLOCATION, classes="section-title-dashboard")
@@ -56,19 +56,19 @@ class HostDashboardModal(BaseModal[None]):
                     with TabPane(TabTitles.ACTIVE_ALLOCATION, id="tab-active"):
                         # Active CPU Allocation
                         yield Label(f"{StaticText.ALLOCATED_VCPUS} (Active):", id="cpu-alloc-label-active")
-                        yield ProgressBar(total=100, show_percentage=False, id="cpu-alloc-bar-active")
+                        yield ProgressBar(total=100, show_percentage=False, show_eta=False, id="cpu-alloc-bar-active")
                         yield Rule()
                         # Active Memory Allocation
                         yield Label(f"{StaticText.ALLOCATED_MEMORY} (Active):", id="mem-alloc-label-active")
-                        yield ProgressBar(total=100, show_percentage=False, id="mem-alloc-bar-active")
+                        yield ProgressBar(total=100, show_percentage=False, show_eta=False, id="mem-alloc-bar-active")
                     with TabPane(TabTitles.TOTAL_ALLOCATION, id="tab-total"):
                         # Total CPU Allocation
                         yield Label(f"{StaticText.ALLOCATED_VCPUS} (Total):", id="cpu-alloc-label-total")
-                        yield ProgressBar(total=100, show_percentage=False, id="cpu-alloc-bar-total")
+                        yield ProgressBar(total=100, show_percentage=False, show_eta=False, id="cpu-alloc-bar-total")
                         yield Rule()
                         # Total Memory Allocation
                         yield Label(f"{StaticText.ALLOCATED_MEMORY} (Total):", id="mem-alloc-label-total")
-                        yield ProgressBar(total=100, show_percentage=False, id="mem-alloc-bar-total")
+                        yield ProgressBar(total=100, show_percentage=False, show_eta=False, id="mem-alloc-bar-total")
 
             with Horizontal(classes="dialog-buttons"):
                 yield Button(ButtonLabels.CLOSE, id="close-btn", variant="primary")
@@ -124,13 +124,11 @@ class HostDashboardModal(BaseModal[None]):
         # Active Allocation
         alloc_cpus_active = self.vm_allocation.get('active_allocated_vcpus', 0)
         cpu_alloc_pct_active = (alloc_cpus_active / total_host_cpus * 100)
-        
         self.query_one("#cpu-alloc-bar-active", ProgressBar).update(progress=cpu_alloc_pct_active)
         self.query_one("#cpu-alloc-label-active", Label).update(f"{StaticText.ALLOCATED_VCPUS} (Active): {alloc_cpus_active} / {total_host_cpus} ({cpu_alloc_pct_active:.1f}%)")
-        
+
         alloc_mem_active = self.vm_allocation.get('active_allocated_memory', 0)
         mem_alloc_pct_active = (alloc_mem_active / total_mem * 100) if total_mem > 0 else 0
-        
         self.query_one("#mem-alloc-bar-active", ProgressBar).update(progress=mem_alloc_pct_active)
         self.query_one("#mem-alloc-label-active", Label).update(f"{StaticText.ALLOCATED_MEMORY} (Active): {alloc_mem_active/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_alloc_pct_active:.1f}%)")
 
