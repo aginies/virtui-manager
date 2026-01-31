@@ -7,6 +7,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Label
 from textual.reactive import reactive
 from textual.events import Click, Message
+from textual.worker import get_current_worker
 
 from ..libvirt_utils import get_host_resources, get_active_vm_allocation
 from ..utils import extract_server_name_from_uri
@@ -66,6 +67,13 @@ class SingleHostStat(Static):
         """Fetches and updates stats for this host."""
         def _fetch_and_update():
             try:
+                # Check cancellation before potentially expensive op
+                try:
+                    if get_current_worker().is_cancelled:
+                        return
+                except Exception:
+                    pass
+
                 conn = self.vm_service.connect(self.uri)
                 if not conn:
                     if threading.current_thread() is threading.main_thread():
@@ -80,6 +88,13 @@ class SingleHostStat(Static):
                     self.host_res = get_host_resources(conn)
 
                 current_alloc = get_active_vm_allocation(conn)
+                
+                # Check cancellation again after expensive op
+                try:
+                    if get_current_worker().is_cancelled:
+                        return
+                except Exception:
+                    pass
 
                 total_cpus = self.host_res.get('total_cpus', 1)
                 total_mem = self.host_res.get('available_memory', 1) # MB
