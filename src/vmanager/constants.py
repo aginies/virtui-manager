@@ -407,6 +407,7 @@ class StaticText:
     TOPOLOGY = _("Topology:")
     WAITING_TO_START_COLLECTION = _("Waiting to start collection...")
     COLLECTING_VM_INFO = _("Collecting VM info: {current}/{total}")
+    EDIT_VIRTIOFS_MOUNT = _("Edit VirtIO-FS")
 
 class SparklineLabels:
     """Constants for sparkline labels"""

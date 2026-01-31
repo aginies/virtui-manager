@@ -310,6 +310,7 @@ class VMManagerTUI(App):
         """Callback from VMService for specific VM updates."""
         try:
             self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
+            self.call_from_thread(self.worker_manager.cancel, "host_stats_refresh")
             self.call_from_thread(
                 self.worker_manager.run,
                 self.host_stats.refresh_stats,
@@ -318,6 +319,7 @@ class VMManagerTUI(App):
             )
         except RuntimeError:
             self.post_message(VmCardUpdateRequest(internal_id))
+            self.worker_manager.cancel("host_stats_refresh")
             self.worker_manager.run(
                 self.host_stats.refresh_stats,
                 name="host_stats_refresh",
