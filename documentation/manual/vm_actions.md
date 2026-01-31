@@ -38,6 +38,10 @@ This tab contains the most common power management and connectivity controls.
     *   **Show Console:** appears when a session is active; clicking it opens the browser or reconnects.
     *   **Status Indicator:** Shows "(WebC On)" next to the VM status when a web console session is active.
 
+*   **Text Console:**
+    *   Opens a direct serial console (`virsh console`) to the VM in a new **tmux** window.
+    *   *Visible only when VirtUI Manager is running inside a tmux session.*
+
 *   **Connect:**
     *   Launches the configured desktop remote viewer (e.g., `virt-viewer`) for a high-performance native connection to the VM's display (SPICE/VNC).
 
