@@ -1454,10 +1454,21 @@ class VMCard(Static):
 
             # Construct command
             # tmux new-window -n "Console: <vm_name>" "virsh -c <uri> console <vm_name>; read"
+            help_msg = (
+                "echo '---------------------------------------------------------'; "
+                "echo 'Tmux Navigation Help:'; "
+                "echo ' Ctrl+B N or P - Move to the next or previous window.'; "
+                "echo ' Ctrl+B W      - Open a panel to navigate across windows in multiple sessions.'; "
+                "echo ' Ctrl+]        - Close the current view.'; "
+                "echo ''"
+                "echo ' Ctrl+B ?      - View all keybindings. Press Q to exit.';"
+                "echo '---------------------------------------------------------'; "
+                "echo 'Starting console...'; sleep 1;"
+            )
             cmd = [
                 "tmux", "new-window",
                 "-n", f"{domain_name}",
-                f"virsh -c {uri} console {domain_name}; echo '\nConsole session ended. Press Enter to close window.'; read"
+                f"{help_msg} virsh -c {uri} console {domain_name}; echo '\nConsole session ended. Press Enter to close window.'; read"
             ]
 
             logging.info(f"Launching tmux console: {' '.join(cmd)}")
