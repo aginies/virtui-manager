@@ -4,6 +4,7 @@ Main interface
 import os
 import sys
 import re
+import threading
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor
 import logging
@@ -68,12 +69,13 @@ from .vm_queries import (
 )
 from .libvirt_utils import (
         get_internal_id, get_host_resources,
-        get_total_vm_allocation, get_active_vm_allocation
+        get_active_vm_allocation
         )
 from .vm_service import VMService
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
+from .modals.host_stats import HostStats, SingleHostStat
 
 setup_logging()
 
@@ -251,6 +253,7 @@ class VMManagerTUI(App):
         self.last_increase = {}  # Dict {uri: last_how_many_more}
         self.last_method_increase = {}  # Dict {(uri, method): last_increase}
         self.r_viewer = None
+        self.host_stats = HostStats(self.vm_service, self.get_server_color)
 
     def on_unmount(self) -> None:
         """Called when the application is unmounted."""
@@ -280,7 +283,7 @@ class VMManagerTUI(App):
             target = self.show_warning_message
         elif level == "progress":
             target = self.show_in_progress_message
-        
+
         try:
             self.call_from_thread(target, message)
         except RuntimeError:
@@ -307,8 +310,19 @@ class VMManagerTUI(App):
         """Callback from VMService for specific VM updates."""
         try:
             self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
+            self.call_from_thread(
+                self.worker_manager.run,
+                self.host_stats.refresh_stats,
+                name="host_stats_refresh",
+                description="Refreshing host stats"
+            )
         except RuntimeError:
             self.post_message(VmCardUpdateRequest(internal_id))
+            self.worker_manager.run(
+                self.host_stats.refresh_stats,
+                name="host_stats_refresh",
+                description="Refreshing host stats"
+            )
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
@@ -341,7 +355,6 @@ class VMManagerTUI(App):
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
         self.ui["vms_container"] = Vertical(id="vms-container")
-        self.ui["error_footer"] = Static(id="error-footer", classes="error-message")
         self.ui["page_info"] = Label("", id="page-info", classes="")
         self.ui["prev_button"] = Button(
                 ButtonLabels.PREVIOUS_PAGE, id="prev-button", variant="primary", classes="ctrlpage"
@@ -381,8 +394,8 @@ class VMManagerTUI(App):
             yield Link("About", url="https://aginies.github.io/virtui-manager/")
 
         yield self.ui["pagination_controls"]
+        yield self.host_stats
         yield self.ui["vms_container"]
-        yield self.ui["error_footer"]
         yield Footer()
         self.show_success_message(SuccessMessages.TERMINAL_COPY_HINT)
 
@@ -551,7 +564,7 @@ class VMManagerTUI(App):
                         self.call_from_thread(self.show_error_message, ErrorMessages.SERVER_CONNECTION_ERROR.format(server_name=server_name, error_msg=error_msg))
 
                         if self.vm_service.connection_manager.is_max_retries_reached(uri):
-                             self.call_from_thread(self.remove_active_uri, uri)
+                            self.call_from_thread(self.remove_active_uri, uri)
 
             # Pre-cache info and XML only for the first page of VMs
             # Full info will be loaded on-demand when cards are displayed
@@ -582,7 +595,7 @@ class VMManagerTUI(App):
 
         except Exception as e:
             self.call_from_thread(
-                self.show_error_message, 
+                self.show_error_message,
                 ErrorMessages.ERROR_DURING_INITIAL_CACHE_LOADING.format(error=e)
             )
 
@@ -633,7 +646,7 @@ class VMManagerTUI(App):
         vms_container.styles.grid_size_columns = cols
 
         old_vms_per_page = self.VMS_PER_PAGE
-        
+
         self.VMS_PER_PAGE = cols * rows
         if self.compact_view:
             self.VMS_PER_PAGE = cols * rows + cols
@@ -1320,7 +1333,7 @@ class VMManagerTUI(App):
             )
 
             summary = f"Bulk action '{action_type}' complete. Successful: {len(successful_vms)}, Failed: {len(failed_vms)}"
-            logging.info(summary) 
+            logging.info(summary)
 
             if successful_vms:
                 self.call_from_thread(self.show_success_message, SuccessMessages.BULK_ACTION_SUCCESS_TEMPLATE.format(action_type=action_type, count=len(successful_vms)))
@@ -1391,6 +1404,12 @@ class VMManagerTUI(App):
             ):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
         try:
+            # Update Host Stats
+            if threading.current_thread() is threading.main_thread():
+                self.host_stats.update_hosts(uris_to_query, self.servers)
+            else:
+                self.call_from_thread(self.host_stats.update_hosts, uris_to_query, self.servers)
+
             start_index = current_page * vms_per_page
             end_index = start_index + vms_per_page
             page_start = start_index if optimize_for_current_page else None
@@ -1826,7 +1845,7 @@ class VMManagerTUI(App):
                     else:
                         cpu = 0
                         memory = 0
-                
+
                 logging.debug(f"Updating card {vm_internal_id} with status {status}")
                 # Update card on main thread
                 def update_ui():
@@ -1844,6 +1863,27 @@ class VMManagerTUI(App):
 
         self.worker_manager.run(
             update_single_card, name=f"update_card_{vm_internal_id}"
+        )
+
+    @on(SingleHostStat.ServerLabelClicked)
+    def on_single_host_stat_server_label_clicked(self, message: SingleHostStat.ServerLabelClicked) -> None:
+        """Called when a server label is clicked in the host stats."""
+        available_servers = []
+        for uri in self.active_uris:
+            name = uri
+            for s in self.servers:
+                if s['uri'] == uri:
+                    name = s['name']
+                    break
+            available_servers.append({'name': name, 'uri': uri, 'color': self.get_server_color(uri)})
+
+        self.push_screen(
+            FilterModal(
+                current_search=self.search_text,
+                current_status=self.sort_by,
+                available_servers=available_servers,
+                selected_servers=[message.server_uri] # Pre-select the clicked server
+            )
         )
 
 

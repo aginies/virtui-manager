@@ -184,9 +184,9 @@ class VMCard(Static):
     def _get_snapshot_tab_title(self, num_snapshots: int = -1) -> str:
         """Get snapshot tab title. Pass num_snapshots to avoid blocking libvirt call."""
         if num_snapshots == -1:
-             # If no count provided, don't fetch it here to avoid blocking.
-             # For now, return default if we can't get it cheaply.
-             return TabTitles.SNAP_OVER_UPDATE # TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+            # If no count provided, don't fetch it here to avoid blocking.
+            # For now, return default if we can't get it cheaply.
+            return TabTitles.SNAP_OVER_UPDATE # TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
 
         if self.vm:
             try:
@@ -342,7 +342,7 @@ class VMCard(Static):
         """Updates the tooltip for the VM name using Markdown."""
         if not self.display or not self.ui or "vmname" not in self.ui:
             return
-        
+
         uuid = self.internal_id
         if not uuid:
             return
@@ -388,7 +388,7 @@ class VMCard(Static):
             if ips:
                 ip_display = ", ".join(ips)
 
-        cpu_model_display = f" ({self.cpu_model})" if self.cpu_model else ""
+        cpu_model_display = f" {self.cpu_model}" if self.cpu_model else ""
 
         tooltip_md = generate_tooltip_markdown(
             uuid=uuid_display,
@@ -397,7 +397,7 @@ class VMCard(Static):
             ip=ip_display,
             boot=self.boot_device or "N/A",
             cpu=self.cpu,
-            cpu_model=self.cpu_model or "",
+            cpu_model=cpu_model_display or "",
             memory=self.memory
         )
 
@@ -576,8 +576,7 @@ class VMCard(Static):
                 logging.warning(f"Could not find #info-container on VMCard {self.name} when switching to detailed view.")
             except Exception as e:
                 # Catch-all for potential mounting errors (e.g. already mounted elsewhere?)
-                 logging.warning(f"Error restoring collapsible in detailed view: {e}")
-
+                logging.warning(f"Error restoring collapsible in detailed view: {e}")
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
@@ -993,7 +992,7 @@ class VMCard(Static):
 
             def update_ui():
                 self._update_slow_buttons(snapshot_summary, has_overlay)
-            
+
             try:
                 self.app.call_from_thread(update_ui)
             except RuntimeError:
@@ -1324,7 +1323,7 @@ class VMCard(Static):
                             self.app.refresh_vm_list()
                         except libvirt.libvirtError as e:
                             self.app.show_error_message(ErrorMessages.INVALID_XML_TEMPLATE.format(vm_name=self.name, error=e))
-                            logging.error(error_msg)
+                            logging.error(e)
                     else:
                         self.app.show_success_message(SuccessMessages.NO_XML_CHANGES)
 
@@ -1922,8 +1921,6 @@ class VMCard(Static):
                 finally:
                     self.app.vm_service.unsuppress_vm_events(internal_id)
 
-            num_snapshots = self.vm.snapshotNum(0)
-
             def on_confirm_rename(confirmed: bool, delete_snapshots=False) -> None:
                 if confirmed:
                     do_rename()
@@ -1960,10 +1957,10 @@ class VMCard(Static):
             def get_details_worker():
                 try:
                     result = self.app.vm_service.get_vm_details(
-                        active_uris, 
-                        uuid, 
-                        domain=vm_obj, 
-                        conn=conn_obj, 
+                        active_uris,
+                        uuid,
+                        domain=vm_obj,
+                        conn=conn_obj,
                         cached_ips=cached_ips
                     )
 
@@ -1975,22 +1972,27 @@ class VMCard(Static):
 
                         vm_info, domain, conn_for_domain = result
 
-                        def on_detail_modal_dismissed(res):
+                        def on_detail_modal_dismissed(_=None):
                             self.post_message(VmCardUpdateRequest(self.internal_id))
                             self._perform_tooltip_update()
 
                         self.app.push_screen(
-                            VMDetailModal(vm_name, vm_info, domain, conn_for_domain, self.app.vm_service.invalidate_vm_state_cache),
+                            VMDetailModal(
+                                vm_name,
+                                vm_info,
+                                domain,
+                                conn_for_domain,
+                                self.app.vm_service.invalidate_vm_state_cache),
                             on_detail_modal_dismissed
-                        )
+                            )
 
                     self.app.call_from_thread(show_details)
 
                 except Exception as e:
-                    def show_error():
+                    def show_error(error_instance):
                         loading_modal.dismiss()
-                        self.app.show_error_message(ErrorMessages.ERROR_GETTING_VM_DETAILS_TEMPLATE.format(vm_name=vm_name, error=e))
-                    self.app.call_from_thread(show_error)
+                        self.app.show_error_message(ErrorMessages.ERROR_GETTING_VM_DETAILS_TEMPLATE.format(vm_name=vm_name, error=error_instance))
+                    self.app.call_from_thread(show_error, e)
 
             self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
 
@@ -2053,7 +2055,7 @@ class VMCard(Static):
                     state, _ = state_tuple
                     if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
                         active_vms.append(vm)
-            except:
+            except Exception:
                 # Fallback to isActive() if cache lookup fails
                 if vm.isActive():
                     active_vms.append(vm)
@@ -2118,7 +2120,7 @@ class VMCard(Static):
             try:
                 # Use vm_service to get XML (handles caching)
                 self.app.vm_service._get_domain_xml(self.vm, internal_id=self.internal_id)
-                
+
                 # Update tooltip on main thread
                 self.app.call_from_thread(self._perform_tooltip_update)
                 self.app.call_from_thread(self.app.show_quick_message, f"Info refreshed for {self.name}")
