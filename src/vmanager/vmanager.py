@@ -306,25 +306,23 @@ class VMManagerTUI(App):
         except RuntimeError:
             self.worker_manager._cleanup_finished_workers()
 
+    def _trigger_host_stats_refresh(self):
+        """Triggers a refresh of host statistics, cancelling any existing refresh."""
+        self.worker_manager.cancel("host_stats_refresh")
+        self.worker_manager.run(
+            self.host_stats.refresh_stats,
+            name="host_stats_refresh",
+            description="Refreshing host stats"
+        )
+
     def on_vm_update(self, internal_id: str):
         """Callback from VMService for specific VM updates."""
         try:
             self.call_from_thread(self.post_message, VmCardUpdateRequest(internal_id))
-            self.call_from_thread(self.worker_manager.cancel, "host_stats_refresh")
-            self.call_from_thread(
-                self.worker_manager.run,
-                self.host_stats.refresh_stats,
-                name="host_stats_refresh",
-                description="Refreshing host stats"
-            )
+            self.call_from_thread(self._trigger_host_stats_refresh)
         except RuntimeError:
             self.post_message(VmCardUpdateRequest(internal_id))
-            self.worker_manager.cancel("host_stats_refresh")
-            self.worker_manager.run(
-                self.host_stats.refresh_stats,
-                name="host_stats_refresh",
-                description="Refreshing host stats"
-            )
+            self._trigger_host_stats_refresh()
 
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
