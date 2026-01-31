@@ -38,7 +38,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.3.0"
+    version = "1.4.0"
 
 class VmAction:
     """Defines constants for VM action types."""
@@ -76,6 +76,7 @@ class ButtonLabels:
     RESUME = _("Resume")
     CONFIGURE = _("Configure")
     WEB_CONSOLE = _("Web Console")
+    TEXT_CONSOLE = _("Text Console")
     CONNECT = _("Connect")
     SNAPSHOT = _("Snapshot")
     RESTORE_SNAPSHOT = _("Restore Snapshot")
