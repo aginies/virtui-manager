@@ -51,6 +51,7 @@ from .utils import (
         extract_server_name_from_uri,
         generate_tooltip_markdown,
         remote_viewer_cmd,
+        check_tmux,
 )
 from .constants import (
     ButtonLabels, TabTitles, StatusText,
@@ -72,6 +73,7 @@ class VMCardActions(Static):
         self.card.ui["configure-button"] = Button(ButtonLabels.CONFIGURE, id="configure-button", variant="primary")
         self.card.ui["web_console"] = Button(ButtonLabels.WEB_CONSOLE, id="web_console", variant="default")
         self.card.ui["connect"] = Button(ButtonLabels.CONNECT, id="connect", variant="default")
+        self.card.ui["tmux_console"] = Button(ButtonLabels.TEXT_CONSOLE, id="tmux_console", variant="default")
         
         self.card.ui["snapshot_take"] = Button(ButtonLabels.SNAPSHOT, id="snapshot_take", variant="primary")
         self.card.ui["snapshot_restore"] = Button(ButtonLabels.RESTORE_SNAPSHOT, id="snapshot_restore", variant="primary")
@@ -100,9 +102,10 @@ class VMCardActions(Static):
                         yield self.card.ui["pause"]
                         yield self.card.ui["resume"]
                     with Vertical():
-                        yield self.card.ui["configure-button"]
                         yield self.card.ui["web_console"]
                         yield self.card.ui["connect"]
+                        if os.environ.get("TMUX") and check_tmux():
+                            yield self.card.ui["tmux_console"]
             with TabPane(self.card._get_snapshot_tab_title(num_snapshots=0), id="snapshot-tab"):
                 with Horizontal():
                     with Vertical():
@@ -122,6 +125,7 @@ class VMCardActions(Static):
                         yield self.card.ui["clone"]
                         yield self.card.ui["migration"]
                     with Vertical():
+                        yield self.card.ui["configure-button"]
                         yield self.card.ui["xml"]
                         yield Static(classes="button-separator")
                         yield self.card.ui["rename-button"]
@@ -1070,6 +1074,7 @@ class VMCard(Static):
             "xml": self._handle_xml_button,
             "connect": self._handle_connect_button,
             "web_console": self._handle_web_console_button,
+            "tmux_console": self._handle_tmux_console_button,
             "snapshot_take": self._handle_snapshot_take_button,
             "snapshot_restore": self._handle_snapshot_restore_button,
             "snapshot_delete": self._handle_snapshot_delete_button,
@@ -1428,6 +1433,51 @@ class VMCard(Static):
             )
         else:
             self.app.worker_manager.run(worker, name=f"start_console_{self.vm.name()}")
+
+    def _handle_tmux_console_button(self, event: Button.Pressed) -> None:
+        """Handles the text console button press by opening a new tmux window."""
+        logging.info(f"Attempting to open text console for VM: {self.name}")
+
+        # Check if running in tmux
+        if not os.environ.get("TMUX"):
+             self.app.show_error_message("This feature requires running inside tmux.")
+             return
+
+        try:
+             # Use cached values to avoid libvirt calls where possible
+            uri = self.app.vm_service.get_uri_for_connection(self.conn)
+            if not uri:
+                uri = self.conn.getURI()
+
+            # Get proper domain name
+            _, domain_name = self.app.vm_service.get_vm_identity(self.vm, self.conn)
+
+            # Construct command
+            # tmux new-window -n "Console: <vm_name>" "virsh -c <uri> console <vm_name>; read"
+            help_msg = (
+                "echo '---------------------------------------------------------'; "
+                "echo 'Tmux Navigation Help:'; "
+                "echo ' Ctrl+B N or P - Move to the next or previous window.'; "
+                "echo ' Ctrl+B W      - Open a panel to navigate across windows in multiple sessions.'; "
+                "echo ' Ctrl+]        - Close the current view.'; "
+                "echo ''"
+                "echo ' Ctrl+B ?      - View all keybindings. Press Q to exit.';"
+                "echo '---------------------------------------------------------'; "
+                "echo 'Starting console...'; sleep 1;"
+            )
+            cmd = [
+                "tmux", "new-window",
+                "-n", f"{domain_name}",
+                f"{help_msg} virsh -c {uri} console {domain_name}; echo '\nConsole session ended. Press Enter to close window.'; read"
+            ]
+
+            logging.info(f"Launching tmux console: {' '.join(cmd)}")
+            subprocess.Popen(cmd)
+            self.app.show_quick_message(f"Opened console for {domain_name}")
+
+        except Exception as e:
+            logging.error(f"Failed to open tmux console: {e}")
+            self.app.show_error_message(f"Failed to open console: {e}")
 
     def _handle_snapshot_take_button(self, event: Button.Pressed) -> None:
         """Handles the snapshot take button press."""

@@ -61,7 +61,7 @@ VMCard {
 
 #status, Button, .Buttonpage, #xml, #snapshot_take,
 #snapshot_restore, #snapshot_delete, .button-separator,
-#connect, #create_overlay, #commit_disk, #discard_overlay {
+#connect, #create_overlay, #commit_disk, #discard_overlay, #tmux_console {
   height: 1;
   padding: 0;
 }
@@ -134,6 +134,8 @@ Button {
 #pause:hover { background: #FFD700; }
 #connect { background: red; }
 #connect:hover { background: #FF4500; }
+#tmux_console { background: #008080; }
+#tmux_console:hover { background: #20B2AA; }
 #create_overlay { background: green; }
 #create_overlay:hover { background: lightgreen; }
 #commit_disk { background: #0000FF; }
