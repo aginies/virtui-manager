@@ -47,6 +47,7 @@ Managing virtual infrastructure often involves a trade-off between convenience a
 ### 🖥️ Remote Access
 *   **VirtUI Remote Viewer:** A custom-built, native graphical viewer for accessing VM consoles (VNC/SPICE) with support for USB redirection.
 *   **Web Console:** Integrated support for `noVNC` to access VM consoles via a web browser, even for remote servers.
+*   **Tmux Integration:** Seamlessly open text consoles (`virsh console`) in new tmux windows when running inside a tmux session.
 
 ### 📊 Monitoring & Debugging
 *   **Real-time Stats:** View CPU, Memory, Disk, and Network usage for each VM with interactive sparkline views.

@@ -1460,7 +1460,6 @@ class VMCard(Static):
                 "echo ' Ctrl+B N or P - Move to the next or previous window.'; "
                 "echo ' Ctrl+B W      - Open a panel to navigate across windows in multiple sessions.'; "
                 "echo ' Ctrl+]        - Close the current view.'; "
-                "echo ''"
                 "echo ' Ctrl+B ?      - View all keybindings. Press Q to exit.';"
                 "echo '---------------------------------------------------------'; "
                 "echo 'Starting console...'; sleep 1;"

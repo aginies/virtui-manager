@@ -20,7 +20,7 @@ from textual.widgets import (
 )
 
 from .base_modals import BaseDialog, BaseModal
-from ..constants import ButtonLabels
+from ..constants import ButtonLabels, StaticText
 
 
 def _sanitize_message(message: str) -> str:
