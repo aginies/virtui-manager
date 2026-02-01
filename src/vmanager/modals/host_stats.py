@@ -154,6 +154,7 @@ class HostStats(Static):
         overflow-y: auto;
         margin-bottom: 0;
         margin-top: 0;
+        display: none;
     }
     """
 
@@ -183,11 +184,6 @@ class HostStats(Static):
             self.active_hosts[uri] = widget
             self.mount(widget)
             self.app.set_timer(0.5, widget.update_stats)
-
-        if current_uris:
-            self.styles.display = "block"
-        else:
-            self.styles.display = "none"
 
     def _get_server_name(self, uri: str, servers) -> str:
         """Helper to get server name from URI."""

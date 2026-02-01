@@ -254,6 +254,7 @@ class VMManagerTUI(App):
         self.last_method_increase = {}  # Dict {(uri, method): last_increase}
         self.r_viewer = None
         self.host_stats = HostStats(self.vm_service, self.get_server_color)
+        self._hide_stats_timer = None
 
     def on_unmount(self) -> None:
         """Called when the application is unmounted."""
@@ -308,12 +309,25 @@ class VMManagerTUI(App):
 
     def _trigger_host_stats_refresh(self):
         """Triggers a refresh of host statistics, cancelling any existing refresh."""
+        # Show host stats
+        self.host_stats.styles.display = "block"
+
+        # Reset hide timer
+        if self._hide_stats_timer:
+            self._hide_stats_timer.stop()
+        self._hide_stats_timer = self.set_timer(10.0, self._hide_host_stats)
+
         self.worker_manager.cancel("host_stats_refresh")
         self.worker_manager.run(
             self.host_stats.refresh_stats,
             name="host_stats_refresh",
             description="Refreshing host stats"
         )
+
+    def _hide_host_stats(self):
+        """Hides the host stats widget."""
+        self.host_stats.styles.display = "none"
+        self._hide_stats_timer = None
 
     def on_vm_update(self, internal_id: str):
         """Callback from VMService for specific VM updates."""
@@ -1168,6 +1182,13 @@ class VMManagerTUI(App):
                 )
             finally:
                 self.vm_service.unsuppress_vm_events(message.internal_id)
+                
+                # Show stats update since event was suppressed
+                try:
+                    self.call_from_thread(self._trigger_host_stats_refresh)
+                except RuntimeError:
+                    pass
+
                 # Always try to unset the flag from the main thread
                 def unset_flag():
                     if self.bulk_operation_in_progress:
