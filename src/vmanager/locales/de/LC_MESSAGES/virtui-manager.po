@@ -338,12 +338,12 @@ msgid "Config"
 msgstr "Konfig"
 
 #: constants.py:147
-msgid "\[Previous Page]"
-msgstr "\[Vorherige Seite]"
+msgid "\\[Previous Page]"
+msgstr "\\[Vorherige Seite]"
 
 #: constants.py:148
-msgid "\[Next Page]"
-msgstr "\[Nächste Seite]"
+msgid "\\[Next Page]"
+msgstr "\\[Nächste Seite]"
 
 #: constants.py:149
 msgid "Yes"
