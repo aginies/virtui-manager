@@ -207,9 +207,7 @@ class TabTitles:
     """Constants for tab titles"""
     MANAGE = _("Manage")
     OTHER = _("Other")
-    SNAPSHOT = _("Snapshot")
-    SNAPSHOTS = _("Snapshots")
-    OVERLAY = _("Overlay")
+    STATE_MANAGEMENT = _("State Management")
     SNAP_OVER_UPDATE = _("Updating Data...")
     ACTIVE_ALLOCATION = _("Active Allocation")
     TOTAL_ALLOCATION = _("Total Allocation")

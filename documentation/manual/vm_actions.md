@@ -2,7 +2,7 @@
 
 The Actions panel is the control center for each Virtual Machine. It is revealed by clicking the "Actions" collapsible header on a VM card.
 
-The available operations are organized into three tabs: **Manage**, **Snapshot/Overlay**, and **Other**.
+The available operations are organized into three tabs: **Manage**, **State management**, and **Other**.
 
 ![VM Actions](images/actions.jpg)
 
@@ -70,9 +70,16 @@ Hover over the VM name to see a comprehensive tooltip with detailed information 
 
 **Double-click** on the VM name to trigger a background refresh of the VM's detailed information, including XML configuration data.
 
-## Snapshot/Overlay Tab
+## State management Tab
 
-This tab provides advanced storage management features for version control and testing.
+This tab provides advanced storage management features for version control and testing, as well as VM state persistence.
+
+### Hibernate VM
+Saving a VM (also known as "Managed Save") stops the VM and writes its entire memory state to a file on disk. It acts like hibernation on a physical computer.
+
+*   **Hibernate VM:**
+    *   Hibernates the virtual machine.
+    *   *Visible when the VM is Running.*
 
 ### Snapshots
 Snapshots save the state of the virtual machine (disk and memory) at a specific point in time.

@@ -1,6 +1,6 @@
-# Understanding Snapshots and Disk Overlays
+# State Management (Snapshots, Overlays, Hibernate)
 
-Virtual machines in this manager support two ways to preserve states and manage changes: **Snapshots** and **Disk Overlays**. While they share similar goals, they work differently and are suited for different use cases.
+Virtual machines in this manager support several ways to preserve states and manage changes: **Snapshots**, **Disk Overlays**, and **Hibernation**. While they share similar goals, they work differently and are suited for different use cases.
 
 ---
 
@@ -38,7 +38,7 @@ Saving a VM (also known as "Managed Save") stops the VM and writes its entire me
 
 ---
 
-### Comparison: Snapshot vs. Overlay vs. Save VM
+### Comparison: Snapshot vs. Overlay vs. State management (Hibernate)
 
 | Feature | Snapshots (Internal) | Disk Overlays (External) | Hibernate VM |
 | :--- | :--- | :--- | :--- |

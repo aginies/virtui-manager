@@ -29,7 +29,7 @@ When you enter Bulk Command mode, a menu appears presenting actions that can be 
 
 *   **Pause / Resume:** Suspend or continue execution for the selected group.
 *   **Delete:** Remove multiple VMs at once. *Use with caution.*
-*   **Snapshots:** Create or manage snapshots for the entire selection (e.g., "Pre-patching" snapshot for all web servers).
+*   **State Management:** Create or manage snapshots for the entire selection (e.g., "Pre-patching" snapshot for all web servers).
 *   **Configuration:** Its possible to change the configurationfor all VM selected. This should be done with caution as this can lead to major issue for VM.
 
 ## Safety and Feedback

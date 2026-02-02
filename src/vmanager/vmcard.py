@@ -107,7 +107,7 @@ class VMCardActions(Static):
                         yield self.card.ui["connect"]
                         if os.environ.get("TMUX") and check_tmux():
                             yield self.card.ui["tmux_console"]
-            with TabPane(self.card._get_snapshot_tab_title(num_snapshots=0), id="snapshot-tab"):
+            with TabPane(TabTitles.STATE_MANAGEMENT, id="snapshot-tab"):
                 with Horizontal():
                     with Vertical():
                         yield self.card.ui["snapshot_take"]
@@ -192,19 +192,17 @@ class VMCard(Static):
         if num_snapshots == -1:
             # If no count provided, don't fetch it here to avoid blocking.
             # For now, return default if we can't get it cheaply.
-            return TabTitles.SNAP_OVER_UPDATE # TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+            return TabTitles.SNAP_OVER_UPDATE
 
         if self.vm:
             try:
-                if num_snapshots == 0:
-                    return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
-                elif num_snapshots == 1:
-                    return TabTitles.SNAPSHOT + "(" + str(num_snapshots) + ")" + "/" + TabTitles.OVERLAY
-                elif num_snapshots >= 2:
-                    return TabTitles.SNAPSHOTS + "(" + str(num_snapshots) + ")" "/" + TabTitles.OVERLAY
+                if num_snapshots <= 0:
+                    return TabTitles.STATE_MANAGEMENT
+                else:
+                    return f"{TabTitles.STATE_MANAGEMENT}({num_snapshots})"
             except libvirt.libvirtError:
                 pass # Domain might be transient or invalid
-        return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+        return TabTitles.STATE_MANAGEMENT
 
     def update_snapshot_tab_title(self, num_snapshots: int = -1) -> None:
         """Updates the snapshot tab title."""
