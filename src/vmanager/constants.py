@@ -63,6 +63,7 @@ class ButtonLabels:
     """Constants for button labels"""
     ADD = _("Add")
     SAVE = _("Save")
+    HIBERNATE_VM = _("Hibernate VM")
     SAVE_CHANGES = _("Save Changes")
     CREATE_NETWORK = _("Create Network")
     INSTALL = _("Install")
@@ -752,6 +753,7 @@ class SuccessMessages:
     NETWORK_UPDATED_TEMPLATE = _("Network {name} updated successfully.")
     VM_NAME_SANITIZED_TEMPLATE = _("VM name sanitized: '{original}' -> '{sanitized}'")
     VM_STARTED_TEMPLATE = _("VM '{vm_name}' started.")
+    VM_SAVED_TEMPLATE = _("VM '{vm_name}' saved (hibernated).")
     REMOTE_VIEWER_STARTED_TEMPLATE = _("Remote viewer {viewer} started for {vm_name}")
     VM_DEFINED_CONFIGURE_TEMPLATE = _("VM '{vm_name}' defined. Please configure and start it.")
     VM_CREATED_SUCCESSFULLY_TEMPLATE = _("VM '{vm_name}' created successfully!")

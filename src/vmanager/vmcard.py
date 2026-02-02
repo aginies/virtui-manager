@@ -28,7 +28,7 @@ from .vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
         restore_vm_snapshot, delete_vm_snapshot,
         create_external_overlay, commit_disk_changes,
-        discard_overlay, delete_vm
+        discard_overlay, delete_vm, hibernate_vm
         )
 
 from .vm_queries import (
@@ -67,6 +67,7 @@ class VMCardActions(Static):
     def compose(self):
         self.card.ui["start"] = Button(ButtonLabels.START, id="start", variant="success")
         self.card.ui["shutdown"] = Button(ButtonLabels.SHUTDOWN, id="shutdown", variant="primary")
+        self.card.ui["hibernate"] = Button(ButtonLabels.HIBERNATE_VM, id="hibernate", variant="primary")
         self.card.ui["stop"] = Button(ButtonLabels.FORCE_OFF, id="stop", variant="error")
         self.card.ui["pause"] = Button(ButtonLabels.PAUSE, id="pause", variant="primary")
         self.card.ui["resume"] = Button(ButtonLabels.RESUME, id="resume", variant="success")
@@ -113,6 +114,7 @@ class VMCardActions(Static):
                         yield self.card.ui["snapshot_restore"]
                         yield self.card.ui["snapshot_delete"]
                     with Vertical():
+                        yield self.card.ui["hibernate"]
                         yield self.card.ui["create_overlay"]
                         yield self.card.ui["commit_disk"]
                         yield self.card.ui["discard_overlay"]
@@ -893,6 +895,7 @@ class VMCard(Static):
 
         self.ui["start"].display = is_stopped
         self.ui["shutdown"].display = is_running or is_blocked
+        self.ui["hibernate"].display = is_running or is_blocked
         self.ui["stop"].display = is_running or is_paused or is_pmsuspended or is_blocked
         self.ui["delete"].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
         self.ui["clone"].display = is_stopped
@@ -1068,6 +1071,7 @@ class VMCard(Static):
 
         button_handlers = {
             "shutdown": self._handle_shutdown_button,
+            "hibernate": self._handle_hibernate_button,
             "stop": self._handle_stop_button,
             "pause": self._handle_pause_button,
             "resume": self._handle_resume_button,
@@ -1246,6 +1250,27 @@ class VMCard(Static):
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
             self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
+
+    def _handle_hibernate_button(self, event: Button.Pressed) -> None:
+        """Handles the save button press."""
+        logging.info(f"Attempting to save (hibernate) VM: {self.name}")
+
+        def do_save():
+            self.stop_background_activities()
+            self.app.vm_service.suppress_vm_events(self.internal_id)
+            try:
+                hibernate_vm(self.vm)
+                self.app.call_from_thread(self.app.show_success_message, SuccessMessages.VM_SAVED_TEMPLATE.format(vm_name=self.name))
+                self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
+                self.app.call_from_thread(setattr, self, 'status', StatusText.STOPPED)
+                self.app.call_from_thread(self.update_button_layout)
+            except Exception as e:
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(vm_name=self.name, action='save', error=e))
+            finally:
+                self.app.vm_service.unsuppress_vm_events(self.internal_id)
+
+        if self.status in (StatusText.RUNNING, StatusText.PAUSED):
+            self.app.worker_manager.run(do_save, name=f"save_{self.internal_id}")
 
     def stop_background_activities(self):
         """ Stop background activities before action """

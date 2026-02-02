@@ -1873,6 +1873,18 @@ def stop_vm(domain: libvirt.virDomain):
     invalidate_cache(get_internal_id(domain))
     domain.shutdown()
 
+def hibernate_vm(domain: libvirt.virDomain):
+    """
+    Saves (hibernates) the VM state to disk and stops it.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+    if not domain.isActive():
+        raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot save.")
+
+    invalidate_cache(get_internal_id(domain))
+    domain.managedSave(0)
+
 def pause_vm(domain: libvirt.virDomain):
     """
     Pauses the execution of the VM.
