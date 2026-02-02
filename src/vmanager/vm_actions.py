@@ -2231,6 +2231,14 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
     """
     issues = []
 
+    # Check for name collision
+    try:
+        dest_conn.lookupByName(domain.name())
+        issues.append({'severity': 'ERROR', 'message': f"A VM with the name '{domain.name()}' already exists on the destination host."})
+    except libvirt.libvirtError as e:
+        if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+             issues.append({'severity': 'WARNING', 'message': f"Could not check for name collision on destination: {e}"})
+
     try:
         xml_desc = domain.XMLDesc(0)
         root = ET.fromstring(xml_desc)
