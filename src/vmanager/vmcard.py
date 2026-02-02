@@ -2054,27 +2054,16 @@ class VMCard(Static):
             self.app.show_error_message(ErrorMessages.SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION)
             return
 
-        selected_vm_uuids = self.app.selected_vm_uuids
+        selected_vm_uuids = list(self.app.selected_vm_uuids)
         selected_vms = []
         if selected_vm_uuids:
+            found_domains_dict = self.app.vm_service.find_domains_by_uuids(self.app.active_uris, selected_vm_uuids)
             for uuid in selected_vm_uuids:
-                #Use cached domain lookup instead of iterating all URIs
-                with self.app.vm_service._cache_lock:
-                    domain = self.app.vm_service._domain_cache.get(uuid)
-
+                domain = found_domains_dict.get(uuid)
                 if domain:
-                    try:
-                        # Verify domain is still valid
-                        domain.info()
-                        selected_vms.append(domain)
-                        found_domain = True
-                    except libvirt.libvirtError:
-                        found_domain = False
+                    selected_vms.append(domain)
                 else:
-                    found_domain = False
-            if not vm_info:
-                self.app.show_error_message(ErrorMessages.SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE.format(uuid=uuid))
-
+                    self.app.show_error_message(ErrorMessages.SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE.format(uuid=uuid))
         if not selected_vms:
             selected_vms = [self.vm]
 
