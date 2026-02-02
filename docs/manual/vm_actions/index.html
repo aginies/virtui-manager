@@ -637,16 +637,27 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#snapshotoverlay-tab" class="md-nav__link">
+  <a href="#state-management-tab" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Snapshot/Overlay Tab
+        State management Tab
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Snapshot/Overlay Tab">
+    <nav class="md-nav" aria-label="State management Tab">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hibernate-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hibernate VM
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#snapshots" class="md-nav__link">
@@ -1048,7 +1059,7 @@
   <span class="md-ellipsis">
     
   
-    Understanding Snapshots and Disk Overlays
+    State Management (Snapshots, Overlays, Hibernate)
   
 
     
@@ -1213,16 +1224,27 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#snapshotoverlay-tab" class="md-nav__link">
+  <a href="#state-management-tab" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Snapshot/Overlay Tab
+        State management Tab
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Snapshot/Overlay Tab">
+    <nav class="md-nav" aria-label="State management Tab">
       <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hibernate-vm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hibernate VM
+      
+    </span>
+  </a>
+  
+</li>
         
           <li class="md-nav__item">
   <a href="#snapshots" class="md-nav__link">
@@ -1284,7 +1306,7 @@
 
 <h1 id="vm-actions">VM Actions<a class="headerlink" href="#vm-actions" title="Permanent link">&para;</a></h1>
 <p>The Actions panel is the control center for each Virtual Machine. It is revealed by clicking the "Actions" collapsible header on a VM card.</p>
-<p>The available operations are organized into three tabs: <strong>Manage</strong>, <strong>Snapshot/Overlay</strong>, and <strong>Other</strong>.</p>
+<p>The available operations are organized into three tabs: <strong>Manage</strong>, <strong>State management</strong>, and <strong>Other</strong>.</p>
 <p><img alt="VM Actions" src="../images/actions.jpg" /></p>
 <h2 id="manage-tab">Manage Tab<a class="headerlink" href="#manage-tab" title="Permanent link">&para;</a></h2>
 <p>This tab contains the most common power management and connectivity controls.</p>
@@ -1371,8 +1393,17 @@
 </ul>
 <h3 id="double-click-refresh">Double-Click Refresh<a class="headerlink" href="#double-click-refresh" title="Permanent link">&para;</a></h3>
 <p><strong>Double-click</strong> on the VM name to trigger a background refresh of the VM's detailed information, including XML configuration data.</p>
-<h2 id="snapshotoverlay-tab">Snapshot/Overlay Tab<a class="headerlink" href="#snapshotoverlay-tab" title="Permanent link">&para;</a></h2>
-<p>This tab provides advanced storage management features for version control and testing.</p>
+<h2 id="state-management-tab">State management Tab<a class="headerlink" href="#state-management-tab" title="Permanent link">&para;</a></h2>
+<p>This tab provides advanced storage management features for version control and testing, as well as VM state persistence.</p>
+<h3 id="hibernate-vm">Hibernate VM<a class="headerlink" href="#hibernate-vm" title="Permanent link">&para;</a></h3>
+<p>Saving a VM (also known as "Managed Save") stops the VM and writes its entire memory state to a file on disk. It acts like hibernation on a physical computer.</p>
+<ul>
+<li><strong>Hibernate VM:</strong><ul>
+<li>Hibernates the virtual machine.</li>
+<li><em>Visible when the VM is Running.</em></li>
+</ul>
+</li>
+</ul>
 <h3 id="snapshots">Snapshots<a class="headerlink" href="#snapshots" title="Permanent link">&para;</a></h3>
 <p>Snapshots save the state of the virtual machine (disk and memory) at a specific point in time.</p>
 <ul>
