@@ -167,287 +167,287 @@ msgstr "Boot-Reihenfolge speichern"
 
 #: constants.py:101
 msgid "<"
-msgstr ""
+msgstr "<"
 
 #: constants.py:102
 msgid ">"
-msgstr ""
+msgstr ">"
 
 #: constants.py:103
 msgid "Up"
-msgstr ""
+msgstr "Hoch"
 
 #: constants.py:104
 msgid "Down"
-msgstr ""
+msgstr "Runter"
 
 #: constants.py:105
 msgid "Remove Disk"
-msgstr ""
+msgstr "Festplatte entfernen"
 
 #: constants.py:106
 msgid "Disable Disk"
-msgstr ""
+msgstr "Festplatte deaktivieren"
 
 #: constants.py:107
 msgid "Enable Disk"
-msgstr ""
+msgstr "Festplatte aktivieren"
 
 #: constants.py:108
 msgid "Add Disk"
-msgstr ""
+msgstr "Festplatte hinzufügen"
 
 #: constants.py:109
 msgid "Attach Existing Disk"
-msgstr ""
+msgstr "Vorh. Festplatte anhängen"
 
 #: constants.py:110
 msgid "Edit Disk"
-msgstr ""
+msgstr "Festplatte bearbeiten"
 
 #: constants.py:112
 msgid "Edit Interface"
-msgstr ""
+msgstr "Schnittstelle bearbeiten"
 
 #: constants.py:113
 msgid "Add Interface"
-msgstr ""
+msgstr "Schnittstelle hinzufügen"
 
 #: constants.py:114
 msgid "Remove Interface"
-msgstr ""
+msgstr "Schnittstelle entfernen"
 
 #: constants.py:117
 msgid "Apply Graphics Settings"
-msgstr ""
+msgstr "Grafikeinstellungen anwenden"
 
 #: constants.py:118
 msgid "Apply TPM Settings"
-msgstr ""
+msgstr "TPM-Einstellungen anwenden"
 
 #: constants.py:119
 msgid "Apply RNG Settings"
-msgstr ""
+msgstr "RNG-Einstellungen anwenden"
 
 #: constants.py:120
 msgid "Add PTY Console"
-msgstr ""
+msgstr "PTY-Konsole hinzufügen"
 
 #: constants.py:121
 msgid "Remove Console"
-msgstr ""
+msgstr "Konsole entfernen"
 
 #: constants.py:122
 msgid "Apply Watchdog Settings"
-msgstr ""
+msgstr "Watchdog-Einstellungen anwenden"
 
 #: constants.py:123
 msgid "Remove Watchdog"
-msgstr ""
+msgstr "Watchdog entfernen"
 
 #: constants.py:124
 msgid "Add Input"
-msgstr ""
+msgstr "Eingabe hinzufügen"
 
 #: constants.py:125
 msgid "Remove Input"
-msgstr ""
+msgstr "Eingabe entfernen"
 
 #: constants.py:126
 msgid "Add USB2"
-msgstr ""
+msgstr "USB2 hinzufügen"
 
 #: constants.py:127
 msgid "Add USB3"
-msgstr ""
+msgstr "USB3 hinzufügen"
 
 #: constants.py:128
 msgid "Add SCSI"
-msgstr ""
+msgstr "SCSI hinzufügen"
 
 #: constants.py:129
 msgid "Attach >"
-msgstr ""
+msgstr "Anhängen >"
 
 #: constants.py:130
 msgid "< Detach"
-msgstr ""
+msgstr "< Abhängen"
 
 #: constants.py:131
 msgid "Add Channel"
-msgstr ""
+msgstr "Kanal hinzufügen"
 
 #: constants.py:132
 msgid "Remove Channel"
-msgstr ""
+msgstr "Kanal entfernen"
 
 #: constants.py:133
 msgid "Other Tabs"
-msgstr ""
+msgstr "Andere Reiter"
 
 #: constants.py:134
 msgid "Apply"
-msgstr ""
+msgstr "Anwenden"
 
 #: constants.py:135
 msgid "! Clone !"
-msgstr ""
+msgstr "! Klonen !"
 
 #: constants.py:136
 msgid "! Migration !"
-msgstr ""
+msgstr "! Migration !"
 
 #: constants.py:137
 msgid "View XML"
-msgstr ""
+msgstr "XML ansehen"
 
 #: constants.py:138
 msgid "Rename"
-msgstr ""
+msgstr "Umbenennen"
 
 #: constants.py:139
 msgid "[b][#FFD700]S[/][/]elect Servers"
-msgstr ""
+msgstr "Server [b][#FFD700]S[/][/]elektieren"
 
 #: constants.py:140
 msgid "Servers [b][#FFD700]L[/][/]ist"
-msgstr ""
+msgstr "Server-[b][#FFD700]L[/][/]iste"
 
 #: constants.py:141
 msgid "Server Prefs"
-msgstr ""
+msgstr "Server-Einst."
 
 #: constants.py:142
 msgid "[b][#FFD700]F[/][/]ilter VM"
-msgstr ""
+msgstr "VM [b][#FFD700]F[/][/]iltern"
 
 #: constants.py:143 constants.py:180
 msgid "Log"
-msgstr ""
+msgstr "Protokoll"
 
 #: constants.py:144
 msgid "[b][#FFD700]B[/][/]ulk CMD"
-msgstr ""
+msgstr "Massen-[b][#FFD700]B[/][/]efehl"
 
 #: constants.py:145
 msgid "[b][#FFD700]P[/][/]attern Sel"
-msgstr ""
+msgstr "Muster-[b][#FFD700]W[/][/]ahl"
 
 #: constants.py:146 constants.py:184
 msgid "Config"
-msgstr ""
+msgstr "Konfig"
 
 #: constants.py:147
-msgid "\\[Previous Page]"
-msgstr "\\[Vorherige Seite]"
+msgid "\[Previous Page]"
+msgstr "\[Vorherige Seite]"
 
 #: constants.py:148
-msgid "\\[Next Page]"
-msgstr "\\[Nächste Seite]"
+msgid "\[Next Page]"
+msgstr "\[Nächste Seite]"
 
 #: constants.py:149
 msgid "Yes"
-msgstr ""
+msgstr "Ja"
 
 #: constants.py:150
 msgid "No"
-msgstr ""
+msgstr "Nein"
 
 #: constants.py:151
 msgid "Cancel"
-msgstr ""
+msgstr "Abbrechen"
 
 #: constants.py:152
 msgid "Create"
-msgstr ""
+msgstr "Erstellen"
 
 #: constants.py:153
 msgid "Change"
-msgstr ""
+msgstr "Ändern"
 
 #: constants.py:154
 msgid "Stop"
-msgstr ""
+msgstr "Stopp"
 
 #: constants.py:155
 msgid "Close"
-msgstr ""
+msgstr "Schließen"
 
 #: constants.py:156
 msgid "Move"
-msgstr ""
+msgstr "Verschieben"
 
 #: constants.py:157
 msgid "Attach"
-msgstr ""
+msgstr "Anhängen"
 
 #: constants.py:158
 msgid "De/Active"
-msgstr ""
+msgstr "De/Aktiv"
 
 #: constants.py:159
 msgid "Autostart"
-msgstr ""
+msgstr "Autostart"
 
 #: constants.py:160
 msgid "Execute"
-msgstr ""
+msgstr "Ausführen"
 
 #: constants.py:161
 msgid "Done"
-msgstr ""
+msgstr "Fertig"
 
 #: constants.py:162
 msgid "Search VMs"
-msgstr ""
+msgstr "VMs suchen"
 
 #: constants.py:163
 msgid "Select Matching"
-msgstr ""
+msgstr "Passende wählen"
 
 #: constants.py:164
 msgid "Refresh"
-msgstr ""
+msgstr "Aktualisieren"
 
 #: constants.py:165
 msgid "Clear All Caches"
-msgstr ""
+msgstr "Alle Caches leeren"
 
 #: constants.py:166
 msgid "Confirm"
-msgstr ""
+msgstr "Bestätigen"
 
 #: constants.py:167
 msgid "Check Compatibility"
-msgstr ""
+msgstr "Kompatibilität prüfen"
 
 #: constants.py:168
 msgid "Start Migration"
-msgstr ""
+msgstr "Migration starten"
 
 #: constants.py:169
 msgid "New Overlay"
-msgstr ""
+msgstr "Neues Overlay"
 
 #: constants.py:170
 msgid "Commit Disk"
-msgstr ""
+msgstr "Disk festschreiben"
 
 #: constants.py:171
 msgid "Discard Overlay"
-msgstr ""
+msgstr "Overlay verwerfen"
 
 #: constants.py:173
 msgid "Compact"
-msgstr ""
+msgstr "Kompakt"
 
 #: constants.py:174
 msgid "Select"
-msgstr ""
+msgstr "Auswählen"
 
 #: constants.py:175
 msgid "OK"
-msgstr ""
+msgstr "OK"
 
 #: constants.py:181
 msgid "Filter"
@@ -571,7 +571,7 @@ msgstr "Pausiert"
 
 #: constants.py:220 constants.py:305
 msgid "PMSuspended"
-msgstr "PMSuspended"
+msgstr "PM-Angehalten"
 
 #: constants.py:221 constants.py:306
 msgid "Blocked"
@@ -587,659 +587,662 @@ msgstr "Unbekannt"
 
 #: constants.py:228
 msgid "Cache Performance Statistics"
-msgstr ""
+msgstr "Cache-Leistungsstatistiken"
 
 #: constants.py:229
 #, python-brace-format
 msgid "(Editing: {get_user_config_path})"
-msgstr ""
+msgstr "(Bearbeiten: {get_user_config_path})"
 
 #: constants.py:230
 msgid "[bold]Custom Migration Plan[/bold]"
-msgstr ""
+msgstr "[bold]Benutzerdefinierter Migrationsplan[/bold]"
 
 #: constants.py:231
 #, python-brace-format
 msgid "Disk: [b]{volume_name}[/b]"
-msgstr ""
+msgstr "Festplatte: [b]{volume_name}[/b]"
 
 #: constants.py:232
 #, python-brace-format
 msgid "  Source Pool: {source_pool}"
-msgstr ""
+msgstr "  Quell-Pool: {source_pool}"
 
 #: constants.py:233
 msgid "  No destination pools available."
-msgstr ""
+msgstr "  Keine Ziel-Pools verfügbar."
 
 #: constants.py:234
 #, python-brace-format
 msgid "Disk: [b]{disk_path}[/b]"
-msgstr ""
+msgstr "Festplatte: [b]{disk_path}[/b]"
 
 #: constants.py:235
 #, python-brace-format
 msgid "  Action: {message}"
-msgstr ""
+msgstr "  Aktion: {message}"
 
 #: constants.py:236
 #, python-brace-format
 msgid "From Pool: {source_pool_name}"
-msgstr ""
+msgstr "Von Pool: {source_pool_name}"
 
 #: constants.py:237
 msgid "Select destination server:"
-msgstr ""
+msgstr "Ziel-Server auswählen:"
 
 #: constants.py:238
 msgid "Migration Options:"
-msgstr ""
+msgstr "Migrationsoptionen:"
 
 #: constants.py:239
 msgid "Compatibility Check Results / Migration Log:"
-msgstr ""
+msgstr "Kompatibilitätsprüfungsergebnisse / Migrationsprotokoll:"
 
 #: constants.py:240
 msgid "[b]VMs [green]Ready[/] for Migration[/b]"
-msgstr ""
+msgstr "[b]VMs [green]Bereit[/] zur Migration[/b]"
 
 #: constants.py:241
 msgid "[b]VMs [red]Not[/] Ready for Migration[/b]"
-msgstr ""
+msgstr "[b]VMs [red]Nicht[/] Bereit zur Migration[/b]"
 
 #: constants.py:242
 msgid "Delete associated storage"
-msgstr ""
+msgstr "Zugehörigen Speicher löschen"
 
 #: constants.py:243
 msgid "Create new disk image"
-msgstr ""
+msgstr "Neues Festplattenabbild erstellen"
 
 #: constants.py:244
 msgid "CD-ROM"
-msgstr ""
+msgstr "CD-ROM"
 
 #: constants.py:245
 msgid "Copy storage all"
-msgstr ""
+msgstr "Gesamten Speicher kopieren"
 
 #: constants.py:246
 msgid "Unsafe migration"
-msgstr ""
+msgstr "Unsichere Migration"
 
 #: constants.py:247
 msgid "Persistent migration"
-msgstr ""
+msgstr "Persistente Migration"
 
 #: constants.py:248
 msgid "Compress data"
-msgstr ""
+msgstr "Daten komprimieren"
 
 #: constants.py:249
 msgid "Tunnelled migration"
-msgstr ""
+msgstr "Getunnelte Migration"
 
 #: constants.py:250
 msgid "Custom migration"
-msgstr ""
+msgstr "Benutzerdefinierte Migration"
 
 #: constants.py:251
 msgid "Enable remote web console"
-msgstr ""
+msgstr "Remote-Web-Konsole aktivieren"
 
 #: constants.py:252
 msgid "Enable DHCPv4"
-msgstr ""
+msgstr "DHCPv4 aktivieren"
 
 #: constants.py:253
 msgid "Validate Checksum"
-msgstr ""
+msgstr "Prüfsumme validieren"
 
 #: constants.py:254
 msgid "UEFI"
-msgstr ""
+msgstr "UEFI"
 
 #: constants.py:255
 msgid "Configure before install"
-msgstr ""
+msgstr "Vor Installation konfigurieren"
 
 #: constants.py:256
 #, python-brace-format
 msgid "Install OpenSUSE VM on {uri}"
-msgstr ""
+msgstr "OpenSUSE VM auf {uri} installieren"
 
 #: constants.py:257
 msgid "VM Name:"
-msgstr ""
+msgstr "VM Name:"
 
 #: constants.py:258
 msgid "VM Type:"
-msgstr ""
+msgstr "VM Typ:"
 
 #: constants.py:259
 msgid "Distribution:"
-msgstr ""
+msgstr "Distribution:"
 
 #: constants.py:260
 msgid "ISO Image (Repo):"
-msgstr ""
+msgstr "ISO Abbild (Repo):"
 
 #: constants.py:261
 #, python-brace-format
 msgid "ISOs will be downloaded to: {iso_path}"
-msgstr ""
+msgstr "ISOs werden heruntergeladen nach: {iso_path}"
 
 #: constants.py:262
 msgid "Custom ISO (Local Path):"
-msgstr ""
+msgstr "Benutzerdefinierte ISO (Lokaler Pfad):"
 
 #: constants.py:263
 msgid "Select Storage Pool:"
-msgstr ""
+msgstr "Speicherpool auswählen:"
 
 #: constants.py:264
 msgid "Select ISO Volume:"
-msgstr ""
+msgstr "ISO Volume auswählen:"
 
 #: constants.py:265
 msgid "Storage Pool:"
-msgstr ""
+msgstr "Speicherpool:"
 
 #: constants.py:266
 msgid " Memory (GB)"
-msgstr ""
+msgstr " Speicher (GB)"
 
 #: constants.py:267
 msgid " CPUs"
-msgstr ""
+msgstr " CPUs"
 
 #: constants.py:268
 msgid " Disk Size(GB)"
-msgstr ""
+msgstr " Festplattengröße (GB)"
 
 #: constants.py:269
 msgid " Disk Format"
-msgstr ""
+msgstr " Festplattenformat"
 
 #: constants.py:270
 msgid " Firmware"
-msgstr ""
+msgstr " Firmware"
 
 #: constants.py:271
 msgid "Delete storage volumes"
-msgstr ""
+msgstr "Speichervolumes löschen"
 
 #: constants.py:272
 msgid "Quiesce guest (requires agent)"
-msgstr ""
+msgstr "Gast stilllegen (erfordert Agent)"
 
 #: constants.py:273
 msgid "Select interface and new network"
-msgstr ""
+msgstr "Schnittstelle und neues Netzwerk auswählen"
 
 #: constants.py:274
 msgid "Enter base name for new VM(s)"
-msgstr ""
+msgstr "Basisnamen für neue VM(s) eingeben"
 
 #: constants.py:275
 msgid "Suffix for clone names (e.g., _C)"
-msgstr ""
+msgstr "Suffix für Klonnamen (z.B. _C)"
 
 #: constants.py:276
 msgid "Number of clones to create"
-msgstr ""
+msgstr "Anzahl zu erstellender Klone"
 
 #: constants.py:277
 msgid "Do Not Clone storage"
-msgstr ""
+msgstr "Speicher nicht klonen"
 
 #: constants.py:278
 #, python-brace-format
 msgid "Current name: {current_name}"
-msgstr ""
+msgstr "Aktueller Name: {current_name}"
 
 #: constants.py:279
 msgid "Enter new VM name"
-msgstr ""
+msgstr "Neuen VM-Namen eingeben"
 
 #: constants.py:280
 #, python-brace-format
 msgid "Current time: {now}"
-msgstr ""
+msgstr "Aktuelle Zeit: {now}"
 
 #: constants.py:281
 msgid "Enter snapshot name"
-msgstr ""
+msgstr "Schnappschuss-Namen eingeben"
 
 #: constants.py:282
 msgid "Description (optional)"
-msgstr ""
+msgstr "Beschreibung (optional)"
 
 #: constants.py:283
 msgid "Web Console Configuration"
-msgstr ""
+msgstr "Web-Konsole Konfiguration"
 
 #: constants.py:284
 msgid "Remote"
-msgstr ""
+msgstr "Remote"
 
 #: constants.py:285
 msgid "Enter QEMU Connection URI:"
-msgstr ""
+msgstr "QEMU Verbindungs-URI eingeben:"
 
 #: constants.py:286
 msgid "Add New Server"
-msgstr ""
+msgstr "Neuen Server hinzufügen"
 
 #: constants.py:287
 msgid "Autoconnect at startup"
-msgstr ""
+msgstr "Automatisch verbinden beim Start"
 
 #: constants.py:288
 msgid "Edit Server"
-msgstr ""
+msgstr "Server bearbeiten"
 
 #: constants.py:289
 msgid "Server List Management"
-msgstr ""
+msgstr "Serverlisten-Verwaltung"
 
 #: constants.py:290
 msgid "Select Servers to Display"
-msgstr ""
+msgstr "Anzuzeigende Server auswählen"
 
 #: constants.py:291
 msgid "Enter new VCPU count"
-msgstr ""
+msgstr "Neue VCPU-Anzahl eingeben"
 
 #: constants.py:292
 msgid "Enter new memory size (MB)"
-msgstr ""
+msgstr "Neue Speichergröße (MB) eingeben"
 
 #: constants.py:293
 msgid "Select Machine Type:"
-msgstr ""
+msgstr "Maschinentyp auswählen:"
 
 #: constants.py:294
 msgid "Format: 0:0-3; 1:4-7"
-msgstr ""
+msgstr "Format: 0:0-3; 1:4-7"
 
 #: constants.py:295
 msgid "NUMA Memory Mode"
-msgstr ""
+msgstr "NUMA Speichermodus"
 
 #: constants.py:296
 msgid "Nodeset"
-msgstr ""
+msgstr "Nodeset"
 
 #: constants.py:297
 #, python-brace-format
 msgid "Enter CPU Pinning (max vcpu: {max_vcpus})"
-msgstr ""
+msgstr "CPU Pinning eingeben (max vcpu: {max_vcpus})"
 
 #: constants.py:298
 msgid "Select VMs by Pattern (ctrl+u to unselect All VMS)"
-msgstr ""
+msgstr "VMs nach Muster auswählen (Strg+U um alle abzuwählen)"
 
 #: constants.py:299
 msgid "Regex"
-msgstr ""
+msgstr "Regex"
 
 #: constants.py:300
 msgid "Matching VMs:"
-msgstr ""
+msgstr "Passende VMs:"
 
 #: constants.py:301
 msgid "Filter by Name"
-msgstr ""
+msgstr "Nach Namen filtern"
 
 #: constants.py:302
 msgid "All"
-msgstr ""
+msgstr "Alle"
 
 #: constants.py:308
 msgid "Manually Selected"
-msgstr ""
+msgstr "Manuell ausgewählt"
 
 #: constants.py:309
 msgid "Create New VM"
-msgstr ""
+msgstr "Neue VM erstellen"
 
 #: constants.py:310
 msgid "Start VMs"
-msgstr ""
+msgstr "VMs starten"
 
 #: constants.py:311
 msgid "Stop VMs (Graceful Shutdown)"
-msgstr ""
+msgstr "VMs stoppen (Ordnungsgemäßes Herunterfahren)"
 
 #: constants.py:312
 msgid "Force Off VMs"
-msgstr ""
+msgstr "VMs zwangsweise ausschalten"
 
 #: constants.py:313
 msgid "Pause VMs"
-msgstr ""
+msgstr "VMs pausieren"
 
 #: constants.py:314
 msgid "Delete VMs"
-msgstr ""
+msgstr "VMs löschen"
 
 #: constants.py:315
 msgid "Edit Configuration"
-msgstr ""
+msgstr "Konfiguration bearbeiten"
 
 #: constants.py:316
 msgid "Hypervisor default"
-msgstr ""
+msgstr "Hypervisor-Standard"
 
 #: constants.py:317
 msgid "Localhost only"
-msgstr ""
+msgstr "Nur Localhost"
 
 #: constants.py:318
 msgid "All interfaces"
-msgstr ""
+msgstr "Alle Schnittstellen"
 
 #: constants.py:319
 msgid "NAT Network"
-msgstr ""
+msgstr "NAT Netzwerk"
 
 #: constants.py:320
 msgid "Routed Network"
-msgstr ""
+msgstr "Geroutetes Netzwerk"
 
 #: constants.py:321
 msgid "e.g., 192.168.1.0/24"
-msgstr ""
+msgstr "z.B. 192.168.1.0/24"
 
 #: constants.py:322
 msgid "e.g., 192.168.1.10"
-msgstr ""
+msgstr "z.B. 192.168.1.10"
 
 #: constants.py:323
 msgid "e.g., 192.168.1.200"
-msgstr ""
+msgstr "z.B. 192.168.1.200"
 
 #: constants.py:324
 msgid "Select Network and Model"
-msgstr ""
+msgstr "Netzwerk und Modell auswählen"
 
 #: constants.py:325
 msgid "Use Custom DNS Domain"
-msgstr ""
+msgstr "Benutzerdefinierte DNS-Domain verwenden"
 
 #: constants.py:326
 msgid "Use Network Name for DNS"
-msgstr ""
+msgstr "Netzwerknamen für DNS verwenden"
 
 #: constants.py:327
 msgid "Custom DNS Domain"
-msgstr ""
+msgstr "Benutzerdefinierte DNS-Domain"
 
 #: constants.py:328
 msgid "Network Details"
-msgstr ""
+msgstr "Netzwerkdetails"
 
 #: constants.py:329
 msgid "Undefine source VM"
-msgstr ""
+msgstr "Quell-VM undefinieren"
 
 #: constants.py:330
 #, python-brace-format
 msgid "Edit Disk: {path}"
-msgstr ""
+msgstr "Festplatte bearbeiten: {path}"
 
 #: constants.py:331
 #, python-brace-format
 msgid "Move Volume: {volume_name}"
-msgstr ""
+msgstr "Volume verschieben: {volume_name}"
 
 #: constants.py:332
 #, python-brace-format
 msgid "[{migration_type}] Migrate VMs: [b]{vm_names}[/b]"
-msgstr ""
+msgstr "[{migration_type}] VMs migrieren: [b]{vm_names}[/b]"
 
 #: constants.py:334
 msgid "Server Preferences"
-msgstr ""
+msgstr "Server-Einstellungen"
 
 #: constants.py:335 constants.py:390
 msgid "Select a Directory"
-msgstr ""
+msgstr "Ein Verzeichnis auswählen"
 
 #: constants.py:336 constants.py:391
 msgid "Select a File"
-msgstr ""
+msgstr "Eine Datei auswählen"
 
 #: constants.py:337
 msgid "Select Disk to Remove"
-msgstr ""
+msgstr "Zu entfernende Festplatte auswählen"
 
 #: constants.py:338
 msgid "Add New Disk"
-msgstr ""
+msgstr "Neue Festplatte hinzufügen"
 
 #: constants.py:339
 msgid "Add New Storage Pool"
-msgstr ""
+msgstr "Neuen Speicherpool hinzufügen"
 
 #: constants.py:340
 msgid "Target Path (for volumes)"
-msgstr ""
+msgstr "Zielpfad (für Volumes)"
 
 #: constants.py:341
 msgid "Target Path (on this host)"
-msgstr ""
+msgstr "Zielpfad (auf diesem Host)"
 
 #: constants.py:342
 msgid "Source Hostname"
-msgstr ""
+msgstr "Quell-Hostname"
 
 #: constants.py:343
 msgid "Source Path (on remote host)"
-msgstr ""
+msgstr "Quellpfad (auf Remote-Host)"
 
 #: constants.py:344
 msgid "Create New Storage Volume"
-msgstr ""
+msgstr "Neues Speichervolume erstellen"
 
 #: constants.py:345
 msgid "Device Type:"
-msgstr ""
+msgstr "Gerätetyp:"
 
 #: constants.py:346
 msgid "Bus Type:"
-msgstr ""
+msgstr "Bustyp:"
 
 #: constants.py:347
 msgid "Cache Mode:"
-msgstr ""
+msgstr "Cache-Modus:"
 
 #: constants.py:348
 msgid "Discard Mode:"
-msgstr ""
+msgstr "Verwerfen-Modus:"
 
 #: constants.py:349 constants.py:622
 msgid "VM must be stopped to edit disk settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Festplatteneinstellungen zu bearbeiten."
 
 #: constants.py:350
 msgid "Destination Pool:"
-msgstr ""
+msgstr "Ziel-Pool:"
 
 #: constants.py:351
 msgid "New Volume Name:"
-msgstr ""
+msgstr "Neuer Volumename:"
 
 #: constants.py:352
 msgid "Attach Existing Disk as Volume"
-msgstr ""
+msgstr "Vorhandene Festplatte als Volume anhängen"
 
 #: constants.py:353
 msgid "Boot Order"
-msgstr ""
+msgstr "Boot-Reihenfolge"
 
 #: constants.py:354
 msgid "Available Devices"
-msgstr ""
+msgstr "Verfügbare Geräte"
 
 #: constants.py:355
 msgid "Type:"
-msgstr ""
+msgstr "Typ:"
 
 #: constants.py:356
 msgid "Listen Type:"
-msgstr ""
+msgstr "Hörtyp:"
 
 #: constants.py:357
 msgid "Address:"
-msgstr ""
+msgstr "Adresse:"
 
 #: constants.py:358
 msgid "TPM Model:"
-msgstr ""
+msgstr "TPM Modell:"
 
 #: constants.py:359
 msgid "TPM Type:"
-msgstr ""
+msgstr "TPM Typ:"
 
 #: constants.py:360
 msgid "Device Path (for passthrough):"
-msgstr ""
+msgstr "Gerätepfad (für Passthrough):"
 
 #: constants.py:361
 msgid "Backend Type (for passthrough):"
-msgstr ""
+msgstr "Backend-Typ (für Passthrough):"
 
 #: constants.py:362
 msgid "Backend Path (for passthrough):"
-msgstr ""
+msgstr "Backend-Pfad (für Passthrough):"
 
 #: constants.py:363
 msgid "Host device"
-msgstr ""
+msgstr "Host-Gerät"
 
 #: constants.py:364
 msgid "Watchdog Model:"
-msgstr ""
+msgstr "Watchdog Modell:"
 
 #: constants.py:365
 msgid "Action:"
-msgstr ""
+msgstr "Aktion:"
 
 #: constants.py:366
 msgid "Available Host USB Devices"
-msgstr ""
+msgstr "Verfügbare Host-USB-Geräte"
 
 #: constants.py:367
 msgid "Attached to VM"
-msgstr ""
+msgstr "An VM angehängt"
 
 #: constants.py:368
 msgid "Available Host PCI Devices"
-msgstr ""
+msgstr "Verfügbare Host-PCI-Geräte"
 
 #: constants.py:369
 msgid "Virsh Interactive Shell (esc to quit)"
-msgstr ""
+msgstr "Interaktive Virsh-Shell (Esc zum Beenden)"
 
 #: constants.py:370
 msgid ""
 "Note: This shell starts a new `virsh` process, which may require re-"
 "authentication for remote connections. Using SSH keys is recommended."
 msgstr ""
+"Hinweis: Diese Shell startet einen neuen `virsh`-Prozess, der möglicherweise "
+"eine erneute Authentifizierung für Remoteverbindungen erfordert. Die "
+"Verwendung von SSH-Schlüsseln wird empfohlen."
 
 #: constants.py:371
 msgid "Input Device"
-msgstr ""
+msgstr "Eingabegerät"
 
 #: constants.py:372
 msgid "Add Channel Device"
-msgstr ""
+msgstr "Kanalgerät hinzufügen"
 
 #: constants.py:373
 msgid "Standard Target Names:"
-msgstr ""
+msgstr "Standard-Zielnamen:"
 
 #: constants.py:374
 msgid "Target Name:"
-msgstr ""
+msgstr "Zielname:"
 
 #: constants.py:375
 msgid "Selected VMs for Bulk Action"
-msgstr ""
+msgstr "Ausgewählte VMs für Massenaktion"
 
 #: constants.py:376
 msgid "Choose Action:"
-msgstr ""
+msgstr "Aktion wählen:"
 
 #: constants.py:377
 msgid "Performance"
-msgstr ""
+msgstr "Leistung"
 
 #: constants.py:378
 msgid "Stats Interval (seconds):"
-msgstr ""
+msgstr "Statistik-Intervall (Sekunden):"
 
 #: constants.py:379
 msgid "Log File Path:"
-msgstr ""
+msgstr "Pfad zur Protokolldatei:"
 
 #: constants.py:380
 msgid "Logging Level:"
-msgstr ""
+msgstr "Protokollierungslevel:"
 
 #: constants.py:381
 msgid "Remote Viewer"
-msgstr ""
+msgstr "Remote Viewer"
 
 #: constants.py:382
 msgid "No remote viewers found (virt-viewer or virtui-remote-viewer)"
-msgstr ""
+msgstr "Keine Remote Viewer gefunden (virt-viewer oder virtui-remote-viewer)"
 
 #: constants.py:383
 msgid "Websockify Path:"
-msgstr ""
+msgstr "Websockify Pfad:"
 
 #: constants.py:384
 msgid "noVNC Path:"
-msgstr ""
+msgstr "noVNC Pfad:"
 
 #: constants.py:385
 msgid "Websockify Port Range:"
-msgstr ""
+msgstr "Websockify Portbereich:"
 
 #: constants.py:386
 msgid "VNC Quality (0-9):"
-msgstr ""
+msgstr "VNC Qualität (0-9):"
 
 #: constants.py:387
 msgid "VNC Compression (0-9):"
-msgstr ""
+msgstr "VNC Kompression (0-9):"
 
 #: constants.py:388
 msgid "Host Capabilities"
-msgstr ""
+msgstr "Host-Fähigkeiten"
 
 #: constants.py:389
 msgid "Capabilities"
-msgstr ""
+msgstr "Fähigkeiten"
 
 #: constants.py:392
 msgid "Export filesystem as readonly mount"
-msgstr ""
+msgstr "Dateisystem als schreibgeschützten Mount exportieren"
 
 #: constants.py:393
 msgid "Web console will run locally."
-msgstr ""
+msgstr "Web-Konsole wird lokal ausgeführt."
 
 #: constants.py:394
 msgid "Enable boot menu"
-msgstr ""
+msgstr "Boot-Menü aktivieren"
 
 #: constants.py:395
 msgid "Web Console (novnc)"
-msgstr ""
+msgstr "Web-Konsole (novnc)"
 
 #: constants.py:396
 msgid "Host Resource Dashboard"
@@ -1289,680 +1292,666 @@ msgstr "Sammle VM-Infos: {current}/{total}"
 #: constants.py:412
 #, python-brace-format
 msgid "Disk R/W {read:.2f}/{write:.2f} MB/s"
-msgstr ""
+msgstr "Festplatte L/S {read:.2f}/{write:.2f} MB/s"
 
 #: constants.py:413
 #, python-brace-format
 msgid "Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s"
-msgstr ""
+msgstr "Netz Rx/Tx {rx:.2f}/{tx:.2f} MB/s"
 
 #: constants.py:414
 #, python-brace-format
 msgid "{cpu} VCPU"
-msgstr ""
+msgstr "{cpu} VCPU"
 
 #: constants.py:415
 #, python-brace-format
 msgid "{mem} Gb"
-msgstr ""
+msgstr "{mem} Gb"
 
 #: constants.py:419
 msgid "Remote viewer command not found. Please ensure it is installed."
-msgstr ""
+msgstr "Remote-Viewer-Befehl nicht gefunden. Bitte sicherstellen, dass er installiert ist."
 
 #: constants.py:420
 msgid "Could not open display. Ensure you are in a graphical session."
-msgstr ""
+msgstr "Konnte Display nicht öffnen. Stellen Sie sicher, dass Sie in einer grafischen Sitzung sind."
 
 #: constants.py:421
 msgid "This is a hard stop, like unplugging the power cord."
-msgstr ""
+msgstr "Dies ist ein harter Stopp, wie das Ziehen des Netzsteckers."
 
 #: constants.py:422
 msgid ""
 "Migration from localhost (qemu:///system) is not supported.\n"
 "A full remote URI (e.g., qemu+ssh://user@host/system) is required."
 msgstr ""
+"Migration von localhost (qemu:///system) wird nicht unterstützt.\n"
+"Eine vollständige Remote-URI (z.B. qemu+ssh://user@host/system) ist erforderlich."
 
 #: constants.py:423
 msgid "No destination servers available."
-msgstr ""
+msgstr "Keine Ziel-Server verfügbar."
 
 #: constants.py:424
 msgid "Cannot migrate VMs from different source hosts at the same time."
-msgstr ""
+msgstr "Kann keine VMs von verschiedenen Quell-Hosts gleichzeitig migrieren."
 
 #: constants.py:425
 msgid "Cannot migrate running/paused and stopped VMs at the same time."
-msgstr ""
+msgstr "Kann keine laufenden/pausierten und gestoppten VMs gleichzeitig migrieren."
 
 #: constants.py:426
 msgid "websockify is not installed. 'Web Console' button will be disabled."
-msgstr ""
+msgstr "websockify ist nicht installiert. 'Web-Konsole'-Button wird deaktiviert."
 
 #: constants.py:427
 msgid "novnc is not installed. 'Web Console' button will be disabled."
-msgstr ""
+msgstr "novnc ist nicht installiert. 'Web-Konsole'-Button wird deaktiviert."
 
 #: constants.py:428
 #, python-brace-format
 msgid "Failed to open connection to [b]{uri}[/b]"
-msgstr ""
+msgstr "Konnte keine Verbindung zu [b]{uri}[/b] öffnen"
 
 #: constants.py:429 constants.py:552
 msgid "Not connected to any server."
-msgstr ""
+msgstr "Nicht mit einem Server verbunden."
 
 #: constants.py:430
 #, python-brace-format
 msgid "Could not connect to {uri}"
-msgstr ""
+msgstr "Konnte nicht mit {uri} verbinden"
 
 #: constants.py:431
 msgid "No action type received from bulk action modal."
-msgstr ""
+msgstr "Kein Aktionstyp vom Massenaktions-Modal empfangen."
 
 #: constants.py:432
 msgid "Could not find any of the selected VMs for editing."
-msgstr ""
+msgstr "Konnte keine der ausgewählten VMs zum Bearbeiten finden."
 
 #: constants.py:433
 #, python-brace-format
 msgid "All VMs must be stopped for bulk editing. Running VMs: {running_vms}"
-msgstr ""
+msgstr "Alle VMs müssen für die Massenbearbeitung gestoppt sein. Laufende VMs: {running_vms}"
 
 #: constants.py:434
 msgid "Could not load details for reference VM."
-msgstr ""
+msgstr "Konnte Details für Referenz-VM nicht laden."
 
 #: constants.py:435
 #, python-brace-format
-msgid ""
-"Server(s) {names} disconnected and autoconnect disabled due to connection "
-"failures."
-msgstr ""
+msgid "Server(s) {names} disconnected and autoconnect disabled due to connection failures."
+msgstr "Server {names} getrennt und Autoconnect deaktiviert aufgrund von Verbindungsfehlern."
 
 #: constants.py:436
 msgid "No active servers."
-msgstr ""
+msgstr "Keine aktiven Server."
 
 #: constants.py:437
 msgid "No VMs found in cache. Try refreshing first."
-msgstr ""
+msgstr "Keine VMs im Cache gefunden. Versuchen Sie zuerst zu aktualisieren."
 
 #: constants.py:438
 msgid "No VMs selected."
-msgstr ""
+msgstr "Keine VMs ausgewählt."
 
 #: constants.py:439
 #, python-brace-format
 msgid "Error fetching VM data: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen der VM-Daten: {error}"
 
 #: constants.py:440
 #, python-brace-format
 msgid "Error during initial cache loading: {error}"
-msgstr ""
+msgstr "Fehler beim initialen Laden des Caches: {error}"
 
 #: constants.py:441
 #, python-brace-format
 msgid "Error on VM [b]{vm_name}[/b] during '{action}': {error}"
-msgstr ""
+msgstr "Fehler bei VM [b]{vm_name}[/b] während '{action}': {error}"
 
 #: constants.py:442
 #, python-brace-format
 msgid "A fatal error occurred during bulk action: {error}"
-msgstr ""
+msgstr "Ein schwerwiegender Fehler ist während der Massenaktion aufgetreten: {error}"
 
 #: constants.py:443
 #, python-brace-format
 msgid "Error getting info for VM '{vm_name}': {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen von Infos für VM '{vm_name}': {error}"
 
 #: constants.py:444
 #, python-brace-format
 msgid "Could not find VM with ID [b]{vm_id}[/b]"
-msgstr ""
+msgstr "Konnte VM mit ID [b]{vm_id}[/b] nicht finden"
 
 #: constants.py:445
 #, python-brace-format
 msgid "Error preparing bulk edit: {error}"
-msgstr ""
+msgstr "Fehler beim Vorbereiten der Massenbearbeitung: {error}"
 
 #: constants.py:446
 #, python-brace-format
 msgid "Server [b]{server_name}[/b]: {error_msg}"
-msgstr ""
+msgstr "Server [b]{server_name}[/b]: {error_msg}"
 
 #: constants.py:447
 #, python-brace-format
 msgid "Failed to connect to [b]{server_name}[/b]: {error_msg}"
-msgstr ""
+msgstr "Konnte nicht mit [b]{server_name}[/b] verbinden: {error_msg}"
 
 #: constants.py:448
 #, python-brace-format
 msgid "Bulk action [b]{action_type}[/b] failed for {count} VMs."
-msgstr ""
+msgstr "Massenaktion [b]{action_type}[/b] fehlgeschlagen für {count} VMs."
 
 #: constants.py:449
 #, python-brace-format
 msgid "Error launching preferences: {error}"
-msgstr ""
+msgstr "Fehler beim Starten der Einstellungen: {error}"
 
 #: constants.py:450
 msgid "Could not retrieve names for selected VMs."
-msgstr ""
+msgstr "Konnte Namen für ausgewählte VMs nicht abrufen."
 
 #: constants.py:451
 #, python-brace-format
 msgid "Failed to clone to: {vm_names}"
-msgstr ""
+msgstr "Klonen fehlgeschlagen nach: {vm_names}"
 
 #: constants.py:452
 msgid "No suitable disks found for overlay."
-msgstr ""
+msgstr "Keine geeigneten Festplatten für Overlay gefunden."
 
 #: constants.py:453
 msgid "Overlay volume name cannot be empty after sanitization."
-msgstr ""
+msgstr "Overlay-Volumename darf nach Bereinigung nicht leer sein."
 
 #: constants.py:454
 #, python-brace-format
 msgid "Error creating overlay: {error}"
-msgstr ""
+msgstr "Fehler beim Erstellen des Overlays: {error}"
 
 #: constants.py:455
 #, python-brace-format
 msgid "Error preparing overlay creation: {error}"
-msgstr ""
+msgstr "Fehler bei Vorbereitung der Overlay-Erstellung: {error}"
 
 #: constants.py:456
 msgid "No overlay disks found."
-msgstr ""
+msgstr "Keine Overlay-Festplatten gefunden."
 
 #: constants.py:457
 #, python-brace-format
 msgid "Error discarding overlay: {error}"
-msgstr ""
+msgstr "Fehler beim Verwerfen des Overlays: {error}"
 
 #: constants.py:458
 #, python-brace-format
 msgid "Error preparing discard overlay: {error}"
-msgstr ""
+msgstr "Fehler bei Vorbereitung des Overlay-Verwerfens: {error}"
 
 #: constants.py:459
 msgid "No disks found to commit."
-msgstr ""
+msgstr "Keine Festplatten zum Festschreiben gefunden."
 
 #: constants.py:460
 #, python-brace-format
 msgid "Error committing disk: {error}"
-msgstr ""
+msgstr "Fehler beim Festschreiben der Festplatte: {error}"
 
 #: constants.py:461
 #, python-brace-format
 msgid "Error preparing commit: {error}"
-msgstr ""
+msgstr "Fehler bei Vorbereitung des Festschreibens: {error}"
 
 #: constants.py:462
 #, python-brace-format
-msgid ""
-"Invalid XML for '[b]{vm_name}[/b]': {error}. Your changes have been "
-"discarded."
-msgstr ""
+msgid "Invalid XML for '[b]{vm_name}[/b]': {error}. Your changes have been discarded."
+msgstr "Ungültiges XML für '[b]{vm_name}[/b]': {error}. Ihre Änderungen wurden verworfen."
 
 #: constants.py:463
 #, python-brace-format
 msgid "Error getting XML for VM [b]{vm_name}[/b]: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen von XML für VM [b]{vm_name}[/b]: {error}"
 
 #: constants.py:464 constants.py:562
 #, python-brace-format
 msgid "An unexpected error occurred: {error}"
-msgstr ""
+msgstr "Ein unerwarteter Fehler ist aufgetreten: {error}"
 
 #: constants.py:465
 msgid "Connection info not available for this VM."
-msgstr ""
+msgstr "Verbindungsinformationen nicht verfügbar für diese VM."
 
 #: constants.py:466
 #, python-brace-format
 msgid "{viewer} failed to start for {domain_name}: {error}"
-msgstr ""
+msgstr "{viewer} konnte für {domain_name} nicht gestartet werden: {error}"
 
 #: constants.py:467
 #, python-brace-format
 msgid "Error getting VM details for [b]{vm_name}[/b]: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen von VM-Details für [b]{vm_name}[/b]: {error}"
 
 #: constants.py:468
 msgid "An unexpected error occurred while trying to connect."
-msgstr ""
+msgstr "Ein unerwarteter Fehler ist beim Verbindungsversuch aufgetreten."
 
 #: constants.py:469
 #, python-brace-format
 msgid "Error checking web console status for [b]{vm_name}[/b]: {error}"
-msgstr ""
+msgstr "Fehler beim Prüfen des Web-Konsolen-Status für [b]{vm_name}[/b]: {error}"
 
 #: constants.py:470
 #, python-brace-format
 msgid "Snapshot error for [b]{vm_name}[/b]: {error}"
-msgstr ""
+msgstr "Schnappschuss-Fehler für [b]{vm_name}[/b]: {error}"
 
 #: constants.py:471
 msgid "No snapshots to restore."
-msgstr ""
+msgstr "Keine Schnappschüsse zum Wiederherstellen."
 
 #: constants.py:472
 #, python-brace-format
 msgid "Error fetching snapshots: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen von Schnappschüssen: {error}"
 
 #: constants.py:473
 msgid "No snapshots to delete."
-msgstr ""
+msgstr "Keine Schnappschüsse zum Löschen."
 
 #: constants.py:474
 #, python-brace-format
 msgid "Error deleting VM '{vm_name}': {error}"
-msgstr ""
+msgstr "Fehler beim Löschen von VM '{vm_name}': {error}"
 
 #: constants.py:475
 msgid "VM name cannot be empty after sanitization."
-msgstr ""
+msgstr "VM-Name darf nach Bereinigung nicht leer sein."
 
 #: constants.py:476
 #, python-brace-format
 msgid "Error renaming VM [b]{vm_name}[/b]: {error}"
-msgstr ""
+msgstr "Fehler beim Umbenennen von VM [b]{vm_name}[/b]: {error}"
 
 #: constants.py:477
 #, python-brace-format
-msgid ""
-"VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active "
-"server."
-msgstr ""
+msgid "VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active server."
+msgstr "VM [b]{vm_name}[/b] mit interner ID [b]{uuid}[/b] auf keinem aktiven Server gefunden."
 
 #: constants.py:478
 #, python-brace-format
 msgid "Error getting ID for [b]{vm_name}[/b]: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen der ID für [b]{vm_name}[/b]: {error}"
 
 #: constants.py:479
-msgid ""
-"Please select at least two servers in 'Select Servers' to enable migration."
-msgstr ""
+msgid "Please select at least two servers in 'Select Servers' to enable migration."
+msgstr "Bitte wählen Sie mindestens zwei Server in 'Server wählen' aus, um die Migration zu aktivieren."
 
 #: constants.py:480
 #, python-brace-format
 msgid "Selected VM with ID [b]{uuid}[/b] not found on any active server."
-msgstr ""
+msgstr "Ausgewählte VM mit ID [b]{uuid}[/b] auf keinem aktiven Server gefunden."
 
 #: constants.py:481
 #, python-brace-format
 msgid "Error getting existing VM names: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen existierender VM-Namen: {error}"
 
 #: constants.py:482
 msgid "Web console only supports VNC graphics."
-msgstr ""
+msgstr "Web-Konsole unterstützt nur VNC-Grafik."
 
 #: constants.py:483
 msgid "Could not determine VNC port for the VM."
-msgstr ""
+msgstr "Konnte VNC-Port für die VM nicht ermitteln."
 
 #: constants.py:484
 #, python-brace-format
 msgid "Failed to start web console: {error}"
-msgstr ""
+msgstr "Start der Web-Konsole fehlgeschlagen: {error}"
 
 #: constants.py:485
-msgid ""
-"Could not find a free port for the web console (all ports in range used by "
-"other sessions)."
-msgstr ""
+msgid "Could not find a free port for the web console (all ports in range used by other sessions)."
+msgstr "Konnte keinen freien Port für die Web-Konsole finden (alle Ports im Bereich werden von anderen Sitzungen verwendet)."
 
 #: constants.py:486
 msgid "Remote key generation failed. Falling back to insecure ws connection."
-msgstr ""
+msgstr "Remote-Schlüsselgenerierung fehlgeschlagen. Falle zurück auf unsichere ws-Verbindung."
 
 #: constants.py:487
 #, python-brace-format
 msgid "Failed to start remote websockify for [b]{vm_name}[/b]. Check logs."
-msgstr ""
+msgstr "Konnte Remote-Websockify für [b]{vm_name}[/b] nicht starten. Prüfen Sie die Protokolle."
 
 #: constants.py:488
 #, python-brace-format
-msgid ""
-"Remote web console process for [b]{vm_name}[/b] failed to start or crashed. "
-"Check remote logs."
-msgstr ""
+msgid "Remote web console process for [b]{vm_name}[/b] failed to start or crashed. Check remote logs."
+msgstr "Remote-Web-Konsolen-Prozess für [b]{vm_name}[/b] konnte nicht gestartet werden oder ist abgestürzt. Prüfen Sie die Remote-Protokolle."
 
 #: constants.py:489
 msgid "Could not find a free local port for SSH tunnel."
-msgstr ""
+msgstr "Konnte keinen freien lokalen Port für SSH-Tunnel finden."
 
 #: constants.py:490
 #, python-brace-format
 msgid "Failed to create SSH tunnel: {error}"
-msgstr ""
+msgstr "Erstellen des SSH-Tunnels fehlgeschlagen: {error}"
 
 #: constants.py:491
 msgid "SSH command not found. Cannot create tunnel."
-msgstr ""
+msgstr "SSH-Befehl nicht gefunden. Kann Tunnel nicht erstellen."
 
 #: constants.py:492
 msgid "Failed to create SSH tunnel..."
-msgstr ""
+msgstr "Erstellen des SSH-Tunnels fehlgeschlagen..."
 
 #: constants.py:493
 msgid "Please select an action."
-msgstr ""
+msgstr "Bitte wählen Sie eine Aktion."
 
 #: constants.py:494
 #, python-brace-format
 msgid "Error saving configuration: {e}"
-msgstr ""
+msgstr "Fehler beim Speichern der Konfiguration: {e}"
 
 #: constants.py:495
 #, python-brace-format
 msgid "Validation error: {error}"
-msgstr ""
+msgstr "Validierungsfehler: {error}"
 
 #: constants.py:496
 #, python-brace-format
 msgid "Invalid format: {error}"
-msgstr ""
+msgstr "Ungültiges Format: {error}"
 
 #: constants.py:497
 #, python-brace-format
 msgid "Invalid nodeset syntax: {nodeset}"
-msgstr ""
+msgstr "Ungültige Nodeset-Syntax: {nodeset}"
 
 #: constants.py:498
 msgid "Pool, Volume Name, and Size are required to create a new disk."
-msgstr ""
+msgstr "Pool, Volumename und Größe sind erforderlich, um eine neue Festplatte zu erstellen."
 
 #: constants.py:499
 msgid "Path to disk image is required."
-msgstr ""
+msgstr "Pfad zum Festplattenabbild ist erforderlich."
 
 #: constants.py:500
 msgid "Pool name is required."
-msgstr ""
+msgstr "Pool-Name ist erforderlich."
 
 #: constants.py:501
 msgid "Target Path is required for `dir` type."
-msgstr ""
+msgstr "Zielpfad ist erforderlich für `dir`-Typ."
 
 #: constants.py:502
 msgid "For `netfs`, all fields are required."
-msgstr ""
+msgstr "Für `netfs` sind alle Felder erforderlich."
 
 #: constants.py:503
 msgid "Name and size are required."
-msgstr ""
+msgstr "Name und Größe sind erforderlich."
 
 #: constants.py:504
 msgid "Size must be an integer."
-msgstr ""
+msgstr "Größe muss eine Ganzzahl sein."
 
 #: constants.py:505
 msgid "Destination pool and new name are required."
-msgstr ""
+msgstr "Ziel-Pool und neuer Name sind erforderlich."
 
 #: constants.py:506
 msgid "Name, path, and format are required. Ensure a file is selected."
-msgstr ""
+msgstr "Name, Pfad und Format sind erforderlich. Stellen Sie sicher, dass eine Datei ausgewählt ist."
 
 #: constants.py:507 constants.py:575
 #, python-brace-format
 msgid "Error creating storage pool: {error}"
-msgstr ""
+msgstr "Fehler beim Erstellen des Speicherpools: {error}"
 
 #: constants.py:508
 msgid "Please select a destination server."
-msgstr ""
+msgstr "Bitte wählen Sie einen Ziel-Server."
 
 #: constants.py:509
 msgid "Please run compatibility check first."
-msgstr ""
+msgstr "Bitte führen Sie zuerst die Kompatibilitätsprüfung durch."
 
 #: constants.py:510
 msgid "Cannot start migration due to compatibility errors."
-msgstr ""
+msgstr "Kann Migration aufgrund von Kompatibilitätsfehlern nicht starten."
 
 #: constants.py:511 constants.py:525
 #, python-brace-format
 msgid "Network '{network}' not found. Please select an available network."
-msgstr ""
+msgstr "Netzwerk '{network}' nicht gefunden. Bitte wählen Sie ein verfügbares Netzwerk."
 
 #: constants.py:512
 msgid "Please select a network."
-msgstr ""
+msgstr "Bitte wählen Sie ein Netzwerk."
 
 #: constants.py:513
 #, python-brace-format
 msgid "Forward device '{device}' not found on host."
-msgstr ""
+msgstr "Weiterleitungsgerät '{device}' nicht auf dem Host gefunden."
 
 #: constants.py:514
 #, python-brace-format
 msgid "Error getting host interfaces: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen der Host-Schnittstellen: {error}"
 
 #: constants.py:515
 #, python-brace-format
 msgid "Invalid Network Name: {error}"
-msgstr ""
+msgstr "Ungültiger Netzwerkname: {error}"
 
 #: constants.py:516
 #, python-brace-format
 msgid "Invalid Custom DNS Domain: {error}"
-msgstr ""
+msgstr "Ungültige benutzerdefinierte DNS-Domain: {error}"
 
 #: constants.py:517
 msgid "Network Name cannot be empty."
-msgstr ""
+msgstr "Netzwerkname darf nicht leer sein."
 
 #: constants.py:518
 #, python-brace-format
 msgid "DHCP IPs are not in the network {network}"
-msgstr ""
+msgstr "DHCP IPs sind nicht im Netzwerk {network}"
 
 #: constants.py:519
 msgid "DHCP start IP must be before the end IP."
-msgstr ""
+msgstr "DHCP Start-IP muss vor der End-IP liegen."
 
 #: constants.py:520
 #, python-brace-format
 msgid "Invalid IP address or network: {error}"
-msgstr ""
+msgstr "Ungültige IP-Adresse oder Netzwerk: {error}"
 
 #: constants.py:521
 msgid "DHCP cannot be enabled without an IP network."
-msgstr ""
+msgstr "DHCP kann nicht ohne ein IP-Netzwerk aktiviert werden."
 
 #: constants.py:522
 #, python-brace-format
 msgid "Subnet {subnet} overlaps with an existing network."
-msgstr ""
+msgstr "Subnetz {subnet} überlappt mit einem bestehenden Netzwerk."
 
 #: constants.py:523
 #, python-brace-format
 msgid "Error creating network: {error}"
-msgstr ""
+msgstr "Fehler beim Erstellen des Netzwerks: {error}"
 
 #: constants.py:524 constants.py:604
 #, python-brace-format
 msgid "Error updating network: {error}"
-msgstr ""
+msgstr "Fehler beim Aktualisieren des Netzwerks: {error}"
 
 #: constants.py:526
 #, python-brace-format
-msgid ""
-"A VM with the name '{vm_name}' already exists. Please choose a different "
-"name."
-msgstr ""
+msgid "A VM with the name '{vm_name}' already exists. Please choose a different name."
+msgstr "Eine VM mit dem Namen '{vm_name}' existiert bereits. Bitte wählen Sie einen anderen Namen."
 
 #: constants.py:527
 #, python-brace-format
 msgid "Error checking VM name: {error}"
-msgstr ""
+msgstr "Fehler beim Prüfen des VM-Namens: {error}"
 
 #: constants.py:528
 msgid "Please select a valid storage pool."
-msgstr ""
+msgstr "Bitte wählen Sie einen gültigen Speicherpool."
 
 #: constants.py:529
 #, python-brace-format
 msgid "Selected ISO volume does not exist: {iso_url}"
-msgstr ""
+msgstr "Ausgewähltes ISO-Volume existiert nicht: {iso_url}"
 
 #: constants.py:530
 msgid "Please select a valid ISO volume from the storage pool."
-msgstr ""
+msgstr "Bitte wählen Sie ein gültiges ISO-Volume aus dem Speicherpool."
 
 #: constants.py:531
 msgid "Invalid input for expert settings. Using defaults."
-msgstr ""
+msgstr "Ungültige Eingabe für Experten-Einstellungen. Verwende Standardwerte."
 
 #: constants.py:532
 msgid "Memory must be between 1 and 8192 GB."
-msgstr ""
+msgstr "Speicher muss zwischen 1 und 8192 GB liegen."
 
 #: constants.py:533
 msgid "CPU count must be between 1 and 768."
-msgstr ""
+msgstr "CPU-Anzahl muss zwischen 1 und 768 liegen."
 
 #: constants.py:534
 msgid "Disk size must be between 1 and 10000 GB."
-msgstr ""
+msgstr "Festplattengröße muss zwischen 1 und 10000 GB liegen."
 
 #: constants.py:535
 #, python-brace-format
 msgid "Storage pool '{pool_name}' is not active. Please activate it first."
-msgstr ""
+msgstr "Speicherpool '{pool_name}' ist nicht aktiv. Bitte aktivieren Sie ihn zuerst."
 
 #: constants.py:536
 #, python-brace-format
 msgid "Error accessing storage pool '{pool_name}': {error}"
-msgstr ""
+msgstr "Fehler beim Zugriff auf Speicherpool '{pool_name}': {error}"
 
 #: constants.py:537
 #, python-brace-format
 msgid "Custom ISO path does not exist: {path}"
-msgstr ""
+msgstr "Benutzerdefinierter ISO-Pfad existiert nicht: {path}"
 
 #: constants.py:538
 #, python-brace-format
 msgid "Custom ISO path is not a file: {path}"
-msgstr ""
+msgstr "Benutzerdefinierter ISO-Pfad ist keine Datei: {path}"
 
 #: constants.py:539
 msgid "Checksum validation enabled but no checksum provided"
-msgstr ""
+msgstr "Prüfsummenvalidierung aktiviert, aber keine Prüfsumme bereitgestellt"
 
 #: constants.py:540
 msgid "Checksum validation failed!"
-msgstr ""
+msgstr "Prüfsummenvalidierung fehlgeschlagen!"
 
 #: constants.py:541
 msgid "No ISO URL specified for provisioning"
-msgstr ""
+msgstr "Keine ISO-URL für Bereitstellung angegeben"
 
 #: constants.py:542
 #, python-brace-format
 msgid "Could not get details for {vm_name}"
-msgstr ""
+msgstr "Konnte Details für {vm_name} nicht abrufen"
 
 #: constants.py:543
 #, python-brace-format
 msgid "Failed to start VM or viewer: {error}"
-msgstr ""
+msgstr "Konnte VM oder Viewer nicht starten: {error}"
 
 #: constants.py:544
 #, python-brace-format
 msgid "Provisioning failed: {error}"
-msgstr ""
+msgstr "Bereitstellung fehlgeschlagen: {error}"
 
 #: constants.py:545
 #, python-brace-format
 msgid "Failed to fetch ISO volumes from {pool_name}: {error}"
-msgstr ""
+msgstr "Abrufen der ISO-Volumes von {pool_name} fehlgeschlagen: {error}"
 
 #: constants.py:546
 #, python-brace-format
 msgid "Failed to fetch ISOs: {error}"
-msgstr ""
+msgstr "Abrufen der ISOs fehlgeschlagen: {error}"
 
 #: constants.py:547 constants.py:599
 msgid "VM name cannot be empty."
-msgstr ""
+msgstr "VM-Name darf nicht leer sein."
 
 #: constants.py:548
 #, python-brace-format
 msgid "Connecting to {uri}..."
-msgstr ""
+msgstr "Verbinde mit {uri}..."
 
 #: constants.py:549
 #, python-brace-format
 msgid "Failed to connect to {uri}"
-msgstr ""
+msgstr "Verbindung mit {uri} fehlgeschlagen"
 
 #: constants.py:550
 #, python-brace-format
 msgid "Error deleting server '{server_name}': {error}"
-msgstr ""
+msgstr "Fehler beim Löschen von Server '{server_name}': {error}"
 
 #: constants.py:551
 #, python-brace-format
-msgid ""
-"Are you sure you want to delete Server;\n"
-"'{server_name}'\n"
-"from list?"
-msgstr ""
+msgid "Are you sure you want to delete Server;\n'{server_name}'\nfrom list?"
+msgstr "Sind Sie sicher, dass Sie Server;\n'{server_name}'\naus der Liste löschen möchten?"
 
 #: constants.py:553
 msgid "Multiple servers active but none selected for preferences."
-msgstr ""
+msgstr "Mehrere Server aktiv, aber keiner für Einstellungen ausgewählt."
 
 #: constants.py:554
 #, python-brace-format
 msgid "Failed to get connection for server preferences on {uri}."
-msgstr ""
+msgstr "Verbindung für Servereinstellungen auf {uri} konnte nicht hergestellt werden."
 
 #: constants.py:555
 msgid "Could not find object to display XML for."
-msgstr ""
+msgstr "Konnte Objekt zum Anzeigen von XML nicht finden."
 
 #: constants.py:556
 #, python-brace-format
 msgid "Error getting XML for {obj_type}: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen von XML für {obj_type}: {error}"
 
 #: constants.py:557
 msgid "Could not find pool object to edit."
-msgstr ""
+msgstr "Konnte Pool-Objekt zum Bearbeiten nicht finden."
 
 #: constants.py:558
 msgid "Pool must be inactive to edit its XML definition."
-msgstr ""
+msgstr "Pool muss inaktiv sein, um seine XML-Definition zu bearbeiten."
 
 #: constants.py:559
 #, python-brace-format
 msgid "Error getting XML for pool: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen von XML für Pool: {error}"
 
 #: constants.py:560
 #, python-brace-format
 msgid "Storage pool '{pool_name}' updated successfully."
-msgstr ""
+msgstr "Speicherpool '{pool_name}' erfolgreich aktualisiert."
 
 #: constants.py:561
 #, python-brace-format
 msgid "Error updating pool XML: {error}"
-msgstr ""
+msgstr "Fehler beim Aktualisieren der Pool-XML: {error}"
 
 #: constants.py:563
 msgid ""
@@ -1971,1050 +1960,1019 @@ msgid ""
 "\n"
 "Are you sure you want to proceed?"
 msgstr ""
+"Das Bearbeiten der XML-Definition eines Pools ist eine fortgeschrittene Operation.\n"
+"Eine ungültige Konfiguration kann dazu führen, dass seine Volumes für VMs unzugänglich werden.\n"
+"\n"
+"Sind Sie sicher, dass Sie fortfahren möchten?"
 
 #: constants.py:566
 #, python-brace-format
 msgid "Error toggling pool active state: {error}"
-msgstr ""
+msgstr "Fehler beim Umschalten des Pool-Aktiv-Status: {error}"
 
 #: constants.py:567
 #, python-brace-format
 msgid "Error toggling pool autostart state: {error}"
-msgstr ""
+msgstr "Fehler beim Umschalten des Pool-Autostart-Status: {error}"
 
 #: constants.py:568
 #, python-brace-format
 msgid "Volume [b]{name} {size_gb}Gb {format}[/b] created successfully."
-msgstr ""
+msgstr "Volume [b]{name} {size_gb}Gb {format}[/b] erfolgreich erstellt."
 
 #: constants.py:569
 #, python-brace-format
 msgid "Invalid or non-existent path: {path}"
-msgstr ""
+msgstr "Ungültiger oder nicht existierender Pfad: {path}"
 
 #: constants.py:570
 #, python-brace-format
 msgid "Error refreshing pool: {error}"
-msgstr ""
+msgstr "Fehler beim Aktualisieren des Pools: {error}"
 
 #: constants.py:571 constants.py:759
+msgid "Error closing pool: {error}"
+msgstr "Fehler beim Schließen des Pools: {error}"
+
+#: constants.py:572
 #, python-brace-format
-msgid ""
-"A pool named '{pool_name}' already manages this directory.\n"
-"Refreshed pool to include the new volume."
-msgstr ""
+msgid "A pool named '{pool_name}' already manages this directory.\nRefreshed pool to include the new volume."
+msgstr "Ein Pool namens '{pool_name}' verwaltet dieses Verzeichnis bereits.\nPool aktualisiert, um das neue Volume einzuschließen."
 
 #: constants.py:573
 #, python-brace-format
-msgid ""
-"No storage pool exists for the directory:\n"
-"'{directory}'.\n"
-"\n"
-"Create a new pool named '{pool_name}'?"
-msgstr ""
+msgid "No storage pool exists for the directory:\n'{directory}'.\n\nCreate a new pool named '{pool_name}'?"
+msgstr "Kein Speicherpool existiert für das Verzeichnis:\n'{directory}'.\n\nNeuen Pool namens '{pool_name}' erstellen?"
 
 #: constants.py:576 constants.py:671
 msgid "Could not determine the source pool."
-msgstr ""
+msgstr "Konnte den Quell-Pool nicht ermitteln."
 
 #: constants.py:577
 #, python-brace-format
 msgid "Volume '{volume_name}' moved to pool '{dest_pool_name}'."
-msgstr ""
+msgstr "Volume '{volume_name}' verschoben in Pool '{dest_pool_name}'."
 
 #: constants.py:578
 #, python-brace-format
 msgid "Updated VM configurations for: {vm_list}"
-msgstr ""
+msgstr "Aktualisierte VM-Konfigurationen für: {vm_list}"
 
 #: constants.py:579
 #, python-brace-format
 msgid "Move operation failed: {error}"
-msgstr ""
+msgstr "Verschiebe-Operation fehlgeschlagen: {error}"
 
 #: constants.py:580
 #, python-brace-format
 msgid "Error getting network XML: {error}"
-msgstr ""
+msgstr "Fehler beim Abrufen der Netzwerk-XML: {error}"
 
 #: constants.py:581
 #, python-brace-format
 msgid "Could not retrieve info for network '{network_name}'."
-msgstr ""
+msgstr "Konnte Info für Netzwerk '{network_name}' nicht abrufen."
 
 #: constants.py:582
 #, python-brace-format
 msgid "Network '{network_name}' deleted successfully."
-msgstr ""
+msgstr "Netzwerk '{network_name}' erfolgreich gelöscht."
 
 #: constants.py:583
 #, python-brace-format
 msgid "Error deleting network '{network_name}': {error}"
-msgstr ""
+msgstr "Fehler beim Löschen von Netzwerk '{network_name}': {error}"
 
 #: constants.py:584
 #, python-brace-format
-msgid ""
-"Are you sure you want to delete network:\n"
-"'{network_name}'"
-msgstr ""
+msgid "Are you sure you want to delete network:\n'{network_name}'"
+msgstr "Sind Sie sicher, dass Sie das Netzwerk löschen wollen:\n'{network_name}'"
 
 #: constants.py:585
 #, python-brace-format
-msgid ""
-"\n"
-"This network is currently in use by the following VMs:\n"
-"{vm_list}."
-msgstr ""
+msgid "\nThis network is currently in use by the following VMs:\n{vm_list}."
+msgstr "\nDieses Netzwerk wird derzeit von den folgenden VMs verwendet:\n{vm_list}."
 
 #: constants.py:586
 msgid "Not connected to libvirt."
-msgstr ""
+msgstr "Nicht mit libvirt verbunden."
 
 #: constants.py:587
 msgid "Pool is not active"
-msgstr ""
+msgstr "Pool ist nicht aktiv"
 
 #: constants.py:588
 #, python-brace-format
 msgid "Storage pool '{pool_name}' deleted successfully."
-msgstr ""
+msgstr "Speicherpool '{pool_name}' erfolgreich gelöscht."
 
 #: constants.py:589
 #, python-brace-format
-msgid ""
-"Are you sure you want to delete storage pool:\n"
-"' {pool_name}'\n"
-"This will delete the pool definition but not the data on it."
-msgstr ""
+msgid "Are you sure you want to delete storage pool:\n' {pool_name}'\nThis will delete the pool definition but not the data on it."
+msgstr "Sind Sie sicher, dass Sie den Speicherpool löschen wollen:\n' {pool_name}'\nDies löscht die Pool-Definition, aber nicht die Daten darauf."
 
 #: constants.py:590
 #, python-brace-format
 msgid "Volume '{volume_name}' deleted successfully."
-msgstr ""
+msgstr "Volume '{volume_name}' erfolgreich gelöscht."
 
 #: constants.py:591
 #, python-brace-format
-msgid ""
-"Are you sure you want to delete volume:\n"
-"'{vol_name}'"
-msgstr ""
+msgid "Are you sure you want to delete volume:\n'{vol_name}'"
+msgstr "Sind Sie sicher, dass Sie das Volume löschen wollen:\n'{vol_name}'"
 
 #: constants.py:592
 msgid "Source Path and Target Path cannot be empty."
-msgstr ""
+msgstr "Quellpfad und Zielpfad dürfen nicht leer sein."
 
 #: constants.py:593
 #, python-brace-format
 msgid "{error}"
-msgstr ""
+msgstr "{error}"
 
 #: constants.py:594
 msgid "Please select an interface and a network."
-msgstr ""
+msgstr "Bitte wählen Sie eine Schnittstelle und ein Netzwerk."
 
 #: constants.py:595
 msgid "Base name cannot be empty."
-msgstr ""
+msgstr "Basisname darf nicht leer sein."
 
 #: constants.py:596
 #, python-brace-format
 msgid "Invalid characters in suffix: {error}"
-msgstr ""
+msgstr "Ungültige Zeichen im Suffix: {error}"
 
 #: constants.py:597
 msgid "Number of clones must be a positive integer."
-msgstr ""
+msgstr "Anzahl der Klone muss eine positive Ganzzahl sein."
 
 #: constants.py:598
 msgid "Suffix is mandatory when creating multiple clones."
-msgstr ""
+msgstr "Suffix ist zwingend erforderlich, wenn mehrere Klone erstellt werden."
 
 #: constants.py:600
 msgid "Snapshot name cannot be empty."
-msgstr ""
+msgstr "Schnappschuss-Name darf nicht leer sein."
 
 #: constants.py:601
-msgid ""
-"QEMU Guest Agent not detected. It is recommended to pause the VM before "
-"taking a snapshot."
-msgstr ""
+msgid "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot."
+msgstr "QEMU Guest Agent nicht erkannt. Es wird empfohlen, die VM zu pausieren, bevor ein Schnappschuss erstellt wird."
 
 #: constants.py:602
 #, python-brace-format
 msgid "Could not load networks: {error}"
-msgstr ""
+msgstr "Konnte Netzwerke nicht laden: {error}"
 
 #: constants.py:603
 msgid "Cannot enable secure boot without a UEFI file selected."
-msgstr ""
+msgstr "Kann Secure Boot nicht ohne ausgewählte UEFI-Datei aktivieren."
 
 #: constants.py:605
 msgid "VM must be stopped to apply graphics settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Grafikeinstellungen anzuwenden."
 
 #: constants.py:606
 msgid "VM must be stopped to apply RNG settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um RNG-Einstellungen anzuwenden."
 
 #: constants.py:607
 msgid "RNG device path cannot be empty."
-msgstr ""
+msgstr "RNG-Gerätepfad darf nicht leer sein."
 
 #: constants.py:608
 msgid "VM must be stopped to apply TPM settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um TPM-Einstellungen anzuwenden."
 
 #: constants.py:609
 msgid "Device path is required for passthrough TPM."
-msgstr ""
+msgstr "Gerätepfad ist für Passthrough-TPM erforderlich."
 
 #: constants.py:610
 msgid "PCI passthrough not implemented yet."
-msgstr ""
+msgstr "PCI-Passthrough noch nicht implementiert."
 
 #: constants.py:611
 msgid "Selected channel has no target name."
-msgstr ""
+msgstr "Ausgewählter Kanal hat keinen Zielnamen."
 
 #: constants.py:612
 #, python-brace-format
 msgid "Error adding channel: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen des Kanals: {error}"
 
 #: constants.py:613
 #, python-brace-format
 msgid "Error removing channel: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen des Kanals: {error}"
 
 #: constants.py:614
 #, python-brace-format
 msgid "VM '{vm_name}' not found for details."
-msgstr ""
+msgstr "VM '{vm_name}' für Details nicht gefunden."
 
 #: constants.py:615
 #, python-brace-format
 msgid "Could not get XML for VM '{vm_name}': {error}"
-msgstr ""
+msgstr "Konnte XML für VM '{vm_name}' nicht abrufen: {error}"
 
 #: constants.py:616
 msgid "VM must be stopped to edit CPU settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um CPU-Einstellungen zu bearbeiten."
 
 #: constants.py:617
 msgid "VM must be stopped to edit memory settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Speichereinstellungen zu bearbeiten."
 
 #: constants.py:618
 msgid "VM must be stopped to change machine type."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Maschinentyp zu ändern."
 
 #: constants.py:619
 msgid "VM must be stopped to change shared memory settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Einstellungen für gemeinsam genutzten Speicher zu ändern."
 
 #: constants.py:620
 msgid "VM must be stopped to change firmware settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Firmware-Einstellungen zu ändern."
 
 #: constants.py:621
 msgid "VM must be stopped to edit boot order."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Boot-Reihenfolge zu bearbeiten."
 
 #: constants.py:623
 msgid "VM must be stopped to edit network settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Netzwerkeinstellungen zu bearbeiten."
 
 #: constants.py:624
 msgid "VM must be stopped to edit VirtIO-FS settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um VirtIO-FS-Einstellungen zu bearbeiten."
 
 #: constants.py:625
 msgid "VM must be stopped to edit video settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Videoeinstellungen zu bearbeiten."
 
 #: constants.py:626
 msgid "VM must be stopped to edit sound settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Soundeinstellungen zu bearbeiten."
 
 #: constants.py:627
 msgid "VM must be stopped to edit graphics settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Grafikeinstellungen zu bearbeiten."
 
 #: constants.py:628
 msgid "VM must be stopped to edit TPM settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um TPM-Einstellungen zu bearbeiten."
 
 #: constants.py:629
 msgid "VM must be stopped to edit RNG settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um RNG-Einstellungen zu bearbeiten."
 
 #: constants.py:630
 msgid "VM must be stopped to edit serial settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um serielle Einstellungen zu bearbeiten."
 
 #: constants.py:631
 msgid "VM must be stopped to edit watchdog settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Watchdog-Einstellungen zu bearbeiten."
 
 #: constants.py:632
 msgid "VM must be stopped to edit PCI settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um PCI-Einstellungen zu bearbeiten."
 
 #: constants.py:633
 msgid "VM must be stopped to edit USB settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um USB-Einstellungen zu bearbeiten."
 
 #: constants.py:634
 msgid "VM must be stopped to edit controller settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Controller-Einstellungen zu bearbeiten."
 
 #: constants.py:635
 msgid "VM must be stopped to edit channel settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Kanaleinstellungen zu bearbeiten."
 
 #: constants.py:636
 msgid "VM must be stopped to edit input settings."
-msgstr ""
+msgstr "VM muss gestoppt sein, um Eingabeeinstellungen zu bearbeiten."
 
 #: constants.py:637
 #, python-brace-format
 msgid "Error toggling disk state: {error}"
-msgstr ""
+msgstr "Fehler beim Umschalten des Festplattenstatus: {error}"
 
 #: constants.py:638
 #, python-brace-format
 msgid "Error removing disk: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen der Festplatte: {error}"
 
 #: constants.py:639
 #, python-brace-format
 msgid "Error adding disk: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen der Festplatte: {error}"
 
 #: constants.py:640
 #, python-brace-format
 msgid "Error attaching existing disk: {error}"
-msgstr ""
+msgstr "Fehler beim Anhängen der vorhandenen Festplatte: {error}"
 
 #: constants.py:641
 #, python-brace-format
 msgid "Error editing disk: {error}"
-msgstr ""
+msgstr "Fehler beim Bearbeiten der Festplatte: {error}"
 
 #: constants.py:642
 #, python-brace-format
 msgid "Error setting VM video model: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen des VM-Videomodells: {error}"
 
 #: constants.py:643
 #, python-brace-format
 msgid "Error setting CPU model: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen des CPU-Modells: {error}"
 
 #: constants.py:644
 #, python-brace-format
 msgid "Error setting UEFI file: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen der UEFI-Datei: {error}"
 
 #: constants.py:645
 #, python-brace-format
 msgid "Error setting shared memory: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen des gemeinsamen Speichers: {error}"
 
 #: constants.py:646
 #, python-brace-format
 msgid "Error setting VM graphics: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen der VM-Grafik: {error}"
 
 #: constants.py:647
 #, python-brace-format
 msgid "Error setting VM sound model: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen des VM-Soundmodells: {error}"
 
 #: constants.py:648
 #, python-brace-format
 msgid "Error setting VM RNG: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen von VM RNG: {error}"
 
 #: constants.py:649
 #, python-brace-format
 msgid "Error setting VM TPM: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen von VM TPM: {error}"
 
 #: constants.py:650
 #, python-brace-format
 msgid "Error attaching USB device: {error}"
-msgstr ""
+msgstr "Fehler beim Anhängen des USB-Geräts: {error}"
 
 #: constants.py:651
 #, python-brace-format
 msgid "Error detaching USB device: {error}"
-msgstr ""
+msgstr "Fehler beim Abhängen des USB-Geräts: {error}"
 
 #: constants.py:652
 #, python-brace-format
 msgid "Error adding serial console: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen der seriellen Konsole: {error}"
 
 #: constants.py:653
 #, python-brace-format
 msgid "Error removing serial console: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen der seriellen Konsole: {error}"
 
 #: constants.py:654
 #, python-brace-format
 msgid "Error adding input device: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen des Eingabegeräts: {error}"
 
 #: constants.py:655
 #, python-brace-format
 msgid "Error removing input device: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen des Eingabegeräts: {error}"
 
 #: constants.py:656
 #, python-brace-format
 msgid "Error setting VM watchdog: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen des VM-Watchdogs: {error}"
 
 #: constants.py:657
 #, python-brace-format
 msgid "Error removing VM watchdog: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen des VM-Watchdogs: {error}"
 
 #: constants.py:658
 #, python-brace-format
 msgid "Error adding USB device: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen des USB-Geräts: {error}"
 
 #: constants.py:659
 #, python-brace-format
 msgid "Error removing USB device: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen des USB-Geräts: {error}"
 
 #: constants.py:660
 #, python-brace-format
 msgid "Error adding SCSI controller: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen des SCSI-Controllers: {error}"
 
 #: constants.py:661
 #, python-brace-format
 msgid "Error removing SCSI controller: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen des SCSI-Controllers: {error}"
 
 #: constants.py:662
 #, python-brace-format
 msgid "Error migrating VM machine type: {error}"
-msgstr ""
+msgstr "Fehler bei der Migration des VM-Maschinentyps: {error}"
 
 #: constants.py:663
 #, python-brace-format
 msgid "Error setting VM NUMA tune: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen von VM NUMA Tune: {error}"
 
 #: constants.py:664
 #, python-brace-format
 msgid "Error setting VM CPU tune: {error}"
-msgstr ""
+msgstr "Fehler beim Einstellen von VM CPU Tune: {error}"
 
 #: constants.py:665
 #, python-brace-format
 msgid "Error removing VirtIO-FS: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen von VirtIO-FS: {error}"
 
 #: constants.py:666
 #, python-brace-format
 msgid "Error adding VirtIO-FS: {error}"
-msgstr ""
+msgstr "Fehler beim Hinzufügen von VirtIO-FS: {error}"
 
 #: constants.py:667
 #, python-brace-format
 msgid "Error checking for other SPICE devices: {error}"
-msgstr ""
+msgstr "Fehler beim Prüfen auf andere SPICE-Geräte: {error}"
 
 #: constants.py:668
 #, python-brace-format
 msgid "Error removing SPICE devices: {error}"
-msgstr ""
+msgstr "Fehler beim Entfernen von SPICE-Geräten: {error}"
 
 #: constants.py:669
-msgid ""
-"This VM has other SPICE-related devices (e.g., channels, QXL video).\\nDo "
-"you want to remove them for a clean switch to VNC?"
-msgstr ""
+msgid "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
+msgstr "Diese VM hat andere SPICE-bezogene Geräte (z.B. Kanäle, QXL-Video).\nMöchten Sie diese für einen sauberen Wechsel zu VNC entfernen?"
 
 #: constants.py:670
-msgid ""
-"Some selected VMs have other SPICE-related devices.\\nDo you want to remove "
-"them from ALL selected VMs for a clean switch to VNC?"
-msgstr ""
+msgid "Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?"
+msgstr "Einige ausgewählte VMs haben andere SPICE-bezogene Geräte.\nMöchten Sie diese von ALLEN ausgewählten VMs für einen sauberen Wechsel zu VNC entfernen?"
 
 #: constants.py:672
 #, python-brace-format
 msgid "Error saving boot order: {error}"
-msgstr ""
+msgstr "Fehler beim Speichern der Boot-Reihenfolge: {error}"
 
 #: constants.py:677
 #, python-brace-format
 msgid "Are you sure you want to delete '{name}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie '{name}' löschen wollen?"
 
 #: constants.py:678
 #, python-brace-format
 msgid "Are you sure you want to delete snapshot '{name}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie den Schnappschuss '{name}' löschen wollen?"
 
 #: constants.py:679
 #, python-brace-format
-msgid ""
-"VM has {count} snapshot(s). To rename, they must be deleted.\n"
-"Delete snapshots and continue?"
-msgstr ""
+msgid "VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"
+msgstr "VM hat {count} Schnappschüsse. Zum Umbenennen müssen diese gelöscht werden.\nSchnappschüsse löschen und fortfahren?"
 
 #: constants.py:680
-msgid ""
-"Experimental Feature! Still contains bugs, fix in progress. You have been "
-"informed"
-msgstr ""
+msgid "Experimental Feature! Still contains bugs, fix in progress. You have been informed"
+msgstr "Experimentelle Funktion! Enthält noch Fehler, Korrektur läuft. Sie wurden informiert"
 
 #: constants.py:681
 #, python-brace-format
 msgid "Are you sure you want to remove channel '{target_name}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie Kanal '{target_name}' entfernen wollen?"
 
 #: constants.py:682
 #, python-brace-format
 msgid "Are you sure you want to remove input device '{device_type}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie Eingabegerät '{device_type}' entfernen wollen?"
 
 #: constants.py:683
 #, python-brace-format
 msgid "Are you sure you want to remove serial console '{port}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie serielle Konsole '{port}' entfernen wollen?"
 
 #: constants.py:684
 #, python-brace-format
 msgid "Are you sure you want to remove USB device '{description}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie USB-Gerät '{description}' entfernen wollen?"
 
 #: constants.py:685
 #, python-brace-format
-msgid ""
-"Are you sure you want to remove SCSI controller '{model}' at index '{index}'?"
-msgstr ""
+msgid "Are you sure you want to remove SCSI controller '{model}' at index '{index}'?"
+msgstr "Sind Sie sicher, dass Sie SCSI-Controller '{model}' am Index '{index}' entfernen wollen?"
 
 #: constants.py:686
 #, python-brace-format
 msgid "Are you sure you want to remove VirtIO-FS mount '{target_path}'?"
-msgstr ""
+msgstr "Sind Sie sicher, dass Sie VirtIO-FS Mount '{target_path}' entfernen wollen?"
 
 #: constants.py:691 constants.py:714
 #, python-brace-format
 msgid "The remove viewer {viewer} has been selected."
-msgstr ""
+msgstr "Der Remote-Viewer {viewer} wurde ausgewählt."
 
 #: constants.py:692
 msgid "VM data loaded. Displaying VMs..."
-msgstr ""
+msgstr "VM-Daten geladen. Zeige VMs an..."
 
 #: constants.py:693
 msgid "Filter: Running VMs"
-msgstr ""
+msgstr "Filter: Laufende VMs"
 
 #: constants.py:694
 msgid "Filter: All VMs"
-msgstr ""
+msgstr "Filter: Alle VMs"
 
 #: constants.py:695
 msgid "All VMs unselected."
-msgstr ""
+msgstr "Alle VMs abgewählt."
 
 #: constants.py:696
 #, python-brace-format
 msgid "Caching VM state for: {vms_list}"
-msgstr ""
+msgstr "Zwischenspeichern des VM-Status für: {vms_list}"
 
 #: constants.py:701
 msgid "Compact view is locked during bulk operations."
-msgstr ""
+msgstr "Kompaktansicht ist während Massenoperationen gesperrt."
 
 #: constants.py:702
 #, python-brace-format
-msgid ""
-"Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is "
-"recommended for optimal performance."
-msgstr ""
+msgid "Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
+msgstr "Anzeige von [b]{vms_per_page}[/b] VMs pro Seite. CPU-Auslastung kann steigen; 9 wird für optimale Leistung empfohlen."
 
 #: constants.py:703
 #, python-brace-format
 msgid "VM '{vm_name}' is not in a pausable state."
-msgstr ""
+msgstr "VM '{vm_name}' ist nicht in einem pausierbaren Zustand."
 
 #: constants.py:704
 #, python-brace-format
-msgid ""
-"VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains "
-"unchanged. Your changes may have been ignored or normalized away."
-msgstr ""
+msgid "VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away."
+msgstr "VM [b]{vm_name}[/b]: Libvirt hat das XML akzeptiert, aber die Konfiguration bleibt unverändert. Ihre Änderungen wurden möglicherweise ignoriert oder weg-normalisiert."
 
 #: constants.py:705
 msgid "No remote viewer selected. Auto-detection will be used."
-msgstr ""
+msgstr "Kein Remote-Viewer ausgewählt. Automatische Erkennung wird verwendet."
 
 #: constants.py:706
-msgid ""
-"Running network usage scan, this can freeze the UI for larger numbers of VMs."
-msgstr ""
+msgid "Running network usage scan, this can freeze the UI for larger numbers of VMs."
+msgstr "Laufender Netzwerknutzungs-Scan, dies kann die UI bei einer großen Anzahl von VMs einfrieren."
 
 #: constants.py:707
 #, python-brace-format
-msgid ""
-"More than {count} VMs detected on this server.\n"
-"Skipping disk usage scan to prevent UI freeze."
-msgstr ""
+msgid "More than {count} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze."
+msgstr "Mehr als {count} VMs auf diesem Server erkannt.\nÜberspringe Festplattennutzungs-Scan um UI-Einfrieren zu verhindern."
 
 #: constants.py:708
-msgid ""
-"Running disk usage scan, this can freeze the UI for larger numbers of VMs "
-"and disks."
-msgstr ""
+msgid "Running disk usage scan, this can freeze the UI for larger numbers of VMs and disks."
+msgstr "Laufender Festplattennutzungs-Scan, dies kann die UI bei einer großen Anzahl von VMs und Festplatten einfrieren."
 
 #: constants.py:709
-msgid ""
-"! Shared Memory is Mandatory to use VirtIO-FS.\\n! Enable it in Mem tab."
-msgstr ""
+msgid "! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab."
+msgstr "! Gemeinsamer Speicher ist zwingend erforderlich um VirtIO-FS zu nutzen.\n! Aktivieren Sie es im Speicher-Reiter."
 
 #: constants.py:715
 #, python-brace-format
 msgid "Connected to [b]{uri}[/b]"
-msgstr ""
+msgstr "Verbunden mit [b]{uri}[/b]"
 
 #: constants.py:716
 msgid "Statistics logging and monitoring disabled."
-msgstr ""
+msgstr "Statistik-Protokollierung und Überwachung deaktiviert."
 
 #: constants.py:717
 msgid "Statistics logging and monitoring enabled (every 10s)."
-msgstr ""
+msgstr "Statistik-Protokollierung und Überwachung aktiviert (alle 10s)."
 
 #: constants.py:718
 msgid "Configuration updated."
-msgstr ""
+msgstr "Konfiguration aktualisiert."
 
 #: constants.py:719
 #, python-brace-format
 msgid "Selected {count} VMs matching pattern."
-msgstr ""
+msgstr "{count} VMs passend zum Muster ausgewählt."
 
 #: constants.py:720
-msgid ""
-"In some Terminal use [b]Shift[/b] key while selecting text with the mouse to "
-"copy it."
-msgstr ""
+msgid "In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it."
+msgstr "In einigen Terminals [b]Shift[/b]-Taste verwenden während Text mit der Maus ausgewählt wird, um ihn zu kopieren."
 
 #: constants.py:721
 msgid "No servers configured. Please add one via 'Servers List'."
-msgstr ""
+msgstr "Keine Server konfiguriert. Bitte fügen Sie einen über 'Serverliste' hinzu."
 
 #: constants.py:722
 #, python-brace-format
 msgid "Log level changed to {level}"
-msgstr ""
+msgstr "Protokoll-Level geändert auf {level}"
 
 #: constants.py:723
 #, python-brace-format
 msgid "Bulk action [b]{action_type}[/b] successful for {count} VMs."
-msgstr ""
+msgstr "Massenaktion [b]{action_type}[/b] erfolgreich für {count} VMs."
 
 #: constants.py:724
 #, python-brace-format
 msgid "Connected to [b]{name}[/b]"
-msgstr ""
+msgstr "Verbunden mit [b]{name}[/b]"
 
 #: constants.py:725
 #, python-brace-format
 msgid "Input sanitized: '{original_input}' changed to '{sanitized_input}'"
-msgstr ""
+msgstr "Eingabe bereinigt: '{original_input}' geändert zu '{sanitized_input}'"
 
 #: constants.py:726
 #, python-brace-format
 msgid "Overlay [b]{overlay_name}[/b] created and attached."
-msgstr ""
+msgstr "Overlay [b]{overlay_name}[/b] erstellt und angehängt."
 
 #: constants.py:727
 #, python-brace-format
 msgid "Overlay for [b]{target_disk}[/b] discarded and reverted to base image."
-msgstr ""
+msgstr "Overlay für [b]{target_disk}[/b] verworfen und auf Basis-Image zurückgesetzt."
 
 #: constants.py:728
 msgid "Disk changes committed successfully."
-msgstr ""
+msgstr "Festplattenänderungen erfolgreich festgeschrieben."
 
 #: constants.py:729
 #, python-brace-format
 msgid "VM [b]{vm_name}[/b] configuration updated successfully."
-msgstr ""
+msgstr "VM [b]{vm_name}[/b] Konfiguration erfolgreich aktualisiert."
 
 #: constants.py:730
 msgid "No changes made to the XML configuration."
-msgstr ""
+msgstr "Keine Änderungen an der XML-Konfiguration vorgenommen."
 
 #: constants.py:731
 #, python-brace-format
 msgid "Snapshot [b]{snapshot_name}[/b] created successfully."
-msgstr ""
+msgstr "Schnappschuss [b]{snapshot_name}[/b] erfolgreich erstellt."
 
 #: constants.py:732
 #, python-brace-format
 msgid "Restored to snapshot [b]{snapshot_name}[/b] successfully."
-msgstr ""
+msgstr "Erfolgreich auf Schnappschuss [b]{snapshot_name}[/b] wiederhergestellt."
 
 #: constants.py:733
 #, python-brace-format
 msgid "Snapshot [b]{snapshot_name}[/b] deleted successfully."
-msgstr ""
+msgstr "Schnappschuss [b]{snapshot_name}[/b] erfolgreich gelöscht."
 
 #: constants.py:734
 #, python-brace-format
 msgid "VM '{vm_name}' deleted successfully."
-msgstr ""
+msgstr "VM '{vm_name}' erfolgreich gelöscht."
 
 #: constants.py:735
 #, python-brace-format
 msgid "VM '{old_name}' renamed to '{new_name}' successfully."
-msgstr ""
+msgstr "VM '{old_name}' erfolgreich in '{new_name}' umbenannt."
 
 #: constants.py:736
 msgid "VM rename cancelled."
-msgstr ""
+msgstr "VM-Umbenennung abgebrochen."
 
 #: constants.py:737
 msgid "New VM name is the same as the old name. No rename performed."
-msgstr ""
+msgstr "Neuer VM-Name ist derselbe wie der alte Name. Keine Umbenennung durchgeführt."
 
 #: constants.py:738
 #, python-brace-format
 msgid "Successfully cloned to: {vm_names}"
-msgstr ""
+msgstr "Erfolgreich geklont nach: {vm_names}"
 
 #: constants.py:739
 msgid "Web console stopped."
-msgstr ""
+msgstr "Web-Konsole gestoppt."
 
 #: constants.py:740
 msgid "Remote user cert/key found, using secure wss connection."
-msgstr ""
+msgstr "Remote-Benutzer-Zertifikat/Schlüssel gefunden, verwende sichere wss-Verbindung."
 
 #: constants.py:741
 msgid "Remote system cert/key found, using secure wss connection."
-msgstr ""
+msgstr "Remote-System-Zertifikat/Schlüssel gefunden, verwende sichere wss-Verbindung."
 
 #: constants.py:742
 msgid "No remote cert/key found. Attempting to generate in system directory..."
-msgstr ""
+msgstr "Kein Remote-Zertifikat/Schlüssel gefunden. Versuche im Systemverzeichnis zu generieren..."
 
 #: constants.py:743
 msgid "Could not check for remote cert/key, using insecure ws connection."
-msgstr ""
+msgstr "Konnte Remote-Zertifikat/Schlüssel nicht prüfen, verwende unsichere ws-Verbindung."
 
 #: constants.py:744
 msgid "Remote connection detected. Setting up SSH tunnel..."
-msgstr ""
+msgstr "Remote-Verbindung erkannt. Richte SSH-Tunnel ein..."
 
 #: constants.py:745
 msgid "Found cert/key, using secure wss connection."
-msgstr ""
+msgstr "Zertifikat/Schlüssel gefunden, verwende sichere wss-Verbindung."
 
 #: constants.py:746
 msgid "All caches cleared"
-msgstr ""
+msgstr "Alle Caches geleert"
 
 #: constants.py:747
 msgid "Configuration saved successfully."
-msgstr ""
+msgstr "Konfiguration erfolgreich gespeichert."
 
 #: constants.py:748
 #, python-brace-format
 msgid "Storage pool '{name}' created and started."
-msgstr ""
+msgstr "Speicherpool '{name}' erstellt und gestartet."
 
 #: constants.py:749
 #, python-brace-format
 msgid "Network {name} created successfully."
-msgstr ""
+msgstr "Netzwerk {name} erfolgreich erstellt."
 
 #: constants.py:750
 #, python-brace-format
 msgid "Network {name} updated successfully."
-msgstr ""
+msgstr "Netzwerk {name} erfolgreich aktualisiert."
 
 #: constants.py:751
 #, python-brace-format
 msgid "VM name sanitized: '{original}' -> '{sanitized}'"
-msgstr ""
+msgstr "VM-Name bereinigt: '{original}' -> '{sanitized}'"
 
 #: constants.py:752
 #, python-brace-format
 msgid "VM '{vm_name}' started."
-msgstr ""
+msgstr "VM '{vm_name}' gestartet."
 
 #: constants.py:753
 #, python-brace-format
 msgid "Remote viewer {viewer} started for {vm_name}"
-msgstr ""
+msgstr "Remote-Viewer {viewer} gestartet für {vm_name}"
 
 #: constants.py:754
 #, python-brace-format
 msgid "VM '{vm_name}' defined. Please configure and start it."
-msgstr ""
+msgstr "VM '{vm_name}' definiert. Bitte konfigurieren und starten Sie sie."
 
 #: constants.py:755
 #, python-brace-format
 msgid "VM '{vm_name}' created successfully!"
-msgstr ""
+msgstr "VM '{vm_name}' erfolgreich erstellt!"
 
 #: constants.py:756
 #, python-brace-format
 msgid "Server '{server_name}' deleted successfully."
-msgstr ""
+msgstr "Server '{server_name}' erfolgreich gelöscht."
 
 #: constants.py:757
 #, python-brace-format
 msgid "Pool '{pool_name}' is now {status}."
-msgstr ""
+msgstr "Pool '{pool_name}' ist jetzt {status}."
 
 #: constants.py:758
 #, python-brace-format
 msgid "Autostart for pool '{pool_name}' is now {status}."
-msgstr ""
+msgstr "Autostart für Pool '{pool_name}' ist jetzt {status}."
 
 #: constants.py:760
 #, python-brace-format
 msgid "Network '{net_name}' is now {status}."
-msgstr ""
+msgstr "Netzwerk '{net_name}' ist jetzt {status}."
 
 #: constants.py:761
 #, python-brace-format
 msgid "Autostart for network '{net_name}' is now {status}."
-msgstr ""
+msgstr "Autostart für Netzwerk '{net_name}' ist jetzt {status}."
 
 #: constants.py:762
 #, python-brace-format
 msgid "Base name sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
-msgstr ""
+msgstr "Basisname bereinigt: [b]{original}[/b] geändert zu [b]{sanitized}[/b]"
 
 #: constants.py:763
 #, python-brace-format
 msgid "Suffix sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
-msgstr ""
+msgstr "Suffix bereinigt: [b]{original}[/b] geändert zu [b]{sanitized}[/b]"
 
 #: constants.py:764
 #, python-brace-format
 msgid "Input sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
-msgstr ""
+msgstr "Eingabe bereinigt: [b]{original}[/b] geändert zu [b]{sanitized}[/b]"
 
 #: constants.py:765
 msgid "Boot order saved successfully."
-msgstr ""
+msgstr "Boot-Reihenfolge erfolgreich gespeichert."
 
 #: constants.py:766
 msgid "Graphics settings applied successfully"
-msgstr ""
+msgstr "Grafikeinstellungen erfolgreich angewendet"
 
 #: constants.py:767
 #, python-brace-format
 msgid "RNG settings applied successfully. Device: {rng_device}"
-msgstr ""
+msgstr "RNG-Einstellungen erfolgreich angewendet. Gerät: {rng_device}"
 
 #: constants.py:768
 msgid "TPM settings applied successfully"
-msgstr ""
+msgstr "TPM-Einstellungen erfolgreich angewendet"
 
 #: constants.py:769
 #, python-brace-format
 msgid "Attached USB device: {description}"
-msgstr ""
+msgstr "Angehängtes USB-Gerät: {description}"
 
 #: constants.py:770
 #, python-brace-format
 msgid "Detached USB device: {description}"
-msgstr ""
+msgstr "Abgehängtes USB-Gerät: {description}"
 
 #: constants.py:771
 msgid "Channel added successfully."
-msgstr ""
+msgstr "Kanal erfolgreich hinzugefügt."
 
 #: constants.py:772
 #, python-brace-format
 msgid "Channel '{target_name}' removed successfully."
-msgstr ""
+msgstr "Kanal '{target_name}' erfolgreich entfernt."
 
 #: constants.py:773
 #, python-brace-format
 msgid "Input device '{device_type}' added successfully."
-msgstr ""
+msgstr "Eingabegerät '{device_type}' erfolgreich hinzugefügt."
 
 #: constants.py:774
 #, python-brace-format
 msgid "Input device '{device_type}' removed successfully."
-msgstr ""
+msgstr "Eingabegerät '{device_type}' erfolgreich entfernt."
 
 #: constants.py:775
 msgid "Serial console added successfully."
-msgstr ""
+msgstr "Serielle Konsole erfolgreich hinzugefügt."
 
 #: constants.py:776
 msgid "Serial console removed successfully."
-msgstr ""
+msgstr "Serielle Konsole erfolgreich entfernt."
 
 #: constants.py:777
 msgid "Watchdog settings applied successfully."
-msgstr ""
+msgstr "Watchdog-Einstellungen erfolgreich angewendet."
 
 #: constants.py:778
 msgid "Watchdog removed successfully."
-msgstr ""
+msgstr "Watchdog erfolgreich entfernt."
 
 #: constants.py:779
 #, python-brace-format
 msgid "USB device '{description}' attached successfully."
-msgstr ""
+msgstr "USB-Gerät '{description}' erfolgreich angehängt."
 
 #: constants.py:780
 #, python-brace-format
 msgid "USB device '{description}' removed successfully."
-msgstr ""
+msgstr "USB-Gerät '{description}' erfolgreich entfernt."
 
 #: constants.py:781
 msgid "SCSI controller added successfully."
-msgstr ""
+msgstr "SCSI-Controller erfolgreich hinzugefügt."
 
 #: constants.py:782
 msgid "SCSI controller removed successfully."
-msgstr ""
+msgstr "SCSI-Controller erfolgreich entfernt."
 
 #: constants.py:783
 msgid "VirtIO-FS mount added successfully."
-msgstr ""
+msgstr "VirtIO-FS Mount erfolgreich hinzugefügt."
 
 #: constants.py:784
 msgid "VirtIO-FS mount removed successfully."
-msgstr ""
+msgstr "VirtIO-FS Mount erfolgreich entfernt."
 
 #: constants.py:785
 msgid "Removed associated SPICE devices"
-msgstr ""
+msgstr "Zugehörige SPICE-Geräte entfernt"
 
 #: constants.py:786
 #, python-brace-format
 msgid "Video model set to {new_model}"
-msgstr ""
+msgstr "Videomodell auf {new_model} gesetzt"
 
 #: constants.py:787
 #, python-brace-format
 msgid "3D Acceleration {state}"
-msgstr ""
+msgstr "3D-Beschleunigung {state}"
 
 #: constants.py:788
 #, python-brace-format
 msgid "Sound model set to {new_model}"
-msgstr ""
+msgstr "Soundmodell auf {new_model} gesetzt"
 
 #: constants.py:789
 #, python-brace-format
 msgid "Secure Boot {state}"
-msgstr ""
+msgstr "Secure Boot {state}"
 
 #: constants.py:790
 #, python-brace-format
 msgid "Shared memory {state}"
-msgstr ""
+msgstr "Geteilter Speicher {state}"
 
 #: constants.py:791
 #, python-brace-format
 msgid "Machine type set to {new_machine_type}"
-msgstr ""
+msgstr "Maschinentyp auf {new_machine_type} gesetzt"
 
 #: constants.py:792
 #, python-brace-format
 msgid "VCPU set to {vcpu_count}"
-msgstr ""
+msgstr "VCPU auf {vcpu_count} gesetzt"
 
 #: constants.py:793
 #, python-brace-format
 msgid "Memory set to {memory_mb} MB"
-msgstr ""
+msgstr "Speicher auf {memory_mb} MB gesetzt"
 
 #: constants.py:794
 #, python-brace-format
 msgid "CPU model set to {new_cpu_model}"
-msgstr ""
+msgstr "CPU-Modell auf {new_cpu_model} gesetzt"
 
 #: constants.py:795
 #, python-brace-format
 msgid "UEFI file set to {uefi_file_name}"
-msgstr ""
+msgstr "UEFI-Datei auf {uefi_file_name} gesetzt"
 
 #: constants.py:796
 #, python-brace-format
 msgid "Disk '{disk_path}' enabled successfully."
-msgstr ""
+msgstr "Festplatte '{disk_path}' erfolgreich aktiviert."
 
 #: constants.py:797
 #, python-brace-format
 msgid "Disk '{disk_path}' disabled successfully."
-msgstr ""
+msgstr "Festplatte '{disk_path}' erfolgreich deaktiviert."
 
 #: constants.py:798
 #, python-brace-format
 msgid "Disk '{disk_path}' removed successfully."
-msgstr ""
+msgstr "Festplatte '{disk_path}' erfolgreich entfernt."
 
 #: constants.py:799
 #, python-brace-format
 msgid "Disk '{disk_path}' added successfully."
-msgstr ""
+msgstr "Festplatte '{disk_path}' erfolgreich hinzugefügt."
 
 #: constants.py:800
 #, python-brace-format
 msgid "Existing disk '{disk_path}' attached successfully."
-msgstr ""
+msgstr "Vorhandene Festplatte '{disk_path}' erfolgreich angehängt."
 
 #: constants.py:801
 #, python-brace-format
 msgid "Disk '{disk_path}' updated successfully."
-msgstr ""
+msgstr "Festplatte '{disk_path}' erfolgreich aktualisiert."
 
 #: constants.py:802
 msgid "Network interface added successfully."
-msgstr ""
+msgstr "Netzwerkschnittstelle erfolgreich hinzugefügt."
 
 #: constants.py:803
 msgid "Network interface removed successfully."
-msgstr ""
+msgstr "Netzwerkschnittstelle erfolgreich entfernt."
 
 #: constants.py:804
 #, python-brace-format
 msgid "Interface {mac_address} switched to {new_network}"
-msgstr ""
+msgstr "Schnittstelle {mac_address} gewechselt zu {new_network}"
 
 #: constants.py:805
 msgid "CPU pinning settings applied successfully."
-msgstr ""
+msgstr "CPU-Pinning-Einstellungen erfolgreich angewendet."
 
 #: constants.py:806
 msgid "NUMA tuning settings applied successfully."
-msgstr ""
+msgstr "NUMA-Tuning-Einstellungen erfolgreich angewendet."
 
 #: constants.py:811
 #, python-brace-format
 msgid "Connecting to [b]{uri}[/b]..."
-msgstr ""
+msgstr "Verbinde zu [b]{uri}[/b]..."
 
 #: constants.py:812
 msgid "Configuration updated. Refreshing VM list..."
-msgstr ""
+msgstr "Konfiguration aktualisiert. Aktualisiere VM-Liste..."
 
 #: constants.py:813
 msgid "Loading VM data from remote server(s)..."
-msgstr ""
+msgstr "Lade VM-Daten von Remote-Server(n)..."
