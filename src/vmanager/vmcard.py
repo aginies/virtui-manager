@@ -648,6 +648,13 @@ class VMCard(Static):
         """Called when server_border_color changes."""
         self.styles.border = ("solid", new_color)
 
+    def on_click(self, event: Click) -> None:
+        """Handle click events on the card."""
+        if event.button == 3:
+            self.is_selected = not self.is_selected
+            self.post_message(VMSelectionChanged(vm_uuid=self.raw_uuid, is_selected=self.is_selected))
+            event.stop()
+
     def on_unmount(self) -> None:
         """Stop the timer and cancel any running stat workers when the widget is removed."""
         with self._timer_lock:
