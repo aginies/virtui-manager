@@ -572,19 +572,20 @@ class VMCard(Static):
         if not self.ui:
             return
 
-        #sparklines = self.ui.get("sparklines_container")
+        sparklines = self.ui.get("sparklines_container")
         collapsible = self.ui.get("collapsible")
         vmname = self.ui.get("vmname")
         vmstatus = self.ui.get("status")
         checkbox = self.ui.get("checkbox")
 
-        if value: # if compact view, add hidden class
-            #if sparklines and sparklines.is_mounted:
-            #    logging.info("DEBUG remove spark")
-            #    sparklines.remove()
+        if value:
+            if sparklines and sparklines.is_mounted:
+                sparklines.display = False
             if collapsible and collapsible.is_mounted:
                 collapsible.collapsed = True
                 collapsible.remove()
+            if checkbox and checkbox.is_mounted:
+                checkbox.display = False
         else:
             try:
                 info_container = self.query_one("#info-container")
@@ -592,6 +593,11 @@ class VMCard(Static):
                     # Check if collapsible is already a child of info_container to avoid double mounting
                     if collapsible not in info_container.children:
                         info_container.mount(collapsible)
+                if sparklines:
+                    sparklines.display = True
+                if checkbox:
+                    checkbox.display = True
+
             except NoMatches:
                 # This can happen if the card is not fully initialized or structures changed
                 logging.warning(f"Could not find #info-container on VMCard {self.name} when switching to detailed view.")
@@ -606,10 +612,11 @@ class VMCard(Static):
         if value: # Compact view
             self.styles.height = 4
             self.styles.width = 20
-            if vmname: vmname.styles.content_align = ("left", "middle")
+            if vmname:
+                vmname.styles.content_align = ("left", "middle")
             if vmstatus: vmstatus.styles.content_align = ("left", "middle")
-            if checkbox: checkbox.styles.width = "2"
-        else: # Detailed view
+            #if checkbox: checkbox.styles.width = "2"
+        else: # Detailed view 
             self.styles.height = 14
             self.styles.width = 41
             if vmname: vmname.styles.content_align = ("center", "middle")
