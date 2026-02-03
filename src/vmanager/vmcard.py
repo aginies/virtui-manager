@@ -56,7 +56,7 @@ from .utils import (
 from .constants import (
     ButtonLabels, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction,
-    WarningMessages, SuccessMessages, StaticText
+    WarningMessages, SuccessMessages, StaticText, ProgressMessages
 )
 
 class VMCardActions(Static):
@@ -1045,10 +1045,10 @@ class VMCard(Static):
                 pane = tabbed_content.get_tab("snapshot-tab")
                 if snapshot_count > 0:
                     latest = snapshot_summary.get('latest')
-                    info = f"Latest: {latest['name']} ({latest['time']})" if latest else "Unknown"
+                    info = f"{StaticText.LATEST_SNAPSHOT} {latest['name']} ({latest['time']})" if latest else "Unknown"
                     pane.tooltip = f"{info}\nTotal: {snapshot_count}"
                 else:
-                    pane.tooltip = "No Snapshots created"
+                   pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
             except Exception:
                 pass
 
@@ -1208,7 +1208,7 @@ class VMCard(Static):
                             self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
                 self.app.push_screen(
-                    ConfirmationDialog(f"Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."),
+                    ConfirmationDialog(DialogMessages.CONFIRM_DISCARD_CHANGES.format(target_disk=target_disk)),
                     on_confirm
                 )
 
@@ -1216,7 +1216,7 @@ class VMCard(Static):
                 proceed_with_discard(overlay_disks[0])
             else:
                 self.app.push_screen(
-                    SelectDiskModal(overlay_disks, "Select overlay disk to discard:"),
+                    SelectDiskModal(overlay_disks, StaticText.SELECT_OVERLAY_DISCARD),
                     proceed_with_discard
                 )
 
@@ -1242,7 +1242,7 @@ class VMCard(Static):
 
             def on_confirm(confirmed: bool):
                 if confirmed:
-                    progress_modal = ProgressModal(title=f"Committing changes for {self.name}...")
+                    progress_modal = ProgressModal(title=ProgressMessages.COMMITTING_CHANGES_FOR.format(name=self.name))
                     self.app.push_screen(progress_modal)
 
                     def do_commit():
@@ -1261,7 +1261,7 @@ class VMCard(Static):
                     self.app.worker_manager.run(do_commit, name=f"commit_{self.name}")
 
             self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to merge changes from '{target_disk}' into its backing file?"),
+                ConfirmationDialog(DialogMessages.CONFIRM_MERGE_CHANGES.format(target_disk=target_disk)),
                 on_confirm
             )
 
@@ -1776,10 +1776,10 @@ class VMCard(Static):
                                 pane = tabbed_content.get_tab("snapshot-tab")
                                 if snapshot_count > 0:
                                     latest = snapshot_summary.get('latest')
-                                    info = f"Latest: {latest['name']} ({latest['time']})" if latest else "Unknown"
+                                    info = f"{StaticText.LATEST_SNAPSHOT} {latest['name']} ({latest['time']})" if latest else "Unknown"
                                     pane.tooltip = f"{info}\nTotal: {snapshot_count}"
                                 else:
-                                    pane.tooltip = "No Snapshots created"
+                                    pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
                             except Exception:
                                 pass
 

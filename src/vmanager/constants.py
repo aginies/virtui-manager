@@ -407,6 +407,9 @@ class StaticText:
     WAITING_TO_START_COLLECTION = _("Waiting to start collection...")
     COLLECTING_VM_INFO = _("Collecting VM info: {current}/{total}")
     EDIT_VIRTIOFS_MOUNT = _("Edit VirtIO-FS")
+    LATEST_SNAPSHOT = _("Latest Snapshot:")
+    NO_SNAPSHOTS_CREATED = _("No Snapshots created")
+    SELECT_OVERLAY_DISCARD = _("Select overlay disk to discard:")
 
 class SparklineLabels:
     """Constants for sparkline labels"""
@@ -685,11 +688,13 @@ class DialogMessages:
     CONFIRM_REMOVE_USB_DEVICE_TEMPLATE = _("Are you sure you want to remove USB device '{description}'?")
     CONFIRM_REMOVE_SCSI_CONTROLLER_TEMPLATE = _("Are you sure you want to remove SCSI controller '{model}' at index '{index}'?")
     CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _("Are you sure you want to remove VirtIO-FS mount '{target_path}'?")
+    CONFIRM_DISCARD_CHANGES = _("Are you sure you want to discard changes in '{target_disk}' and revert t  o its backing file? This action cannot be undone.")
+    CONFIRM_MERGE_CHANGES = _("Are you sure you want to merge changes from '{target_disk}' into its backing   file?")
 
 
 class QuickMessages:
     """Constants for quick messages"""
-    REMOTE_VIEWER_SELECTED = _("The remove viewer {viewer} has been selected.")
+    REMOTE_VIEWER_SELECTED = _("The remote viewer {viewer} has been selected.")
     VM_DATA_LOADED = _("VM data loaded. Displaying VMs...")
     FILTER_RUNNING_VMS = _("Filter: Running VMs")
     FILTER_ALL_VMS = _("Filter: All VMs")
@@ -813,3 +818,4 @@ class ProgressMessages:
     CONNECTING_TO_SERVER = _("Connecting to [b]{uri}[/b]...")
     CONFIG_UPDATED_REFRESHING_VM_LIST = _("Configuration updated. Refreshing VM list...")
     LOADING_VM_DATA_FROM_REMOTE_SERVERS = _("Loading VM data from remote server(s)...")
+    COMMITTING_CHANGES_FOR = _("Committing changes for {name}...")
