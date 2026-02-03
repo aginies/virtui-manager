@@ -35,7 +35,7 @@ Managing virtual infrastructure often involves a trade-off between convenience a
 ### 🛠️ Comprehensive VM Control
 *   **Lifecycle Management:** Start, Stop, Pause, Resume, Force Off, and Delete VM, etc...
 *   **Configuration:** detailed editing of CPU, Memory, Disks, Networks, and Boot options and mode.
-*   **Snapshots & Overlays:** Create, restore, and manage internal snapshots and external disk overlays.
+*   **State Management:** Create, restore, and manage internal snapshots, external disk overlays, and VM hibernation.
 *   **Real-time Monitoring:** Interactive sparklines showing CPU, Memory, Disk I/O, and Network performance with toggleable views.
 *   **Compact View Mode:** High-density display for managing large numbers of VMs efficiently.
 

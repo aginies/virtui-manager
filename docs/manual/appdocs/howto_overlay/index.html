@@ -29,7 +29,7 @@
     
     
       
-        <title>Understanding Snapshots and Disk Overlays - VirtUI Manager Documentation</title>
+        <title>State Management (Snapshots, Overlays, Hibernate) - VirtUI Manager Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#understanding-snapshots-and-disk-overlays" class="md-skip">
+        <a href="#state-management-snapshots-overlays-hibernate" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Understanding Snapshots and Disk Overlays
+              State Management (Snapshots, Overlays, Hibernate)
             
           </span>
         </div>
@@ -899,7 +899,7 @@
   <span class="md-ellipsis">
     
   
-    Understanding Snapshots and Disk Overlays
+    State Management (Snapshots, Overlays, Hibernate)
   
 
     
@@ -917,7 +917,7 @@
   <span class="md-ellipsis">
     
   
-    Understanding Snapshots and Disk Overlays
+    State Management (Snapshots, Overlays, Hibernate)
   
 
     
@@ -965,10 +965,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#comparison-snapshot-vs-overlay" class="md-nav__link">
+  <a href="#3-hibernate-vm" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Comparison: Snapshot vs. Overlay
+        3. Hibernate VM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparison-snapshot-vs-overlay-vs-state-management-hibernate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison: Snapshot vs. Overlay vs. State management (Hibernate)
       
     </span>
   </a>
@@ -1107,10 +1118,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#comparison-snapshot-vs-overlay" class="md-nav__link">
+  <a href="#3-hibernate-vm" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Comparison: Snapshot vs. Overlay
+        3. Hibernate VM
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparison-snapshot-vs-overlay-vs-state-management-hibernate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparison: Snapshot vs. Overlay vs. State management (Hibernate)
       
     </span>
   </a>
@@ -1148,8 +1170,8 @@
   
 
 
-<h1 id="understanding-snapshots-and-disk-overlays">Understanding Snapshots and Disk Overlays<a class="headerlink" href="#understanding-snapshots-and-disk-overlays" title="Permanent link">&para;</a></h1>
-<p>Virtual machines in this manager support two ways to preserve states and manage changes: <strong>Snapshots</strong> and <strong>Disk Overlays</strong>. While they share similar goals, they work differently and are suited for different use cases.</p>
+<h1 id="state-management-snapshots-overlays-hibernate">State Management (Snapshots, Overlays, Hibernate)<a class="headerlink" href="#state-management-snapshots-overlays-hibernate" title="Permanent link">&para;</a></h1>
+<p>Virtual machines in this manager support several ways to preserve states and manage changes: <strong>Snapshots</strong>, <strong>Disk Overlays</strong>, and <strong>Hibernation</strong>. While they share similar goals, they work differently and are suited for different use cases.</p>
 <hr />
 <h3 id="1-snapshots-internal">1. Snapshots (Internal)<a class="headerlink" href="#1-snapshots-internal" title="Permanent link">&para;</a></h3>
 <p>Snapshots are managed directly by libvirt and are typically stored <strong>inside</strong> the disk image (if using QCOW2 format).</p>
@@ -1180,14 +1202,26 @@
 </li>
 <li><strong>Best for:</strong> Maintaining "Golden Images", branching multiple VMs from a single base, and isolating large changes in separate files.</li>
 </ul>
+<h3 id="3-hibernate-vm">3. Hibernate VM<a class="headerlink" href="#3-hibernate-vm" title="Permanent link">&para;</a></h3>
+<p>Saving a VM (also known as "Managed Save") stops the VM and writes its entire memory state to a file on disk.</p>
+<ul>
+<li><strong>How it works:</strong> It acts like hibernation on a physical computer. The VM is powered off, freeing up CPU and RAM resources on the host, but its running state is preserved on disk.</li>
+<li><strong>Operations:</strong><ul>
+<li><strong>Hibernate VM:</strong> Hibernates the VM.</li>
+<li><strong>Start:</strong> Resumes the VM exactly from where it left off.</li>
+</ul>
+</li>
+<li><strong>Best for:</strong> Freeing up host resources without shutting down the guest OS, or persisting the state across host reboots.</li>
+</ul>
 <hr />
-<h3 id="comparison-snapshot-vs-overlay">Comparison: Snapshot vs. Overlay<a class="headerlink" href="#comparison-snapshot-vs-overlay" title="Permanent link">&para;</a></h3>
+<h3 id="comparison-snapshot-vs-overlay-vs-state-management-hibernate">Comparison: Snapshot vs. Overlay vs. State management (Hibernate)<a class="headerlink" href="#comparison-snapshot-vs-overlay-vs-state-management-hibernate" title="Permanent link">&para;</a></h3>
 <table>
 <thead>
 <tr>
 <th style="text-align: left;">Feature</th>
 <th style="text-align: left;">Snapshots (Internal)</th>
 <th style="text-align: left;">Disk Overlays (External)</th>
+<th style="text-align: left;">Hibernate VM</th>
 </tr>
 </thead>
 <tbody>
@@ -1195,21 +1229,25 @@
 <td style="text-align: left;"><strong>Storage</strong></td>
 <td style="text-align: left;">Inside the existing disk file</td>
 <td style="text-align: left;">In a new, separate file</td>
+<td style="text-align: left;">Managed state file on host</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>VM State</strong></td>
 <td style="text-align: left;">Can include RAM (Live state)</td>
 <td style="text-align: left;">Disk only (requires VM stop)</td>
+<td style="text-align: left;">RAM only (persisted to disk)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Management</strong></td>
 <td style="text-align: left;">Timeline (multiple points)</td>
 <td style="text-align: left;">Layered (Base + Changes)</td>
+<td style="text-align: left;">Single state (Suspend/Resume)</td>
 </tr>
 <tr>
 <td style="text-align: left;"><strong>Primary Use</strong></td>
 <td style="text-align: left;">Quick restore points</td>
 <td style="text-align: left;">Permanent branching / Golden images</td>
+<td style="text-align: left;">Freeing host resources / Pausing work</td>
 </tr>
 </tbody>
 </table>

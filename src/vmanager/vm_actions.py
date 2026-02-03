@@ -1873,6 +1873,18 @@ def stop_vm(domain: libvirt.virDomain):
     invalidate_cache(get_internal_id(domain))
     domain.shutdown()
 
+def hibernate_vm(domain: libvirt.virDomain):
+    """
+    Saves (hibernates) the VM state to disk and stops it.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+    if not domain.isActive():
+        raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot save.")
+
+    invalidate_cache(get_internal_id(domain))
+    domain.managedSave(0)
+
 def pause_vm(domain: libvirt.virDomain):
     """
     Pauses the execution of the VM.
@@ -2230,6 +2242,14 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
     Returns a list of issues, where each issue is a dict with 'severity' and 'message'.
     """
     issues = []
+
+    # Check for name collision
+    try:
+        dest_conn.lookupByName(domain.name())
+        issues.append({'severity': 'ERROR', 'message': f"A VM with the name '{domain.name()}' already exists on the destination host."})
+    except libvirt.libvirtError as e:
+        if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+             issues.append({'severity': 'WARNING', 'message': f"Could not check for name collision on destination: {e}"})
 
     try:
         xml_desc = domain.XMLDesc(0)

@@ -28,7 +28,7 @@ from .vm_actions import (
         clone_vm, rename_vm, create_vm_snapshot,
         restore_vm_snapshot, delete_vm_snapshot,
         create_external_overlay, commit_disk_changes,
-        discard_overlay, delete_vm
+        discard_overlay, delete_vm, hibernate_vm
         )
 
 from .vm_queries import (
@@ -67,6 +67,7 @@ class VMCardActions(Static):
     def compose(self):
         self.card.ui["start"] = Button(ButtonLabels.START, id="start", variant="success")
         self.card.ui["shutdown"] = Button(ButtonLabels.SHUTDOWN, id="shutdown", variant="primary")
+        self.card.ui["hibernate"] = Button(ButtonLabels.HIBERNATE_VM, id="hibernate", variant="primary")
         self.card.ui["stop"] = Button(ButtonLabels.FORCE_OFF, id="stop", variant="error")
         self.card.ui["pause"] = Button(ButtonLabels.PAUSE, id="pause", variant="primary")
         self.card.ui["resume"] = Button(ButtonLabels.RESUME, id="resume", variant="success")
@@ -106,13 +107,14 @@ class VMCardActions(Static):
                         yield self.card.ui["connect"]
                         if os.environ.get("TMUX") and check_tmux():
                             yield self.card.ui["tmux_console"]
-            with TabPane(self.card._get_snapshot_tab_title(num_snapshots=0), id="snapshot-tab"):
+            with TabPane(TabTitles.STATE_MANAGEMENT, id="snapshot-tab"):
                 with Horizontal():
                     with Vertical():
                         yield self.card.ui["snapshot_take"]
                         yield self.card.ui["snapshot_restore"]
                         yield self.card.ui["snapshot_delete"]
                     with Vertical():
+                        yield self.card.ui["hibernate"]
                         yield self.card.ui["create_overlay"]
                         yield self.card.ui["commit_disk"]
                         yield self.card.ui["discard_overlay"]
@@ -190,19 +192,17 @@ class VMCard(Static):
         if num_snapshots == -1:
             # If no count provided, don't fetch it here to avoid blocking.
             # For now, return default if we can't get it cheaply.
-            return TabTitles.SNAP_OVER_UPDATE # TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+            return TabTitles.SNAP_OVER_UPDATE
 
         if self.vm:
             try:
-                if num_snapshots == 0:
-                    return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
-                elif num_snapshots == 1:
-                    return TabTitles.SNAPSHOT + "(" + str(num_snapshots) + ")" + "/" + TabTitles.OVERLAY
-                elif num_snapshots >= 2:
-                    return TabTitles.SNAPSHOTS + "(" + str(num_snapshots) + ")" "/" + TabTitles.OVERLAY
+                if num_snapshots <= 0:
+                    return TabTitles.STATE_MANAGEMENT
+                else:
+                    return f"{TabTitles.STATE_MANAGEMENT}({num_snapshots})"
             except libvirt.libvirtError:
                 pass # Domain might be transient or invalid
-        return TabTitles.SNAPSHOT + "/" + TabTitles.OVERLAY
+        return TabTitles.STATE_MANAGEMENT
 
     def update_snapshot_tab_title(self, num_snapshots: int = -1) -> None:
         """Updates the snapshot tab title."""
@@ -893,6 +893,7 @@ class VMCard(Static):
 
         self.ui["start"].display = is_stopped
         self.ui["shutdown"].display = is_running or is_blocked
+        self.ui["hibernate"].display = is_running or is_blocked
         self.ui["stop"].display = is_running or is_paused or is_pmsuspended or is_blocked
         self.ui["delete"].display = is_running or is_paused or is_stopped or is_pmsuspended or is_blocked
         self.ui["clone"].display = is_stopped
@@ -1068,6 +1069,7 @@ class VMCard(Static):
 
         button_handlers = {
             "shutdown": self._handle_shutdown_button,
+            "hibernate": self._handle_hibernate_button,
             "stop": self._handle_stop_button,
             "pause": self._handle_pause_button,
             "resume": self._handle_resume_button,
@@ -1246,6 +1248,27 @@ class VMCard(Static):
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
             self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
+
+    def _handle_hibernate_button(self, event: Button.Pressed) -> None:
+        """Handles the save button press."""
+        logging.info(f"Attempting to save (hibernate) VM: {self.name}")
+
+        def do_save():
+            self.stop_background_activities()
+            self.app.vm_service.suppress_vm_events(self.internal_id)
+            try:
+                hibernate_vm(self.vm)
+                self.app.call_from_thread(self.app.show_success_message, SuccessMessages.VM_SAVED_TEMPLATE.format(vm_name=self.name))
+                self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
+                self.app.call_from_thread(setattr, self, 'status', StatusText.STOPPED)
+                self.app.call_from_thread(self.update_button_layout)
+            except Exception as e:
+                self.app.call_from_thread(self.app.show_error_message, ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(vm_name=self.name, action='save', error=e))
+            finally:
+                self.app.vm_service.unsuppress_vm_events(self.internal_id)
+
+        if self.status in (StatusText.RUNNING, StatusText.PAUSED):
+            self.app.worker_manager.run(do_save, name=f"save_{self.internal_id}")
 
     def stop_background_activities(self):
         """ Stop background activities before action """
@@ -2054,27 +2077,16 @@ class VMCard(Static):
             self.app.show_error_message(ErrorMessages.SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION)
             return
 
-        selected_vm_uuids = self.app.selected_vm_uuids
+        selected_vm_uuids = list(self.app.selected_vm_uuids)
         selected_vms = []
         if selected_vm_uuids:
+            found_domains_dict = self.app.vm_service.find_domains_by_uuids(self.app.active_uris, selected_vm_uuids)
             for uuid in selected_vm_uuids:
-                #Use cached domain lookup instead of iterating all URIs
-                with self.app.vm_service._cache_lock:
-                    domain = self.app.vm_service._domain_cache.get(uuid)
-
+                domain = found_domains_dict.get(uuid)
                 if domain:
-                    try:
-                        # Verify domain is still valid
-                        domain.info()
-                        selected_vms.append(domain)
-                        found_domain = True
-                    except libvirt.libvirtError:
-                        found_domain = False
+                    selected_vms.append(domain)
                 else:
-                    found_domain = False
-            if not vm_info:
-                self.app.show_error_message(ErrorMessages.SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE.format(uuid=uuid))
-
+                    self.app.show_error_message(ErrorMessages.SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE.format(uuid=uuid))
         if not selected_vms:
             selected_vms = [self.vm]
 

@@ -1,6 +1,6 @@
-# Understanding Snapshots and Disk Overlays
+# State Management (Snapshots, Overlays, Hibernate)
 
-Virtual machines in this manager support two ways to preserve states and manage changes: **Snapshots** and **Disk Overlays**. While they share similar goals, they work differently and are suited for different use cases.
+Virtual machines in this manager support several ways to preserve states and manage changes: **Snapshots**, **Disk Overlays**, and **Hibernation**. While they share similar goals, they work differently and are suited for different use cases.
 
 ---
 
@@ -27,16 +27,25 @@ Overlays are **new files** created on top of a base disk image. This is also kno
     *   **Commit Disk (Merge):** Merges changes from the overlay into the base image, making them permanent.
 *   **Best for:** Maintaining "Golden Images", branching multiple VMs from a single base, and isolating large changes in separate files.
 
+### 3. Hibernate VM
+Saving a VM (also known as "Managed Save") stops the VM and writes its entire memory state to a file on disk.
+
+*   **How it works:** It acts like hibernation on a physical computer. The VM is powered off, freeing up CPU and RAM resources on the host, but its running state is preserved on disk.
+*   **Operations:**
+    *   **Hibernate VM:** Hibernates the VM.
+    *   **Start:** Resumes the VM exactly from where it left off.
+*   **Best for:** Freeing up host resources without shutting down the guest OS, or persisting the state across host reboots.
+
 ---
 
-### Comparison: Snapshot vs. Overlay
+### Comparison: Snapshot vs. Overlay vs. State management (Hibernate)
 
-| Feature | Snapshots (Internal) | Disk Overlays (External) |
-| :--- | :--- | :--- |
-| **Storage** | Inside the existing disk file | In a new, separate file |
-| **VM State** | Can include RAM (Live state) | Disk only (requires VM stop) |
-| **Management** | Timeline (multiple points) | Layered (Base + Changes) |
-| **Primary Use** | Quick restore points | Permanent branching / Golden images |
+| Feature | Snapshots (Internal) | Disk Overlays (External) | Hibernate VM |
+| :--- | :--- | :--- | :--- |
+| **Storage** | Inside the existing disk file | In a new, separate file | Managed state file on host |
+| **VM State** | Can include RAM (Live state) | Disk only (requires VM stop) | RAM only (persisted to disk) |
+| **Management** | Timeline (multiple points) | Layered (Base + Changes) | Single state (Suspend/Resume) |
+| **Primary Use** | Quick restore points | Permanent branching / Golden images | Freeing host resources / Pausing work |
 
 ---
 

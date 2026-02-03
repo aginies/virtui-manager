@@ -286,7 +286,10 @@ def custom_migrate_vm(source_conn: libvirt.virConnect, dest_conn: libvirt.virCon
             raise
 
     # 2. Analyze storage and propose move actions
-    actions = []
+    actions = [{
+        "type": "vm_metadata",
+        "vm_name": domain.name()
+    }]
     root = ET.fromstring(xml_desc)
     disks = get_vm_disks_info(source_conn, root)
 

@@ -387,7 +387,7 @@ class MigrationModal(ModalScreen):
 
         write_log("\n[bold]--- Migration process finished ---[/]")
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "none"))
-        self.app.call_from_thread(self.app.refresh_vm_list)
+        self.app.call_from_thread(self.app.refresh_vm_list, force=True)
         self.app.call_from_thread(final_ui_state)
 
     @on(Checkbox.Changed, "#custom")
