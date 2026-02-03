@@ -256,7 +256,7 @@ class VMCard(Static):
         self.ui["btn_quick_start"].tooltip = StaticText.START_VMS
         self.ui["btn_quick_view"] = Button("👁", id="connect", classes="btn-small")
         self.ui["btn_quick_view"].tooltip = StaticText.REMOTE_VIEWER
-        self.ui["btn_quick_resume"] = Button(">", id="resume", variant="success", classes="btn-small")
+        self.ui["btn_quick_resume"] = Button("⏯", id="resume", variant="success", classes="btn-small")
         self.ui["btn_quick_resume"].tooltip = ButtonLabels.RESUME
         self.ui["btn_quick_stop"] = Button("■", id="shutdown", variant="primary", classes="btn-small")
         self.ui["btn_quick_stop"].tooltip = ButtonLabels.SHUTDOWN
