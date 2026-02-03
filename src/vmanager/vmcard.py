@@ -56,7 +56,7 @@ from .utils import (
 from .constants import (
     ButtonLabels, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction,
-    WarningMessages, SuccessMessages
+    WarningMessages, SuccessMessages, StaticText
 )
 
 class VMCardActions(Static):
@@ -252,6 +252,15 @@ class VMCard(Static):
             status_widget.update(status_text)
 
     def compose(self):
+        self.ui["btn_quick_start"] = Button("▶", id="start", variant="success", classes="btn-small")
+        self.ui["btn_quick_start"].tooltip = StaticText.START_VMS
+        self.ui["btn_quick_view"] = Button("👁", id="connect", classes="btn-small")
+        self.ui["btn_quick_view"].tooltip = StaticText.REMOTE_VIEWER
+        self.ui["btn_quick_resume"] = Button(">", id="resume", variant="success", classes="btn-small")
+        self.ui["btn_quick_resume"].tooltip = ButtonLabels.RESUME
+        self.ui["btn_quick_stop"] = Button("■", id="shutdown", variant="primary", classes="btn-small")
+        self.ui["btn_quick_stop"].tooltip = ButtonLabels.SHUTDOWN
+
         self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected, tooltip="Select VM")
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
@@ -290,6 +299,12 @@ class VMCard(Static):
                 with Vertical():
                     yield self.ui["vmname"]
                     yield self.ui["status"]
+                with Horizontal(classes="quick-actions"):
+                    with Vertical():
+                        yield self.ui["btn_quick_resume"]
+                        yield self.ui["btn_quick_stop"]
+                        yield self.ui["btn_quick_view"]
+                        yield self.ui["btn_quick_start"]
 
             yield self.ui["sparklines_container"]
             yield self.ui["collapsible"]
@@ -315,6 +330,8 @@ class VMCard(Static):
         # Clean up dynamic UI references to avoid memory leaks and stale state
         keys_to_keep = {
             "checkbox", "vmname", "status", "collapsible",
+            "btn_quick_start", "btn_quick_stop", "btn_quick_view",
+            "btn_quick_resume",
             "sparklines_container",
             # Resource Sparklines
             "cpu_label", "cpu_sparkline", "cpu_sparkline_container",
@@ -887,6 +904,14 @@ class VMCard(Static):
         is_paused = self.status == StatusText.PAUSED
         is_pmsuspended = self.status == StatusText.PMSUSPENDED
         is_blocked = self.status == StatusText.BLOCKED
+
+        if not self.ui.get("btn_quick_start"):
+            return
+
+        self.ui["btn_quick_start"].display = is_stopped
+        self.ui["btn_quick_stop"].display = is_running or is_blocked
+        self.ui["btn_quick_view"].display = (is_running or is_paused or is_blocked)
+        self.ui["btn_quick_resume"].display = is_paused or is_pmsuspended
 
         if not self.ui.get("rename-button"):
             return

@@ -158,3 +158,19 @@ Button {
   margin: 0 0;
   padding: 0 0;
 }
+
+.name-box {
+    height: 2;
+}
+
+.quick-actions {
+    width: 8;
+    height: 2;
+    padding: 0 0;
+}
+.btn-small {
+    min-width: 2;
+    height: 1;
+    border: none;
+    padding: 0 0;
+}
