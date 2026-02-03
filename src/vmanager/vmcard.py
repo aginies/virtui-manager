@@ -584,8 +584,8 @@ class VMCard(Static):
             if collapsible and collapsible.is_mounted:
                 collapsible.collapsed = True
                 collapsible.remove()
-            if checkbox and checkbox.is_mounted:
-                checkbox.display = False
+            #if checkbox and checkbox.is_mounted:
+            #    checkbox.display = False
         else:
             try:
                 info_container = self.query_one("#info-container")
@@ -595,8 +595,8 @@ class VMCard(Static):
                         info_container.mount(collapsible)
                 if sparklines:
                     sparklines.display = True
-                if checkbox:
-                    checkbox.display = True
+                #if checkbox:
+                #    checkbox.display = True
 
             except NoMatches:
                 # This can happen if the card is not fully initialized or structures changed
@@ -615,7 +615,7 @@ class VMCard(Static):
             if vmname:
                 vmname.styles.content_align = ("left", "middle")
             if vmstatus: vmstatus.styles.content_align = ("left", "middle")
-            #if checkbox: checkbox.styles.width = "2"
+            if checkbox: checkbox.styles.width = "2"
         else: # Detailed view 
             self.styles.height = 14
             self.styles.width = 41
