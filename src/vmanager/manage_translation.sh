@@ -6,7 +6,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 # Go to that directory
 cd "$SCRIPT_DIR"
 
-LOCALES_DIR="locales"
+LOCALES_DIR="locale"
 DOMAIN="virtui-manager"
 POT_FILE="$LOCALES_DIR/$DOMAIN.pot"
 PACKAGE_NAME="VirtUI Manager"
@@ -51,7 +51,7 @@ function update_po() {
     fi
 
     local found_po=false
-    # Find all .po files in subdirectories of locales/
+    # Find all .po files in subdirectories of locale/
     while read -r po_file; do
         if [ -z "$po_file" ]; then continue; fi
         echo "Updating $po_file..."
