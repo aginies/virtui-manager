@@ -56,7 +56,7 @@ from .utils import (
 from .constants import (
     ButtonLabels, TabTitles, StatusText,
     SparklineLabels, ErrorMessages, DialogMessages, VmAction,
-    WarningMessages, SuccessMessages
+    WarningMessages, SuccessMessages, StaticText, ProgressMessages
 )
 
 class VMCardActions(Static):
@@ -252,6 +252,15 @@ class VMCard(Static):
             status_widget.update(status_text)
 
     def compose(self):
+        self.ui["btn_quick_start"] = Button("▶", id="start", variant="success", classes="btn-small")
+        self.ui["btn_quick_start"].tooltip = StaticText.START_VMS
+        self.ui["btn_quick_view"] = Button("👁", id="connect", classes="btn-small")
+        self.ui["btn_quick_view"].tooltip = StaticText.REMOTE_VIEWER
+        self.ui["btn_quick_resume"] = Button("⏯", id="resume", variant="success", classes="btn-small")
+        self.ui["btn_quick_resume"].tooltip = ButtonLabels.RESUME
+        self.ui["btn_quick_stop"] = Button("■", id="shutdown", variant="primary", classes="btn-small")
+        self.ui["btn_quick_stop"].tooltip = ButtonLabels.SHUTDOWN
+
         self.ui["checkbox"] = Checkbox("", id="vm-select-checkbox", classes="vm-select-checkbox", value=self.is_selected, tooltip="Select VM")
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
@@ -290,6 +299,12 @@ class VMCard(Static):
                 with Vertical():
                     yield self.ui["vmname"]
                     yield self.ui["status"]
+                with Horizontal(classes="quick-actions"):
+                    with Vertical():
+                        yield self.ui["btn_quick_resume"]
+                        yield self.ui["btn_quick_stop"]
+                        yield self.ui["btn_quick_view"]
+                        yield self.ui["btn_quick_start"]
 
             yield self.ui["sparklines_container"]
             yield self.ui["collapsible"]
@@ -315,6 +330,8 @@ class VMCard(Static):
         # Clean up dynamic UI references to avoid memory leaks and stale state
         keys_to_keep = {
             "checkbox", "vmname", "status", "collapsible",
+            "btn_quick_start", "btn_quick_stop", "btn_quick_view",
+            "btn_quick_resume",
             "sparklines_container",
             # Resource Sparklines
             "cpu_label", "cpu_sparkline", "cpu_sparkline_container",
@@ -555,19 +572,20 @@ class VMCard(Static):
         if not self.ui:
             return
 
-        #sparklines = self.ui.get("sparklines_container")
+        sparklines = self.ui.get("sparklines_container")
         collapsible = self.ui.get("collapsible")
         vmname = self.ui.get("vmname")
         vmstatus = self.ui.get("status")
         checkbox = self.ui.get("checkbox")
 
-        if value: # if compact view, add hidden class
-            #if sparklines and sparklines.is_mounted:
-            #    logging.info("DEBUG remove spark")
-            #    sparklines.remove()
+        if value:
+            if sparklines and sparklines.is_mounted:
+                sparklines.display = False
             if collapsible and collapsible.is_mounted:
                 collapsible.collapsed = True
                 collapsible.remove()
+            #if checkbox and checkbox.is_mounted:
+            #    checkbox.display = False
         else:
             try:
                 info_container = self.query_one("#info-container")
@@ -575,6 +593,11 @@ class VMCard(Static):
                     # Check if collapsible is already a child of info_container to avoid double mounting
                     if collapsible not in info_container.children:
                         info_container.mount(collapsible)
+                if sparklines:
+                    sparklines.display = True
+                #if checkbox:
+                #    checkbox.display = True
+
             except NoMatches:
                 # This can happen if the card is not fully initialized or structures changed
                 logging.warning(f"Could not find #info-container on VMCard {self.name} when switching to detailed view.")
@@ -589,10 +612,11 @@ class VMCard(Static):
         if value: # Compact view
             self.styles.height = 4
             self.styles.width = 20
-            if vmname: vmname.styles.content_align = ("left", "middle")
+            if vmname:
+                vmname.styles.content_align = ("left", "middle")
             if vmstatus: vmstatus.styles.content_align = ("left", "middle")
             if checkbox: checkbox.styles.width = "2"
-        else: # Detailed view
+        else: # Detailed view 
             self.styles.height = 14
             self.styles.width = 41
             if vmname: vmname.styles.content_align = ("center", "middle")
@@ -629,7 +653,17 @@ class VMCard(Static):
 
     def watch_server_border_color(self, old_color: str, new_color: str) -> None:
         """Called when server_border_color changes."""
-        self.styles.border = ("solid", new_color)
+        if self.is_selected:
+            self.styles.border = ("panel", "white")
+        else:
+            self.styles.border = ("solid", new_color)
+
+    def on_click(self, event: Click) -> None:
+        """Handle click events on the card."""
+        if event.button == 3:
+            self.is_selected = not self.is_selected
+            self.post_message(VMSelectionChanged(vm_uuid=self.raw_uuid, is_selected=self.is_selected))
+            event.stop()
 
     def on_unmount(self) -> None:
         """Stop the timer and cancel any running stat workers when the widget is removed."""
@@ -673,11 +707,10 @@ class VMCard(Static):
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
-        if not self.ui:
-            return
-        checkbox = self.ui.get("checkbox")
-        if checkbox:
-            checkbox.value = new_value
+        if self.ui:
+            checkbox = self.ui.get("checkbox")
+            if checkbox:
+                checkbox.value = new_value
 
         if new_value:
             self.styles.border = ("panel", "white")
@@ -888,6 +921,14 @@ class VMCard(Static):
         is_pmsuspended = self.status == StatusText.PMSUSPENDED
         is_blocked = self.status == StatusText.BLOCKED
 
+        if not self.ui.get("btn_quick_start"):
+            return
+
+        self.ui["btn_quick_start"].display = is_stopped
+        self.ui["btn_quick_stop"].display = is_running or is_blocked
+        self.ui["btn_quick_view"].display = (is_running or is_paused or is_blocked)
+        self.ui["btn_quick_resume"].display = is_paused or is_pmsuspended
+
         if not self.ui.get("rename-button"):
             return
 
@@ -1020,10 +1061,10 @@ class VMCard(Static):
                 pane = tabbed_content.get_tab("snapshot-tab")
                 if snapshot_count > 0:
                     latest = snapshot_summary.get('latest')
-                    info = f"Latest: {latest['name']} ({latest['time']})" if latest else "Unknown"
+                    info = f"{StaticText.LATEST_SNAPSHOT} {latest['name']} ({latest['time']})" if latest else "Unknown"
                     pane.tooltip = f"{info}\nTotal: {snapshot_count}"
                 else:
-                    pane.tooltip = "No Snapshots created"
+                   pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
             except Exception:
                 pass
 
@@ -1183,7 +1224,7 @@ class VMCard(Static):
                             self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
                 self.app.push_screen(
-                    ConfirmationDialog(f"Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."),
+                    ConfirmationDialog(DialogMessages.CONFIRM_DISCARD_CHANGES.format(target_disk=target_disk)),
                     on_confirm
                 )
 
@@ -1191,7 +1232,7 @@ class VMCard(Static):
                 proceed_with_discard(overlay_disks[0])
             else:
                 self.app.push_screen(
-                    SelectDiskModal(overlay_disks, "Select overlay disk to discard:"),
+                    SelectDiskModal(overlay_disks, StaticText.SELECT_OVERLAY_DISCARD),
                     proceed_with_discard
                 )
 
@@ -1217,7 +1258,7 @@ class VMCard(Static):
 
             def on_confirm(confirmed: bool):
                 if confirmed:
-                    progress_modal = ProgressModal(title=f"Committing changes for {self.name}...")
+                    progress_modal = ProgressModal(title=ProgressMessages.COMMITTING_CHANGES_FOR.format(name=self.name))
                     self.app.push_screen(progress_modal)
 
                     def do_commit():
@@ -1236,7 +1277,7 @@ class VMCard(Static):
                     self.app.worker_manager.run(do_commit, name=f"commit_{self.name}")
 
             self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to merge changes from '{target_disk}' into its backing file?"),
+                ConfirmationDialog(DialogMessages.CONFIRM_MERGE_CHANGES.format(target_disk=target_disk)),
                 on_confirm
             )
 
@@ -1751,10 +1792,10 @@ class VMCard(Static):
                                 pane = tabbed_content.get_tab("snapshot-tab")
                                 if snapshot_count > 0:
                                     latest = snapshot_summary.get('latest')
-                                    info = f"Latest: {latest['name']} ({latest['time']})" if latest else "Unknown"
+                                    info = f"{StaticText.LATEST_SNAPSHOT} {latest['name']} ({latest['time']})" if latest else "Unknown"
                                     pane.tooltip = f"{info}\nTotal: {snapshot_count}"
                                 else:
-                                    pane.tooltip = "No Snapshots created"
+                                    pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
                             except Exception:
                                 pass
 

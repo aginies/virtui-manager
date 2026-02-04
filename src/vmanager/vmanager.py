@@ -1291,7 +1291,7 @@ class VMManagerTUI(App):
 
                     if result:
                         vm_info, domain, conn = result
-                        from modals.vmdetails_modals import VMDetailModal # Import here to avoid circular dep if any
+                        from .modals.vmdetails_modals import VMDetailModal # Import here to avoid circular dep if any
 
                         self.push_screen(
                             VMDetailModal(
@@ -1326,7 +1326,7 @@ class VMManagerTUI(App):
 
     def _perform_bulk_action_worker(self, action_type: str, vm_uuids: list[str], delete_storage_flag: bool = False) -> None:
         """Worker function to orchestrate a bulk action using the VMService."""
-
+        bulk_failed = False
         # Stop workers for all selected VMs to prevent conflicts
         for uuid in vm_uuids:
             vm_card = self.vm_card_pool.active_cards.get(uuid)
@@ -1357,8 +1357,10 @@ class VMManagerTUI(App):
             logging.info(summary)
 
             if successful_vms:
+                bulk_failed = False
                 self.call_from_thread(self.show_success_message, SuccessMessages.BULK_ACTION_SUCCESS_TEMPLATE.format(action_type=action_type, count=len(successful_vms)))
             if failed_vms:
+                bulk_failed = True
                 self.call_from_thread(self.show_error_message, ErrorMessages.BULK_ACTION_FAILED_TEMPLATE.format(action_type=action_type, count=len(failed_vms)))
 
         except Exception as e:
@@ -1371,7 +1373,8 @@ class VMManagerTUI(App):
             # Unlock immediately so UI is not stuck if refresh fails
             def unlock_and_refresh():
                 self.bulk_operation_in_progress = False
-                self.refresh_vm_list(force=True)
+                if bulk_failed is False:
+                    self.refresh_vm_list(force=True)
 
             self.call_from_thread(unlock_and_refresh)
 
@@ -1386,6 +1389,13 @@ class VMManagerTUI(App):
 
     def refresh_vm_list(self, force: bool = False, optimize_for_current_page: bool = False, on_complete: Callable | None = None) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
+        # Prevent refresh during bulk operations to maintain UI stability
+        if self.bulk_operation_in_progress:
+            logging.debug("Skipping refresh_vm_list because bulk operation is in progress.")
+            if on_complete:
+                on_complete()
+            return
+
         # Don't display VMs until initial cache is complete
         if self.initial_cache_loading and not self.initial_cache_complete:
             return
@@ -1493,13 +1503,15 @@ class VMManagerTUI(App):
                         cpu = 0
                         memory = 0
 
+                    simple_uuid = uuid.split('@')[0] if '@' in uuid else uuid
+
                     return {
                         'uuid': uuid,
                         'name': vm_name,
                         'status': status,
                         'cpu': cpu,
                         'memory': memory,
-                        'is_selected': uuid in selected_uuids,
+                        'is_selected': simple_uuid in selected_uuids,
                         'domain': domain,
                         'conn': conn,
                         'uri': uri
@@ -1597,11 +1609,13 @@ class VMManagerTUI(App):
                     card.name = data['name']
                     card.cpu = data['cpu']
                     card.memory = data['memory']
-                    card.is_selected = data['is_selected']
+                    
                     card.server_border_color = self.get_server_color(data['uri'])
                     card.status = data['status']
                     card.internal_id = uuid
                     card.compact_view = self.compact_view
+
+                    card.is_selected = data['is_selected']
 
                 # Mount any new cards
                 if cards_to_mount:
