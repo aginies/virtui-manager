@@ -82,9 +82,8 @@ msgid "Web Console"
 msgstr "Console Web"
 
 #: constants.py:80
-#, fuzzy
 msgid "Text Console"
-msgstr "Console Web"
+msgstr "Console Texte"
 
 #: constants.py:81
 msgid "Connect"
@@ -347,12 +346,10 @@ msgid "Config"
 msgstr "Configuration"
 
 #: constants.py:149
-#, fuzzy
 msgid "\\[Previous Page]"
 msgstr "\\[Page précédente]"
 
 #: constants.py:150
-#, fuzzy
 msgid "\\[Next Page]"
 msgstr "\\[Page suivante]"
 
@@ -549,9 +546,8 @@ msgid "Other"
 msgstr "Autre"
 
 #: constants.py:210
-#, fuzzy
 msgid "State Management"
-msgstr "Gestion de la liste des serveurs"
+msgstr "Gestion de l'état"
 
 #: constants.py:211
 msgid "Updating Data..."
@@ -1302,19 +1298,16 @@ msgid "Edit VirtIO-FS"
 msgstr ""
 
 #: constants.py:410
-#, fuzzy
 msgid "Latest Snapshot:"
-msgstr "Restaurer l'instantané"
+msgstr "Dernier instantané :"
 
 #: constants.py:411
-#, fuzzy
 msgid "No Snapshots created"
-msgstr "Aucun instantané à restaurer."
+msgstr "Aucun instantané créé"
 
 #: constants.py:412
-#, fuzzy
 msgid "Select overlay disk to discard:"
-msgstr "Sélectionner les serveurs à afficher"
+msgstr "Sélectionner le disque overlay à rejeter :"
 
 #: constants.py:416
 #, python-brace-format
@@ -1501,7 +1494,6 @@ msgid "Failed to clone to: {vm_names}"
 msgstr "Échec du clonage vers : {vm_names}"
 
 #: constants.py:456
-#, fuzzy
 msgid "No suitable disks found for overlay."
 msgstr "Aucun disque approprié pour l'overlay."
 
@@ -1989,7 +1981,6 @@ msgid "Error deleting server '{server_name}': {error}"
 msgstr "Erreur lors de la suppression du serveur '{server_name}' : {error}"
 
 #: constants.py:555
-#, fuzzy, python-brace-format
 msgid ""
 "Are you sure you want to delete Server;\n"
 "'{server_name}'\n"
