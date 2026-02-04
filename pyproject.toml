@@ -64,6 +64,8 @@ Changelog = "https://github.com/aginies/virtui-manager/releases"
 virtui-manager = "vmanager.wrapper:main"
 virtui-manager-cmd = "vmanager.wrapper:cmd_main"
 virtui-remote-viewer = "vmanager.wrapper:remote_viewer_main"
+virtui-gui = "vmanager.gui_wrapper:main"
+
 
 [tool.setuptools]
 package-dir = {"" = "src"}
