@@ -27,7 +27,7 @@ msgstr "Salva"
 
 #: constants.py:66
 msgid "Hibernate VM"
-msgstr ""
+msgstr "Ibernazione VM"
 
 #: constants.py:67
 msgid "Save Changes"
@@ -82,9 +82,8 @@ msgid "Web Console"
 msgstr "Console Web"
 
 #: constants.py:80
-#, fuzzy
 msgid "Text Console"
-msgstr "Console Web"
+msgstr "Console Testuale"
 
 #: constants.py:81
 msgid "Connect"
@@ -547,9 +546,8 @@ msgid "Other"
 msgstr "Altro"
 
 #: constants.py:210
-#, fuzzy
 msgid "State Management"
-msgstr "Gestione Lista Server"
+msgstr "Gestione Stato"
 
 #: constants.py:211
 msgid "Updating Data..."
@@ -1297,22 +1295,19 @@ msgstr "Raccolta info VM: {current}/{total}"
 
 #: constants.py:409
 msgid "Edit VirtIO-FS"
-msgstr ""
+msgstr "Modifica VirtIO-FS"
 
 #: constants.py:410
-#, fuzzy
 msgid "Latest Snapshot:"
-msgstr "Ripristina snapshot"
+msgstr "Ultimo Snapshot:"
 
 #: constants.py:411
-#, fuzzy
 msgid "No Snapshots created"
-msgstr "Nessuno snapshot da ripristinare."
+msgstr "Nessuno snapshot creato"
 
 #: constants.py:412
-#, fuzzy
 msgid "Select overlay disk to discard:"
-msgstr "Seleziona Server da Visualizzare"
+msgstr "Seleziona disco overlay da scartare:"
 
 #: constants.py:416
 #, python-brace-format
@@ -1969,7 +1964,6 @@ msgid "Error deleting server '{server_name}': {error}"
 msgstr "Errore eliminazione server '{server_name}': {error}"
 
 #: constants.py:555
-#, python-brace-format
 msgid ""
 "Are you sure you want to delete Server;\n"
 "'{server_name}'\n"
@@ -1990,25 +1984,25 @@ msgstr "Fallito ottenimento connessione per preferenze server su {uri}."
 
 #: constants.py:559
 msgid "Could not find object to display XML for."
-msgstr "Impossibile trovare oggetto per cui mostrare XML."
+msgstr "Impossibile trovare l'oggetto per visualizzare l'XML."
 
 #: constants.py:560
 #, python-brace-format
 msgid "Error getting XML for {obj_type}: {error}"
-msgstr "Errore ottenimento XML per {obj_type}: {error}"
+msgstr "Errore nell'ottenere l'XML per {obj_type}: {error}"
 
 #: constants.py:561
 msgid "Could not find pool object to edit."
-msgstr "Impossibile trovare oggetto pool da modificare."
+msgstr "Impossibile trovare l'oggetto pool da modificare."
 
 #: constants.py:562
 msgid "Pool must be inactive to edit its XML definition."
-msgstr "Il pool deve essere inattivo per modificare la sua definizione XML."
+msgstr "Il pool deve essere inattivo per modificarne la definizione XML."
 
 #: constants.py:563
 #, python-brace-format
 msgid "Error getting XML for pool: {error}"
-msgstr "Errore ottenimento XML per pool: {error}"
+msgstr "Errore nell'ottenere l'XML per il pool: {error}"
 
 #: constants.py:564
 #, python-brace-format
@@ -2018,7 +2012,7 @@ msgstr "Pool storage '{pool_name}' aggiornato con successo."
 #: constants.py:565
 #, python-brace-format
 msgid "Error updating pool XML: {error}"
-msgstr "Errore aggiornamento XML pool: {error}"
+msgstr "Errore nell'aggiornare l'XML del pool: {error}"
 
 #: constants.py:567
 msgid ""
@@ -2518,22 +2512,20 @@ msgid "Error removing SPICE devices: {error}"
 msgstr "Errore rimozione dispositivi SPICE: {error}"
 
 #: constants.py:673
-#, fuzzy
 msgid ""
 "This VM has other SPICE-related devices (e.g., channels, QXL video).\\nDo "
 "you want to remove them for a clean switch to VNC?"
 msgstr ""
-"Questa VM ha altri dispositivi SPICE (es. canali, video QXL).\n"
-"Rimuoverli per un passaggio pulito a VNC?"
+"Questa VM ha altri dispositivi SPICE (es. canali, video QXL).\\n"
+"Vuoi rimuoverli per un passaggio pulito a VNC?"
 
 #: constants.py:674
-#, fuzzy
 msgid ""
 "Some selected VMs have other SPICE-related devices.\\nDo you want to remove "
 "them from ALL selected VMs for a clean switch to VNC?"
 msgstr ""
-"Alcune VM selezionate hanno altri dispositivi SPICE.\n"
-"Rimuoverli da TUTTE le VM selezionate per un passaggio pulito a VNC?"
+"Alcune VM selezionate hanno altri dispositivi SPICE.\\n"
+"Vuoi rimuoverli da TUTTE le VM selezionate per un passaggio pulito a VNC?"
 
 #: constants.py:676
 #, python-brace-format
@@ -2606,16 +2598,20 @@ msgid ""
 "Are you sure you want to discard changes in '{target_disk}' and revert t  o "
 "its backing file? This action cannot be undone."
 msgstr ""
+"Sei sicuro di voler scartare le modifiche in '{target_disk}' e ripristinare "
+"il suo file di backup? Questa azione non può essere annullata."
 
 #: constants.py:692
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid ""
 "Are you sure you want to merge changes from '{target_disk}' into its "
 "backing   file?"
-msgstr "Sei sicuro di voler rimuovere il canale '{target_name}'?"
+msgstr ""
+"Sei sicuro di voler unire le modifiche da '{target_disk}' nel suo file di "
+"backup?"
 
 #: constants.py:697
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "The remote viewer {viewer} has been selected."
 msgstr "Il visualizzatore remoto {viewer} è stato selezionato."
 
@@ -2890,9 +2886,9 @@ msgid "VM '{vm_name}' started."
 msgstr "VM '{vm_name}' avviata."
 
 #: constants.py:759
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid "VM '{vm_name}' saved (hibernated)."
-msgstr "VM '{vm_name}' avviata."
+msgstr "VM '{vm_name}' salvata (ibernata)."
 
 #: constants.py:760
 #, python-brace-format
@@ -3158,7 +3154,7 @@ msgstr "Caricamento dati VM da server remoti..."
 #: constants.py:821
 #, python-brace-format
 msgid "Committing changes for {name}..."
-msgstr ""
+msgstr "Esecuzione commit delle modifiche per {name}..."
 
 #~ msgid "Snapshots"
 #~ msgstr "Snapshot"
