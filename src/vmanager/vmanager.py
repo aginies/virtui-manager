@@ -1291,7 +1291,7 @@ class VMManagerTUI(App):
 
                     if result:
                         vm_info, domain, conn = result
-                        from modals.vmdetails_modals import VMDetailModal # Import here to avoid circular dep if any
+                        from .modals.vmdetails_modals import VMDetailModal # Import here to avoid circular dep if any
 
                         self.push_screen(
                             VMDetailModal(
