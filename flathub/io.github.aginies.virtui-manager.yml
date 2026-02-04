@@ -13,7 +13,7 @@ finish-args:
   - --filesystem=host
   - --filesystem=/var/run/libvirt
   - --env=LIBVIRT_DEFAULT_URI=qemu:///system
-  - --talk-name=org.freedesktop.Secrets
+  - --talk-name=org.freedesktop.secrets
   - --device=all
   - --filesystem=xdg-documents
   - --filesystem=xdg-download
