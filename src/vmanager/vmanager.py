@@ -1389,6 +1389,13 @@ class VMManagerTUI(App):
 
     def refresh_vm_list(self, force: bool = False, optimize_for_current_page: bool = False, on_complete: Callable | None = None) -> None:
         """Refreshes the list of VMs by running the fetch-and-display logic in a worker."""
+        # Prevent refresh during bulk operations to maintain UI stability
+        if self.bulk_operation_in_progress:
+            logging.debug("Skipping refresh_vm_list because bulk operation is in progress.")
+            if on_complete:
+                on_complete()
+            return
+
         # Don't display VMs until initial cache is complete
         if self.initial_cache_loading and not self.initial_cache_complete:
             return
