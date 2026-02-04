@@ -253,7 +253,7 @@ modules:
         EOF
       - chmod +x /app/bin/virtui-manager-tmux
       - install -Dm644 flathub/io.github.aginies.virtui-manager.desktop /app/share/applications/io.github.aginies.virtui-manager.desktop
-      - install -Dm644 flathub/io.github.aginies.virtui-manager.appdata.xml /app/share/metainfo/io.github.aginies.virtui-manager.appdata.xml
+      - install -Dm644 flathub/io.github.aginies.virtui-manager.metainfo.xml /app/share/metainfo/io.github.aginies.virtui-manager.metainfo.xml
       - install -Dm644 documentation/manual/images/icon-400.png /app/share/icons/hicolor/512x512/apps/io.github.aginies.virtui-manager.png
     sources:
       - type: dir
