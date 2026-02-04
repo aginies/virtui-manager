@@ -653,7 +653,10 @@ class VMCard(Static):
 
     def watch_server_border_color(self, old_color: str, new_color: str) -> None:
         """Called when server_border_color changes."""
-        self.styles.border = ("solid", new_color)
+        if self.is_selected:
+            self.styles.border = ("panel", "white")
+        else:
+            self.styles.border = ("solid", new_color)
 
     def on_click(self, event: Click) -> None:
         """Handle click events on the card."""
@@ -704,11 +707,10 @@ class VMCard(Static):
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
-        if not self.ui:
-            return
-        checkbox = self.ui.get("checkbox")
-        if checkbox:
-            checkbox.value = new_value
+        if self.ui:
+            checkbox = self.ui.get("checkbox")
+            if checkbox:
+                checkbox.value = new_value
 
         if new_value:
             self.styles.border = ("panel", "white")
