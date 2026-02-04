@@ -1,4 +1,5 @@
 textual
-libvirt-python
+libvirt-python==10.0.0
 pyyaml
 markdown-it-py
+websockify

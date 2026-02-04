@@ -13,6 +13,9 @@ from typing import List, Tuple, Union, Callable
 from urllib.parse import urlparse
 from .constants import AppInfo
 
+def is_running_under_flatpak():
+    return 'FLATPAK_ID' in os.environ
+
 def find_free_port(start: int, end: int) -> int:
     """
     Find a free port in the specified range.

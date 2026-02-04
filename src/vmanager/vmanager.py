@@ -62,7 +62,7 @@ from .utils import (
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
     setup_cache_monitoring,
-    setup_logging
+    setup_logging, is_running_under_flatpak
 )
 from .vm_queries import (
     get_status,
@@ -1924,12 +1924,22 @@ class VMManagerTUI(App):
 
 def main():
     """Entry point for vmanager TUI application."""
+    if is_running_under_flatpak():
+        ldir = "/app/share/locale"
+    else:
+        if not os.path.exists("locale"):
+            # Installed on the system
+            ldir = "/usr/share/locale"
+        else:
+            # Devel version from git
+            ldir = "locale"
+
     parser = argparse.ArgumentParser(description="A Textual application to manage VMs.")
     parser.add_argument("--cmd", action="store_true", help="Run in command-line interpreter mode.")
     args = parser.parse_args()
 
     if args.cmd:
-        from vmanager_cmd import VManagerCMD
+        from .vmanager_cmd import VManagerCMD
         VManagerCMD().cmdloop()
     else:
         terminal_size = os.get_terminal_size()
