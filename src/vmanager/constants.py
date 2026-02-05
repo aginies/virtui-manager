@@ -38,7 +38,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.5.0"
+    version = "1.6.0"
 
 class VmAction:
     """Defines constants for VM action types."""
