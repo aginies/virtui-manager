@@ -3,13 +3,15 @@ the Cmd line tool
 """
 import cmd
 import re
+import shutil
+import subprocess
 import libvirt
 from .config import load_config
-from .libvirt_utils import find_all_vm, get_network_info
+from .libvirt_utils import find_all_vm, get_network_info, get_host_resources
 from .vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
 from .vm_service import VMService
 from .storage_manager import list_unused_volumes, list_storage_pools
-from .network_manager import list_networks, set_network_active, delete_network
+from .network_manager import list_networks, set_network_active, delete_network, set_network_autostart
 from .constants import AppInfo
 
 class VManagerCMD(cmd.Cmd):
@@ -25,6 +27,96 @@ class VManagerCMD(cmd.Cmd):
         self.vm_service = VMService()
         self.active_connections = {}
         self.selected_vms = {}
+
+        # Auto-connect to servers
+        for server in self.servers:
+            if server.get('autoconnect', False):
+                try:
+                    print(f"Autoconnecting to {server['name']} ({server['uri']})...")
+                    conn = self.vm_service.connect(server['uri'])
+                    if conn:
+                        self.active_connections[server['name']] = conn
+                        print(f"Successfully connected to '{server['name']}'.")
+                    else:
+                        print(f"Failed to autoconnect to '{server['name']}'.")
+                except Exception as e:
+                    print(f"Error autoconnecting to {server['name']}: {e}")
+
+        self.status_map = {
+            libvirt.VIR_DOMAIN_NOSTATE: 'No State',
+            libvirt.VIR_DOMAIN_RUNNING: 'Running',
+            libvirt.VIR_DOMAIN_BLOCKED: 'Blocked',
+            libvirt.VIR_DOMAIN_PAUSED: 'Paused',
+            libvirt.VIR_DOMAIN_SHUTDOWN: 'Shutting Down',
+            libvirt.VIR_DOMAIN_SHUTOFF: 'Stopped',
+            libvirt.VIR_DOMAIN_CRASHED: 'Crashed',
+            libvirt.VIR_DOMAIN_PMSUSPENDED: 'Suspended',
+        }
+
+        self._update_prompt()
+
+    def do_virsh(self, args):
+        """Start a virsh shell connected to a server.
+Usage: virsh [server_name]"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        target_server = None
+
+        # If server name provided as argument
+        if args:
+            server_name = args.strip()
+            if server_name in self.active_connections:
+                target_server = server_name
+            else:
+                print(f"Error: Not connected to '{server_name}'.")
+                return
+
+        # If no argument and only one connection
+        elif len(self.active_connections) == 1:
+            target_server = list(self.active_connections.keys())[0]
+
+        # If no argument and multiple connections
+        else:
+            print("Multiple active connections:")
+            servers = list(self.active_connections.keys())
+            for i, name in enumerate(servers):
+                print(f"  {i + 1}. {name}")
+
+            try:
+                choice = input("Select server (number): ")
+                idx = int(choice) - 1
+                if 0 <= idx < len(servers):
+                    target_server = servers[idx]
+                else:
+                    print("Invalid selection.")
+                    return
+            except ValueError:
+                print("Invalid input.")
+                return
+
+        if target_server:
+            conn = self.active_connections[target_server]
+            try:
+                uri = conn.getURI()
+                print(f"Connecting to virsh on {target_server} ({uri})...")
+                print("Type 'exit' or 'quit' to return to virtui-manager.")
+
+                # Check if virsh is installed
+                if not shutil.which("virsh"):
+                    print("Error: 'virsh' command not found. Please install libvirt-clients.")
+                    return
+
+                subprocess.call(["virsh", "-c", uri])
+                print(f"\nReturned from virsh ({target_server}).")
+            except libvirt.libvirtError as e:
+                print(f"Error getting URI for {target_server}: {e}")
+            except Exception as e:
+                print(f"Error launching virsh: {e}")
+
+    def complete_virsh(self, text, line, begidx, endidx):
+        return self.complete_disconnect(text, line, begidx, endidx)
 
     def _update_prompt(self):
         if self.active_connections:
@@ -151,6 +243,17 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
 
         self._update_prompt()
 
+    def complete_disconnect(self, text, line, begidx, endidx):
+        """Auto-completion for disconnecting from connected servers."""
+        if not self.active_connections:
+            return []
+
+        connected_servers = list(self.active_connections.keys())
+        if not text:
+            return connected_servers
+        else:
+            return [s for s in connected_servers if s.startswith(text)]
+
     def do_list_vms(self, arg):
         """List all VMs on the connected servers with their status."""
         if not self.active_connections:
@@ -165,21 +268,10 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
                     print(f"{'VM Name':<30} {'Status':<15}")
                     print(f"{'-'*30} {'-'*15}")
 
-                    status_map = {
-                        libvirt.VIR_DOMAIN_NOSTATE: 'No State',
-                        libvirt.VIR_DOMAIN_RUNNING: 'Running',
-                        libvirt.VIR_DOMAIN_BLOCKED: 'Blocked',
-                        libvirt.VIR_DOMAIN_PAUSED: 'Paused',
-                        libvirt.VIR_DOMAIN_SHUTDOWN: 'Shutting Down',
-                        libvirt.VIR_DOMAIN_SHUTOFF: 'Stopped',
-                        libvirt.VIR_DOMAIN_CRASHED: 'Crashed',
-                        libvirt.VIR_DOMAIN_PMSUSPENDED: 'Suspended',
-                    }
-
                     sorted_domains = sorted(domains, key=lambda d: d.name())
                     for domain in sorted_domains:
                         status_code = domain.info()[0]
-                        status_str = status_map.get(status_code, 'Unknown')
+                        status_str = self.status_map.get(status_code, 'Unknown')
                         print(f"{domain.name():<30} {status_str:<15}")
                 else:
                     print("No VMs found on this server.")
@@ -235,7 +327,7 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
                     vms_to_select_names.add(arg)
                 else:
                     invalid_inputs.append(arg)
-        
+
         # Reset selection and populate it based on the names and the vm_map
         self.selected_vms = {}
         for vm_name in sorted(list(vms_to_select_names)):
@@ -373,17 +465,6 @@ If no VM names are provided, it will show the status of selected VMs."""
         if not vms_to_check:
             return
 
-        status_map = {
-            libvirt.VIR_DOMAIN_NOSTATE: 'No State',
-            libvirt.VIR_DOMAIN_RUNNING: 'Running',
-            libvirt.VIR_DOMAIN_BLOCKED: 'Blocked',
-            libvirt.VIR_DOMAIN_PAUSED: 'Paused',
-            libvirt.VIR_DOMAIN_SHUTDOWN: 'Shutting Down',
-            libvirt.VIR_DOMAIN_SHUTOFF: 'Stopped',
-            libvirt.VIR_DOMAIN_CRASHED: 'Crashed',
-            libvirt.VIR_DOMAIN_PMSUSPENDED: 'Suspended',
-        }
-
         for server_name, vm_list in vms_to_check.items():
             print(f"\n--- Status on {server_name} ---")
             conn = self.active_connections[server_name]
@@ -395,7 +476,7 @@ If no VM names are provided, it will show the status of selected VMs."""
                     domain = conn.lookupByName(vm_name)
                     info = domain.info()
                     state_code = info[0]
-                    state_str = status_map.get(state_code, 'Unknown')
+                    state_str = self.status_map.get(state_code, 'Unknown')
                     vcpus = info[3]
                     mem_kib = info[2]  # Current memory
                     mem_mib = mem_kib // 1024
@@ -530,7 +611,6 @@ If no VM names are provided, it will pause the selected VMs."""
 
     def complete_pause(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
-
 
     def do_resume(self, args):
         """Resumes one or more paused VMs.
@@ -905,18 +985,87 @@ Usage: net_info <network_name>"""
                     found = True
             except Exception as e:
                 print(f"Error retrieving info for '{net_name}' on {server_name}: {e}")
-        
+
         if not found:
             print(f"Network '{net_name}' not found on any connected server.")
 
     def complete_net_info(self, text, line, begidx, endidx):
         return self._complete_networks(text)
 
+    def do_net_autostart(self, args):
+        """Set a network to autostart or not.
+Usage: net_autostart <network_name> <on|off>"""
+        arg_list = args.split()
+        if len(arg_list) != 2 or arg_list[1] not in ['on', 'off']:
+            print("Usage: net_autostart <network_name> <on|off>")
+            return
+        
+        net_name = arg_list[0]
+        autostart = True if arg_list[1] == 'on' else False
+        
+        found = False
+        for server_name, conn in self.active_connections.items():
+            try:
+                conn.networkLookupByName(net_name)
+                set_network_autostart(conn, net_name, autostart)
+                status = "enabled" if autostart else "disabled"
+                print(f"Autostart {status} for network '{net_name}' on {server_name}.")
+                found = True
+            except libvirt.libvirtError:
+                continue
+            except Exception as e:
+                print(f"Error setting autostart for network '{net_name}' on {server_name}: {e}")
+        
+        if not found:
+            print(f"Network '{net_name}' not found on any connected server.")
+
+    def complete_net_autostart(self, text, line, begidx, endidx):
+        args = line.split()
+        if len(args) == 2 and not line.endswith(' '):
+            return self._complete_networks(text)
+        elif (len(args) == 2 and line.endswith(' ')) or (len(args) == 3 and not line.endswith(' ')):
+            return [s for s in ['on', 'off'] if s.startswith(text)]
+        return []
+
+    def do_host_info(self, args):
+        """Show host resource information for connected servers.
+Usage: host_info [server_name]"""
+        target_servers = []
+        if args:
+            server_name = args.strip()
+            if server_name in self.active_connections:
+                target_servers = [server_name]
+            else:
+                print(f"Error: Not connected to '{server_name}'.")
+                return
+        else:
+            target_servers = list(self.active_connections.keys())
+
+        if not target_servers:
+            print("Not connected to any server.")
+            return
+
+        for server_name in target_servers:
+            conn = self.active_connections[server_name]
+            try:
+                info = get_host_resources(conn)
+                if info:
+                    print(f"\n--- Host Info: {server_name} ---")
+                    print(f"CPU Model: {info.get('model')}")
+                    print(f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes, {info.get('sockets')} sockets, {info.get('cores')} cores, {info.get('threads')} threads)")
+                    print(f"CPU Speed: {info.get('mhz')} MHz")
+                    print(f"Memory: {info.get('total_memory')} MiB total, {info.get('free_memory')} MiB free")
+            except Exception as e:
+                print(f"Error retrieving host info for {server_name}: {e}")
+
+    def complete_host_info(self, text, line, begidx, endidx):
+        return self.complete_disconnect(text, line, begidx, endidx)
+
     def _complete_networks(self, text):
         """Helper to autocomplete network names."""
         if not self.active_connections:
             return []
-        
+
         all_nets = set()
         for conn in self.active_connections.values():
             try:
@@ -925,7 +1074,7 @@ Usage: net_info <network_name>"""
                     all_nets.add(n['name'])
             except:
                 pass
-        
+
         if not text:
             return list(all_nets)
         return [n for n in all_nets if n.startswith(text)]
