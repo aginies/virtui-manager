@@ -60,7 +60,7 @@ Managing virtual infrastructure often involves a trade-off between convenience a
 
 | Feature | VirtUI Manager | Virt-Manager | Virsh (CLI) | Cockpit |
 | :--- | :---: | :---: | :---: | :---: |
-| **Interface** | TUI (Terminal) | GUI (GTK) | CLI (Text) | Web UI |
+| **Interface** | TUI / GUI (GTK) | GUI (GTK) | CLI (Text) | Web UI |
 | **Remote via SSH** | ✅ Excellent | ⚠️ Slow (X11) | ✅ Excellent | ❌ Setup required |
 | **Headless Support** | ✅ Native | ❌ No | ✅ Native | ✅ Native |
 | **Multi-Server** | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
@@ -73,4 +73,5 @@ Ready to take control of your virtualization infrastructure?
 
 1.  Check the **[Installation Guide](app_installation.md)** to get set up.
 2.  Explore the **[Main Window](main_window.md)** to understand the interface.
-3.  Learn about **[VM Configuration](vm_configuration.md)** to tune your machines.
+3.  Try the **[GUI Console](gui_console.md)** for a modern tabbed experience.
+4.  Learn about **[VM Configuration](vm_configuration.md)** to tune your machines.

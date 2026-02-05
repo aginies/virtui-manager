@@ -19,6 +19,7 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [Remote Web Console (VM)](web_console.md)
 - [Virtual Machine Installation](installation.md)
 - [VirtUI Remote Viewer](remote_viewer.md)
+- [VirtUI Manager GUI Console](gui_console.md)
 - [VirtUI Manager CMD](cli.md)
 - [Debugging and Statistics](debugging_and_statistics.md)
 
