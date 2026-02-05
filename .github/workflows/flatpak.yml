@@ -1,0 +1,40 @@
+name: Build Flatpak
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  flatpak:
+    name: Build Flatpak Bundle
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: virtui-manager.flatpak
+          manifest-path: flathhub/iio.github.aginies.virtui-manager.yml
+          cache-key: flatpak-builder-${{ github.sha }}
+          
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: virtui-manager-flatpak
+          path: virtui-manager.flatpak
+          
+      - name: Upload to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: virtui-manager.flatpak
