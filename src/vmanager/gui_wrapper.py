@@ -129,6 +129,7 @@ class VirtuiWrapper(Gtk.Window):
     def create_tab(self, title, command, is_main_app=False):
         terminal = Vte.Terminal()
         terminal.set_size(92, 34)
+        terminal.set_scrollback_lines(10000)
         
         font_desc = Pango.FontDescription(f"{self.font_name} {self.current_font_size}")
         terminal.set_font(font_desc)
