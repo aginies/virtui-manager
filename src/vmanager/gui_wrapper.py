@@ -27,8 +27,26 @@ class VirtuiWrapper(Gtk.Window):
         
         self.set_default_size(1200, 1024)
         
-        self.font_name = "Monospace"
-        self.current_font_size = 12
+        # Get system monospace font
+        settings = Gtk.Settings.get_default()
+        font_string = None
+        try:
+            font_string = settings.get_property("gtk-monospace-font-name")
+        except TypeError:
+            pass # Property not available on this GTK version
+
+        if font_string:
+            font_desc = Pango.FontDescription(font_string)
+            self.font_name = font_desc.get_family()
+            size = font_desc.get_size()
+            if size > 0:
+                self.current_font_size = size // Pango.SCALE
+            else:
+                self.current_font_size = 12
+        else:
+            self.font_name = "Monospace"
+            self.current_font_size = 12
+
         self.terminals = []
         
         # Main layout
