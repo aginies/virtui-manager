@@ -114,9 +114,10 @@ class VirtuiWrapper(Gtk.Window):
 
         # Tab 1: Virtui Manager
         self.on_new_vmanager_tab(None)
-
         # Tab 2: Command Line
         self.on_new_cmd_tab(None)
+        # Go to first tab
+        self.notebook.set_current_page(0)
 
         self.connect("key-press-event", self.on_key_press)
         self.connect("destroy", Gtk.main_quit)
@@ -264,7 +265,7 @@ class VirtuiWrapper(Gtk.Window):
             print(error_msg)
 
     def on_window_title_changed(self, terminal):
-        title = terminal.get_window_title()
+        title = terminal.get_property("window-title")
         if not title:
             return
 
