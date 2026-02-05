@@ -108,7 +108,9 @@ Usage: virsh [server_name]"""
                     print("Error: 'virsh' command not found. Please install libvirt-clients.")
                     return
 
+                self._set_title(f"virsh ({target_server})")
                 subprocess.call(["virsh", "-c", uri])
+                self._update_prompt() # Restore title
                 print(f"\nReturned from virsh ({target_server}).")
             except libvirt.libvirtError as e:
                 print(f"Error getting URI for {target_server}: {e}")
@@ -117,6 +119,10 @@ Usage: virsh [server_name]"""
 
     def complete_virsh(self, text, line, begidx, endidx):
         return self.complete_disconnect(text, line, begidx, endidx)
+
+    def _set_title(self, title):
+        """Sets the terminal window title."""
+        print(f"\033]0;{title}\007", end='', flush=True)
 
     def _update_prompt(self):
         if self.active_connections:
@@ -131,8 +137,11 @@ Usage: virsh [server_name]"""
                 self.prompt = f"({server_names}) [{','.join(all_selected_vms)}] "
             else:
                 self.prompt = f"({server_names}) "
+
+            self._set_title(f"CLI: {server_names}")
         else:
             self.prompt = '(' + AppInfo.name +')> '
+            self._set_title("Virtui Manager CLI")
 
     def _get_vms_to_operate(self, args):
         vms_to_operate = {}
