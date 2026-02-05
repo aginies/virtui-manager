@@ -5,10 +5,11 @@ import cmd
 import re
 import libvirt
 from .config import load_config
-from .libvirt_utils import find_all_vm
+from .libvirt_utils import find_all_vm, get_network_info
 from .vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
 from .vm_service import VMService
 from .storage_manager import list_unused_volumes, list_storage_pools
+from .network_manager import list_networks, set_network_active, delete_network
 from .constants import AppInfo
 
 class VManagerCMD(cmd.Cmd):
@@ -767,9 +768,178 @@ Usage: list_pool"""
         print(f"\nExiting {AppInfo.namecase}.")
         return True
 
+    # --- Network Management Commands ---
+
+    def do_list_networks(self, args):
+        """List all networks on the connected servers.
+Usage: list_networks"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        for server_name, conn in self.active_connections.items():
+            print(f"\n--- Networks on {server_name} ---")
+            try:
+                networks = list_networks(conn)
+                if networks:
+                    print(f"{'Network Name':<20} {'State':<10} {'Autostart':<10} {'Mode':<15}")
+                    print(f"{'-'*20} {'-'*10} {'-'*10} {'-'*15}")
+                    for net in networks:
+                        state = "Active" if net['active'] else "Inactive"
+                        autostart = "Yes" if net['autostart'] else "No"
+                        print(f"{net['name']:<20} {state:<10} {autostart:<10} {net['mode']:<15}")
+                else:
+                    print("No networks found on this server.")
+            except Exception as e:
+                print(f"Error listing networks on {server_name}: {e}")
+
+    def do_net_start(self, args):
+        """Start a network.
+Usage: net_start <network_name>"""
+        if not args:
+            print("Usage: net_start <network_name>")
+            return
+        
+        net_name = args.strip()
+        found = False
+        for server_name, conn in self.active_connections.items():
+            try:
+                # Check if network exists on this server
+                conn.networkLookupByName(net_name)
+                set_network_active(conn, net_name, True)
+                print(f"Network '{net_name}' started on {server_name}.")
+                found = True
+            except libvirt.libvirtError:
+                continue
+            except Exception as e:
+                print(f"Error starting network '{net_name}' on {server_name}: {e}")
+        
+        if not found:
+            print(f"Network '{net_name}' not found on any connected server.")
+
+    def complete_net_start(self, text, line, begidx, endidx):
+        return self._complete_networks(text)
+
+    def do_net_stop(self, args):
+        """Stop (destroy) a network.
+Usage: net_stop <network_name>"""
+        if not args:
+            print("Usage: net_stop <network_name>")
+            return
+        
+        net_name = args.strip()
+        found = False
+        for server_name, conn in self.active_connections.items():
+            try:
+                conn.networkLookupByName(net_name)
+                set_network_active(conn, net_name, False)
+                print(f"Network '{net_name}' stopped on {server_name}.")
+                found = True
+            except libvirt.libvirtError:
+                continue
+            except Exception as e:
+                print(f"Error stopping network '{net_name}' on {server_name}: {e}")
+
+        if not found:
+            print(f"Network '{net_name}' not found on any connected server.")
+
+    def complete_net_stop(self, text, line, begidx, endidx):
+        return self._complete_networks(text)
+
+    def do_net_delete(self, args):
+        """Delete (undefine) a network.
+Usage: net_delete <network_name>"""
+        if not args:
+            print("Usage: net_delete <network_name>")
+            return
+
+        net_name = args.strip()
+        confirm = input(f"Are you sure you want to delete network '{net_name}'? This cannot be undone. (yes/no): ").lower()
+        if confirm != 'yes':
+            print("Operation cancelled.")
+            return
+
+        found = False
+        for server_name, conn in self.active_connections.items():
+            try:
+                conn.networkLookupByName(net_name)
+                delete_network(conn, net_name)
+                print(f"Network '{net_name}' deleted from {server_name}.")
+                found = True
+            except libvirt.libvirtError:
+                continue
+            except Exception as e:
+                print(f"Error deleting network '{net_name}' on {server_name}: {e}")
+
+        if not found:
+            print(f"Network '{net_name}' not found on any connected server.")
+
+    def complete_net_delete(self, text, line, begidx, endidx):
+        return self._complete_networks(text)
+
+    def do_net_info(self, args):
+        """Show detailed information about a network.
+Usage: net_info <network_name>"""
+        if not args:
+            print("Usage: net_info <network_name>")
+            return
+
+        net_name = args.strip()
+        found = False
+        for server_name, conn in self.active_connections.items():
+            try:
+                info = get_network_info(conn, net_name)
+                if info:
+                    print(f"\n--- Network '{net_name}' on {server_name} ---")
+                    print(f"UUID: {info.get('uuid')}")
+                    print(f"Forward Mode: {info.get('forward_mode')}")
+                    if info.get('forward_dev'):
+                        print(f"Forward Dev: {info.get('forward_dev')}")
+                    if info.get('bridge_name'):
+                        print(f"Bridge: {info.get('bridge_name')}")
+                    if info.get('ip_address'):
+                        print(f"IP: {info.get('ip_address')} / {info.get('netmask') or info.get('prefix')}")
+                    print(f"DHCP: {'Enabled' if info.get('dhcp') else 'Disabled'}")
+                    if info.get('dhcp') and info.get('dhcp_start'):
+                        print(f"DHCP Range: {info.get('dhcp_start')} - {info.get('dhcp_end')}")
+                    found = True
+            except Exception as e:
+                print(f"Error retrieving info for '{net_name}' on {server_name}: {e}")
+        
+        if not found:
+            print(f"Network '{net_name}' not found on any connected server.")
+
+    def complete_net_info(self, text, line, begidx, endidx):
+        return self._complete_networks(text)
+
+    def _complete_networks(self, text):
+        """Helper to autocomplete network names."""
+        if not self.active_connections:
+            return []
+        
+        all_nets = set()
+        for conn in self.active_connections.values():
+            try:
+                nets = list_networks(conn)
+                for n in nets:
+                    all_nets.add(n['name'])
+            except:
+                pass
+        
+        if not text:
+            return list(all_nets)
+        return [n for n in all_nets if n.startswith(text)]
+
 def main():
     """Entry point for Virtui Manager command-line interface."""
-    VManagerCMD().cmdloop()
+    cmd_app = VManagerCMD()
+    while True:
+        try:
+            cmd_app.cmdloop()
+            break  # Exit loop if cmdloop returns normally (e.g. quit command)
+        except KeyboardInterrupt:
+            print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
+            cmd_app.intro = "" # Avoid re-printing intro on resume
 
 if __name__ == '__main__':
     main()
