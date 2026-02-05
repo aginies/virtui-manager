@@ -32,6 +32,10 @@ VirtUI Manager solves these challenges with:
 
 [VirtUI Manager doc](https://aginies.github.io/virtui-manager/manual/)
 
+## Flatpak build
+
+[![Build Flatpak](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml/badge.svg)](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml)
+
 ## Requirements
 
 - **Recommended Minimal Terminal Size**: 34x92. **34x128** is the recommended Size
