@@ -258,13 +258,11 @@ class VirtuiWrapper(Gtk.Window):
             tmux_bin = "tmux"
         if check_tmux():
             session_name = f"vmanager-{int(time.time())}"
-            cmd = [tmux_bin, "new-session", "-s", session_name, sys.executable, "-m", "vmanager.wrapper"]
+            cmd = [tmux_bin, "new-session", "-s", session_name, sys.executable, "-m", "vmanager.vmanager"]
         else:
             # Fallback to running without tmux if not available
             cmd = [sys.executable, "-m", "vmanager.wrapper"]
         self.create_tab("Virtui Manager", cmd)
-        #cmd = [sys.executable, "-m", "vmanager.wrapper"]
-        #self.create_tab("Virtui Manager", cmd)
 
     def on_new_cmd_tab(self, widget):
         cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
@@ -272,14 +270,14 @@ class VirtuiWrapper(Gtk.Window):
 
     def on_new_log_tab(self, widget):
         log_path = self._get_log_path()
-        
+
         # Ensure log file exists to prevent tail from failing immediately if file is missing
         if not log_path.exists():
-             try:
-                 log_path.parent.mkdir(parents=True, exist_ok=True)
-                 log_path.touch()
-             except Exception as e:
-                 print(f"Error creating log file: {e}")
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                log_path.touch()
+            except Exception as e:
+                print(f"Error creating log file: {e}")
 
         cmd = ["tail", "-f", str(log_path)]
         self.create_tab("Log", cmd, fixed_title=True)
@@ -477,6 +475,9 @@ class VirtuiWrapper(Gtk.Window):
         dialog.destroy()
 
     def spawn_process(self, terminal, cmd):
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+
         env = os.environ.copy()
 
         # Determine source directory for PYTHONPATH
@@ -485,8 +486,8 @@ class VirtuiWrapper(Gtk.Window):
 
         # 2. Fallback to local source tree if not set and 'src' exists relative to script
         if not src_dir:
-            script_dir = os.path.dirname(os.path.realpath(__file__))
-            possible_src_dir = os.path.dirname(script_dir)
+            # this script_dir is src/vmanager
+            possible_src_dir = os.path.dirname(script_dir) # this would be src/
             # Check if this looks like a source tree (has vmanager package)
             if os.path.isdir(os.path.join(possible_src_dir, "vmanager")):
                 src_dir = possible_src_dir
@@ -504,7 +505,7 @@ class VirtuiWrapper(Gtk.Window):
             # Vte.Terminal.spawn_async(pty_flags, working_directory, argv, envv, spawn_flags, child_setup, child_setup_data, timeout, cancellable, callback, user_data)
             terminal.spawn_async(
                 Vte.PtyFlags.DEFAULT,
-                os.getcwd(), # Working directory
+                project_root, # Working directory changed to project_root
                 cmd,         # Command arguments
                 envv,        # Environment
                 GLib.SpawnFlags.DEFAULT,
@@ -519,7 +520,6 @@ class VirtuiWrapper(Gtk.Window):
             error_msg = f"Error spawning application: {e}\n"
             terminal.feed(error_msg.encode('utf-8'))
             print(error_msg)
-
     def on_window_title_changed(self, terminal):
         title = terminal.get_property("window-title")
         if not title:
