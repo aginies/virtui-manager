@@ -41,7 +41,7 @@ class VirtuiWrapper(Gtk.Window):
     CONFIG_FILE = CONFIG_DIR / "gui-config.yaml"
 
     def __init__(self):
-        super().__init__(title="Virtui Manager Console")
+        super().__init__(title="VirtUI Manager Console")
 
         self.config = self.load_gui_config()
 
@@ -77,7 +77,7 @@ class VirtuiWrapper(Gtk.Window):
         # Header Bar
         header_bar = Gtk.HeaderBar()
         header_bar.set_show_close_button(True)
-        header_bar.set_title("Virtui Manager Console")
+        header_bar.set_title("VirtUI Manager")
         self.set_titlebar(header_bar)
 
         # Settings Menu Button
@@ -130,12 +130,12 @@ class VirtuiWrapper(Gtk.Window):
         settings_menu.append(Gtk.SeparatorMenuItem())
 
         # New Tab - VManager
-        new_vmanager_item = Gtk.MenuItem(label="New Virtui Manager Tab")
+        new_vmanager_item = Gtk.MenuItem(label="New VirtUI Manager Tab")
         new_vmanager_item.connect("activate", self.on_new_vmanager_tab)
         settings_menu.append(new_vmanager_item)
 
         # New Tab - Command Line
-        new_cmd_item = Gtk.MenuItem(label="New Virtui Command Line Tab")
+        new_cmd_item = Gtk.MenuItem(label="New VirtUI Command Line Tab")
         new_cmd_item.connect("activate", self.on_new_cmd_tab)
         settings_menu.append(new_cmd_item)
 
