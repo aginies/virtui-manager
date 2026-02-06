@@ -2,7 +2,7 @@ app-id: io.github.aginies.virtui-manager
 runtime: org.freedesktop.Platform
 runtime-version: '24.08'
 sdk: org.freedesktop.Sdk
-command: virtui-manager-tmux
+command: virtui-gui
 finish-args:
   - --share=network
   - --share=ipc
@@ -250,6 +250,8 @@ modules:
             url: https://gitlab.freedesktop.org/spice/spice-protocol/-/archive/v0.14.5/spice-protocol-v0.14.5.tar.gz
             sha256: 1be179b3dfbb23946432275f4b7a4b59bb5e9acc25c3128bc930b8264a9f0a20
 
+
+
   - name: vala
     buildsystem: autotools
     sources:
@@ -266,22 +268,16 @@ modules:
       - -Dicu=true
       - -Da11y=true
       - -Dgir=true
-      - -Dvapi=true
+      - -Dvapi=false
     sources:
       - type: archive
-        url: https://download.gnome.org/sources/vte/0.68/vte-0.68.0.tar.xz
-        sha256: 13e7d4789ca216a33780030d246c9b13ddbfd04094c6316eea7ff92284dd1749
+        url: https://download.gnome.org/sources/vte/0.83/vte-0.83.90.tar.xz
+        sha256: a43441a78f8893268ae927e7bae3b17ffe669913ed954e172fbd12d3e083e286
 
   - name: virtui-manager
     buildsystem: simple
     build-commands:
       - pip3 install --prefix=/app --no-deps --no-build-isolation .
-      - |
-        cat > /app/bin/virtui-manager-tmux <<EOF
-        #!/bin/sh
-        exec tmux new-session -A -s vmanager virtui-manager
-        EOF
-      - chmod +x /app/bin/virtui-manager-tmux
       - install -Dm644 flathub/io.github.aginies.virtui-manager.desktop /app/share/applications/io.github.aginies.virtui-manager.desktop
       - install -Dm644 flathub/io.github.aginies.virtui-manager.metainfo.xml /app/share/metainfo/io.github.aginies.virtui-manager.metainfo.xml
       - install -Dm644 documentation/manual/images/icon-400.png /app/share/icons/hicolor/512x512/apps/io.github.aginies.virtui-manager.png
