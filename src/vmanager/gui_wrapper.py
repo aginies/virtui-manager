@@ -2,9 +2,9 @@
 import sys
 import os
 import shutil
+from pathlib import Path
 import gi
 import yaml
-from pathlib import Path
 
 # Require GTK 3.0 and Vte 2.91
 try:
@@ -125,8 +125,33 @@ class VirtuiWrapper(Gtk.Window):
 
         settings_menu.show_all()
 
+        # --- Search Bar ---
+        self.search_bar = Gtk.SearchBar()
+        self.search_bar.set_show_close_button(True)
+
+        search_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.search_entry = Gtk.SearchEntry()
+        self.search_entry.connect("search-changed", self.on_search_changed)
+        self.search_entry.connect("activate", self.on_search_next)
+        search_box.pack_start(self.search_entry, True, True, 0)
+
+        btn_prev = Gtk.Button.new_from_icon_name("go-up-symbolic", Gtk.IconSize.MENU)
+        btn_prev.set_tooltip_text("Find Previous")
+        btn_prev.connect("clicked", self.on_search_prev)
+        search_box.pack_start(btn_prev, False, False, 0)
+
+        btn_next = Gtk.Button.new_from_icon_name("go-down-symbolic", Gtk.IconSize.MENU)
+        btn_next.set_tooltip_text("Find Next")
+        btn_next.connect("clicked", self.on_search_next)
+        search_box.pack_start(btn_next, False, False, 0)
+
+        self.search_bar.connect_entry(self.search_entry)
+        self.search_bar.add(search_box)
+        vbox.pack_start(self.search_bar, False, False, 0)
+
         # Notebook for Tabs
         self.notebook = Gtk.Notebook()
+        self.notebook.connect("switch-page", self.on_tab_switched)
         vbox.pack_start(self.notebook, True, True, 0)
 
         # Tab 1: Virtui Manager
@@ -174,7 +199,7 @@ class VirtuiWrapper(Gtk.Window):
         self.create_tab("Virtui Manager", cmd)
 
     def on_new_cmd_tab(self, widget):
-        cmd_cli = [sys.executable, "-m", "vmanager.vmanager_cmd"]
+        cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
         self.create_tab("Command Line", cmd_cli)
 
     def set_font_size(self, size):
@@ -188,9 +213,9 @@ class VirtuiWrapper(Gtk.Window):
     def on_key_press(self, widget, event):
         # Check if Ctrl is pressed
         ctrl = event.state & Gdk.ModifierType.CONTROL_MASK
+        keyname = Gdk.keyval_name(event.keyval)
 
         if ctrl:
-            keyname = Gdk.keyval_name(event.keyval)
             if keyname == "Page_Up":
                 self.notebook.prev_page()
                 return True
@@ -203,13 +228,68 @@ class VirtuiWrapper(Gtk.Window):
             elif keyname == "T":
                 self.on_new_cmd_tab(None)
                 return True
+            elif keyname == "f":
+                self.toggle_search()
+                return True
             elif keyname in ["plus", "equal", "KP_Add"]:
                 self.set_font_size(self.current_font_size + 1)
                 return True
             elif keyname in ["minus", "KP_Subtract"]:
                 self.set_font_size(self.current_font_size - 1)
                 return True
+        
+        # Handle Escape to close search if active
+        if self.search_bar.get_search_mode() and keyname == "Escape":
+             self.search_bar.set_search_mode(False)
+             return True
+
         return False
+
+    def toggle_search(self):
+        mode = self.search_bar.get_search_mode()
+        self.search_bar.set_search_mode(not mode)
+        if not mode:
+            self.search_entry.grab_focus()
+
+    def get_current_terminal(self):
+        page_num = self.notebook.get_current_page()
+        page = self.notebook.get_nth_page(page_num)
+        for term, data in self.tabs.items():
+            if data['page'] == page:
+                return term
+        return None
+
+    def on_search_changed(self, entry):
+        text = entry.get_text()
+        term = self.get_current_terminal()
+        if not term:
+            return
+
+        if not text:
+            term.search_set_regex(None, 0)
+            term.unselect_all()
+            return
+
+        try:
+            regex = Vte.Regex.new_for_search(text, -1, 0)
+            term.search_set_regex(regex, 0)
+            self.on_search_next(None)
+        except Exception as e:
+            print(f"Search regex error: {e}")
+
+    def on_search_next(self, widget):
+        term = self.get_current_terminal()
+        if term:
+            term.search_find_next()
+
+    def on_search_prev(self, widget):
+        term = self.get_current_terminal()
+        if term:
+            term.search_find_previous()
+
+    def on_tab_switched(self, notebook, page, page_num):
+        if self.search_bar.get_search_mode():
+            self.on_search_changed(self.search_entry)
 
     def create_tab(self, title, command):
         terminal = Vte.Terminal()
