@@ -12,19 +12,24 @@ virtui-gui
 ## Features
 
 ### Tabbed Management
+
 The GUI Console allows you to run multiple instances of VirtUI Manager or the CLI tool in separate tabs. This is perfect for:
+
 *   Managing different sets of servers in separate tabs.
 *   Keeping a CLI open alongside the main management window for quick `virsh` commands.
 *   Monitoring logs or statistics in an independent tab.
 
 ### Search Functionality
 A built-in search bar allows you to quickly find text within any terminal tab.
+
 *   **Toggle Search**: Press `Ctrl + f` to open or close the search bar.
 *   **Navigation**: Use the "Find Next" (Down Arrow) and "Find Previous" (Up Arrow) buttons to navigate through matches.
 *   **Live Highlight**: Matches are highlighted in real-time as you type.
 
 ### Keyboard Shortcuts
+
 The GUI Console supports familiar shortcuts for navigating and managing tabs:
+
 *   **`Ctrl + PageUp`**: Switch to the previous tab.
 *   **`Ctrl + PageDown`**: Switch to the next tab.
 *   **`Ctrl + t`**: Open a new VManager tab.
@@ -36,7 +41,9 @@ The GUI Console supports familiar shortcuts for navigating and managing tabs:
 *   **`Ctrl + -`**: Decrease font size (Zoom Out).
 
 ### Dynamic Menu
+
 The **Settings Menu** (represented by the "hamburger" icon) provides quick access to:
+
 *   **Font Size**: Adjust the terminal font size on the fly for all tabs.
 *   **Custom Font**: Select any monospace font installed on your system.
 *   **New VManager Tab**: Open a new tab running the TUI interface.
@@ -44,24 +51,31 @@ The **Settings Menu** (represented by the "hamburger" icon) provides quick acces
 *   **New Log Tab**: Open a read-only tab tailing the application log file.
 
 ### Header Bar Controls
+
 In addition to the Settings Menu, the header bar includes:
+
 *   **Help Button** (`?` icon): Displays a cheat sheet of all available keyboard shortcuts.
 *   **Documentation Button** (Book icon): Opens this online manual in your default web browser.
 
 ### Automatic Title Updates
+
 Tabs automatically update their labels to reflect their current state:
+
 *   **CLI Tabs**: Show the names of the currently connected servers.
 *   **Virsh Shell**: Indicates when a `virsh` shell is active and which server it's connected to.
 
 ![GUI virsh](images/gui_virsh.png)
 
 ### System Integration
+
 *   **Default Fonts**: Automatically uses your system's default monospace font settings.
 *   **Scrollback**: Supports up to 10,000 lines of scrollback history per tab.
 *   **Graceful Exit**: The application prevents accidental closure and will only quit when the last active tab is closed or when explicitly told to do so.
 
 ## Advantages over raw Terminal
+
 While VirtUI Manager is designed to work in any terminal, the GUI Console offers several integrated benefits:
+
 1.  **Zero Configuration**: No need to configure terminal multiplexers like `tmux` for basic tabbed usage (though `tmux` integration is still supported).
 2.  **Visual Consistency**: Consistent font and styling regardless of your default terminal emulator settings.
 3.  **Encapsulation**: Keeps your virtualization management tools in a dedicated window, separate from your other terminal work.
