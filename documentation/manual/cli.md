@@ -5,6 +5,8 @@ VirtUI Manager includes a powerful interactive shell mode, allowing for scriptab
 To launch the CLI mode:
 ```bash
 virtui-manager --cmd
+# OR
+virtui-manager-cmd
 ```
 
 ## Core Concepts
@@ -17,6 +19,8 @@ The CLI operates on a context-based system:
 
 The prompt dynamically updates to show your active context:
 `(<server_names>) [<selected_vms>]`
+
+**Logging**: The CLI automatically logs all output and operations to a file (typically `~/.cache/virtui-manager/vm_manager.log`), which is useful for audit trails and debugging.
 
 ## Connection Management
 

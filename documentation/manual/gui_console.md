@@ -15,12 +15,21 @@ The GUI Console allows you to run multiple instances of VirtUI Manager or the CL
 *   Keeping a CLI open alongside the main management window for quick `virsh` commands.
 *   Monitoring logs or statistics in an independent tab.
 
+### Search Functionality
+A built-in search bar allows you to quickly find text within any terminal tab.
+*   **Toggle Search**: Press `Ctrl + f` to open or close the search bar.
+*   **Navigation**: Use the "Find Next" (Down Arrow) and "Find Previous" (Up Arrow) buttons to navigate through matches.
+*   **Live Highlight**: Matches are highlighted in real-time as you type.
+
 ### Keyboard Shortcuts
 The GUI Console supports familiar shortcuts for navigating and managing tabs:
 *   **`Ctrl + PageUp`**: Switch to the previous tab.
 *   **`Ctrl + PageDown`**: Switch to the next tab.
 *   **`Ctrl + t`**: Open a new VManager tab.
 *   **`Ctrl + Shift + t`** (or `Ctrl + T`): Open a new Command Line tab.
+*   **`Ctrl + w`**: Close the current tab.
+*   **`Ctrl + f`**: Toggle the search bar.
+*   **`Esc`**: Close the search bar (if active).
 *   **`Ctrl + +` / `Ctrl + =`**: Increase font size (Zoom In).
 *   **`Ctrl + -`**: Decrease font size (Zoom Out).
 
@@ -30,6 +39,12 @@ The **Settings Menu** (represented by the "hamburger" icon) provides quick acces
 *   **Custom Font**: Select any monospace font installed on your system.
 *   **New VManager Tab**: Open a new tab running the TUI interface.
 *   **New Command Line Tab**: Open a new tab running the interactive CLI.
+*   **New Log Tab**: Open a read-only tab tailing the application log file.
+
+### Header Bar Controls
+In addition to the Settings Menu, the header bar includes:
+*   **Help Button** (`?` icon): Displays a cheat sheet of all available keyboard shortcuts.
+*   **Documentation Button** (Book icon): Opens this online manual in your default web browser.
 
 ### Automatic Title Updates
 Tabs automatically update their labels to reflect their current state:
