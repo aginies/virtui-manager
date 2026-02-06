@@ -10,10 +10,12 @@ Modes:
     tui       Run the Textual User Interface (default)
     cli       Run the Command Line Interface
     viewer    Run the Remote Viewer (GTK3)
+    gui       Run the GUI Wrapper (GTK3/Vte)
 
 Examples:
     python3 virtui_dev.py
     python3 virtui_dev.py cli
+    python3 virtui_dev.py gui
     python3 virtui_dev.py viewer --connect qemu:///system --domain-name MyVM
 """
 import sys
@@ -63,17 +65,33 @@ def run_viewer_gtk4():
     else:
         print("Error: remote_viewer_gtk4 module has no 'main' function.")
 
+def run_gui():
+    from vmanager import gui_wrapper
+    if hasattr(gui_wrapper, 'main'):
+        gui_wrapper.main()
+    else:
+        print("Error: gui_wrapper module has no 'main' function.")
+
 if __name__ == "__main__":
     setup_path()
     
     # Pre-parse arguments to determine the mode
     # We use parse_known_args because the remaining arguments should be passed 
     # to the actual application (e.g. viewer args)
-    parser = argparse.ArgumentParser(description="VirtUI Manager Dev Tool", add_help=False)
-    parser.add_argument("mode", nargs="?", choices=["tui", "cli", "viewer"], default="tui", help="Application mode to run")
+    parser = argparse.ArgumentParser(
+        description=__doc__, 
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        add_help=False
+    )
+    parser.add_argument("mode", nargs="?", choices=["tui", "cli", "viewer", "gui"], default="tui", help="Application mode to run")
     
+    # Handle help explicitly
+    if len(sys.argv) > 1 and sys.argv[1] in ["-h", "--help"]:
+        parser.print_help()
+        sys.exit(0)
+
     # Check if the first argument is one of our modes
-    if len(sys.argv) > 1 and sys.argv[1] in ["tui", "cli", "viewer"]:
+    if len(sys.argv) > 1 and sys.argv[1] in ["tui", "cli", "viewer", "gui"]:
         mode = sys.argv[1]
         # Remove the mode argument so the app doesn't see it
         sys.argv.pop(1)
@@ -88,6 +106,8 @@ if __name__ == "__main__":
             run_cli()
         elif mode == "viewer":
             run_viewer()
+        elif mode == "gui":
+            run_gui()
     except ImportError as e:
         print(f"Import Error: {e}")
         print("Ensure you are running this script from the source directory structure.")
