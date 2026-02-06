@@ -2,6 +2,7 @@
 import sys
 import os
 import shutil
+import time
 from pathlib import Path
 import gi
 import yaml
@@ -15,6 +16,9 @@ except ValueError as e:
     sys.exit(1)
 
 from gi.repository import Gtk, Vte, GLib, Pango, Gdk
+
+def is_running_under_flatpak():
+    return 'FLATPAK_ID' in os.environ
 
 def check_tmux():
     try:
@@ -248,8 +252,19 @@ class VirtuiWrapper(Gtk.Window):
         Gtk.main_quit()
 
     def on_new_vmanager_tab(self, widget):
-        cmd = [sys.executable, "-m", "vmanager.wrapper"]
+        if is_running_under_flatpak():
+            tmux_bin = "/app/bin/tmux"
+        else:
+            tmux_bin = "tmux"
+        if check_tmux():
+            session_name = f"vmanager-{int(time.time())}"
+            cmd = [tmux_bin, "new-session", "-s", session_name, sys.executable, "-m", "vmanager.wrapper"]
+        else:
+            # Fallback to running without tmux if not available
+            cmd = [sys.executable, "-m", "vmanager.wrapper"]
         self.create_tab("Virtui Manager", cmd)
+        #cmd = [sys.executable, "-m", "vmanager.wrapper"]
+        #self.create_tab("Virtui Manager", cmd)
 
     def on_new_cmd_tab(self, widget):
         cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
