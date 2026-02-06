@@ -82,6 +82,18 @@ class VirtuiWrapper(Gtk.Window):
         settings_button.set_image(icon_menu)
         header_bar.pack_start(settings_button)
 
+        # Help Button
+        help_btn = Gtk.Button.new_from_icon_name("help-browser-symbolic", Gtk.IconSize.BUTTON)
+        help_btn.set_tooltip_text("Keyboard Shortcuts")
+        help_btn.connect("clicked", self.on_help_clicked)
+        header_bar.pack_start(help_btn)
+
+        # Documentation Button
+        doc_btn = Gtk.Button.new_from_icon_name("help-contents-symbolic", Gtk.IconSize.BUTTON)
+        doc_btn.set_tooltip_text("Online Manual")
+        doc_btn.connect("clicked", self.on_doc_clicked)
+        header_bar.pack_start(doc_btn)
+
         settings_menu = Gtk.Menu()
         settings_button.set_popup(settings_menu)
 
@@ -123,6 +135,11 @@ class VirtuiWrapper(Gtk.Window):
         new_cmd_item.connect("activate", self.on_new_cmd_tab)
         settings_menu.append(new_cmd_item)
 
+        # New Tab - Log
+        new_log_item = Gtk.MenuItem(label="New Log Tab")
+        new_log_item.connect("activate", self.on_new_log_tab)
+        settings_menu.append(new_log_item)
+
         settings_menu.show_all()
 
         # --- Search Bar ---
@@ -158,11 +175,47 @@ class VirtuiWrapper(Gtk.Window):
         self.on_new_vmanager_tab(None)
         # Tab 2: Command Line
         self.on_new_cmd_tab(None)
+        # Tab 3: Log
+        self.on_new_log_tab(None)
         # Go to first tab
         self.notebook.set_current_page(0)
 
         self.connect("key-press-event", self.on_key_press)
         self.connect("destroy", self.on_destroy)
+
+    def on_doc_clicked(self, widget):
+        url = "https://aginies.github.io/virtui-manager/manual/"
+        try:
+            Gtk.show_uri_on_window(self, url, Gdk.CURRENT_TIME)
+        except Exception as e:
+            print(f"Error opening URL {url}: {e}")
+
+    def on_help_clicked(self, widget):
+        shortcuts = [
+            ("Ctrl + Page Up", "Switch to Previous Tab"),
+            ("Ctrl + Page Down", "Switch to Next Tab"),
+            ("Ctrl + t", "New Virtui Manager Tab"),
+            ("Ctrl + T", "New Command Line Tab"),
+            ("Ctrl + w", "Close Current Tab"),
+            ("Ctrl + f", "Toggle Search Bar"),
+            ("Ctrl + + / =", "Increase Font Size"),
+            ("Ctrl + -", "Decrease Font Size"),
+            ("Esc", "Close Search Bar (if active)"),
+        ]
+
+        msg_text = "\n".join([f"<b>{keys}</b>: {desc}" for keys, desc in shortcuts])
+
+        dialog = Gtk.MessageDialog(
+            transient_for=self,
+            flags=Gtk.DialogFlags.MODAL,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text="Keyboard Shortcuts",
+        )
+        dialog.format_secondary_markup(msg_text)
+
+        dialog.run()
+        dialog.destroy()
 
     def load_gui_config(self):
         try:
@@ -202,6 +255,27 @@ class VirtuiWrapper(Gtk.Window):
         cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
         self.create_tab("Command Line", cmd_cli)
 
+    def on_new_log_tab(self, widget):
+        log_path = self._get_log_path()
+        
+        # Ensure log file exists to prevent tail from failing immediately if file is missing
+        if not log_path.exists():
+             try:
+                 log_path.parent.mkdir(parents=True, exist_ok=True)
+                 log_path.touch()
+             except Exception as e:
+                 print(f"Error creating log file: {e}")
+
+        cmd = ["tail", "-f", str(log_path)]
+        self.create_tab("Log", cmd, fixed_title=True)
+
+    def _get_log_path(self):
+        try:
+            from vmanager.config import get_log_path
+            return get_log_path()
+        except ImportError:
+            return Path.home() / ".cache" / "virtui-manager" / "vm_manager.log"
+
     def set_font_size(self, size):
         """Sets the font size and applies it."""
         if size < 6: size = 6
@@ -231,17 +305,22 @@ class VirtuiWrapper(Gtk.Window):
             elif keyname == "f":
                 self.toggle_search()
                 return True
+            elif keyname == "w":
+                term = self.get_current_terminal()
+                if term:
+                    self.on_close_tab(None, term)
+                return True
             elif keyname in ["plus", "equal", "KP_Add"]:
                 self.set_font_size(self.current_font_size + 1)
                 return True
             elif keyname in ["minus", "KP_Subtract"]:
                 self.set_font_size(self.current_font_size - 1)
                 return True
-        
+
         # Handle Escape to close search if active
         if self.search_bar.get_search_mode() and keyname == "Escape":
-             self.search_bar.set_search_mode(False)
-             return True
+            self.search_bar.set_search_mode(False)
+            return True
 
         return False
 
@@ -291,7 +370,7 @@ class VirtuiWrapper(Gtk.Window):
         if self.search_bar.get_search_mode():
             self.on_search_changed(self.search_entry)
 
-    def create_tab(self, title, command):
+    def create_tab(self, title, command, fixed_title=False):
         terminal = Vte.Terminal()
         terminal.set_size(TERMINAL_COLS, TERMINAL_ROWS)
         terminal.set_scrollback_lines(TERMINAL_SCROLLBACK)
@@ -300,7 +379,8 @@ class VirtuiWrapper(Gtk.Window):
 
         # Pass the terminal itself as user_data to find which tab exited
         terminal.connect("child-exited", self.on_child_exited)
-        terminal.connect("window-title-changed", self.on_window_title_changed)
+        if not fixed_title:
+            terminal.connect("window-title-changed", self.on_window_title_changed)
 
         # Add terminal to a ScrolledWindow to handle scrolling
         scrolled_window = Gtk.ScrolledWindow()
