@@ -4,15 +4,57 @@ the Cmd line tool
 import cmd
 import re
 import shutil
+import sys
 import subprocess
+import datetime
 import libvirt
-from .config import load_config
+from .config import load_config, get_log_path
 from .libvirt_utils import find_all_vm, get_network_info, get_host_resources
 from .vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
 from .vm_service import VMService
 from .storage_manager import list_unused_volumes, list_storage_pools
-from .network_manager import list_networks, set_network_active, delete_network, set_network_autostart
+from .network_manager import (
+        list_networks, set_network_active,
+        delete_network, set_network_autostart
+        )
 from .constants import AppInfo
+
+class CLILogger:
+    def __init__(self, filepath, stream):
+        self.filepath = filepath
+        self.stream = stream
+        self.buffer = ""
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+    def write(self, message):
+        res = self.stream.write(message)
+        self.buffer += message
+        if '\n' in self.buffer:
+            lines = self.buffer.split('\n')
+            complete_lines = lines[:-1]
+            self.buffer = lines[-1]
+
+            try:
+                with open(self.filepath, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+                    for line in complete_lines:
+                        f.write(f"{timestamp} [CLI] {line}\n")
+            except Exception:
+                pass
+        return res
+
+    def flush(self):
+        self.stream.flush()
+        if self.buffer:
+            try:
+                with open(self.filepath, 'a') as f:
+                    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
+                    f.write(f"{timestamp} [CLI] {self.buffer}\n")
+            except Exception:
+                pass
+            self.buffer = ""
 
 class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""
@@ -21,6 +63,16 @@ class VManagerCMD(cmd.Cmd):
 
     def __init__(self):
         super().__init__()
+
+        # Setup logging
+        try:
+            log_path = get_log_path()
+            sys.stdout = CLILogger(log_path, sys.stdout)
+            sys.stderr = CLILogger(log_path, sys.stderr)
+            self.stdout = sys.stdout
+        except Exception as e:
+            print(f"Failed to setup logging: {e}")
+
         self.config = load_config()
         self.servers = self.config.get('servers', [])
         self.server_names = [s['name'] for s in self.servers]
@@ -667,7 +719,7 @@ If no VM names are provided, it will delete the selected VMs."""
         force_storage_delete = "--force-storage-delete" in args_list
         if force_storage_delete:
             args_list.remove("--force-storage-delete")
-        
+
         vms_to_delete = self._get_vms_to_operate(" ".join(args_list))
         if not vms_to_delete:
             return
@@ -679,7 +731,7 @@ If no VM names are provided, it will delete the selected VMs."""
 
         vm_list_str = ', '.join(all_vm_names)
         confirm_vm_delete = input(f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): ").lower()
-        
+
         if confirm_vm_delete != 'yes':
             print("VM deletion cancelled.")
             return
@@ -888,7 +940,7 @@ Usage: net_start <network_name>"""
         if not args:
             print("Usage: net_start <network_name>")
             return
-        
+
         net_name = args.strip()
         found = False
         for server_name, conn in self.active_connections.items():
@@ -902,7 +954,7 @@ Usage: net_start <network_name>"""
                 continue
             except Exception as e:
                 print(f"Error starting network '{net_name}' on {server_name}: {e}")
-        
+
         if not found:
             print(f"Network '{net_name}' not found on any connected server.")
 
@@ -915,7 +967,7 @@ Usage: net_stop <network_name>"""
         if not args:
             print("Usage: net_stop <network_name>")
             return
-        
+
         net_name = args.strip()
         found = False
         for server_name, conn in self.active_connections.items():
@@ -1008,10 +1060,10 @@ Usage: net_autostart <network_name> <on|off>"""
         if len(arg_list) != 2 or arg_list[1] not in ['on', 'off']:
             print("Usage: net_autostart <network_name> <on|off>")
             return
-        
+
         net_name = arg_list[0]
         autostart = True if arg_list[1] == 'on' else False
-        
+
         found = False
         for server_name, conn in self.active_connections.items():
             try:
@@ -1024,7 +1076,7 @@ Usage: net_autostart <network_name> <on|off>"""
                 continue
             except Exception as e:
                 print(f"Error setting autostart for network '{net_name}' on {server_name}: {e}")
-        
+
         if not found:
             print(f"Network '{net_name}' not found on any connected server.")
 
