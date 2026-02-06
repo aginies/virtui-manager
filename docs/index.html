@@ -136,6 +136,18 @@
             </div>
         </section>
 
+        <!-- Feature 8: Host Intelligence -->
+        <section class="feature-section hidden-right" id="host-intelligence">
+            <div class="feature-image">
+                <img src="manual/images/host_resource.png" alt="Host Resource Dashboard" class="active">
+                <img src="manual/images/host_capabilities.png" alt="Host Capabilities Tree">
+            </div>
+            <div class="feature-content">
+                <h2>Host Intelligence</h2>
+                <p class="marketing-text">Gain deep insights into your physical infrastructure. Monitor host resources in real-time and explore detailed capabilities including CPU topology, cache, and NUMA layout directly from the terminal.</p>
+            </div>
+        </section>
+
         <!-- Detailed Feature Grid -->
         <section class="details-grid" id="features">
             <h2 class="section-title">Why VirtUI Manager?</h2>
@@ -154,7 +166,7 @@
                 </div>
                 <div class="grid-item">
                     <h3>Smart Caching</h3>
-                    <p>Configurable TTL caching reduces latency and API load by up to 70%.</p>
+                    <p>Caching reduces latency and API load by up to 70%.</p>
                 </div>
                 <div class="grid-item">
                     <h3>Storage Mastery</h3>
@@ -184,6 +196,18 @@
                     <h3>Server Mastery</h3>
                     <p>Granular Server Preferences allow you to manage storage pools and network configurations remotely.</p>
                 </div>
+                <div class="grid-item">
+                    <h3>Direct XML Editing</h3>
+                    <p>Modify VM configurations at the lowest level with the built-in XML editor.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Integrated Virsh</h3>
+                    <p>Drop into a fully authenticated <code>virsh</code> shell context-switched to your specific server.</p>
+                </div>
+                <div class="grid-item">
+                    <h3>Tmux Integration</h3>
+                    <p>Seamlessly launch text consoles in separate Tmux windows for multitasking mastery.</p>
+                </div>
             </div>
         </section>
 
@@ -193,7 +217,7 @@
         <div class="footer-content">
             <img src="manual/images/virtui-manager_logo_notext_inverted.png" alt="Virtui Manager Logo" class="footer-logo">
             <p>&copy; 2026 VirtUI Manager. Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPLv3</a>.</p>
-            <p>Created by <a href="https://github.com/aginies">aginies</a>.</p>
+            <p>Created by <a href="https://github.com/aginies">Antoine Ginies</a>.</p>
         </div>
     </footer>
 
@@ -240,20 +264,6 @@
 
         const hiddenElements = document.querySelectorAll('.hidden-left, .hidden-right');
         hiddenElements.forEach((el) => observer.observe(el));
-
-        // Original Theme Logic Preserved
-        document.addEventListener('DOMContentLoaded', function() {
-            const theme = document.documentElement.className;
-            const container = document.body;
-
-            if (theme.includes('christmas') || theme.includes('dark')) {
-                // createSnowflakesAndStars(); // Function definition assumed or can be re-added if needed
-                // Note: To keep the file clean, I've reduced the complex JS animations 
-                // but kept the structure if you want to paste the old logic back.
-                // For a "Marketing" site, usually we avoid the matrix/pong games unless requested specifically to keep them.
-                // The prompt asked for "Very modern", usually implying clean.
-            }
-        });
     </script>
 </body>
 </html>

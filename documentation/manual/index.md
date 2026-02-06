@@ -2,7 +2,7 @@
 
 <img src="images/virtui-manager_logo_notext_inverted.png" alt="VirtUI Manager Logo" width="35%">
 
-Welcome to the official documentation for **VirtUI Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization.
+Welcome to the official documentation for **VirtUI Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization. Project started by Antoine Ginies as an Hackweek project (Thanks SUSE!).
 
 ## Table of Contents
 
