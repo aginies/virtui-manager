@@ -2,6 +2,8 @@
 
 The **VirtUI Manager GUI Console** is a GTK-based application that provides a modern, tabbed interface for managing your virtualization infrastructure. It embeds both the TUI interface and the CLI tool into a single, cohesive window.
 
+![Main GUI](images/gui.png)
+
 To launch the GUI Console:
 ```bash
 virtui-gui
@@ -50,6 +52,8 @@ In addition to the Settings Menu, the header bar includes:
 Tabs automatically update their labels to reflect their current state:
 *   **CLI Tabs**: Show the names of the currently connected servers.
 *   **Virsh Shell**: Indicates when a `virsh` shell is active and which server it's connected to.
+
+![GUI virsh](images/gui_virsh.png)
 
 ### System Integration
 *   **Default Fonts**: Automatically uses your system's default monospace font settings.
