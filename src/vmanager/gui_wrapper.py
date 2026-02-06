@@ -3,6 +3,8 @@ import sys
 import os
 import shutil
 import gi
+import yaml
+from pathlib import Path
 
 # Require GTK 3.0 and Vte 2.91
 try:
@@ -21,33 +23,48 @@ def check_tmux():
     except Exception as e:
         return False
 
+# Constants
+DEFAULT_WINDOW_WIDTH = 1200
+DEFAULT_WINDOW_HEIGHT = 1024
+DEFAULT_FONT_SIZE = 12
+TERMINAL_COLS = 92
+TERMINAL_ROWS = 34
+TERMINAL_SCROLLBACK = 10000
+FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 24]
+
 class VirtuiWrapper(Gtk.Window):
+    CONFIG_DIR = Path.home() / ".config" / "virtui-manager"
+    CONFIG_FILE = CONFIG_DIR / "gui-config.yaml"
+
     def __init__(self):
         super().__init__(title="Virtui Manager Console")
 
-        self.set_default_size(1200, 1024)
+        self.config = self.load_gui_config()
 
-        # Get system monospace font
+        width = self.config.get("width", DEFAULT_WINDOW_WIDTH)
+        height = self.config.get("height", DEFAULT_WINDOW_HEIGHT)
+        self.set_default_size(width, height)
+
+        # Get system monospace font as default fallback
+        system_font = "Monospace"
+        system_size = DEFAULT_FONT_SIZE
         settings = Gtk.Settings.get_default()
-        font_string = None
         try:
             font_string = settings.get_property("gtk-monospace-font-name")
+            if font_string:
+                font_desc = Pango.FontDescription(font_string)
+                system_font = font_desc.get_family()
+                size = font_desc.get_size()
+                if size > 0:
+                    system_size = size // Pango.SCALE
         except TypeError:
-            pass # Property not available on this GTK version
+            pass
 
-        if font_string:
-            font_desc = Pango.FontDescription(font_string)
-            self.font_name = font_desc.get_family()
-            size = font_desc.get_size()
-            if size > 0:
-                self.current_font_size = size // Pango.SCALE
-            else:
-                self.current_font_size = 12
-        else:
-            self.font_name = "Monospace"
-            self.current_font_size = 12
+        self.font_name = self.config.get("font_name", system_font)
+        self.current_font_size = self.config.get("font_size", system_size)
 
-        self.terminals = []
+        # Dictionary to store tab data: terminal -> { 'page': ScrolledWindow, 'label': Label }
+        self.tabs = {}
 
         # Main layout
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -63,7 +80,7 @@ class VirtuiWrapper(Gtk.Window):
         icon_menu = Gtk.Image.new_from_icon_name("open-menu-symbolic", Gtk.IconSize.BUTTON)
         settings_button = Gtk.MenuButton()
         settings_button.set_image(icon_menu)
-        header_bar.pack_end(settings_button)
+        header_bar.pack_start(settings_button)
 
         settings_menu = Gtk.Menu()
         settings_button.set_popup(settings_menu)
@@ -76,7 +93,7 @@ class VirtuiWrapper(Gtk.Window):
         font_size_item.set_submenu(font_size_menu)
 
         group_font = None
-        for size in [8, 10, 12, 14, 16, 18, 20, 24]:
+        for size in FONT_SIZES:
             item = Gtk.RadioMenuItem.new_with_label_from_widget(group_font, f"{size}pt")
             if not group_font:
                 group_font = item
@@ -97,12 +114,12 @@ class VirtuiWrapper(Gtk.Window):
         settings_menu.append(Gtk.SeparatorMenuItem())
 
         # New Tab - VManager
-        new_vmanager_item = Gtk.MenuItem(label="New VManager Tab")
+        new_vmanager_item = Gtk.MenuItem(label="New Virtui Manager Tab")
         new_vmanager_item.connect("activate", self.on_new_vmanager_tab)
         settings_menu.append(new_vmanager_item)
 
         # New Tab - Command Line
-        new_cmd_item = Gtk.MenuItem(label="New Command Line Tab")
+        new_cmd_item = Gtk.MenuItem(label="New Virtui Command Line Tab")
         new_cmd_item.connect("activate", self.on_new_cmd_tab)
         settings_menu.append(new_cmd_item)
 
@@ -120,21 +137,53 @@ class VirtuiWrapper(Gtk.Window):
         self.notebook.set_current_page(0)
 
         self.connect("key-press-event", self.on_key_press)
-        self.connect("destroy", Gtk.main_quit)
+        self.connect("destroy", self.on_destroy)
+
+    def load_gui_config(self):
+        try:
+            if self.CONFIG_FILE.exists():
+                with open(self.CONFIG_FILE, 'r') as f:
+                    return yaml.safe_load(f) or {}
+        except Exception as e:
+            print(f"Error loading config: {e}")
+        return {}
+
+    def save_gui_config(self):
+        try:
+            self.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+            width, height = self.get_size()
+            config = {
+                "font_name": self.font_name,
+                "font_size": self.current_font_size,
+                "width": width,
+                "height": height
+            }
+
+            with open(self.CONFIG_FILE, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+        except Exception as e:
+            print(f"Error saving config: {e}")
+
+    def on_destroy(self, widget):
+        self.save_gui_config()
+        Gtk.main_quit()
 
     def on_new_vmanager_tab(self, widget):
-        cmd_wrapper = [sys.executable, "-m", "vmanager.wrapper"]
-        if check_tmux():
-            cmd_wrapper = [sys.executable, "-m", "vmanager.wrapper"]
-            if check_tmux():
-                pass
-
         cmd = [sys.executable, "-m", "vmanager.wrapper"]
-        self.create_tab("Virtui Manager", cmd, is_main_app=(len(self.terminals)==0))
+        self.create_tab("Virtui Manager", cmd)
 
     def on_new_cmd_tab(self, widget):
         cmd_cli = [sys.executable, "-m", "vmanager.vmanager_cmd"]
-        self.create_tab("Command Line", cmd_cli, is_main_app=False)
+        self.create_tab("Command Line", cmd_cli)
+
+    def set_font_size(self, size):
+        """Sets the font size and applies it."""
+        if size < 6: size = 6
+        if size > 72: size = 72
+        self.current_font_size = size
+        self._apply_font_to_all_terminals()
+        self.save_gui_config()
 
     def on_key_press(self, widget, event):
         # Check if Ctrl is pressed
@@ -148,15 +197,26 @@ class VirtuiWrapper(Gtk.Window):
             elif keyname == "Page_Down":
                 self.notebook.next_page()
                 return True
+            elif keyname == "t":
+                self.on_new_vmanager_tab(None)
+                return True
+            elif keyname == "T":
+                self.on_new_cmd_tab(None)
+                return True
+            elif keyname in ["plus", "equal", "KP_Add"]:
+                self.set_font_size(self.current_font_size + 1)
+                return True
+            elif keyname in ["minus", "KP_Subtract"]:
+                self.set_font_size(self.current_font_size - 1)
+                return True
         return False
 
-    def create_tab(self, title, command, is_main_app=False):
+    def create_tab(self, title, command):
         terminal = Vte.Terminal()
-        terminal.set_size(92, 34)
-        terminal.set_scrollback_lines(10000)
+        terminal.set_size(TERMINAL_COLS, TERMINAL_ROWS)
+        terminal.set_scrollback_lines(TERMINAL_SCROLLBACK)
 
-        font_desc = Pango.FontDescription(f"{self.font_name} {self.current_font_size}")
-        terminal.set_font(font_desc)
+        self._apply_font_to_terminal(terminal)
 
         # Pass the terminal itself as user_data to find which tab exited
         terminal.connect("child-exited", self.on_child_exited)
@@ -175,14 +235,19 @@ class VirtuiWrapper(Gtk.Window):
 
         close_btn = Gtk.Button.new_from_icon_name("window-close-symbolic", Gtk.IconSize.MENU)
         close_btn.set_relief(Gtk.ReliefStyle.NONE)
-        # Pass scrolled_window to identify the page to remove
-        close_btn.connect("clicked", self.on_close_tab, scrolled_window)
+        # Pass terminal to identify the tab to remove
+        close_btn.connect("clicked", self.on_close_tab, terminal)
         tab_box.pack_start(close_btn, False, False, 0)
         tab_box.show_all()
 
         self.notebook.append_page(scrolled_window, tab_box)
         self.notebook.set_tab_reorderable(scrolled_window, True)
-        self.terminals.append(terminal)
+
+        # Store tab info
+        self.tabs[terminal] = {
+            'page': scrolled_window,
+            'label': label
+        }
 
         self.spawn_process(terminal, command)
 
@@ -191,26 +256,32 @@ class VirtuiWrapper(Gtk.Window):
         # Switch to the new tab
         self.notebook.set_current_page(-1)
 
-    def on_close_tab(self, button, page):
-        page_num = self.notebook.page_num(page)
-        if page_num != -1:
-            # Find the terminal associated with this page
-            # page is the ScrolledWindow, terminal is its child
-            terminal = page.get_child()
-            if terminal in self.terminals:
-                self.terminals.remove(terminal)
+    def on_close_tab(self, button, terminal):
+        if terminal in self.tabs:
+            page = self.tabs[terminal]['page']
+            page_num = self.notebook.page_num(page)
 
-            self.notebook.remove_page(page_num)
+            if page_num != -1:
+                self.notebook.remove_page(page_num)
+
+            del self.tabs[terminal]
 
             if self.notebook.get_n_pages() == 0:
-                Gtk.main_quit()
+                self.destroy()
+
+    def _apply_font_to_terminal(self, terminal):
+        """Applies the current font settings to a single terminal."""
+        font_desc = Pango.FontDescription(f"{self.font_name} {self.current_font_size}")
+        terminal.set_font(font_desc)
+
+    def _apply_font_to_all_terminals(self):
+        """Applies the current font settings to all open terminals."""
+        for terminal in self.tabs:
+            self._apply_font_to_terminal(terminal)
 
     def on_font_size_selected(self, item, size):
         if item.get_active():
-            self.current_font_size = size
-            font_desc = Pango.FontDescription(f"{self.font_name} {size}")
-            for terminal in self.terminals:
-                terminal.set_font(font_desc)
+            self.set_font_size(size)
 
     def on_custom_font_selected(self, widget):
         dialog = Gtk.FontChooserDialog(title="Select Font", parent=self)
@@ -225,21 +296,31 @@ class VirtuiWrapper(Gtk.Window):
             if font_desc:
                 self.font_name = font_desc.get_family()
                 self.current_font_size = font_desc.get_size() // Pango.SCALE
-                for terminal in self.terminals:
-                    terminal.set_font(font_desc)
+                self._apply_font_to_all_terminals()
+                self.save_gui_config()
 
         dialog.destroy()
 
     def spawn_process(self, terminal, cmd):
-        # Calculate src directory relative to this script
-        # This script is in src/vmanager/gui_wrapper.py
-        script_dir = os.path.dirname(os.path.realpath(__file__))
-        src_dir = os.path.dirname(script_dir)
-
         env = os.environ.copy()
-        current_pythonpath = env.get("PYTHONPATH", "")
-        if src_dir not in current_pythonpath:
-            env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else src_dir
+
+        # Determine source directory for PYTHONPATH
+        # 1. Check for VIRTUI_SRC_DIR environment variable
+        src_dir = env.get("VIRTUI_SRC_DIR")
+
+        # 2. Fallback to local source tree if not set and 'src' exists relative to script
+        if not src_dir:
+            script_dir = os.path.dirname(os.path.realpath(__file__))
+            possible_src_dir = os.path.dirname(script_dir)
+            # Check if this looks like a source tree (has vmanager package)
+            if os.path.isdir(os.path.join(possible_src_dir, "vmanager")):
+                src_dir = possible_src_dir
+
+        # 3. Apply to PYTHONPATH if a source directory was identified
+        if src_dir:
+            current_pythonpath = env.get("PYTHONPATH", "")
+            if src_dir not in current_pythonpath:
+                env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else src_dir
 
         # Convert env to list of strings "KEY=VALUE" for spawn_async
         envv = [f"{k}={v}" for k, v in env.items()]
@@ -269,34 +350,23 @@ class VirtuiWrapper(Gtk.Window):
         if not title:
             return
 
-        # Find the page containing this terminal
-        parent = terminal.get_parent() # ScrolledWindow
-        page_num = self.notebook.page_num(parent)
-
-        if page_num != -1:
-            tab_box = self.notebook.get_tab_label(parent)
-            if tab_box:
-                children = tab_box.get_children()
-                if children and isinstance(children[0], Gtk.Label):
-                    children[0].set_text(title)
+        if terminal in self.tabs:
+            self.tabs[terminal]['label'].set_text(title)
 
     def on_child_exited(self, terminal, status):
         print(f"Child exited with status: {status}")
 
-        # Remove terminal from list
-        if terminal in self.terminals:
-            self.terminals.remove(terminal)
+        if terminal in self.tabs:
+            page = self.tabs[terminal]['page']
+            page_num = self.notebook.page_num(page)
 
-        # Find the page containing this terminal
-        parent = terminal.get_parent() # ScrolledWindow
-        page_num = self.notebook.page_num(parent)
+            if page_num != -1:
+                self.notebook.remove_page(page_num)
 
-        if page_num != -1:
-            self.notebook.remove_page(page_num)
+            del self.tabs[terminal]
 
         if self.notebook.get_n_pages() == 0:
-            Gtk.main_quit()
-
+            self.destroy()
 def main():
     app = VirtuiWrapper()
     app.show_all()
