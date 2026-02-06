@@ -16,9 +16,13 @@ The GUI Console allows you to run multiple instances of VirtUI Manager or the CL
 *   Monitoring logs or statistics in an independent tab.
 
 ### Keyboard Shortcuts
-The GUI Console supports familiar shortcuts for navigating between tabs:
+The GUI Console supports familiar shortcuts for navigating and managing tabs:
 *   **`Ctrl + PageUp`**: Switch to the previous tab.
 *   **`Ctrl + PageDown`**: Switch to the next tab.
+*   **`Ctrl + t`**: Open a new VManager tab.
+*   **`Ctrl + Shift + t`** (or `Ctrl + T`): Open a new Command Line tab.
+*   **`Ctrl + +` / `Ctrl + =`**: Increase font size (Zoom In).
+*   **`Ctrl + -`**: Decrease font size (Zoom Out).
 
 ### Dynamic Menu
 The **Settings Menu** (represented by the "hamburger" icon) provides quick access to:
