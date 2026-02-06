@@ -795,6 +795,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#search-functionality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search Functionality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#keyboard-shortcuts" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -810,6 +821,17 @@
     <span class="md-ellipsis">
       
         Dynamic Menu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-bar-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Header Bar Controls
       
     </span>
   </a>
@@ -1175,6 +1197,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#search-functionality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search Functionality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#keyboard-shortcuts" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1190,6 +1223,17 @@
     <span class="md-ellipsis">
       
         Dynamic Menu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-bar-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Header Bar Controls
       
     </span>
   </a>
@@ -1256,6 +1300,7 @@
 
 <h1 id="virtui-manager-gui-console">VirtUI Manager GUI Console<a class="headerlink" href="#virtui-manager-gui-console" title="Permanent link">&para;</a></h1>
 <p>The <strong>VirtUI Manager GUI Console</strong> is a GTK-based application that provides a modern, tabbed interface for managing your virtualization infrastructure. It embeds both the TUI interface and the CLI tool into a single, cohesive window.</p>
+<p><img alt="Main GUI" src="../images/gui.png" /></p>
 <p>To launch the GUI Console:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>virtui-gui
 </code></pre></div></p>
@@ -1265,20 +1310,38 @@
 *   Managing different sets of servers in separate tabs.
 *   Keeping a CLI open alongside the main management window for quick <code>virsh</code> commands.
 *   Monitoring logs or statistics in an independent tab.</p>
+<h3 id="search-functionality">Search Functionality<a class="headerlink" href="#search-functionality" title="Permanent link">&para;</a></h3>
+<p>A built-in search bar allows you to quickly find text within any terminal tab.
+*   <strong>Toggle Search</strong>: Press <code>Ctrl + f</code> to open or close the search bar.
+*   <strong>Navigation</strong>: Use the "Find Next" (Down Arrow) and "Find Previous" (Up Arrow) buttons to navigate through matches.
+*   <strong>Live Highlight</strong>: Matches are highlighted in real-time as you type.</p>
 <h3 id="keyboard-shortcuts">Keyboard Shortcuts<a class="headerlink" href="#keyboard-shortcuts" title="Permanent link">&para;</a></h3>
-<p>The GUI Console supports familiar shortcuts for navigating between tabs:
+<p>The GUI Console supports familiar shortcuts for navigating and managing tabs:
 *   <strong><code>Ctrl + PageUp</code></strong>: Switch to the previous tab.
-*   <strong><code>Ctrl + PageDown</code></strong>: Switch to the next tab.</p>
+*   <strong><code>Ctrl + PageDown</code></strong>: Switch to the next tab.
+*   <strong><code>Ctrl + t</code></strong>: Open a new VManager tab.
+*   <strong><code>Ctrl + Shift + t</code></strong> (or <code>Ctrl + T</code>): Open a new Command Line tab.
+*   <strong><code>Ctrl + w</code></strong>: Close the current tab.
+*   <strong><code>Ctrl + f</code></strong>: Toggle the search bar.
+*   <strong><code>Esc</code></strong>: Close the search bar (if active).
+*   <strong><code>Ctrl + +</code> / <code>Ctrl + =</code></strong>: Increase font size (Zoom In).
+*   <strong><code>Ctrl + -</code></strong>: Decrease font size (Zoom Out).</p>
 <h3 id="dynamic-menu">Dynamic Menu<a class="headerlink" href="#dynamic-menu" title="Permanent link">&para;</a></h3>
 <p>The <strong>Settings Menu</strong> (represented by the "hamburger" icon) provides quick access to:
 *   <strong>Font Size</strong>: Adjust the terminal font size on the fly for all tabs.
 *   <strong>Custom Font</strong>: Select any monospace font installed on your system.
 *   <strong>New VManager Tab</strong>: Open a new tab running the TUI interface.
-*   <strong>New Command Line Tab</strong>: Open a new tab running the interactive CLI.</p>
+*   <strong>New Command Line Tab</strong>: Open a new tab running the interactive CLI.
+*   <strong>New Log Tab</strong>: Open a read-only tab tailing the application log file.</p>
+<h3 id="header-bar-controls">Header Bar Controls<a class="headerlink" href="#header-bar-controls" title="Permanent link">&para;</a></h3>
+<p>In addition to the Settings Menu, the header bar includes:
+*   <strong>Help Button</strong> (<code>?</code> icon): Displays a cheat sheet of all available keyboard shortcuts.
+*   <strong>Documentation Button</strong> (Book icon): Opens this online manual in your default web browser.</p>
 <h3 id="automatic-title-updates">Automatic Title Updates<a class="headerlink" href="#automatic-title-updates" title="Permanent link">&para;</a></h3>
 <p>Tabs automatically update their labels to reflect their current state:
 *   <strong>CLI Tabs</strong>: Show the names of the currently connected servers.
 *   <strong>Virsh Shell</strong>: Indicates when a <code>virsh</code> shell is active and which server it's connected to.</p>
+<p><img alt="GUI virsh" src="../images/gui_virsh.png" /></p>
 <h3 id="system-integration">System Integration<a class="headerlink" href="#system-integration" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Default Fonts</strong>: Automatically uses your system's default monospace font settings.</li>

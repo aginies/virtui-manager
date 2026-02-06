@@ -1268,6 +1268,8 @@
 <p>VirtUI Manager includes a powerful interactive shell mode, allowing for scriptable and direct management of your virtualization infrastructure without the TUI overhead.</p>
 <p>To launch the CLI mode:
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>virtui-manager<span class="w"> </span>--cmd
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1"># OR</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>virtui-manager-cmd
 </code></pre></div></p>
 <h2 id="core-concepts">Core Concepts<a class="headerlink" href="#core-concepts" title="Permanent link">&para;</a></h2>
 <p>The CLI operates on a context-based system:</p>
@@ -1278,6 +1280,7 @@
 </ol>
 <p>The prompt dynamically updates to show your active context:
 <code>(&lt;server_names&gt;) [&lt;selected_vms&gt;]</code></p>
+<p><strong>Logging</strong>: The CLI automatically logs all output and operations to a file (typically <code>~/.cache/virtui-manager/vm_manager.log</code>), which is useful for audit trails and debugging.</p>
 <h2 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>connect &lt;server&gt; [server2 ...]</code></strong>
