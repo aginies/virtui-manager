@@ -5,6 +5,8 @@ import os
 import sys
 import re
 import threading
+import signal
+import asyncio
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor
 import logging
@@ -255,6 +257,9 @@ class VMManagerTUI(App):
         self.r_viewer = None
         self.host_stats = HostStats(self.vm_service, self.get_server_color)
         self._hide_stats_timer = None
+        # Register signal handlers for graceful shutdown
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
 
     def on_unmount(self) -> None:
         """Called when the application is unmounted."""
@@ -365,6 +370,11 @@ class VMManagerTUI(App):
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
         return get_server_color_cached(uri, tuple(self.SERVER_COLOR_PALETTE))
+
+    def _handle_signal(self, signum, frame):
+        """Handle SIGTERM/SIGINT by triggering graceful shutdown."""
+        logging.info(f"Received signal {signum}, initiating graceful shutdown...")
+        self.exit(return_code=0)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -690,8 +700,6 @@ class VMManagerTUI(App):
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
-        # TOFIX
-        #self.webconsole_manager.terminate_all()
         #if self._stats_logging_active:
         #    cache_monitor.log_stats()
         self.worker_manager.cancel_all()
@@ -1832,7 +1840,41 @@ class VMManagerTUI(App):
 
 
     async def action_quit(self) -> None:
-        """Quit the application."""
+        """Quit the application with proper cleanup of all resources."""
+        logging.info("Application shutdown initiated")
+
+        # Show loading indicator
+        loading = LoadingModal(message="Shutting down...")
+        self.push_screen(loading)
+
+        # Give Textual a chance to render the modal
+        await asyncio.sleep(0.1)
+
+        # Shutdown everything properly
+        def perform_shutdown():
+            try:
+                # Cancel all pending workers
+                if hasattr(self, 'worker_manager'):
+                    logging.debug("Cancelling all workers...")
+                    self.worker_manager.cancel_all()
+
+                # Shutdown VMService properly
+                if hasattr(self, 'vm_service') and self.vm_service:
+                    logging.debug("Shutting down VM service...")
+                    self.vm_service.shutdown()
+
+            except Exception as e:
+                logging.error(f"Error during shutdown: {e}")
+
+        # Use textual worker to run the blocking shutdown in a thread
+        # this ensures the UI (and the loader) stays responsive while cleaning up libvirt
+        worker = self.run_worker(perform_shutdown, thread=True)
+        await worker.wait()
+
+        # Final short sleep
+        await asyncio.sleep(0.1)
+
+        logging.info("Application shutdown complete")
         self.exit()
 
     @on(VmCardUpdateRequest)
