@@ -61,7 +61,7 @@ def _stop_event_loop():
 
     if _event_loop_thread and _event_loop_thread.is_alive():
         try:
-            _event_loop_thread.join(timeout=0.2)
+            _event_loop_thread.join(timeout=2.0)
         except Exception:
             pass
 
@@ -1528,6 +1528,47 @@ class VMService:
             return (vm_info, domain, conn_for_domain)
         except libvirt.libvirtError:
             raise
+
+    def shutdown(self):
+        """
+        Properly shut down the VMService, cleaning up all resources.
+        Call this before disconnecting connections or exiting the application.
+        """
+        logging.info("VMService shutdown initiated")
+
+        # 1. Stop monitoring thread first
+        logging.debug("Stopping monitoring thread...")
+        self.stop_monitoring()
+
+        # 2. Deregister all event callbacks
+        logging.debug("Deregistering event callbacks...")
+        with self._registration_lock:
+            for uri, callback_id in list(self._event_callbacks.items()):
+                try:
+                    conn = self.connection_manager.get_connection(uri)
+                    if conn:
+                        conn.domainEventDeregisterAny(callback_id)
+                        logging.debug(f"Deregistered event callback for {uri}")
+                except Exception as e:
+                    logging.error(f"Error deregistering events for {uri}: {e}")
+            self._event_callbacks.clear()
+
+        # 3. Disconnect all connections
+        logging.debug("Disconnecting all connections...")
+        self.disconnect_all()
+
+        # 4. Clear all caches
+        logging.debug("Clearing caches...")
+        with self._cache_lock:
+            self._vm_data_cache.clear()
+            self._domain_cache.clear()
+            self._uuid_to_conn_cache.clear()
+            self._cpu_time_cache.clear()
+            self._io_stats_cache.clear()
+            self._name_to_uuid_cache.clear()
+            self._uuid_to_name_cache.clear()
+
+        logging.info("VMService shutdown complete")
 
     def get_vms(
             self,
