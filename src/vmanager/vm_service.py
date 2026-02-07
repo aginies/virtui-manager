@@ -1536,11 +1536,11 @@ class VMService:
         """
         logging.info("VMService shutdown initiated")
 
-        # 1. Stop monitoring thread first
+        # Stop monitoring thread first
         logging.debug("Stopping monitoring thread...")
         self.stop_monitoring()
 
-        # 2. Deregister all event callbacks
+        # Deregister all event callbacks
         logging.debug("Deregistering event callbacks...")
         with self._registration_lock:
             for uri, callback_id in list(self._event_callbacks.items()):
@@ -1553,11 +1553,14 @@ class VMService:
                     logging.error(f"Error deregistering events for {uri}: {e}")
             self._event_callbacks.clear()
 
-        # 3. Disconnect all connections
+        # Disconnect all connections
         logging.debug("Disconnecting all connections...")
         self.disconnect_all()
 
-        # 4. Clear all caches
+        # Stop the libvirt event loop
+        _stop_event_loop()
+
+        # Clear all caches
         logging.debug("Clearing caches...")
         with self._cache_lock:
             self._vm_data_cache.clear()
