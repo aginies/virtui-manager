@@ -49,7 +49,7 @@ class ConnectionManager:
         self.connection_errors: dict[str, str] = {}           # uri -> error message
         self.call_stats: dict[str, dict[str, int]] = {}       # uri -> {method -> count}
         self._lock = threading.RLock()
-        self._alive_cache = {}  # Cache liveness (defaut 30s)
+        self._alive_cache = {}  # Cache liveness (default 30s)
         self._alive_lock = threading.RLock()
         self._last_check = {}   # Per-URI last check time
         self._failed_attempts: dict[str, int] = {} # uri -> count
@@ -67,7 +67,7 @@ class ConnectionManager:
         """Cheap liveness check using cached timestamp."""
         import time
         now = time.time()
-        
+
         with self._alive_lock:
             last = self._last_check.get(uri, 0)
             if now - last < AppCacheTimeout.INFO_CACHE_TTL:
@@ -110,9 +110,9 @@ class ConnectionManager:
             self.reset_failure_count(uri)
 
         # Check for max retries
-        if self._failed_attempts.get(uri, 0) >= 2:
-             logging.debug(f"Connection to {uri} failed 2 times. Skipping retry.")
-             return None
+        if self._failed_attempts.get(uri, 0) >= 3:
+            logging.debug(f"Connection to {uri} failed 2 times. Skipping retry.")
+            return None
 
         conn = None
         with self._lock:
@@ -120,19 +120,12 @@ class ConnectionManager:
 
         if conn:
             # Check if the connection is still alive and try to reconnect if not
-            try:
-                # Test the connection by calling a simple libvirt function
-                # Note: This call itself will be recorded if we use the wrapper, 
-                # but here we use the raw conn to test.
-                if not self._is_alive_fast(uri, conn):
-                    logging.warning(f"Connection to {uri} is dead, reconnecting...")
-                return self.ConnectionWrapper(conn, uri, self)
-            except libvirt.libvirtError:
-                # Connection is dead, remove it and create a new one
+            if not self._is_alive_fast(uri, conn):
                 logging.warning(f"Connection to {uri} is dead, reconnecting...")
                 self.disconnect(uri)
                 new_conn = self._create_connection(uri)
                 return self.ConnectionWrapper(new_conn, uri, self) if new_conn else None
+            return self.ConnectionWrapper(conn, uri, self)
 
         new_conn = self._create_connection(uri)
         return self.ConnectionWrapper(new_conn, uri, self) if new_conn else None
@@ -152,7 +145,7 @@ class ConnectionManager:
             def open_connection():
                 connect_uri = uri
                 # Append no_tty=1 to prevent interactive password prompts
-                if 'ssh' in uri.lower() and 'no_tty=' not in uri:
+                if 'ssh' in uri.lower() and 'no_tty=' not in uri.lower():
                     sep = '&' if '?' in uri else '?'
                     connect_uri += f"{sep}no_tty=1"
                 return libvirt.open(connect_uri)
@@ -161,7 +154,7 @@ class ConnectionManager:
             try:
                 future = executor.submit(open_connection)
                 try:
-                    # Wait for 10 seconds for the connection to establish
+                    # Wait for 15 seconds for the connection to establish
                     conn = future.result(timeout=15)
                     executor.shutdown(wait=True)
                 except TimeoutError:
@@ -169,7 +162,7 @@ class ConnectionManager:
                     executor.shutdown(wait=False)
                     msg = "Connection timed out after 15 seconds."
                     # Check if the URI suggests an SSH connection
-                    if 'ssh' in uri.lower(): # Use .lower() for robustness
+                    if 'ssh' in uri.lower():
                         msg += " If using SSH, this can happen if a password or SSH key passphrase is required."
                         msg += " Please use an SSH agent or a key without a passphrase, as interactive prompts are not supported."
                     raise libvirt.libvirtError(msg)
@@ -202,13 +195,13 @@ class ConnectionManager:
             with self._lock:
                 self._failed_attempts[uri] = self._failed_attempts.get(uri, 0) + 1
                 count = self._failed_attempts[uri]
-            
-            error_message = f"Failed to connect to '{uri}' (Attempt {count}/2): {e}"
-            if count >= 2 and count < 3:
+
+            error_message = f"Failed to connect to '{uri}' (Attempt {count}/3): {e}"
+            if count >= 3:
                 error_message += " - Max retries reached. Will not try again."
-            
+
             logging.error(error_message)
-            
+
             with self._lock:
                 self.connection_errors[uri] = error_message
                 if uri in self.connections:
@@ -241,7 +234,7 @@ class ConnectionManager:
         logging.info("Closing all active libvirt connections.")
         with self._lock:
             uris = list(self.connections.keys())
-        
+
         for uri in uris:
             self.disconnect(uri)
 
@@ -320,7 +313,7 @@ class ConnectionManager:
 
         if not conn:
             return False
-        
+
         try:
             # Test the connection by calling a simple libvirt function
             conn.getLibVersion()
