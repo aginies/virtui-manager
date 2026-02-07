@@ -3,9 +3,19 @@ import sys
 import os
 import shutil
 import time
+import subprocess
 from pathlib import Path
+import signal
 import gi
 import yaml
+
+# Add the directory containing the 'vmanager' package to sys.path
+# This allows running the gui_wrapper.py directly from the vmanager directory.
+script_dir = os.path.dirname(os.path.abspath(__file__))
+vmanager_package_parent_dir = os.path.abspath(os.path.join(script_dir, '..'))
+if vmanager_package_parent_dir not in sys.path:
+    sys.path.insert(0, vmanager_package_parent_dir)
+
 
 # Require GTK 3.0 and Vte 2.91
 try:
@@ -16,6 +26,7 @@ except ValueError as e:
     sys.exit(1)
 
 from gi.repository import Gtk, Vte, GLib, Pango, Gdk
+from vmanager.vmanager import VMManagerTUI
 
 def is_running_under_flatpak():
     return 'FLATPAK_ID' in os.environ
@@ -66,6 +77,10 @@ class VirtuiWrapper(Gtk.Window):
 
         self.font_name = self.config.get("font_name", system_font)
         self.current_font_size = self.config.get("font_size", system_size)
+
+        # Track child PIDs for cleanup
+        self.terminal_pids = {}  # {terminal: pid}
+        self.cleanup_in_progress = False
 
         # Dictionary to store tab data: terminal -> { 'page': ScrolledWindow, 'label': Label }
         self.tabs = {}
@@ -184,6 +199,8 @@ class VirtuiWrapper(Gtk.Window):
         # Go to first tab
         self.notebook.set_current_page(0)
 
+        # Connect window events for cleanup
+        self.connect("delete-event", self.on_window_delete)
         self.connect("key-press-event", self.on_key_press)
         self.connect("destroy", self.on_destroy)
 
@@ -252,17 +269,19 @@ class VirtuiWrapper(Gtk.Window):
         Gtk.main_quit()
 
     def on_new_vmanager_tab(self, widget):
+        session_name = None
         if is_running_under_flatpak():
             tmux_bin = "/app/bin/tmux"
         else:
             tmux_bin = "tmux"
+
         if check_tmux():
             session_name = f"vmanager-{int(time.time())}"
             cmd = [tmux_bin, "new-session", "-s", session_name, sys.executable, "-m", "vmanager.vmanager"]
         else:
             # Fallback to running without tmux if not available
             cmd = [sys.executable, "-m", "vmanager.wrapper"]
-        self.create_tab("Virtui Manager", cmd)
+        self.create_tab("Virtui Manager", cmd, session_name=session_name)
 
     def on_new_cmd_tab(self, widget):
         cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
@@ -383,7 +402,7 @@ class VirtuiWrapper(Gtk.Window):
         if self.search_bar.get_search_mode():
             self.on_search_changed(self.search_entry)
 
-    def create_tab(self, title, command, fixed_title=False):
+    def create_tab(self, title, command, fixed_title=False, session_name=None):
         terminal = Vte.Terminal()
         terminal.set_size(TERMINAL_COLS, TERMINAL_ROWS)
         terminal.set_scrollback_lines(TERMINAL_SCROLLBACK)
@@ -419,7 +438,8 @@ class VirtuiWrapper(Gtk.Window):
         # Store tab info
         self.tabs[terminal] = {
             'page': scrolled_window,
-            'label': label
+            'label': label,
+            'session_name': session_name
         }
 
         self.spawn_process(terminal, command)
@@ -428,19 +448,121 @@ class VirtuiWrapper(Gtk.Window):
         scrolled_window.show_all()
         # Switch to the new tab
         self.notebook.set_current_page(-1)
+        return terminal
+
+    def kill_tmux_session(self, session_name):
+        if is_running_under_flatpak():
+            tmux_bin = "/app/bin/tmux"
+        else:
+            tmux_bin = "tmux"
+
+        try:
+            subprocess.run([tmux_bin, "kill-session", "-t", session_name],
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+            print(f"Killed tmux session: {session_name}")
+        except Exception as e:
+            print(f"Error killing tmux session {session_name}: {e}")
+
+    def cleanup_terminal(self, terminal):
+        """
+        Properly cleanup a terminal and its child process.
+        Sends SIGTERM to the child process (and process group) and waits for graceful shutdown.
+        Also kills associated tmux session if any.
+        """
+        # Retrieve session name before potential early return
+        session_name = None
+        if terminal in self.tabs:
+            session_name = self.tabs[terminal].get('session_name')
+
+        if terminal in self.terminal_pids:
+            pid = self.terminal_pids[terminal]
+            if pid is not None:
+                try:
+                    # Check if process is still alive
+                    os.kill(pid, 0)
+
+                    # Try to get process group ID to kill the whole tree
+                    try:
+                        pgid = os.getpgid(pid)
+                    except OSError:
+                        pgid = None
+
+                    # Send SIGTERM
+                    print(f"Sending SIGTERM to PID {pid} (PGID {pgid})")
+                    if pgid:
+                        os.killpg(pgid, signal.SIGTERM)
+                    else:
+                        os.kill(pid, signal.SIGTERM)
+
+                    # Wait up to 2 seconds for graceful shutdown
+                    timeout = 2.0
+                    interval = 0.1
+                    elapsed = 0
+                    while elapsed < timeout:
+                        try:
+                            os.kill(pid, 0)  # Check if still alive
+                            time.sleep(interval)
+                            elapsed += interval
+                        except OSError:
+                            # Process terminated
+                            print(f"PID {pid} terminated gracefully")
+                            break
+
+                    # If still alive after timeout, force kill
+                    try:
+                        os.kill(pid, 0)
+                        print(f"PID {pid} didn't terminate, sending SIGKILL")
+                        if pgid:
+                            os.killpg(pgid, signal.SIGKILL)
+                        else:
+                            os.kill(pid, signal.SIGKILL)
+                        time.sleep(0.1)
+                    except OSError:
+                        pass  # Already dead
+
+                except OSError:
+                    # Process already dead
+                    pass
+                except Exception as e:
+                    print(f"Error cleaning up PID {pid}: {e}")
+                finally:
+                    if terminal in self.terminal_pids:
+                        del self.terminal_pids[terminal]
+
+        # Kill tmux session if needed
+        if session_name:
+            self.kill_tmux_session(session_name)
 
     def on_close_tab(self, button, terminal):
-        if terminal in self.tabs:
-            page = self.tabs[terminal]['page']
-            page_num = self.notebook.page_num(page)
+        """Handle closing a single tab with proper cleanup."""
+        # Set wait cursor
+        window = self.get_window()
+        if window:
+            display = window.get_display()
+            cursor = Gdk.Cursor.new_from_name(display, "wait")
+            window.set_cursor(cursor)
+            # Force UI update to show the cursor change immediately
+            while Gtk.events_pending():
+                Gtk.main_iteration()
 
-            if page_num != -1:
-                self.notebook.remove_page(page_num)
+        try:
+            if terminal in self.tabs:
+                self.cleanup_terminal(terminal)
+                page = self.tabs[terminal]['page']
+                page_num = self.notebook.page_num(page)
 
-            del self.tabs[terminal]
+                if page_num != -1:
+                    self.notebook.remove_page(page_num)
 
-            if self.notebook.get_n_pages() == 0:
-                self.destroy()
+                del self.tabs[terminal]
+
+                if self.notebook.get_n_pages() == 0:
+                    self.destroy()
+        finally:
+            # Restore cursor if window still exists
+            if window:
+                window.set_cursor(None)
 
     def _apply_font_to_terminal(self, terminal):
         """Applies the current font settings to a single terminal."""
@@ -473,6 +595,69 @@ class VirtuiWrapper(Gtk.Window):
                 self.save_gui_config()
 
         dialog.destroy()
+
+    def on_window_delete(self, widget, event):
+        """
+        Handle window close button (X) - cleanup all terminals before closing.
+        Always returns False to allow GTK to proceed with destroy.
+        """
+        if self.cleanup_in_progress:
+            return False  # Allow close if cleanup already done
+
+        # Change cursor to wait to indicate cleanup in progress
+        window = widget.get_window()
+        if window:
+            display = window.get_display()
+            cursor = Gdk.Cursor.new_from_name(display, "wait")
+            window.set_cursor(cursor)
+            # Force UI update to show the cursor change immediately
+            while Gtk.events_pending():
+                Gtk.main_iteration()
+
+        # Start cleanup
+        self.cleanup_in_progress = True
+        self.cleanup_all_terminals()
+
+        # Allow window to close after cleanup
+        return False
+
+    def cleanup_all_terminals(self):
+        """Cleanup all terminal processes before exiting."""
+        if not self.terminal_pids:
+            return
+
+        print(f"Cleaning up {len(self.terminal_pids)} terminal process(es)...")
+
+        # Create a copy of the items to avoid dictionary size change during iteration
+        terminals_to_cleanup = list(self.terminal_pids.keys())
+
+        for terminal in terminals_to_cleanup:
+            self.cleanup_terminal(terminal)
+
+        # Give processes a final moment to cleanup
+        time.sleep(0.2)
+
+        print("All terminals cleaned up")
+
+    def on_destroy(self, widget):
+        """Handle window destruction - final cleanup."""
+        if not self.cleanup_in_progress:
+            self.cleanup_all_terminals()
+
+        # Save window size before exiting
+        width, height = self.get_size()
+        self.config["width"] = width
+        self.config["height"] = height
+        self.save_gui_config()
+
+        Gtk.main_quit()
+
+    def cleanup(self):
+        """Explicit cleanup method that can be called before destroy."""
+        if not self.cleanup_in_progress:
+            self.cleanup_in_progress = True
+            self.cleanup_all_terminals()
+            self.save_gui_config()
 
     def spawn_process(self, terminal, cmd):
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -513,13 +698,24 @@ class VirtuiWrapper(Gtk.Window):
                 None,        # child_setup_data
                 -1,          # timeout
                 None,        # cancellable
-                None,        # callback
-                None         # user_data
+                self.on_spawn_complete,  # callback to get PID
+                terminal     # user_data (pass terminal to callback)
             )
         except Exception as e:
             error_msg = f"Error spawning application: {e}\n"
             terminal.feed(error_msg.encode('utf-8'))
             print(error_msg)
+
+    def on_spawn_complete(self, terminal, pid, error, user_data):
+        """Callback when process spawning completes - store the PID for cleanup."""
+        if error:
+            print(f"Error spawning process: {error}")
+            return
+
+        # user_data is the terminal widget we passed
+        self.terminal_pids[user_data] = pid
+        print(f"Spawned process with PID: {pid}")
+
     def on_window_title_changed(self, terminal):
         title = terminal.get_property("window-title")
         if not title:
@@ -529,7 +725,10 @@ class VirtuiWrapper(Gtk.Window):
             self.tabs[terminal]['label'].set_text(title)
 
     def on_child_exited(self, terminal, status):
+        """Handle child process exit."""
         print(f"Child exited with status: {status}")
+        if terminal in self.terminal_pids:
+            del self.terminal_pids[terminal]
 
         if terminal in self.tabs:
             page = self.tabs[terminal]['page']
@@ -542,7 +741,16 @@ class VirtuiWrapper(Gtk.Window):
 
         if self.notebook.get_n_pages() == 0:
             self.destroy()
+
+def signal_handler(signum, frame):
+    """Handle SIGTERM and SIGINT gracefully."""
+    print(f"\nReceived signal {signum}, shutting down gracefully...")
+    Gtk.main_quit()
+
 def main():
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
     app = VirtuiWrapper()
     app.show_all()
     Gtk.main()
