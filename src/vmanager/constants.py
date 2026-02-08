@@ -417,6 +417,7 @@ class StaticText:
     LATEST_SNAPSHOT = _("Latest Snapshot:")
     NO_SNAPSHOTS_CREATED = _("No Snapshots created")
     SELECT_OVERLAY_DISCARD = _("Select overlay disk to discard:")
+    NO_OTHER_ACTIVE_POOLS = _("No other active pools")
 
 class SparklineLabels:
     """Constants for sparkline labels"""
