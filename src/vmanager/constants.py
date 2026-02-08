@@ -40,6 +40,13 @@ class AppInfo:
     namecase = "VirtUI Manager"
     version = "1.6.2"
 
+class VMCardConstants:
+    """Constants for VMCard styling"""
+    DEFAULT_BORDER_COLOR = "green"
+    SELECTED_BORDER_COLOR = "white"
+    SELECTED_BORDER_TYPE = "panel"
+    DEFAULT_BORDER_TYPE = "solid"
+
 class VmAction:
     """Defines constants for VM action types."""
     START = "start"
@@ -564,21 +571,15 @@ class ErrorMessages:
     STORAGE_POOL_UPDATED_SUCCESSFULLY_TEMPLATE = _("Storage pool '{pool_name}' updated successfully.")
     ERROR_UPDATING_POOL_XML_TEMPLATE = _("Error updating pool XML: {error}")
     UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML = _("An unexpected error occurred: {error}")
-    EDIT_POOL_XML_WARNING = _("Editing a pool's XML definition is an advanced operation.\n"
-                             "An invalid configuration may make its volumes inaccessible to VMs.\n\n"
-                             "Are you sure you want to proceed?")
+    EDIT_POOL_XML_WARNING = _("Editing a pool's XML definition is an advanced operation.\nAn invalid configuration may make its volumes inaccessible to VMs.\n\nAre you sure you want to proceed?")
     ERROR_TOGGLE_POOL_ACTIVE_TEMPLATE = _("Error toggling pool active state: {error}")
     ERROR_TOGGLE_POOL_AUTOSTART_TEMPLATE = _("Error toggling pool autostart state: {error}")
-    VOLUME_CREATED_SUCCESSFULLY_TEMPLATE = _("Volume [b]{name} {size_gb}Gb {format}[/b] created successfully.")
     INVALID_OR_NON_EXISTENT_PATH_TEMPLATE = _("Invalid or non-existent path: {path}")
     ERROR_REFRESHING_POOL_TEMPLATE = _("Error refreshing pool: {error}")
-    POOL_ALREADY_MANAGES_DIRECTORY_TEMPLATE = _("A pool named '{pool_name}' already manages this directory.\n"
-                                               "Refreshed pool to include the new volume.")
-    NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE = _("No storage pool exists for the directory:\n'{directory}'.\n\n"
-                                              "Create a new pool named '{pool_name}'?")
+    POOL_ALREADY_MANAGES_DIRECTORY_TEMPLATE = _("A pool named '{pool_name}' already manages this directory.\nRefreshed pool to include the new volume.")
+    NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE = _("No storage pool exists for the directory:\n'{directory}'.\n\nCreate a new pool named '{pool_name}'?")
     ERROR_CREATING_STORAGE_POOL_FOR_DIR_TEMPLATE = _("Error creating storage pool: {error}")
     COULD_NOT_DETERMINE_SOURCE_POOL = _("Could not determine the source pool.")
-    VOLUME_MOVED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' moved to pool '{dest_pool_name}'.")
     UPDATED_VM_CONFIGURATIONS_TEMPLATE = _("Updated VM configurations for: {vm_list}")
     MOVE_OPERATION_FAILED_TEMPLATE = _("Move operation failed: {error}")
     ERROR_GETTING_NETWORK_XML_TEMPLATE = _("Error getting network XML: {error}")
@@ -591,7 +592,6 @@ class ErrorMessages:
     POOL_IS_NOT_ACTIVE = _("Pool is not active")
     STORAGE_POOL_DELETED_SUCCESSFULLY_TEMPLATE = _("Storage pool '{pool_name}' deleted successfully.")
     DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete storage pool:\n' {pool_name}'\nThis will delete the pool definition but not the data on it.")
-    VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
     DELETE_VOLUME_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete volume:\n'{vol_name}'")
     VIRTIOFS_PATH_EMPTY = _("Source Path and Target Path cannot be empty.")
     SANITIZATION_ERROR_TEMPLATE = _("{error}")
@@ -670,8 +670,8 @@ class ErrorMessages:
     ERROR_ADDING_VIRTIOFS_TEMPLATE = _("Error adding VirtIO-FS: {error}")
     ERROR_CHECKING_FOR_SPICE_DEVICES_TEMPLATE = _("Error checking for other SPICE devices: {error}")
     ERROR_REMOVING_SPICE_DEVICES_TEMPLATE = _("Error removing SPICE devices: {error}")
-    SPICE_REMOVAL_CONFIRMATION_SINGLE = _("This VM has other SPICE-related devices (e.g., channels, QXL video).\\nDo you want to remove them for a clean switch to VNC?")
-    SPICE_REMOVAL_CONFIRMATION_BULK = _("Some selected VMs have other SPICE-related devices.\\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?")
+    SPICE_REMOVAL_CONFIRMATION_SINGLE = _("This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?")
+    SPICE_REMOVAL_CONFIRMATION_BULK = _("Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?")
     COULD_NOT_DETERMINE_SOURCE_POOL = _("Could not determine the source pool.")
     ERROR_SAVING_BOOT_ORDER_TEMPLATE = _("Error saving boot order: {error}")
 
@@ -712,7 +712,7 @@ class WarningMessages:
     RUNNING_NETWORK_USAGE_SCAN_WARNING = _("Running network usage scan, this can freeze the UI for larger numbers of VMs.")
     TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE = _("More than {count} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze.")
     RUNNING_DISK_USAGE_SCAN_WARNING = _("Running disk usage scan, this can freeze the UI for larger numbers of VMs and disks.")
-    VIRTIOFS_SHARED_MEM_WARNING = _("! Shared Memory is Mandatory to use VirtIO-FS.\\n! Enable it in Mem tab.")
+    VIRTIOFS_SHARED_MEM_WARNING = _("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.")
 
 
 class SuccessMessages:
@@ -811,6 +811,9 @@ class SuccessMessages:
     VM_NETWORK_INTERFACE_CHANGED_TEMPLATE = _("Interface {mac_address} switched to {new_network}")
     VM_CPUTUNE_SET_SUCCESS = _("CPU pinning settings applied successfully.")
     VM_NUMATUNE_SET_SUCCESS = _("NUMA tuning settings applied successfully.")
+    VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
+    VOLUME_CREATED_SUCCESSFULLY_TEMPLATE = _("Volume [b]{name} {size_gb}Gb {format}[/b] created successfully.")
+    VOLUME_MOVED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' moved to pool '{dest_pool_name}'.")
 
 
 class ProgressMessages:
