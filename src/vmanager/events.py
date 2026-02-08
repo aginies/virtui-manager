@@ -41,3 +41,9 @@ class VMCardRemoved(Message):
     def __init__(self, internal_id: str) -> None:
         self.internal_id = internal_id
         super().__init__()
+
+class VMActionButtonPressed(Message):
+    """Posted when a button in the VMCardActions pane is pressed."""
+    def __init__(self, action_id: str) -> None:
+        self.action_id = action_id
+        super().__init__()
