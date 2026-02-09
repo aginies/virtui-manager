@@ -2873,12 +2873,12 @@ msgstr "Bereinigte Eingabe ist zu lang (max. 64 Zeichen)"
 
 #: constants.py:768
 msgid "Sanitized domain name is too long (max 64 characters)"
-msgstr ""
+msgstr "Bereinigter Domainname ist zu lang (max. 64 Zeichen)"
 
 #: constants.py:769
 #, python-brace-format
 msgid "vCPU {vcpu_int} exceeds max vCPUs ({max_vcpus})"
-msgstr ""
+msgstr "vCPU {vcpu_int} überschreitet maximale vCPUs ({max_vcpus})"
 
 #: constants.py:770
 #, fuzzy, python-brace-format
@@ -2957,9 +2957,12 @@ msgstr ""
 #: constants.py:786
 #, python-brace-format
 msgid ""
-"Are you sure you want to discard changes in '{target_disk}' and revert t  o "
+"Are you sure you want to discard changes in '{target_disk}' and revert to "
 "its backing file? This action cannot be undone."
 msgstr ""
+"Sind Sie sicher, dass Sie die Änderungen in '{target_disk}' verwerfen und "
+"auf die zugrunde liegende Datei zurücksetzen möchten? Diese Aktion kann "
+"nicht rückgängig gemacht werden."
 
 #: constants.py:787
 #, fuzzy, python-brace-format
@@ -3550,7 +3553,7 @@ msgstr "Lade VM-Daten von Remote-Server(n)..."
 #: constants.py:923
 #, python-brace-format
 msgid "Committing changes for {name}..."
-msgstr ""
+msgstr "Änderungen für {name} festschreiben..."
 
 #~ msgid "Snapshots"
 #~ msgstr "Schnappschüsse"
