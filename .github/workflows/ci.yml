@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
 
 jobs:
-  check-constants:
+  check-code:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,11 +32,19 @@ jobs:
         run: |
           chmod +x ./checks/check_constants.py
           chmod +x ./checks/check_versions.py
+          chmod +x ./checks/find_missing_msgstr.py
 
-      - name: Run checks
+      - name: Run check versions
+        run:  ./checks/check_versions.py
+
+      - name: Run check constants
+        run: ./checks/check_constants.py
+
+      - name: Run check translations
         run: |
-          ./checks/check_constants.py
-          ./checks/check_versions.py
+          ./checks/find_missing_msgstr.py src/vmanager/locale/fr/LC_MESSAGES/virtui-manager.po
+          ./checks/find_missing_msgstr.py src/vmanager/locale/de/LC_MESSAGES/virtui-manager.po
+          ./checks/find_missing_msgstr.py src/vmanager/locale/it/LC_MESSAGES/virtui-manager.po
 
       - name: Run Pylint
         # Run pylint with -E (errors only) and --exit-zero (permissive mode, don't fail build)
