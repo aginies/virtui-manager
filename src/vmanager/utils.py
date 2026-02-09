@@ -445,9 +445,9 @@ class CacheMonitor:
     def log_stats(self) -> None:
         """Log cache statistics."""
         stats = self.get_all_stats()
-        logging.debug("=== Cache Statistics ===")
+        logging.info("=== Cache Statistics ===")
         for name, data in stats.items():
-            logging.debug(
+            logging.info(
                 f"{name}: {data['hit_rate']:.1f}% hit rate "
                 f"({data['hits']} hits, {data['misses']} misses, "
                 f"{data['current_size']}/{data['max_size']} entries)"
