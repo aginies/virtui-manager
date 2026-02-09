@@ -32,7 +32,7 @@ def setup_path():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Go up one level to get the 'src' directory
     src_dir = os.path.dirname(current_dir)
-    
+
     if src_dir not in sys.path:
         # Insert at the beginning to ensure local source takes precedence
         sys.path.insert(0, src_dir)
@@ -74,17 +74,17 @@ def run_gui():
 
 if __name__ == "__main__":
     setup_path()
-    
+
     # Pre-parse arguments to determine the mode
-    # We use parse_known_args because the remaining arguments should be passed 
+    # We use parse_known_args because the remaining arguments should be passed
     # to the actual application (e.g. viewer args)
     parser = argparse.ArgumentParser(
-        description=__doc__, 
+        description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False
     )
     parser.add_argument("mode", nargs="?", choices=["tui", "cli", "viewer", "gui"], default="tui", help="Application mode to run")
-    
+
     # Handle help explicitly
     if len(sys.argv) > 1 and sys.argv[1] in ["-h", "--help"]:
         parser.print_help()
