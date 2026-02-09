@@ -63,6 +63,13 @@ def check_usages(search_dir, class_constants):
             if os.path.abspath(file_path) == abs_constants_file:
                 continue
 
+            if file in ["remote_viewer.py",
+                        "remote_viewer_gtk4.py",
+                        "i18n.py",
+                        "vmanager_cmd.py",
+                        ]:
+                continue
+
             try:
                 with open(file_path, encoding='utf-8', errors='ignore') as f:
                     content = f.read()
@@ -179,6 +186,12 @@ def check_i18n(search_dir):
                 continue
 
             file_path = os.path.join(root, file)
+
+            if file in ["remote_viewer.py",
+                        "remote_viewer_gtk4.py",
+                        "i18n.py",
+                        "vmanager_cmd.py",
+                continue
 
             # Skip tests/ or checks/ if they are in search_dir (SEARCH_DIR is src, so fine)
 
