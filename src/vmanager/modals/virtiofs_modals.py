@@ -27,8 +27,8 @@ class AddEditVirtIOFSModal(BaseModal[dict | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="add-edit-virtiofs-dialog"):
             yield Label(StaticText.EDIT_VIRTIOFS_MOUNT if self.is_edit else StaticText.ADD_VIRTIOFS_MOUNT)
-            yield Input(placeholder="Source Path (e.g., /mnt/share)", id="virtiofs-source-input", value=self.source_path)
-            yield Input(placeholder="Target Path (e.g., /share)", id="virtiofs-target-input", value=self.target_path)
+            yield Input(placeholder=StaticText.VIRTIOFS_SOURCE_PLACEHOLDER, id="virtiofs-source-input", value=self.source_path)
+            yield Input(placeholder=StaticText.VIRTIOFS_TARGET_PLACEHOLDER, id="virtiofs-target-input", value=self.target_path)
             yield Checkbox(StaticText.EXPORT_READONLY_MOUNT, id="virtiofs-readonly-checkbox", value=self.readonly)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE if self.is_edit else ButtonLabels.ADD, variant="primary", id="save-add-btn", classes="Buttonpage")

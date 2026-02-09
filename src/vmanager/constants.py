@@ -184,6 +184,7 @@ class ButtonLabels:
     COMPACT_VIEW = _("Compact")
     SELECT = _("Select")
     OK = _("OK")
+    LAUNCH = _("Launch")
 
 
 class BindingDescriptions:
@@ -421,6 +422,95 @@ class StaticText:
     NO_SNAPSHOTS_CREATED = _("No Snapshots created")
     SELECT_OVERLAY_DISCARD = _("Select overlay disk to discard:")
     NO_OTHER_ACTIVE_POOLS = _("No other active pools")
+    VIRTIOFS_SOURCE_PLACEHOLDER = _("Source Path (e.g., /mnt/share)")
+    VIRTIOFS_TARGET_PLACEHOLDER = _("Target Path (e.g., /share)")
+    CONFIGURATION_TITLE = _("{namecase} Configuration")
+    STATS_INTERVAL_TOOLTIP = _("Interval for updating VM Status, Statistics (CPU, Memory, I/O) in seconds.")
+    LOG_FILE_PATH_TOOLTIP = _("Full path to the application log file")
+    LOG_LEVEL_PROMPT = _("Select a logging level")
+    REMOTE_VIEWER_SELECT_LABEL = _("Select Default Remote Viewer (Auto-detect: {viewer}):")
+    REMOTE_VIEWER_PROMPT = _("Select a viewer")
+    REMOTE_WEBCONSOLE_TOOLTIP = _("Enable secure SSH and noVNC remote viewing for headless server environments")
+    WEBSOCKIFY_PATH_TOOLTIP = _("Path to the websockify binary")
+    NOVNC_PATH_TOOLTIP = _("Path to noVNC files")
+    WC_PORT_START_TOOLTIP = _("Start port for websockify")
+    WC_PORT_END_TOOLTIP = _("End port for websockify")
+    VNC_QUALITY_TOOLTIP = _("VNC quality setting (0-9)")
+    VNC_COMPRESSION_TOOLTIP = _("VNC compression level (0-9)")
+    CONNECTION_URI_PLACEHOLDER = _("qemu+ssh://user@host/system or qemu:///system")
+    SERVER_NAME_PLACEHOLDER = _("Server Name")
+    SERVER_URI_PLACEHOLDER = _("qemu+ssh://user@host/system")
+    SERVER_NAME_COLUMN = _("Name")
+    SERVER_URI_COLUMN = _("URI")
+    SERVER_AUTOCONNECT_COLUMN = _("Autoconnect")
+    INPUT_TYPE_PROMPT = _("Input Type")
+    INPUT_BUS_PROMPT = _("Bus")
+    CHANNEL_TYPE_PROMPT = _("Channel Type")
+    TARGET_PRESET_PROMPT = _("Select a standard target or type below")
+    TARGET_NAME_PLACEHOLDER = _("Target Name (e.g. org.qemu.guest_agent.0)")
+    DISK_PATH_PLACEHOLDER = _("Path to existing disk image or ISO")
+    STORAGE_POOL_PROMPT = _("Select Storage Pool")
+    VOLUME_NAME_PLACEHOLDER = _("Volume Name (e.g., new-disk.qcow2)")
+    DISK_SIZE_PLACEHOLDER = _("Size in GB (e.g., 10)")
+    POOL_NAME_PLACEHOLDER = _("Pool Name (e.g., my_pool)")
+    POOL_TYPE_DIR_LABEL = _("dir: Filesystem Directory")
+    POOL_TYPE_NETFS_LABEL = _("netfs: Network Exported Directory")
+    POOL_TYPE_PROMPT = _("Pool Type")
+    DIR_TARGET_PATH_PLACEHOLDER = _("/var/lib/libvirt/images/>")
+    NETFS_TARGET_PATH_PLACEHOLDER = _("/mnt/nfs")
+    NETFS_HOST_PLACEHOLDER = _("nfs.example.com")
+    NETFS_SOURCE_PATH_PLACEHOLDER = _("host0")
+    EXISTING_VOLUME_NAME_PLACEHOLDER = _("Volume Name (e.g., existing_disk.qcow2)")
+    DISK_IMAGE_PATH_PLACEHOLDER = _("Path to disk image")
+    SELECT_A_SERVER = _("Select a server")
+    SELECT_SERVER_PROMPT = _("Select server...")
+    SELECT_NETWORK_PROMPT = _("Select a network")
+    NO_NETWORKS_AVAILABLE_PROMPT = _("No networks available")
+    MAC_ADDRESS_PLACEHOLDER = _("MAC Address (e.g., 52:54:00:xx:xx:xx)")
+    EDIT_NETWORK_TITLE = _("Edit Network")
+    CREATE_NEW_NETWORK_TITLE = _("Create New Network")
+    NETWORK_NAME_PLACEHOLDER = _("Network Name (e.g., nat_net)")
+    LOADING_LABEL = _("Loading...")
+    SELECT_FORWARD_INTERFACE_PROMPT = _("Select Forward Interface")
+    NO_INTERFACES_FOUND_LABEL = _("No interfaces found")
+    VCPU_COUNT_EXAMPLE = _("e.g., 2")
+    MEMORY_SIZE_EXAMPLE = _("e.g., 2048")
+    CPU_PINNING_EXAMPLE = _("e.g., 0:0-1; 1:2-3")
+    NODESET_EXAMPLE = _("e.g., 0-1")
+    CPU_TUNE_HELP_TITLE = _("CPU Tuning Help")
+    CPU_TUNE_HELP_TEXT = _("""
+# CPU Tune Help
+
+## CPU Pinning (vcpupin)
+Specify which physical CPUs (host CPUs) each virtual CPU (guest CPU) can run on.
+
+## Format
+`vcpu:cpuset; vcpu:cpuset; ...`
+
+* **vcpu**: The ID of the virtual CPU.
+* **cpuset**: A list or range of physical CPU IDs.
+
+## Examples
+* `0:0`: Pin vCPU 0 to physical CPU 0.
+* `0:0-3`: Pin vCPU 0 to physical CPUs 0, 1, 2, and 3.
+* `0:0,2`: Pin vCPU 0 to physical CPUs 0 and 2.
+* `0:0-1; 1:2-3`: Pin vCPU 0 to physical CPUs 0-1, and vCPU 1 to physical CPUs 2-3.
+""")
+    NUMA_TUNE_HELP_TITLE = _("NUMA Tuning Help")
+    NUMA_TUNE_HELP_TEXT = _("""
+# NUMA Tune Help
+
+## Memory Modes
+* **strict**: Memory allocation fails if it cannot be satisfied on the specified nodeset.
+* **preferred**: Allocation is preferred on the specified nodeset but can fall back to others.
+* **interleave**: Memory is allocated round-robin across the specified nodeset.
+
+## Nodeset
+Specify the NUMA nodes to use.
+* Example: `0` (Node 0 only)
+* Example: `0-1` (Nodes 0 and 1)
+* Example: `0,2-3` (Node 0 and nodes 2 through 3)
+""")
 
 class SparklineLabels:
     """Constants for sparkline labels"""
@@ -674,6 +764,10 @@ class ErrorMessages:
     SPICE_REMOVAL_CONFIRMATION_BULK = _("Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?")
     COULD_NOT_DETERMINE_SOURCE_POOL = _("Could not determine the source pool.")
     ERROR_SAVING_BOOT_ORDER_TEMPLATE = _("Error saving boot order: {error}")
+    SANITIZED_INPUT_TOO_LONG = _("Sanitized input is too long (max 64 characters)")
+    SANITIZED_DOMAIN_TOO_LONG = _("Sanitized domain name is too long (max 64 characters)")
+    VCPU_EXCEEDS_MAX_TEMPLATE = _("vCPU {vcpu_int} exceeds max vCPUs ({max_vcpus})")
+    INVALID_CPUSET_SYNTAX_TEMPLATE = _("Invalid cpuset syntax: {cpuset}")
 
 
 class DialogMessages:

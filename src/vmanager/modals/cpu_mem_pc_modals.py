@@ -20,7 +20,7 @@ class EditCpuModal(BaseModal[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-cpu-dialog", classes="edit-cpu-dialog"):
             yield Label(StaticText.ENTER_NEW_VCPU_COUNT)
-            yield Input(placeholder="e.g., 2", id="cpu-input", type="integer", value=self.current_cpu)
+            yield Input(placeholder=StaticText.VCPU_COUNT_EXAMPLE, id="cpu-input", type="integer", value=self.current_cpu)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
@@ -42,7 +42,7 @@ class EditMemoryModal(BaseModal[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="edit-memory-dialog", classes="edit-memory-dialog"):
             yield Label(StaticText.ENTER_NEW_MEMORY_SIZE)
-            yield Input(placeholder="e.g., 2048", id="memory-input", type="integer", value=self.current_memory)
+            yield Input(placeholder=StaticText.MEMORY_SIZE_EXAMPLE, id="memory-input", type="integer", value=self.current_memory)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
@@ -105,7 +105,7 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
         with Vertical(id="edit-cpu-tune-dialog", classes="edit-cpu-dialog"):
             yield Label(StaticText.ENTER_CPU_PINNING.format(max_vcpus=self.max_vcpus - 1))
             yield Label(StaticText.CPU_PINNING_FORMAT, classes="help-text")
-            yield Input(placeholder="e.g., 0:0-1; 1:2-3", id="cputune-input", value=current_val)
+            yield Input(placeholder=StaticText.CPU_PINNING_EXAMPLE, id="cputune-input", value=current_val)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
@@ -127,11 +127,11 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
                             # Validate vcpu is integer and within range
                             vcpu_int = int(vcpu)
                             if self.max_vcpus > 0 and vcpu_int >= self.max_vcpus:
-                                raise ValueError(f"vCPU {vcpu_int} exceeds max vCPUs ({self.max_vcpus})")
+                                raise ValueError(ErrorMessages.VCPU_EXCEEDS_MAX_TEMPLATE.format(vcpu_int=vcpu_int, max_vcpus=self.max_vcpus))
 
                             # Validate cpuset syntax (basic check)
                             if not all(c.isdigit() or c in ',-' for c in cpuset):
-                                raise ValueError(f"Invalid cpuset syntax: {cpuset}")
+                                raise ValueError(ErrorMessages.INVALID_CPUSET_SYNTAX_TEMPLATE.format(cpuset=cpuset))
 
                             vcpupin_list.append({'vcpu': vcpu, 'cpuset': cpuset})
                 self.dismiss(vcpupin_list)
@@ -142,25 +142,7 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
         elif event.button.id == "help-btn":
-            help_text = """
-# CPU Tune Help
-
-## CPU Pinning (vcpupin)
-Specify which physical CPUs (host CPUs) each virtual CPU (guest CPU) can run on.
-
-## Format
-`vcpu:cpuset; vcpu:cpuset; ...`
-
-* **vcpu**: The ID of the virtual CPU.
-* **cpuset**: A list or range of physical CPU IDs.
-
-## Examples
-* `0:0`: Pin vCPU 0 to physical CPU 0.
-* `0:0-3`: Pin vCPU 0 to physical CPUs 0, 1, 2, and 3.
-* `0:0,2`: Pin vCPU 0 to physical CPUs 0 and 2.
-* `0:0-1; 1:2-3`: Pin vCPU 0 to physical CPUs 0-1, and vCPU 1 to physical CPUs 2-3.
-            """
-            self.app.push_screen(InfoModal("CPU Tuning Help", help_text))
+            self.app.push_screen(InfoModal(StaticText.CPU_TUNE_HELP_TITLE, StaticText.CPU_TUNE_HELP_TEXT))
 
 class EditNumaTuneModal(BaseModal[dict | None]):
     """Modal screen for editing NUMA Tune."""
@@ -177,7 +159,7 @@ class EditNumaTuneModal(BaseModal[dict | None]):
             yield Label(StaticText.NUMA_MEMORY_MODE)
             yield Select(modes, value=self.current_mode, id="numa-mode-select", allow_blank=False)
             yield Label(StaticText.NODESET)
-            yield Input(placeholder="e.g., 0-1", id="numa-nodeset-input", value=self.current_nodeset)
+            yield Input(placeholder=StaticText.NODESET_EXAMPLE, id="numa-nodeset-input", value=self.current_nodeset)
             with Horizontal():
                 yield Button(ButtonLabels.SAVE, variant="primary", id="save-btn")
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
@@ -202,18 +184,4 @@ class EditNumaTuneModal(BaseModal[dict | None]):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
         elif event.button.id == "help-btn":
-            help_text = """
-# NUMA Tune Help
-
-## Memory Modes
-* **strict**: Memory allocation fails if it cannot be satisfied on the specified nodeset.
-* **preferred**: Allocation is preferred on the specified nodeset but can fall back to others.
-* **interleave**: Memory is allocated round-robin across the specified nodeset.
-
-## Nodeset
-Specify the NUMA nodes to use.
-* Example: `0` (Node 0 only)
-* Example: `0-1` (Nodes 0 and 1)
-* Example: `0,2-3` (Node 0 and nodes 2 through 3)
-            """
-            self.app.push_screen(InfoModal("NUMA Tuning Help", help_text))
+            self.app.push_screen(InfoModal(StaticText.NUMA_TUNE_HELP_TITLE, StaticText.NUMA_TUNE_HELP_TEXT))
