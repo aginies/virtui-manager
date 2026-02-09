@@ -47,14 +47,14 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             yield Label(StaticText.SELECT_NETWORK_AND_MODEL)
 
             if self.networks:
-                yield Select(network_options, id="network-select", prompt="Select a network", value=network_value)
+                yield Select(network_options, id="network-select", prompt=StaticText.SELECT_NETWORK_PROMPT, value=network_value)
             else:
-                yield Select([], id="network-select", disabled=True, prompt="No networks available")
+                yield Select([], id="network-select", disabled=True, prompt=StaticText.NO_NETWORKS_AVAILABLE_PROMPT)
 
             yield Select(model_options, id="model-select", value=model_value)
             # Add Input for MAC address, enabled for both add and edit
             yield Input(
-                placeholder="MAC Address (e.g., 52:54:00:xx:xx:xx)",
+                placeholder=StaticText.MAC_ADDRESS_PLACEHOLDER,
                 id="mac-input",
                 value=mac_value,
                 disabled=False # Always enabled so user can edit or set
@@ -94,7 +94,7 @@ class AddEditNetworkModal(BaseModal[None]):
         self.is_edit = network_info is not None
 
     def compose(self) -> ComposeResult:
-        title = "Edit Network" if self.is_edit else "Create New Network"
+        title = StaticText.EDIT_NETWORK_TITLE if self.is_edit else StaticText.CREATE_NEW_NETWORK_TITLE
         button_label = ButtonLabels.SAVE_CHANGES if self.is_edit else ButtonLabels.CREATE_NETWORK
 
         name_val = ""
@@ -144,7 +144,7 @@ class AddEditNetworkModal(BaseModal[None]):
             with ScrollableContainer():
                 with Vertical(id="create-network-form"):
                     yield Input(
-                        placeholder="Network Name (e.g., nat_net)",
+                        placeholder=StaticText.NETWORK_NAME_PLACEHOLDER,
                         id="net-name-input",
                         value=name_val,
                         disabled=self.is_edit
@@ -153,8 +153,8 @@ class AddEditNetworkModal(BaseModal[None]):
                         yield RadioButton(StaticText.NAT_NETWORK, id="type-network-nat", value=(forward_mode == "nat"))
                         yield RadioButton(StaticText.ROUTED_NETWORK, id="type-network-routed", value=(forward_mode == "route"))
                     yield Select(
-                        [("Loading...", "")],
-                        prompt="Select Forward Interface",
+                        [(StaticText.LOADING_LABEL, "")],
+                        prompt=StaticText.SELECT_FORWARD_INTERFACE_PROMPT,
                         id="net-forward-input",
                         classes="net-forward-input",
                         disabled=True
@@ -208,14 +208,14 @@ class AddEditNetworkModal(BaseModal[None]):
             host_interfaces = get_host_network_interfaces()
             options = [(f"{name} ({ip})" if ip else name, name) for name, ip in host_interfaces]
             if not options:
-                options = [("No interfaces found", "")]
+                options = [(StaticText.NO_INTERFACES_FOUND_LABEL, "")]
 
             select = self.query_one("#net-forward-input", Select)
 
             def update_select():
                 select.set_options(options)
                 select.disabled = False
-                select.prompt = "Select Forward Interface"
+                select.prompt = StaticText.SELECT_FORWARD_INTERFACE_PROMPT
                 if self.is_edit and self.network_info:
                     forward_dev = self.network_info.get("forward_dev")
                     if forward_dev is not None:

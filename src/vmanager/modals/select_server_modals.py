@@ -90,17 +90,17 @@ class SelectServerModal(BaseModal[None]):
             self.dismiss(None)
 
 class SelectOneServerModal(BaseModal[str]):
-    def __init__(self, servers: list[dict], title: str = "Select a server", button_label: str = "Launch"):
+    def __init__(self, servers: list[dict], title: str = "", button_label: str = ""):
         super().__init__()
         self.servers = servers
         self.server_options = [(s['name'], s['uri']) for s in servers]
-        self.title_text = title
-        self.button_label = button_label
+        self.title_text = title or StaticText.SELECT_A_SERVER
+        self.button_label = button_label or ButtonLabels.LAUNCH
 
     def compose(self) -> ComposeResult:
         with Vertical(id="select-one-server-container"):
             yield Label(self.title_text)
-            yield Select(self.server_options, prompt="Select server...", id="server-select")
+            yield Select(self.server_options, prompt=StaticText.SELECT_SERVER_PROMPT, id="server-select")
             yield Label(StaticText.EMPTY_LABEL)
             with Horizontal():
                 yield Button(self.button_label, id="launch-btn", variant="primary", disabled=True)

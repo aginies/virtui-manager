@@ -21,7 +21,7 @@ class ConnectionModal(BaseModal[str | None]):
         with Vertical(id="connection-dialog"):
             yield Label(StaticText.ENTER_QEMU_CONNECTION_URI)
             yield Input(
-                placeholder="qemu+ssh://user@host/system or qemu:///system",
+                placeholder=StaticText.CONNECTION_URI_PLACEHOLDER,
                 id="uri-input",
             )
             with Horizontal():
@@ -41,8 +41,8 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="add-server-dialog"):
             yield Label(StaticText.ADD_NEW_SERVER)
-            yield Input(placeholder="Server Name", id="server-name-input")
-            yield Input(placeholder="qemu+ssh://user@host/system", id="server-uri-input")
+            yield Input(placeholder=StaticText.SERVER_NAME_PLACEHOLDER, id="server-name-input")
+            yield Input(placeholder=StaticText.SERVER_URI_PLACEHOLDER, id="server-uri-input")
             yield Label(StaticText.EMPTY_LABEL)
             yield Checkbox(StaticText.AUTOCONNECT_AT_STARTUP, id="autoconnect-checkbox", value=False)
             with Horizontal():
@@ -122,9 +122,9 @@ class ServerManagementModal(BaseModal [str | None]):
     def on_mount(self) -> None:
         table = self.query_one(DataTable)
         table.cursor_type = "row"
-        table.add_column("Name", key="name")
-        table.add_column("URI", key="uri")
-        table.add_column("Autoconnect", key="autoconnect")
+        table.add_column(StaticText.SERVER_NAME_COLUMN, key="name")
+        table.add_column(StaticText.SERVER_URI_COLUMN, key="uri")
+        table.add_column(StaticText.SERVER_AUTOCONNECT_COLUMN, key="autoconnect")
         for idx, server in enumerate(self.servers):
             autoconnect_display = "✓" if server.get('autoconnect', False) else ""
             table.add_row(server['name'], server['uri'], autoconnect_display, key=str(idx))

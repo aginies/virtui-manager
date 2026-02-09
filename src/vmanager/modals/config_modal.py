@@ -30,7 +30,7 @@ class ConfigModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="config-dialog"):
-            yield Label(f"{AppInfo.namecase} Configuration", id="config-title")
+            yield Label(StaticText.CONFIGURATION_TITLE.format(namecase=AppInfo.namecase), id="config-title")
             yield Static(StaticText.EDITING_CONFIG_PATH.format(get_user_config_path=get_user_config_path()), id="config-title-file") #classes="config-path-label")
             with ScrollableContainer():
                 # Performance settings
@@ -41,7 +41,7 @@ class ConfigModal(BaseModal[None]):
                         value=str(self.config.get("STATS_INTERVAL", 5)),
                         id="stats-interval-input",
                         type="integer",
-                        tooltip="Interval for updating VM Statusn, Statistics (CPU, Memory, I/O) in seconds."
+                        tooltip=StaticText.STATS_INTERVAL_TOOLTIP
                     )
 
                 # Logging settings
@@ -49,7 +49,7 @@ class ConfigModal(BaseModal[None]):
                 yield Input(
                     value=self.config.get("LOG_FILE_PATH", ""),
                     id="log-file-path-input",
-                    tooltip="Full path to the application log file"
+                    tooltip=StaticText.LOG_FILE_PATH_TOOLTIP
                 )
 
                 yield Label(StaticText.LOGGING_LEVEL)
@@ -63,7 +63,7 @@ class ConfigModal(BaseModal[None]):
                     ],
                     value=self.config.get("LOG_LEVEL", "INFO"),
                     id="log-level-select",
-                    prompt="Select a logging level"
+                    prompt=StaticText.LOG_LEVEL_PROMPT
                     )
 
                 # Remote Viewer Settings
@@ -83,13 +83,13 @@ class ConfigModal(BaseModal[None]):
                      yield Label(StaticText.NO_REMOTE_VIEWERS_FOUND)
                 else:
                     auto_detected = check_r_viewer()
-                    yield Label(f"Select Default Remote Viewer (Auto-detect: {auto_detected}):")
+                    yield Label(StaticText.REMOTE_VIEWER_SELECT_LABEL.format(viewer=auto_detected))
                     yield Select(
                         viewers,
                         value=current_viewer,
                         id="remote-viewer-select",
                         allow_blank=True,
-                        prompt="Select a viewer"
+                        prompt=StaticText.REMOTE_VIEWER_PROMPT
                         )
 
                 # Web console settings
@@ -98,19 +98,19 @@ class ConfigModal(BaseModal[None]):
                     StaticText.ENABLE_REMOTE_WEBCONSOLE,
                     self.config.get("REMOTE_WEBCONSOLE", False),
                     id="remote-webconsole-checkbox",
-                    tooltip="Enable secure SSH and noVNC remote viewing for headless server environments"
+                    tooltip=StaticText.REMOTE_WEBCONSOLE_TOOLTIP
                 )
                 yield Label(StaticText.WEBSOCKIFY_PATH)
                 yield Input(
                     value=self.config.get("websockify_path", "/usr/bin/websockify"),
                     id="websockify-path-input",
-                    tooltip="Path to the websockify binary"
+                    tooltip=StaticText.WEBSOCKIFY_PATH_TOOLTIP
                 )
                 yield Label(StaticText.NOVNC_PATH)
                 yield Input(
                     value=self.config.get("novnc_path", "/usr/share/novnc/"),
                     id="novnc-path-input",
-                    tooltip="Path to noVNC files"
+                    tooltip=StaticText.NOVNC_PATH_TOOLTIP
                 )
                 with Horizontal(classes="port-range-container"):
                     yield Label(StaticText.WEBSOCKIFY_PORT_RANGE, classes="port-range-label")
@@ -119,14 +119,14 @@ class ConfigModal(BaseModal[None]):
                         id="wc-port-start-input",
                         type="integer",
                         classes="port-range-input",
-                        tooltip="Start port for websockify"
+                        tooltip=StaticText.WC_PORT_START_TOOLTIP
                     )
                     yield Input(
                         value=str(self.config.get("WC_PORT_RANGE_END", 40050)),
                         id="wc-port-end-input",
                         type="integer",
                         classes="port-range-input",
-                        tooltip="End port for websockify"
+                        tooltip=StaticText.WC_PORT_END_TOOLTIP
                     )
                 with Vertical():
                     with Horizontal():
@@ -135,14 +135,14 @@ class ConfigModal(BaseModal[None]):
                             value=str(self.config.get("VNC_QUALITY", 0)),
                             id="vnc-quality-input",
                             type="integer",
-                            tooltip="VNC quality setting (0-9)"
+                            tooltip=StaticText.VNC_QUALITY_TOOLTIP
                         )
                         yield Label(StaticText.VNC_COMPRESSION)
                         yield Input(
                             value=str(self.config.get("VNC_COMPRESSION", 9)),
                             id="vnc-compression-input",
                             type="integer",
-                            tooltip="VNC compression level (0-9)"
+                            tooltip=StaticText.VNC_COMPRESSION_TOOLTIP
                         )
 
                 with Horizontal():

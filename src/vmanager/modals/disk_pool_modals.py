@@ -117,7 +117,7 @@ class AddDiskModal(BaseModal[dict | None]):
         with ScrollableContainer(id="add-disk-dialog"):
             yield Label(StaticText.ADD_NEW_DISK)
             with Horizontal():
-                yield Input(placeholder="Path to existing disk image or ISO", id="disk-path-input")
+                yield Input(placeholder=StaticText.DISK_PATH_PLACEHOLDER, id="disk-path-input")
                 yield Button(ButtonLabels.BROWSE, id="browse-disk-btn")
             yield Checkbox(StaticText.CREATE_NEW_DISK_IMAGE, id="create-disk-checkbox")
 
@@ -126,10 +126,10 @@ class AddDiskModal(BaseModal[dict | None]):
                 [(pool, pool) for pool in self.pools],
                 id="pool-select",
                 disabled=True,
-                prompt="Select Storage Pool"
+                prompt=StaticText.STORAGE_POOL_PROMPT
             )
-            yield Input(placeholder="Volume Name (e.g., new-disk.qcow2)", id="volume-name-input", disabled=True)
-            yield Input(placeholder="Size in GB (e.g., 10)", id="disk-size-input", disabled=True)
+            yield Input(placeholder=StaticText.VOLUME_NAME_PLACEHOLDER, id="volume-name-input", disabled=True)
+            yield Input(placeholder=StaticText.DISK_SIZE_PLACEHOLDER, id="disk-size-input", disabled=True)
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="disk-format-select", disabled=True, value="qcow2")
 
             yield Checkbox(StaticText.CD_ROM, id="cdrom-checkbox")
@@ -264,14 +264,14 @@ class AddPoolModal(BaseModal[bool | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="add-pool-dialog"):
             yield Label(StaticText.ADD_NEW_STORAGE_POOL)
-            yield Input(placeholder="Pool Name (e.g., my_pool)", id="pool-name-input")
+            yield Input(placeholder=StaticText.POOL_NAME_PLACEHOLDER, id="pool-name-input")
             yield Select(
                 [
-                    ("dir: Filesystem Directory", "dir"),
-                    ("netfs: Network Exported Directory", "netfs"),
+                    (StaticText.POOL_TYPE_DIR_LABEL, "dir"),
+                    (StaticText.POOL_TYPE_NETFS_LABEL, "netfs"),
                 ],
                 id="pool-type-select",
-                prompt="Pool Type",
+                prompt=StaticText.POOL_TYPE_PROMPT,
                 value="dir"
             )
 
@@ -280,7 +280,7 @@ class AddPoolModal(BaseModal[bool | None]):
                 yield Label(StaticText.TARGET_PATH_VOLUMES)
                 with Vertical():
                     with Horizontal():
-                        yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder="/var/lib/libvirt/images/>")
+                        yield Input(value="/var/lib/libvirt/images/", id="dir-target-path-input", placeholder=StaticText.DIR_TARGET_PATH_PLACEHOLDER)
                         yield Button(ButtonLabels.BROWSE, id="browse-dir-btn")
 
             # Fields for `netfs` type
@@ -288,7 +288,7 @@ class AddPoolModal(BaseModal[bool | None]):
                 with ScrollableContainer():
                     yield Label(StaticText.TARGET_PATH_HOST)
                     with Vertical():
-                        yield Input(placeholder="/mnt/nfs", id="netfs-target-path-input")
+                        yield Input(placeholder=StaticText.NETFS_TARGET_PATH_PLACEHOLDER, id="netfs-target-path-input")
                         yield Button(ButtonLabels.BROWSE, id="browse-netfs-btn")
                     yield Select(
                         [("auto", "auto"), ("nfs", "nfs"), ("glusterfs", "glusterfs"), ("cifs", "cifs")],
@@ -296,9 +296,9 @@ class AddPoolModal(BaseModal[bool | None]):
                         value="auto"
                     )
                     yield Label(StaticText.SOURCE_HOSTNAME)
-                    yield Input(placeholder="nfs.example.com", id="netfs-host-input")
+                    yield Input(placeholder=StaticText.NETFS_HOST_PLACEHOLDER, id="netfs-host-input")
                     yield Label(StaticText.SOURCE_PATH_REMOTE)
-                    yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
+                    yield Input(placeholder=StaticText.NETFS_SOURCE_PATH_PLACEHOLDER, id="netfs-source-path-input", value="host0")
 
             with Horizontal():
                 yield Button(ButtonLabels.ADD, variant="primary", id="add-btn")
@@ -408,8 +408,8 @@ class CreateVolumeModal(BaseModal[dict | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="create-volume-dialog"):
             yield Label(StaticText.CREATE_NEW_STORAGE_VOLUME)
-            yield Input(placeholder="Volume Name (e.g., new_disk.qcow2)", id="vol-name-input")
-            yield Input(placeholder="Size in GB (e.g., 10)", id="vol-size-input", type="integer")
+            yield Input(placeholder=StaticText.VOLUME_NAME_PLACEHOLDER, id="vol-name-input")
+            yield Input(placeholder=StaticText.DISK_SIZE_PLACEHOLDER, id="vol-size-input", type="integer")
             yield Select([("qcow2", "qcow2"), ("raw", "raw")], id="vol-format-select", value="qcow2")
             with Horizontal():
                 yield Button(ButtonLabels.CREATE, variant="primary", id="create-btn")
@@ -559,9 +559,9 @@ class AttachVolumeModal(BaseModal[dict | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="attach-volume-dialog"):
             yield Label(StaticText.ATTACH_EXISTING_DISK_AS_VOLUME)
-            yield Input(placeholder="Volume Name (e.g., existing_disk.qcow2)", id="vol-name-input", disabled=True)
+            yield Input(placeholder=StaticText.EXISTING_VOLUME_NAME_PLACEHOLDER, id="vol-name-input", disabled=True)
             with Horizontal():
-                yield Input(placeholder="Path to disk image", id="vol-path-input")
+                yield Input(placeholder=StaticText.DISK_IMAGE_PATH_PLACEHOLDER, id="vol-path-input")
                 yield Button(ButtonLabels.BROWSE, id="browse-vol-btn")
             with Horizontal():
                 yield Button(ButtonLabels.ATTACH, variant="primary", id="attach-btn")

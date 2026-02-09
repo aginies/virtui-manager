@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Label, Select
 
-from ..constants import ButtonLabels, StaticText
+from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
 
 
@@ -47,12 +47,12 @@ class AddInputDeviceModal(BaseModal[None]):
             yield Label(StaticText.INPUT_DEVICE)
             yield Select(
                 [(t, t) for t in self.available_types],
-                prompt="Input Type",
+                prompt=StaticText.INPUT_TYPE_PROMPT,
                 id="input-type-select",
             )
             yield Select(
                 [(b, b) for b in self.available_buses],
-                prompt="Bus",
+                prompt=StaticText.INPUT_BUS_PROMPT,
                 id="input-bus-select",
             )
             with Vertical():
@@ -89,7 +89,7 @@ class AddChannelModal(BaseModal[dict | None]):
             yield Label(StaticText.ADD_CHANNEL_DEVICE)
             yield Select(
                 [("unix", "unix"), ("virtio", "virtio"), ("spicevmc", "spicevmc")],
-                prompt="Channel Type",
+                prompt=StaticText.CHANNEL_TYPE_PROMPT,
                 id="channel-type-select",
                 value="unix"
             )
@@ -97,11 +97,11 @@ class AddChannelModal(BaseModal[dict | None]):
             yield Select(
                 [],
                 id="target-preset-select",
-                prompt="Select a standard target or type below",
+                prompt=StaticText.TARGET_PRESET_PROMPT,
                 value=Select.BLANK
             )
             yield Label(StaticText.TARGET_NAME)
-            yield Input(placeholder="Target Name (e.g. org.qemu.guest_agent.0)", id="target-name-input")
+            yield Input(placeholder=StaticText.TARGET_NAME_PLACEHOLDER, id="target-name-input")
 
             with Horizontal():
                 yield Button(ButtonLabels.ADD, variant="primary", id="add-channel-btn")
@@ -170,7 +170,7 @@ def _sanitize_input(input_string: str) -> tuple[str, bool]:
     sanitized = re.sub(r'[^a-zA-Z0-9.-_]', '', original_stripped)
 
     if len(sanitized) > 64:
-        raise ValueError("Sanitized input is too long (max 64 characters)")
+        raise ValueError(ErrorMessages.SANITIZED_INPUT_TOO_LONG)
 
     if sanitized != original_stripped:
         was_modified = True
@@ -193,7 +193,7 @@ def _sanitize_domain_name(input_string: str) -> tuple[str, bool]:
     sanitized = re.sub(r'[^a-zA-Z0-9.-]', '', original_stripped)
 
     if len(sanitized) > 64: # Common domain name length limit
-        raise ValueError("Sanitized domain name is too long (max 64 characters)")
+        raise ValueError(ErrorMessages.SANITIZED_DOMAIN_TOO_LONG)
 
     if sanitized != original_stripped:
         was_modified = True
