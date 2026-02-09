@@ -1,0 +1,17 @@
+name: CI Check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  check-constants:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Make script executable
+        run: chmod +x ./check_constants.sh
+      - name: Run constants check
+        run: ./check_constants.sh
