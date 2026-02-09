@@ -4,7 +4,7 @@ import sys
 import ast
 import re
 
-CONSTANTS_FILE = "src/vmanager/constants.py"
+CONSTANTS_FILE = "../src/vmanager/constants.py"
 SEARCH_DIR = "src"
 
 def get_class_constants(filename):
