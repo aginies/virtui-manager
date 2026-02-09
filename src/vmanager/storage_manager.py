@@ -101,13 +101,15 @@ def _safe_refresh_pool(pool: libvirt.virStoragePool) -> bool:
         return False
 
 
-def _safe_get_volume_info(vol: libvirt.virStorageVol) -> tuple:
+def _safe_get_volume_info(vol: libvirt.virStorageVol) -> tuple[int, int, int]:
     """
     Safely get volume info without blocking the UI.
     Returns (type, capacity, allocation) or (0, 0, 0) on failure.
     """
     try:
-        vol_type, capacity, allocation = _safe_get_volume_info(vol)
+        # Use vol.info() to get the volume information.
+        # This returns a tuple: (type, capacity, allocation)
+        vol_type, capacity, allocation = vol.info()
         return vol_type, capacity, allocation
     except libvirt.libvirtError as e:
         logging.debug(f"Failed to get info for volume '{vol.name()}': {e}")
