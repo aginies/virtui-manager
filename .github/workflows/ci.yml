@@ -14,7 +14,7 @@ jobs:
       - name: Make scripts executable
         run: |
           chmod +x ./checks/check_constants.py
-          chmod +x ./checks/check_versions.py
+          chmod +x ./checks/check_version.py
       - name: Run checks
         run: |
           ./checks/check_constants.py
