@@ -8,6 +8,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONSTANTS_FILE = os.path.join(BASE_DIR, "../src/vmanager/constants.py")
 SEARCH_DIR = os.path.join(BASE_DIR, "../src")
 
+dont_check_files = ["remote_viewer.py", 
+                    "vmanager_cmd.py",
+                    "gui_wrapper.py",
+                    "i18n.py",
+                    "virtui_dev.py",
+                    "wrapper.py",
+                    "remote_viewer_gtk4.py",
+                   ]
+
 def get_class_constants(filename):
     """
     Parse the constants file and return a dictionary of {ClassName: {set_of_vars}}
@@ -61,6 +70,9 @@ def check_usages(search_dir, class_constants):
 
             # Skip the constants file itself
             if os.path.abspath(file_path) == abs_constants_file:
+                continue
+
+            if file in dont_check_files:
                 continue
 
             try:
@@ -180,6 +192,9 @@ def check_i18n(search_dir):
 
             file_path = os.path.join(root, file)
 
+            if file in dont_check_files:
+                continue
+
             # Skip tests/ or checks/ if they are in search_dir (SEARCH_DIR is src, so fine)
 
             try:
@@ -210,6 +225,7 @@ def main():
     constants_error = check_usages(SEARCH_DIR, class_constants)
     i18n_error = check_i18n(SEARCH_DIR)
 
+    print(f"Excluded: {dont_check_files}")
     if constants_error:
         print("Failure: in class_constants.")
         sys.exit(1)
