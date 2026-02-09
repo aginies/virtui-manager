@@ -69,6 +69,7 @@ Tabs automatically update their labels to reflect their current state:
 ### System Integration
 
 *   **Default Fonts**: Automatically uses your system's default monospace font settings.
+*   **Minimal Size**: The window has a minimum size of 800x600 pixels to ensure that the interface remains functional and readable.
 *   **Scrollback**: Supports up to 10,000 lines of scrollback history per tab.
 *   **Graceful Exit**: The application prevents accidental closure and will only quit when the last active tab is closed or when explicitly told to do so.
 

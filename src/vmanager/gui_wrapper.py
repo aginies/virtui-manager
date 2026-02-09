@@ -41,6 +41,8 @@ def check_tmux():
 # Constants
 DEFAULT_WINDOW_WIDTH = 1200
 DEFAULT_WINDOW_HEIGHT = 1024
+MIN_WINDOW_WIDTH = 800
+MIN_WINDOW_HEIGHT = 600
 DEFAULT_FONT_SIZE = 12
 TERMINAL_COLS = 92
 TERMINAL_ROWS = 34
@@ -59,6 +61,7 @@ class VirtuiWrapper(Gtk.Window):
         width = self.config.get("width", DEFAULT_WINDOW_WIDTH)
         height = self.config.get("height", DEFAULT_WINDOW_HEIGHT)
         self.set_default_size(width, height)
+        self.set_size_request(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
 
         # Get system monospace font as default fallback
         system_font = "Monospace"
@@ -255,8 +258,8 @@ class VirtuiWrapper(Gtk.Window):
             config = {
                 "font_name": self.font_name,
                 "font_size": self.current_font_size,
-                "width": width,
-                "height": height
+                "width": max(width, MIN_WINDOW_WIDTH),
+                "height": max(height, MIN_WINDOW_HEIGHT)
             }
 
             with open(self.CONFIG_FILE, 'w') as f:
