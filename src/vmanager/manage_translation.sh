@@ -10,9 +10,6 @@ LOCALES_DIR="locale"
 DOMAIN="virtui-manager"
 POT_FILE="$LOCALES_DIR/$DOMAIN.pot"
 PACKAGE_NAME="VirtUI Manager"
-PACKAGE_VERSION=""
-extract_version
-
 
 function extract_version() {
     # Try to grep version from constants.py
@@ -21,6 +18,8 @@ function extract_version() {
         PACKAGE_VERSION="$ver"
     fi
 }
+PACKAGE_VERSION=""
+extract_version
 
 function generate_pot() {
     echo "--- Generating POT file ---"

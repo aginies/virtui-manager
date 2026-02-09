@@ -1339,7 +1339,9 @@ msgstr "Configuration de la console web"
 #: constants.py:428
 msgid ""
 "Interval for updating VM Status, Statistics (CPU, Memory, I/O) in seconds."
-msgstr "Intervalle de mise à jour des statuts, statistiques (CPU, Mémoire, E/S) des VM en secondes."
+msgstr ""
+"Intervalle de mise à jour des statuts, statistiques (CPU, Mémoire, E/S) des "
+"VM en secondes."
 
 #: constants.py:429
 msgid "Full path to the application log file"
@@ -1353,7 +1355,8 @@ msgstr "Sélectionner un niveau de journalisation"
 #: constants.py:431
 #, python-brace-format
 msgid "Select Default Remote Viewer (Auto-detect: {viewer}):"
-msgstr "Sélectionner le visualiseur distant par défaut (Auto-détection : {viewer}) :"
+msgstr ""
+"Sélectionner le visualiseur distant par défaut (Auto-détection : {viewer}) :"
 
 #: constants.py:432
 #, fuzzy
@@ -1363,7 +1366,9 @@ msgstr "Sélectionner un visualiseur"
 #: constants.py:433
 msgid ""
 "Enable secure SSH and noVNC remote viewing for headless server environments"
-msgstr "Activer la visualisation distante sécurisée SSH et noVNC pour les environnements de serveur sans tête"
+msgstr ""
+"Activer la visualisation distante sécurisée SSH et noVNC pour les "
+"environnements de serveur sans tête"
 
 #: constants.py:434
 msgid "Path to the websockify binary"
@@ -1501,7 +1506,6 @@ msgstr "Nom du volume (ex: existing_disk.qcow2)"
 msgid "Path to disk image"
 msgstr "Chemin vers l'image disque"
 
-
 #: constants.py:465
 #, fuzzy
 msgid "Select a server"
@@ -1602,8 +1606,8 @@ msgstr ""
 "# Aide au réglage du CPU\n"
 "\n"
 "## Épinglage de CPU (vcpupin)\n"
-"Spécifiez sur quels CPU physiques (CPU hôtes) chaque CPU virtuel (CPU invité) "
-"peut s'exécuter.\n"
+"Spécifiez sur quels CPU physiques (CPU hôtes) chaque CPU virtuel (CPU "
+"invité) peut s'exécuter.\n"
 "\n"
 "## Format\n"
 "`vcpu:cpuset; vcpu:cpuset; ...`\n"
@@ -2867,16 +2871,16 @@ msgstr "Erreur lors de l'enregistrement de l'ordre de démarrage : {error}"
 msgid "Sanitized input is too long (max 64 characters)"
 msgstr "L'entrée assainie est trop longue (max 64 caractères)"
 
-#: constants.py:873
+#: constants.py:768
 msgid "Sanitized domain name is too long (max 64 characters)"
 msgstr "Le nom de domaine assaini est trop long (max 64 caractères)"
 
-#: constants.py:874
+#: constants.py:769
 #, python-brace-format
 msgid "vCPU {vcpu_int} exceeds max vCPUs ({max_vcpus})"
 msgstr "Le vCPU {vcpu_int} dépasse le nombre maximum de vCPUs ({max_vcpus})"
 
-#: constants.py:875
+#: constants.py:770
 #, python-brace-format
 msgid "Invalid cpuset syntax: {cpuset}"
 msgstr "Syntaxe cpuset invalide : {cpuset}"
@@ -2953,9 +2957,11 @@ msgstr "Voulez-vous vraiment supprimer le montage VirtIO-FS '{target_path}' ?"
 #: constants.py:786
 #, python-brace-format
 msgid ""
-"Are you sure you want to discard changes in '{target_disk}' and revert t  o "
+"Are you sure you want to discard changes in '{target_disk}' and revert to "
 "its backing file? This action cannot be undone."
 msgstr ""
+"Êtes-vous sûr de vouloir annuler les modifications dans '{target_disk}' et "
+"rétablir son fichier de sauvegarde ? Cette action est irréversible."
 
 #: constants.py:787
 #, fuzzy, python-brace-format
@@ -3544,7 +3550,7 @@ msgstr "Chargement des données VM depuis le(s) serveur(s) distant(s)..."
 #: constants.py:923
 #, python-brace-format
 msgid "Committing changes for {name}..."
-msgstr ""
+msgstr "Validation des modifications pour {name}..."
 
 #~ msgid "Snapshots"
 #~ msgstr "Instantanés"
