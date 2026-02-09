@@ -1,21 +1,24 @@
 """
 Module for retrieving information about virtual machines.
 """
-import xml.etree.ElementTree as ET
-import logging
-from functools import lru_cache
-import hashlib
 import concurrent.futures
+import hashlib
+import logging
+import xml.etree.ElementTree as ET
+from functools import lru_cache
+
 import libvirt
-from .libvirt_utils import (
-        VIRTUI_MANAGER_NS,
-        _find_vol_by_path,
-        _get_disabled_disks_elem,
-        get_overlay_backing_path,
-        _get_backing_chain_elem,
-        get_host_domain_capabilities,
-        )
+
 from .constants import StatusText
+from .libvirt_utils import (
+    VIRTUI_MANAGER_NS,
+    _find_vol_by_path,
+    _get_backing_chain_elem,
+    _get_disabled_disks_elem,
+    get_host_domain_capabilities,
+    get_overlay_backing_path,
+)
+
 
 def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | None:
     """
@@ -508,10 +511,10 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
                             bus = target_elem.get('bus') if target_elem is not None else 'N/A'
 
                             disks.append({
-                                'path': disk_path, 
-                                'status': 'disabled', 
-                                'cache_mode': cache_mode, 
-                                'discard_mode': discard_mode, 
+                                'path': disk_path,
+                                'status': 'disabled',
+                                'cache_mode': cache_mode,
+                                'discard_mode': discard_mode,
                                 'bus': bus,
                                 'device_type': device_type
                             })

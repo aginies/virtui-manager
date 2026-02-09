@@ -3,44 +3,45 @@ Server pref modal
 Main interface
 """
 import os
-import libvirt
-from textual.app import ComposeResult
-from textual import on
-from textual.worker import Worker
-from textual.containers import ScrollableContainer, Horizontal, Vertical
-from textual.widgets import (
-        Button, Label,
-        DataTable, Static,
-        TabbedContent, TabPane, Tree
-        )
-from ..vm_queries import (
-      get_all_vm_nvram_usage, get_all_vm_disk_usage,
-      get_all_network_usage
-      )
-from ..libvirt_utils import get_network_info, _find_pool_by_path
-from ..network_manager import (
-      list_networks, get_vms_using_network, delete_network,
-      set_network_active, set_network_autostart
-      )
-from .. import storage_manager
-from ..storage_manager import list_storage_volumes
 
+import libvirt
+from textual import on
+from textual.app import ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, DataTable, Label, Static, TabbedContent, TabPane, Tree
+from textual.worker import Worker
+
+from .. import storage_manager
 from ..constants import (
-        AppCacheTimeout, ErrorMessages, SuccessMessages,
-        ButtonLabels, WarningMessages,
-        StaticText, DialogMessages
-        )
+    AppCacheTimeout,
+    ButtonLabels,
+    DialogMessages,
+    ErrorMessages,
+    StaticText,
+    SuccessMessages,
+    WarningMessages,
+)
+from ..libvirt_utils import _find_pool_by_path, get_network_info
+from ..network_manager import (
+    delete_network,
+    get_vms_using_network,
+    list_networks,
+    set_network_active,
+    set_network_autostart,
+)
+from ..storage_manager import list_storage_volumes
+from ..vm_queries import get_all_network_usage, get_all_vm_disk_usage, get_all_vm_nvram_usage
 from .base_modals import BaseModal
-from .network_modals import AddEditNetworkModal, NetworkXMLModal
 from .disk_pool_modals import (
-        AddPoolModal,
-        CreateVolumeModal,
-        MoveVolumeModal,
-        AttachVolumeModal,
-        )
+    AddPoolModal,
+    AttachVolumeModal,
+    CreateVolumeModal,
+    MoveVolumeModal,
+)
+from .howto_network_modal import HowToNetworkModal
+from .network_modals import AddEditNetworkModal, NetworkXMLModal
 from .utils_modals import ConfirmationDialog, ProgressModal
 from .xml_modals import XMLDisplayModal
-from .howto_network_modal import HowToNetworkModal
 
 
 class ServerPrefModal(BaseModal[None]):
@@ -553,7 +554,7 @@ class ServerPrefModal(BaseModal[None]):
                     )
                 except libvirt.libvirtError as e:
                     self.app.show_error_message(ErrorMessages.ERROR_REFRESHING_POOL_TEMPLATE.format(error=e))
-                
+
                 self._load_storage_pools(expand_pools=[existing_pool.name()])
                 return
 

@@ -3,15 +3,17 @@ Server management
 """
 import logging
 from typing import Tuple
+
 from textual.app import ComposeResult
-from textual.widgets import Button, Label, DataTable, Input, Checkbox
-from textual.containers import ScrollableContainer, Horizontal, Vertical
-from ..vmcard import ConfirmationDialog
-from .howto_ssh_modal import HowToSSHModal
-from .base_modals import BaseModal
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Checkbox, DataTable, Input, Label
 
 from ..config import save_config
-from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
+from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
+from ..vmcard import ConfirmationDialog
+from .base_modals import BaseModal
+from .howto_ssh_modal import HowToSSHModal
+
 
 class ConnectionModal(BaseModal[str | None]):
 

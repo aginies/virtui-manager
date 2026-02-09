@@ -18,9 +18,10 @@ Examples:
     python3 virtui_dev.py gui
     python3 virtui_dev.py viewer --connect qemu:///system --domain-name MyVM
 """
-import sys
-import os
 import argparse
+import os
+import sys
+
 
 def setup_path():
     """

@@ -2,17 +2,13 @@
 Main interface
 """
 from textual.app import ComposeResult, on
-from textual.widgets import (
-        Button, Label,
-        Checkbox, Select
-        )
-from textual.containers import Horizontal, Vertical, Grid
-from textual.screen import ModalScreen
+from textual.containers import Grid, Horizontal, Vertical
+from textual.widgets import Button, Checkbox, Label, Select
 
+from ..connection_manager import ConnectionManager
+from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
 from .utils_modals import LoadingModal
-from ..connection_manager import ConnectionManager
-from ..constants import ErrorMessages, StaticText, ButtonLabels
 
 
 class SelectServerModal(BaseModal[None]):
@@ -28,7 +24,7 @@ class SelectServerModal(BaseModal[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="select-server-container", classes="info-details"):
             yield Label(StaticText.SELECT_SERVERS_TO_DISPLAY)
-            
+
             checkboxes = []
             for i, server in enumerate(self.servers):
                 is_active = server['uri'] in self.active_uris

@@ -1,5 +1,7 @@
 import logging
+
 import libvirt
+
 
 def libvirt_error_handler(conn, error):
     """

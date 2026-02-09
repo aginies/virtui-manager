@@ -1,15 +1,17 @@
 """
 Module for caching VM metadata to reduce libvirt calls.
 """
-import time
 import threading
+import time
 from typing import Any, Dict, Optional
+
 from .config import load_config
 
 _cache: Dict[str, Dict[str, Any]] = {}
 _lock = threading.Lock()
 config = load_config()
 from .constants import AppCacheTimeout
+
 
 def get_from_cache(uuid: str) -> Optional[Dict[str, Any]]:
     """

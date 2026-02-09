@@ -1,26 +1,29 @@
 """
 Module for performing actions and modifications on virtual machines.
 """
+import logging
 import os
 import secrets
 import uuid
-import logging
 import xml.etree.ElementTree as ET
+
 import libvirt
+
 from .libvirt_utils import (
-        _find_vol_by_path,
-        VIRTUI_MANAGER_NS,
-        _get_disabled_disks_elem,
-        _get_backing_chain_elem,
-        get_overlay_backing_path,
-        get_internal_id,
-        get_host_domain_capabilities
-        )
-from .utils import log_function_call
-from .vm_queries import get_vm_disks_info, get_vm_tpm_info, _get_domain_root, get_vm_snapshots
-from .vm_cache import invalidate_cache
+    VIRTUI_MANAGER_NS,
+    _find_vol_by_path,
+    _get_backing_chain_elem,
+    _get_disabled_disks_elem,
+    get_host_domain_capabilities,
+    get_internal_id,
+    get_overlay_backing_path,
+)
 from .network_manager import list_networks
 from .storage_manager import create_overlay_volume
+from .utils import log_function_call
+from .vm_cache import invalidate_cache
+from .vm_queries import _get_domain_root, get_vm_disks_info, get_vm_snapshots, get_vm_tpm_info
+
 
 def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
     """
@@ -194,7 +197,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                 snapshots = get_vm_snapshots(domain)
                 # Sort by creation time to ensure parentage is respected
                 snapshots.sort(key=lambda x: x.get('creation_time', 0))
-                
+
                 for snap in snapshots:
                     snap_obj = snap['snapshot_object']
                     # Get the XML with security info
@@ -252,7 +255,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                         target = vol_root.find('target')
                         if target is not None and target.find('path') is not None:
                             target.remove(target.find('path'))
-              
+
                         new_vol_xml = ET.tostring(vol_root, encoding='unicode')
                         pool.createXMLFrom(new_vol_xml, vol, 0)
                         logging.info(f"Cloned NVRAM to {new_vol_name}")
@@ -352,7 +355,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                     logging.info(f"Re-created snapshot during rename for {new_name}")
                 except Exception as e:
                     logging.error(f"Failed to re-create snapshot for renamed VM {new_name}: {e}")
-        
+
         # If successful, delete old NVRAM volume if we cloned it        if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
         if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
             try:
@@ -1176,7 +1179,7 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
             logging.info(f"Original VM '{original_vm_name}' restored after migration failure.")
         except libvirt.libvirtError as restore_e:
             logging.critical(f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}")
-            error_msg += f"\nCRITICAL: Original VM could not be restored. Manual intervention required."
+            error_msg += "\nCRITICAL: Original VM could not be restored. Manual intervention required."
         raise libvirt.libvirtError(error_msg)
     except Exception as e:
         error_msg = f"Unexpected error during machine type migration for '{original_vm_name}': {e}"
@@ -1192,7 +1195,7 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
             logging.info(f"Original VM '{original_vm_name}' restored after migration failure.")
         except libvirt.libvirtError as restore_e:
             logging.critical(f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}")
-            error_msg += f"\nCRITICAL: Original VM could not be restored. Manual intervention required."
+            error_msg += "\nCRITICAL: Original VM could not be restored. Manual intervention required."
         raise Exception(error_msg)
     finally:
         invalidate_cache(get_internal_id(domain)) # Invalidate original VM cache in case it was renamed or recreated
@@ -2160,7 +2163,7 @@ def remove_spice_devices(domain: libvirt.virDomain):
 
     # After removing SPICE, it's good to add a default VNC graphics device if no other graphics device exists.
     if not devices.find("graphics"):
-        logging.info(f"No graphics device found after removing SPICE. Adding default VNC graphics.")
+        logging.info("No graphics device found after removing SPICE. Adding default VNC graphics.")
         graphics_elem = ET.SubElement(devices, 'graphics', type='vnc', port='-1', autoport='yes')
         ET.SubElement(graphics_elem, 'listen', type='address')
 
@@ -2225,7 +2228,7 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
                                     'message': f"Source VM '{domain_name}' uses emulated TPM. Live migration with TPM can sometimes have issues; cold migration is safer."
                                 })
                 else:
-                    issues.append({'severity': 'WARNING', 'message': f"Could not retrieve destination host capabilities for TPM check."})
+                    issues.append({'severity': 'WARNING', 'message': "Could not retrieve destination host capabilities for TPM check."})
 
             except libvirt.libvirtError as e:
                 issues.append({'severity': 'WARNING', 'message': f"Could not retrieve destination host capabilities for TPM check: {e}"})
@@ -2406,7 +2409,7 @@ def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: in
         backing_store = vol_root.find("backingStore")
         if backing_store is None:
             raise Exception(f"Volume '{disk_path}' does not have a backing store (it is not an overlay).")
-        
+
         backing_path_elem = backing_store.find("path")
         if backing_path_elem is None or not backing_path_elem.text:
             raise Exception(f"Could not determine backing file path for '{disk_path}'")
@@ -2415,7 +2418,7 @@ def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: in
 
         logging.info(f"Starting blockCommit for disk '{disk_target}' ({disk_path}) into base '{base_path}'...")
         flags = libvirt.VIR_DOMAIN_BLOCK_COMMIT_ACTIVE
-        
+
         domain.blockCommit(
             disk_target,
             base_path,
@@ -3005,7 +3008,7 @@ def add_vm_channel(domain: libvirt.virDomain, channel_type: str, target_name: st
     target_attrs = {'type': target_type, 'name': target_name}
     if target_state:
         target_attrs['state'] = target_state
-    
+
     ET.SubElement(channel, 'target', **target_attrs)
 
     # For qemu-guest-agent (unix socket), we usually need a source too (bind)
@@ -3037,7 +3040,7 @@ def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
         if target is not None and target.get('name') == target_name:
             channel_to_remove = channel
             break
-    
+
     if channel_to_remove is None:
         raise ValueError(f"Channel with target name '{target_name}' not found.")
 

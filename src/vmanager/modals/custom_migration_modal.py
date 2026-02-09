@@ -1,9 +1,11 @@
 
 from textual.app import ComposeResult
-from textual.screen import ModalScreen
-from textual.widgets import Button, Static, Select, Checkbox
 from textual.containers import Vertical
-from ..constants import StaticText, ButtonLabels
+from textual.screen import ModalScreen
+from textual.widgets import Button, Checkbox, Select, Static
+
+from ..constants import ButtonLabels, StaticText
+
 
 class CustomMigrationModal(ModalScreen[dict | None]):
     """A modal to confirm custom migration actions."""

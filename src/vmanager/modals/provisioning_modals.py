@@ -2,26 +2,27 @@
 Modals for VM Provisioning (Installation).
 """
 import logging
-import subprocess
-
 import os
+import subprocess
 from pathlib import Path
-from textual.widgets import Input, Select, Button, Label, ProgressBar, Checkbox, Collapsible
-from textual.containers import Vertical, Horizontal, ScrollableContainer
-from textual import on, work
 
 import libvirt
+from textual import on, work
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Checkbox, Collapsible, Input, Label, ProgressBar, Select
+
 from ..config import load_config
-from ..constants import AppInfo, ErrorMessages, SuccessMessages, ButtonLabels, StaticText
-from ..vm_provisioner import VMProvisioner, VMType, OpenSUSEDistro
+from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..storage_manager import list_storage_pools
-from ..vm_service import VMService
 from ..utils import remote_viewer_cmd
+from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..vm_service import VMService
 from .base_modals import BaseModal
+from .input_modals import _sanitize_domain_name
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
 from .vmdetails_modals import VMDetailModal
-from .input_modals import _sanitize_domain_name
+
 
 class InstallVMModal(BaseModal[str | None]):
     """

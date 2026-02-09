@@ -1,29 +1,31 @@
 """
 Library for VM creation and provisioning, specifically focused on OpenSUSE.
 """
-import os
-import logging
-import urllib.request
-import ssl
-import re
 import hashlib
+import logging
+import os
+import re
+import shutil
+import ssl
 import subprocess
 import tempfile
-import shutil
-from datetime import datetime
-from enum import Enum
-from typing import Callable, Optional, Dict, Any, List
-from concurrent.futures import ThreadPoolExecutor
-from email.utils import parsedate_to_datetime
+import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from email.utils import parsedate_to_datetime
+from enum import Enum
 from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
 import libvirt
 
 from .config import load_config
-from .storage_manager import create_volume
-from .libvirt_utils import get_host_architecture
-from .firmware_manager import get_uefi_files
 from .constants import AppInfo
+from .firmware_manager import get_uefi_files
+from .libvirt_utils import get_host_architecture
+from .storage_manager import create_volume
+
 
 class VMType(Enum):
     SECURE = "Secure VM"
@@ -174,7 +176,7 @@ class VMProvisioner:
                     with urllib.request.urlopen(url, context=context, timeout=10) as response:
                         html = response.read().decode('utf-8')
 
-                    pattern = rf'href="([^"]+\.iso)"' # Relaxed to find any ISO
+                    pattern = r'href="([^"]+\.iso)"' # Relaxed to find any ISO
                     links = re.findall(pattern, html)
 
                     valid_links = []
@@ -321,7 +323,7 @@ class VMProvisioner:
         try:
             # Set a more aggressive keepalive for the long operation
             self.conn.setKeepAlive(10, 5)
-            logging.info(f"Set libvirt keepalive to 10s for ISO upload.")
+            logging.info("Set libvirt keepalive to 10s for ISO upload.")
         except (libvirt.libvirtError, AttributeError):
             logging.warning("Could not set libvirt keepalive for upload.")
 
@@ -619,7 +621,7 @@ class VMProvisioner:
         """
         if path.startswith("file://"):
             path = path[7:]
-        
+
         try:
             # List all active pools
             pools = self.conn.listAllStoragePools(libvirt.VIR_STORAGE_POOL_RUNNING)
@@ -637,7 +639,7 @@ class VMProvisioner:
                     pass
         except libvirt.libvirtError as e:
             logging.warning(f"Failed to list storage pools to find ISO volume: {e}")
-            
+
         return None
 
     def _get_vm_settings(self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None) -> Dict[str, Any]:
@@ -745,7 +747,7 @@ class VMProvisioner:
         # Override disk format if provided
         if disk_format:
             settings['disk_format'] = disk_format
-            
+
         return settings
 
     def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None, boot_uefi: bool = True) -> str:
@@ -988,7 +990,7 @@ class VMProvisioner:
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
 
         cmd.extend(["--noautoconsole"])
-        cmd.extend(["--wait", "0"]) 
+        cmd.extend(["--wait", "0"])
 
         logging.info(f"Running: {(' '.join(cmd))}")
         try:

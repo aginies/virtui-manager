@@ -1,12 +1,14 @@
 """
 Module for managing firmware-related information and operations.
 """
-import os
 import json
-import libvirt
+import os
 import xml.etree.ElementTree as ET
-from .utils import log_function_call
+
+import libvirt
+
 from .libvirt_utils import get_host_domain_capabilities
+from .utils import log_function_call
 
 FIRMWARE_META_BASE_DIR = "/usr/share/qemu/firmware/"
 
@@ -72,13 +74,13 @@ def get_uefi_files():
         if file.endswith(".json"):
             full_path = os.path.join(FIRMWARE_META_BASE_DIR, file)
             try:
-                with open(full_path, 'r', encoding='utf-8') as f:
+                with open(full_path, encoding='utf-8') as f:
                     jsondata = json.load(f)
 
                 firmware = Firmware()
                 if firmware.load_from_json(jsondata):
                     uefi_files.append(firmware)
-            except (json.JSONDecodeError, IOError):
+            except (OSError, json.JSONDecodeError):
                 # ignore malformed or unreadable files
                 continue
 

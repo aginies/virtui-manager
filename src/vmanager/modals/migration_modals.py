@@ -1,22 +1,23 @@
 """
 Modals for handling VM migration.
 """
-from typing import List, Dict
 import threading
+from typing import Dict, List
+
 import libvirt
-
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, Grid, ScrollableContainer
-from textual.screen import ModalScreen
-from textual.widgets import Button, Static, Select, Checkbox, Label, ProgressBar
 from textual import on, work
+from textual.app import ComposeResult
+from textual.containers import Grid, Horizontal, ScrollableContainer, Vertical
+from textual.screen import ModalScreen
+from textual.widgets import Button, Checkbox, Label, ProgressBar, Select, Static
 
-from ..constants import ErrorMessages, StaticText, ButtonLabels
-from ..vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
+from ..constants import ButtonLabels, ErrorMessages, StaticText
 from ..storage_manager import find_shared_storage_pools
 from ..utils import extract_server_name_from_uri
+from ..vm_actions import check_server_migration_compatibility, check_vm_migration_compatibility
 from ..vm_migration import custom_migrate_vm, execute_custom_migration
 from .custom_migration_modal import CustomMigrationModal
+
 #from pprint import pprint # pprint(vars(object))
 
 class MigrationModal(ModalScreen):
@@ -178,7 +179,7 @@ class MigrationModal(ModalScreen):
                 write_log(f"\n[on blue][bold]--- CHECKING {vm.name()} ---[/][/]")
 
                 # --- Server Compatibility ---
-                write_log(f"[bold]-- Server Compatibility --[/]")
+                write_log("[bold]-- Server Compatibility --[/]")
                 server_issues = check_server_migration_compatibility(self.source_conn, self.dest_conn, vm.name(), self.is_live)
 
                 server_errors = [issue for issue in server_issues if issue['severity'] == 'ERROR']
@@ -203,7 +204,7 @@ class MigrationModal(ModalScreen):
 
 
                 # --- VM Compatibility ---
-                write_log(f"[bold]-- VM Compatibility --[/]")
+                write_log("[bold]-- VM Compatibility --[/]")
                 vm_issues = check_vm_migration_compatibility(vm, self.dest_conn, self.is_live)
 
                 vm_errors = [issue for issue in vm_issues if issue['severity'] == 'ERROR']

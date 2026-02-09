@@ -2,12 +2,15 @@
 Modals for input device configuration and all Input dialog
 """
 import re
-from textual.widgets import Select, Button, Label, Input
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal
+
 from textual import on
-from .base_modals import BaseModal
+from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Button, Input, Label, Select
+
 from ..constants import ButtonLabels, StaticText
+from .base_modals import BaseModal
+
 
 class InputModal(BaseModal[str | None]):
     """A generic modal for getting text input from the user."""
@@ -61,10 +64,10 @@ class AddInputDeviceModal(BaseModal[None]):
     def on_select_changed(self) -> None:
         type_select = self.query_one("#input-type-select", Select)
         bus_select = self.query_one("#input-bus-select", Select)
-        
+
         is_type_selected = type_select.value != Select.BLANK
         is_bus_selected = bus_select.value != Select.BLANK
-        
+
         self.query_one("#add-input", Button).disabled = not (is_type_selected and is_bus_selected)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -129,7 +132,7 @@ class AddChannelModal(BaseModal[dict | None]):
             default_val = "org.qemu.guest_agent.0"
 
         preset_select.set_options(options)
-        preset_select.value = Select.BLANK 
+        preset_select.value = Select.BLANK
         target_input.value = default_val
 
     @on(Select.Changed, "#channel-type-select")
@@ -148,7 +151,7 @@ class AddChannelModal(BaseModal[dict | None]):
             if channel_type and target_name:
                 self.dismiss({"type": channel_type, "target_name": target_name})
             else:
-                pass 
+                pass
         elif event.button.id == "cancel-channel-btn":
             self.dismiss(None)
 

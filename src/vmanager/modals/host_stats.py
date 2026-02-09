@@ -3,14 +3,16 @@ Host Stats modals
 """
 import logging
 import threading
+
 from textual.app import ComposeResult
-from textual.widgets import Static, Label
-from textual.reactive import reactive
 from textual.events import Click, Message
+from textual.reactive import reactive
+from textual.widgets import Label, Static
 from textual.worker import get_current_worker
 
-from ..libvirt_utils import get_host_resources, get_active_vm_allocation
+from ..libvirt_utils import get_active_vm_allocation, get_host_resources
 from ..utils import extract_server_name_from_uri
+
 
 class SingleHostStat(Static):
     """
@@ -88,7 +90,7 @@ class SingleHostStat(Static):
                     self.host_res = get_host_resources(conn)
 
                 current_alloc = get_active_vm_allocation(conn)
-                
+
                 # Check cancellation again after expensive op
                 try:
                     if get_current_worker().is_cancelled:

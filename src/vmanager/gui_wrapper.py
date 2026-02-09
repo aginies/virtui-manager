@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-import sys
 import os
 import shutil
-import time
-import subprocess
-import threading
-from pathlib import Path
 import signal
+import subprocess
+import sys
+import threading
+import time
+from pathlib import Path
+
 import gi
 import yaml
 
@@ -26,8 +27,8 @@ except ValueError as e:
     print(f"Error: Missing required libraries. {e}")
     sys.exit(1)
 
-from gi.repository import Gtk, Vte, GLib, Pango, Gdk
-from vmanager.vmanager import VMManagerTUI
+from gi.repository import Gdk, GLib, Gtk, Pango, Vte
+
 
 def is_running_under_flatpak():
     return 'FLATPAK_ID' in os.environ
@@ -36,7 +37,7 @@ def check_tmux():
     try:
         if shutil.which("tmux") is not None:
             return True
-    except Exception as e:
+    except Exception:
         return False
 
 # Constants
@@ -245,7 +246,7 @@ class VirtuiWrapper(Gtk.Window):
     def load_gui_config(self):
         try:
             if self.CONFIG_FILE.exists():
-                with open(self.CONFIG_FILE, 'r') as f:
+                with open(self.CONFIG_FILE) as f:
                     return yaml.safe_load(f) or {}
         except Exception as e:
             print(f"Error loading config: {e}")
@@ -630,13 +631,13 @@ class VirtuiWrapper(Gtk.Window):
 
         # Create a copy of the items to avoid dictionary size change during iteration
         terminals_to_cleanup = list(self.terminal_pids.keys())
-        
+
         threads = []
         for terminal in terminals_to_cleanup:
             thread = threading.Thread(target=self.cleanup_terminal, args=(terminal,))
             thread.start()
             threads.append(thread)
-            
+
         for thread in threads:
             thread.join()
 

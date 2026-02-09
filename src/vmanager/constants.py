@@ -3,6 +3,8 @@ Shared constants for the application.
 """
 
 from .i18n import _
+
+
 class ServerPallette:
     """ Color for server"""
     COLOR = [

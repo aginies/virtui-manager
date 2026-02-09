@@ -5,7 +5,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Input, Label, ListView, Select
 
-from ..constants import ErrorMessages, StaticText, ButtonLabels
+from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import InfoModal
 

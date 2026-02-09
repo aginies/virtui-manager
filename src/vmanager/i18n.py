@@ -1,7 +1,7 @@
 import gettext
-import os
 import locale
 import logging
+import os
 
 # Setup path to locale
 # This assumes the 'locales' directory is next to this file
@@ -16,7 +16,7 @@ def setup_i18n():
         lang, _ = locale.getdefaultlocale()
     except Exception:
         lang = 'en'
-        
+
     if not lang:
         lang = 'en'
 
@@ -28,5 +28,4 @@ def setup_i18n():
         logging.warning(f"Failed to initialize i18n: {e}")
         _ = lambda s: s
 
-import sys
 setup_i18n()

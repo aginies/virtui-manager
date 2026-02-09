@@ -2,18 +2,18 @@
 Network Hypervisor and guest side
 """
 import ipaddress
-from textual.app import ComposeResult
-from textual.widgets import Button, Input, Label, RadioSet, RadioButton, Checkbox, Select, TextArea
-from textual.widgets.text_area import LanguageDoesNotExist
-from textual.containers import Vertical, Horizontal, ScrollableContainer
-from textual import on
 
-from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
-from .base_modals import BaseModal, BaseDialog
-from ..network_manager import (
-    create_network, get_host_network_interfaces, get_existing_subnets
-)
-from .input_modals import _sanitize_input, _sanitize_domain_name
+from textual import on
+from textual.app import ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSet, Select, TextArea
+from textual.widgets.text_area import LanguageDoesNotExist
+
+from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
+from ..network_manager import create_network, get_existing_subnets, get_host_network_interfaces
+from .base_modals import BaseDialog, BaseModal
+from .input_modals import _sanitize_domain_name, _sanitize_input
+
 
 class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
     """A dialog to add or edit a VM's network interface."""
@@ -197,7 +197,7 @@ class AddEditNetworkModal(BaseModal[None]):
                                 button_label, variant="primary", id="create-net-btn", classes="create-net-btn"
                                 )
             yield Button(ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-button")
-                            
+
     def on_mount(self) -> None:
         """Called when the modal is mounted to populate network interfaces."""
         self.run_worker(self.populate_interfaces, thread=True)

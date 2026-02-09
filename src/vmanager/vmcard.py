@@ -1,63 +1,92 @@
 """
 VMcard Interface
 """
-import subprocess
-import os
-import logging
-import traceback
 import datetime
+import logging
+import os
+import subprocess
 import threading
 import time
+import traceback
 from functools import partial
 from urllib.parse import urlparse
+
 import libvirt
 from rich.markdown import Markdown as RichMarkdown
-
-from textual.widgets import (
-        Static, Button, TabbedContent,
-        TabPane, Sparkline, Checkbox, Collapsible
-        )
-from textual.containers import Horizontal, Vertical
-from textual.reactive import reactive
 from textual import on
-from textual.events import Click
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.events import Click
+from textual.reactive import reactive
+from textual.widgets import Button, Checkbox, Collapsible, Sparkline, Static, TabbedContent, TabPane
 
-from .events import VMNameClicked, VMSelectionChanged, VmActionRequest, VmCardUpdateRequest, VMActionButtonPressed
-from .vm_actions import (
-        clone_vm, rename_vm, create_vm_snapshot,
-        restore_vm_snapshot, delete_vm_snapshot,
-        create_external_overlay, commit_disk_changes,
-        discard_overlay, delete_vm, hibernate_vm
-        )
-
-from .vm_queries import (
-        get_vm_snapshots, has_overlays, get_overlay_disks,
-        get_vm_network_ip, get_boot_info, _get_domain_root,
-        get_vm_disks, get_vm_cpu_details, get_vm_graphics_info, _parse_domain_xml,
-        )
-from .modals.xml_modals import XMLDisplayModal
-from .modals.utils_modals import ConfirmationDialog, ProgressModal, LoadingModal
-from .modals.vmdetails_modals import VMDetailModal
-from .modals.migration_modals import MigrationModal
+from .constants import (
+    ButtonLabels,
+    DialogMessages,
+    ErrorMessages,
+    ProgressMessages,
+    SparklineLabels,
+    StaticText,
+    StatusText,
+    SuccessMessages,
+    TabTitles,
+    VmAction,
+    VMCardConstants,
+    WarningMessages,
+)
+from .events import (
+    VMActionButtonPressed,
+    VmActionRequest,
+    VmCardUpdateRequest,
+    VMNameClicked,
+    VMSelectionChanged,
+)
 from .modals.disk_pool_modals import SelectDiskModal
 from .modals.howto_overlay_modal import HowToOverlayModal
 from .modals.input_modals import InputModal, _sanitize_input
+from .modals.migration_modals import MigrationModal
+from .modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal
 from .modals.vmcard_dialog import (
-        DeleteVMConfirmationDialog, WebConsoleConfigDialog,
-        AdvancedCloneDialog, RenameVMDialog, SelectSnapshotDialog, SnapshotNameDialog
-        )
+    AdvancedCloneDialog,
+    DeleteVMConfirmationDialog,
+    RenameVMDialog,
+    SelectSnapshotDialog,
+    SnapshotNameDialog,
+    WebConsoleConfigDialog,
+)
+from .modals.vmdetails_modals import VMDetailModal
+from .modals.xml_modals import XMLDisplayModal
 from .utils import (
-        extract_server_name_from_uri,
-        generate_tooltip_markdown,
-        remote_viewer_cmd,
-        check_tmux,
+    check_tmux,
+    extract_server_name_from_uri,
+    generate_tooltip_markdown,
+    remote_viewer_cmd,
 )
-from .constants import (
-    ButtonLabels, TabTitles, StatusText,
-    SparklineLabels, ErrorMessages, DialogMessages, VmAction,
-    WarningMessages, SuccessMessages, StaticText, ProgressMessages, VMCardConstants
+from .vm_actions import (
+    clone_vm,
+    commit_disk_changes,
+    create_external_overlay,
+    create_vm_snapshot,
+    delete_vm,
+    delete_vm_snapshot,
+    discard_overlay,
+    hibernate_vm,
+    rename_vm,
+    restore_vm_snapshot,
 )
+from .vm_queries import (
+    _get_domain_root,
+    _parse_domain_xml,
+    get_boot_info,
+    get_overlay_disks,
+    get_vm_cpu_details,
+    get_vm_disks,
+    get_vm_graphics_info,
+    get_vm_network_ip,
+    get_vm_snapshots,
+    has_overlays,
+)
+
 
 class VMCardActions(Static):
     def compose(self):
@@ -573,7 +602,7 @@ class VMCard(Static):
                 vmname.styles.content_align = ("left", "middle")
             if vmstatus: vmstatus.styles.content_align = ("left", "middle")
             if checkbox: checkbox.styles.width = "2"
-        else: # Detailed view 
+        else: # Detailed view
             self.styles.height = 14
             self.styles.width = 41
             if vmname: vmname.styles.content_align = ("center", "middle")
@@ -1094,7 +1123,7 @@ class VMCard(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses for quick actions directly on the card."""
-        # Only handle quick buttons here. 
+        # Only handle quick buttons here.
         # Buttons in VMCardActions are handled via VMActionButtonPressed.
         if event.button.id in ("start", "connect", "resume", "shutdown"):
              self._dispatch_action(event.button.id)
@@ -1791,7 +1820,7 @@ class VMCard(Static):
                             has_snapshots = snapshot_count > 0
                             is_running = self.status == StatusText.RUNNING
                             is_loading = self.status == StatusText.LOADING
-                            
+
                             def update_btn(selector, visible):
                                 for w in self.query(selector): w.display = visible
 

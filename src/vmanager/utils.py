@@ -2,16 +2,18 @@
 Utils functions
 """
 import logging
-from functools import wraps, lru_cache
-import socket
-import subprocess
-from pathlib import Path
-import shutil
 import os
 import re
-from typing import List, Tuple, Union, Callable
+import shutil
+import socket
+import subprocess
+from functools import lru_cache, wraps
+from pathlib import Path
+from typing import Callable, List, Tuple, Union
 from urllib.parse import urlparse
+
 from .constants import AppInfo
+
 
 def is_running_under_flatpak():
     return 'FLATPAK_ID' in os.environ
@@ -45,7 +47,7 @@ def find_free_port(start: int, end: int) -> int:
                 return port
         except OSError:
             continue
-    raise IOError(f"Could not find a free port in the range {start}-{end}")
+    raise OSError(f"Could not find a free port in the range {start}-{end}")
 
 
 def log_function_call(func) -> callable:
@@ -511,9 +513,11 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(generate_tooltip_markdown)
 
     from .libvirt_utils import (
-            get_host_pci_devices, get_host_usb_devices,
-            _get_vm_names_from_uuids, get_domain_capabilities_xml
-            )
+        _get_vm_names_from_uuids,
+        get_domain_capabilities_xml,
+        get_host_pci_devices,
+        get_host_usb_devices,
+    )
     cache_monitor.track(_get_vm_names_from_uuids)
     cache_monitor.track(get_host_pci_devices)
     cache_monitor.track(get_host_usb_devices)
@@ -521,13 +525,13 @@ def setup_cache_monitoring(enable: bool = True):
 
     from .vm_queries import (
         _parse_domain_xml,
-        get_vm_network_dns_gateway_info,
+        get_all_vm_disk_usage,
+        get_boot_info,
+        get_supported_machine_types,
         get_vm_description,
         get_vm_disks,
         get_vm_disks_info,
-        get_boot_info,
-        get_all_vm_disk_usage,
-        get_supported_machine_types,
+        get_vm_network_dns_gateway_info,
     )
     cache_monitor.track(_parse_domain_xml)
     cache_monitor.track(get_vm_description)
@@ -539,10 +543,10 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(get_supported_machine_types)
 
     from .storage_manager import (
-        list_storage_pools,
-        list_storage_volumes,
         find_vms_using_volume,
         get_all_storage_volumes,
+        list_storage_pools,
+        list_storage_volumes,
     )
     cache_monitor.track(list_storage_pools)
     cache_monitor.track(list_storage_volumes)
@@ -550,9 +554,9 @@ def setup_cache_monitoring(enable: bool = True):
     cache_monitor.track(get_all_storage_volumes)
 
     from .network_manager import (
-        list_networks,
-        get_vms_using_network,
         get_host_network_info,
+        get_vms_using_network,
+        list_networks,
     )
     cache_monitor.track(list_networks)
     cache_monitor.track(get_vms_using_network)
@@ -563,7 +567,7 @@ def setup_cache_monitoring(enable: bool = True):
 
 def setup_logging():
     """Configures the logging for the application."""
-    from .config import load_config, get_log_path
+    from .config import get_log_path, load_config
     config = load_config()
     log_level_str = config.get("LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
@@ -588,7 +592,7 @@ def setup_logging():
         file_handler = logging.FileHandler(log_path)
         file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         root_logger.addHandler(file_handler)
-    
+
     root_logger.setLevel(log_level)
 
     if not has_file_handler:

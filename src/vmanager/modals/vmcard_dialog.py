@@ -3,19 +3,17 @@ Dialog box for VMcard
 """
 
 from datetime import datetime
+
 from textual.app import ComposeResult
-from textual.containers import ScrollableContainer, Horizontal, Vertical, Grid
-from textual.widgets import (
-        Button, Label, Checkbox, Select, Input,
-        Switch, Markdown, DataTable
-        )
-from .input_modals import _sanitize_input
-from .utils_modals import (
-    BaseDialog
-)
+from textual.containers import Grid, Horizontal, Vertical
+from textual.widgets import Button, Checkbox, DataTable, Input, Label, Markdown, Select, Switch
+
 from ..config import load_config, save_config
-from ..constants import ButtonLabels, ErrorMessages, SuccessMessages, WarningMessages, StaticText
+from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..vm_queries import is_qemu_agent_running
+from .input_modals import _sanitize_input
+from .utils_modals import BaseDialog
+
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     """A dialog to confirm VM deletion with an option to delete storage."""
@@ -124,7 +122,7 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             if not base_name:
                 self.app.show_error_message(ErrorMessages.BASE_NAME_EMPTY)
                 return
-            
+
             # Sanitize suffix only if it's provided, otherwise keep it empty string
             clone_suffix = ""
             if clone_suffix_raw:
