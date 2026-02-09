@@ -49,9 +49,9 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     
     files = {
-        'pyproject.toml': os.path.join(base_dir, 'pyproject.toml'),
-        'setup.cfg': os.path.join(base_dir, 'setup.cfg'),
-        'src/vmanager/constants.py': os.path.join(base_dir, 'src', 'vmanager', 'constants.py')
+        'pyproject.toml': os.path.join(base_dir, '../pyproject.toml'),
+        'setup.cfg': os.path.join(base_dir, '../setup.cfg'),
+        'src/vmanager/constants.py': os.path.join(base_dir, '..', 'src', 'vmanager', 'constants.py')
     }
     
     versions = {}
