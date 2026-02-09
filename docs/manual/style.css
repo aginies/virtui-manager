@@ -152,7 +152,7 @@ a:hover { color: var(--accent-secondary); }
 
 .btn-primary {
     background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
-    color: #fff;
+    color: #000;
     border: none;
     box-shadow: 0 4px 15px rgba(115, 186, 37, 0.4);
 }
@@ -424,7 +424,9 @@ footer {
 .md-header__source, 
 .md-source,
 .md-source__repository,
-.md-source__fact {
+.md-source__fact,
+.md-tabs__link,
+.md-header__title {
     color: #000 !important;
 }
 
