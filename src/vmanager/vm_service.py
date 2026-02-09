@@ -86,7 +86,7 @@ class VMService:
         self._visible_uuids: set[str] = set()
         self._suppressed_uuids: set[str] = set()
         self._global_updates_suspended: bool = False
-        self._event_callbacks: dict[str, int] = {}  # {uri: callback_id}
+        self._event_callbacks: dict[str, tuple] = {}  # {uri: (conn, callback_id)}
         self._events_enabled: bool = True
         self._registration_lock = threading.Lock()
 
@@ -1543,8 +1543,15 @@ class VMService:
         # Deregister all event callbacks
         logging.debug("Deregistering event callbacks...")
         with self._registration_lock:
-            for uri, callback_id in list(self._event_callbacks.items()):
+            for uri, callback_info in list(self._event_callbacks.items()):
                 try:
+                    # callback_info is (conn, callback_id)
+                    if isinstance(callback_info, tuple):
+                        _, callback_id = callback_info
+                    else:
+                        # Fallback if for some reason it's just the ID (older code compatibility?)
+                        callback_id = callback_info
+
                     conn = self.connection_manager.get_connection(uri)
                     if conn:
                         conn.domainEventDeregisterAny(callback_id)
