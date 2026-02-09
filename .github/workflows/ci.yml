@@ -1,0 +1,20 @@
+name: CI Check
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  check-constants:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Make script executable
+        run: chmod +x ./checks/check_constants.py
+        run: chmod +x ./checks/check_versions.py
+      - name: Run checks
+        run: ./checks/check_constants.py
+        run: ./checks/check_version.py
+  
