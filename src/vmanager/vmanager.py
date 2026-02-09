@@ -501,7 +501,7 @@ class VMManagerTUI(App):
         # Log libvirt call statistics
         call_stats = self.vm_service.connection_manager.get_stats()
         if call_stats:
-            logging.debug("=== Libvirt Call Statistics ===")
+            logging.info("=== Libvirt Call Statistics ===")
             for uri, methods in sorted(call_stats.items()):
                 server_name = uri
                 for s in self.servers:
@@ -519,7 +519,7 @@ class VMManagerTUI(App):
                 if total_increase > 0:
                     increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
-                logging.debug(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
+                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
                 previous_how_many_more = how_many_more
 
                 # Initialize previous method calls dict for this URI if needed
@@ -533,10 +533,17 @@ class VMManagerTUI(App):
 
                     self.last_method_calls[uri][method] = count
                     how_many_more_count = count - prev_method_count
-                    logging.debug(f"  - {method}: {count} calls (+{how_many_more_count})")
+                    if how_many_more_count > 0:
+                        logging.info(f"  - {method}: {count} calls (+{how_many_more_count})")
 
                 self.last_increase[uri] = how_many_more
                 self.last_total_calls[uri] = total_calls
+
+        # Log VM Card Pool statistics
+        if hasattr(self, 'vm_card_pool'):
+            pool_stats = self.vm_card_pool.get_pool_stats()
+            logging.info("=== VM Card Pool Statistics ===")
+            logging.info(f"Pool size: {pool_stats['pool_size']} | Active: {pool_stats['active_cards']} | Available: {pool_stats['available_cards']} | Total: {pool_stats['total_cards']}")
 
     def action_show_cache_stats(self) -> None:
         """Show cache statistics in a modal."""

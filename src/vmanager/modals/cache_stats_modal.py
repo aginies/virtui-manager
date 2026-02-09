@@ -53,6 +53,18 @@ class CacheStatsModal(BaseModal[None]):
                 data['efficiency']
             )
 
+        # Add Pool Stats if available
+        if hasattr(self.app, 'vm_card_pool'):
+            pool_stats = self.app.vm_card_pool.get_pool_stats()
+            table.add_row(
+                "[bold]VM Card Pool[/bold]",
+                "",
+                f"Active: {pool_stats['active_cards']}",
+                f"Avail: {pool_stats['available_cards']}",
+                f"{pool_stats['total_cards']}/{pool_stats['pool_size']}",
+                "N/A"
+            )
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "refresh-btn":
             self._update_table()
