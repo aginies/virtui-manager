@@ -459,7 +459,7 @@ msgstr "OK"
 
 #: constants.py:187
 msgid "Launch"
-msgstr ""
+msgstr "Starten"
 
 #: constants.py:193
 msgid "Filter"
@@ -1320,7 +1320,7 @@ msgstr "Overlay-Disk zum Verwerfen auswählen:"
 
 #: constants.py:424
 msgid "No other active pools"
-msgstr ""
+msgstr "Keine anderen aktiven Pools"
 
 #: constants.py:425
 #, fuzzy
@@ -1341,10 +1341,12 @@ msgstr "Web-Konsole Konfiguration"
 msgid ""
 "Interval for updating VM Status, Statistics (CPU, Memory, I/O) in seconds."
 msgstr ""
+"Intervall für die Aktualisierung des VM-Status und der Statistiken (CPU, "
+"Speicher, E/A) in Sekunden."
 
 #: constants.py:429
 msgid "Full path to the application log file"
-msgstr ""
+msgstr "Vollständiger Pfad zur Anwendungsprotokolldatei"
 
 #: constants.py:430
 #, fuzzy
@@ -1354,7 +1356,7 @@ msgstr "Eine Datei auswählen"
 #: constants.py:431
 #, python-brace-format
 msgid "Select Default Remote Viewer (Auto-detect: {viewer}):"
-msgstr ""
+msgstr "Standard Remote-Viewer auswählen (Automatische Erkennung: {viewer}):"
 
 #: constants.py:432
 #, fuzzy
@@ -1365,22 +1367,23 @@ msgstr "Eine Datei auswählen"
 msgid ""
 "Enable secure SSH and noVNC remote viewing for headless server environments"
 msgstr ""
+"Sicheres SSH und noVNC-Fernzugriff für Headless-Serverumgebungen aktivieren."
 
 #: constants.py:434
 msgid "Path to the websockify binary"
-msgstr ""
+msgstr "Pfad zur websockify Binärdatei"
 
 #: constants.py:435
 msgid "Path to noVNC files"
-msgstr ""
+msgstr "Pfad zu noVNC-Dateien"
 
 #: constants.py:436
 msgid "Start port for websockify"
-msgstr ""
+msgstr "Startport für websockify"
 
 #: constants.py:437
 msgid "End port for websockify"
-msgstr ""
+msgstr "Endport für websockify"
 
 #: constants.py:438
 #, fuzzy
@@ -1394,7 +1397,7 @@ msgstr "VNC Kompression (0-9):"
 
 #: constants.py:440
 msgid "qemu+ssh://user@host/system or qemu:///system"
-msgstr ""
+msgstr "qemu+ssh://user@host/system oder qemu:///system"
 
 #: constants.py:441
 #, fuzzy
@@ -1403,7 +1406,7 @@ msgstr "Server-Einst."
 
 #: constants.py:442
 msgid "qemu+ssh://user@host/system"
-msgstr ""
+msgstr "qemu+ssh://Benutzer@Host/System"
 
 #: constants.py:443
 #, fuzzy
@@ -1412,7 +1415,7 @@ msgstr "VM Name:"
 
 #: constants.py:444
 msgid "URI"
-msgstr ""
+msgstr "URI"
 
 #: constants.py:445
 #, fuzzy
@@ -1426,7 +1429,7 @@ msgstr "Eingabegerät"
 
 #: constants.py:447
 msgid "Bus"
-msgstr ""
+msgstr "Bus"
 
 #: constants.py:448
 #, fuzzy
@@ -1435,11 +1438,11 @@ msgstr "Kanal hinzufügen"
 
 #: constants.py:449
 msgid "Select a standard target or type below"
-msgstr ""
+msgstr "Wählen Sie ein Standardziel oder geben Sie unten einen Typ ein."
 
 #: constants.py:450
 msgid "Target Name (e.g. org.qemu.guest_agent.0)"
-msgstr ""
+msgstr "Zielname (z.B. org.qemu.guest_agent.0)"
 
 #: constants.py:451
 #, fuzzy
@@ -1453,15 +1456,15 @@ msgstr "Speicherpool auswählen:"
 
 #: constants.py:453
 msgid "Volume Name (e.g., new-disk.qcow2)"
-msgstr ""
+msgstr "Volume-Name (z.B. new-disk.qcow2)"
 
 #: constants.py:454
 msgid "Size in GB (e.g., 10)"
-msgstr ""
+msgstr "Größe in GB (z.B. 10)"
 
 #: constants.py:455
 msgid "Pool Name (e.g., my_pool)"
-msgstr ""
+msgstr "Pool-Name (z.B. my_pool)"
 
 #: constants.py:456
 #, fuzzy
@@ -1470,7 +1473,7 @@ msgstr "Ein Verzeichnis auswählen"
 
 #: constants.py:457
 msgid "netfs: Network Exported Directory"
-msgstr ""
+msgstr "netfs: Netzwerk exportiertes Verzeichnis"
 
 #: constants.py:458
 #, fuzzy
@@ -1479,23 +1482,23 @@ msgstr "TPM Typ:"
 
 #: constants.py:459
 msgid "/var/lib/libvirt/images/>"
-msgstr ""
+msgstr "/var/lib/libvirt/images/>"
 
 #: constants.py:460
 msgid "/mnt/nfs"
-msgstr ""
+msgstr "/mnt/nfs"
 
 #: constants.py:461
 msgid "nfs.example.com"
-msgstr ""
+msgstr "nfs.example.com"
 
 #: constants.py:462
 msgid "host0"
-msgstr ""
+msgstr "host0"
 
 #: constants.py:463
 msgid "Volume Name (e.g., existing_disk.qcow2)"
-msgstr ""
+msgstr "Volumenname (z.B. existing_disk.qcow2)"
 
 #: constants.py:464
 #, fuzzy
@@ -1524,7 +1527,7 @@ msgstr "Keine Ziel-Server verfügbar."
 
 #: constants.py:469
 msgid "MAC Address (e.g., 52:54:00:xx:xx:xx)"
-msgstr ""
+msgstr "MAC-Adresse (z.B. 52:54:00:xx:xx:xx)"
 
 #: constants.py:470
 #, fuzzy
@@ -1538,7 +1541,7 @@ msgstr "Netzwerk erstellen"
 
 #: constants.py:472
 msgid "Network Name (e.g., nat_net)"
-msgstr ""
+msgstr "Netzwerkname (z.B. nat_net)"
 
 #: constants.py:473
 #, fuzzy
@@ -1557,7 +1560,7 @@ msgstr "Alle Schnittstellen"
 
 #: constants.py:476
 msgid "e.g., 2"
-msgstr ""
+msgstr "z. B. 2"
 
 #: constants.py:477
 #, fuzzy
@@ -1566,15 +1569,15 @@ msgstr "z.B. 192.168.1.0/24"
 
 #: constants.py:478
 msgid "e.g., 0:0-1; 1:2-3"
-msgstr ""
+msgstr "z.B., 0:0-1; 1:2-3"
 
 #: constants.py:479
 msgid "e.g., 0-1"
-msgstr ""
+msgstr "z. B. 0-1"
 
 #: constants.py:480
 msgid "CPU Tuning Help"
-msgstr ""
+msgstr "CPU Tuning Hilfe"
 
 #: constants.py:481
 msgid ""
@@ -1598,6 +1601,25 @@ msgid ""
 "* `0:0-1; 1:2-3`: Pin vCPU 0 to physical CPUs 0-1, and vCPU 1 to physical "
 "CPUs 2-3.\n"
 msgstr ""
+"\n"
+"# CPU-Optimierungshilfe\n"
+"\n"
+"## CPU-Pinning (vcpupin)\n"
+"Geben Sie an, auf welchen physischen CPUs (Host-CPUs) jede virtuelle CPU "
+"(Gast-CPU) ausgeführt werden kann.\n"
+"\n"
+"## Format\n"
+"`vcpu:cpuset; vcpu:cpuset; ...`\n"
+"\n"
+"* **vcpu**: Die ID der virtuellen CPU.\n"
+"* **cpuset**: Eine Liste oder ein Bereich von physischen CPU-IDs.\n"
+"\n"
+"## Beispiele\n"
+"* `0:0`: Pinnt vCPU 0 an die physische CPU 0.\n"
+"* `0:0-3`: Pinnt vCPU 0 an die physischen CPUs 0, 1, 2 und 3.\n"
+"* `0:0,2`: Pinnt vCPU 0 an die physischen CPUs 0 und 2.\n"
+"* `0:0-1; 1:2-3`: Pinnt vCPU 0 an die physischen CPUs 0-1 und vCPU 1 an die "
+"physischen CPUs 2-3.\n"
 
 #: constants.py:499
 #, fuzzy
@@ -1623,6 +1645,22 @@ msgid ""
 "* Example: `0-1` (Nodes 0 and 1)\n"
 "* Example: `0,2-3` (Node 0 and nodes 2 through 3)\n"
 msgstr ""
+"\n"
+"# NUMA Tune Hilfe\n"
+"\n"
+"## Speichermodi\n"
+"* **strict**: Die Speicherzuweisung schlägt fehl, wenn sie nicht auf dem "
+"angegebenen Nodeset erfüllt werden kann.\n"
+"* **preferred**: Die Zuweisung wird auf dem angegebenen Nodeset bevorzugt, "
+"kann aber auf andere zurückgreifen.\n"
+"* **interleave**: Der Speicher wird Round-Robin über das angegebene "
+"Nodeset zugewiesen.\n"
+"\n"
+"## Nodeset\n"
+"Geben Sie die zu verwendenden NUMA-Knoten an.\n"
+"* Beispiel: `0` (Nur Knoten 0)\n"
+"* Beispiel: `0-1` (Knoten 0 und 1)\n"
+"* Beispiel: `0,2-3` (Knoten 0 und Knoten 2 bis 3)\n"
 
 #: constants.py:517
 #, python-brace-format
@@ -2831,16 +2869,16 @@ msgstr "Fehler beim Speichern der Boot-Reihenfolge: {error}"
 
 #: constants.py:767
 msgid "Sanitized input is too long (max 64 characters)"
-msgstr ""
+msgstr "Bereinigte Eingabe ist zu lang (max. 64 Zeichen)"
 
 #: constants.py:768
 msgid "Sanitized domain name is too long (max 64 characters)"
-msgstr ""
+msgstr "Bereinigter Domainname ist zu lang (max. 64 Zeichen)"
 
 #: constants.py:769
 #, python-brace-format
 msgid "vCPU {vcpu_int} exceeds max vCPUs ({max_vcpus})"
-msgstr ""
+msgstr "vCPU {vcpu_int} überschreitet maximale vCPUs ({max_vcpus})"
 
 #: constants.py:770
 #, fuzzy, python-brace-format
@@ -2919,9 +2957,12 @@ msgstr ""
 #: constants.py:786
 #, python-brace-format
 msgid ""
-"Are you sure you want to discard changes in '{target_disk}' and revert t  o "
+"Are you sure you want to discard changes in '{target_disk}' and revert to "
 "its backing file? This action cannot be undone."
 msgstr ""
+"Sind Sie sicher, dass Sie die Änderungen in '{target_disk}' verwerfen und "
+"auf die zugrunde liegende Datei zurücksetzen möchten? Diese Aktion kann "
+"nicht rückgängig gemacht werden."
 
 #: constants.py:787
 #, fuzzy, python-brace-format
@@ -3512,7 +3553,7 @@ msgstr "Lade VM-Daten von Remote-Server(n)..."
 #: constants.py:923
 #, python-brace-format
 msgid "Committing changes for {name}..."
-msgstr ""
+msgstr "Änderungen für {name} festschreiben..."
 
 #~ msgid "Snapshots"
 #~ msgstr "Schnappschüsse"
