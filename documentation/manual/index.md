@@ -2,7 +2,7 @@
 
 <img src="images/virtui-manager_logo_notext_inverted.png" alt="VirtUI Manager Logo" width="35%">
 
-Welcome to the official documentation for **VirtUI Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization.
+Welcome to the official documentation for **VirtUI Manager**, the next-generation terminal-based management solution for QEMU/KVM virtualization. Project developed by Antoine Ginies as an Hackweek project, big thanks to [SUSE](https://www.suse.com).
 
 ## Table of Contents
 
@@ -19,6 +19,7 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [Remote Web Console (VM)](web_console.md)
 - [Virtual Machine Installation](installation.md)
 - [VirtUI Remote Viewer](remote_viewer.md)
+- [VirtUI Manager GUI Console](gui_console.md)
 - [VirtUI Manager CMD](cli.md)
 - [Debugging and Statistics](debugging_and_statistics.md)
 

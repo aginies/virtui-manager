@@ -7,7 +7,7 @@ VirtUI Manager is a Python-based application that leverages `libvirt` for virtua
 ### System Requirements
 
 *   **Operating System:** Linux (tested on openSUSE, Fedora, Ubuntu, Arch)
-*   **Python:** 3.8+
+*   **Python:** 3.7+
 *   **Virtualization:** KVM/QEMU and Libvirt installed and running.
 *   **Access:** Your user must have permissions to manage libvirt (usually part of the `libvirt` group).
 
@@ -33,6 +33,31 @@ sudo zypper in virtui-*.rpm
 !!! note
     You can also add the repository but these means all the packages from this repository will be used later on update of the system, if you dont want that you need to remove it after the installation of the packages.
 
+## Generic / Virtual Environment (Pip)
+
+If your distribution doesn't package these libraries or you prefer a virtual environment:
+
+```bash
+pip3 install virtui-manager
+```
+
+Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd**, **virtui-gui** will be available from Command line.
+
+## Flatpak installation
+
+Flatpak doesn't accept anymore **console** application. Even this one is providing a **Terminal GTK** wrapper this app is not really a candidate for flathub.
+As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on [github](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml). Download the flaptpak file, and install it on your system, for Version 1.6.1:
+
+```bash
+wget https://github.com/aginies/virtui-manager/releases/download/1.6.1/virtui-manager.flatpak
+flatpak install virtui-manager.flatpak
+```
+
+To run it, use **flatpak run** or search for the **VirtUI Manager** app.
+```bash
+flatpak run io.github.aginies.virtui-manager
+```
+
 ## Installation Steps from Source Code
 
 ### Devel version: Clone the Repository
@@ -52,17 +77,6 @@ cd virtui-manager
 cd src/vmanager
 python3 virtui_dev.py
 ```
-
-### Generic / Virtual Environment (Pip)
-
-If your distribution doesn't package these libraries or you prefer a virtual environment:
-
-```bash
-pip3 install virtui-manager
-```
-
-Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd** will be available from Command line.
-
 
 ### openSUSE / SLE (Zypper)
 

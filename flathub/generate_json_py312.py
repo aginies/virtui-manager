@@ -94,8 +94,7 @@ for pkg in packages:
         sources.append({
             "type": "file",
             "url": wheel['url'],
-            "sha256": wheel['digests']['sha256'],
-            "filename": wheel['filename']
+            "sha256": wheel['digests']['sha256']
         })
         print(f"Resolved {pkg} -> {wheel['filename']}", file=sys.stderr)
             

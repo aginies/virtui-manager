@@ -10,7 +10,7 @@ all: build
 
 # Install the required Flatpak runtimes and SDKs from Flathub
 deps:
-	flatpak install --user flathub org.freedesktop.Platform//23.08 org.freedesktop.Sdk//23.08
+	flatpak install --user flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
 
 # Build the application locally
 build:

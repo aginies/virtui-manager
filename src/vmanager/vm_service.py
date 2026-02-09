@@ -61,7 +61,7 @@ def _stop_event_loop():
 
     if _event_loop_thread and _event_loop_thread.is_alive():
         try:
-            _event_loop_thread.join(timeout=0.2)
+            _event_loop_thread.join(timeout=2.0)
         except Exception:
             pass
 
@@ -86,7 +86,7 @@ class VMService:
         self._visible_uuids: set[str] = set()
         self._suppressed_uuids: set[str] = set()
         self._global_updates_suspended: bool = False
-        self._event_callbacks: dict[str, int] = {}  # {uri: callback_id}
+        self._event_callbacks: dict[str, tuple] = {}  # {uri: (conn, callback_id)}
         self._events_enabled: bool = True
         self._registration_lock = threading.Lock()
 
@@ -1528,6 +1528,57 @@ class VMService:
             return (vm_info, domain, conn_for_domain)
         except libvirt.libvirtError:
             raise
+
+    def shutdown(self):
+        """
+        Properly shut down the VMService, cleaning up all resources.
+        Call this before disconnecting connections or exiting the application.
+        """
+        logging.info("VMService shutdown initiated")
+
+        # Stop monitoring thread first
+        logging.debug("Stopping monitoring thread...")
+        self.stop_monitoring()
+
+        # Deregister all event callbacks
+        logging.debug("Deregistering event callbacks...")
+        with self._registration_lock:
+            for uri, callback_info in list(self._event_callbacks.items()):
+                try:
+                    # callback_info is (conn, callback_id)
+                    if isinstance(callback_info, tuple):
+                        _, callback_id = callback_info
+                    else:
+                        # Fallback if for some reason it's just the ID (older code compatibility?)
+                        callback_id = callback_info
+
+                    conn = self.connection_manager.get_connection(uri)
+                    if conn:
+                        conn.domainEventDeregisterAny(callback_id)
+                        logging.debug(f"Deregistered event callback for {uri}")
+                except Exception as e:
+                    logging.error(f"Error deregistering events for {uri}: {e}")
+            self._event_callbacks.clear()
+
+        # Disconnect all connections
+        logging.debug("Disconnecting all connections...")
+        self.disconnect_all()
+
+        # Stop the libvirt event loop
+        _stop_event_loop()
+
+        # Clear all caches
+        logging.debug("Clearing caches...")
+        with self._cache_lock:
+            self._vm_data_cache.clear()
+            self._domain_cache.clear()
+            self._uuid_to_conn_cache.clear()
+            self._cpu_time_cache.clear()
+            self._io_stats_cache.clear()
+            self._name_to_uuid_cache.clear()
+            self._uuid_to_name_cache.clear()
+
+        logging.info("VMService shutdown complete")
 
     def get_vms(
             self,

@@ -475,6 +475,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#generic-virtual-environment-pip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generic / Virtual Environment (Pip)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flatpak-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#installation-steps-from-source-code" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -522,17 +544,6 @@
         
       </ul>
     </nav>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#generic-virtual-environment-pip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Generic / Virtual Environment (Pip)
-      
-    </span>
-  </a>
   
 </li>
         
@@ -876,6 +887,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../gui_console/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VirtUI Manager GUI Console
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../cli/" class="md-nav__link">
         
   
@@ -1197,6 +1236,28 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#generic-virtual-environment-pip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Generic / Virtual Environment (Pip)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flatpak-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak installation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#installation-steps-from-source-code" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1248,17 +1309,6 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#generic-virtual-environment-pip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Generic / Virtual Environment (Pip)
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#opensuse-sle-zypper" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1300,7 +1350,7 @@
 <h3 id="system-requirements">System Requirements<a class="headerlink" href="#system-requirements" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Operating System:</strong> Linux (tested on openSUSE, Fedora, Ubuntu, Arch)</li>
-<li><strong>Python:</strong> 3.8+</li>
+<li><strong>Python:</strong> 3.7+</li>
 <li><strong>Virtualization:</strong> KVM/QEMU and Libvirt installed and running.</li>
 <li><strong>Access:</strong> Your user must have permissions to manage libvirt (usually part of the <code>libvirt</code> group).</li>
 </ul>
@@ -1323,25 +1373,34 @@
 <p class="admonition-title">Note</p>
 <p>You can also add the repository but these means all the packages from this repository will be used later on update of the system, if you dont want that you need to remove it after the installation of the packages.</p>
 </div>
+<h2 id="generic-virtual-environment-pip">Generic / Virtual Environment (Pip)<a class="headerlink" href="#generic-virtual-environment-pip" title="Permanent link">&para;</a></h2>
+<p>If your distribution doesn't package these libraries or you prefer a virtual environment:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip3<span class="w"> </span>install<span class="w"> </span>virtui-manager
+</code></pre></div>
+<p>Now <strong>virtui-manager</strong>, <strong>virtui-manager-cmd</strong>, <strong>virtui-remote-cmd</strong>, <strong>virtui-gui</strong> will be available from Command line.</p>
+<h2 id="flatpak-installation">Flatpak installation<a class="headerlink" href="#flatpak-installation" title="Permanent link">&para;</a></h2>
+<p>Flatpak doesn't accept anymore <strong>console</strong> application. Even this one is providing a <strong>Terminal GTK</strong> wrapper this app is not really a candidate for flathub.
+As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on <a href="https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml">github</a>. Download the flaptpak file, and install it on your system, for Version 1.6.1:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>wget<span class="w"> </span>https://github.com/aginies/virtui-manager/releases/download/1.6.1/virtui-manager.flatpak
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>flatpak<span class="w"> </span>install<span class="w"> </span>virtui-manager.flatpak
+</code></pre></div>
+<p>To run it, use <strong>flatpak run</strong> or search for the <strong>VirtUI Manager</strong> app.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>flatpak<span class="w"> </span>run<span class="w"> </span>io.github.aginies.virtui-manager
+</code></pre></div></p>
 <h2 id="installation-steps-from-source-code">Installation Steps from Source Code<a class="headerlink" href="#installation-steps-from-source-code" title="Permanent link">&para;</a></h2>
 <h3 id="devel-version-clone-the-repository">Devel version: Clone the Repository<a class="headerlink" href="#devel-version-clone-the-repository" title="Permanent link">&para;</a></h3>
 <p>This is possible to test latest version from github</p>
 <h4 id="get-the-latest-source-code-from-github">Get the latest source code from GitHub:<a class="headerlink" href="#get-the-latest-source-code-from-github" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/aginies/virtui-manager.git
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/aginies/virtui-manager.git
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager
 </code></pre></div>
 <h4 id="launch-the-devel-version">Launch the devel version<a class="headerlink" href="#launch-the-devel-version" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nb">cd</span><span class="w"> </span>src/vmanager
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>python3<span class="w"> </span>virtui_dev.py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>src/vmanager
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>python3<span class="w"> </span>virtui_dev.py
 </code></pre></div>
-<h3 id="generic-virtual-environment-pip">Generic / Virtual Environment (Pip)<a class="headerlink" href="#generic-virtual-environment-pip" title="Permanent link">&para;</a></h3>
-<p>If your distribution doesn't package these libraries or you prefer a virtual environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>pip3<span class="w"> </span>install<span class="w"> </span>virtui-manager
-</code></pre></div>
-<p>Now <strong>virtui-manager</strong>, <strong>virtui-manager-cmd</strong>, <strong>virtui-remote-cmd</strong> will be available from Command line.</p>
 <h3 id="opensuse-sle-zypper">openSUSE / SLE (Zypper)<a class="headerlink" href="#opensuse-sle-zypper" title="Permanent link">&para;</a></h3>
 <p>To install dependencies manually from official repositories (this is done automatically when installing the package):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py
 </code></pre></div>
 
 

@@ -39,5 +39,18 @@ def remote_viewer_main():
         print(f"Error importing remote_viewer: {e}")
         sys.exit(1)
 
+def gui_main():
+    """Entry point for the GUI console application."""
+    try:
+        from vmanager import gui_wrapper
+        if hasattr(gui_wrapper, 'main'):
+            gui_wrapper.main()
+        else:
+            print("Error: gui_wrapper module has no 'main' function.")
+            sys.exit(1)
+    except ImportError as e:
+        print(f"Error importing gui_wrapper: {e}")
+        sys.exit(1)
+
 if __name__ == "__main__":
     main()

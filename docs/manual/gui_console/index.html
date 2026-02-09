@@ -12,13 +12,13 @@
         <meta name="author" content="aginies">
       
       
-        <link rel="canonical" href="https://aginies.github.io/virtui-manager/debugging_and_statistics/">
+        <link rel="canonical" href="https://aginies.github.io/virtui-manager/gui_console/">
       
       
-        <link rel="prev" href="../cli/">
+        <link rel="prev" href="../remote_viewer/">
       
       
-        <link rel="next" href="../appdocs/howto_disk/">
+        <link rel="next" href="../cli/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Debugging and Statistics - VirtUI Manager Documentation</title>
+        <title>VirtUI Manager GUI Console - VirtUI Manager Documentation</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#debugging-and-internal-statistics" class="md-skip">
+        <a href="#virtui-manager-gui-console" class="md-skip">
           Skip to content
         </a>
       
@@ -113,7 +113,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Debugging and Statistics
+              VirtUI Manager GUI Console
             
           </span>
         </div>
@@ -709,10 +709,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../gui_console/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    VirtUI Manager GUI Console
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -728,6 +755,131 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#features" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tabbed-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tabbed Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#search-functionality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Search Functionality
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyboard-shortcuts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Keyboard Shortcuts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dynamic-menu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dynamic Menu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-bar-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Header Bar Controls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-title-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic Title Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advantages-over-raw-terminal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advantages over raw Terminal
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -765,37 +917,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Debugging and Statistics
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../debugging_and_statistics/" class="md-nav__link">
         
   
   
@@ -811,70 +936,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#accessing-debug-information" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Accessing Debug Information
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#statistics-logging" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Statistics Logging
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#cache-monitoring" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Cache Monitoring
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#libvirt-call-statistics" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Libvirt Call Statistics
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1113,43 +1174,104 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#accessing-debug-information" class="md-nav__link">
+  <a href="#features" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Accessing Debug Information
+        Features
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tabbed-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tabbed Management
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#statistics-logging" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#search-functionality" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Statistics Logging
+        Search Functionality
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#cache-monitoring" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#keyboard-shortcuts" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Cache Monitoring
+        Keyboard Shortcuts
       
     </span>
   </a>
   
 </li>
-      
-        <li class="md-nav__item">
-  <a href="#libvirt-call-statistics" class="md-nav__link">
+        
+          <li class="md-nav__item">
+  <a href="#dynamic-menu" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Libvirt Call Statistics
+        Dynamic Menu
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#header-bar-controls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Header Bar Controls
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#automatic-title-updates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automatic Title Updates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#system-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        System Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advantages-over-raw-terminal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Advantages over raw Terminal
       
     </span>
   </a>
@@ -1176,115 +1298,76 @@
   
 
 
-<h1 id="debugging-and-internal-statistics">Debugging and Internal Statistics<a class="headerlink" href="#debugging-and-internal-statistics" title="Permanent link">&para;</a></h1>
-<p>VirtUI Manager provides built-in tools to help users debug issues and monitor the application's internal performance, including <code>lru_cache</code> usage and <code>libvirt</code> API call statistics.</p>
-<h2 id="accessing-debug-information">Accessing Debug Information<a class="headerlink" href="#accessing-debug-information" title="Permanent link">&para;</a></h2>
-<p>You can access debug information and internal statistics directly from within the VirtUI Manager application using keyboard shortcuts:</p>
+<h1 id="virtui-manager-gui-console">VirtUI Manager GUI Console<a class="headerlink" href="#virtui-manager-gui-console" title="Permanent link">&para;</a></h1>
+<p>The <strong>VirtUI Manager GUI Console</strong> is a GTK-based application that provides a modern, tabbed interface for managing your virtualization infrastructure. It embeds both the TUI interface and the CLI tool into a single, cohesive window.</p>
+<p><img alt="Main GUI" src="../images/gui.png" /></p>
+<p>To launch the GUI Console:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>virtui-gui
+</code></pre></div></p>
+<h2 id="features">Features<a class="headerlink" href="#features" title="Permanent link">&para;</a></h2>
+<h3 id="tabbed-management">Tabbed Management<a class="headerlink" href="#tabbed-management" title="Permanent link">&para;</a></h3>
+<p>The GUI Console allows you to run multiple instances of VirtUI Manager or the CLI tool in separate tabs. This is perfect for:</p>
 <ul>
-<li><strong><code>Ctrl+l</code></strong>: Toggles <strong>Statistics Logging</strong>. When enabled, logs detailed performance statistics including libvirt API calls and cache performance every 10 seconds to the application log file.</li>
-<li><strong><code>Ctrl+s</code></strong>: Opens the <strong>Cache Statistics</strong> modal. This modal provides detailed insights into the <code>lru_cache</code> hit rates and usage patterns for various internal functions, as well as a summary of <code>libvirt</code> API calls.</li>
-<li><strong><code>v</code></strong>: Opens the <strong>Log Viewer</strong> modal to view recent application logs and debugging information.</li>
+<li>Managing different sets of servers in separate tabs.</li>
+<li>Keeping a CLI open alongside the main management window for quick <code>virsh</code> commands.</li>
+<li>Monitoring logs or statistics in an independent tab.</li>
 </ul>
-<h2 id="statistics-logging">Statistics Logging<a class="headerlink" href="#statistics-logging" title="Permanent link">&para;</a></h2>
-<p>The <strong>Statistics Logging</strong> feature (<code>Ctrl+l</code>) provides continuous monitoring of application performance. When enabled, it logs detailed statistics every 10 seconds including:</p>
+<h3 id="search-functionality">Search Functionality<a class="headerlink" href="#search-functionality" title="Permanent link">&para;</a></h3>
+<p>A built-in search bar allows you to quickly find text within any terminal tab.</p>
 <ul>
-<li><strong>Cache Performance:</strong> Hit rates and usage patterns for all cached functions</li>
-<li><strong>Libvirt API Calls:</strong> Detailed breakdown of all libvirt method calls by server</li>
-<li><strong>Performance Trends:</strong> Shows percentage changes in call volumes to identify performance issues</li>
+<li><strong>Toggle Search</strong>: Press <code>Ctrl + f</code> to open or close the search bar.</li>
+<li><strong>Navigation</strong>: Use the "Find Next" (Down Arrow) and "Find Previous" (Up Arrow) buttons to navigate through matches.</li>
+<li><strong>Live Highlight</strong>: Matches are highlighted in real-time as you type.</li>
 </ul>
-<p>This feature is particularly useful for:</p>
+<h3 id="keyboard-shortcuts">Keyboard Shortcuts<a class="headerlink" href="#keyboard-shortcuts" title="Permanent link">&para;</a></h3>
+<p>The GUI Console supports familiar shortcuts for navigating and managing tabs:</p>
 <ul>
-<li>Identifying performance bottlenecks</li>
-<li>Monitoring libvirt API usage patterns</li>
-<li>Debugging connection issues</li>
-<li>Optimizing cache configurations</li>
+<li><strong><code>Ctrl + PageUp</code></strong>: Switch to the previous tab.</li>
+<li><strong><code>Ctrl + PageDown</code></strong>: Switch to the next tab.</li>
+<li><strong><code>Ctrl + t</code></strong>: Open a new VManager tab.</li>
+<li><strong><code>Ctrl + Shift + t</code></strong> (or <code>Ctrl + T</code>): Open a new Command Line tab.</li>
+<li><strong><code>Ctrl + w</code></strong>: Close the current tab.</li>
+<li><strong><code>Ctrl + f</code></strong>: Toggle the search bar.</li>
+<li><strong><code>Esc</code></strong>: Close the search bar (if active).</li>
+<li><strong><code>Ctrl + +</code> / <code>Ctrl + =</code></strong>: Increase font size (Zoom In).</li>
+<li><strong><code>Ctrl + -</code></strong>: Decrease font size (Zoom Out).</li>
 </ul>
-<p><strong>Note:</strong> Statistics logging writes to the application log file, not the console. Use the Log Viewer (<code>v</code>) to see the output.</p>
-<h2 id="cache-monitoring">Cache Monitoring<a class="headerlink" href="#cache-monitoring" title="Permanent link">&para;</a></h2>
-<p>The Cache Statistics modal (<code>Ctrl+S</code>) presents a breakdown of how effectively the application's caching mechanisms are working. High hit rates indicate efficient data retrieval, while low hit rates might suggest areas for optimization.</p>
-<p><img alt="Cache stats" src="../images/cache_performance.jpg" /></p>
-<p>Here's an example of the cache statistics output in the log:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>INFO - Cache monitoring enabled.
-<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>INFO - === Cache Statistics ===
-<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>INFO - format_server_names: 0.0% hit rate (0 hits, 0 misses, 0/8 entries)
-<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>INFO - extract_server_name_from_uri: 95.7% hit rate (44 hits, 2 misses, 2/16 entries)
-<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>INFO - get_server_color_cached: 93.5% hit rate (72 hits, 5 misses, 5/16 entries)
-<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>INFO - natural_sort_key: 85.0% hit rate (108 hits, 19 misses, 19/512 entries)
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>INFO - format_memory_display: 77.8% hit rate (14 hits, 4 misses, 4/128 entries)
-<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>INFO - generate_tooltip_markdown: 57.1% hit rate (24 hits, 18 misses, 18/128 entries)
-<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>INFO - get_host_pci_devices: 33.3% hit rate (1 hits, 2 misses, 2/4 entries)
-<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>INFO - get_host_usb_devices: 33.3% hit rate (1 hits, 2 misses, 2/4 entries)
-<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>INFO - get_domain_capabilities_xml: 0.0% hit rate (0 hits, 3 misses, 3/4 entries)
-<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>INFO - _parse_domain_xml: 75.0% hit rate (24 hits, 8 misses, 8/256 entries)
-<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>INFO - get_vm_description: 0.0% hit rate (0 hits, 3 misses, 3/16 entries)
-<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a>INFO - get_vm_disks_info: 0.0% hit rate (0 hits, 13 misses, 13/256 entries)
-<a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a>INFO - get_vm_disks: 0.0% hit rate (0 hits, 0 misses, 0/32 entries)
-<a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a>INFO - get_boot_info: 0.0% hit rate (0 hits, 7 misses, 7/32 entries)
-<a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a>INFO - get_all_vm_disk_usage: 0.0% hit rate (0 hits, 1 misses, 1/32 entries)
-<a id="__codelineno-0-18" name="__codelineno-0-18" href="#__codelineno-0-18"></a>INFO - get_supported_machine_types: 0.0% hit rate (0 hits, 0 misses, 0/32 entries)
-<a id="__codelineno-0-19" name="__codelineno-0-19" href="#__codelineno-0-19"></a>INFO - list_storage_pools: 0.0% hit rate (0 hits, 1 misses, 1/16 entries)
-<a id="__codelineno-0-20" name="__codelineno-0-20" href="#__codelineno-0-20"></a>INFO - list_storage_volumes: 0.0% hit rate (0 hits, 0 misses, 0/32 entries)
-<a id="__codelineno-0-21" name="__codelineno-0-21" href="#__codelineno-0-21"></a>INFO - find_vms_using_volume: 0.0% hit rate (0 hits, 0 misses, 0/32 entries)
-<a id="__codelineno-0-22" name="__codelineno-0-22" href="#__codelineno-0-22"></a>INFO - get_all_storage_volumes: 0.0% hit rate (0 hits, 0 misses, 0/16 entries)
-<a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a>INFO - list_networks: 40.0% hit rate (2 hits, 3 misses, 3/16 entries)
-<a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a>INFO - get_vms_using_network: 0.0% hit rate (0 hits, 0 misses, 0/16 entries)
-<a id="__codelineno-0-25" name="__codelineno-0-25" href="#__codelineno-0-25"></a>INFO - get_host_network_info: 0.0% hit rate (0 hits, 0 misses, 0/32 entries)
-</code></pre></div>
-<h2 id="libvirt-call-statistics">Libvirt Call Statistics<a class="headerlink" href="#libvirt-call-statistics" title="Permanent link">&para;</a></h2>
-<p>This section, also available through <code>Ctrl+S</code>, details the number of calls made to various <code>libvirt</code> API functions, broken down by connection (server). This is invaluable for understanding the application's interaction with libvirt and identifying potential API hotspots.</p>
-<p>Here's an example of the libvirt call statistics output:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>INFO - === Libvirt Call Statistics ===
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>INFO - ryzen7 (qemu+ssh://root @10.0.1.78/system): 2060 calls | +22 (100.0%)
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>INFO -   - name: 748 calls (+10)
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>INFO -   - connect: 379 calls (+3)
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>INFO -   - blockStats: 188 calls (+2)
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>INFO -   - info: 126 calls (+1)
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>INFO -   - state: 104 calls (+1)
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>INFO -   - getCPUStats: 94 calls (+1)
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>INFO -   - memoryStats: 94 calls (+1)
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>INFO -   - interfaceStats: 94 calls (+1)
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>INFO -   - interfaceAddresses: 94 calls (+1)
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>INFO -   - getURI: 40 calls (+0)
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>INFO -   - XMLDesc: 36 calls (+0)
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>INFO -   - listAllDomains: 32 calls (+1)
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>INFO -   - UUIDString: 9 calls (+0)
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>INFO -   - snapshotNum: 5 calls (+0)
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a>INFO -   - listAllSnapshots: 3 calls (+0)
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a>INFO -   - listAllNetworks: 2 calls (+0)
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>INFO -   - listAllDevices: 2 calls (+0)
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>INFO -   - registerCloseCallback: 1 calls (+0)
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>INFO -   - domainEventRegisterAny: 1 calls (+0)
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>INFO -   - metadata: 1 calls (+0)
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a>INFO -   - getCPUModelNames: 1 calls (+0)
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a>INFO -   - getDomainCapabilities: 1 calls (+0)
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>INFO -   - isActive: 1 calls (+0)
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>INFO -   - getHostname: 1 calls (+0)
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a>INFO -   - numOfDomains: 1 calls (+0)
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a>INFO -   - numOfDefinedDomains: 1 calls (+0)
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a>INFO -   - listAllStoragePools: 1 calls (+0)
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a>INFO - g.org (qemu+ssh://root @REMOTEURL:PORT/system): 386 calls | +27 (100.0%)
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a>INFO -   - name: 170 calls (+15)
-<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>INFO -   - connect: 56 calls (+3)
-<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>INFO -   - getURI: 22 calls (+0)
-<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a>INFO -   - info: 22 calls (+1)
-<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a>INFO -   - blockStats: 20 calls (+2)
-<a id="__codelineno-1-36" name="__codelineno-1-36" href="#__codelineno-1-36"></a>INFO -   - state: 19 calls (+1)
-<a id="__codelineno-1-37" name="__codelineno-1-37" href="#__codelineno-1-37"></a>INFO -   - UUIDString: 14 calls (+0)
-<a id="__codelineno-1-38" name="__codelineno-1-38" href="#__codelineno-1-38"></a>INFO -   - getCPUStats: 10 calls (+1)
-<a id="__codelineno-1-39" name="__codelineno-1-39" href="#__codelineno-1-39"></a>INFO -   - memoryStats: 10 calls (+1)
-<a id="__codelineno-1-40" name="__codelineno-1-40" href="#__codelineno-1-40"></a>INFO -   - interfaceStats: 10 calls (+1)
-<a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a>INFO -   - interfaceAddresses: 10 calls (+1)
-<a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a>INFO -   - XMLDesc: 6 calls (+0)
-<a id="__codelineno-1-43" name="__codelineno-1-43" href="#__codelineno-1-43"></a>INFO -   - listAllDomains: 5 calls (+1)
-<a id="__codelineno-1-44" name="__codelineno-1-44" href="#__codelineno-1-44"></a>INFO -   - snapshotNum: 5 calls (+0)
-<a id="__codelineno-1-45" name="__codelineno-1-45" href="#__codelineno-1-45"></a>INFO -   - listAllNetworks: 2 calls (+0)
-<a id="__codelineno-1-46" name="__codelineno-1-46" href="#__codelineno-1-46"></a>INFO -   - listAllDevices: 2 calls (+0)
-<a id="__codelineno-1-47" name="__codelineno-1-47" href="#__codelineno-1-47"></a>INFO -   - registerCloseCallback: 1 calls (+0)
-<a id="__codelineno-1-48" name="__codelineno-1-48" href="#__codelineno-1-48"></a>INFO -   - domainEventRegisterAny: 1 calls (+0)
-<a id="__codelineno-1-49" name="__codelineno-1-49" href="#__codelineno-1-49"></a>INFO -   - storagePoolLookupByName: 1 calls (+0)
-<a id="__codelineno-1-50" name="__codelineno-1-50" href="#__codelineno-1-50"></a>INFO -   - shutdown: 1 calls (+0)
-<a id="__codelineno-1-51" name="__codelineno-1-51" href="#__codelineno-1-51"></a>INFO -   - create: 1 calls (+0)
-</code></pre></div>
+<h3 id="dynamic-menu">Dynamic Menu<a class="headerlink" href="#dynamic-menu" title="Permanent link">&para;</a></h3>
+<p>The <strong>Settings Menu</strong> (represented by the "hamburger" icon) provides quick access to:</p>
+<ul>
+<li><strong>Font Size</strong>: Adjust the terminal font size on the fly for all tabs.</li>
+<li><strong>Custom Font</strong>: Select any monospace font installed on your system.</li>
+<li><strong>New VManager Tab</strong>: Open a new tab running the TUI interface.</li>
+<li><strong>New Command Line Tab</strong>: Open a new tab running the interactive CLI.</li>
+<li><strong>New Log Tab</strong>: Open a read-only tab tailing the application log file.</li>
+</ul>
+<h3 id="header-bar-controls">Header Bar Controls<a class="headerlink" href="#header-bar-controls" title="Permanent link">&para;</a></h3>
+<p>In addition to the Settings Menu, the header bar includes:</p>
+<ul>
+<li><strong>Help Button</strong> (<code>?</code> icon): Displays a cheat sheet of all available keyboard shortcuts.</li>
+<li><strong>Documentation Button</strong> (Book icon): Opens this online manual in your default web browser.</li>
+</ul>
+<h3 id="automatic-title-updates">Automatic Title Updates<a class="headerlink" href="#automatic-title-updates" title="Permanent link">&para;</a></h3>
+<p>Tabs automatically update their labels to reflect their current state:</p>
+<ul>
+<li><strong>CLI Tabs</strong>: Show the names of the currently connected servers.</li>
+<li><strong>Virsh Shell</strong>: Indicates when a <code>virsh</code> shell is active and which server it's connected to.</li>
+</ul>
+<p><img alt="GUI virsh" src="../images/gui_virsh.png" /></p>
+<h3 id="system-integration">System Integration<a class="headerlink" href="#system-integration" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Default Fonts</strong>: Automatically uses your system's default monospace font settings.</li>
+<li><strong>Minimal Size</strong>: The window has a minimum size of 800x600 pixels to ensure that the interface remains functional and readable.</li>
+<li><strong>Scrollback</strong>: Supports up to 10,000 lines of scrollback history per tab.</li>
+<li><strong>Graceful Exit</strong>: The application prevents accidental closure and will only quit when the last active tab is closed or when explicitly told to do so.</li>
+</ul>
+<h2 id="advantages-over-raw-terminal">Advantages over raw Terminal<a class="headerlink" href="#advantages-over-raw-terminal" title="Permanent link">&para;</a></h2>
+<p>While VirtUI Manager is designed to work in any terminal, the GUI Console offers several integrated benefits:</p>
+<ol>
+<li><strong>Zero Configuration</strong>: No need to configure terminal multiplexers like <code>tmux</code> for basic tabbed usage (though <code>tmux</code> integration is still supported).</li>
+<li><strong>Visual Consistency</strong>: Consistent font and styling regardless of your default terminal emulator settings.</li>
+<li><strong>Encapsulation</strong>: Keeps your virtualization management tools in a dedicated window, separate from your other terminal work.</li>
+</ol>
 
 
 
@@ -1320,7 +1403,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../cli/" class="md-footer__link md-footer__link--prev" aria-label="Previous: VirtUI Manager CMD">
+          <a href="../remote_viewer/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Virtui Remote Viewer">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
@@ -1330,20 +1413,20 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                VirtUI Manager CMD
+                Virtui Remote Viewer
               </div>
             </div>
           </a>
         
         
           
-          <a href="../appdocs/howto_disk/" class="md-footer__link md-footer__link--next" aria-label="Next: Managing VM Disks">
+          <a href="../cli/" class="md-footer__link md-footer__link--next" aria-label="Next: VirtUI Manager CMD">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Managing VM Disks
+                VirtUI Manager CMD
               </div>
             </div>
             <div class="md-footer__button md-icon">

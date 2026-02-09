@@ -2305,6 +2305,16 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
         else:
             issues.append({'severity': 'INFO', 'message': "VM dont uses PCI or USB pass-through (hostdev)"})
 
+    if root.find('cputune') is not None:
+        issues.append({'severity': 'WARNING', 'message': "VM has CPU pinning (cputune) configured. Ensure the destination host has matching CPU topology/core count."})
+
+    if root.find('numatune') is not None:
+        issues.append({'severity': 'WARNING', 'message': "VM has NUMA tuning configured. Ensure the destination host has matching NUMA topology."})
+
+    for disk in root.findall(".//devices/disk[@device='cdrom']"):
+        if disk.find('source') is not None:
+             issues.append({'severity': 'WARNING', 'message': "VM has a CD-ROM mounted. Ensure the ISO path is accessible on the destination, or eject it before migrating."})
+
     disk_paths = []
     for disk in root.findall(".//devices/disk"):
         source = disk.find('source')

@@ -5,6 +5,8 @@ import os
 import sys
 import re
 import threading
+import signal
+import asyncio
 from threading import RLock
 from concurrent.futures import ThreadPoolExecutor
 import logging
@@ -255,6 +257,9 @@ class VMManagerTUI(App):
         self.r_viewer = None
         self.host_stats = HostStats(self.vm_service, self.get_server_color)
         self._hide_stats_timer = None
+        # Register signal handlers for graceful shutdown
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
 
     def on_unmount(self) -> None:
         """Called when the application is unmounted."""
@@ -365,6 +370,11 @@ class VMManagerTUI(App):
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
         return get_server_color_cached(uri, tuple(self.SERVER_COLOR_PALETTE))
+
+    def _handle_signal(self, signum, frame):
+        """Handle SIGTERM/SIGINT by triggering graceful shutdown."""
+        logging.info(f"Received signal {signum}, initiating graceful shutdown...")
+        self.exit(return_code=0)
 
     def compose(self) -> ComposeResult:
         """Create child widgets for the app."""
@@ -491,7 +501,7 @@ class VMManagerTUI(App):
         # Log libvirt call statistics
         call_stats = self.vm_service.connection_manager.get_stats()
         if call_stats:
-            logging.debug("=== Libvirt Call Statistics ===")
+            logging.info("=== Libvirt Call Statistics ===")
             for uri, methods in sorted(call_stats.items()):
                 server_name = uri
                 for s in self.servers:
@@ -509,7 +519,7 @@ class VMManagerTUI(App):
                 if total_increase > 0:
                     increase_pct = 100 - (previous_how_many_more*100 / total_increase)
 
-                logging.debug(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
+                logging.info(f"{server_name} ({uri}): {total_calls} calls | +{total_increase} ({increase_pct:.1f}%)")
                 previous_how_many_more = how_many_more
 
                 # Initialize previous method calls dict for this URI if needed
@@ -523,10 +533,17 @@ class VMManagerTUI(App):
 
                     self.last_method_calls[uri][method] = count
                     how_many_more_count = count - prev_method_count
-                    logging.debug(f"  - {method}: {count} calls (+{how_many_more_count})")
+                    if how_many_more_count > 0:
+                        logging.info(f"  - {method}: {count} calls (+{how_many_more_count})")
 
                 self.last_increase[uri] = how_many_more
                 self.last_total_calls[uri] = total_calls
+
+        # Log VM Card Pool statistics
+        if hasattr(self, 'vm_card_pool'):
+            pool_stats = self.vm_card_pool.get_pool_stats()
+            logging.info("=== VM Card Pool Statistics ===")
+            logging.info(f"Pool size: {pool_stats['pool_size']} | Active: {pool_stats['active_cards']} | Available: {pool_stats['available_cards']} | Total: {pool_stats['total_cards']}")
 
     def action_show_cache_stats(self) -> None:
         """Show cache statistics in a modal."""
@@ -690,8 +707,6 @@ class VMManagerTUI(App):
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
-        # TOFIX
-        #self.webconsole_manager.terminate_all()
         #if self._stats_logging_active:
         #    cache_monitor.log_stats()
         self.worker_manager.cancel_all()
@@ -1832,7 +1847,41 @@ class VMManagerTUI(App):
 
 
     async def action_quit(self) -> None:
-        """Quit the application."""
+        """Quit the application with proper cleanup of all resources."""
+        logging.info("Application shutdown initiated")
+
+        # Show loading indicator
+        loading = LoadingModal(message="Shutting down...")
+        self.push_screen(loading)
+
+        # Give Textual a chance to render the modal
+        await asyncio.sleep(0.1)
+
+        # Shutdown everything properly
+        def perform_shutdown():
+            try:
+                # Cancel all pending workers
+                if hasattr(self, 'worker_manager'):
+                    logging.debug("Cancelling all workers...")
+                    self.worker_manager.cancel_all()
+
+                # Shutdown VMService properly
+                if hasattr(self, 'vm_service') and self.vm_service:
+                    logging.debug("Shutting down VM service...")
+                    self.vm_service.shutdown()
+
+            except Exception as e:
+                logging.error(f"Error during shutdown: {e}")
+
+        # Use textual worker to run the blocking shutdown in a thread
+        # this ensures the UI (and the loader) stays responsive while cleaning up libvirt
+        worker = self.run_worker(perform_shutdown, thread=True)
+        await worker.wait()
+
+        # Final short sleep
+        await asyncio.sleep(0.1)
+
+        logging.info("Application shutdown complete")
         self.exit()
 
     @on(VmCardUpdateRequest)
