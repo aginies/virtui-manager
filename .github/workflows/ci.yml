@@ -11,11 +11,35 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvirt-dev pkg-config
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
       - name: Make scripts executable
         run: |
           chmod +x ./checks/check_constants.py
-          chmod +x ./checks/check_version.py
+          chmod +x ./checks/check_versions.py
+
       - name: Run checks
         run: |
           ./checks/check_constants.py
-          ./checks/check_version.py
+          ./checks/check_versions.py
+
+      - name: Run Pylint
+        # Run pylint with -E (errors only) and --exit-zero (permissive mode, don't fail build)
+        # Disable common false positives for GObject (E1101, E0611, E1120) and import errors (E0401)
+        run: |
+          pylint -E --disable=E1101,E0611,E1120,E0401 --exit-zero src/vmanager
