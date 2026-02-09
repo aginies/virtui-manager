@@ -1,8 +1,9 @@
 """
 Base Modal stuff
 """
-from typing import TypeVar, Any
 import re
+from typing import Any, TypeVar
+
 from textual.screen import ModalScreen, Screen
 from textual.widgets import ListItem
 

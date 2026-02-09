@@ -1,14 +1,16 @@
 """
 Modal to show how to configure networks.
 """
-import os
 from pathlib import Path
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, ScrollableContainer
-from textual.widgets import Button, Markdown
+
 from textual import on
+from textual.app import ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Markdown
+
 from ..constants import ButtonLabels
 from .base_modals import BaseModal
+
 
 class HowToNetworkModal(BaseModal[None]):
     """A modal to display instructions for network configuration."""
@@ -17,7 +19,7 @@ class HowToNetworkModal(BaseModal[None]):
         # Load markdown from external file
         docs_path = Path(__file__).parent.parent / "appdocs" / "howto_network.md"
         try:
-            with open(docs_path, "r") as f:
+            with open(docs_path) as f:
                 content = f.read()
         except FileNotFoundError:
             content = "# Error: Documentation file not found."

@@ -17,13 +17,13 @@ from urllib.parse import urlparse
 
 import libvirt
 
+from .config import get_log_path, load_config
 from .constants import AppInfo, ErrorMessages, SuccessMessages
 from .events import VmCardUpdateRequest
-from .config import load_config, get_log_path
-from .vm_queries import get_vm_graphics_info
+from .libvirt_utils import get_internal_id
 from .modals.vmcard_dialog import WebConsoleDialog
 from .utils import generate_webconsole_keys_if_needed
-from .libvirt_utils import get_internal_id
+from .vm_queries import get_vm_graphics_info
 
 
 class WebConsoleManager:
@@ -64,7 +64,7 @@ wp.websockify_init()
     def load_sessions(self):
         with self._lock:
             try:
-                with open(self.SESSION_FILE, 'r') as f:
+                with open(self.SESSION_FILE) as f:
                     return json.load(f)
             except (json.JSONDecodeError, FileNotFoundError):
                 return {}
@@ -377,7 +377,7 @@ wp.websockify_init()
                         if web_arg_index + 1 < len(remote_websockify_cmd_list):
                             remote_websockify_cmd_list[web_arg_index + 1] = remote_novnc_path
                     except ValueError:
-                        pass 
+                        pass
 
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
             logging.warning(f"Could not check for remote certs/novnc: {e}. Proceeding without SSL options and default novnc path.")
@@ -592,7 +592,7 @@ wp.websockify_init()
             return '127.0.0.1', tunnel_port, {"control_socket": control_socket}
         except FileNotFoundError:
             self.app.call_from_thread(self.app.show_error_message, ErrorMessages.SSH_COMMAND_NOT_FOUND)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
             self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_CREATE_SSH_TUNNEL_GENERIC)
             logging.error(f"SSH tunnel command failed: {' '.join(ssh_cmd)}")
 

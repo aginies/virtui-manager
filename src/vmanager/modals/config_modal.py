@@ -2,15 +2,24 @@
 Modal for user configuration
 """
 import shutil
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, ScrollableContainer
-from textual import on
-from textual.widgets import Label, Button, Input, Checkbox, Static, Select
 
-from ..config import save_config, get_user_config_path
-from ..constants import AppInfo, WarningMessages, SuccessMessages, ErrorMessages, StaticText, ButtonLabels
-from .base_modals import BaseModal
+from textual import on
+from textual.app import ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Checkbox, Input, Label, Select, Static
+
+from ..config import get_user_config_path, save_config
+from ..constants import (
+    AppInfo,
+    ButtonLabels,
+    ErrorMessages,
+    StaticText,
+    SuccessMessages,
+    WarningMessages,
+)
 from ..utils import check_r_viewer
+from .base_modals import BaseModal
+
 
 class ConfigModal(BaseModal[None]):
     """Modal screen for configuring the application."""
@@ -56,10 +65,10 @@ class ConfigModal(BaseModal[None]):
                     id="log-level-select",
                     prompt="Select a logging level"
                     )
-                    
+
                 # Remote Viewer Settings
                 yield Label(StaticText.REMOTE_VIEWER)
-                   
+
                 viewers = []
                 if shutil.which("virtui-remote-viewer"):
                     viewers.append(("virtui-remote-viewer", "virtui-remote-viewer"))

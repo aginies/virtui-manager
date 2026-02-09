@@ -2,11 +2,12 @@
 Log function
 """
 from textual.app import ComposeResult
+from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, TextArea
-from textual.containers import Vertical, Horizontal
 
-from .base_modals import BaseModal
 from ..constants import ButtonLabels
+from .base_modals import BaseModal
+
 
 class LogModal(BaseModal[None]):
     """ Modal Screen to show Log"""

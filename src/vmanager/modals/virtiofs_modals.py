@@ -4,10 +4,15 @@ virtiofs modals
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
-        Button, Input, Label, Checkbox,
-        )
-from ..constants import ErrorMessages, ButtonLabels, StaticText
+    Button,
+    Checkbox,
+    Input,
+    Label,
+)
+
+from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
+
 
 class AddEditVirtIOFSModal(BaseModal[dict | None]):
     """Modal screen for adding or editing a VirtIO-FS mount."""

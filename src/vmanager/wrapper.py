@@ -1,5 +1,6 @@
 import sys
 
+
 def main():
     """Entry point for the TUI application."""
     try:

@@ -1,83 +1,94 @@
 """
 Main interface
 """
-import os
-import sys
-import re
-import threading
-import signal
-import asyncio
-from threading import RLock
-from concurrent.futures import ThreadPoolExecutor
-import logging
 import argparse
+import asyncio
+import logging
+import os
+import re
+import signal
+import sys
+import threading
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
+from threading import RLock
 from typing import Any, Callable
-import libvirt
 
+import libvirt
 from textual.app import App, ComposeResult, on
+from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
-from textual.binding import Binding
 from textual.widgets import (
-    Button, Footer, Header, Label, Link, Static, Collapsible,
+    Button,
+    Collapsible,
+    Footer,
+    Header,
+    Label,
+    Link,
 )
 from textual.worker import Worker, WorkerState
 
-from .config import load_config, save_config, get_log_path
+from .config import get_log_path, load_config, save_config
 from .constants import (
-        WarningMessages,
-        SuccessMessages,
-        VmAction, VmStatus, ButtonLabels, BindingDescriptions,
-        ErrorMessages, AppInfo, StatusText, ServerPallette, QuickMessages, ProgressMessages,
-        )
-from .events import VmActionRequest, VMSelectionChanged, VmCardUpdateRequest #,VMNameClicked
+    AppInfo,
+    BindingDescriptions,
+    ButtonLabels,
+    ErrorMessages,
+    ProgressMessages,
+    QuickMessages,
+    ServerPallette,
+    StatusText,
+    SuccessMessages,
+    VmAction,
+    VmStatus,
+    WarningMessages,
+)
+from .events import VmActionRequest, VmCardUpdateRequest, VMSelectionChanged  #,VMNameClicked
 from .libvirt_error_handler import register_error_handler
+from .libvirt_utils import get_active_vm_allocation, get_host_resources, get_internal_id
 from .modals.bulk_modals import BulkActionModal
+from .modals.cache_stats_modal import CacheStatsModal
+from .modals.capabilities_modal import CapabilitiesTreeModal
 from .modals.config_modal import ConfigModal
+from .modals.host_dashboard_modal import HostDashboardModal
+from .modals.host_stats import HostStats, SingleHostStat
 from .modals.log_modal import LogModal
-from .modals.server_modals import ServerManagementModal
-from .modals.server_prefs_modals import ServerPrefModal
+from .modals.provisioning_modals import InstallVMModal
 from .modals.select_server_modals import SelectOneServerModal, SelectServerModal
 from .modals.selection_modals import PatternSelectModal
-from .modals.capabilities_modal import CapabilitiesTreeModal
-from .modals.cache_stats_modal import CacheStatsModal
+from .modals.server_modals import ServerManagementModal
+from .modals.server_prefs_modals import ServerPrefModal
 from .modals.utils_modals import (
+    ConfirmationDialog,
+    LoadingModal,
     show_error_message,
+    show_in_progress_message,
+    show_quick_message,
     show_success_message,
     show_warning_message,
-    show_quick_message,
-    show_in_progress_message,
-    LoadingModal,
-    ConfirmationDialog,
 )
+from .modals.virsh_modals import VirshShellScreen
 from .modals.vmanager_modals import (
     FilterModal,
 )
-from .modals.virsh_modals import VirshShellScreen
-from .modals.provisioning_modals import InstallVMModal
-from .modals.host_dashboard_modal import HostDashboardModal
 from .utils import (
     check_novnc_path,
     check_r_viewer,
     check_websockify,
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
+    is_running_under_flatpak,
     setup_cache_monitoring,
-    setup_logging, is_running_under_flatpak
+    setup_logging,
 )
 from .vm_queries import (
     get_status,
 )
-from .libvirt_utils import (
-        get_internal_id, get_host_resources,
-        get_active_vm_allocation
-        )
 from .vm_service import VMService
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
-from .modals.host_stats import HostStats, SingleHostStat
 
 setup_logging()
 
@@ -748,7 +759,7 @@ class VMManagerTUI(App):
     def show_warning_message(self, message: str):
         show_warning_message(self, message)
 
-    @on(Button.Pressed, f"#compact-view-button")
+    @on(Button.Pressed, "#compact-view-button")
     def action_compact_view(self) -> None:
         """Toggle compact view."""
         if self.bulk_operation_in_progress:
@@ -1004,7 +1015,7 @@ class VMManagerTUI(App):
         """View the application log file (last 1000 lines)."""
         log_path = get_log_path()
         try:
-            with open(log_path, "r") as f:
+            with open(log_path) as f:
                 log_content = "".join(deque(f, 1000))
         except FileNotFoundError:
             log_content = f"Log file ({log_path}) not found."
@@ -1197,7 +1208,7 @@ class VMManagerTUI(App):
                 )
             finally:
                 self.vm_service.unsuppress_vm_events(message.internal_id)
-                
+
                 # Show stats update since event was suppressed
                 try:
                     self.call_from_thread(self._trigger_host_stats_refresh)
@@ -1306,7 +1317,9 @@ class VMManagerTUI(App):
 
                     if result:
                         vm_info, domain, conn = result
-                        from .modals.vmdetails_modals import VMDetailModal # Import here to avoid circular dep if any
+                        from .modals.vmdetails_modals import (
+                            VMDetailModal,  # Import here to avoid circular dep if any
+                        )
 
                         self.push_screen(
                             VMDetailModal(
@@ -1533,7 +1546,7 @@ class VMManagerTUI(App):
                     }
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                        logging.warning(f"Skipping display of non-existent VM during refresh.")
+                        logging.warning("Skipping display of non-existent VM during refresh.")
                         return None
                     else:
                         try:
@@ -1624,7 +1637,7 @@ class VMManagerTUI(App):
                     card.name = data['name']
                     card.cpu = data['cpu']
                     card.memory = data['memory']
-                    
+
                     card.server_border_color = self.get_server_color(data['uri'])
                     card.status = data['status']
                     card.internal_id = uuid
@@ -1787,8 +1800,8 @@ class VMManagerTUI(App):
                     name = s['name']
                     break
             available_servers.append({
-                'name': name, 
-                'uri': uri, 
+                'name': name,
+                'uri': uri,
                 'color': self.get_server_color(uri)
             })
 

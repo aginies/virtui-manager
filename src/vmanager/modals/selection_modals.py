@@ -3,12 +3,15 @@ Modals for VM selection.
 """
 import logging
 import re
-from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll, Grid
-from textual.widgets import Button, Input, Label, DataTable, Checkbox
+
 from textual import on
+from textual.app import ComposeResult
+from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
+from textual.widgets import Button, Checkbox, DataTable, Input, Label
+
+from ..constants import ButtonLabels, StaticText
 from .base_modals import BaseModal
-from ..constants import StaticText, ButtonLabels
+
 
 class PatternSelectModal(BaseModal[set[str] | None]):
     """Modal for selecting VMs by pattern across servers."""
@@ -28,7 +31,7 @@ class PatternSelectModal(BaseModal[set[str] | None]):
 
             with Horizontal(classes="pattern-input-row"):
                 yield Input(
-                    placeholder="Search pattern (e.g. web-*)", 
+                    placeholder="Search pattern (e.g. web-*)",
                     id="pattern-input",
                     restrict=r"[a-zA-Z0-9_\-\*\?\.\^\|\$\( \[ \] \+\{\}\\]*"
                 )
@@ -129,7 +132,7 @@ class PatternSelectModal(BaseModal[set[str] | None]):
         for row_key in table.rows:
             table.update_cell(row_key, "select", " [ ]")
 
-        self.query_one("#results-label").update(f"Selected VMs (0):")
+        self.query_one("#results-label").update("Selected VMs (0):")
         self.query_one("#select-btn").disabled = True
 
     @on(Button.Pressed, "#select-btn")

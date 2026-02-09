@@ -5,19 +5,19 @@ Simple remote viewer
 #import os
 #os.environ['GDK_BACKEND'] = 'x11'
 import argparse
-import sys
-import xml.etree.ElementTree as ET
-import os
 import json
-import time
-import subprocess
+import os
 import socket
+import subprocess
+import sys
 import threading
-import libvirt
+import time
+import xml.etree.ElementTree as ET
+
 import gi
-from . import vm_queries
-from . import vm_actions
-from . import libvirt_utils
+import libvirt
+
+from . import libvirt_utils, vm_actions, vm_queries
 
 gi.require_version('Gtk', '3.0')
 gi.require_version('GtkVnc', '2.0')
@@ -27,12 +27,13 @@ gi.require_version('GdkPixbuf', '2.0')
 try:
     gi.require_version('SpiceClientGtk', '3.0')
     gi.require_version('SpiceClientGLib', '2.0')
-    from gi.repository import SpiceClientGtk, SpiceClientGLib
+    from gi.repository import SpiceClientGLib, SpiceClientGtk
     SPICE_AVAILABLE = True
 except (ValueError, ImportError):
     SPICE_AVAILABLE = False
 
-from gi.repository import Gtk, Gdk, GtkVnc, GLib, GdkPixbuf
+from gi.repository import Gdk, GLib, Gtk, GtkVnc
+
 
 class RemoteViewer(Gtk.Application):
     def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False, wait=False, direct=False):
@@ -169,17 +170,17 @@ class RemoteViewer(Gtk.Application):
         """
         if not self.uri or 'qemu+ssh' not in self.uri:
             return None, None
-        
+
         import re
         # Pattern: qemu+ssh://[user@]host[:port]/path
         match = re.search(r'qemu\+ssh://([^@]+@)?([^/:]+)(?::(\d+))?', self.uri)
         if not match:
             return None, None
-        
+
         user_part = match.group(1) if match.group(1) else ""
         host = match.group(2)
         port = match.group(3) if match.group(3) else "22"
-        
+
         gateway = f"{user_part}{host}"
         return gateway, port
 
@@ -250,7 +251,7 @@ class RemoteViewer(Gtk.Application):
         try:
             # Lifecycle events
             self.conn.domainEventRegisterAny(
-                self.domain, 
+                self.domain,
                 libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE,
                 self._event_lifecycle_callback,
                 None
@@ -326,7 +327,7 @@ class RemoteViewer(Gtk.Application):
             self.show_notification(f"VM '{dom.name()}' has shut down.", Gtk.MessageType.INFO)
         elif event_type == "Crashed":
             self.show_notification(f"VM '{dom.name()}' has crashed.", Gtk.MessageType.ERROR)
-        
+
         # Call this to update sensitivity of restore button if needed
         self.update_restore_button_sensitivity()
 
@@ -345,7 +346,7 @@ class RemoteViewer(Gtk.Application):
 
     def load_state(self):
         try:
-            with open(self.get_config_path(), 'r') as f:
+            with open(self.get_config_path()) as f:
                 data = json.load(f)
                 self.is_fullscreen = data.get("fullscreen", False)
                 self.scaling_enabled = data.get("scaling", False)
@@ -501,11 +502,11 @@ class RemoteViewer(Gtk.Application):
                     self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
                 except libvirt.libvirtError:
                     pass # Keep using current domain object if lookup fails
-            
+
             protocol, host, port, pwd = self.get_display_info()
             if not self.attach and (not host or not port):
                 return True # Keep waiting
-            
+
             self.show_notification("VM started! Connecting...", Gtk.MessageType.INFO)
             self.connect_display()
             return False
@@ -775,26 +776,26 @@ class RemoteViewer(Gtk.Application):
         # Snapshot actions buttons
         action_buttons_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.snapshots_tab.pack_start(action_buttons_box, False, False, 0)
- 
+
         self.create_snapshot_button = Gtk.Button(label="Create Snapshot")
         self.create_snapshot_button.connect("clicked", self.on_create_snapshot_clicked)
         action_buttons_box.pack_start(self.create_snapshot_button, True, True, 0)
- 
+
         self.delete_snapshot_button = Gtk.Button(label="Delete Snapshot")
         self.delete_snapshot_button.connect("clicked", self.on_delete_snapshot_clicked)
         self.delete_snapshot_button.set_sensitive(False) # Initially insensitive
         action_buttons_box.pack_start(self.delete_snapshot_button, True, True, 0)
- 
+
         self.restore_snapshot_button = Gtk.Button(label="Restore Snapshot")
         self.restore_snapshot_button.connect("clicked", self.on_restore_snapshot_clicked)
         self.restore_snapshot_button.set_sensitive(False) # Initially insensitive
         action_buttons_box.pack_start(self.restore_snapshot_button, True, True, 0)
- 
+
         # Refresh button (keeping it separate or integrating as preferred)
         refresh_button = Gtk.Button(label="Refresh Snapshots")
         refresh_button.connect("clicked", self.on_refresh_snapshots_clicked)
         action_buttons_box.pack_start(refresh_button, True, True, 0)
- 
+
         # Connect selection change to update button sensitivity
         selection = self.snapshots_tree_view.get_selection()
         selection.connect("changed", self.on_snapshots_selection_changed)
@@ -926,7 +927,7 @@ class RemoteViewer(Gtk.Application):
                 self.start_ssh_tunnel(remote_host, port)
             elif self.direct_connection:
                 self.log_message("Direct connection mode: Skipping SSH tunnel")
- 
+
     def get_display_info(self):
         """Retrieve connection info (protocol, host, port, password)"""
         if not self.domain:
@@ -941,13 +942,13 @@ class RemoteViewer(Gtk.Application):
                 port = g_node.get('port')
                 if not port or port == '-1':
                     port = g_node.get('tlsPort')
-                
+
                 listen = g_node.get('listen')
                 if not listen or listen == '0.0.0.0':
                     listen = 'localhost'
-                
+
                 password = g_node.get('passwd')
-                
+
                 if port and port != '-1':
                     return listen, port, password
                 return None
@@ -986,7 +987,7 @@ class RemoteViewer(Gtk.Application):
                 parent.destroy()
             elif parent == self.view_container:
                 self.view_container.remove(self.display_widget)
-            
+
             self.display_widget.destroy()
             self.display_widget = None
 
@@ -1063,7 +1064,7 @@ class RemoteViewer(Gtk.Application):
                 # We need to refresh self.domain to ensure we are querying the running instance
                 # which has the assigned VNC/SPICE port in its XML.
                 self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
-                
+
                 # Log state for debugging
                 try:
                     state_str = vm_queries.get_status(self.domain)
@@ -1081,7 +1082,7 @@ class RemoteViewer(Gtk.Application):
                 self.log_message(f"INFO: {current_uuid}")
                 if current_uuid != self.original_domain_uuid:
                     self.log_message(f"ERROR: Domain UUID mismatch! Expected {self.original_domain_uuid}, got {current_uuid}")
-                    self.show_error_dialog(f"Security error: Domain UUID changed. Refusing to connect.")
+                    self.show_error_dialog("Security error: Domain UUID changed. Refusing to connect.")
                     return False
             except libvirt.libvirtError:
                 pass
@@ -1234,7 +1235,7 @@ class RemoteViewer(Gtk.Application):
 
     def on_vnc_auth_credential(self, vnc, cred_list):
         if self.verbose:
-            print(f"VNC Auth Credential requested")
+            print("VNC Auth Credential requested")
 
         password = self._pending_password
         # If no password was set (XML has no passwd attribute), VNC shouldn't ask for auth
@@ -1427,7 +1428,7 @@ class RemoteViewer(Gtk.Application):
             self.notebook.get_nth_page(snapshots_page_num).hide()
             self.notebook.get_nth_page(usb_page_num).hide() # Hide USB tab
             self.notebook.set_show_tabs(False)
-            
+
         # Always default to Display tab when toggling or at startup
         self.notebook.set_current_page(0)
 
@@ -1702,7 +1703,7 @@ class RemoteViewer(Gtk.Application):
         selection = self.snapshots_tree_view.get_selection()
         model, treeiter = selection.get_selected()
         is_vm_active = self.domain.isActive() if self.domain else True # Assume active if no domain
-        
+
         # Restore button is sensitive only if a snapshot is selected AND the VM is NOT active
         self.restore_snapshot_button.set_sensitive(treeiter is not None and not is_vm_active)
 
@@ -1746,7 +1747,7 @@ class RemoteViewer(Gtk.Application):
                 return
 
             self._show_wait_dialog(f"Creating snapshot '{snapshot_name}'...")
-            
+
             # Function to run in a separate thread
             def _create_snapshot_thread():
                 try:
@@ -1759,7 +1760,7 @@ class RemoteViewer(Gtk.Application):
                 finally:
                     GLib.idle_add(self._hide_wait_dialog)
                     GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
-            
+
             threading.Thread(target=_create_snapshot_thread).start()
 
     def on_delete_snapshot_clicked(self, button):
@@ -1781,7 +1782,7 @@ class RemoteViewer(Gtk.Application):
 
             if response == Gtk.ResponseType.YES:
                 self._show_wait_dialog(f"Deleting snapshot '{snapshot_name}'...")
-                
+
                 # Function to run in a separate thread
                 def _delete_snapshot_thread():
                     try:
@@ -1794,7 +1795,7 @@ class RemoteViewer(Gtk.Application):
                     finally:
                         GLib.idle_add(self._hide_wait_dialog)
                         GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
-                
+
                 threading.Thread(target=_delete_snapshot_thread).start()
         else:
             self.show_notification("No snapshot selected for deletion.", Gtk.MessageType.WARNING)
@@ -1823,7 +1824,7 @@ class RemoteViewer(Gtk.Application):
 
             if response == Gtk.ResponseType.YES:
                 self._show_wait_dialog(f"Restoring VM to snapshot '{snapshot_name}'...")
-                
+
                 # Function to run in a separate thread
                 def _restore_snapshot_thread():
                     try:
@@ -1837,7 +1838,7 @@ class RemoteViewer(Gtk.Application):
                     finally:
                         GLib.idle_add(self._hide_wait_dialog)
                         GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
-                
+
                 threading.Thread(target=_restore_snapshot_thread).start()
 
 
@@ -1895,7 +1896,7 @@ class RemoteViewer(Gtk.Application):
             self.show_notification(f"Failed to get host USB devices: {e}", Gtk.MessageType.ERROR)
         except Exception as e:
             self.show_notification(f"Error getting host USB devices: {e}", Gtk.MessageType.ERROR)
-        
+
         # Update button sensitivities after populating lists
         self.on_attached_usb_selection_changed(self.attached_usb_tree_view.get_selection())
         self.on_host_usb_selection_changed(self.host_usb_tree_view.get_selection())
@@ -1931,7 +1932,7 @@ class RemoteViewer(Gtk.Application):
 
             self._show_wait_dialog(f"Attaching USB device '{description}'...")
             self.log_message("Wait dialog shown.")
-            
+
             def _attach_usb_thread():
                 self.log_message(f"Attempting to attach USB in thread: {description}")
                 try:
@@ -1950,7 +1951,7 @@ class RemoteViewer(Gtk.Application):
                     self.log_message("Attaching USB thread finished. Hiding wait dialog and refreshing lists.")
                     GLib.idle_add(self._hide_wait_dialog)
                     GLib.idle_add(self._populate_usb_lists) # Refresh lists on main thread
-            
+
             threading.Thread(target=_attach_usb_thread).start()
         else:
             self.show_notification("No host USB device selected for attachment.", Gtk.MessageType.WARNING)
@@ -1968,7 +1969,7 @@ class RemoteViewer(Gtk.Application):
 
             self._show_wait_dialog(f"Detaching USB device '{description}'...")
             self.log_message("Wait dialog shown.")
-            
+
             def _detach_usb_thread():
                 self.log_message(f"Attempting to detach USB in thread: {description}")
                 try:
@@ -1987,7 +1988,7 @@ class RemoteViewer(Gtk.Application):
                     self.log_message("Detaching USB thread finished. Hiding wait dialog and refreshing lists.")
                     GLib.idle_add(self._hide_wait_dialog)
                     GLib.idle_add(self._populate_usb_lists) # Refresh lists on main thread
-            
+
             threading.Thread(target=_detach_usb_thread).start()
         else:
             self.show_notification("No attached USB device selected for detachment.", Gtk.MessageType.WARNING)

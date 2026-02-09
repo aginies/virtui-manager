@@ -2,23 +2,34 @@
 VM Service Layer
 Handles all libvirt interactions and data processing.
 """
-import time
-import threading
 import logging
+import threading
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Callable
+
 import libvirt
+
 from .connection_manager import ConnectionManager
-from .constants import VmStatus, VmAction, AppCacheTimeout
+from .constants import AppCacheTimeout, VmAction, VmStatus
 from .storage_manager import check_domain_volumes_in_use
-from .utils import natural_sort_key, extract_server_name_from_uri
-from .vm_actions import start_vm, stop_vm, force_off_vm, pause_vm, delete_vm
+from .utils import extract_server_name_from_uri, natural_sort_key
+from .vm_actions import delete_vm, force_off_vm, pause_vm, start_vm, stop_vm
 from .vm_queries import (
-    get_status, get_vm_description, get_vm_machine_info, get_vm_firmware_info,
-    get_vm_networks_info, get_vm_network_ip, get_vm_network_dns_gateway_info,
-    get_vm_disks_info, get_vm_devices_info, get_vm_shared_memory_info,
-    get_boot_info, get_vm_video_model, get_vm_cpu_model
+    get_boot_info,
+    get_status,
+    get_vm_cpu_model,
+    get_vm_description,
+    get_vm_devices_info,
+    get_vm_disks_info,
+    get_vm_firmware_info,
+    get_vm_machine_info,
+    get_vm_network_dns_gateway_info,
+    get_vm_network_ip,
+    get_vm_networks_info,
+    get_vm_shared_memory_info,
+    get_vm_video_model,
 )
 
 # Global event loop management
@@ -453,7 +464,7 @@ class VMService:
             with self._cache_lock:
                 if uri in self._name_to_uuid_cache and name in self._name_to_uuid_cache[uri]:
                     uuid = self._name_to_uuid_cache[uri].get(name)
-            
+
             if uuid:
                 return f"{uuid}@{uri}", name
 
@@ -589,7 +600,7 @@ class VMService:
                 keys_to_invalidate = [uuid]
             else:
                 keys_to_invalidate = [
-                    k for k in self._vm_data_cache.keys() 
+                    k for k in self._vm_data_cache.keys()
                     if k == uuid or k.startswith(f"{uuid}@")
                 ]
                 # Also check other caches just in case keys are there but not in data cache
@@ -620,7 +631,7 @@ class VMService:
                 # Plain UUID provided, find all composite IDs that start with it
                 # or match it exactly (in case of failed URI lookup during creation)
                 keys_to_invalidate = [
-                    k for k in self._vm_data_cache.keys() 
+                    k for k in self._vm_data_cache.keys()
                     if k == uuid or k.startswith(f"{uuid}@")
                 ]
                 # Also check other caches
@@ -1137,7 +1148,7 @@ class VMService:
     def disconnect_all(self):
         """Disconnects all active libvirt connections."""
         self.stop_monitoring()
-        
+
         # Release domain objects to ensure connections can be closed fully
         self.invalidate_domain_cache()
 
@@ -1204,7 +1215,7 @@ class VMService:
                     elif action_type == VmAction.DELETE:
                         # Special case for delete action's own callback
                         delete_log_callback = lambda m: progress_callback("log", message=m)
-                        
+
                         # Optimization: Reuse connection for bulk delete
                         conn_uri = self.get_uri_for_connection(domain.connect())
                         target_conn = None
@@ -1241,7 +1252,7 @@ class VMService:
             with self._cache_lock:
                 for uuid in vm_uuids:
                     self._suppressed_uuids.discard(uuid)
-            
+
             # Close temporary deletion connections
             for conn in delete_conns.values():
                 try:
@@ -1413,7 +1424,7 @@ class VMService:
         """Resumes the VM (handles both PAUSED and PMSUSPENDED states)."""
         internal_id = self._get_internal_id(domain)
         logging.info(f"Resuming/Waking up VM: {domain.name()} (ID: {internal_id})")
-        
+
         try:
             state, _ = domain.state()
             if state == libvirt.VIR_DOMAIN_PMSUSPENDED:

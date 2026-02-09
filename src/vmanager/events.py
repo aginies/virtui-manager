@@ -3,6 +3,7 @@ Defines custom Message classes for the application.
 """
 from textual.message import Message
 
+
 class VMNameClicked(Message):
     """Posted when a VM's name is clicked."""
 

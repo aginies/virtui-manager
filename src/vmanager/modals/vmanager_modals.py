@@ -2,13 +2,11 @@
 Vmanager modals
 """
 from textual.app import ComposeResult
+from textual.containers import Grid, Horizontal, ScrollableContainer, Vertical
 from textual.message import Message
-from textual.containers import Horizontal, Vertical, ScrollableContainer, Grid
-from textual.widgets import (
-        Button, Input, Label,
-        RadioButton, RadioSet, Checkbox
-        )
-from ..constants import VmStatus, ErrorMessages, SuccessMessages, ButtonLabels, StaticText
+from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSet
+
+from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages, VmStatus
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 

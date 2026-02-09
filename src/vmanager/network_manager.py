@@ -1,15 +1,17 @@
 """
 Module for managing network-related operations for virtual machines.
 """
-import subprocess
-import secrets
 import ipaddress
 import logging
+import secrets
+import subprocess
 import xml.etree.ElementTree as ET
 from functools import lru_cache
+
 import libvirt
-from .utils import log_function_call
+
 from .libvirt_utils import get_host_domain_capabilities
+from .utils import log_function_call
 
 
 @lru_cache(maxsize=16)

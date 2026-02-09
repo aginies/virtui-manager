@@ -1,12 +1,13 @@
 """
 Modal to show VM Type differences from DEFAULT_SETTINGS.md.
 """
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, ScrollableContainer
-from textual.widgets import Button, Markdown
 from textual import on
-from .base_modals import BaseModal
+from textual.app import ComposeResult
+from textual.containers import ScrollableContainer
+from textual.widgets import Button, Markdown
+
 from ..constants import ButtonLabels
+from .base_modals import BaseModal
 
 VM_TYPE_INFO_TEXT = """
 | [Storage Settings](https://www.qemu.org/docs/master/system/qemu-block-drivers.html) | Secure VM | Computation | Desktop (Linux) | Windows | Win Legacy | Server |

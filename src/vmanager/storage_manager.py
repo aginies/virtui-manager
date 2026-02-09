@@ -1,19 +1,21 @@
 """
 Module for managing libvirt storage pools and volumes.
 """
-from typing import List, Dict, Any
 import logging
 import os
 import shutil
-import tempfile
-import xml.etree.ElementTree as ET
-import threading
-from functools import lru_cache
 import subprocess
+import tempfile
+import threading
+import xml.etree.ElementTree as ET
+from functools import lru_cache
+from typing import Any, Dict, List
+
 import libvirt
+
 from .libvirt_utils import (
-        _find_vol_by_path,
-        )
+    _find_vol_by_path,
+)
 from .vm_queries import get_vm_disks_info
 
 
@@ -39,7 +41,7 @@ def _ensure_pool_active(pool: libvirt.virStoragePool) -> bool:
     """
     if _safe_is_pool_active(pool):
         return True
-    
+
     try:
         logging.info(f"Pool '{pool.name()}' is not active, attempting to activate...")
         pool.create(0)
@@ -151,7 +153,7 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                 is_active = _safe_is_pool_active(pool)
                 capacity, allocation, _ = _safe_get_pool_info(pool)
                 autostart = _safe_get_pool_autostart(pool)
-                
+
                 pools_info.append({
                     'name': name,
                     'pool': pool,
@@ -308,13 +310,13 @@ def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_for
     # Preallocation handling
     # Libvirt supports preallocation via allocation element or target/format/features
     # For qcow2, metadata preallocation is common.
-    
+
     format_attr = f"type='{vol_format}'"
-    
+
     # Cluster size
     cluster_xml = ""
     cluster_size_bytes = 65536 # Default
-    
+
     if cluster_size and vol_format == 'qcow2':
         # cluster_size can be '1024k', '64k' etc.
         unit = 'B'
@@ -332,7 +334,7 @@ def create_volume(pool: libvirt.virStoragePool, name: str, size_gb: int, vol_for
                  cluster_size_bytes = int(cluster_size)
              except ValueError:
                  pass # keep default
-        
+
         cluster_xml = f"<cluster_size unit='{unit}'>{value}</cluster_size>"
 
     if vol_format == 'qcow2':
@@ -574,8 +576,8 @@ def check_domain_volumes_in_use(domain: libvirt.virDomain) -> None:
                 other_root = ET.fromstring(other_xml)
                 for other_disk in other_root.findall(".//devices/disk"):
                     other_source = other_disk.find("source")
-                    if (other_source is not None and 
-                        other_source.get("pool") == pool_name and 
+                    if (other_source is not None and
+                        other_source.get("pool") == pool_name and
                         other_source.get("volume") == vol_name):
                         raise ValueError(f"Volume '{vol_name}' is in use by running VM '{other_domain.name()}'")
         except libvirt.libvirtError:

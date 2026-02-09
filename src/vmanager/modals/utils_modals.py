@@ -19,8 +19,8 @@ from textual.widgets import (
     ProgressBar,
 )
 
-from .base_modals import BaseDialog, BaseModal
 from ..constants import ButtonLabels, StaticText
+from .base_modals import BaseDialog, BaseModal
 
 
 def _sanitize_message(message: str) -> str:

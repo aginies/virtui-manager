@@ -3,15 +3,20 @@ Main interface
 """
 import asyncio
 
+from textual import on
 from textual.app import ComposeResult
-from textual.widgets import (
-        Header, Footer, Input, Label,
-        TextArea,
-        )
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
-from textual import on
+from textual.widgets import (
+    Footer,
+    Header,
+    Input,
+    Label,
+    TextArea,
+)
+
 from ..constants import StaticText
+
 
 class VirshShellScreen(ModalScreen):
     """Screen for an interactive virsh shell."""

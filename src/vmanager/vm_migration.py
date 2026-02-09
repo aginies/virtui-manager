@@ -5,14 +5,19 @@ Module for handling custom VM migration.
 import logging
 import os
 import xml.etree.ElementTree as ET
+
 import libvirt
-from .vm_queries import get_vm_disks_info, get_vm_snapshots
+
 from .libvirt_utils import (
-        _find_vol_by_path, get_overlay_backing_path,
-        VIRTUI_MANAGER_NS, get_internal_id
-        )
+    VIRTUI_MANAGER_NS,
+    _find_vol_by_path,
+    get_internal_id,
+    get_overlay_backing_path,
+)
 from .storage_manager import copy_volume_across_hosts
 from .utils import extract_server_name_from_uri
+from .vm_queries import get_vm_disks_info, get_vm_snapshots
+
 
 def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, actions: list, selections: dict, log_callback=None, progress_callback=None):
     """
@@ -106,7 +111,7 @@ def execute_custom_migration(source_conn: libvirt.virConnect, dest_conn: libvirt
                     source_conn,
                     dest_conn,
                     action['source_pool'],
-                    dest_pool_name, 
+                    dest_pool_name,
                     action['volume_name'],
                     new_backing_path=new_backing_path,
                     progress_callback="", #current_progress_callback,

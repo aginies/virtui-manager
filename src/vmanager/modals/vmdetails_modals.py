@@ -1,74 +1,130 @@
 """
 Main interface
 """
-import os
 import logging
-from collections import namedtuple
+import os
 import xml.etree.ElementTree as ET
+from collections import namedtuple
 
+import libvirt
+from textual import on
 from textual.app import ComposeResult
-from textual.widgets import (
-        Select, Button, Input, Label,
-        DataTable, Checkbox, RadioButton,
-        RadioSet, TabbedContent, TabPane,
-        ListView, ListItem, Static
-        )
-from textual.containers import ScrollableContainer, Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, ScrollableContainer, Vertical, VerticalScroll
 from textual.reactive import reactive
 from textual.screen import ModalScreen
-from textual import on
-import libvirt
-from ..vm_queries import (
-    get_vm_networks_info,
-    get_vm_disks_info, get_vm_devices_info,
-    get_supported_machine_types, get_vm_graphics_info,
-    get_vm_sound_model,
-    get_vm_network_ip, get_vm_rng_info, get_vm_tpm_info, get_vm_video_info,
-    get_attached_usb_devices, get_serial_devices, get_vm_input_info,
-    get_vm_watchdog_info, get_attached_pci_devices,
-    get_vm_numatune, get_vm_cputune
-    )
-from ..vm_actions import (
-        add_disk, remove_disk, set_vcpu, set_memory, set_machine_type, enable_disk,
-        disable_disk, change_vm_network, set_shared_memory, remove_virtiofs,
-        add_virtiofs, set_vm_video_model, set_cpu_model, set_uefi_file,
-        set_vm_graphics, set_disk_properties, set_vm_sound_model,
-        add_network_interface, remove_network_interface, set_boot_info, set_vm_rng, set_vm_tpm,
-        check_for_other_spice_devices, remove_spice_devices, attach_usb_device,
-        detach_usb_device, add_serial_console, remove_serial_console,
-        add_vm_input, remove_vm_input, set_vm_watchdog, remove_vm_watchdog,
-        add_usb_device, remove_usb_device, add_scsi_controller, remove_scsi_controller,
-        migrate_vm_machine_type, add_vm_channel, remove_vm_channel,
-        set_vm_numatune, set_vm_cputune
+from textual.widgets import (
+    Button,
+    Checkbox,
+    DataTable,
+    Input,
+    Label,
+    ListItem,
+    ListView,
+    RadioButton,
+    RadioSet,
+    Select,
+    Static,
+    TabbedContent,
+    TabPane,
 )
-from ..config import get_log_path
+
+from .. import storage_manager
+from ..constants import (
+    ButtonLabels,
+    DialogMessages,
+    ErrorMessages,
+    StaticText,
+    SuccessMessages,
+    WarningMessages,
+)
+from ..firmware_manager import get_host_sev_capabilities, get_uefi_files
+from ..libvirt_utils import (
+    get_cpu_models,
+    get_domain_capabilities_xml,
+    get_host_numa_nodes,
+    get_host_pci_devices,
+    get_host_usb_devices,
+    get_video_domain_capabilities,
+)
 from ..network_manager import (
     list_networks,
 )
-from ..firmware_manager import (
-    get_uefi_files, get_host_sev_capabilities
+from ..vm_actions import (
+    add_disk,
+    add_network_interface,
+    add_scsi_controller,
+    add_serial_console,
+    add_usb_device,
+    add_virtiofs,
+    add_vm_channel,
+    add_vm_input,
+    attach_usb_device,
+    change_vm_network,
+    check_for_other_spice_devices,
+    detach_usb_device,
+    disable_disk,
+    enable_disk,
+    migrate_vm_machine_type,
+    remove_disk,
+    remove_network_interface,
+    remove_scsi_controller,
+    remove_serial_console,
+    remove_spice_devices,
+    remove_usb_device,
+    remove_virtiofs,
+    remove_vm_channel,
+    remove_vm_input,
+    remove_vm_watchdog,
+    set_boot_info,
+    set_cpu_model,
+    set_disk_properties,
+    set_machine_type,
+    set_memory,
+    set_shared_memory,
+    set_uefi_file,
+    set_vcpu,
+    set_vm_cputune,
+    set_vm_graphics,
+    set_vm_numatune,
+    set_vm_rng,
+    set_vm_sound_model,
+    set_vm_tpm,
+    set_vm_video_model,
+    set_vm_watchdog,
 )
-from .. import storage_manager
-from ..libvirt_utils import (
-        get_cpu_models, get_domain_capabilities_xml, get_video_domain_capabilities,
-        get_host_usb_devices, get_host_pci_devices,
-        get_host_numa_nodes
-        )
-from ..constants import ErrorMessages, SuccessMessages, WarningMessages, DialogMessages, ButtonLabels, StaticText
-from .utils_modals import ConfirmationDialog, ProgressModal
+from ..vm_queries import (
+    get_attached_pci_devices,
+    get_attached_usb_devices,
+    get_serial_devices,
+    get_supported_machine_types,
+    get_vm_cputune,
+    get_vm_devices_info,
+    get_vm_disks_info,
+    get_vm_graphics_info,
+    get_vm_input_info,
+    get_vm_network_ip,
+    get_vm_networks_info,
+    get_vm_numatune,
+    get_vm_rng_info,
+    get_vm_sound_model,
+    get_vm_tpm_info,
+    get_vm_video_info,
+    get_vm_watchdog_info,
+)
 from .cpu_mem_pc_modals import (
-        EditCpuModal, EditMemoryModal, SelectMachineTypeModal,
-        EditNumaTuneModal, EditCpuTuneModal,
-        )
-from .virtiofs_modals import AddEditVirtIOFSModal
-from .disk_pool_modals import (
-          SelectPoolModal, AddDiskModal,
-          SelectDiskModal, EditDiskModal
-          )
+    EditCpuModal,
+    EditCpuTuneModal,
+    EditMemoryModal,
+    EditNumaTuneModal,
+    SelectMachineTypeModal,
+)
+from .disk_pool_modals import AddDiskModal, EditDiskModal, SelectDiskModal, SelectPoolModal
 from .howto_disk_modal import HowToDiskModal
 from .howto_virtiofs_modal import HowToVirtIOFSModal
+from .input_modals import AddChannelModal, AddInputDeviceModal
 from .network_modals import AddEditNetworkInterfaceModal
-from .input_modals import AddInputDeviceModal, AddChannelModal
+from .utils_modals import ConfirmationDialog, ProgressModal
+from .virtiofs_modals import AddEditVirtIOFSModal
 
 BootDevice = namedtuple("BootDevice", ["type", "id", "description", "boot_order_idx"])
 
@@ -612,7 +668,7 @@ class VMDetailModal(ModalScreen):
             else:
                 address_radioset.set_pressed("graphics-address-default")
                 address_radioset.disabled = not self.is_vm_stopped
-            
+
         except Exception:
             pass
 
@@ -772,7 +828,7 @@ class VMDetailModal(ModalScreen):
                 msg_text = f"File: {os.path.basename(new_uefi_path)}"
             else:
                 msg_text = "File: "
-            
+
             if not self.is_bulk:
                 self.query_one("#firmware-path-label").update(msg_text)
                 self.vm_info['firmware']['path'] = new_uefi_path
@@ -1070,7 +1126,7 @@ class VMDetailModal(ModalScreen):
                 if confirmed:
                     def removal_operation(d):
                         remove_spice_devices(d)
-                    
+
                     self._run_bulk_operation(
                         targets,
                         removal_operation,
@@ -1533,7 +1589,7 @@ class VMDetailModal(ModalScreen):
                     return
             except (ValueError, IndexError):
                 pass
-        
+
         self.selected_channel = None
         self.query_one("#remove-channel-btn").disabled = True
 
@@ -1603,7 +1659,7 @@ class VMDetailModal(ModalScreen):
 
                         # CPU Model Selection
                         current_cpu_model = self.vm_info.get('cpu_model', 'default')
-                        yield Label(f"CPU Model:", id="cpu-model-label", classes="tabd")
+                        yield Label("CPU Model:", id="cpu-model-label", classes="tabd")
 
                         arch_elem = xml_root.find(".//os/type")
                         arch = arch_elem.get('arch') if arch_elem is not None else 'x86_64'
@@ -1810,7 +1866,7 @@ class VMDetailModal(ModalScreen):
 
                         video_model_options = [(model, model) for model in video_models]
 
-                        yield Label(f"Video Model:", id="video-model-label")
+                        yield Label("Video Model:", id="video-model-label")
                         yield Select(
                             video_model_options,
                             value=current_model,
@@ -1836,7 +1892,7 @@ class VMDetailModal(ModalScreen):
 
                         sound_model_options = [(model, model) for model in sound_models]
 
-                        yield Label(f"Sound Model:", id="sound-model-label")
+                        yield Label("Sound Model:", id="sound-model-label")
                         yield Select(
                             sound_model_options,
                             value=current_sound_model if current_sound_model in sound_models else "none",
@@ -2156,10 +2212,10 @@ class VMDetailModal(ModalScreen):
         def on_confirm(confirmed: bool):
             if confirmed:
                 targets = self.selected_domains if self.is_bulk else [self.domain]
-                
+
                 def operation(d):
                     remove_vm_watchdog(d)
-                
+
                 def ui_update():
                     if not self.is_bulk:
                         self.watchdog_info = {'model': 'none', 'action': 'reset'} # Reset to defaults
@@ -2584,7 +2640,7 @@ class VMDetailModal(ModalScreen):
                                     self.app.call_from_thread(self.app.show_error_message, f"Libvirt error during machine type migration: {e}")
                                 except Exception as e:
                                     self.app.call_from_thread(self.app.show_error_message, f"Unexpected error during machine type migration: {e}")
-                            
+
                             worker_id = self.vm_service._get_internal_id(self.domain)
                             self.app.run_worker(migrate_worker, name=f"migrate_machine_type_{worker_id}", thread=True)
                         else:

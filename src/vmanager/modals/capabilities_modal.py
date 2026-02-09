@@ -2,15 +2,17 @@
 Modal for displaying Host Domain Capabilities in a Tree View with Search.
 """
 import xml.etree.ElementTree as ET
+
 from textual import on
 from textual.app import ComposeResult
-from textual.widgets import Tree, Button, Label, Input
-from textual.containers import Vertical, Horizontal, Container
+from textual.containers import Container, Horizontal
+from textual.widgets import Button, Input, Label, Tree
 from textual.widgets.tree import TreeNode
 
-from .base_modals import BaseModal
-from ..libvirt_utils import get_host_domain_capabilities
 from ..constants import ButtonLabels, StaticText
+from ..libvirt_utils import get_host_domain_capabilities
+from .base_modals import BaseModal
+
 
 class CapabilitiesTreeModal(BaseModal[None]):
     """Modal to show host capabilities XML as a tree."""
@@ -90,7 +92,7 @@ class CapabilitiesTreeModal(BaseModal[None]):
         # Show text inline if short and no children, OR if it matches
         has_xml_children = len(element) > 0
         text = element.text.strip() if element.text else ""
-        
+
         if text and (not has_xml_children or len(text) < 50):
             label += f": {text}"
 

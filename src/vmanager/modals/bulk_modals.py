@@ -1,13 +1,14 @@
 """
 Modal for bulk VM operations
 """
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, ScrollableContainer
 from textual import on
-from textual.widgets import Label, Button, Markdown, Static, RadioSet, RadioButton, Checkbox
+from textual.app import ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Checkbox, Label, Markdown, RadioButton, RadioSet, Static
 
+from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
-from ..constants import ErrorMessages, StaticText, ButtonLabels
+
 
 class BulkActionModal(BaseModal[None]):
     """Modal screen for performing bulk actions on selected VMs."""

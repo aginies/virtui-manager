@@ -3,7 +3,9 @@ Manage the configuration of the tool
 """
 import os
 from pathlib import Path
+
 import yaml
+
 from .constants import AppInfo
 
 #    'VMS_PER_PAGE': 4,
@@ -67,7 +69,7 @@ def load_config():
             break
 
     if config_path:
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             user_config = yaml.safe_load(f) or {}
 
     # Start with default config and update with user's config

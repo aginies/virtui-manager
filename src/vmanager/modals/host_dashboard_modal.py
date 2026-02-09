@@ -2,16 +2,15 @@
 Modal for displaying Host Resource Dashboard.
 """
 import libvirt
-from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal, Grid
-from textual.screen import ModalScreen
-from textual.widgets import Label, Button, ProgressBar, Static, Rule, TabbedContent, TabPane
 from textual import on, work
+from textual.app import ComposeResult
+from textual.containers import Grid, Horizontal, Vertical
+from textual.widgets import Button, Label, ProgressBar, Rule, TabbedContent, TabPane
 
-from .base_modals import BaseModal
-from ..constants import StaticText, ButtonLabels
+from ..constants import ButtonLabels, StaticText, TabTitles
 from ..libvirt_utils import get_host_resources, get_total_vm_allocation
-from ..constants import TabTitles
+from .base_modals import BaseModal
+
 
 class HostDashboardModal(BaseModal[None]):
     """Modal to show host resource usage and VM allocations."""
@@ -36,22 +35,22 @@ class HostDashboardModal(BaseModal[None]):
                     yield Label(f"{self.host_resources.get('total_cpus', 0)} ({self.host_resources.get('mhz', 0)} MHz)")
                     yield Label(StaticText.TOPOLOGY)
                     yield Label(f"{self.host_resources.get('nodes', 1)} nodes, {self.host_resources.get('sockets', 1)} sockets, {self.host_resources.get('cores', 1)} cores, {self.host_resources.get('threads', 1)} threads")
-            
+
             with Vertical(classes="info-section-dashboard"):
                 yield Label(StaticText.MEMORY_USAGE, classes="section-title-dashboard")
                 total_mem = self.host_resources.get('available_memory', 0)
                 free_mem = self.host_resources.get('free_memory', 0)
                 used_mem = total_mem - free_mem
                 mem_pct = (used_mem / total_mem * 100) if total_mem > 0 else 0
-                
+
                 with Horizontal(classes="usage-row"):
                     yield Label(f"{used_mem/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_pct:.1f}%)")
                     yield ProgressBar(total=100, show_percentage=False, show_eta=False, id="mem-bar")
-            
+
             with Vertical(classes="info-section-dashboard"):
                 yield Label(StaticText.VM_ALLOCATION, classes="section-title-dashboard")
                 yield Label(StaticText.WAITING_TO_START_COLLECTION, id="progress-label")
-                
+
                 with TabbedContent():
                     with TabPane(TabTitles.ACTIVE_ALLOCATION, id="tab-active"):
                         # Active CPU Allocation
@@ -80,14 +79,14 @@ class HostDashboardModal(BaseModal[None]):
         used_mem = total_mem - free_mem
         mem_pct = (used_mem / total_mem * 100) if total_mem > 0 else 0
         self.query_one("#mem-bar", ProgressBar).update(progress=mem_pct)
-        
+
         self.compute_vm_allocation()
 
     @work(thread=True)
     def compute_vm_allocation(self) -> None:
         def progress(current, total):
             self.app.call_from_thread(self.update_progress, current, total)
-        
+
         self.vm_allocation = get_total_vm_allocation(self.conn, progress_callback=progress)
         self.app.call_from_thread(self.update_dashboard)
 
@@ -104,20 +103,20 @@ class HostDashboardModal(BaseModal[None]):
             self.query_one("#progress-label", Label).styles.display = "none"
         except:
             pass
-        
+
         total_host_cpus = self.host_resources.get('total_cpus', 1)
         total_mem = self.host_resources.get('available_memory', 0)
 
         # Total Allocation
         alloc_cpus_total = self.vm_allocation.get('total_allocated_vcpus', 0)
         cpu_alloc_pct_total = (alloc_cpus_total / total_host_cpus * 100)
-        
+
         self.query_one("#cpu-alloc-bar-total", ProgressBar).update(progress=cpu_alloc_pct_total)
         self.query_one("#cpu-alloc-label-total", Label).update(f"{StaticText.ALLOCATED_VCPUS} (Total): {alloc_cpus_total} / {total_host_cpus} ({cpu_alloc_pct_total:.1f}%)")
-        
+
         alloc_mem_total = self.vm_allocation.get('total_allocated_memory', 0)
         mem_alloc_pct_total = (alloc_mem_total / total_mem * 100) if total_mem > 0 else 0
-        
+
         self.query_one("#mem-alloc-bar-total", ProgressBar).update(progress=mem_alloc_pct_total)
         self.query_one("#mem-alloc-label-total", Label).update(f"{StaticText.ALLOCATED_MEMORY} (Total): {alloc_mem_total/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_alloc_pct_total:.1f}%)")
 

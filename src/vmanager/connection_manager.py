@@ -3,9 +3,12 @@ Manages multiple libvirt connections.
 """
 import logging
 import threading
-import libvirt
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+
+import libvirt
+
 from .constants import AppCacheTimeout
+
 
 class ConnectionManager:
     """A class to manage opening, closing, and storing multiple libvirt connections."""

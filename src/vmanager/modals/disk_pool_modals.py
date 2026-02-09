@@ -2,20 +2,27 @@
 Storage Pool Volume 
 """
 import os
+
 import libvirt
-from textual.containers import ScrollableContainer, Horizontal, Vertical
-from textual.widgets import (
-        Label, ListView, ListItem, Button, Checkbox, Input,
-        Select,
-        Static,
-        )
-from textual.app import ComposeResult
 from textual import on
+from textual.app import ComposeResult
+from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.widgets import (
+    Button,
+    Checkbox,
+    Input,
+    Label,
+    ListView,
+    Select,
+    Static,
+)
+
+from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..storage_manager import create_storage_pool, list_storage_pools
-from ..constants import ErrorMessages, SuccessMessages, ButtonLabels, StaticText
 from .base_modals import BaseModal, ValueListItem
-from .utils_modals import DirectorySelectionModal, FileSelectionModal
 from .input_modals import _sanitize_input
+from .utils_modals import DirectorySelectionModal, FileSelectionModal
+
 
 class SelectPoolModal(BaseModal[str | None]):
     """Modal screen for selecting a storage pool from a list."""
@@ -137,7 +144,7 @@ class AddDiskModal(BaseModal[dict | None]):
     def _update_device_type_from_path(self, path: str) -> None:
         """Automatically sets CD-ROM checkbox based on file extension."""
         is_cdrom_checkbox = self.query_one("#cdrom-checkbox", Checkbox)
-        
+
         ext = os.path.splitext(path)[1].lower()
         if ext in ['.iso']:
             if not is_cdrom_checkbox.value: # Only update if different
@@ -175,7 +182,7 @@ class AddDiskModal(BaseModal[dict | None]):
         # When creating a new disk, the path input is for the name, not a path
         self.query_one("#disk-path-input", Input).disabled = is_creating
         self.query_one("#browse-disk-btn", Button).disabled = is_creating
-        
+
         # If creating a disk, it cannot be a CD-ROM
         if is_creating:
             cdrom_checkbox = self.query_one("#cdrom-checkbox", Checkbox)
@@ -226,7 +233,7 @@ class AddDiskModal(BaseModal[dict | None]):
                 if not all([pool, vol_name, disk_size_str]):
                     self.app.show_error_message(ErrorMessages.CREATE_DISK_REQUIRED_FIELDS)
                     return
-                
+
                 numeric_part = re.sub(r'[^0-9]', '', disk_size_str)
                 disk_size = int(numeric_part) if numeric_part else 10
 
@@ -242,7 +249,7 @@ class AddDiskModal(BaseModal[dict | None]):
                     self.app.show_error_message(ErrorMessages.DISK_IMAGE_PATH_REQUIRED)
                     return
                 result["disk_path"] = disk_path
-            
+
             self.dismiss(result)
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
@@ -378,16 +385,16 @@ class AddPoolModal(BaseModal[bool | None]):
                             source_format=pool_details['format']
                         )
                     self.app.call_from_thread(
-                        self.app.show_success_message, 
+                        self.app.show_success_message,
                         SuccessMessages.STORAGE_POOL_CREATED_TEMPLATE.format(name=pool_details['name'])
                     )
                     self.app.call_from_thread(self.dismiss, True)
                 except Exception as e:
                     self.app.call_from_thread(
-                        self.app.show_error_message, 
+                        self.app.show_error_message,
                         ErrorMessages.ERROR_CREATING_STORAGE_POOL_TEMPLATE.format(error=e)
                     )
-            
+
             self.app.worker_manager.run(
                 do_create_pool, name=f"create_storage_pool_{pool_details['name']}"
             )
@@ -569,7 +576,7 @@ class AttachVolumeModal(BaseModal[dict | None]):
                 sanitized_name, was_modified = _sanitize_input(os.path.basename(event.value))
                 if was_modified:
                     self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=os.path.basename(event.value), sanitized_input=sanitized_name))
-                
+
                 vol_name_input.value = sanitized_name
             except ValueError as e:
                 self.app.show_error_message(str(e))
@@ -609,7 +616,7 @@ class AttachVolumeModal(BaseModal[dict | None]):
             except ValueError as e:
                 self.app.show_error_message(str(e))
                 return
-            
+
             if was_modified:
                 self.app.show_success_message(SuccessMessages.INPUT_SANITIZED.format(original_input=name_raw, sanitized_input=name))
 

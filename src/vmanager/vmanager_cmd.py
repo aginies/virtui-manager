@@ -2,22 +2,27 @@
 the Cmd line tool
 """
 import cmd
+import datetime
 import re
 import shutil
-import sys
 import subprocess
-import datetime
+import sys
+
 import libvirt
-from .config import load_config, get_log_path
-from .libvirt_utils import find_all_vm, get_network_info, get_host_resources
-from .vm_actions import start_vm, delete_vm, stop_vm, pause_vm, force_off_vm, clone_vm
-from .vm_service import VMService
-from .storage_manager import list_unused_volumes, list_storage_pools
-from .network_manager import (
-        list_networks, set_network_active,
-        delete_network, set_network_autostart
-        )
+
+from .config import get_log_path, load_config
 from .constants import AppInfo
+from .libvirt_utils import find_all_vm, get_host_resources, get_network_info
+from .network_manager import (
+    delete_network,
+    list_networks,
+    set_network_active,
+    set_network_autostart,
+)
+from .storage_manager import list_storage_pools, list_unused_volumes
+from .vm_actions import clone_vm, delete_vm, force_off_vm, pause_vm, start_vm, stop_vm
+from .vm_service import VMService
+
 
 class CLILogger:
     def __init__(self, filepath, stream):
@@ -740,7 +745,7 @@ If no VM names are provided, it will delete the selected VMs."""
         if force_storage_delete:
             delete_storage_confirmed = True
         else:
-            confirm_storage = input(f"Do you want to delete associated storage for all selected VMs? (yes/no): ").lower()
+            confirm_storage = input("Do you want to delete associated storage for all selected VMs? (yes/no): ").lower()
             if confirm_storage == 'yes':
                 delete_storage_confirmed = True
 
