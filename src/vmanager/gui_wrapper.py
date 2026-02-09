@@ -4,6 +4,7 @@ import os
 import shutil
 import time
 import subprocess
+import threading
 from pathlib import Path
 import signal
 import gi
@@ -498,9 +499,9 @@ class VirtuiWrapper(Gtk.Window):
                     else:
                         os.kill(pid, signal.SIGTERM)
 
-                    # Wait up to 2 seconds for graceful shutdown
-                    timeout = 2.0
-                    interval = 0.1
+                    # Wait up to 0.5 seconds for graceful shutdown
+                    timeout = 0.5
+                    interval = 0.05
                     elapsed = 0
                     while elapsed < timeout:
                         try:
@@ -520,7 +521,7 @@ class VirtuiWrapper(Gtk.Window):
                             os.killpg(pgid, signal.SIGKILL)
                         else:
                             os.kill(pid, signal.SIGKILL)
-                        time.sleep(0.1)
+                        time.sleep(0.05)
                     except OSError:
                         pass  # Already dead
 
@@ -633,12 +634,15 @@ class VirtuiWrapper(Gtk.Window):
 
         # Create a copy of the items to avoid dictionary size change during iteration
         terminals_to_cleanup = list(self.terminal_pids.keys())
-
+        
+        threads = []
         for terminal in terminals_to_cleanup:
-            self.cleanup_terminal(terminal)
-
-        # Give processes a final moment to cleanup
-        time.sleep(0.2)
+            thread = threading.Thread(target=self.cleanup_terminal, args=(terminal,))
+            thread.start()
+            threads.append(thread)
+            
+        for thread in threads:
+            thread.join()
 
         print("All terminals cleaned up")
 
