@@ -83,6 +83,7 @@ class RemoteViewer(Gtk.Application):
         self.ssh_gateway = None
         self.ssh_gateway_port = None
         self.notification_timeout_id = None
+        self.clipboard_handler_id = None
 
     def show_error_dialog(self, message):
         dialog = Gtk.MessageDialog(
@@ -1513,18 +1514,6 @@ class RemoteViewer(Gtk.Application):
                         self.connect_display(force=True)
 
             self.save_state()
-
-    def _apply_vnc_depth(self):
-        # Map integer depth to GtkVnc enum
-        depth_enum = GtkVnc.DisplayDepthColor.DEFAULT
-        if self.vnc_depth == 24:
-            depth_enum = GtkVnc.DisplayDepthColor.FULL
-        elif self.vnc_depth == 16:
-            depth_enum = GtkVnc.DisplayDepthColor.MEDIUM
-        elif self.vnc_depth == 8:
-            depth_enum = GtkVnc.DisplayDepthColor.LOW
-
-        self.vnc_display.set_depth(depth_enum)
 
     def _apply_vnc_depth(self):
         # Map integer depth to GtkVnc enum

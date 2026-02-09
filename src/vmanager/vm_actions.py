@@ -2778,6 +2778,15 @@ def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
             target_controller = c
             break
 
+    if target_controller is None:
+        raise ValueError(f"SCSI controller with model '{model}' and index '{index}' not found.")
+
+    controller_xml = ET.tostring(target_controller, encoding='unicode')
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
     domain.detachDeviceFlags(controller_xml, flags)
     invalidate_cache(get_internal_id(domain))
 

@@ -61,7 +61,7 @@ class VManagerCMD(cmd.Cmd):
     prompt = '(' + AppInfo.name + ') '
     intro = f"Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.\n"
 
-    def __init__(self):
+    def __init__(self, vm_service=None):
         super().__init__()
 
         # Setup logging
@@ -76,7 +76,7 @@ class VManagerCMD(cmd.Cmd):
         self.config = load_config()
         self.servers = self.config.get('servers', [])
         self.server_names = [s['name'] for s in self.servers]
-        self.vm_service = VMService()
+        self.vm_service = vm_service if vm_service is not None else VMService()
         self.active_connections = {}
         self.selected_vms = {}
 

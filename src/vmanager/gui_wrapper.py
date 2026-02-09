@@ -268,10 +268,6 @@ class VirtuiWrapper(Gtk.Window):
         except Exception as e:
             print(f"Error saving config: {e}")
 
-    def on_destroy(self, widget):
-        self.save_gui_config()
-        Gtk.main_quit()
-
     def on_new_vmanager_tab(self, widget):
         session_name = None
         if is_running_under_flatpak():
