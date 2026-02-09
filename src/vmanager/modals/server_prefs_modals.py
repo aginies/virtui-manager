@@ -28,7 +28,7 @@ from ..storage_manager import list_storage_volumes
 from ..constants import (
         AppCacheTimeout, ErrorMessages, SuccessMessages,
         ButtonLabels, WarningMessages,
-        StaticText
+        StaticText, DialogMessages
         )
 from .base_modals import BaseModal
 from .network_modals import AddEditNetworkModal, NetworkXMLModal
@@ -645,7 +645,7 @@ class ServerPrefModal(BaseModal[None]):
                     self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
 
         self.app.push_screen(
-                ConfirmationDialog(ErrorMessages.DELETE_VOLUME_CONFIRMATION_TEMPLATE.format(vol_name=vol_name)),
+                ConfirmationDialog(DialogMessages.DELETE_VOLUME_CONFIRMATION_TEMPLATE.format(vol_name=vol_name)),
             on_confirm
         )
 
