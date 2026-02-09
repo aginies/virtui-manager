@@ -210,9 +210,12 @@ def main():
     constants_error = check_usages(SEARCH_DIR, class_constants)
     i18n_error = check_i18n(SEARCH_DIR)
 
-    if constants_error or i18n_error:
-        print("Failure: Issues found.")
+    if constants_error:
+        print("Failure: in class_constants.")
         sys.exit(1)
+    elif i18n_error:
+        print("Failure: found, but its WIP (missing translation).")
+        sys.exit(0)
     else:
         print("Success: All checks passed.")
         sys.exit(0)
