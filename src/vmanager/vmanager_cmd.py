@@ -412,6 +412,60 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
             except libvirt.libvirtError as e:
                 print(f"Error listing VMs on {server_name}: {e}")
 
+    def _complete_vm_by_state(self, text, line, states):
+        """Auto-completes VM names based on a list of libvirt domain states."""
+        print("\n(Getting VM status to propose a list of valid Virtual Machines...)")
+        if not self.active_connections:
+            return []
+
+        completions = set()
+        for server_name, conn in self.active_connections.items():
+            try:
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    try:
+                        # dom.info() can fail if vm is transient
+                        if dom.info()[0] in states:
+                            name = dom.name()
+                            uuid = dom.UUIDString()
+                            completions.add(f"{name}:{uuid}:{server_name}")
+                    except libvirt.libvirtError:
+                        continue
+            except libvirt.libvirtError:
+                continue
+
+        words = line.split()
+        current_vms_in_line = {arg.split(':')[0] for arg in words[1:]}
+
+        filtered_completions = {c for c in completions if c.split(':')[0] not in current_vms_in_line}
+
+        if not text:
+            return sorted(list(filtered_completions))
+        else:
+            return sorted([f for f in filtered_completions if f.startswith(text)])
+
+    def complete_vms_running(self, text, line, begidx, endidx):
+        """Auto-completion for running VMs (running, blocked)."""
+        return self._complete_vm_by_state(text, line, [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_BLOCKED])
+
+    def complete_vms_paused(self, text, line, begidx, endidx):
+        """Auto-completion for paused VMs (paused, suspended)."""
+        return self._complete_vm_by_state(text, line, [libvirt.VIR_DOMAIN_PAUSED, libvirt.VIR_DOMAIN_PMSUSPENDED])
+
+    def complete_vms_running_or_paused(self, text, line, begidx, endidx):
+        """Auto-completion for running or paused VMs."""
+        states = [
+            libvirt.VIR_DOMAIN_RUNNING,
+            libvirt.VIR_DOMAIN_BLOCKED,
+            libvirt.VIR_DOMAIN_PAUSED,
+            libvirt.VIR_DOMAIN_PMSUSPENDED
+        ]
+        return self._complete_vm_by_state(text, line, states)
+
+    def complete_vms_stopped(self, text, line, begidx, endidx):
+        """Auto-completion for stopped VMs."""
+        return self._complete_vm_by_state(text, line, [libvirt.VIR_DOMAIN_SHUTOFF])
+
     def do_select_vm(self, args):
         """Select one or more VMs from any connected server. Can use patterns with 're:' prefix.
 Usage: select_vm <vm_name_1> <vm_name_2> ...
@@ -792,7 +846,7 @@ If no VM names are provided, it will start the selected VMs."""
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_start(self, text, line, begidx, endidx):
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self.complete_vms_stopped(text, line, begidx, endidx)
 
     def do_stop(self, args):
         """Stops one or more VMs gracefully (sends shutdown signal).
@@ -823,7 +877,7 @@ If no VM names are provided, it will stop the selected VMs."""
                     print(f"Error stopping VM '{vm_name}': {e}")
 
     def complete_stop(self, text, line, begidx, endidx):
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self.complete_vms_running(text, line, begidx, endidx)
 
     def do_force_off(self, args):
         """Forcefully powers off one or more VMs (like pulling the power plug).
@@ -854,7 +908,7 @@ If no VM names are provided, it will force off the selected VMs."""
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_force_off(self, text, line, begidx, endidx):
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self.complete_vms_running_or_paused(text, line, begidx, endidx)
 
     def do_pause(self, args):
         """Pauses one or more running VMs.
@@ -886,7 +940,7 @@ If no VM names are provided, it will pause the selected VMs."""
                     print(f"Error pausing VM '{vm_name}': {e}")
 
     def complete_pause(self, text, line, begidx, endidx):
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self.complete_vms_running(text, line, begidx, endidx)
 
     def do_hibernate(self, args):
         """Saves the VM state to disk and stops it (hibernate).
@@ -917,7 +971,7 @@ If no VM names are provided, it will hibernate the selected VMs."""
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_hibernate(self, text, line, begidx, endidx):
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self.complete_vms_running(text, line, begidx, endidx)
 
     def do_resume(self, args):
         """Resumes one or more paused VMs.
@@ -950,7 +1004,7 @@ If no VM names are provided, it will resume the selected VMs."""
                     print(f"Error resuming VM '{vm_name}': {e}")
 
     def complete_resume(self, text, line, begidx, endidx):
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self.complete_vms_paused(text, line, begidx, endidx)
 
     def do_delete(self, args):
         """Deletes one or more VMs, optionally removing associated storage.
@@ -1195,6 +1249,52 @@ Usage: list_pool"""
 
     # --- Network Management Commands ---
 
+    def _get_target_server_for_network_op(self, net_name, operation_verb):
+        """
+        Finds servers with the given network and prompts user to select one if multiple are found.
+        Returns a tuple of (server_name, connection_object) or (None, None).
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return None, None
+
+        servers_with_net = []
+        for server_name, conn in self.active_connections.items():
+            try:
+                # Check if network exists on this server
+                conn.networkLookupByName(net_name)
+                servers_with_net.append(server_name)
+            except libvirt.libvirtError:
+                continue
+
+        if not servers_with_net:
+            print(f"Network '{net_name}' not found on any connected server.")
+            return None, None
+
+        target_server_name = None
+        if len(servers_with_net) == 1:
+            target_server_name = servers_with_net[0]
+        else:
+            print(f"Network '{net_name}' found on multiple servers:")
+            for i, name in enumerate(servers_with_net):
+                print(f"  {i + 1}. {name}")
+
+            try:
+                choice_str = input(f"Select server to {operation_verb} network '{net_name}' on (number): ")
+                idx = int(choice_str) - 1
+                if 0 <= idx < len(servers_with_net):
+                    target_server_name = servers_with_net[idx]
+                else:
+                    print("Invalid selection.")
+                    return None, None
+            except (ValueError, IndexError):
+                print("Invalid input.")
+                return None, None
+        
+        if target_server_name:
+            return target_server_name, self.active_connections[target_server_name]
+        return None, None
+
     def do_list_networks(self, args):
         """List all networks on the connected servers.
 Usage: list_networks"""
@@ -1226,21 +1326,16 @@ Usage: net_start <network_name>"""
             return
 
         net_name = args.strip()
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                # Check if network exists on this server
-                conn.networkLookupByName(net_name)
-                set_network_active(conn, net_name, True)
-                print(f"Network '{net_name}' started on {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error starting network '{net_name}' on {server_name}: {e}")
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, "start")
 
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        if not conn:
+            return
+
+        try:
+            set_network_active(conn, net_name, True)
+            print(f"Network '{net_name}' started on {target_server_name}.")
+        except Exception as e:
+            print(f"Error starting network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_start(self, text, line, begidx, endidx):
         return self._complete_networks(text)
@@ -1253,20 +1348,16 @@ Usage: net_stop <network_name>"""
             return
 
         net_name = args.strip()
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                conn.networkLookupByName(net_name)
-                set_network_active(conn, net_name, False)
-                print(f"Network '{net_name}' stopped on {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error stopping network '{net_name}' on {server_name}: {e}")
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, "stop")
 
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        if not conn:
+            return
+
+        try:
+            set_network_active(conn, net_name, False)
+            print(f"Network '{net_name}' stopped on {target_server_name}.")
+        except Exception as e:
+            print(f"Error stopping network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_stop(self, text, line, begidx, endidx):
         return self._complete_networks(text)
@@ -1279,25 +1370,21 @@ Usage: net_delete <network_name>"""
             return
 
         net_name = args.strip()
-        confirm = input(f"Are you sure you want to delete network '{net_name}'? This cannot be undone. (yes/no): ").lower()
+
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, "delete")
+        if not conn:
+            return
+
+        confirm = input(f"Are you sure you want to delete network '{net_name}' from server '{target_server_name}'? This cannot be undone. (yes/no): ").lower()
         if confirm != 'yes':
             print("Operation cancelled.")
             return
 
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                conn.networkLookupByName(net_name)
-                delete_network(conn, net_name)
-                print(f"Network '{net_name}' deleted from {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error deleting network '{net_name}' on {server_name}: {e}")
-
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        try:
+            delete_network(conn, net_name)
+            print(f"Network '{net_name}' deleted from {target_server_name}.")
+        except Exception as e:
+            print(f"Error deleting network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_delete(self, text, line, begidx, endidx):
         return self._complete_networks(text)
@@ -1346,23 +1433,20 @@ Usage: net_autostart <network_name> <on|off>"""
             return
 
         net_name = arg_list[0]
-        autostart = True if arg_list[1] == 'on' else False
+        autostart = arg_list[1] == 'on'
+        status_verb = "enable" if autostart else "disable"
+        status_past_tense = "enabled" if autostart else "disabled"
 
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                conn.networkLookupByName(net_name)
-                set_network_autostart(conn, net_name, autostart)
-                status = "enabled" if autostart else "disabled"
-                print(f"Autostart {status} for network '{net_name}' on {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error setting autostart for network '{net_name}' on {server_name}: {e}")
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, f"{status_verb} autostart for")
 
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        if not conn:
+            return
+
+        try:
+            set_network_autostart(conn, net_name, autostart)
+            print(f"Autostart {status_past_tense} for network '{net_name}' on {target_server_name}.")
+        except Exception as e:
+            print(f"Error setting autostart for network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_autostart(self, text, line, begidx, endidx):
         args = line.split()
