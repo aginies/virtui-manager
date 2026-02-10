@@ -20,7 +20,16 @@ from .network_manager import (
     set_network_autostart,
 )
 from .storage_manager import list_storage_pools, list_unused_volumes
-from .vm_actions import clone_vm, delete_vm, force_off_vm, pause_vm, start_vm, stop_vm
+from .utils import remote_viewer_cmd
+from .vm_actions import (
+    clone_vm,
+    delete_vm,
+    force_off_vm,
+    hibernate_vm,
+    pause_vm,
+    start_vm,
+    stop_vm,
+)
 from .vm_service import VMService
 
 
@@ -695,6 +704,44 @@ If no VM names are provided, it will show info for the selected VMs."""
     def complete_vm_info(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
+    def do_view(self, args):
+        """Launch the graphical viewer (Spice/VNC) for one or more VMs.
+Usage: view [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will launch the viewer for the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_view = self._get_vms_to_operate(args)
+        if not vms_to_view:
+            return
+
+        for server_name, vm_list in vms_to_view.items():
+            conn = self.active_connections[server_name]
+            try:
+                uri = conn.getURI()
+                for vm_name in vm_list:
+                    try:
+                        domain = conn.lookupByName(vm_name)
+                        if not domain.isActive():
+                            print(f"Warning: VM '{vm_name}' on {server_name} is not running. Viewer will wait for it to start.")
+
+                        cmd = remote_viewer_cmd(uri, vm_name)
+                        if not cmd or not cmd[0]:
+                            print("Error: No remote viewer found (virtui-remote-viewer or virt-viewer).")
+                            return
+
+                        print(f"Launching viewer for '{vm_name}' on {server_name}...")
+                        # Launch as background process
+                        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except libvirt.libvirtError as e:
+                        print(f"Error looking up VM '{vm_name}': {e}")
+            except Exception as e:
+                print(f"Error processing server {server_name}: {e}")
+
+    def complete_view(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
     def complete_status(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
@@ -821,6 +868,37 @@ If no VM names are provided, it will pause the selected VMs."""
                     print(f"Error pausing VM '{vm_name}': {e}")
 
     def complete_pause(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_hibernate(self, args):
+        """Saves the VM state to disk and stops it (hibernate).
+Usage: hibernate [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will hibernate the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_hibernate = self._get_vms_to_operate(args)
+        if not vms_to_hibernate:
+            return
+
+        for server_name, vm_list in vms_to_hibernate.items():
+            print(f"\n--- Hibernating VMs on {server_name} ---")
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    if not domain.isActive():
+                        print(f"VM '{vm_name}' is not running.")
+                        continue
+                    hibernate_vm(domain)
+                    print(f"VM '{vm_name}' hibernated.")
+                except libvirt.libvirtError as e:
+                    print(f"Error hibernating VM '{vm_name}': {e}")
+                except Exception as e:
+                    print(f"An unexpected error occurred with VM '{vm_name}': {e}")
+
+    def complete_hibernate(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_resume(self, args):
@@ -1303,7 +1381,7 @@ Usage: host_info [server_name]"""
                     print(f"CPU Model: {info.get('model')}")
                     print(f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes, {info.get('sockets')} sockets, {info.get('cores')} cores, {info.get('threads')} threads)")
                     print(f"CPU Speed: {info.get('mhz')} MHz")
-                    print(f"Memory: {info.get('total_memory')} MiB total, {info.get('free_memory')} MiB free")
+                    print(f"Memory: {info.get('total_memory')} GiB total, {info.get('free_memory')} MiB free")
             except Exception as e:
                 print(f"Error retrieving host info for {server_name}: {e}")
 
