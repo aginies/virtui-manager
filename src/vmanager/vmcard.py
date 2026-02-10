@@ -704,10 +704,12 @@ class VMCard(Static):
         """Called when is_selected changes to update the checkbox."""
         if not self.is_mounted:
             return
-        if self.ui:
+        if hasattr(self, 'ui') and 'checkbox' in self.ui:
             checkbox = self.ui.get("checkbox")
-            if checkbox:
+            try:
                 checkbox.value = new_value
+            except Exception:
+                pass
 
         if new_value:
             self.styles.border = (VMCardConstants.SELECTED_BORDER_TYPE, VMCardConstants.SELECTED_BORDER_COLOR)
