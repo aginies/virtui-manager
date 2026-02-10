@@ -459,7 +459,7 @@ class VMManagerTUI(App):
             )
             self.websockify_available = False
 
-        if not check_novnc_path():
+        if not check_novnc_path() and not is_running_under_flatpak():
             self.show_error_message(
                 ErrorMessages.NOVNC_NOT_FOUND
             )
