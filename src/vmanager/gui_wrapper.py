@@ -97,7 +97,7 @@ class VirtuiWrapper(Gtk.Window):
         # Header Bar
         header_bar = Gtk.HeaderBar()
         header_bar.set_show_close_button(True)
-        header_bar.set_title("VirtUI Manager")
+        header_bar.set_title("VirtUI Manager GUI")
         self.set_titlebar(header_bar)
 
         # Settings Menu Button
@@ -222,6 +222,8 @@ class VirtuiWrapper(Gtk.Window):
             ("Ctrl + Page Down", "Switch to Next Tab"),
             ("Ctrl + t", "New Virtui Manager Tab"),
             ("Ctrl + T", "New Command Line Tab"),
+            ("Ctrl + Shift + c", "Copy selection to clipboard"),
+            ("Ctrl + Shift + v", "Paste from clipboard"),
             ("Ctrl + w", "Close Current Tab"),
             ("Ctrl + f", "Toggle Search Bar"),
             ("Ctrl + + / =", "Increase Font Size"),
@@ -334,6 +336,16 @@ class VirtuiWrapper(Gtk.Window):
                 return True
             elif keyname == "T":
                 self.on_new_cmd_tab(None)
+                return True
+            elif keyname == "C":
+                term = self.get_current_terminal()
+                if term:
+                    term.copy_clipboard()
+                return True
+            elif keyname == "V":
+                term = self.get_current_terminal()
+                if term:
+                    term.paste_clipboard()
                 return True
             elif keyname == "f":
                 self.toggle_search()
