@@ -453,7 +453,7 @@ class VMManagerTUI(App):
         else:
             self.show_quick_message(QuickMessages.REMOTE_VIEWER_SELECTED.format(viewer=self.r_viewer))
 
-        if not check_websockify():
+        if not check_websockify() and not is_running_under_flatpak:
             self.show_error_message(
                 ErrorMessages.WEBSOCKIFY_NOT_FOUND
             )
