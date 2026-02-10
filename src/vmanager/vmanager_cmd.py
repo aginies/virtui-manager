@@ -4,6 +4,7 @@ the Cmd line tool
 import cmd
 import datetime
 import re
+import readline
 import shutil
 import subprocess
 import sys
@@ -412,60 +413,6 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
             except libvirt.libvirtError as e:
                 print(f"Error listing VMs on {server_name}: {e}")
 
-    def _complete_vm_by_state(self, text, line, states):
-        """Auto-completes VM names based on a list of libvirt domain states."""
-        print("\n(Getting VM status to propose a list of valid Virtual Machines...)")
-        if not self.active_connections:
-            return []
-
-        completions = set()
-        for server_name, conn in self.active_connections.items():
-            try:
-                domains = conn.listAllDomains(0)
-                for dom in domains:
-                    try:
-                        # dom.info() can fail if vm is transient
-                        if dom.info()[0] in states:
-                            name = dom.name()
-                            uuid = dom.UUIDString()
-                            completions.add(f"{name}:{uuid}:{server_name}")
-                    except libvirt.libvirtError:
-                        continue
-            except libvirt.libvirtError:
-                continue
-
-        words = line.split()
-        current_vms_in_line = {arg.split(':')[0] for arg in words[1:]}
-
-        filtered_completions = {c for c in completions if c.split(':')[0] not in current_vms_in_line}
-
-        if not text:
-            return sorted(list(filtered_completions))
-        else:
-            return sorted([f for f in filtered_completions if f.startswith(text)])
-
-    def complete_vms_running(self, text, line, begidx, endidx):
-        """Auto-completion for running VMs (running, blocked)."""
-        return self._complete_vm_by_state(text, line, [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_BLOCKED])
-
-    def complete_vms_paused(self, text, line, begidx, endidx):
-        """Auto-completion for paused VMs (paused, suspended)."""
-        return self._complete_vm_by_state(text, line, [libvirt.VIR_DOMAIN_PAUSED, libvirt.VIR_DOMAIN_PMSUSPENDED])
-
-    def complete_vms_running_or_paused(self, text, line, begidx, endidx):
-        """Auto-completion for running or paused VMs."""
-        states = [
-            libvirt.VIR_DOMAIN_RUNNING,
-            libvirt.VIR_DOMAIN_BLOCKED,
-            libvirt.VIR_DOMAIN_PAUSED,
-            libvirt.VIR_DOMAIN_PMSUSPENDED
-        ]
-        return self._complete_vm_by_state(text, line, states)
-
-    def complete_vms_stopped(self, text, line, begidx, endidx):
-        """Auto-completion for stopped VMs."""
-        return self._complete_vm_by_state(text, line, [libvirt.VIR_DOMAIN_SHUTOFF])
-
     def do_select_vm(self, args):
         """Select one or more VMs from any connected server. Can use patterns with 're:' prefix.
 Usage: select_vm <vm_name_1> <vm_name_2> ...
@@ -846,7 +793,7 @@ If no VM names are provided, it will start the selected VMs."""
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_start(self, text, line, begidx, endidx):
-        return self.complete_vms_stopped(text, line, begidx, endidx)
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_stop(self, args):
         """Stops one or more VMs gracefully (sends shutdown signal).
@@ -877,7 +824,7 @@ If no VM names are provided, it will stop the selected VMs."""
                     print(f"Error stopping VM '{vm_name}': {e}")
 
     def complete_stop(self, text, line, begidx, endidx):
-        return self.complete_vms_running(text, line, begidx, endidx)
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_force_off(self, args):
         """Forcefully powers off one or more VMs (like pulling the power plug).
@@ -908,7 +855,7 @@ If no VM names are provided, it will force off the selected VMs."""
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_force_off(self, text, line, begidx, endidx):
-        return self.complete_vms_running_or_paused(text, line, begidx, endidx)
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_pause(self, args):
         """Pauses one or more running VMs.
@@ -940,7 +887,7 @@ If no VM names are provided, it will pause the selected VMs."""
                     print(f"Error pausing VM '{vm_name}': {e}")
 
     def complete_pause(self, text, line, begidx, endidx):
-        return self.complete_vms_running(text, line, begidx, endidx)
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_hibernate(self, args):
         """Saves the VM state to disk and stops it (hibernate).
@@ -971,7 +918,7 @@ If no VM names are provided, it will hibernate the selected VMs."""
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_hibernate(self, text, line, begidx, endidx):
-        return self.complete_vms_running(text, line, begidx, endidx)
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_resume(self, args):
         """Resumes one or more paused VMs.
@@ -1004,7 +951,7 @@ If no VM names are provided, it will resume the selected VMs."""
                     print(f"Error resuming VM '{vm_name}': {e}")
 
     def complete_resume(self, text, line, begidx, endidx):
-        return self.complete_vms_paused(text, line, begidx, endidx)
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_delete(self, args):
         """Deletes one or more VMs, optionally removing associated storage.
