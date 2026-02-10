@@ -298,12 +298,8 @@ Usage: bash [command]"""
                     print(f"Warning: VM/UUID '{identifier}' not found on any connected server.")
 
         else:
-            # If no args, use the pre-selected VMs
-            vms_to_operate = self.selected_vms
-
-        if not vms_to_operate:
-            print("No VMs specified. Either pass VM names/UUIDs as arguments or select them with 'select_vm'.")
-            return None
+            # If no args, use a copy of the pre-selected VMs to avoid modification during iteration
+            vms_to_operate = {server: list(vms) for server, vms in self.selected_vms.items()}
 
         return vms_to_operate
 
