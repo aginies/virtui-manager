@@ -338,14 +338,11 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                             if nvram_elem is not None:
                                 nvram_elem.text = new_nvram_path
                     # Update UUID in domain definition to match new domain's UUID (which we just defined)
-                    # Actually, for a rename via defineXML, the UUID usually stays the same if we preserved it in root
                     # Let's ensure the snapshot XML uses the correct UUID if it's there
                     if domain_elem is not None:
                         d_uuid = domain_elem.find("uuid")
                         if d_uuid is not None:
                             # We didn't change the UUID in the main XML, so it should be fine.
-                            # But if defineXML generated a new one (e.g. if we removed it), we'd need to update it.
-                            # In rename_vm we use existing XML, so UUID is preserved.
                             pass
 
                     updated_snap_xml = ET.tostring(snap_root, encoding='unicode')
@@ -356,7 +353,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                 except Exception as e:
                     logging.error(f"Failed to re-create snapshot for renamed VM {new_name}: {e}")
 
-        # If successful, delete old NVRAM volume if we cloned it        if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
+        # If successful, delete old NVRAM volume if we cloned it
         if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
             try:
                 old_nvram_vol.delete(0)
@@ -400,9 +397,6 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                 c += 1
         return c
 
-    # This logic is more robust as it mimics libvirt's own device naming by
-    # counting existing devices on a given bus, rather than relying on
-    # potentially absent 'dev' attributes in the XML.
     if bus == 'virtio':
         prefix = 'vd'
         # Count virtio disks to determine the next index (e.g., if 1 exists, next is 'b')
@@ -691,7 +685,6 @@ def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
     conn = domain.connect()
     conn.defineXML(new_xml)
 
-@log_function_call
 def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, readonly: bool):
     """
     Adds a virtiofs filesystem to a VM.
@@ -1956,9 +1949,6 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
 
     try:
         # Get XML from original domain first (if possible) to avoid issues if it's already gone
-        # But for storage lookup we might need the connection.
-        # We will try to lookup the domain on the new connection.
-
         domain_to_delete = None
         try:
             domain_to_delete = delete_conn.lookupByUUIDString(vm_uuid)
