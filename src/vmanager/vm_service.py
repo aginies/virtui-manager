@@ -1512,7 +1512,7 @@ class VMService:
                 'uuid': domain.UUIDString(),
                 'internal_id': self._get_internal_id(domain, conn_for_domain),
                 'status': get_status(domain, state=info[0]),
-                'description': get_vm_description(domain),
+                'description': get_vm_description(domain, root=root),
                 'cpu': info[3],
                 'cpu_model': get_vm_cpu_model(root),
                 'memory': info[1] // 1024,

@@ -126,14 +126,21 @@ def get_status(domain, state=None):
         return StatusText.STOPPED
 
 @lru_cache(maxsize=16)
-def get_vm_description(domain):
+def get_vm_description(domain, root=None):
     """
-    desc of the VM
+    desc of the VM. Extracts it from XML to avoid triggering the noisy
+    libvirt error handler that occurs when using domain.metadata()
+    if the element is missing.
     """
-    try:
-        return domain.metadata(libvirt.VIR_DOMAIN_METADATA_DESCRIPTION, None)
-    except libvirt.libvirtError:
-        return "No description available"
+    if root is None:
+        _, root = _get_domain_root(domain)
+
+    if root is not None:
+        desc_elem = root.find('description')
+        if desc_elem is not None and desc_elem.text:
+            return desc_elem.text
+
+    return "No description available"
 
 def get_vm_firmware_info(root: ET.Element) -> dict:
     """
@@ -1419,7 +1426,7 @@ def get_domain_info_dict(domain: libvirt.virDomain, conn: libvirt.virConnect) ->
             'uuid': domain.UUIDString(),
             'internal_id': internal_id,
             'status': get_status(domain, state=state),
-            'description': get_vm_description(domain),
+            'description': get_vm_description(domain, root=root),
             'cpu': info[3],
             'cpu_model': get_vm_cpu_model(root),
             'memory': info[1] // 1024,
