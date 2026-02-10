@@ -243,8 +243,19 @@ Usage: bash [command]"""
                     continue
 
             for identifier in args_list:
-                # Handle "name:uuid" or "name(uuid)" from completion
-                clean_id = identifier.split(':')[0].split('(')[0].strip()
+                parts = identifier.split(':')
+                # If it's the full format from completion: VMNAME:UUID:SERVER
+                if len(parts) == 3:
+                    name, uuid, server = parts
+                    if server in self.active_connections:
+                        if server not in vms_to_operate:
+                            vms_to_operate[server] = []
+                        if name not in vms_to_operate[server]:
+                            vms_to_operate[server].append(name)
+                        continue
+
+                # Fallback to name or UUID lookup
+                clean_id = parts[0].strip()
                 target = vm_lookup.get(clean_id) or vm_lookup.get(identifier)
 
                 if target:
@@ -407,9 +418,12 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
                 print(f"Could not fetch VMs from {server_name}: {e}")
                 continue
 
-        # This will hold the names of the VMs to be selected
+        # This will hold the names of the VMs to be selected if only name/UUID is provided
         vms_to_select_names = set()
         invalid_inputs = []
+
+        # Reset selection
+        self.selected_vms = {}
 
         for arg in arg_list:
             if arg.startswith("re:"):
@@ -425,21 +439,32 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
                     print(f"Error: Invalid regular expression '{pattern_str}': {e}")
                     invalid_inputs.append(arg)
             else:
-                clean_id = arg.split(':')[0].split('(')[0].strip()
+                parts = arg.split(':')
+                # If it's the full format from completion: VMNAME:UUID:SERVER
+                if len(parts) == 3:
+                    name, uuid, server = parts
+                    if server in self.active_connections:
+                        if server not in self.selected_vms:
+                            self.selected_vms[server] = []
+                        if name not in self.selected_vms[server]:
+                            self.selected_vms[server].append(name)
+                        continue
+
+                clean_id = parts[0].strip()
                 target = vm_lookup.get(clean_id) or vm_lookup.get(arg)
                 if target:
                     vms_to_select_names.add(target['name'])
                 else:
                     invalid_inputs.append(arg)
 
-        # Reset selection and populate it based on the names and the vm_lookup
-        self.selected_vms = {}
+        # Populate self.selected_vms for the general names in vms_to_select_names
         for vm_name in sorted(list(vms_to_select_names)):
             if vm_name in vm_lookup:
                 for server_name in vm_lookup[vm_name]['servers']:
                     if server_name not in self.selected_vms:
                         self.selected_vms[server_name] = []
-                    self.selected_vms[server_name].append(vm_name)
+                    if vm_name not in self.selected_vms[server_name]:
+                        self.selected_vms[server_name].append(vm_name)
 
         if invalid_inputs:
             print(f"Error: The following VMs or patterns were not found or invalid: {', '.join(invalid_inputs)}")
@@ -458,19 +483,21 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
         if not self.active_connections:
             return []
 
-        all_vms = set()
-        for conn in self.active_connections.values():
+        completions = set()
+        for server_name, conn in self.active_connections.items():
             try:
-                vms_on_server = find_all_vm(conn)
-                all_vms.update(vms_on_server)
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    name = dom.name()
+                    uuid = dom.UUIDString()
+                    completions.add(f"{name}:{uuid}:{server_name}")
             except libvirt.libvirtError:
                 continue
 
         if not text:
-            completions = list(all_vms)
+            return sorted(list(completions))
         else:
-            completions = [f for f in all_vms if f.startswith(text)]
-        return completions
+            return sorted([f for f in completions if f.startswith(text)])
 
     def do_unselect_vm(self, args):
         """Unselect one or more VMs. Can use patterns with 're:' prefix or use 'all' to unselect all.
