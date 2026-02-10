@@ -18,9 +18,9 @@ vmanager_package_parent_dir = os.path.abspath(os.path.join(script_dir, '..'))
 if vmanager_package_parent_dir not in sys.path:
     sys.path.insert(0, vmanager_package_parent_dir)
 
-
-# Require GTK 3.0 and Vte 2.91
+# Require GTK 3.0, Gdk 3.0 and Vte 2.91
 try:
+    gi.require_version('Gdk', '3.0')
     gi.require_version('Gtk', '3.0')
     gi.require_version('Vte', '2.91')
 except ValueError as e:
@@ -42,7 +42,7 @@ def check_tmux():
 
 # Constants
 DEFAULT_WINDOW_WIDTH = 1200
-DEFAULT_WINDOW_HEIGHT = 1024
+DEFAULT_WINDOW_HEIGHT = 800
 MIN_WINDOW_WIDTH = 800
 MIN_WINDOW_HEIGHT = 600
 DEFAULT_FONT_SIZE = 12
@@ -63,7 +63,7 @@ class VirtuiWrapper(Gtk.Window):
         width = self.config.get("width", DEFAULT_WINDOW_WIDTH)
         height = self.config.get("height", DEFAULT_WINDOW_HEIGHT)
         self.set_default_size(width, height)
-        self.set_size_request(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+        self.set_size_request(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
 
         # Get system monospace font as default fallback
         system_font = "Monospace"
