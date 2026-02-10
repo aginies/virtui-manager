@@ -177,6 +177,27 @@ Usage: virsh [server_name]"""
     def complete_virsh(self, text, line, begidx, endidx):
         return self.complete_disconnect(text, line, begidx, endidx)
 
+    def do_bash(self, args):
+        """Execute a bash command or start an interactive bash shell.
+Usage: bash [command]"""
+        shell = shutil.which("bash") or shutil.which("sh")
+        if not shell:
+            print("Error: No shell found (bash or sh).")
+            return
+
+        try:
+            if args:
+                subprocess.run([shell, "-c", args])
+            else:
+                print(f"Starting interactive shell ({shell})...")
+                print("Type 'exit' to return to virtui-manager.")
+                self._set_title(f"bash ({shell})")
+                subprocess.call([shell])
+                self._update_prompt()
+                print(f"\nReturned from {shell}.")
+        except Exception as e:
+            print(f"Error executing shell: {e}")
+
     def _set_title(self, title):
         """Sets the terminal window title."""
         print(f"\033]0;{title}\007", end='', flush=True)
@@ -205,33 +226,43 @@ Usage: virsh [server_name]"""
         args_list = args.split()
 
         if args_list:
-            # If args are provided, find which servers the VMs belong to
-            vm_map = {}
+            # Map of name/UUID to list of servers and actual VM name
+            vm_lookup = {}
             for server_name, conn in self.active_connections.items():
                 try:
-                    vms_on_server = find_all_vm(conn)
-                    for vm_name in vms_on_server:
-                        if vm_name not in vm_map:
-                            vm_map[vm_name] = []
-                        vm_map[vm_name].append(server_name)
+                    domains = conn.listAllDomains(0)
+                    for dom in domains:
+                        name = dom.name()
+                        uuid = dom.UUIDString()
+                        for identifier in [name, uuid]:
+                            if identifier not in vm_lookup:
+                                vm_lookup[identifier] = {'servers': [], 'name': name}
+                            if server_name not in vm_lookup[identifier]['servers']:
+                                vm_lookup[identifier]['servers'].append(server_name)
                 except libvirt.libvirtError:
                     continue
 
-            for vm_name in args_list:
-                if vm_name in vm_map:
-                    for server_name in vm_map[vm_name]:
+            for identifier in args_list:
+                # Handle "name:uuid" or "name(uuid)" from completion
+                clean_id = identifier.split(':')[0].split('(')[0].strip()
+                target = vm_lookup.get(clean_id) or vm_lookup.get(identifier)
+
+                if target:
+                    vm_name = target['name']
+                    for server_name in target['servers']:
                         if server_name not in vms_to_operate:
                             vms_to_operate[server_name] = []
-                        vms_to_operate[server_name].append(vm_name)
+                        if vm_name not in vms_to_operate[server_name]:
+                            vms_to_operate[server_name].append(vm_name)
                 else:
-                    print(f"Warning: VM '{vm_name}' not found on any connected server.")
+                    print(f"Warning: VM/UUID '{identifier}' not found on any connected server.")
 
         else:
             # If no args, use the pre-selected VMs
             vms_to_operate = self.selected_vms
 
         if not vms_to_operate:
-            print("No VMs specified. Either pass VM names as arguments or select them with 'select_vm'.")
+            print("No VMs specified. Either pass VM names/UUIDs as arguments or select them with 'select_vm'.")
             return None
 
         return vms_to_operate
@@ -358,15 +389,20 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
             return
 
         # Master list of all VMs from all connected servers
-        # vm_map: {vm_name: [server1, server2, ...]}
-        vm_map = {}
+        vm_lookup = {}
+        all_names = set()
         for server_name, conn in self.active_connections.items():
             try:
-                vms_on_server = find_all_vm(conn)
-                for vm_name in vms_on_server:
-                    if vm_name not in vm_map:
-                        vm_map[vm_name] = []
-                    vm_map[vm_name].append(server_name)
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    name = dom.name()
+                    uuid = dom.UUIDString()
+                    all_names.add(name)
+                    for identifier in [name, uuid]:
+                        if identifier not in vm_lookup:
+                            vm_lookup[identifier] = {'servers': [], 'name': name}
+                        if server_name not in vm_lookup[identifier]['servers']:
+                            vm_lookup[identifier]['servers'].append(server_name)
             except libvirt.libvirtError as e:
                 print(f"Could not fetch VMs from {server_name}: {e}")
                 continue
@@ -380,7 +416,7 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
                 pattern_str = arg[3:]
                 try:
                     pattern = re.compile(pattern_str)
-                    matched_vms = {vm_name for vm_name in vm_map if pattern.match(vm_name)}
+                    matched_vms = {name for name in all_names if pattern.match(name)}
                     if matched_vms:
                         vms_to_select_names.update(matched_vms)
                     else:
@@ -389,18 +425,21 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
                     print(f"Error: Invalid regular expression '{pattern_str}': {e}")
                     invalid_inputs.append(arg)
             else:
-                if arg in vm_map:
-                    vms_to_select_names.add(arg)
+                clean_id = arg.split(':')[0].split('(')[0].strip()
+                target = vm_lookup.get(clean_id) or vm_lookup.get(arg)
+                if target:
+                    vms_to_select_names.add(target['name'])
                 else:
                     invalid_inputs.append(arg)
 
-        # Reset selection and populate it based on the names and the vm_map
+        # Reset selection and populate it based on the names and the vm_lookup
         self.selected_vms = {}
         for vm_name in sorted(list(vms_to_select_names)):
-            for server_name in vm_map[vm_name]:
-                if server_name not in self.selected_vms:
-                    self.selected_vms[server_name] = []
-                self.selected_vms[server_name].append(vm_name)
+            if vm_name in vm_lookup:
+                for server_name in vm_lookup[vm_name]['servers']:
+                    if server_name not in self.selected_vms:
+                        self.selected_vms[server_name] = []
+                    self.selected_vms[server_name].append(vm_name)
 
         if invalid_inputs:
             print(f"Error: The following VMs or patterns were not found or invalid: {', '.join(invalid_inputs)}")
@@ -549,6 +588,85 @@ If no VM names are provided, it will show the status of selected VMs."""
                     print(f"{domain.name():<30} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
                 except libvirt.libvirtError as e:
                     print(f"Could not retrieve status for '{vm_name}': {e}")
+
+    def do_vm_info(self, args):
+        """Show detailed information about one or more VMs.
+Usage: vm_info [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will show info for the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_check = self._get_vms_to_operate(args)
+        if not vms_to_check:
+            return
+
+        from .vm_queries import get_domain_info_dict
+
+        for server_name, vm_list in vms_to_check.items():
+            print(f"\n--- VM Information on {server_name} ---")
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    info = get_domain_info_dict(domain, conn)
+                    if not info:
+                        print(f"Error: Could not retrieve info for '{vm_name}'.")
+                        continue
+
+                    print(f"\n[ {vm_name} ]")
+                    print(f"  UUID:         {info.get('uuid')}")
+                    print(f"  Status:       {info.get('status')}")
+                    print(f"  Description:  {info.get('description')}")
+                    print(f"  CPU:          {info.get('cpu')} cores ({info.get('cpu_model')})")
+                    print(f"  Memory:       {info.get('memory')} MiB")
+                    print(f"  Machine Type: {info.get('machine_type')}")
+
+                    fw = info.get('firmware', {})
+                    fw_str = fw.get('type', 'N/A')
+                    if fw.get('secure_boot'):
+                        fw_str += " (Secure Boot enabled)"
+                    print(f"  Firmware:     {fw_str}")
+
+                    print("  Networks:")
+                    networks = info.get('networks', [])
+                    if not networks:
+                        print("    None")
+                    for net in networks:
+                        print(f"    - {net.get('network')} ({net.get('mac')}, model: {net.get('model')})")
+
+                    # IP addresses if available
+                    detail_net = info.get('detail_network', [])
+                    if detail_net:
+                        print("  IP Addresses:")
+                        for iface in detail_net:
+                            ips = iface.get('ipv4', []) + iface.get('ipv6', [])
+                            print(f"    - {iface.get('interface')} ({iface.get('mac')}): {', '.join(ips)}")
+
+                    print("  Disks:")
+                    disks = info.get('disks', [])
+                    if not disks:
+                        print("    None")
+                    for disk in disks:
+                        print(f"    - {disk.get('path')} ({disk.get('bus')}, {disk.get('status')}, {disk.get('device_type')})")
+
+                    # Add video/graphics
+                    graphics = info.get('devices', {}).get('graphics', [])
+                    if graphics:
+                        print("  Graphics:")
+                        for g in graphics:
+                            g_str = f"{g.get('type')}"
+                            if g.get('port'):
+                                g_str += f", port: {g.get('port')}"
+                            if g.get('autoport') == 'yes':
+                                g_str += " (autoport)"
+                            print(f"    - {g_str}")
+
+                except libvirt.libvirtError as e:
+                    print(f"Could not retrieve info for '{vm_name}': {e}")
+
+    def complete_vm_info(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def complete_status(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
@@ -760,23 +878,31 @@ If no VM names are provided, it will delete the selected VMs."""
                     if delete_storage_confirmed:
                         print(f"Associated storage for '{vm_name}' also deleted.")
 
+                    # Unselect the VM if it was selected
+                    if server_name in self.selected_vms and vm_name in self.selected_vms[server_name]:
+                        self.selected_vms[server_name].remove(vm_name)
+                        if not self.selected_vms[server_name]:
+                            del self.selected_vms[server_name]
+
                 except libvirt.libvirtError as e:
                     print(f"Error deleting VM '{vm_name}': {e}")
                 except Exception as e:
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
+
+        self._update_prompt()
 
     def complete_delete(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_clone_vm(self, args):
         """Clones a VM.
-Usage: clone_vm <original_vm_name> <new_vm_name>"""
+Usage: clone_vm <original_vm_name>"""
         arg_list = args.split()
-        if len(arg_list) != 2:
-            print("Usage: clone_vm <original_vm_name> <new_vm_name>")
+        if len(arg_list) != 1:
+            print("Usage: clone_vm <original_vm_name>")
             return
 
-        original_vm_name, new_vm_name = arg_list
+        original_vm_name = arg_list[0]
 
         original_vm_domain = None
         original_vm_server_name = None
@@ -802,28 +928,58 @@ Usage: clone_vm <original_vm_name> <new_vm_name>"""
 
         print(f"Found VM '{original_vm_name}' on server '{original_vm_server_name}'.")
 
+        # Start asking questions
+        new_vm_base_name = input(f"Enter the new VM name [clone_of_{original_vm_name}]: ").strip()
+        if not new_vm_base_name:
+            new_vm_base_name = f"clone_of_{original_vm_name}"
+
         try:
-            conn.lookupByName(new_vm_name)
-            print(f"Error: A VM with the name '{new_vm_name}' already exists on server '{original_vm_server_name}'.")
-            return
-        except libvirt.libvirtError as e:
-            if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-                print(f"An error occurred while checking for existing VM '{new_vm_name}': {e}")
+            num_clones_str = input("How many VM to create? [1]: ").strip()
+            num_clones = int(num_clones_str) if num_clones_str else 1
+            if num_clones < 1:
+                print("Error: Number of VMs must be at least 1.")
                 return
+        except ValueError:
+            print("Error: Invalid number.")
+            return
 
-        try:
-            print(f"Cloning '{original_vm_name}' to '{new_vm_name}' on server '{original_vm_server_name}'...")
+        postfix = ""
+        if num_clones > 1:
+            postfix = input("Enter postfix name (e.g. '-') [-]: ").strip()
+            if not postfix:
+                postfix = "-"
 
-            def log_to_console(message):
-                print(f"  -> {message.strip()}")
+        clone_storage_input = input("Clone also the storage? (yes/no) [yes]: ").strip().lower()
+        clone_storage = clone_storage_input != 'no'
 
-            clone_vm(original_vm_domain, new_vm_name, log_callback=log_to_console)
-            print(f"\nSuccessfully cloned '{original_vm_name}' to '{new_vm_name}'.")
+        def log_to_console(message):
+            print(f"  -> {message.strip()}")
 
-        except libvirt.libvirtError as e:
-            print(f"\nError cloning VM: {e}")
-        except Exception as e:
-            print(f"\nAn unexpected error occurred during cloning: {e}")
+        for i in range(1, num_clones + 1):
+            if num_clones > 1:
+                current_new_name = f"{new_vm_base_name}{postfix}{i}"
+            else:
+                current_new_name = new_vm_base_name
+
+            # Check if VM already exists
+            try:
+                conn.lookupByName(current_new_name)
+                print(f"Error: A VM with the name '{current_new_name}' already exists on server '{original_vm_server_name}'. Skipping.")
+                continue
+            except libvirt.libvirtError as e:
+                if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+                    print(f"An error occurred while checking for existing VM '{current_new_name}': {e}")
+                    continue
+
+            try:
+                print(f"\n[{i}/{num_clones}] Cloning '{original_vm_name}' to '{current_new_name}' on server '{original_vm_server_name}'...")
+                clone_vm(original_vm_domain, current_new_name, clone_storage=clone_storage, log_callback=log_to_console)
+                print(f"Successfully cloned '{original_vm_name}' to '{current_new_name}'.")
+
+            except libvirt.libvirtError as e:
+                print(f"Error cloning VM '{current_new_name}': {e}")
+            except Exception as e:
+                print(f"An unexpected error occurred during cloning '{current_new_name}': {e}")
 
     def complete_clone_vm(self, text, line, begidx, endidx):
         """Auto-completion for the original VM to clone."""
