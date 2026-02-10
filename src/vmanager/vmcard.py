@@ -256,6 +256,9 @@ class VMCard(Static):
 
     def watch_webc_status_indicator(self, old_value: str, new_value: str) -> None:
         """Called when webc_status_indicator changes."""
+        # Don't update if card is being removed or not mounted
+        if not self.is_mounted:
+            return
         if not self.ui:
             return
         status_widget = self.ui.get("status")
@@ -349,6 +352,9 @@ class VMCard(Static):
 
     def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
+        # Don't update if card is being removed or not mounted
+        if not self.is_mounted:
+            return
         if not self.display or not self.ui or "vmname" not in self.ui:
             return
 
@@ -616,6 +622,9 @@ class VMCard(Static):
 
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
+        # Don't update if card is being removed or not mounted
+        if not self.is_mounted:
+            return
         if not self.ui:
             return
         self._update_status_styling()
@@ -693,6 +702,8 @@ class VMCard(Static):
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
+        if not self.is_mounted:
+            return
         if self.ui:
             checkbox = self.ui.get("checkbox")
             if checkbox:
