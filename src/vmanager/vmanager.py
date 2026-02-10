@@ -1594,9 +1594,18 @@ class VMManagerTUI(App):
                     widgets_to_remove.append(current_widgets.pop())
 
                 if widgets_to_remove:
+                    logging.debug(f"Removing {len(widgets_to_remove)} VM cards from UI")
                     # Release cards first (updates pool state)
                     for widget in widgets_to_remove:
                         uuid = widget.internal_id
+                        # Cancel any pending workers for this card before removing
+                        self.worker_manager.cancel(f"update_stats_{uuid}")
+                        self.worker_manager.cancel(f"update_card_{uuid}")
+                        self.worker_manager.cancel(f"actions_state_{uuid}")
+                        logging.debug(f"Cancelled workers for removed card {uuid}")
+
+                        # Clean up sparkline data immediately
+                        self.sparkline_data.pop(uuid, None)
                         if uuid in self.vm_card_pool.active_cards:
                             self.vm_card_pool.release_card(uuid)
 
@@ -1946,11 +1955,27 @@ class VMManagerTUI(App):
                 logging.debug(f"Updating card {vm_internal_id} with status {status}")
                 # Update card on main thread
                 def update_ui():
+                    # Check if card still exists and is mounted before updating
                     card = self.vm_card_pool.active_cards.get(vm_internal_id)
-                    if card and card.is_mounted:
+                    if not card:
+                        logging.debug(f"Card {vm_internal_id} no longer in active pool, skipping update")
+                        return
+
+                    if not card.is_mounted:
+                        logging.debug(f"Card {vm_internal_id} is not mounted, skipping update")
+                        return
+
+                    # Additional check: ensure card hasn't been reassigned
+                    if card.internal_id != vm_internal_id:
+                        logging.debug(f"Card identity changed ({card.internal_id} != {vm_internal_id}), skipping update")
+                        return
+
+                    try:
                         card.status = status
                         card.cpu = cpu
                         card.memory = memory
+                    except Exception as e:
+                        logging.debug(f"Error updating card UI for {vm_internal_id}: {e}")
                 self.call_from_thread(update_ui)
 
             except libvirt.libvirtError as e:
