@@ -783,8 +783,8 @@ class DialogMessages:
     CONFIRM_REMOVE_USB_DEVICE_TEMPLATE = _("Are you sure you want to remove USB device '{description}'?")
     CONFIRM_REMOVE_SCSI_CONTROLLER_TEMPLATE = _("Are you sure you want to remove SCSI controller '{model}' at index '{index}'?")
     CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _("Are you sure you want to remove VirtIO-FS mount '{target_path}'?")
-    CONFIRM_DISCARD_CHANGES = _("Are you sure you want to discard changes in '{target_disk}' and revert t  o its backing file? This action cannot be undone.")
-    CONFIRM_MERGE_CHANGES = _("Are you sure you want to merge changes from '{target_disk}' into its backing   file?")
+    CONFIRM_DISCARD_CHANGES = _("Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone.")
+    CONFIRM_MERGE_CHANGES = _("Are you sure you want to merge changes from '{target_disk}' into its backing file?")
 
 
 class QuickMessages:
