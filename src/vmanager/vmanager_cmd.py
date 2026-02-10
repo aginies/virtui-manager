@@ -11,7 +11,7 @@ import sys
 import libvirt
 
 from .config import get_log_path, load_config
-from .constants import AppInfo
+from .constants import AppInfo, ServerPallette
 from .libvirt_utils import find_all_vm, get_host_resources, get_network_info
 from .network_manager import (
     delete_network,
@@ -90,6 +90,10 @@ class VManagerCMD(cmd.Cmd):
         self.config = load_config()
         self.servers = self.config.get('servers', [])
         self.server_names = [s['name'] for s in self.servers]
+        self.server_colors = {
+            s['name']: ServerPallette.COLOR[i % len(ServerPallette.COLOR)]
+            for i, s in enumerate(self.servers)
+        }
         self.vm_service = vm_service if vm_service is not None else VMService()
         self.active_connections = {}
         self.selected_vms = {}
@@ -98,13 +102,13 @@ class VManagerCMD(cmd.Cmd):
         for server in self.servers:
             if server.get('autoconnect', False):
                 try:
-                    print(f"Autoconnecting to {server['name']} ({server['uri']})...")
+                    print(f"Autoconnecting to {self._colorize(server['name'], server['name'])} ({server['uri']})...")
                     conn = self.vm_service.connect(server['uri'])
                     if conn:
                         self.active_connections[server['name']] = conn
-                        print(f"Successfully connected to '{server['name']}'.")
+                        print(f"Successfully connected to '{self._colorize(server['name'], server['name'])}'.")
                     else:
-                        print(f"Failed to autoconnect to '{server['name']}'.")
+                        print(f"Failed to autoconnect to '{self._colorize(server['name'], server['name'])}'.")
                 except Exception as e:
                     print(f"Error autoconnecting to {server['name']}: {e}")
 
@@ -120,6 +124,19 @@ class VManagerCMD(cmd.Cmd):
         }
 
         self._update_prompt()
+
+    def _colorize(self, text, server_name):
+        """Wraps text in ANSI escape codes for the server's assigned color."""
+        color = self.server_colors.get(server_name)
+        if not color:
+            return text
+        try:
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
+        except (ValueError, IndexError):
+            return text
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -213,19 +230,22 @@ Usage: bash [command]"""
 
     def _update_prompt(self):
         if self.active_connections:
-            server_names = ",".join(self.active_connections.keys())
+            server_names = ",".join([self._colorize(name, name) for name in self.active_connections.keys()])
 
             # Flatten the list of selected VMs from all servers
             all_selected_vms = []
-            for vms in self.selected_vms.values():
-                all_selected_vms.extend(vms)
+            for server_name, vms in self.selected_vms.items():
+                for vm in vms:
+                    all_selected_vms.append(self._colorize(vm, server_name))
 
             if all_selected_vms:
                 self.prompt = f"({server_names}) [{','.join(all_selected_vms)}] "
             else:
                 self.prompt = f"({server_names}) "
 
-            self._set_title(f"CLI: {server_names}")
+            # Set title without ANSI codes
+            plain_server_names = ",".join(self.active_connections.keys())
+            self._set_title(f"CLI: {plain_server_names}")
         else:
             self.prompt = '(' + AppInfo.name +')> '
             self._set_title("Virtui Manager CLI")
@@ -379,7 +399,7 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
 
         for server_name, conn in self.active_connections.items():
             try:
-                print(f"\n--- VMs on {server_name} ---")
+                print(f"\n--- VMs on {self._colorize(server_name, server_name)} ---")
                 domains = conn.listAllDomains(0)
                 if domains:
                     print(f"{'VM Name':<30} {'Status':<15}")
@@ -389,7 +409,8 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
                     for domain in sorted_domains:
                         status_code = domain.info()[0]
                         status_str = self.status_map.get(status_code, 'Unknown')
-                        print(f"{domain.name():<30} {status_str:<15}")
+                        colored_name = self._colorize(domain.name(), server_name)
+                        print(f"{colored_name:<40} {status_str:<15}")
                 else:
                     print("No VMs found on this server.")
             except libvirt.libvirtError as e:
@@ -607,7 +628,7 @@ If no VM names are provided, it will show the status of selected VMs."""
             return
 
         for server_name, vm_list in vms_to_check.items():
-            print(f"\n--- Status on {server_name} ---")
+            print(f"\n--- Status on {self._colorize(server_name, server_name)} ---")
             conn = self.active_connections[server_name]
             print(f"{'VM Name':<30} {'Status':<15} {'vCPUs':<7} {'Memory (MiB)':<15}")
             print(f"{'-'*30} {'-'*15} {'-'*7} {'-'*15}")
@@ -621,7 +642,8 @@ If no VM names are provided, it will show the status of selected VMs."""
                     vcpus = info[3]
                     mem_kib = info[2]  # Current memory
                     mem_mib = mem_kib // 1024
-                    print(f"{domain.name():<30} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
+                    colored_name = self._colorize(domain.name(), server_name)
+                    print(f"{colored_name:<40} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
                 except libvirt.libvirtError as e:
                     print(f"Could not retrieve status for '{vm_name}': {e}")
 
@@ -640,7 +662,7 @@ If no VM names are provided, it will show info for the selected VMs."""
         from .vm_queries import get_domain_info_dict
 
         for server_name, vm_list in vms_to_check.items():
-            print(f"\n--- VM Information on {server_name} ---")
+            print(f"\n--- VM Information on {self._colorize(server_name, server_name)} ---")
             conn = self.active_connections[server_name]
             for vm_name in vm_list:
                 try:
@@ -650,7 +672,7 @@ If no VM names are provided, it will show info for the selected VMs."""
                         print(f"Error: Could not retrieve info for '{vm_name}'.")
                         continue
 
-                    print(f"\n[ {vm_name} ]")
+                    print(f"\n[ {self._colorize(vm_name, server_name)} ]")
                     print(f"  UUID:         {info.get('uuid')}")
                     print(f"  Status:       {info.get('status')}")
                     print(f"  Description:  {info.get('description')}")
