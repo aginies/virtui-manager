@@ -2074,7 +2074,7 @@ def check_for_other_spice_devices(domain: libvirt.virDomain) -> bool:
 
     root = ET.fromstring(xml_desc)
     devices = root.find('devices')
-    if not devices:
+    if devices is None:
         logging.info("No <devices> element found.")
         return False
 
@@ -2188,7 +2188,7 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
         issues.append({'severity': 'WARNING', 'message': f"Could not check host architecture: {e}"})
 
     # TPM Check
-    if source_root:
+    if source_root is not None:
         source_tpm_info = get_vm_tpm_info(source_root)
         if source_tpm_info:
             try:
@@ -2197,7 +2197,7 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
                     dest_caps_root = ET.fromstring(dest_caps_xml)
 
                     # Check if destination host supports TPM devices at all
-                    if not dest_caps_root.find(".//devices/tpm"):
+                    if dest_caps_root.find(".//devices/tpm") is None:
                         issues.append({
                             'severity': 'ERROR',
                             'message': f"Source VM '{domain_name}' uses TPM, but destination host '{dest_conn.getURI()}' does not appear to support TPM devices."
