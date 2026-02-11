@@ -463,7 +463,7 @@ msgstr "Lancer"
 
 #: constants.py:188
 msgid "Open"
-msgstr ""
+msgstr "Ouvrir"
 
 #: constants.py:194
 msgid "Filter"
@@ -1679,7 +1679,7 @@ msgstr ""
 
 #: constants.py:517
 msgid "Refreshing host stats"
-msgstr ""
+msgstr "Mise à jour des statistiques de l'hôte"
 
 #: constants.py:518
 #, fuzzy
@@ -1723,11 +1723,11 @@ msgstr "Éteindre"
 
 #: constants.py:526
 msgid "A Textual application to manage VMs."
-msgstr ""
+msgstr "Une application Textual pour gérer les VMs."
 
 #: constants.py:527
 msgid "Run in command-line interpreter mode."
-msgstr ""
+msgstr "Exécution en mode interpréteur de commandes."
 
 #: constants.py:532
 #, python-brace-format
