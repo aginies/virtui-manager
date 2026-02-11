@@ -44,6 +44,7 @@ from .constants import (
     VmAction,
     VmStatus,
     WarningMessages,
+    StaticText
 )
 from .events import VmActionRequest, VmCardUpdateRequest, VMSelectionChanged  #,VMNameClicked
 from .libvirt_error_handler import register_error_handler
@@ -2104,12 +2105,16 @@ def main():
         VManagerCMD().cmdloop()
     else:
         terminal_size = os.get_terminal_size()
-    if height < 24:
-        print(ErrorMessages.TERMINAL_HEIGHT_TOO_SMALL.format(height=height))
-        return
-    if width < 86:
-        print(ErrorMessages.TERMINAL_WIDTH_TOO_SMALL.format(width=width))
-        return
+        width = terminal_size.columns
+        height = terminal_size.lines
+
+        if height < 24:
+            print(ErrorMessages.TERMINAL_HEIGHT_TOO_SMALL.format(height=height))
+            return
+        if width < 86:
+            print(ErrorMessages.TERMINAL_WIDTH_TOO_SMALL.format(width=width))
+            return
+            
         app = VMManagerTUI()
         app.run()
 
