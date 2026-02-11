@@ -467,76 +467,67 @@ msgstr "Ouvrir"
 
 #: constants.py:189
 msgid "Activate or Deactivate the selected netw. .."
-msgstr ""
+msgstr "Activer ou Désactiver le réseau sélectionné."
 
 #: constants.py:190 constants.py:197
 msgid "Enable or Disable autostart for the sele. .."
-msgstr ""
+msgstr "Activer ou Désactiver l'autostart pour la sélection."
 
 #: constants.py:191
-#, fuzzy
 msgid "Add a new network."
-msgstr "Créer un nouveau réseau"
+msgstr "Ajouter un nouveau réseau."
 
 #: constants.py:192
-#, fuzzy
 msgid "Edit the selected network."
-msgstr "Veuillez sélectionner un réseau."
+msgstr "Modifier le réseau sélectionné."
 
 #: constants.py:193
 msgid "View XML details of the selected network. .."
-msgstr ""
+msgstr "Voir les détails XML du réseau sélectionné."
 
 #: constants.py:194
-#, fuzzy
 msgid "Delete the selected network."
-msgstr "Veuillez sélectionner un réseau."
+msgstr "Supprimer le réseau sélectionné."
 
 #: constants.py:195
-#, fuzzy
 msgid "Show network configuration help."
-msgstr "Erreur lors de l'enregistrement de la configuration : {e}"
+msgstr "Afficher l'aide à la configuration du réseau."
 
 #: constants.py:196
 msgid "Activate or Deactivate the selected stor. .."
-msgstr ""
+msgstr "Activer ou Désactiver le pool de stockage sélectionné."
 
 #: constants.py:198
-#, fuzzy
 msgid "Add a new storage pool."
-msgstr "Ajouter un nouveau pool de stockage"
+msgstr "Ajouter un nouveau pool de stockage."
 
 #: constants.py:199
-#, fuzzy
 msgid "Delete the selected storage pool."
-msgstr "Veuillez sélectionner un pool de stockage valide."
+msgstr "Supprimer le pool de stockage sélectionné."
 
 #: constants.py:200
 msgid "Create a new volume in the selected pool. .."
-msgstr ""
+msgstr "Créer un nouveau volume dans le pool sélectionné."
 
 #: constants.py:201
-#, fuzzy
 msgid "Attach an existing disk file as a volume. .."
-msgstr "Attacher un disque existant comme volume"
+msgstr "Attacher un fichier de disque existant comme volume."
 
 #: constants.py:202
-#, fuzzy
 msgid "Move the selected volume to another pool. .."
-msgstr "Veuillez sélectionner un volume ISO valide depuis le pool de stockage."
+msgstr "Déplacer le volume sélectionné vers un autre pool."
 
 #: constants.py:203
-#, fuzzy
 msgid "Delete the selected volume."
-msgstr "Supprimer les volumes de stockage"
+msgstr "Supprimer le volume sélectionné."
 
 #: constants.py:204
 msgid "View XML details of the selected pool or. .."
-msgstr ""
+msgstr "Voir les détails XML du pool ou du volume sélectionné."
 
 #: constants.py:205
 msgid "Edit XML of the selected pool."
-msgstr ""
+msgstr "Modifier le XML du pool sélectionné."
 
 #: constants.py:211
 msgid "Filter"
@@ -648,6 +639,8 @@ msgid ""
 "{info}\n"
 "Total: {snapshot_count}:"
 msgstr ""
+"{info}\n"
+"Total : {snapshot_count} :"
 
 #: constants.py:246 constants.py:336
 msgid "Stopped"
@@ -1814,122 +1807,113 @@ msgid ""
 "virsh -c <uri> console <vm_name>; echo '\n"
 "Console session ended. Press Enter to close window.'; read"
 msgstr ""
+"virsh -c <uri> console <vm_name>; echo '\n"
+"Session console terminée. Appuyez sur Entrée pour fermer la fenêtre.'; read"
 
 #: constants.py:547
-#, fuzzy
 msgid "3D Acceleration"
-msgstr "Accélération 3D {state}"
+msgstr "Accélération 3D"
 
 #: constants.py:548
-#, fuzzy
 msgid "Auto Port"
-msgstr "Démarrage auto"
+msgstr "Port automatique"
 
 #: constants.py:549
 msgid "Port (e.g., 5900)"
-msgstr ""
+msgstr "Port (ex : 5900)"
 
 #: constants.py:550
-#, fuzzy
 msgid "Enable Password"
-msgstr "Activer le disque"
+msgstr "Activer le mot de passe"
 
 #: constants.py:551
 msgid "Password"
-msgstr ""
+msgstr "Mot de passe"
 
 #: constants.py:552
 msgid "=/dev/tpm0"
-msgstr ""
+msgstr "=/dev/tpm0"
 
 #: constants.py:553
-#, fuzzy
 msgid "emulator or passthrough"
-msgstr "Chemin du périphérique (pour passthrough) :"
+msgstr "émulateur ou passthrough"
 
 #: constants.py:554
 msgid "/dev/tpmrm0"
-msgstr ""
+msgstr "/dev/tpmrm0"
 
 #: constants.py:555
-#, fuzzy
 msgid "Select VM"
-msgstr "Séléctionner"
+msgstr "Sélectionner la VM"
 
 #: constants.py:556
 msgid "Unchecked means legacy boot"
-msgstr ""
+msgstr "Décoché signifie démarrage hérité (legacy)"
 
 #: constants.py:557
-#, fuzzy
 msgid "Show VM configuration before starting"
-msgstr "Configurations VM mises à jour pour : {vm_list}"
+msgstr "Afficher la configuration de la VM avant le démarrage"
 
 #: constants.py:558
 msgid "Copy all disk files during migration"
-msgstr ""
+msgstr "Copier tous les fichiers de disque pendant la migration"
 
 #: constants.py:559
 msgid "Perform unsafe migration (may lose data)"
-msgstr ""
+msgstr "Effectuer une migration non sécurisée (peut entraîner une perte de données)"
 
 #: constants.py:560
-#, fuzzy
 msgid "Keep VM persistent on destination"
-msgstr "Migration persistante"
+msgstr "Garder la VM persistante sur la destination"
 
 #: constants.py:561
-#, fuzzy
 msgid "Compress data during migration"
-msgstr "Compresser les données"
+msgstr "Compresser les données pendant la migration"
 
 #: constants.py:562
 msgid "Tunnel migration data through libvirt da. .."
-msgstr ""
+msgstr "Tunnéliser les données de migration via le démon libvirt."
 
 #: constants.py:563
-#, fuzzy
 msgid "Use custom migration workflow"
-msgstr "Migration personnalisée"
+msgstr "Utiliser un flux de travail de migration personnalisé"
 
 #: constants.py:565
 msgid "Pause the guest filesystem to ensure a c. .."
-msgstr ""
+msgstr "Mettre en pause le système de fichiers invité pour assurer une sauvegarde cohérente."
 
 #: constants.py:566
-#, fuzzy
 msgid "Enable legacy boot mode."
-msgstr "Activer le menu de démarrage"
+msgstr "Activer le mode de démarrage hérité (legacy)."
 
 #: constants.py:567
 msgid "Open the VM configuration dialog before starting the VM."
-msgstr ""
+msgstr "Ouvrir le dialogue de configuration de la VM avant de la démarrer."
 
 #: constants.py:568
-#, fuzzy
 msgid "Copy all disk files to the destination server."
-msgstr "Veuillez sélectionner un serveur de destination."
+msgstr "Copier tous les fichiers de disque vers le serveur de destination."
 
 #: constants.py:569
 msgid "Perform migration even if it might be unsafe (e.g., no shared storage)."
-msgstr ""
+msgstr "Effectuer la migration même si elle peut être risquée (ex : pas de stockage partagé)."
 
 #: constants.py:570
 msgid ""
 "Ensure the VM remains persistent on the destination server after migration."
-msgstr ""
+msgstr "S'assurer que la VM reste persistante sur le serveur de destination après la migration."
 
 #: constants.py:571
 msgid "Compress migration data to save bandwidth."
-msgstr ""
+msgstr "Compresser les données de migration pour économiser de la bande passante."
 
 #: constants.py:572
 msgid "Tunnel migration data through the libvirt connection."
-msgstr ""
+msgstr "Tunnéliser les données de migration via la connexion libvirt."
 
 #: constants.py:573
 msgid "Use a custom workflow for migration."
-msgstr ""
+msgstr "Utiliser un flux de travail personnalisé pour la migration."
 
 #: constants.py:577
 #, python-brace-format
