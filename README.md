@@ -27,6 +27,7 @@ VirtUI Manager solves these challenges with:
 - **Migration Support**: Live and offline VM migration capabilities and custom migration
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
+- **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
 
 ## Documentation
 
