@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import re
+import glob
 
 def find_missing_translations(po_file_path):
     """
@@ -62,19 +63,25 @@ def find_missing_translations(po_file_path):
     return missing_count
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 find_missing_msgstr.py <path_to_po_file>")
-        sys.exit(1)
+    base_path = "src/vmanager/locale"
+    po_files = glob.glob(f"{base_path}/**/*.po", recursive=True)
     
-    po_file = sys.argv[1]
-    print(f"Checking for missing translations in {po_file}...")
+    if not po_files:
+        print(f"No .po files found in {base_path}")
+        sys.exit(0)
+
+    total_missing_count = 0
     
-    missing_count = find_missing_translations(po_file)
+    for po_file in po_files:
+        print(f"Checking for missing translations in {po_file}...")
+        missing_count = find_missing_translations(po_file)
+        if missing_count is not None:
+            total_missing_count += missing_count
     
-    if missing_count > 0:
-        print("\nFailure: Missing translations found.")
-        print("\nFor now dont failed... as there is a log missing")
+    if total_missing_count > 0:
+        print(f"\nFailure: Total missing translations across all files: {total_missing_count}.")
+        print("For now don't fail... as there are many missing translations")
         sys.exit(0)
     else:
-        print("\nSuccess: No missing translations found.")
+        print("\nSuccess: No missing translations found in any .po file.")
         sys.exit(0)

@@ -41,10 +41,7 @@ jobs:
         run: ./checks/check_constants.py
 
       - name: Run check translations
-        run: |
-          ./checks/find_missing_msgstr.py src/vmanager/locale/fr/LC_MESSAGES/virtui-manager.po
-          ./checks/find_missing_msgstr.py src/vmanager/locale/de/LC_MESSAGES/virtui-manager.po
-          ./checks/find_missing_msgstr.py src/vmanager/locale/it/LC_MESSAGES/virtui-manager.po
+        run: ./checks/find_missing_msgstr.py
 
       - name: Run Pylint
         # Run pylint with -E (errors only) and --exit-zero (permissive mode, don't fail build)
