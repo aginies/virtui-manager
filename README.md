@@ -29,6 +29,40 @@ VirtUI Manager solves these challenges with:
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 - **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
 
+## Nix Package
+
+This project includes Nix package definitions for easy installation and development:
+
+### Building with Nix
+
+To build the package using Nix:
+
+```bash
+nix build
+```
+
+Or to build and run directly:
+
+```bash
+nix run
+```
+
+### Development Shell
+
+To enter a development shell with all dependencies:
+
+```bash
+nix develop
+```
+
+### Using as a Nix Flake
+
+This project can also be used as a Nix flake:
+
+```bash
+nix run github:aginies/virtui-manager
+```
+
 ## Documentation
 
 [VirtUI Manager doc](https://aginies.github.io/virtui-manager/manual/)
