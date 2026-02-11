@@ -20,6 +20,8 @@ The CLI operates on a context-based system:
 The prompt dynamically updates to show your active context:
 `(<server_names>) [<selected_vms>]`
 
+**Visual Distinction**: Server names and their associated VMs are color-coded based on a unique palette, making it easy to distinguish between different environments at a glance.
+
 **Logging**: The CLI automatically logs all output and operations to a file (typically `~/.cache/virtui-manager/vm_manager.log`), which is useful for audit trails and debugging.
 
 ## Connection Management
@@ -34,25 +36,28 @@ The prompt dynamically updates to show your active context:
 
 Most commands operate on the "current selection" if no arguments are provided.
 
-*   **`select_vm <name> [name2 ...]`**
-    Selects specific VMs by name from any connected server.
+*   **`select_vm <name|uuid> [name2|uuid2 ...]`**
+    Selects specific VMs by name or UUID from any connected server. Auto-completion uses the format `VMNAME:UUID:SERVER` to help you target the exact instance.
 *   **`select_vm re:<pattern>`**
-    Selects VMs using regex patterns.
+    Selects VMs using regex patterns against their names.
     *   *Example:* `select_vm re:^web-.*` (Selects all VMs starting with "web-")
-*   **`unselect_vm <name> | re:<pattern> | all`**
+*   **`unselect_vm <name|uuid> | re:<pattern> | all`**
     Removes VMs from the current selection.
 
 ## VM Operations
 
-All operations can take specific VM names as arguments. If omitted, they apply to the **currently selected VMs**.
+All operations can take specific VM names or UUIDs as arguments. If omitted, they apply to the **currently selected VMs**.
 
 *   **`status`**: Shows state, vCPU count, and memory usage.
+*   **`vm_info`**: Displays detailed metadata, including UUID, architecture, network interfaces (with IPs if available), and disk paths.
 *   **`start`**: Boots up the target VMs.
 *   **`stop`**: Sends a graceful shutdown signal (ACPI).
 *   **`force_off`**: Immediately cuts power (hard shutdown).
 *   **`pause` / `resume`**: Freezes or unfreezes VM execution.
-*   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images.
-*   **`clone_vm <source> <new_name>`**: Creates a full clone of a VM on the same server.
+*   **`hibernate`**: Saves the VM state to disk and stops it.
+*   **`view`**: Launches the graphical viewer (Spice or VNC) for the target VMs.
+*   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
+*   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
 
 ## Network Management
 
@@ -73,8 +78,7 @@ All operations can take specific VM names as arguments. If omitted, they apply t
 ## Advanced Tools
 
 *   **`virsh [server]`**: Launches an interactive `virsh` shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.
-
-
+*   **`bash [command]`**: Executes a local shell command or starts an interactive bash shell.
 
 ## Usage Example
 
@@ -83,21 +87,19 @@ All operations can take specific VM names as arguments. If omitted, they apply t
 (VirtUI)> connect Localhost
 (Localhost) >
 
-# Select all web servers
+# Select all web servers using pattern
 (Localhost) > select_vm re:web-.*
 (Localhost) [web-01,web-02] >
 
-# Check their status
-(Localhost) [web-01,web-02] > status
-
---- Status on Localhost ---
-VM Name                        Status          vCPUs   Memory (MiB)   
------------------------------- --------------- ------- ---------------
-web-01                         Stopped         2       4096           
-web-02                         Stopped         2       4096           
+# Check their detailed information
+(Localhost) [web-01,web-02] > vm_info
 
 # Start them up
 (Localhost) [web-01,web-02] > start
 VM 'web-01' started successfully.
 VM 'web-02' started successfully.
+
+# Open a graphical console
+(Localhost) [web-01] > view
+Launching viewer for 'web-01' on Localhost...
 ```

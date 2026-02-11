@@ -25,28 +25,8 @@
     <main style="padding-top: 80px;">
         <h1 style="text-align: center; margin-top: 2rem;">Media Gallery</h1>
         
-        <div class="gallery">
-            <img src="manual/images/actions.jpg" alt="Actions">
-            <img src="manual/images/app_configuration.jpg" alt="App configuration">
-            <img src="manual/images/bulk.jpg" alt="Bulk">
-            <img src="manual/images/clone.jpg" alt="Clone">
-            <img src="manual/images/clone_mini.jpg" alt="Clone mini">
-            <img src="manual/images/compact.jpg" alt="Compact">
-            <img src="manual/images/configure1.jpg" alt="Configure 1">
-            <img src="manual/images/configure2.jpg" alt="Configure 2">
-            <img src="manual/images/configure3.jpg" alt="Configure 3">
-            <img src="manual/images/configure4.jpg" alt="Configure 4">
-            <img src="manual/images/configure5.jpg" alt="Configure 5">
-            <img src="manual/images/install.jpg" alt="Install">
-            <img src="manual/images/management.jpg" alt="Management">
-            <img src="manual/images/migration.jpg" alt="Migration">
-            <img src="manual/images/pattern.jpg" alt="Pattern">
-            <img src="manual/images/vr_log.jpg" alt="Virtui remote viewer Log">
-            <img src="manual/images/vr_menu.jpg" alt="Virtui remote viewer Menu">
-            <img src="manual/images/vr_snapshot.jpg" alt="Virtui remote viewer Snapshot">
-            <img src="manual/images/vr_usb.jpg" alt="Virtui remote viewer Usb">
-            <img src="manual/images/webconsole1.jpg" alt="Web console 1">
-            <img src="manual/images/webconsole2.jpg" alt="Web console 2">
+        <div class="gallery" id="gallery">
+            <!-- Images will be loaded dynamically here -->
         </div>
     </main>
 
@@ -66,22 +46,65 @@
     </footer>
 
     <script>
-        let currentImageIndex = 0;
-        const galleryImages = document.querySelectorAll('.gallery img');
+        const imageDir = 'manual/images/';
+        const images = [
+            'actions.jpg',
+            'app_configuration.jpg',
+            'bulk.jpg',
+            'cache_performance.jpg',
+            'clone.jpg',
+            'clone_mini.jpg',
+            'compact.jpg',
+            'configure1.jpg',
+            'configure2.jpg',
+            'configure3.jpg',
+            'configure4.jpg',
+            'configure5.jpg',
+            'gui.png',
+            'gui_virsh.png',
+            'host_capabilities.png',
+            'host_resource.png',
+            'install.jpg',
+            'main.png',
+            'management.jpg',
+            'migration.jpg',
+            'migration2.jpg',
+            'migration3.jpg',
+            'migration4.jpg',
+            'pattern.jpg',
+            'select_server_display.jpg',
+            'vr_log.jpg',
+            'vr_menu.jpg',
+            'vr_snapshot.jpg',
+            'vr_usb.jpg',
+            'webconsole1.jpg',
+            'webconsole2.jpg'
+        ];
+
+        const gallery = document.getElementById('gallery');
         const lightbox = document.getElementById('lightbox');
         const lightboxImg = document.getElementById('lightbox-img');
+        let currentImageIndex = 0;
 
-        galleryImages.forEach((img, index) => {
-            img.addEventListener('click', function() {
+        // Load images into gallery
+        images.forEach((imgName, index) => {
+            const img = document.createElement('img');
+            img.src = imageDir + imgName;
+            img.addEventListener('click', () => {
                 currentImageIndex = index;
-                lightboxImg.src = this.src;
-                lightbox.style.display = 'flex';
+                showLightbox();
             });
+            gallery.appendChild(img);
         });
 
+        function showLightbox() {
+            lightboxImg.src = imageDir + images[currentImageIndex];
+            lightbox.style.display = 'flex';
+        }
+
         function showImage(index) {
-            currentImageIndex = (index + galleryImages.length) % galleryImages.length;
-            lightboxImg.src = galleryImages[currentImageIndex].src;
+            currentImageIndex = (index + images.length) % images.length;
+            lightboxImg.src = imageDir + images[currentImageIndex];
         }
 
         document.getElementById('prev').addEventListener('click', (e) => {

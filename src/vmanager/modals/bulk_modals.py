@@ -32,6 +32,7 @@ class BulkActionModal(BaseModal[None]):
                 yield RadioButton(StaticText.FORCE_OFF_VMS, id="action_force_off")
                 yield RadioButton(StaticText.PAUSE_VMS, id="action_pause")
                 yield RadioButton(StaticText.DELETE_VMS, id="action_delete")
+                yield RadioButton(StaticText.MIGRATE_VMS, id="action_migrate")
                 yield RadioButton(StaticText.EDIT_CONFIGURATION, id="action_edit_config")
 
             yield Checkbox(StaticText.DELETE_ASSOCIATED_STORAGE, id="delete-storage-checkbox")

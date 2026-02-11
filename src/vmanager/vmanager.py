@@ -34,6 +34,7 @@ from .constants import (
     AppInfo,
     BindingDescriptions,
     ButtonLabels,
+    DialogMessages,
     ErrorMessages,
     ProgressMessages,
     QuickMessages,
@@ -54,6 +55,7 @@ from .modals.config_modal import ConfigModal
 from .modals.host_dashboard_modal import HostDashboardModal
 from .modals.host_stats import HostStats, SingleHostStat
 from .modals.log_modal import LogModal
+from .modals.migration_modals import MigrationModal
 from .modals.provisioning_modals import InstallVMModal
 from .modals.select_server_modals import SelectOneServerModal, SelectServerModal
 from .modals.selection_modals import PatternSelectModal
@@ -453,13 +455,13 @@ class VMManagerTUI(App):
         else:
             self.show_quick_message(QuickMessages.REMOTE_VIEWER_SELECTED.format(viewer=self.r_viewer))
 
-        if not check_websockify():
+        if not check_websockify() and not is_running_under_flatpak:
             self.show_error_message(
                 ErrorMessages.WEBSOCKIFY_NOT_FOUND
             )
             self.websockify_available = False
 
-        if not check_novnc_path():
+        if not check_novnc_path() and not is_running_under_flatpak():
             self.show_error_message(
                 ErrorMessages.NOVNC_NOT_FOUND
             )
@@ -1262,6 +1264,65 @@ class VMManagerTUI(App):
         else:
             self.selected_vm_uuids.discard(message.internal_id)
 
+    def initiate_migration(self, selected_vms: list[libvirt.virDomain]) -> None:
+        """
+        Initiates the migration process for the given list of VMs.
+        Handles validation and shows the migration modal.
+        """
+        if len(self.active_uris) < 2:
+            self.show_error_message(ErrorMessages.SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION)
+            return
+
+        if not selected_vms:
+            self.show_error_message(ErrorMessages.NO_VMS_SELECTED)
+            return
+
+        # Ensure all VMs are on the same source host
+        source_conns = set()
+        for vm in selected_vms:
+            conn = vm.connect()
+            uri = self.vm_service.get_uri_for_connection(conn)
+            if not uri:
+                uri = conn.getURI()
+            source_conns.add(uri)
+
+        if len(source_conns) > 1:
+            self.show_error_message(ErrorMessages.DIFFERENT_SOURCE_HOSTS)
+            return
+
+        # Check for mixed states
+        active_vms = []
+        for vm in selected_vms:
+            try:
+                state_tuple = self.vm_service._get_domain_state(vm)
+                if state_tuple:
+                    state, _ = state_tuple
+                    if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
+                        active_vms.append(vm)
+            except Exception:
+                if vm.isActive():
+                    active_vms.append(vm)
+
+        is_live = len(active_vms) > 0
+        if is_live and len(active_vms) < len(selected_vms):
+            self.show_error_message(ErrorMessages.MIXED_VM_STATES)
+            return
+
+        source_uri = list(source_conns)[0]
+        if source_uri == "qemu:///system":
+            self.show_error_message(ErrorMessages.MIGRATION_LOCALHOST_NOT_SUPPORTED)
+            return
+
+        active_uris = self.vm_service.get_all_uris()
+        all_connections = {uri: self.vm_service.get_connection(uri) for uri in active_uris if self.vm_service.get_connection(uri)}
+
+        def on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                self.push_screen(MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections))
+                self.selected_vm_uuids.clear()
+
+        self.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
+
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""
         if result is None:
@@ -1340,6 +1401,18 @@ class VMManagerTUI(App):
 
             warning_message = "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
             self.app.push_screen(ConfirmationDialog(warning_message), on_confirm)
+            return
+
+        # Handle 'Migrate' separately as it's a UI interaction
+        if action_type == 'migrate':
+            if len(self.active_uris) < 2:
+                self.show_error_message(ErrorMessages.SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION)
+                return
+
+            found_domains_map = self.vm_service.find_domains_by_uuids(self.active_uris, selected_uuids_copy)
+            selected_vms = list(found_domains_map.values())
+
+            self.initiate_migration(selected_vms)
             return
 
         self.selected_vm_uuids.clear()
@@ -1594,9 +1667,18 @@ class VMManagerTUI(App):
                     widgets_to_remove.append(current_widgets.pop())
 
                 if widgets_to_remove:
+                    logging.debug(f"Removing {len(widgets_to_remove)} VM cards from UI")
                     # Release cards first (updates pool state)
                     for widget in widgets_to_remove:
                         uuid = widget.internal_id
+                        # Cancel any pending workers for this card before removing
+                        self.worker_manager.cancel(f"update_stats_{uuid}")
+                        self.worker_manager.cancel(f"update_card_{uuid}")
+                        self.worker_manager.cancel(f"actions_state_{uuid}")
+                        logging.debug(f"Cancelled workers for removed card {uuid}")
+
+                        # Clean up sparkline data immediately
+                        self.sparkline_data.pop(uuid, None)
                         if uuid in self.vm_card_pool.active_cards:
                             self.vm_card_pool.release_card(uuid)
 
@@ -1946,11 +2028,27 @@ class VMManagerTUI(App):
                 logging.debug(f"Updating card {vm_internal_id} with status {status}")
                 # Update card on main thread
                 def update_ui():
+                    # Check if card still exists and is mounted before updating
                     card = self.vm_card_pool.active_cards.get(vm_internal_id)
-                    if card and card.is_mounted:
+                    if not card:
+                        logging.debug(f"Card {vm_internal_id} no longer in active pool, skipping update")
+                        return
+
+                    if not card.is_mounted:
+                        logging.debug(f"Card {vm_internal_id} is not mounted, skipping update")
+                        return
+
+                    # Additional check: ensure card hasn't been reassigned
+                    if card.internal_id != vm_internal_id:
+                        logging.debug(f"Card identity changed ({card.internal_id} != {vm_internal_id}), skipping update")
+                        return
+
+                    try:
                         card.status = status
                         card.cpu = cpu
                         card.memory = memory
+                    except Exception as e:
+                        logging.debug(f"Error updating card UI for {vm_internal_id}: {e}")
                 self.call_from_thread(update_ui)
 
             except libvirt.libvirtError as e:

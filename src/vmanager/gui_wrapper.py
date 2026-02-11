@@ -18,9 +18,9 @@ vmanager_package_parent_dir = os.path.abspath(os.path.join(script_dir, '..'))
 if vmanager_package_parent_dir not in sys.path:
     sys.path.insert(0, vmanager_package_parent_dir)
 
-
-# Require GTK 3.0 and Vte 2.91
+# Require GTK 3.0, Gdk 3.0 and Vte 2.91
 try:
+    gi.require_version('Gdk', '3.0')
     gi.require_version('Gtk', '3.0')
     gi.require_version('Vte', '2.91')
 except ValueError as e:
@@ -42,7 +42,7 @@ def check_tmux():
 
 # Constants
 DEFAULT_WINDOW_WIDTH = 1200
-DEFAULT_WINDOW_HEIGHT = 1024
+DEFAULT_WINDOW_HEIGHT = 800
 MIN_WINDOW_WIDTH = 800
 MIN_WINDOW_HEIGHT = 600
 DEFAULT_FONT_SIZE = 12
@@ -63,7 +63,7 @@ class VirtuiWrapper(Gtk.Window):
         width = self.config.get("width", DEFAULT_WINDOW_WIDTH)
         height = self.config.get("height", DEFAULT_WINDOW_HEIGHT)
         self.set_default_size(width, height)
-        self.set_size_request(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+        self.set_size_request(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT)
 
         # Get system monospace font as default fallback
         system_font = "Monospace"
@@ -97,7 +97,7 @@ class VirtuiWrapper(Gtk.Window):
         # Header Bar
         header_bar = Gtk.HeaderBar()
         header_bar.set_show_close_button(True)
-        header_bar.set_title("VirtUI Manager")
+        header_bar.set_title("VirtUI Manager GUI")
         self.set_titlebar(header_bar)
 
         # Settings Menu Button
@@ -222,10 +222,13 @@ class VirtuiWrapper(Gtk.Window):
             ("Ctrl + Page Down", "Switch to Next Tab"),
             ("Ctrl + t", "New Virtui Manager Tab"),
             ("Ctrl + T", "New Command Line Tab"),
+            ("Ctrl + Shift + c", "Copy selection to clipboard"),
+            ("Ctrl + Shift + v", "Paste from clipboard"),
             ("Ctrl + w", "Close Current Tab"),
             ("Ctrl + f", "Toggle Search Bar"),
             ("Ctrl + + / =", "Increase Font Size"),
             ("Ctrl + -", "Decrease Font Size"),
+            ("Ctrl + Scroll", "Zoom In/Out"),
             ("Esc", "Close Search Bar (if active)"),
         ]
 
@@ -282,7 +285,7 @@ class VirtuiWrapper(Gtk.Window):
         else:
             # Fallback to running without tmux if not available
             cmd = [sys.executable, "-m", "vmanager.wrapper"]
-        self.create_tab("Virtui Manager", cmd, session_name=session_name)
+        self.create_tab("Virtui Manager", cmd, session_name=session_name, allow_copy_paste=False)
 
     def on_new_cmd_tab(self, widget):
         cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
@@ -335,6 +338,18 @@ class VirtuiWrapper(Gtk.Window):
             elif keyname == "T":
                 self.on_new_cmd_tab(None)
                 return True
+            elif keyname == "C":
+                term = self.get_current_terminal()
+                if term and self.tabs.get(term, {}).get('allow_copy_paste', True):
+                    term.copy_clipboard()
+                    return True
+                return False
+            elif keyname == "V":
+                term = self.get_current_terminal()
+                if term and self.tabs.get(term, {}).get('allow_copy_paste', True):
+                    term.paste_clipboard()
+                    return True
+                return False
             elif keyname == "f":
                 self.toggle_search()
                 return True
@@ -403,12 +418,17 @@ class VirtuiWrapper(Gtk.Window):
         if self.search_bar.get_search_mode():
             self.on_search_changed(self.search_entry)
 
-    def create_tab(self, title, command, fixed_title=False, session_name=None):
+    def create_tab(self, title, command, fixed_title=False, session_name=None, allow_copy_paste=True):
         terminal = Vte.Terminal()
         terminal.set_size(TERMINAL_COLS, TERMINAL_ROWS)
         terminal.set_scrollback_lines(TERMINAL_SCROLLBACK)
 
         self._apply_font_to_terminal(terminal)
+
+        # Connect button press for context menu
+        terminal.connect("button-press-event", self.on_terminal_button_press)
+        # Connect scroll event for zooming
+        terminal.connect("scroll-event", self.on_terminal_scroll)
 
         # Pass the terminal itself as user_data to find which tab exited
         terminal.connect("child-exited", self.on_child_exited)
@@ -440,7 +460,8 @@ class VirtuiWrapper(Gtk.Window):
         self.tabs[terminal] = {
             'page': scrolled_window,
             'label': label,
-            'session_name': session_name
+            'session_name': session_name,
+            'allow_copy_paste': allow_copy_paste
         }
 
         self.spawn_process(terminal, command)
@@ -450,6 +471,48 @@ class VirtuiWrapper(Gtk.Window):
         # Switch to the new tab
         self.notebook.set_current_page(-1)
         return terminal
+
+    def on_terminal_scroll(self, widget, event):
+        """Handle scroll events for zooming with Ctrl + Scroll."""
+        if event.state & Gdk.ModifierType.CONTROL_MASK:
+            if event.direction == Gdk.ScrollDirection.UP:
+                self.set_font_size(self.current_font_size + 1)
+                return True  # Consume event
+            elif event.direction == Gdk.ScrollDirection.DOWN:
+                self.set_font_size(self.current_font_size - 1)
+                return True  # Consume event
+            elif event.direction == Gdk.ScrollDirection.SMOOTH:
+                if event.delta_y < 0:
+                    self.set_font_size(self.current_font_size + 1)
+                elif event.delta_y > 0:
+                    self.set_font_size(self.current_font_size - 1)
+                return True
+        return False
+
+    def on_terminal_button_press(self, widget, event):
+        """Handle mouse button press on terminal for context menu."""
+        if event.button == 3:  # Right click
+            if not self.tabs.get(widget, {}).get('allow_copy_paste', True):
+                return False
+
+            menu = Gtk.Menu()
+            
+            # Copy
+            copy_item = Gtk.MenuItem(label="Copy")
+            copy_item.connect("activate", lambda x: widget.copy_clipboard())
+            if not widget.get_has_selection():
+                copy_item.set_sensitive(False)
+            menu.append(copy_item)
+            
+            # Paste
+            paste_item = Gtk.MenuItem(label="Paste")
+            paste_item.connect("activate", lambda x: widget.paste_clipboard())
+            menu.append(paste_item)
+
+            menu.show_all()
+            menu.popup(None, None, None, None, event.button, event.time)
+            return True
+        return False
 
     def kill_tmux_session(self, session_name):
         if is_running_under_flatpak():

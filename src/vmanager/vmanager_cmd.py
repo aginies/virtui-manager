@@ -4,6 +4,8 @@ the Cmd line tool
 import cmd
 import datetime
 import re
+import readline
+import shlex
 import shutil
 import subprocess
 import sys
@@ -11,8 +13,8 @@ import sys
 import libvirt
 
 from .config import get_log_path, load_config
-from .constants import AppInfo
-from .libvirt_utils import find_all_vm, get_host_resources, get_network_info
+from .constants import AppInfo, ServerPallette
+from .libvirt_utils import get_host_resources, get_network_info
 from .network_manager import (
     delete_network,
     list_networks,
@@ -20,7 +22,20 @@ from .network_manager import (
     set_network_autostart,
 )
 from .storage_manager import list_storage_pools, list_unused_volumes
-from .vm_actions import clone_vm, delete_vm, force_off_vm, pause_vm, start_vm, stop_vm
+from .utils import remote_viewer_cmd
+from .vm_actions import (
+    clone_vm,
+    create_vm_snapshot,
+    delete_vm,
+    delete_vm_snapshot,
+    force_off_vm,
+    hibernate_vm,
+    pause_vm,
+    restore_vm_snapshot,
+    start_vm,
+    stop_vm,
+)
+from .vm_queries import get_vm_snapshots
 from .vm_service import VMService
 
 
@@ -81,6 +96,10 @@ class VManagerCMD(cmd.Cmd):
         self.config = load_config()
         self.servers = self.config.get('servers', [])
         self.server_names = [s['name'] for s in self.servers]
+        self.server_colors = {
+            s['name']: ServerPallette.COLOR[i % len(ServerPallette.COLOR)]
+            for i, s in enumerate(self.servers)
+        }
         self.vm_service = vm_service if vm_service is not None else VMService()
         self.active_connections = {}
         self.selected_vms = {}
@@ -89,13 +108,13 @@ class VManagerCMD(cmd.Cmd):
         for server in self.servers:
             if server.get('autoconnect', False):
                 try:
-                    print(f"Autoconnecting to {server['name']} ({server['uri']})...")
+                    print(f"Autoconnecting to {self._colorize(server['name'], server['name'])} ({server['uri']})...")
                     conn = self.vm_service.connect(server['uri'])
                     if conn:
                         self.active_connections[server['name']] = conn
-                        print(f"Successfully connected to '{server['name']}'.")
+                        print(f"Successfully connected to '{self._colorize(server['name'], server['name'])}'.")
                     else:
-                        print(f"Failed to autoconnect to '{server['name']}'.")
+                        print(f"Failed to autoconnect to '{self._colorize(server['name'], server['name'])}'.")
                 except Exception as e:
                     print(f"Error autoconnecting to {server['name']}: {e}")
 
@@ -110,7 +129,36 @@ class VManagerCMD(cmd.Cmd):
             libvirt.VIR_DOMAIN_PMSUSPENDED: 'Suspended',
         }
 
+        # Categories for help and completion
+        self.categories = {
+            "Connection": ["connect", "disconnect", "host_info", "virsh"],
+            "VM Selection": ["list_vms", "select_vm", "unselect_vm", "status", "vm_info"],
+            "VM Operations": ["start", "stop", "force_off", "pause", "resume", "hibernate", "delete", "clone_vm", "view"],
+            "Snapshots": ["snapshot_list", "snapshot_create", "snapshot_delete", "snapshot_revert"],
+            "Networking": ["list_networks", "net_start", "net_stop", "net_delete", "net_info", "net_autostart"],
+            "Storage": ["list_pool", "list_unused_volumes"],
+            "Shell/Utils": ["bash", "quit"]
+        }
+        try:
+            import readline
+            readline.set_completion_display_matches_hook(self._display_completion_matches)
+        except Exception:
+            pass
+
         self._update_prompt()
+
+    def _colorize(self, text, server_name):
+        """Wraps text in ANSI escape codes for the server's assigned color."""
+        color = self.server_colors.get(server_name)
+        if not color:
+            return text
+        try:
+            r = int(color[1:3], 16)
+            g = int(color[3:5], 16)
+            b = int(color[5:7], 16)
+            return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
+        except (ValueError, IndexError):
+            return text
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -177,62 +225,200 @@ Usage: virsh [server_name]"""
     def complete_virsh(self, text, line, begidx, endidx):
         return self.complete_disconnect(text, line, begidx, endidx)
 
+    def do_bash(self, args):
+        """Execute a bash command or start an interactive bash shell.
+Usage: bash [command]"""
+        shell = shutil.which("bash") or shutil.which("sh")
+        if not shell:
+            print("Error: No shell found (bash or sh).")
+            return
+
+        try:
+            if args:
+                subprocess.run([shell, "-c", args])
+            else:
+                print(f"Starting interactive shell ({shell})...")
+                print("Type 'exit' to return to virtui-manager.")
+                self._set_title(f"bash ({shell})")
+                subprocess.call([shell])
+                self._update_prompt()
+                print(f"\nReturned from {shell}.")
+        except Exception as e:
+            print(f"Error executing shell: {e}")
+
     def _set_title(self, title):
         """Sets the terminal window title."""
         print(f"\033]0;{title}\007", end='', flush=True)
 
     def _update_prompt(self):
         if self.active_connections:
-            server_names = ",".join(self.active_connections.keys())
+            server_names = ",".join([self._colorize(name, name) for name in self.active_connections.keys()])
 
             # Flatten the list of selected VMs from all servers
             all_selected_vms = []
-            for vms in self.selected_vms.values():
-                all_selected_vms.extend(vms)
+            for server_name, vms in self.selected_vms.items():
+                for vm in vms:
+                    all_selected_vms.append(self._colorize(vm, server_name))
 
             if all_selected_vms:
                 self.prompt = f"({server_names}) [{','.join(all_selected_vms)}] "
             else:
                 self.prompt = f"({server_names}) "
 
-            self._set_title(f"CLI: {server_names}")
+            # Set title without ANSI codes
+            plain_server_names = ",".join(self.active_connections.keys())
+            self._set_title(f"CLI: {plain_server_names}")
         else:
             self.prompt = '(' + AppInfo.name +')> '
             self._set_title("Virtui Manager CLI")
+
+    def _display_completion_matches(self, substitution, matches, longest_match_length):
+        """Custom display hook for readline completion to show categories."""
+        # Check if first match is a known command or "help". This is a heuristic.
+        # We flatten categories to check membership.
+        all_categorized = set([cmd for cmds in self.categories.values() for cmd in cmds])
+
+        is_command_completion = False
+        if matches:
+            first = matches[0].strip()
+            if first in all_categorized or first == "help" or hasattr(self, f"do_{first}"):
+                is_command_completion = True
+
+        if not is_command_completion:
+            # Default display
+            print()
+            self.columnize(matches, displaywidth=80)
+            print(self.prompt, end="", flush=True)
+            print(readline.get_line_buffer(), end="", flush=True)
+            return
+
+        # It IS command completion, categorize them
+        print()
+
+        matches_set = set(matches)
+        displayed_matches = set()
+
+        for category, cmds in self.categories.items():
+            cmds_in_cat = [c for c in cmds if c in matches_set]
+            if cmds_in_cat:
+                print(f"\033[1;36m{category}:\033[0m")
+                self.columnize(sorted(cmds_in_cat), displaywidth=80)
+                displayed_matches.update(cmds_in_cat)
+                print()
+
+        # Uncategorized matches
+        uncategorized = [c for c in matches if c not in displayed_matches]
+        if uncategorized:
+            print("\033[1;36mOther:\033[0m")
+            self.columnize(sorted(uncategorized), displaywidth=80)
+            print()
+
+        print(self.prompt, end="", flush=True)
+        print(readline.get_line_buffer(), end="", flush=True)
+
+    def _find_domain(self, vm_name):
+        """Finds a domain by name across all active connections.
+        If multiple are found, it prompts the user to select one.
+        Returns a tuple of (virDomain, server_name) or (None, None).
+        """
+        # Handle completion format VMNAME:UUID:SERVER
+        parts = vm_name.split(':')
+        if len(parts) == 3:
+            name, uuid, server = parts
+            if server in self.active_connections:
+                try:
+                    conn = self.active_connections[server]
+                    domain = conn.lookupByUUIDString(uuid)
+                    return domain, server
+                except libvirt.libvirtError:
+                    # Fallback to name search if UUID lookup fails
+                    vm_name = name
+
+        found_vms = [] # List of (domain, server_name)
+        for server_name, conn in self.active_connections.items():
+            try:
+                domain = conn.lookupByName(vm_name)
+                found_vms.append((domain, server_name))
+            except libvirt.libvirtError as e:
+                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
+                    continue
+                else:
+                    print(f"A libvirt error occurred on server {server_name}: {e}")
+
+        if not found_vms:
+            print(f"Error: VM '{vm_name}' not found on any connected server.")
+            return None, None
+
+        if len(found_vms) == 1:
+            return found_vms[0]
+
+        # Multiple VMs found, prompt user
+        print(f"VM '{vm_name}' found on multiple servers:")
+        for i, (dom, server_name) in enumerate(found_vms):
+            print(f"  {i + 1}. {server_name}")
+
+        try:
+            choice = input("Select server (number): ")
+            idx = int(choice) - 1
+            if 0 <= idx < len(found_vms):
+                return found_vms[idx]
+            else:
+                print("Invalid selection.")
+                return None, None
+        except (ValueError, IndexError):
+            print("Invalid input.")
+            return None, None
 
     def _get_vms_to_operate(self, args):
         vms_to_operate = {}
         args_list = args.split()
 
         if args_list:
-            # If args are provided, find which servers the VMs belong to
-            vm_map = {}
+            # Map of name/UUID to list of servers and actual VM name
+            vm_lookup = {}
             for server_name, conn in self.active_connections.items():
                 try:
-                    vms_on_server = find_all_vm(conn)
-                    for vm_name in vms_on_server:
-                        if vm_name not in vm_map:
-                            vm_map[vm_name] = []
-                        vm_map[vm_name].append(server_name)
+                    domains = conn.listAllDomains(0)
+                    for dom in domains:
+                        name = dom.name()
+                        uuid = dom.UUIDString()
+                        for identifier in [name, uuid]:
+                            if identifier not in vm_lookup:
+                                vm_lookup[identifier] = {'servers': [], 'name': name}
+                            if server_name not in vm_lookup[identifier]['servers']:
+                                vm_lookup[identifier]['servers'].append(server_name)
                 except libvirt.libvirtError:
                     continue
 
-            for vm_name in args_list:
-                if vm_name in vm_map:
-                    for server_name in vm_map[vm_name]:
+            for identifier in args_list:
+                parts = identifier.split(':')
+                # If it's the full format from completion: VMNAME:UUID:SERVER
+                if len(parts) == 3:
+                    name, uuid, server = parts
+                    if server in self.active_connections:
+                        if server not in vms_to_operate:
+                            vms_to_operate[server] = []
+                        if name not in vms_to_operate[server]:
+                            vms_to_operate[server].append(name)
+                        continue
+
+                # Fallback to name or UUID lookup
+                clean_id = parts[0].strip()
+                target = vm_lookup.get(clean_id) or vm_lookup.get(identifier)
+
+                if target:
+                    vm_name = target['name']
+                    for server_name in target['servers']:
                         if server_name not in vms_to_operate:
                             vms_to_operate[server_name] = []
-                        vms_to_operate[server_name].append(vm_name)
+                        if vm_name not in vms_to_operate[server_name]:
+                            vms_to_operate[server_name].append(vm_name)
                 else:
-                    print(f"Warning: VM '{vm_name}' not found on any connected server.")
+                    print(f"Warning: VM/UUID '{identifier}' not found on any connected server.")
 
         else:
-            # If no args, use the pre-selected VMs
-            vms_to_operate = self.selected_vms
-
-        if not vms_to_operate:
-            print("No VMs specified. Either pass VM names as arguments or select them with 'select_vm'.")
-            return None
+            # If no args, use a copy of the pre-selected VMs to avoid modification during iteration
+            vms_to_operate = {server: list(vms) for server, vms in self.selected_vms.items()}
 
         return vms_to_operate
 
@@ -328,7 +514,7 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
 
         for server_name, conn in self.active_connections.items():
             try:
-                print(f"\n--- VMs on {server_name} ---")
+                print(f"\n--- VMs on {self._colorize(server_name, server_name)} ---")
                 domains = conn.listAllDomains(0)
                 if domains:
                     print(f"{'VM Name':<30} {'Status':<15}")
@@ -338,7 +524,8 @@ Usage: disconnect [<server_name_1> <server_name_2> ...] | all"""
                     for domain in sorted_domains:
                         status_code = domain.info()[0]
                         status_str = self.status_map.get(status_code, 'Unknown')
-                        print(f"{domain.name():<30} {status_str:<15}")
+                        colored_name = self._colorize(domain.name(), server_name)
+                        print(f"{colored_name:<40} {status_str:<15}")
                 else:
                     print("No VMs found on this server.")
             except libvirt.libvirtError as e:
@@ -358,29 +545,37 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
             return
 
         # Master list of all VMs from all connected servers
-        # vm_map: {vm_name: [server1, server2, ...]}
-        vm_map = {}
+        vm_lookup = {}
+        all_names = set()
         for server_name, conn in self.active_connections.items():
             try:
-                vms_on_server = find_all_vm(conn)
-                for vm_name in vms_on_server:
-                    if vm_name not in vm_map:
-                        vm_map[vm_name] = []
-                    vm_map[vm_name].append(server_name)
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    name = dom.name()
+                    uuid = dom.UUIDString()
+                    all_names.add(name)
+                    for identifier in [name, uuid]:
+                        if identifier not in vm_lookup:
+                            vm_lookup[identifier] = {'servers': [], 'name': name}
+                        if server_name not in vm_lookup[identifier]['servers']:
+                            vm_lookup[identifier]['servers'].append(server_name)
             except libvirt.libvirtError as e:
                 print(f"Could not fetch VMs from {server_name}: {e}")
                 continue
 
-        # This will hold the names of the VMs to be selected
+        # This will hold the names of the VMs to be selected if only name/UUID is provided
         vms_to_select_names = set()
         invalid_inputs = []
+
+        # Reset selection
+        self.selected_vms = {}
 
         for arg in arg_list:
             if arg.startswith("re:"):
                 pattern_str = arg[3:]
                 try:
                     pattern = re.compile(pattern_str)
-                    matched_vms = {vm_name for vm_name in vm_map if pattern.match(vm_name)}
+                    matched_vms = {name for name in all_names if pattern.match(name)}
                     if matched_vms:
                         vms_to_select_names.update(matched_vms)
                     else:
@@ -389,18 +584,32 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
                     print(f"Error: Invalid regular expression '{pattern_str}': {e}")
                     invalid_inputs.append(arg)
             else:
-                if arg in vm_map:
-                    vms_to_select_names.add(arg)
+                parts = arg.split(':')
+                # If it's the full format from completion: VMNAME:UUID:SERVER
+                if len(parts) == 3:
+                    name, uuid, server = parts
+                    if server in self.active_connections:
+                        if server not in self.selected_vms:
+                            self.selected_vms[server] = []
+                        if name not in self.selected_vms[server]:
+                            self.selected_vms[server].append(name)
+                        continue
+
+                clean_id = parts[0].strip()
+                target = vm_lookup.get(clean_id) or vm_lookup.get(arg)
+                if target:
+                    vms_to_select_names.add(target['name'])
                 else:
                     invalid_inputs.append(arg)
 
-        # Reset selection and populate it based on the names and the vm_map
-        self.selected_vms = {}
+        # Populate self.selected_vms for the general names in vms_to_select_names
         for vm_name in sorted(list(vms_to_select_names)):
-            for server_name in vm_map[vm_name]:
-                if server_name not in self.selected_vms:
-                    self.selected_vms[server_name] = []
-                self.selected_vms[server_name].append(vm_name)
+            if vm_name in vm_lookup:
+                for server_name in vm_lookup[vm_name]['servers']:
+                    if server_name not in self.selected_vms:
+                        self.selected_vms[server_name] = []
+                    if vm_name not in self.selected_vms[server_name]:
+                        self.selected_vms[server_name].append(vm_name)
 
         if invalid_inputs:
             print(f"Error: The following VMs or patterns were not found or invalid: {', '.join(invalid_inputs)}")
@@ -419,19 +628,21 @@ Usage: select_vm <vm_name_1> <vm_name_2> ...
         if not self.active_connections:
             return []
 
-        all_vms = set()
-        for conn in self.active_connections.values():
+        completions = set()
+        for server_name, conn in self.active_connections.items():
             try:
-                vms_on_server = find_all_vm(conn)
-                all_vms.update(vms_on_server)
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    name = dom.name()
+                    uuid = dom.UUIDString()
+                    completions.add(f"{name}:{uuid}:{server_name}")
             except libvirt.libvirtError:
                 continue
 
         if not text:
-            completions = list(all_vms)
+            return sorted(list(completions))
         else:
-            completions = [f for f in all_vms if f.startswith(text)]
-        return completions
+            return sorted([f for f in completions if f.startswith(text)])
 
     def do_unselect_vm(self, args):
         """Unselect one or more VMs. Can use patterns with 're:' prefix or use 'all' to unselect all.
@@ -532,7 +743,7 @@ If no VM names are provided, it will show the status of selected VMs."""
             return
 
         for server_name, vm_list in vms_to_check.items():
-            print(f"\n--- Status on {server_name} ---")
+            print(f"\n--- Status on {self._colorize(server_name, server_name)} ---")
             conn = self.active_connections[server_name]
             print(f"{'VM Name':<30} {'Status':<15} {'vCPUs':<7} {'Memory (MiB)':<15}")
             print(f"{'-'*30} {'-'*15} {'-'*7} {'-'*15}")
@@ -546,9 +757,127 @@ If no VM names are provided, it will show the status of selected VMs."""
                     vcpus = info[3]
                     mem_kib = info[2]  # Current memory
                     mem_mib = mem_kib // 1024
-                    print(f"{domain.name():<30} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
+                    colored_name = self._colorize(domain.name(), server_name)
+                    print(f"{colored_name:<40} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
                 except libvirt.libvirtError as e:
                     print(f"Could not retrieve status for '{vm_name}': {e}")
+
+    def do_vm_info(self, args):
+        """Show detailed information about one or more VMs.
+Usage: vm_info [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will show info for the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_check = self._get_vms_to_operate(args)
+        if not vms_to_check:
+            return
+
+        from .vm_queries import get_domain_info_dict
+
+        for server_name, vm_list in vms_to_check.items():
+            print(f"\n--- VM Information on {self._colorize(server_name, server_name)} ---")
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    info = get_domain_info_dict(domain, conn)
+                    if not info:
+                        print(f"Error: Could not retrieve info for '{vm_name}'.")
+                        continue
+
+                    print(f"\n[ {self._colorize(vm_name, server_name)} ]")
+                    print(f"  UUID:         {info.get('uuid')}")
+                    print(f"  Status:       {info.get('status')}")
+                    print(f"  Description:  {info.get('description')}")
+                    print(f"  CPU:          {info.get('cpu')} cores ({info.get('cpu_model')})")
+                    print(f"  Memory:       {info.get('memory')} MiB")
+                    print(f"  Machine Type: {info.get('machine_type')}")
+
+                    fw = info.get('firmware', {})
+                    fw_str = fw.get('type', 'N/A')
+                    if fw.get('secure_boot'):
+                        fw_str += " (Secure Boot enabled)"
+                    print(f"  Firmware:     {fw_str}")
+
+                    print("  Networks:")
+                    networks = info.get('networks', [])
+                    if not networks:
+                        print("    None")
+                    for net in networks:
+                        print(f"    - {net.get('network')} ({net.get('mac')}, model: {net.get('model')})")
+
+                    # IP addresses if available
+                    detail_net = info.get('detail_network', [])
+                    if detail_net:
+                        print("  IP Addresses:")
+                        for iface in detail_net:
+                            ips = iface.get('ipv4', []) + iface.get('ipv6', [])
+                            print(f"    - {iface.get('interface')} ({iface.get('mac')}): {', '.join(ips)}")
+
+                    print("  Disks:")
+                    disks = info.get('disks', [])
+                    if not disks:
+                        print("    None")
+                    for disk in disks:
+                        print(f"    - {disk.get('path')} ({disk.get('bus')}, {disk.get('status')}, {disk.get('device_type')})")
+
+                    # Add video/graphics
+                    graphics = info.get('devices', {}).get('graphics', [])
+                    if graphics:
+                        print("  Graphics:")
+                        for g in graphics:
+                            g_str = f"{g.get('type')}"
+                            if g.get('port'):
+                                g_str += f", port: {g.get('port')}"
+                            if g.get('autoport') == 'yes':
+                                g_str += " (autoport)"
+                            print(f"    - {g_str}")
+
+                except libvirt.libvirtError as e:
+                    print(f"Could not retrieve info for '{vm_name}': {e}")
+
+    def complete_vm_info(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_view(self, args):
+        """Launch the graphical viewer (Spice/VNC) for one or more VMs.
+Usage: view [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will launch the viewer for the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_view = self._get_vms_to_operate(args)
+        if not vms_to_view:
+            return
+
+        for server_name, vm_list in vms_to_view.items():
+            conn = self.active_connections[server_name]
+            try:
+                uri = conn.getURI()
+                for vm_name in vm_list:
+                    try:
+                        domain = conn.lookupByName(vm_name)
+                        if not domain.isActive():
+                            print(f"Warning: VM '{vm_name}' on {server_name} is not running. Viewer will wait for it to start.")
+
+                        cmd = remote_viewer_cmd(uri, vm_name)
+                        if not cmd or not cmd[0]:
+                            print("Error: No remote viewer found (virtui-remote-viewer or virt-viewer).")
+                            return
+
+                        print(f"Launching viewer for '{vm_name}' on {server_name}...")
+                        # Launch as background process
+                        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    except libvirt.libvirtError as e:
+                        print(f"Error looking up VM '{vm_name}': {e}")
+            except Exception as e:
+                print(f"Error processing server {server_name}: {e}")
+
+    def complete_view(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
 
     def complete_status(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
@@ -678,6 +1007,37 @@ If no VM names are provided, it will pause the selected VMs."""
     def complete_pause(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
+    def do_hibernate(self, args):
+        """Saves the VM state to disk and stops it (hibernate).
+Usage: hibernate [vm_name_1] [vm_name_2] ...
+If no VM names are provided, it will hibernate the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_hibernate = self._get_vms_to_operate(args)
+        if not vms_to_hibernate:
+            return
+
+        for server_name, vm_list in vms_to_hibernate.items():
+            print(f"\n--- Hibernating VMs on {server_name} ---")
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    if not domain.isActive():
+                        print(f"VM '{vm_name}' is not running.")
+                        continue
+                    hibernate_vm(domain)
+                    print(f"VM '{vm_name}' hibernated.")
+                except libvirt.libvirtError as e:
+                    print(f"Error hibernating VM '{vm_name}': {e}")
+                except Exception as e:
+                    print(f"An unexpected error occurred with VM '{vm_name}': {e}")
+
+    def complete_hibernate(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
     def do_resume(self, args):
         """Resumes one or more paused VMs.
 Usage: resume [vm_name_1] [vm_name_2] ...
@@ -760,70 +1120,93 @@ If no VM names are provided, it will delete the selected VMs."""
                     if delete_storage_confirmed:
                         print(f"Associated storage for '{vm_name}' also deleted.")
 
+                    # Unselect the VM if it was selected
+                    if server_name in self.selected_vms and vm_name in self.selected_vms[server_name]:
+                        self.selected_vms[server_name].remove(vm_name)
+                        if not self.selected_vms[server_name]:
+                            del self.selected_vms[server_name]
+
                 except libvirt.libvirtError as e:
                     print(f"Error deleting VM '{vm_name}': {e}")
                 except Exception as e:
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
+
+        self._update_prompt()
 
     def complete_delete(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_clone_vm(self, args):
         """Clones a VM.
-Usage: clone_vm <original_vm_name> <new_vm_name>"""
+Usage: clone_vm <original_vm_name>"""
         arg_list = args.split()
-        if len(arg_list) != 2:
-            print("Usage: clone_vm <original_vm_name> <new_vm_name>")
+        if len(arg_list) != 1:
+            print("Usage: clone_vm <original_vm_name>")
             return
 
-        original_vm_name, new_vm_name = arg_list
+        original_vm_name = arg_list[0]
 
-        original_vm_domain = None
-        original_vm_server_name = None
-        conn = None
-
-        for server_name, connection in self.active_connections.items():
-            try:
-                domain = connection.lookupByName(original_vm_name)
-                original_vm_domain = domain
-                original_vm_server_name = server_name
-                conn = connection
-                break
-            except libvirt.libvirtError as e:
-                if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                    continue
-                else:
-                    print(f"A libvirt error occurred on server {server_name}: {e}")
-                    return
-
+        original_vm_domain, original_vm_server_name = self._find_domain(original_vm_name)
         if not original_vm_domain:
-            print(f"Error: VM '{original_vm_name}' not found on any connected server.")
             return
+
+        conn = self.active_connections[original_vm_server_name]
+        original_vm_name = original_vm_domain.name()
 
         print(f"Found VM '{original_vm_name}' on server '{original_vm_server_name}'.")
 
+        # Start asking questions
+        new_vm_base_name = input(f"Enter the new VM name [clone_of_{original_vm_name}]: ").strip()
+        if not new_vm_base_name:
+            new_vm_base_name = f"clone_of_{original_vm_name}"
+
         try:
-            conn.lookupByName(new_vm_name)
-            print(f"Error: A VM with the name '{new_vm_name}' already exists on server '{original_vm_server_name}'.")
-            return
-        except libvirt.libvirtError as e:
-            if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-                print(f"An error occurred while checking for existing VM '{new_vm_name}': {e}")
+            num_clones_str = input("How many VM to create? [1]: ").strip()
+            num_clones = int(num_clones_str) if num_clones_str else 1
+            if num_clones < 1:
+                print("Error: Number of VMs must be at least 1.")
                 return
+        except ValueError:
+            print("Error: Invalid number.")
+            return
 
-        try:
-            print(f"Cloning '{original_vm_name}' to '{new_vm_name}' on server '{original_vm_server_name}'...")
+        postfix = ""
+        if num_clones > 1:
+            postfix = input("Enter postfix name (e.g. '-') [-]: ").strip()
+            if not postfix:
+                postfix = "-"
 
-            def log_to_console(message):
-                print(f"  -> {message.strip()}")
+        clone_storage_input = input("Clone also the storage? (yes/no) [yes]: ").strip().lower()
+        clone_storage = clone_storage_input != 'no'
 
-            clone_vm(original_vm_domain, new_vm_name, log_callback=log_to_console)
-            print(f"\nSuccessfully cloned '{original_vm_name}' to '{new_vm_name}'.")
+        def log_to_console(message):
+            print(f"  -> {message.strip()}")
 
-        except libvirt.libvirtError as e:
-            print(f"\nError cloning VM: {e}")
-        except Exception as e:
-            print(f"\nAn unexpected error occurred during cloning: {e}")
+        for i in range(1, num_clones + 1):
+            if num_clones > 1:
+                current_new_name = f"{new_vm_base_name}{postfix}{i}"
+            else:
+                current_new_name = new_vm_base_name
+
+            # Check if VM already exists
+            try:
+                conn.lookupByName(current_new_name)
+                print(f"Error: A VM with the name '{current_new_name}' already exists on server '{original_vm_server_name}'. Skipping.")
+                continue
+            except libvirt.libvirtError as e:
+                if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+                    print(f"An error occurred while checking for existing VM '{current_new_name}': {e}")
+                    continue
+
+            try:
+                print(f"\n[{i}/{num_clones}] Cloning '{original_vm_name}' to '{current_new_name}' on server '{original_vm_server_name}'...")
+                clone_vm(original_vm_domain, current_new_name, clone_storage=clone_storage, log_callback=log_to_console)
+                print(f"Successfully cloned '{original_vm_name}' to '{current_new_name}'.")
+
+            except libvirt.libvirtError as e:
+                print(f"Error cloning VM '{current_new_name}': {e}")
+            except Exception as e:
+                print(f"An unexpected error occurred during cloning '{current_new_name}': {e}")
 
     def complete_clone_vm(self, text, line, begidx, endidx):
         """Auto-completion for the original VM to clone."""
@@ -875,12 +1258,19 @@ Usage: list_pool"""
             try:
                 pools_info = list_storage_pools(conn)
                 if pools_info:
-                    print(f"{'Pool Name':<30} {'Status':<15} {'Capacity (GiB)':<15} {'Allocation (GiB)':<15}")
-                    print(f"{'-'*30} {'-'*15} {'-'*15} {'-'*15}")
+                    print(f"{'Pool Name':<30} {'Status':<15} {'Capacity (GiB)':<15} {'Allocation (GiB)':<15} {'Usage %':<10}")
+                    print(f"{'-'*30} {'-'*15} {'-'*15} {'-'*15} {'-'*10}")
                     for pool_info in pools_info:
                         capacity_gib = pool_info['capacity'] // (1024*1024*1024)
                         allocation_gib = pool_info['allocation'] // (1024*1024*1024)
-                        print(f"{pool_info['name']:<30} {pool_info['status']:<15} {capacity_gib:<15} {allocation_gib:<15}")
+
+                        usage_percent = 0.0
+                        if capacity_gib > 0:
+                            usage_percent = (allocation_gib / capacity_gib) * 100
+
+                        usage_percent_str = f"{usage_percent:.2f}%"
+
+                        print(f"{pool_info['name']:<30} {pool_info['status']:<15} {capacity_gib:<15} {allocation_gib:<15} {usage_percent_str:<10}")
                 else:
                     print("No storage pools found on this server.")
             except libvirt.libvirtError as e:
@@ -907,6 +1297,34 @@ Usage: list_pool"""
         else:
             return [pool for pool in all_pool_names if pool.startswith(text)]
 
+    def do_help(self, arg):
+        """List available commands with "help" or detailed help with "help cmd"."""
+        if arg:
+            return super().do_help(arg)
+
+        # Find any other commands not in categories
+        all_cmds = [name[3:] for name in self.get_names() if name.startswith("do_")]
+        categorized_cmds = set([cmd for cmds in self.categories.values() for cmd in cmds])
+        uncategorized = [c for c in all_cmds if c not in categorized_cmds and c != "help"]
+
+        categories_to_show = self.categories.copy()
+        if uncategorized:
+            categories_to_show["Other"] = uncategorized
+
+        print(self.doc_header)
+
+        for category, cmds in categories_to_show.items():
+            cmds_to_print = []
+            for c in cmds:
+                # check if command exists
+                if f"do_{c}" in self.get_names():
+                     cmds_to_print.append(c)
+
+            if cmds_to_print:
+                print(f"\n\033[1;36m{category}:\033[0m")
+                self.columnize(sorted(cmds_to_print), displaywidth=80)
+        print()
+
     def do_quit(self, arg):
         """Exit the virtui-manager shell."""
         # Disconnect all connections when quitting
@@ -914,7 +1332,249 @@ Usage: list_pool"""
         print(f"\nExiting {AppInfo.namecase}.")
         return True
 
+    # --- Snapshot Management Commands ---
+
+    def do_snapshot_list(self, args):
+        """List all snapshots for a VM.
+Usage: snapshot_list <vm_name>"""
+        if not args:
+            print("Usage: snapshot_list <vm_name>")
+            return
+
+        vm_name = args.strip()
+        domain, server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        try:
+            snapshots = get_vm_snapshots(domain)
+            vm_display_name = domain.name()
+            if not snapshots:
+                print(f"No snapshots found for VM '{vm_display_name}' on server '{server_name}'.")
+                return
+
+            print(f"\n--- Snapshots for {vm_display_name} on {server_name} ---")
+            print(f"{'Snapshot Name':<30} {'Creation Time':<25} {'State':<15}")
+            print(f"{'-'*30} {'-'*25} {'-'*15}")
+
+            for snap_info in snapshots:
+                name = snap_info.get("name", "N/A")
+                creation_time = snap_info.get("creation_time", "N/A")
+                state = snap_info.get("state", "N/A")
+                print(f"{name:<30} {creation_time:<25} {state:<15}")
+
+        except libvirt.libvirtError as e:
+            print(f"Error listing snapshots for VM '{vm_name}': {e}")
+
+    def complete_snapshot_list(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_snapshot_create(self, args):
+        """Create a new snapshot for a VM.
+Usage: snapshot_create <vm_name> <snapshot_name> [--description "your description"]"""
+        try:
+            arg_list = shlex.split(args)
+        except ValueError as e:
+            print(f"Error parsing arguments: {e}")
+            return
+
+        if len(arg_list) < 2:
+            print('Usage: snapshot_create <vm_name> <snapshot_name> [--description "your description"]')
+            return
+
+        vm_name = arg_list[0]
+        snapshot_name = arg_list[1]
+        description = ""
+
+        if "--description" in arg_list:
+            try:
+                desc_index = arg_list.index("--description") + 1
+                if desc_index < len(arg_list):
+                    description = arg_list[desc_index]
+                else:
+                    print("Error: --description requires an argument.")
+                    return
+            except (ValueError, IndexError):
+                print("Error parsing --description.")
+                return
+
+        domain, server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        vm_display_name = domain.name()
+        print(f"Creating snapshot '{snapshot_name}' for VM '{vm_display_name}' on server '{server_name}'...")
+        try:
+            create_vm_snapshot(domain, snapshot_name, description)
+            print("Snapshot created successfully.")
+        except libvirt.libvirtError as e:
+            print(f"Error creating snapshot: {e}")
+
+    def complete_snapshot_create(self, text, line, begidx, endidx):
+        words = line.split()
+        if len(words) < 3:
+             return self.complete_select_vm(text, line, begidx, endidx)
+        return []
+
+    def do_snapshot_delete(self, args):
+        """Delete a snapshot from a VM.
+Usage: snapshot_delete <vm_name> <snapshot_name>"""
+        arg_list = args.split()
+        if len(arg_list) != 2:
+            print("Usage: snapshot_delete <vm_name> <snapshot_name>")
+            return
+
+        vm_name, snapshot_name = arg_list
+        domain, server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        vm_display_name = domain.name()
+        confirm = input(f"Are you sure you want to delete snapshot '{snapshot_name}' for VM '{vm_display_name}'? (yes/no): ").lower()
+        if confirm != 'yes':
+            print("Deletion cancelled.")
+            return
+
+        print(f"Deleting snapshot '{snapshot_name}'...")
+        try:
+            delete_vm_snapshot(domain, snapshot_name)
+            print("Snapshot deleted successfully.")
+        except libvirt.libvirtError as e:
+            print(f"Error deleting snapshot: {e}")
+        except Exception as e:
+            print(f"Error deleting snapshot: {e}")
+
+    def do_snapshot_revert(self, args):
+        """Revert a VM to a specific snapshot.
+Usage: snapshot_revert <vm_name> <snapshot_name>"""
+        arg_list = args.split()
+        if len(arg_list) != 2:
+            print("Usage: snapshot_revert <vm_name> <snapshot_name>")
+            return
+
+        vm_name, snapshot_name = arg_list
+        domain, server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        vm_display_name = domain.name()
+        confirm = input(f"Are you sure you want to revert VM '{vm_display_name}' to snapshot '{snapshot_name}'? (yes/no): ").lower()
+        if confirm != 'yes':
+            print("Revert cancelled.")
+            return
+
+        print(f"Reverting to snapshot '{snapshot_name}'...")
+        try:
+            restore_vm_snapshot(domain, snapshot_name)
+            print("VM reverted successfully.")
+        except libvirt.libvirtError as e:
+            print(f"Error reverting to snapshot: {e}")
+        except Exception as e:
+            print(f"Error reverting to snapshot: {e}")
+
+    def _find_domain_no_prompt(self, vm_name):
+        """Finds a domain but doesn't prompt if multiple are found.
+        Returns the first one. Used for completion where prompting is not possible.
+        """
+        # Handle completion format VMNAME:UUID:SERVER
+        parts = vm_name.split(':')
+        if len(parts) == 3:
+            name, uuid, server = parts
+            if server in self.active_connections:
+                try:
+                    conn = self.active_connections[server]
+                    domain = conn.lookupByUUIDString(uuid)
+                    return domain, server
+                except libvirt.libvirtError:
+                    # Fallback to name search if UUID lookup fails
+                    vm_name = name
+
+        for server_name, conn in self.active_connections.items():
+            try:
+                domain = conn.lookupByName(vm_name)
+                return domain, server_name
+            except libvirt.libvirtError:
+                continue
+        return None, None
+
+    def _complete_snapshot_names(self, text, vm_name):
+        """Helper to autocomplete snapshot names for a given VM."""
+        if not vm_name:
+            return []
+
+        domain, _ = self._find_domain_no_prompt(vm_name)
+        if not domain:
+            return []
+
+        try:
+            snapshots = get_vm_snapshots(domain)
+            snapshot_names = [s['name'] for s in snapshots]
+            if not text:
+                return snapshot_names
+            return [name for name in snapshot_names if name.startswith(text)]
+        except libvirt.libvirtError:
+            return []
+
+    def complete_snapshot_delete(self, text, line, begidx, endidx):
+        words = line.split()
+        if len(words) == 2 and not line.endswith(' '):
+            return self.complete_select_vm(text, line, begidx, endidx)
+
+        if (len(words) == 2 and line.endswith(' ')) or (len(words) == 3 and not line.endswith(' ')):
+            vm_name = words[1]
+            return self._complete_snapshot_names(text, vm_name)
+        return []
+
+    def complete_snapshot_revert(self, text, line, begidx, endidx):
+        return self.complete_snapshot_delete(text, line, begidx, endidx)
+
     # --- Network Management Commands ---
+
+    def _get_target_server_for_network_op(self, net_name, operation_verb):
+        """
+        Finds servers with the given network and prompts user to select one if multiple are found.
+        Returns a tuple of (server_name, connection_object) or (None, None).
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return None, None
+
+        servers_with_net = []
+        for server_name, conn in self.active_connections.items():
+            try:
+                # Check if network exists on this server
+                conn.networkLookupByName(net_name)
+                servers_with_net.append(server_name)
+            except libvirt.libvirtError:
+                continue
+
+        if not servers_with_net:
+            print(f"Network '{net_name}' not found on any connected server.")
+            return None, None
+
+        target_server_name = None
+        if len(servers_with_net) == 1:
+            target_server_name = servers_with_net[0]
+        else:
+            print(f"Network '{net_name}' found on multiple servers:")
+            for i, name in enumerate(servers_with_net):
+                print(f"  {i + 1}. {name}")
+
+            try:
+                choice_str = input(f"Select server to {operation_verb} network '{net_name}' on (number): ")
+                idx = int(choice_str) - 1
+                if 0 <= idx < len(servers_with_net):
+                    target_server_name = servers_with_net[idx]
+                else:
+                    print("Invalid selection.")
+                    return None, None
+            except (ValueError, IndexError):
+                print("Invalid input.")
+                return None, None
+
+        if target_server_name:
+            return target_server_name, self.active_connections[target_server_name]
+        return None, None
 
     def do_list_networks(self, args):
         """List all networks on the connected servers.
@@ -947,21 +1607,16 @@ Usage: net_start <network_name>"""
             return
 
         net_name = args.strip()
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                # Check if network exists on this server
-                conn.networkLookupByName(net_name)
-                set_network_active(conn, net_name, True)
-                print(f"Network '{net_name}' started on {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error starting network '{net_name}' on {server_name}: {e}")
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, "start")
 
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        if not conn:
+            return
+
+        try:
+            set_network_active(conn, net_name, True)
+            print(f"Network '{net_name}' started on {target_server_name}.")
+        except Exception as e:
+            print(f"Error starting network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_start(self, text, line, begidx, endidx):
         return self._complete_networks(text)
@@ -974,20 +1629,16 @@ Usage: net_stop <network_name>"""
             return
 
         net_name = args.strip()
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                conn.networkLookupByName(net_name)
-                set_network_active(conn, net_name, False)
-                print(f"Network '{net_name}' stopped on {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error stopping network '{net_name}' on {server_name}: {e}")
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, "stop")
 
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        if not conn:
+            return
+
+        try:
+            set_network_active(conn, net_name, False)
+            print(f"Network '{net_name}' stopped on {target_server_name}.")
+        except Exception as e:
+            print(f"Error stopping network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_stop(self, text, line, begidx, endidx):
         return self._complete_networks(text)
@@ -1000,25 +1651,21 @@ Usage: net_delete <network_name>"""
             return
 
         net_name = args.strip()
-        confirm = input(f"Are you sure you want to delete network '{net_name}'? This cannot be undone. (yes/no): ").lower()
+
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, "delete")
+        if not conn:
+            return
+
+        confirm = input(f"Are you sure you want to delete network '{net_name}' from server '{target_server_name}'? This cannot be undone. (yes/no): ").lower()
         if confirm != 'yes':
             print("Operation cancelled.")
             return
 
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                conn.networkLookupByName(net_name)
-                delete_network(conn, net_name)
-                print(f"Network '{net_name}' deleted from {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error deleting network '{net_name}' on {server_name}: {e}")
-
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        try:
+            delete_network(conn, net_name)
+            print(f"Network '{net_name}' deleted from {target_server_name}.")
+        except Exception as e:
+            print(f"Error deleting network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_delete(self, text, line, begidx, endidx):
         return self._complete_networks(text)
@@ -1067,23 +1714,20 @@ Usage: net_autostart <network_name> <on|off>"""
             return
 
         net_name = arg_list[0]
-        autostart = True if arg_list[1] == 'on' else False
+        autostart = arg_list[1] == 'on'
+        status_verb = "enable" if autostart else "disable"
+        status_past_tense = "enabled" if autostart else "disabled"
 
-        found = False
-        for server_name, conn in self.active_connections.items():
-            try:
-                conn.networkLookupByName(net_name)
-                set_network_autostart(conn, net_name, autostart)
-                status = "enabled" if autostart else "disabled"
-                print(f"Autostart {status} for network '{net_name}' on {server_name}.")
-                found = True
-            except libvirt.libvirtError:
-                continue
-            except Exception as e:
-                print(f"Error setting autostart for network '{net_name}' on {server_name}: {e}")
+        target_server_name, conn = self._get_target_server_for_network_op(net_name, f"{status_verb} autostart for")
 
-        if not found:
-            print(f"Network '{net_name}' not found on any connected server.")
+        if not conn:
+            return
+
+        try:
+            set_network_autostart(conn, net_name, autostart)
+            print(f"Autostart {status_past_tense} for network '{net_name}' on {target_server_name}.")
+        except Exception as e:
+            print(f"Error setting autostart for network '{net_name}' on {target_server_name}: {e}")
 
     def complete_net_autostart(self, text, line, begidx, endidx):
         args = line.split()
@@ -1120,7 +1764,7 @@ Usage: host_info [server_name]"""
                     print(f"CPU Model: {info.get('model')}")
                     print(f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes, {info.get('sockets')} sockets, {info.get('cores')} cores, {info.get('threads')} threads)")
                     print(f"CPU Speed: {info.get('mhz')} MHz")
-                    print(f"Memory: {info.get('total_memory')} MiB total, {info.get('free_memory')} MiB free")
+                    print(f"Memory: {info.get('total_memory')} GiB total, {info.get('free_memory')} MiB free")
             except Exception as e:
                 print(f"Error retrieving host info for {server_name}: {e}")
 

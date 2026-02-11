@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 1.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-02-09 15:03+0100\n"
+"POT-Creation-Date: 2026-02-10 10:34+0100\n"
 "PO-Revision-Date: 2026-01-29 12:34+0100\n"
 "Last-Translator: aginies <aginies@suse.com>\n"
 "Language-Team: French <traduc@traduc.org>\n"
@@ -2955,9 +2955,9 @@ msgid "Are you sure you want to remove VirtIO-FS mount '{target_path}'?"
 msgstr "Voulez-vous vraiment supprimer le montage VirtIO-FS '{target_path}' ?"
 
 #: constants.py:786
-#, python-brace-format
+#, fuzzy, python-brace-format
 msgid ""
-"Are you sure you want to discard changes in '{target_disk}' and revert to "
+"Are you sure you want to discard changes in '{target_disk}' and revert t  o "
 "its backing file? This action cannot be undone."
 msgstr ""
 "Êtes-vous sûr de vouloir annuler les modifications dans '{target_disk}' et "

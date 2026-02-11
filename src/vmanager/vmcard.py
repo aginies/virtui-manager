@@ -256,6 +256,9 @@ class VMCard(Static):
 
     def watch_webc_status_indicator(self, old_value: str, new_value: str) -> None:
         """Called when webc_status_indicator changes."""
+        # Don't update if card is being removed or not mounted
+        if not self.is_mounted:
+            return
         if not self.ui:
             return
         status_widget = self.ui.get("status")
@@ -349,6 +352,9 @@ class VMCard(Static):
 
     def _perform_tooltip_update(self) -> None:
         """Updates the tooltip for the VM name using Markdown."""
+        # Don't update if card is being removed or not mounted
+        if not self.is_mounted:
+            return
         if not self.display or not self.ui or "vmname" not in self.ui:
             return
 
@@ -616,6 +622,9 @@ class VMCard(Static):
 
     def watch_status(self, old_value: str, new_value: str) -> None:
         """Called when status changes."""
+        # Don't update if card is being removed or not mounted
+        if not self.is_mounted:
+            return
         if not self.ui:
             return
         self._update_status_styling()
@@ -693,10 +702,14 @@ class VMCard(Static):
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
-        if self.ui:
+        if not self.is_mounted:
+            return
+        if hasattr(self, 'ui') and 'checkbox' in self.ui:
             checkbox = self.ui.get("checkbox")
-            if checkbox:
+            try:
                 checkbox.value = new_value
+            except Exception:
+                pass
 
         if new_value:
             self.styles.border = (VMCardConstants.SELECTED_BORDER_TYPE, VMCardConstants.SELECTED_BORDER_COLOR)
@@ -2153,66 +2166,7 @@ class VMCard(Static):
 
         logging.info(f"Migration initiated for VMs: {[vm.name() for vm in selected_vms]}")
 
-        #source_conns = {vm.connect().getURI() for vm in selected_vms}
-        source_conns = set()
-        for vm in selected_vms:
-            conn = vm.connect()
-            uri = self.app.vm_service.get_uri_for_connection(conn)
-            if not uri:
-                uri = conn.getURI()
-            source_conns.add(uri)
-
-        if len(source_conns) > 1:
-            self.app.show_error_message(ErrorMessages.DIFFERENT_SOURCE_HOSTS)
-            return
-
-        #active_vms = [vm for vm in selected_vms if vm.isActive()]
-        # Check status from cache instead of isActive()
-        # We can infer from the card's status which VMs are active
-        active_vms = []
-        for vm in selected_vms:
-            try:
-                state_tuple = self.app.vm_service._get_domain_state(vm)
-                if state_tuple:
-                    state, _ = state_tuple
-                    if state in [libvirt.VIR_DOMAIN_RUNNING, libvirt.VIR_DOMAIN_PAUSED]:
-                        active_vms.append(vm)
-            except Exception:
-                # Fallback to isActive() if cache lookup fails
-                if vm.isActive():
-                    active_vms.append(vm)
-
-        is_live = len(active_vms) > 0
-        if is_live and len(active_vms) < len(selected_vms):
-            self.app.show_error_message(ErrorMessages.MIXED_VM_STATES)
-            return
-
-        active_uris = self.app.vm_service.get_all_uris()
-        all_connections = {uri: self.app.vm_service.get_connection(uri) for uri in active_uris if self.app.vm_service.get_connection(uri)}
-
-        #source_uri = selected_vms[0].connect().getURI()
-        # Use cached URI
-        source_conn = selected_vms[0].connect()
-        source_uri = self.app.vm_service.get_uri_for_connection(source_conn)
-        if not source_uri:
-            source_uri = source_conn.getURI()
-
-        if source_uri == "qemu:///system":
-            self.app.show_error_message(
-                ErrorMessages.MIGRATION_LOCALHOST_NOT_SUPPORTED
-            )
-            return
-
-        dest_uris = [uri for uri in active_uris if uri != source_uri]
-        if not dest_uris:
-            self.app.show_error_message(ErrorMessages.NO_DESTINATION_SERVERS)
-            return
-
-        def on_confirm(confirmed: bool) -> None:
-            if confirmed:
-                self.app.push_screen(MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections))
-
-        self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
+        self.app.initiate_migration(selected_vms)
 
     @on(Checkbox.Changed, "#vm-select-checkbox")
     def on_vm_select_checkbox_changed(self, event: Checkbox.Changed) -> None:

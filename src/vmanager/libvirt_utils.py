@@ -136,12 +136,12 @@ def get_host_resources(conn: libvirt.virConnect) -> dict:
     """
     try:
         node_info = conn.getInfo()
-        # node_info: [model, memory (KB), cpus, mhz, nodes, sockets, cores, threads]
+        # node_info: [model, memory (MB), cpus, mhz, nodes, sockets, cores, threads]
         mem_stats = conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
         # mem_stats might have: total, free, buffers, cached
         host_info = {
             'model': node_info[0],
-            'total_memory': node_info[1] // 1024, # MB
+            'total_memory': node_info[1] // 1024, # GiB
             'total_cpus': node_info[2],
             'mhz': node_info[3],
             'nodes': node_info[4],
