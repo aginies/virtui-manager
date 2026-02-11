@@ -318,8 +318,8 @@ class VMCard(Static):
                     with Vertical():
                         yield self.ui["btn_quick_resume"]
                         yield self.ui["btn_quick_stop"]
-                        yield self.ui["btn_quick_view"]
                         yield self.ui["btn_quick_start"]
+                        yield self.ui["btn_quick_view"]
 
             yield self.ui["sparklines_container"]
             yield self.ui["collapsible"]
