@@ -3065,6 +3065,10 @@ msgid ""
 "\n"
 "Are you sure you want to proceed?"
 msgstr ""
+"Cela appliquera les modifications de configuration à toutes les machines virtuelles sélectionnées selon les paramètres choisis.\n"
+"Certaines modifications modifient directement le XML de la VM. Toutes les modifications ne peuvent être annulées.\n"
+"\n"
+"Êtes-vous sûr de vouloir continuer ?"
 
 #: constants.py:812
 #, fuzzy, python-brace-format

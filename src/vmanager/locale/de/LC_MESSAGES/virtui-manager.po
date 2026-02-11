@@ -463,7 +463,7 @@ msgstr "Starten"
 
 #: constants.py:188
 msgid "Open"
-msgstr ""
+msgstr "Öffnen"
 
 #: constants.py:194
 msgid "Filter"
@@ -1678,7 +1678,7 @@ msgstr ""
 
 #: constants.py:517
 msgid "Refreshing host stats"
-msgstr ""
+msgstr "Host-Statistiken aktualisieren"
 
 #: constants.py:518
 #, fuzzy
@@ -1722,11 +1722,11 @@ msgstr "Herunterfahren"
 
 #: constants.py:526
 msgid "A Textual application to manage VMs."
-msgstr ""
+msgstr "Eine Textanwendung zum Verwalten von VMs."
 
 #: constants.py:527
 msgid "Run in command-line interpreter mode."
-msgstr ""
+msgstr "Im Befehlszeilen-Interpreter-Modus ausführen."
 
 #: constants.py:532
 #, python-brace-format
@@ -2954,7 +2954,7 @@ msgstr "Ungültige Nodeset-Syntax: {nodeset}"
 #: constants.py:786
 #, python-brace-format
 msgid "Log file ({log_path}) not found."
-msgstr ""
+msgstr "Log-Datei ({log_path}) nicht gefunden."
 
 #: constants.py:787
 #, fuzzy, python-brace-format
@@ -2964,12 +2964,12 @@ msgstr "Fehler beim Einstellen der UEFI-Datei: {error}"
 #: constants.py:788
 #, python-brace-format
 msgid "Terminal height is too small ({height} lines). Please resize."
-msgstr ""
+msgstr "Terminalhöhe zu gering ({height} Zeilen). Bitte vergrößern."
 
 #: constants.py:789
 #, python-brace-format
 msgid "Terminal width is too small ({width} columns). Please resize."
-msgstr ""
+msgstr "Terminalbreite zu gering ({width} Spalten). Bitte vergrößern."
 
 #: constants.py:794
 #, python-brace-format
@@ -3065,7 +3065,11 @@ msgid ""
 "Some changes modify the VM's XML directly. All change cannot be undone.\n"
 "\n"
 "Are you sure you want to proceed?"
-msgstr ""
+msgstr "Dies wird die Konfigurationsänderungen auf alle ausgewählten VMs "
+"anwenden, basierend auf den von Ihnen gewählten Einstellungen.\n"
+"Einige Änderungen ändern das XML der VM direkt. Alle Änderungen können nicht rückgängig gemacht werden."
+"\n"
+"Sind Sie sicher, dass Sie fortfahren möchten?"
 
 #: constants.py:812
 #, fuzzy, python-brace-format
@@ -3161,19 +3165,20 @@ msgstr ""
 #: constants.py:831
 #, python-brace-format
 msgid "Memory: {total} MB > {limit} MB"
-msgstr ""
+msgstr "Speicher: {total} MB > {limit} MB"
 
 #: constants.py:832
 #, python-brace-format
 msgid "vCPUs: {total} > {limit}"
-msgstr ""
+msgstr "vCPUs: {total} > {limit}"
 
 #: constants.py:833
 #, python-brace-format
 msgid ""
 "Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n"
 "{details}"
-msgstr ""
+msgstr "VM '{vm_name}' starten überschreitet Host-Kapazität (Aktive Zuordnung):\n"
+"{details}"
 
 #: constants.py:838
 #, python-brace-format
@@ -3655,7 +3660,7 @@ msgstr "Volume '{volume_name}' verschoben in Pool '{dest_pool_name}'."
 msgid ""
 "Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: "
 "{failed_vms}"
-msgstr ""
+msgstr "Massenaktion '{action_type}' abgeschlossen. Erfolgreich: {successful_vms}, Fehlgeschlagen: {failed_vms}"
 
 #: constants.py:944
 #, python-brace-format

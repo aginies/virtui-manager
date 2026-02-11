@@ -3050,6 +3050,10 @@ msgid ""
 "\n"
 "Are you sure you want to proceed?"
 msgstr ""
+"Questo applicherà le modifiche di configurazione a tutte le VM selezionate in base alle impostazioni scelte.\n"
+"Alcune modifiche modificano direttamente l'XML della VM. Tutte le modifiche non possono essere annullate.\n"
+"\n"
+"Sei sicuro di voler procedere ?"
 
 #: constants.py:812
 #, python-brace-format
