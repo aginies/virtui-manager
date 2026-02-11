@@ -32,6 +32,10 @@ VirtUI Manager solves these challenges with:
 
 [VirtUI Manager doc](https://aginies.github.io/virtui-manager/manual/)
 
+## CI check
+
+[![CI Check](https://github.com/aginies/virtui-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/aginies/virtui-manager/actions/workflows/ci.yml)
+
 ## Flatpak build
 
 [![Build Flatpak](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml/badge.svg)](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml)
