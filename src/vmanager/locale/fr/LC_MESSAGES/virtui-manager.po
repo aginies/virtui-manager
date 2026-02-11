@@ -2954,7 +2954,7 @@ msgstr "Syntaxe cpuset invalide : {cpuset}"
 #: constants.py:786
 #, python-brace-format
 msgid "Log file ({log_path}) not found."
-msgstr ""
+msgstr "Le fichier journal ({log_path}) est introuvable."
 
 #: constants.py:787
 #, fuzzy, python-brace-format
@@ -2964,12 +2964,12 @@ msgstr "Erreur lors du réglage du fichier UEFI : {error}"
 #: constants.py:788
 #, python-brace-format
 msgid "Terminal height is too small ({height} lines). Please resize."
-msgstr ""
+msgstr "La hauteur du terminal est trop petite ({height} lignes). Veuillez redimensionner."
 
 #: constants.py:789
 #, python-brace-format
 msgid "Terminal width is too small ({width} columns). Please resize."
-msgstr ""
+msgstr "La largeur du terminal est trop petite ({width} colonnes). Veuillez redimensionner."
 
 #: constants.py:794
 #, python-brace-format
@@ -3163,12 +3163,12 @@ msgstr ""
 #: constants.py:831
 #, python-brace-format
 msgid "Memory: {total} MB > {limit} MB"
-msgstr ""
+msgstr "Mémoire : {total} Mo > {limit} Mo"
 
 #: constants.py:832
 #, python-brace-format
 msgid "vCPUs: {total} > {limit}"
-msgstr ""
+msgstr "vCPUs : {total} > {limit}"
 
 #: constants.py:833
 #, python-brace-format
