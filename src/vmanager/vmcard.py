@@ -306,7 +306,7 @@ class VMCard(Static):
             id="sparklines-container-group"
         )
 
-        self.ui["collapsible"] = Collapsible(title="Actions", id="actions-collapsible")
+        self.ui["collapsible"] = Collapsible(title=StaticText.ACTIONS, id="actions-collapsible")
 
         with Vertical(id="info-container"):
             with Horizontal(id="vm-header-row"):

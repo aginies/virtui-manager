@@ -40,7 +40,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.8.0"
+    version = "1.8.1"
 
 class VMCardConstants:
     """Constants for VMCard styling"""
@@ -185,6 +185,7 @@ class ButtonLabels:
     SELECT = _("Select")
     OK = _("OK")
     LAUNCH = _("Launch")
+    OPEN = _("Open")
 
 
 class BindingDescriptions:
@@ -477,6 +478,7 @@ class StaticText:
     VCPU_COUNT_EXAMPLE = _("e.g., 2")
     MEMORY_SIZE_EXAMPLE = _("e.g., 2048")
     CPU_PINNING_EXAMPLE = _("e.g., 0:0-1; 1:2-3")
+    ACTIONS = _("Actions")
     NODESET_EXAMPLE = _("e.g., 0-1")
     CPU_TUNE_HELP_TITLE = _("CPU Tuning Help")
     CPU_TUNE_HELP_TEXT = _("""
@@ -512,6 +514,18 @@ Specify the NUMA nodes to use.
 * Example: `0-1` (Nodes 0 and 1)
 * Example: `0,2-3` (Node 0 and nodes 2 through 3)
 """)
+    REFRESHING_HOST_STATS = _("Refreshing host stats")
+    SELECT_SERVER_FOR_PREFS = _("Select a server for Preferences")
+    SELECT_SERVER_FOR_VIRSH = _("Select a server for Virsh Shell")
+    SELECT_SERVER_FOR_DASHBOARD = _("Select a server for Dashboard")
+    VIEW_DASHBOARD = _("View Dashboard")
+    SELECT_SERVER_FOR_CAPS = _("Select a server for Capabilities")
+    SELECT_SERVER_FOR_INSTALL = _("Select a server for VM Installation")
+    INSTALL_HERE = _("Install Here")
+    SHUTTING_DOWN = _("Shutting down...")
+    APP_DESCRIPTION = _("A Textual application to manage VMs.")
+    CLI_HELP = _("Run in command-line interpreter mode.")
+
 
 class SparklineLabels:
     """Constants for sparkline labels"""
@@ -769,6 +783,10 @@ class ErrorMessages:
     SANITIZED_DOMAIN_TOO_LONG = _("Sanitized domain name is too long (max 64 characters)")
     VCPU_EXCEEDS_MAX_TEMPLATE = _("vCPU {vcpu_int} exceeds max vCPUs ({max_vcpus})")
     INVALID_CPUSET_SYNTAX_TEMPLATE = _("Invalid cpuset syntax: {cpuset}")
+    LOG_FILE_NOT_FOUND = _("Log file ({log_path}) not found.")
+    ERROR_READING_LOG_FILE = _("Error reading log file: {error}")
+    TERMINAL_HEIGHT_TOO_SMALL = _("Terminal height is too small ({height} lines). Please resize.")
+    TERMINAL_WIDTH_TOO_SMALL = _("Terminal width is too small ({width} columns). Please resize.")
 
 
 class DialogMessages:
@@ -786,6 +804,7 @@ class DialogMessages:
     CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _("Are you sure you want to remove VirtIO-FS mount '{target_path}'?")
     CONFIRM_DISCARD_CHANGES = _("Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone.")
     CONFIRM_MERGE_CHANGES = _("Are you sure you want to merge changes from '{target_disk}' into its backing file?")
+    CONFIRM_BULK_EDIT = _("This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?")
 
 
 class QuickMessages:
@@ -809,6 +828,9 @@ class WarningMessages:
     TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE = _("More than {count} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze.")
     RUNNING_DISK_USAGE_SCAN_WARNING = _("Running disk usage scan, this can freeze the UI for larger numbers of VMs and disks.")
     VIRTIOFS_SHARED_MEM_WARNING = _("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.")
+    VM_START_OVERCOMMIT_MEMORY = _("Memory: {total} MB > {limit} MB")
+    VM_START_OVERCOMMIT_VCPU = _("vCPUs: {total} > {limit}")
+    VM_START_OVERCOMMIT_WARNING = _("Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n{details}")
 
 
 class SuccessMessages:
@@ -914,6 +936,7 @@ class SuccessMessages:
     VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
     VOLUME_CREATED_SUCCESSFULLY_TEMPLATE = _("Volume [b]{name} {size_gb}Gb {format}[/b] created successfully.")
     VOLUME_MOVED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' moved to pool '{dest_pool_name}'.")
+    BULK_ACTION_SUMMARY = _("Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}")
 
 
 class ProgressMessages:

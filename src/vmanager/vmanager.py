@@ -339,7 +339,7 @@ class VMManagerTUI(App):
         self.worker_manager.run(
             self.host_stats.refresh_stats,
             name="host_stats_refresh",
-            description="Refreshing host stats"
+            description=StaticText.REFRESHING_HOST_STATS
         )
 
     def _hide_host_stats(self):
@@ -1020,9 +1020,9 @@ class VMManagerTUI(App):
             with open(log_path) as f:
                 log_content = "".join(deque(f, 1000))
         except FileNotFoundError:
-            log_content = f"Log file ({log_path}) not found."
+            log_content = ErrorMessages.LOG_FILE_NOT_FOUND.format(log_path=log_path)
         except Exception as e:
-            log_content = f"Error reading log file: {e}"
+            log_content = ErrorMessages.ERROR_READING_LOG_FILE.format(error=e)
         self.push_screen(LogModal(log_content))
 
     @on(Button.Pressed, "#server_preferences_button")
@@ -1051,7 +1051,7 @@ class VMManagerTUI(App):
         #        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
 
         #self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
-        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
+        self._select_server_and_run(launch_server_prefs, StaticText.SELECT_SERVER_FOR_PREFS, ButtonLabels.OPEN)
 
     def _select_server_and_run(self, callback: callable, modal_title: str, modal_button_label: str) -> None:
         """
@@ -1086,7 +1086,7 @@ class VMManagerTUI(App):
         def launch_virsh_shell(uri: str):
             self.push_screen(VirshShellScreen(uri=uri))
 
-        self._select_server_and_run(launch_virsh_shell, "Select a server for Virsh Shell", "Launch")
+        self._select_server_and_run(launch_virsh_shell, StaticText.SELECT_SERVER_FOR_VIRSH, ButtonLabels.LAUNCH)
 
     @on(Button.Pressed, "#virsh_shell_button")
     def on_virsh_shell_button_pressed(self, event: Button.Pressed) -> None:
@@ -1108,7 +1108,7 @@ class VMManagerTUI(App):
             else:
                 self.show_error_message(ErrorMessages.COULD_NOT_CONNECT_TO_SERVER.format(uri=uri))
 
-        self._select_server_and_run(launch_dashboard_modal, "Select a server for Dashboard", "View Dashboard")
+        self._select_server_and_run(launch_dashboard_modal, StaticText.SELECT_SERVER_FOR_DASHBOARD, StaticText.VIEW_DASHBOARD)
 
     def action_host_capabilities(self) -> None:
         """Show Host Capabilities."""
@@ -1119,14 +1119,14 @@ class VMManagerTUI(App):
             else:
                 self.show_error_message(ErrorMessages.COULD_NOT_CONNECT_TO_SERVER.format(uri=uri))
 
-        self._select_server_and_run(launch_caps_modal, "Select a server for Capabilities", "View")
+        self._select_server_and_run(launch_caps_modal, StaticText.SELECT_SERVER_FOR_CAPS, ButtonLabels.VIEW)
 
     def action_install_vm(self) -> None:
         """Launch the VM Installation Modal."""
         def launch_install_modal(uri: str):
             self.push_screen(InstallVMModal(self.vm_service, uri), self.handle_install_vm_result)
 
-        self._select_server_and_run(launch_install_modal, "Select a server for VM Installation", "Install Here")
+        self._select_server_and_run(launch_install_modal, StaticText.SELECT_SERVER_FOR_INSTALL, StaticText.INSTALL_HERE)
 
     def handle_install_vm_result(self, result: bool | None) -> None:
         """Handle result from installation modal."""
@@ -1175,14 +1175,11 @@ class VMManagerTUI(App):
                         if overcommit_mem or overcommit_cpu:
                             warnings = []
                             if overcommit_mem:
-                                warnings.append(f"Memory: {active_mem_mb + vm_mem_mb} MB > {host_mem_mb} MB")
+                                warnings.append(WarningMessages.VM_START_OVERCOMMIT_MEMORY.format(total=active_mem_mb + vm_mem_mb, limit=host_mem_mb))
                             if overcommit_cpu:
-                                warnings.append(f"vCPUs: {active_vcpus + vm_vcpus} > {host_cpus}")
+                                warnings.append(WarningMessages.VM_START_OVERCOMMIT_VCPU.format(total=active_vcpus + vm_vcpus, limit=host_cpus))
 
-                            warning_msg = (
-                                f"Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n"
-                                f"{chr(10).join(warnings)}"
-                            )
+                            warning_msg = WarningMessages.VM_START_OVERCOMMIT_WARNING.format(vm_name=vm_name, details=chr(10).join(warnings))
                             self.show_warning_message(warning_msg)
                     except Exception as e:
                         logging.error(f"Error checking resources before start: {e}")
@@ -1399,7 +1396,7 @@ class VMManagerTUI(App):
                 except Exception as e:
                     self.app.show_error_message(ErrorMessages.BULK_EDIT_PREP_ERROR.format(error=e))
 
-            warning_message = "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
+            warning_message = DialogMessages.CONFIRM_BULK_EDIT
             self.app.push_screen(ConfirmationDialog(warning_message), on_confirm)
             return
 
@@ -1454,7 +1451,11 @@ class VMManagerTUI(App):
                 dummy_progress_callback  # Pass the dummy callback
             )
 
-            summary = f"Bulk action '{action_type}' complete. Successful: {len(successful_vms)}, Failed: {len(failed_vms)}"
+            summary = SuccessMessages.BULK_ACTION_SUMMARY.format(
+                action_type=action_type,
+                successful_vms=len(successful_vms),
+                failed_vms=len(failed_vms)
+            )
             logging.info(summary)
 
             if successful_vms:
@@ -1946,7 +1947,7 @@ class VMManagerTUI(App):
         logging.info("Application shutdown initiated")
 
         # Show loading indicator
-        loading = LoadingModal(message="Shutting down...")
+        loading = LoadingModal(message=StaticText.SHUTTING_DOWN)
         self.push_screen(loading)
 
         # Give Textual a chance to render the modal
@@ -2094,8 +2095,8 @@ def main():
             # Devel version from git
             ldir = "locale"
 
-    parser = argparse.ArgumentParser(description="A Textual application to manage VMs.")
-    parser.add_argument("--cmd", action="store_true", help="Run in command-line interpreter mode.")
+    parser = argparse.ArgumentParser(description=StaticText.APP_DESCRIPTION)
+    parser.add_argument("--cmd", action="store_true", help=StaticText.CLI_HELP)
     args = parser.parse_args()
 
     if args.cmd:
@@ -2103,12 +2104,12 @@ def main():
         VManagerCMD().cmdloop()
     else:
         terminal_size = os.get_terminal_size()
-        if terminal_size.lines < 34:
-            print(f"Terminal height is too small ({terminal_size.lines} lines). Please resize to at least 34 lines.")
-            sys.exit(1)
-        if terminal_size.columns < 86:
-            print(f"Terminal width is too small ({terminal_size.columns} columns). Please resize to at least 86 columns.")
-            sys.exit(1)
+    if height < 24:
+        print(ErrorMessages.TERMINAL_HEIGHT_TOO_SMALL.format(height=height))
+        return
+    if width < 86:
+        print(ErrorMessages.TERMINAL_WIDTH_TOO_SMALL.format(width=width))
+        return
         app = VMManagerTUI()
         app.run()
 
