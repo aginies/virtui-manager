@@ -17,7 +17,7 @@
             pname = "virtui-manager";
             version = "1.8.1";
 
-            src = ./.;
+            src = ../.;
 
             propagatedBuildInputs = with pkgs.python3Packages; [
               libvirt
@@ -34,8 +34,8 @@
 
             postPatch = ''
               # Fix the shebang in wrapper.py to use the correct python path
-              substituteInPlace src/vmanager/wrapper.py \
-                --replace '#!/usr/bin/env python3' '#!/usr/bin/env python3'
+              substituteInPlace src/vmanager/wrapper.py \\
+                --replace '#!/usr/bin/env python3' "#!${pkgs.python3.interpreter}"
             '';
 
             # Set up the entry points

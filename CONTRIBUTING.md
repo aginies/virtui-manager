@@ -16,7 +16,7 @@ Virtui Manager uses an asynchronous worker system and metadata caching to preven
 
 ## Nix Package Support
 This project includes Nix package definitions for easy installation and development. When contributing:
-* Ensure that changes to dependencies are reflected in `default.nix` and `flake.nix`
+* Ensure that changes to dependencies are reflected in `nix/default.nix` and `nix/flake.nix`
 * Test that the package builds correctly with `nix build`
 * Test that the development shell works with `nix develop`
 
