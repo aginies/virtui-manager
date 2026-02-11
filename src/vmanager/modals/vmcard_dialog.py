@@ -269,7 +269,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
                      value=agent_running,
                      disabled=not agent_running,
                      id="quiesce-checkbox",
-                     tooltip="Pause the guest filesystem to ensure a clean snapshot. Requires QEMU Guest Agent to be running in the VM."),
+                     tooltip=StaticText.PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP),
             Horizontal(
                 Button(ButtonLabels.CREATE, variant="success", id="create"),
                 Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
