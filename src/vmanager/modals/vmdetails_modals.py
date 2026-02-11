@@ -1876,7 +1876,7 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Static(classes="button-separator")
                         yield Checkbox(
-                            "3D Acceleration",
+                            StaticText.ENABLE_3D_ACCELERATION,
                             id="video-3d-accel-checkbox",
                             value=self.vm_info.get('video', {}).get('accel3d', False),
                             disabled=True
@@ -1923,26 +1923,26 @@ class VMDetailModal(ModalScreen):
                             yield RadioButton(StaticText.LOCALHOST_ONLY, id="graphics-address-localhost", value=self.graphics_info['address'] == '127.0.0.1')
                             yield RadioButton(StaticText.ALL_INTERFACES, id="graphics-address-all", value=self.graphics_info['address'] == '0.0.0.0')
                         yield Checkbox(
-                            "Auto Port",
+                            StaticText.AUTO_PORT,
                             value=self.graphics_info['autoport'],
                             id="graphics-autoport-checkbox",
                             disabled=not self.is_vm_stopped
                         )
                         yield Input(
-                            placeholder="Port (e.g., 5900)",
+                            placeholder=StaticText.PORT_PLACEHOLDER,
                             value=str(self.graphics_info['port']) if self.graphics_info['port'] else "",
                             id="graphics-port-input",
                             type="integer",
                             disabled=not self.is_vm_stopped or self.graphics_info['autoport']
                         )
                         yield Checkbox(
-                            "Enable Password",
+                            StaticText.ENABLE_PASSWORD,
                             value=self.graphics_info['password_enabled'],
                             id="graphics-password-enable-checkbox",
                             disabled=not self.is_vm_stopped
                         )
                         yield Input(
-                            placeholder="Password",
+                            placeholder=StaticText.PASSWORD_PLACEHOLDER,
                             value=self.graphics_info['password'] if self.graphics_info['password_enabled'] else "",
                             id="graphics-password-input",
                             password=True, # Hide password input
@@ -1978,21 +1978,21 @@ class VMDetailModal(ModalScreen):
                             value=tpm_device_path,
                             id="tpm-device-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder="=/dev/tpm0"
+                            placeholder=StaticText.DEVICE_PATH_PLACEHOLDER
                         )
                         yield Label(StaticText.BACKEND_TYPE_PASSTHROUGH)
                         yield Input(
                             value=tpm_backend_type,
                             id="tpm-backend-type-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder="emulator or passthrough"
+                            placeholder=StaticText.BACKEND_TYPE_PLACEHOLDER
                         )
                         yield Label(StaticText.BACKEND_PATH_PASSTHROUGH)
                         yield Input(
                             value=tpm_backend_path,
                             id="tpm-backend-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder="/dev/tpmrm0"
+                            placeholder=StaticText.BACKEND_PATH_PLACEHOLDER
                         )
                     yield Button(ButtonLabels.APPLY_TPM_SETTINGS, id="apply-tpm-btn", variant="primary", disabled=not self.is_vm_stopped)
 

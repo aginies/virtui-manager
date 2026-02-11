@@ -526,6 +526,14 @@ Specify the NUMA nodes to use.
     APP_DESCRIPTION = _("A Textual application to manage VMs.")
     CLI_HELP = _("Run in command-line interpreter mode.")
     VIRSH_CONSOLE_HELP = _("virsh -c <uri> console <vm_name>; echo '\nConsole session ended. Press Enter to close window.'; read")
+    ENABLE_3D_ACCELERATION = _("3D Acceleration")
+    AUTO_PORT = _("Auto Port")
+    PORT_PLACEHOLDER = _("Port (e.g., 5900)")
+    ENABLE_PASSWORD = _("Enable Password")
+    PASSWORD_PLACEHOLDER = _("Password")
+    DEVICE_PATH_PLACEHOLDER = _("=/dev/tpm0")
+    BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
+    BACKEND_PATH_PLACEHOLDER = _("/dev/tpmrm0")
 
 
 class SparklineLabels:
