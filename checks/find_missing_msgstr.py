@@ -80,8 +80,7 @@ if __name__ == "__main__":
     
     if total_missing_count > 0:
         print(f"\nFailure: Total missing translations across all files: {total_missing_count}.")
-        print("For now don't fail... as there are many missing translations")
-        sys.exit(0)
+        sys.exit(1)
     else:
         print("\nSuccess: No missing translations found in any .po file.")
         sys.exit(0)
