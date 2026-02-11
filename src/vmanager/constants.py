@@ -525,6 +525,7 @@ Specify the NUMA nodes to use.
     SHUTTING_DOWN = _("Shutting down...")
     APP_DESCRIPTION = _("A Textual application to manage VMs.")
     CLI_HELP = _("Run in command-line interpreter mode.")
+    VIRSH_CONSOLE_HELP = _("virsh -c <uri> console <vm_name>; echo '\nConsole session ended. Press Enter to close window.'; read")
 
 
 class SparklineLabels:
