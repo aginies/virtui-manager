@@ -2988,7 +2988,7 @@ class VMDetailModal(ModalScreen):
                     try:
                         # VM must be stopped to edit disk properties
                         if not self.is_vm_stopped:
-                            self.app.show_error_message("VM must be stopped to edit disk properties.")
+                            self.app.show_error_message(ErrorMessages.DISK_VM_MUST_BE_STOPPED_TO_EDIT)
                             return
 
                         disk_properties = {

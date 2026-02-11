@@ -273,7 +273,7 @@ class VMCard(Static):
                 logging.warning(f"Error getting webconsole status for {self.internal_id}: {e}")
 
         # Update status indicator text
-        new_indicator = _(" (WebC On)") if webc_is_running else ""
+        new_indicator = " (WebC On)" if webc_is_running else ""
         if self.webc_status_indicator != new_indicator:
             self.webc_status_indicator = new_indicator
 
@@ -320,7 +320,7 @@ class VMCard(Static):
             id="vm-select-checkbox",
             classes="vm-select-checkbox",
             value=self.is_selected,
-            tooltip="Select VM",
+            tooltip= "Select VM",
         )
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
