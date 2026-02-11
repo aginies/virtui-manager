@@ -21,6 +21,7 @@ from ..constants import (
     SuccessMessages,
     WarningMessages,
 )
+from ..i18n import _
 from ..libvirt_utils import _find_pool_by_path, get_network_info
 from ..network_manager import (
     delete_network,
