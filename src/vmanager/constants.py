@@ -323,6 +323,7 @@ class StaticText:
     PAUSE_VMS = _("Pause VMs")
     DELETE_VMS = _("Delete VMs")
     EDIT_CONFIGURATION = _("Edit Configuration")
+    MIGRATE_VMS = _("Migrate VMs")
     HYPERVISOR_DEFAULT = _("Hypervisor default")
     LOCALHOST_ONLY = _("Localhost only")
     ALL_INTERFACES = _("All interfaces")
