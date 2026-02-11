@@ -114,9 +114,9 @@ class InstallVMModal(BaseModal[str | None]):
                         yield Select([("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format")
                     with Vertical(id="expert-firmware"):
                         yield Label(StaticText.FIRMWARE_LABEL, classes="label")
-                        yield Checkbox(StaticText.UEFI, id="boot-uefi-checkbox", value=True, tooltip="Unchecked means legacy boot")
+                        yield Checkbox(StaticText.UEFI, id="boot-uefi-checkbox", value=True, tooltip=StaticText.LEGACY_BOOT_TOOLTIP)
 
-            yield Checkbox(StaticText.CONFIGURE_BEFORE_INSTALL, id="configure-before-install-checkbox", value=False, tooltip="Show VM configuration before starting")
+            yield Checkbox(StaticText.CONFIGURE_BEFORE_INSTALL, id="configure-before-install-checkbox", value=False, tooltip=StaticText.SHOW_VM_CONFIG_BEFORE_STARTING_TOOLTIP)
             yield ProgressBar(total=100, show_eta=False, id="progress-bar")
             yield Label(StaticText.EMPTY_LABEL, id="status-label")
 
