@@ -3176,6 +3176,8 @@ msgid ""
 "Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n"
 "{details}"
 msgstr ""
+"Démarrer la VM '{vm_name}' dépassera la capacité de l'hôte (Allocation active):\n"
+"{details}"
 
 #: constants.py:838
 #, python-brace-format
@@ -3657,6 +3659,8 @@ msgid ""
 "Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: "
 "{failed_vms}"
 msgstr ""
+"Action en masse '{action_type}' terminée. Réussie : {successful_vms}, Échouée : "
+"{failed_vms}"
 
 #: constants.py:944
 #, python-brace-format
