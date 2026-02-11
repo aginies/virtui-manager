@@ -463,7 +463,7 @@ msgstr "Lancia"
 
 #: constants.py:188
 msgid "Open"
-msgstr ""
+msgstr "Apri"
 
 #: constants.py:194
 msgid "Filter"
@@ -1681,7 +1681,7 @@ msgstr ""
 
 #: constants.py:517
 msgid "Refreshing host stats"
-msgstr ""
+msgstr "Aggiornamento stats host"
 
 #: constants.py:518
 #, fuzzy
@@ -1725,11 +1725,11 @@ msgstr "Arresta"
 
 #: constants.py:526
 msgid "A Textual application to manage VMs."
-msgstr ""
+msgstr "Un'applicazione Textual per gestire le VM."
 
 #: constants.py:527
 msgid "Run in command-line interpreter mode."
-msgstr ""
+msgstr "Esegui in modalità interprete riga di comando"
 
 #: constants.py:532
 #, python-brace-format
@@ -2939,7 +2939,7 @@ msgstr "Sintassi nodeset non valida: {nodeset}"
 #: constants.py:786
 #, python-brace-format
 msgid "Log file ({log_path}) not found."
-msgstr ""
+msgstr "File di log ({log_path}) non trovato."
 
 #: constants.py:787
 #, fuzzy, python-brace-format
@@ -2948,13 +2948,13 @@ msgstr "Errore impostazione file UEFI: {error}"
 
 #: constants.py:788
 #, python-brace-format
-msgid "Terminal height is too small ({height} lines). Please resize."
-msgstr ""
+msgid "Terminal height is too small (\{height} lines). Please resize."
+msgstr "L'altezza del terminale è troppo piccola (\{height} righe). Regola le dimensioni"
 
 #: constants.py:789
 #, python-brace-format
-msgid "Terminal width is too small ({width} columns). Please resize."
-msgstr ""
+msgid "Terminal width is too small (\{width} columns). Please resize."
+msgstr "La larghezza del terminale è troppo piccola (\{width} colonne). Regola le dimensioni"
 
 #: constants.py:794
 #, python-brace-format
@@ -3148,13 +3148,14 @@ msgstr ""
 
 #: constants.py:831
 #, python-brace-format
-msgid "Memory: {total} MB > {limit} MB"
-msgstr ""
+msgid "Memory: \{total} MB > \{limit} MB"
+msgstr "Memoria: \{total} MB > \{limit} MB"
 
 #: constants.py:832
 #, python-brace-format
-msgid "vCPUs: {total} > {limit}"
-msgstr ""
+msgid "vCPUs: \{total} > \{limit}"
+msgstr "VCPU: \{total} > \{limit}"
+
 
 #: constants.py:833
 #, python-brace-format
