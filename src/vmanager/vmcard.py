@@ -320,7 +320,7 @@ class VMCard(Static):
             id="vm-select-checkbox",
             classes="vm-select-checkbox",
             value=self.is_selected,
-            tooltip= "Select VM",
+            tooltip= StaticText.SELECT_VM,
         )
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
@@ -1190,7 +1190,7 @@ class VMCard(Static):
                     if latest
                     else "Unknown"
                 )
-                pane.tooltip = f"{info}\nTotal: {snapshot_count}"
+                pane.tooltip = TabTitles.TOTAL_TAB.format(info=info, snapshot_count=snapshot_count)
             else:
                 pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
         except Exception:
@@ -2066,7 +2066,7 @@ class VMCard(Static):
                                     if latest
                                     else "Unknown"
                                 )
-                                pane.tooltip = f"{info}\nTotal: {snapshot_count}"
+                                pane.tooltip = TabTitles.TOTAL_TAB.format(info=info, snapshot_count=snapshot_count)
                             else:
                                 pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
                         except Exception:

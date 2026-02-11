@@ -222,6 +222,7 @@ class TabTitles:
     SNAP_OVER_UPDATE = _("Updating Data...")
     ACTIVE_ALLOCATION = _("Active Allocation")
     TOTAL_ALLOCATION = _("Total Allocation")
+    TOTAL_TAB = _("{info}\nTotal: {snapshot_count}:")
 
 class StatusText:
     """Constants for status text"""
@@ -534,7 +535,33 @@ Specify the NUMA nodes to use.
     DEVICE_PATH_PLACEHOLDER = _("=/dev/tpm0")
     BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
     BACKEND_PATH_PLACEHOLDER = _("/dev/tpmrm0")
-
+    SELECT_VM = _("Select VM")
+    UNCHECKED_MEANS_LEGACY_BOOT = _("Unchecked means legacy boot")
+    SHOW_VM_CONFIGURATION_BEFORE_STARTING = _("Show VM configuration before starting")
+    COPY_ALL_DISK_FILES_DURING_MIGRATION = _("Copy all disk files during migration")
+    PERFORM_UNSAFE_MIGRATION = _("Perform unsafe migration (may lose data)")
+    KEEP_VM_PERSISTENT_ON_DESTINATION = _("Keep VM persistent on destination")
+    COMPRESS_DATA_DURING_MIGRATION = _("Compress data during migration")
+    TUNNEL_MIGRATION_DATA_THROUGH_LIBVIRT = _("Tunnel migration data through libvirt da. ..")
+    USE_CUSTOM_MIGRATION_WORKFLOW = _("Use custom migration workflow")
+    ACTIVATE_OR_DEACTIVATE_THE_SELECTED_NETWORK = _("Activate or Deactivate the selected netw. ..")
+    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_NETWORK = _("Enable or Disable autostart for the sele. ..")
+    ADD_A_NEW_NETWORK = _("Add a new network.")
+    EDIT_THE_SELECTED_NETWORK = _("Edit the selected network.")
+    VIEW_XML_DETAILS_OF_THE_SELECTED_NETWORK = _("View XML details of the selected network. ..")
+    DELETE_THE_SELECTED_NETWORK = _("Delete the selected network.")
+    SHOW_NETWORK_CONFIGURATION_HELP = _("Show network configuration help.")
+    ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL = _("Activate or Deactivate the selected stor. ..")
+    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_STORAGE_POOL = _("Enable or Disable autostart for the sele. ..")
+    ADD_A_NEW_STORAGE_POOL = _("Add a new storage pool.")
+    DELETE_THE_SELECTED_STORAGE_POOL = _("Delete the selected storage pool.")
+    CREATE_A_NEW_VOLUME_IN_THE_SELECTED_POOL = _("Create a new volume in the selected pool. ..")
+    ATTACH_AN_EXISTING_DISK_FILE_AS_A_VOLUME = _("Attach an existing disk file as a volume. ..")
+    MOVE_THE_SELECTED_VOLUME_TO_ANOTHER_POOL = _("Move the selected volume to another pool. ..")
+    DELETE_THE_SELECTED_VOLUME = _("Delete the selected volume.")
+    VIEW_XML_DETAILS_OF_THE_SELECTED_POOL_OR_VOLUME = _("View XML details of the selected pool or. ..")
+    EDIT_XML_OF_THE_SELECTED_POOL = _("Edit XML of the selected pool.")
+    PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP = _("Pause the guest filesystem to ensure a c. ..")
 
 class SparklineLabels:
     """Constants for sparkline labels"""
