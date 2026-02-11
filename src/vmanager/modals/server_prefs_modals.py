@@ -109,21 +109,21 @@ class ServerPrefModal(BaseModal[None]):
         button_container = Vertical(
             Horizontal(
                 Button(ButtonLabels.DE_ACTIVE, id="toggle-net-active-btn", classes="toggle-detail-button",
-                       variant="primary", disabled=True, tooltip="Activate or Deactivate the selected network."),
+                       variant="primary", disabled=True, tooltip=_("Activate or Deactivate the selected network.")),
                 Button(ButtonLabels.AUTOSTART, id="toggle-net-autostart-btn", classes="toggle-detail-button",
-                       variant="primary", disabled=True, tooltip="Enable or Disable autostart for the selected network."),
+                       variant="primary", disabled=True, tooltip=_("Enable or Disable autostart for the selected network.")),
             ),
             Horizontal(
                 Button(ButtonLabels.ADD, id="add-net-btn", variant="success", classes="toggle-detail-button",
-                       tooltip="Add a new network."),
+                       tooltip=_("Add a new network.")),
                 Button(ButtonLabels.EDIT, id="edit-net-btn", variant="success", classes="toggle-detail-button",
-                       disabled=True, tooltip="Edit the selected network."),
+                       disabled=True, tooltip=_("Edit the selected network.")),
                 Button(ButtonLabels.VIEW, id="view-net-btn", variant="success", classes="toggle-detail-button",
-                       disabled=True, tooltip="View XML details of the selected network."),
+                       disabled=True, tooltip=_("View XML details of the selected network.")),
                 Button(ButtonLabels.DELETE, id="delete-net-btn", variant="error", classes="toggle-detail-button",
-                       disabled=True, tooltip="Delete the selected network."),
+                       disabled=True, tooltip=_("Delete the selected network.")),
                 Button(ButtonLabels.HELP, id="help-net-btn", variant="success", classes="toggle-detail-button",
-                       tooltip="Show network configuration help."),
+                       tooltip=_("Show network configuration help.")),
             ),
             classes="server-pref-button"
         )
