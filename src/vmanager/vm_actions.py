@@ -1893,6 +1893,24 @@ def pause_vm(domain: libvirt.virDomain):
     invalidate_cache(get_internal_id(domain))
     domain.suspend()
 
+def resume_vm(domain: libvirt.virDomain):
+    """
+    Resumes the execution of a paused VM.
+    Handles both PAUSED and PMSUSPENDED states.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    state, _ = domain.state()
+    if state == libvirt.VIR_DOMAIN_PAUSED:
+        domain.resume()
+    elif state == libvirt.VIR_DOMAIN_PMSUSPENDED:
+        domain.pMWakeup(0)
+    else:
+        raise libvirt.libvirtError(f"VM '{domain.name()}' is not paused or suspended, cannot resume.")
+
+    invalidate_cache(get_internal_id(domain))
+
 def force_off_vm(domain: libvirt.virDomain):
     """
     Forcefully shuts down (destroys) the VM.

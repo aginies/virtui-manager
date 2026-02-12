@@ -15,7 +15,7 @@ from .connection_manager import ConnectionManager
 from .constants import AppCacheTimeout, VmAction, VmStatus
 from .storage_manager import check_domain_volumes_in_use
 from .utils import extract_server_name_from_uri, natural_sort_key
-from .vm_actions import delete_vm, force_off_vm, pause_vm, start_vm, stop_vm
+from .vm_actions import delete_vm, force_off_vm, pause_vm, resume_vm, start_vm, stop_vm
 from .vm_queries import (
     get_boot_info,
     get_status,
@@ -1426,11 +1426,7 @@ class VMService:
         logging.info(f"Resuming/Waking up VM: {domain.name()} (ID: {internal_id})")
 
         try:
-            state, _ = domain.state()
-            if state == libvirt.VIR_DOMAIN_PMSUSPENDED:
-                domain.pMWakeup(0)
-            else:
-                domain.resume()
+            resume_vm(domain)
         except libvirt.libvirtError as e:
             logging.error(f"Error resuming/waking up VM {domain.name()}: {e}")
             raise
