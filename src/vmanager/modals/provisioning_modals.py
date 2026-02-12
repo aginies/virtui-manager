@@ -55,7 +55,7 @@ class InstallVMModal(BaseModal[str | None]):
 
             yield Label(StaticText.DISTRIBUTION, classes="label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
-            distro_options.insert(0, ("Cached ISOs", "cached"))
+            distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
             for repo in custom_repos:
                 # Use URI as value, Name as label
@@ -65,7 +65,7 @@ class InstallVMModal(BaseModal[str | None]):
                 distro_options.insert(-1, (name, uri))
 
             # Add option to select from storage pool volumes
-            distro_options.insert(-1, ("From Storage Pool", "pool_volumes"))
+            distro_options.insert(-1, (StaticText.FROM_STORAGE_POOL, "pool_volumes"))
 
             yield Select(distro_options, value=OpenSUSEDistro.LEAP, id="distro", allow_blank=False)
 
@@ -75,7 +75,7 @@ class InstallVMModal(BaseModal[str | None]):
                 config = load_config()
                 iso_path = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
                 yield Label(StaticText.ISOS_DOWNLOAD_PATH.format(iso_path=iso_path), classes="info-text", id="iso-path-label")
-                yield Select([], prompt="Select ISO...", id="iso-select", disabled=True)
+                yield Select([], prompt=StaticText.SELECT_ISO_PROMPT, id="iso-select", disabled=True)
 
             # Container for Custom ISO
             with Vertical(id="custom-iso-container"):
@@ -86,19 +86,19 @@ class InstallVMModal(BaseModal[str | None]):
 
                 with Vertical(id="checksum-container"):
                     yield Checkbox(StaticText.VALIDATE_CHECKSUM, id="validate-checksum", value=False)
-                    yield Input(placeholder="SHA256 Checksum (Optional)", id="checksum-input", disabled=True)
+                    yield Input(placeholder=StaticText.SHA256_CHECKSUM_OPTIONAL_PLACEHOLDER, id="checksum-input", disabled=True)
                     yield Label(StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text")
 
             # Container for ISO selection from Storage Pools
             with Vertical(id="pool-iso-container"):
                 yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
-                yield Select(active_pools, prompt="Select Pool...", id="storage-pool-select", allow_blank=False)
+                yield Select(active_pools, prompt=StaticText.SELECT_POOL_PROMPT, id="storage-pool-select", allow_blank=False)
                 yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
-                yield Select([], prompt="Select ISO Volume...", id="iso-volume-select", disabled=True)
+                yield Select([], prompt=StaticText.SELECT_ISO_VOLUME_PROMPT, id="iso-volume-select", disabled=True)
 
             yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
             yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
-            with Collapsible(title="Expert Mode", id="expert-mode-collapsible"):
+            with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
                         yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
@@ -240,12 +240,12 @@ class InstallVMModal(BaseModal[str | None]):
     @work(exclusive=True, thread=True)
     def fetch_pool_isos(self, pool_name: str):
         """Fetches and populates the list of ISO volumes in a given storage pool."""
-        self.app.call_from_thread(self._update_iso_status, f"Fetching ISO volumes from {pool_name}...", True)
+        self.app.call_from_thread(self._update_iso_status, StaticText.FETCHING_ISO_VOLUMES_FROM_TEMPLATE.format(pool_name=pool_name), True)
         iso_volume_select = self.query_one("#iso-volume-select", Select)
         try:
             pool = self.conn.storagePoolLookupByName(pool_name)
             if not pool.isActive():
-                raise Exception(f"Storage pool '{pool_name}' is not active")
+                raise Exception(StaticText.STORAGE_POOL_NOT_ACTIVE_TEMPLATE2.format(pool_name=pool_name))
             volumes = pool.listAllVolumes(0) if pool else []
 
             iso_volumes_options = []
@@ -272,14 +272,14 @@ class InstallVMModal(BaseModal[str | None]):
 
         except Exception as e:
             self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE.format(pool_name=pool_name, error=e))
-            self.app.call_from_thread(self._update_iso_status, "Error fetching volumes", False)
+            self.app.call_from_thread(self._update_iso_status, StaticText.ERROR_FETCHING_VOLUMES, False)
             self.app.call_from_thread(iso_volume_select.clear)
             self.app.call_from_thread(lambda: setattr(iso_volume_select, 'disabled', True))
 
 
     @work(exclusive=True, thread=True)
     def fetch_isos(self, distro: OpenSUSEDistro | str):
-        self.app.call_from_thread(self._update_iso_status, "Fetching ISO list...", True)
+        self.app.call_from_thread(self._update_iso_status, StaticText.FETCHING_ISO_LIST, True)
 
         try:
             isos = []
@@ -313,7 +313,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         except Exception as e:
             self.app.call_from_thread(self.app.show_error_message, ErrorMessages.FAILED_TO_FETCH_ISOS_TEMPLATE.format(error=e))
-            self.app.call_from_thread(self._update_iso_status, "Error fetching ISOs", False)
+            self.app.call_from_thread(self._update_iso_status, StaticText.ERROR_FETCHING_ISOS, False)
 
     def _update_iso_status(self, message, loading):
         lbl = self.query_one("#status-label", Label)
@@ -503,15 +503,15 @@ class InstallVMModal(BaseModal[str | None]):
                 if validate:
                     if not checksum:
                         raise Exception(ErrorMessages.CHECKSUM_MISSING)
-                    progress_cb("Validating Checksum...", 0)
+                    progress_cb(StaticText.VALIDATING_CHECKSUM, 0)
                     if not self.provisioner.validate_iso(custom_path, checksum):
                         raise Exception(ErrorMessages.CHECKSUM_VALIDATION_FAILED)
-                    progress_cb("Checksum Validated", 10)
+                    progress_cb(StaticText.CHECKSUM_VALIDATED, 10)
 
                 # 2. Upload
-                progress_cb("Uploading ISO...", 10)
+                progress_cb(StaticText.UPLOADING_ISO, 10)
                 def upload_progress(p):
-                    progress_cb(f"Uploading: {p}%", 10 + int(p * 0.4))
+                    progress_cb(StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p), 10 + int(p * 0.4))
 
                 final_iso_url = self.provisioner.upload_iso(custom_path, pool_name, upload_progress)
                 if not final_iso_url:
