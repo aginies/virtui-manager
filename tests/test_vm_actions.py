@@ -913,6 +913,10 @@ class TestVMActionsComplete(unittest.TestCase):
         mock_domain.resume.assert_called_once()
         mock_invalidate_cache.assert_called_with("test-id")
 
+        # Reset mocks for next test
+        mock_invalidate_cache.reset_mock()
+        mock_get_internal_id.reset_mock()
+
         # Test resuming a PM suspended VM
         mock_domain2 = MagicMock()
         mock_domain2.name.return_value = "test-vm2"
@@ -921,6 +925,7 @@ class TestVMActionsComplete(unittest.TestCase):
 
         resume_vm(mock_domain2)
         mock_domain2.pMWakeup.assert_called_once_with(0)
+        mock_invalidate_cache.assert_called_with("test-id2")
 
         # Test that it raises an error for a running VM
         mock_domain3 = MagicMock()
