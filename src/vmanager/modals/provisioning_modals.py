@@ -245,7 +245,7 @@ class InstallVMModal(BaseModal[str | None]):
         try:
             pool = self.conn.storagePoolLookupByName(pool_name)
             if not pool.isActive():
-                raise Exception(StaticText.STORAGE_POOL_NOT_ACTIVE_TEMPLATE2.format(pool_name=pool_name))
+                raise Exception(ErrorMessages.STORAGE_POOL_NOT_ACTIVE_TEMPLATE.format(pool_name=pool_name))
             volumes = pool.listAllVolumes(0) if pool else []
 
             iso_volumes_options = []

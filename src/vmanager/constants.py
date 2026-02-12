@@ -300,7 +300,6 @@ class StaticText:
     SELECT_POOL_PROMPT = _("Select Pool...")
     SELECT_ISO_VOLUME_PROMPT = _("Select ISO Volume...")
     FETCHING_ISO_VOLUMES_FROM_TEMPLATE = _("Fetching ISO volumes from {pool_name}...")
-    STORAGE_POOL_NOT_ACTIVE_TEMPLATE2 = _("Storage pool '{pool_name}' is not active")
     ERROR_FETCHING_VOLUMES = _("Error fetching volumes")
     FETCHING_ISO_LIST = _("Fetching ISO list...")
     ERROR_FETCHING_ISOS = _("Error fetching ISOs")
