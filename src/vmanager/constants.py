@@ -40,7 +40,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.8.0"
+    version = "1.8.1"
 
 class VMCardConstants:
     """Constants for VMCard styling"""
@@ -185,6 +185,24 @@ class ButtonLabels:
     SELECT = _("Select")
     OK = _("OK")
     LAUNCH = _("Launch")
+    OPEN = _("Open")
+    ACTIVATE_OR_DEACTIVATE_THE_SELECTED_NETWORK = _("Activate or Deactivate the selected netw. ..")
+    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_NETWORK = _("Enable or Disable autostart for the sele. ..")
+    ADD_A_NEW_NETWORK = _("Add a new network.")
+    EDIT_THE_SELECTED_NETWORK = _("Edit the selected network.")
+    VIEW_XML_DETAILS_OF_THE_SELECTED_NETWORK = _("View XML details of the selected network. ..")
+    DELETE_THE_SELECTED_NETWORK = _("Delete the selected network.")
+    SHOW_NETWORK_CONFIGURATION_HELP = _("Show network configuration help.")
+    ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL = _("Activate or Deactivate the selected stor. ..")
+    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_STORAGE_POOL = _("Enable or Disable autostart for the sele. ..")
+    ADD_A_NEW_STORAGE_POOL = _("Add a new storage pool.")
+    DELETE_THE_SELECTED_STORAGE_POOL = _("Delete the selected storage pool.")
+    CREATE_A_NEW_VOLUME_IN_THE_SELECTED_POOL = _("Create a new volume in the selected pool. ..")
+    ATTACH_AN_EXISTING_DISK_FILE_AS_A_VOLUME = _("Attach an existing disk file as a volume. ..")
+    MOVE_THE_SELECTED_VOLUME_TO_ANOTHER_POOL = _("Move the selected volume to another pool. ..")
+    DELETE_THE_SELECTED_VOLUME = _("Delete the selected volume.")
+    VIEW_XML_DETAILS_OF_THE_SELECTED_POOL_OR_VOLUME = _("View XML details of the selected pool or. ..")
+    EDIT_XML_OF_THE_SELECTED_POOL = _("Edit XML of the selected pool.")
 
 
 class BindingDescriptions:
@@ -221,6 +239,7 @@ class TabTitles:
     SNAP_OVER_UPDATE = _("Updating Data...")
     ACTIVE_ALLOCATION = _("Active Allocation")
     TOTAL_ALLOCATION = _("Total Allocation")
+    TOTAL_TAB = _("{info}\nTotal: {snapshot_count}:")
 
 class StatusText:
     """Constants for status text"""
@@ -477,6 +496,7 @@ class StaticText:
     VCPU_COUNT_EXAMPLE = _("e.g., 2")
     MEMORY_SIZE_EXAMPLE = _("e.g., 2048")
     CPU_PINNING_EXAMPLE = _("e.g., 0:0-1; 1:2-3")
+    ACTIONS = _("Actions")
     NODESET_EXAMPLE = _("e.g., 0-1")
     CPU_TUNE_HELP_TITLE = _("CPU Tuning Help")
     CPU_TUNE_HELP_TEXT = _("""
@@ -512,6 +532,45 @@ Specify the NUMA nodes to use.
 * Example: `0-1` (Nodes 0 and 1)
 * Example: `0,2-3` (Node 0 and nodes 2 through 3)
 """)
+    REFRESHING_HOST_STATS = _("Refreshing host stats")
+    SELECT_SERVER_FOR_PREFS = _("Select a server for Preferences")
+    SELECT_SERVER_FOR_VIRSH = _("Select a server for Virsh Shell")
+    SELECT_SERVER_FOR_DASHBOARD = _("Select a server for Dashboard")
+    VIEW_DASHBOARD = _("View Dashboard")
+    SELECT_SERVER_FOR_CAPS = _("Select a server for Capabilities")
+    SELECT_SERVER_FOR_INSTALL = _("Select a server for VM Installation")
+    INSTALL_HERE = _("Install Here")
+    SHUTTING_DOWN = _("Shutting down...")
+    APP_DESCRIPTION = _("A Textual application to manage VMs.")
+    CLI_HELP = _("Run in command-line interpreter mode.")
+    VIRSH_CONSOLE_HELP = _("virsh -c <uri> console <vm_name>; echo '\nConsole session ended. Press Enter to close window.'; read")
+    ENABLE_3D_ACCELERATION = _("3D Acceleration")
+    AUTO_PORT = _("Auto Port")
+    PORT_PLACEHOLDER = _("Port (e.g., 5900)")
+    ENABLE_PASSWORD = _("Enable Password")
+    PASSWORD_PLACEHOLDER = _("Password")
+    DEVICE_PATH_PLACEHOLDER = _("=/dev/tpm0")
+    BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
+    BACKEND_PATH_PLACEHOLDER = _("/dev/tpmrm0")
+    SELECT_VM = _("Select VM")
+    UNCHECKED_MEANS_LEGACY_BOOT = _("Unchecked means legacy boot")
+    SHOW_VM_CONFIGURATION_BEFORE_STARTING = _("Show VM configuration before starting")
+    COPY_ALL_DISK_FILES_DURING_MIGRATION = _("Copy all disk files during migration")
+    PERFORM_UNSAFE_MIGRATION = _("Perform unsafe migration (may lose data)")
+    KEEP_VM_PERSISTENT_ON_DESTINATION = _("Keep VM persistent on destination")
+    COMPRESS_DATA_DURING_MIGRATION = _("Compress data during migration")
+    TUNNEL_MIGRATION_DATA_THROUGH_LIBVIRT = _("Tunnel migration data through libvirt da. ..")
+    USE_CUSTOM_MIGRATION_WORKFLOW = _("Use custom migration workflow")
+
+    PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP = _("Pause the guest filesystem to ensure a c. ..")
+    LEGACY_BOOT_TOOLTIP = _("Enable legacy boot mode.")
+    SHOW_VM_CONFIG_BEFORE_STARTING_TOOLTIP = _("Open the VM configuration dialog before starting the VM.")
+    COPY_ALL_DISK_FILES_TOOLTIP = _("Copy all disk files to the destination server.")
+    PERFORM_UNSAFE_MIGRATION_TOOLTIP = _("Perform migration even if it might be unsafe (e.g., no shared storage).")
+    KEEP_VM_PERSISTENT_ON_DESTINATION_TOOLTIP = _("Ensure the VM remains persistent on the destination server after migration.")
+    COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
+    TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
+    USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
 
 class SparklineLabels:
     """Constants for sparkline labels"""
@@ -769,6 +828,10 @@ class ErrorMessages:
     SANITIZED_DOMAIN_TOO_LONG = _("Sanitized domain name is too long (max 64 characters)")
     VCPU_EXCEEDS_MAX_TEMPLATE = _("vCPU {vcpu_int} exceeds max vCPUs ({max_vcpus})")
     INVALID_CPUSET_SYNTAX_TEMPLATE = _("Invalid cpuset syntax: {cpuset}")
+    LOG_FILE_NOT_FOUND = _("Log file ({log_path}) not found.")
+    ERROR_READING_LOG_FILE = _("Error reading log file: {error}")
+    TERMINAL_HEIGHT_TOO_SMALL = _("Terminal height is too small ({height} lines). Please resize.")
+    TERMINAL_WIDTH_TOO_SMALL = _("Terminal width is too small ({width} columns). Please resize.")
 
 
 class DialogMessages:
@@ -786,6 +849,7 @@ class DialogMessages:
     CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _("Are you sure you want to remove VirtIO-FS mount '{target_path}'?")
     CONFIRM_DISCARD_CHANGES = _("Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone.")
     CONFIRM_MERGE_CHANGES = _("Are you sure you want to merge changes from '{target_disk}' into its backing file?")
+    CONFIRM_BULK_EDIT = _("This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?")
 
 
 class QuickMessages:
@@ -809,6 +873,9 @@ class WarningMessages:
     TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE = _("More than {count} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze.")
     RUNNING_DISK_USAGE_SCAN_WARNING = _("Running disk usage scan, this can freeze the UI for larger numbers of VMs and disks.")
     VIRTIOFS_SHARED_MEM_WARNING = _("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.")
+    VM_START_OVERCOMMIT_MEMORY = _("Memory: {total} MB > {limit} MB")
+    VM_START_OVERCOMMIT_VCPU = _("vCPUs: {total} > {limit}")
+    VM_START_OVERCOMMIT_WARNING = _("Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n{details}")
 
 
 class SuccessMessages:
@@ -914,6 +981,7 @@ class SuccessMessages:
     VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
     VOLUME_CREATED_SUCCESSFULLY_TEMPLATE = _("Volume [b]{name} {size_gb}Gb {format}[/b] created successfully.")
     VOLUME_MOVED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' moved to pool '{dest_pool_name}'.")
+    BULK_ACTION_SUMMARY = _("Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}")
 
 
 class ProgressMessages:

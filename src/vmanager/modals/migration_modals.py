@@ -82,13 +82,13 @@ class MigrationModal(ModalScreen):
 
                 yield Static(StaticText.MIGRATION_OPTIONS)
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox(StaticText.COPY_STORAGE_ALL, id="copy-storage-all", tooltip="Copy all disk files during migration", value=False)
-                    yield Checkbox(StaticText.UNSAFE_MIGRATION, id="unsafe", tooltip="Perform unsafe migration (may lose data)", disabled=not self.is_live)
-                    yield Checkbox(StaticText.PERSISTENT_MIGRATION, id="persistent", tooltip="Keep VM persistent on destination", value=True)
+                    yield Checkbox(StaticText.COPY_STORAGE_ALL, id="copy-storage-all", tooltip=StaticText.COPY_ALL_DISK_FILES_TOOLTIP, value=False)
+                    yield Checkbox(StaticText.UNSAFE_MIGRATION, id="unsafe", tooltip=StaticText.PERFORM_UNSAFE_MIGRATION_TOOLTIP, disabled=not self.is_live)
+                    yield Checkbox(StaticText.PERSISTENT_MIGRATION, id="persistent", tooltip=StaticText.KEEP_VM_PERSISTENT_ON_DESTINATION_TOOLTIP, value=True)
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox(StaticText.COMPRESS_DATA, id="compress", tooltip="Compress data during migration", disabled=not self.is_live)
-                    yield Checkbox(StaticText.TUNNELLED_MIGRATION, id="tunnelled", tooltip="Tunnel migration data through libvirt daemon", disabled=not self.is_live)
-                    yield Checkbox(StaticText.CUSTOM_MIGRATION, id="custom", tooltip="Use custom migration workflow", value=False)
+                    yield Checkbox(StaticText.COMPRESS_DATA, id="compress", tooltip=StaticText.COMPRESS_DATA_DURING_MIGRATION_TOOLTIP, disabled=not self.is_live)
+                    yield Checkbox(StaticText.TUNNELLED_MIGRATION, id="tunnelled", tooltip=StaticText.TUNNEL_MIGRATION_DATA_TOOLTIP, disabled=not self.is_live)
+                    yield Checkbox(StaticText.CUSTOM_MIGRATION, id="custom", tooltip=StaticText.USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP, value=False)
                 yield Static(StaticText.COMPATIBILITY_CHECK_RESULTS)
                 yield ProgressBar(total=100, show_eta=False, id="migration-progress")
                 yield Static(id="results-log")

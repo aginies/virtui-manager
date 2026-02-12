@@ -14,6 +14,12 @@ Virtui Manager uses an asynchronous worker system and metadata caching to preven
 * **Cache Awareness:** Ensure that actions modifying a VM's state invalidate the corresponding cache.
 * **Text:** All text must be put into `constants.py` file for translation, don't hard code text into the phyton code
 
+## Nix Package Support
+This project includes Nix package definitions for easy installation and development. When contributing:
+* Ensure that changes to dependencies are reflected in `nix/default.nix` and `nix/flake.nix`
+* Test that the package builds correctly with `nix build`
+* Test that the development shell works with `nix develop`
+
 ## Impact Analysis
 When submitting a PR, you must explain:
 1.  **Use Case:** What scenario does this fix/add?
