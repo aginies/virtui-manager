@@ -58,6 +58,40 @@ To run it, use **flatpak run** or search for the **VirtUI Manager** app.
 flatpak run io.github.aginies.virtui-manager
 ```
 
+## Nix Package
+
+This project includes Nix package definitions for easy installation and development:
+
+### Building with Nix
+
+To build the package using Nix:
+
+```bash
+nix build
+```
+
+Or to build and run directly:
+
+```bash
+nix run
+```
+
+### Development Shell
+
+To enter a development shell with all dependencies:
+
+```bash
+nix develop
+```
+
+### Using as a Nix Flake
+
+This project can also be used as a Nix flake:
+
+```bash
+nix run github:aginies/virtui-manager
+```
+
 ## Installation Steps from Source Code
 
 ### Devel version: Clone the Repository
