@@ -897,6 +897,9 @@ class TestVMActionsComplete(unittest.TestCase):
         # Import libvirt for state constants
         import libvirt
 
+        # Import the function to test
+        from vmanager.vm_actions import resume_vm
+
         # Test resuming a paused VM
         mock_domain = MagicMock()
         mock_domain.name.return_value = "test-vm"
@@ -905,28 +908,28 @@ class TestVMActionsComplete(unittest.TestCase):
         # Mock the internal ID
         mock_get_internal_id.return_value = "test-id"
 
-        # Import the function to test
-        from vmanager.vm_actions import resume_vm
-
-        # Test that the function can be called without error for paused state
-        try:
-            resume_vm(mock_domain)
-            mock_domain.resume.assert_called_once()
-            self.assertTrue(True)
-        except Exception:
-            self.assertTrue(True)
+        # Call the function and verify behavior
+        resume_vm(mock_domain)
+        mock_domain.resume.assert_called_once()
+        mock_invalidate_cache.assert_called_with("test-id")
 
         # Test resuming a PM suspended VM
         mock_domain2 = MagicMock()
         mock_domain2.name.return_value = "test-vm2"
         mock_domain2.state.return_value = (libvirt.VIR_DOMAIN_PMSUSPENDED, 0)
+        mock_get_internal_id.return_value = "test-id2"
 
-        try:
-            resume_vm(mock_domain2)
-            mock_domain2.pMWakeup.assert_called_once_with(0)
-            self.assertTrue(True)
-        except Exception:
-            self.assertTrue(True)
+        resume_vm(mock_domain2)
+        mock_domain2.pMWakeup.assert_called_once_with(0)
+
+        # Test that it raises an error for a running VM
+        mock_domain3 = MagicMock()
+        mock_domain3.name.return_value = "test-vm3"
+        mock_domain3.state.return_value = (libvirt.VIR_DOMAIN_RUNNING, 0)
+
+        with self.assertRaises(ValueError) as context:
+            resume_vm(mock_domain3)
+        self.assertIn("not paused or suspended", str(context.exception))
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")

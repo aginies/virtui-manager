@@ -1907,7 +1907,7 @@ def resume_vm(domain: libvirt.virDomain):
     elif state == libvirt.VIR_DOMAIN_PMSUSPENDED:
         domain.pMWakeup(0)
     else:
-        raise libvirt.libvirtError(f"VM '{domain.name()}' is not paused or suspended, cannot resume.")
+        raise ValueError(f"VM '{domain.name()}' is not paused or suspended, cannot resume.")
 
     invalidate_cache(get_internal_id(domain))
 
