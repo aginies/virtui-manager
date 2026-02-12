@@ -1792,13 +1792,12 @@ Usage: host_info [server_name]"""
 def main():
     """Entry point for Virtui Manager command-line interface."""
     cmd_app = VManagerCMD()
-    while True:
-        try:
-            cmd_app.cmdloop()
-            break  # Exit loop if cmdloop returns normally (e.g. quit command)
-        except KeyboardInterrupt:
-            print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
-            cmd_app.intro = "" # Avoid re-printing intro on resume
+    try:
+        cmd_app.cmdloop()
+        break  # Exit loop if cmdloop returns normally (e.g. quit command)
+    except KeyboardInterrupt:
+        print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
+        cmd_app.intro = "" # Avoid re-printing intro on resume
 
 if __name__ == '__main__':
     main()
