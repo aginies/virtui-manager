@@ -24,7 +24,7 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
 
     def compose(self):
         yield Vertical(
-            Markdown(StaticText.ARE_YOU_SURE_DELETE_VM.format(vm_name=self.vm_name), id="question"),
+            Markdown(StaticText.DELETE_VM_CONFIRMATION_TEMPLATE.format(vm_name=self.vm_name), id="question"),
             Checkbox(StaticText.DELETE_STORAGE_VOLUMES, id="delete-storage-checkbox", value=True),
             Label(""),
             Horizontal(
@@ -320,9 +320,9 @@ class WebConsoleDialog(BaseDialog[str | None]):
 
     def compose(self):
         yield Vertical(
-            Markdown(StaticText.WEB_CONSOLE_RUNNING_AT),
+            Markdown(StaticText.WEB_CONSOLE_RUNNING_MESSAGE),
             Markdown(self.url),
-            Markdown(StaticText.WESOCKIFY_SINGLE_CONNECTION_NOTE),
+            Markdown(StaticText.WESOCKIFY_SINGLE_CONNECTION_MESSAGE),
             Label(""),
             Horizontal(
                 Button(ButtonLabels.STOP, variant="error", id="stop"),
@@ -345,7 +345,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
         super().__init__()
         self.is_remote = is_remote
         self.config = load_config()
-        self.text_remote = StaticText.RUN_WEB_CONSOLE_REMOTE
+        self.text_remote = StaticText.RUN_WEB_CONSOLE_REMOTE_MESSAGE
 
     def compose(self) -> ComposeResult:
         with Vertical(id="webconsole-config-dialog"):
@@ -353,7 +353,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
 
             if self.is_remote:
                 remote_console_enabled = self.config.get('REMOTE_WEBCONSOLE', False)
-                label_text = self.text_remote if remote_console_enabled else StaticText.RUN_WEB_CONSOLE_LOCAL
+                label_text = self.text_remote if remote_console_enabled else StaticText.RUN_WEB_CONSOLE_LOCAL_MESSAGE
                 yield Markdown(label_text, id="console-location-label")
                 with Vertical():
                     switch_widget = Switch(value=remote_console_enabled, id="remote-console-switch")
@@ -400,7 +400,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             else:
                 switch.remove_class("switch-on")
                 switch.add_class("switch-off")
-                markdown.update(StaticText.RUN_WEB_CONSOLE_LOCAL)
+                markdown.update(StaticText.RUN_WEB_CONSOLE_LOCAL_MESSAGE)
                 remote_opts.display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
