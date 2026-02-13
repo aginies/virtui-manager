@@ -5,7 +5,14 @@ Thank you for your interest in improving Virtui Manager! This project provides a
 ## General Rules
 * **Code Review:** All submissions must be via Pull Request and require manual review by a maintainer.
 * **Testing:** You must test your code against a live libvirt environment.
-* **AI Assistance:** Use of AI asssit is permitted but **must be carefully reviewed**. You are responsible for every line of code submitted. This project is human driven, so we don't do change because an AI assist says that the code could be improved on this area.
+
+## AI Assistance
+
+* Do not post output from Large Language Models or similar generative AI as comments on GitHub or our discourse server, as such comments tend to be formulaic and low content.
+* If you use generative AI tools as an aid in developing code or documentation changes, ensure that you fully understand the proposed changes and can explain why they are the correct approach.
+* Make sure you have added value based on your personal competency to your contributions. Just taking some input, feeding it to an AI and posting the result is not of value to the project. To preserve precious core developer capacity, we reserve the right to rigorously reject seemingly AI generated low-value contributions.
+* It is also strictly forbidden to post AI generated content to issues or PRs via automated tooling such as bots or agents. We may ban such users and/or report them to GitHub.
+* You are responsible for every line of code submitted. This project is human driven, so we don't do change because an AI assist says that the code could be improved in any area.
 
 ## Technical Constraints (Workers, Caching, Text)
 Virtui Manager uses an asynchronous worker system and metadata caching to prevent the UI from freezing.
