@@ -863,9 +863,13 @@ class VManagerCMD(cmd.Cmd):
                     if detail_net:
                         print("  IP Addresses:")
                         for iface in detail_net:
-                            ips = iface.get("ipv4", []) + iface.get("ipv6", [])
+                            ipv4_list = iface.get("ipv4", [])
+                            ipv6_list = iface.get("ipv6", [])
+                            ipv4_count = len(ipv4_list)
+                            ipv6_count = len(ipv6_list)
                             print(
-                                f"    - {iface.get('interface')} (MAC: <redacted>): {', '.join(ips)}"
+                                f"    - <redacted interface> (MAC: <redacted>): "
+                                f"{ipv4_count} IPv4 address(es), {ipv6_count} IPv6 address(es)"
                             )
 
                     print("  Disks:")
