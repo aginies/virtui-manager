@@ -336,7 +336,7 @@ def main():
     class_constants = get_class_constants(CONSTANTS_FILE)
 
     constants_error = check_usages(SEARCH_DIR, class_constants)
-    #i18n_error = check_i18n(SEARCH_DIR)
+    i18n_error = check_i18n(SEARCH_DIR)
     tooltip_error = check_tooltips(SEARCH_DIR, class_constants)
 
     print(f"Excluded: {dont_check_files}")
