@@ -638,6 +638,7 @@ Specify the NUMA nodes to use.
     MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
     
     # Migration filter strings (used for filtering redundant info messages)
+    # Note: These are not translated as they match against English-only internal message content
     FILTER_MANUALLY_VERIFY = "manually verify"
     FILTER_FIREWALLS = "Firewalls"
     FILTER_USER_AND = "user and"
@@ -647,12 +648,12 @@ Specify the NUMA nodes to use.
     STORAGE_POOLS_LABEL = _("Storage Pools")
     NO_AUTOSTART_LABEL = _("no autostart")
     LOADING_VOLUMES = _("Loading volumes...")
-    POOL_UNAVAILABLE_SUFFIX = _("  [unavailable]")
+    POOL_UNAVAILABLE_SUFFIX = _(" [unavailable]")
     POOL_UNAVAILABLE_LABEL = _("Pool unavailable")
     USED_BY_COLUMN = _("Used By")
     NOT_IN_USE = _("Not in use")
-    IN_USE_BY_TEMPLATE = _("  (in use by {vms})")
-    VOLUME_SIZE_TEMPLATE = _("  ({size} GB)")
+    IN_USE_BY_TEMPLATE = _(" (in use by {vms})")
+    VOLUME_SIZE_TEMPLATE = _(" ({size} GB)")
     POOL_NOT_ACTIVE = _("Pool is not active")
     AUTOSTART_OFF = _("Autostart Off")
     AUTOSTART_ON = _("Autostart On")
