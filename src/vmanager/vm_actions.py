@@ -1,6 +1,7 @@
 """
 Module for performing actions and modifications on virtual machines.
 """
+
 import logging
 import os
 import secrets
@@ -47,16 +48,16 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
         logging.info(msg_start)
         if log_callback:
             log_callback(msg_start)
-        name_elem = root.find('name')
+        name_elem = root.find("name")
         if name_elem is not None:
             name_elem.text = new_vm_name
 
-        uuid_elem = root.find('uuid')
+        uuid_elem = root.find("uuid")
         if uuid_elem is not None:
             uuid_elem.text = str(uuid.uuid4())
 
-        for interface in root.findall('.//devices/interface'):
-            mac_elem = interface.find('mac')
+        for interface in root.findall(".//devices/interface"):
+            mac_elem = interface.find("mac")
             if mac_elem is not None:
                 interface.remove(mac_elem)
 
@@ -66,42 +67,48 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             if log_callback:
                 log_callback(msg_skip)
 
-        for disk in root.findall('.//devices/disk'):
-            if disk.get('device') != 'disk':
+        for disk in root.findall(".//devices/disk"):
+            if disk.get("device") != "disk":
                 continue
 
-            source_elem = disk.find('source')
+            source_elem = disk.find("source")
             if source_elem is None:
                 continue
 
             # Skip storage cloning if clone_storage is False
             if not clone_storage:
-                logging.info(f"Keeping original storage reference for disk: {ET.tostring(source_elem, encoding='unicode').strip()}")
+                logging.info(
+                    f"Keeping original storage reference for disk: {ET.tostring(source_elem, encoding='unicode').strip()}"
+                )
                 continue
 
             original_vol = None
             original_pool = None
-            disk_type = disk.get('type')
+            disk_type = disk.get("type")
 
-            if disk_type == 'file':
-                original_disk_path = source_elem.get('file')
+            if disk_type == "file":
+                original_disk_path = source_elem.get("file")
                 if original_disk_path:
                     # Use clone_conn to find volume
                     original_vol, original_pool = _find_vol_by_path(clone_conn, original_disk_path)
-            elif disk_type == 'volume':
-                pool_name = source_elem.get('pool')
-                vol_name = source_elem.get('volume')
+            elif disk_type == "volume":
+                pool_name = source_elem.get("pool")
+                vol_name = source_elem.get("volume")
                 if pool_name and vol_name:
                     try:
                         # Use clone_conn to lookup pool/volume
                         original_pool = clone_conn.storagePoolLookupByName(pool_name)
                         original_vol = original_pool.storageVolLookupByName(vol_name)
                     except libvirt.libvirtError as e:
-                        logging.warning(f"Could not find volume '{vol_name}' in pool '{pool_name}'. Skipping disk clone. Error: {e}")
+                        logging.warning(
+                            f"Could not find volume '{vol_name}' in pool '{pool_name}'. Skipping disk clone. Error: {e}"
+                        )
                         continue
 
             if not original_vol or not original_pool:
-                logging.info(f"Skipping cloning for non-volume disk source: {ET.tostring(source_elem, encoding='unicode').strip()}")
+                logging.info(
+                    f"Skipping cloning for non-volume disk source: {ET.tostring(source_elem, encoding='unicode').strip()}"
+                )
                 continue
 
             original_vol_xml = original_vol.XMLDesc(0)
@@ -117,18 +124,18 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                 vol_name_ext = ".qcow2"
 
             new_vol_name = f"{new_vm_name}_{secrets.token_hex(4)}{vol_name_ext}"
-            vol_root.find('name').text = new_vol_name
+            vol_root.find("name").text = new_vol_name
 
             # Libvirt will handle capacity, allocation, and backing store when cloning.
             # Clear old path/key info for the new volume
-            if vol_root.find('key') is not None:
-                 vol_root.remove(vol_root.find('key'))
-            target_elem = vol_root.find('target')
+            if vol_root.find("key") is not None:
+                vol_root.remove(vol_root.find("key"))
+            target_elem = vol_root.find("target")
             if target_elem is not None:
-                if target_elem.find('path') is not None:
-                    target_elem.remove(target_elem.find('path'))
+                if target_elem.find("path") is not None:
+                    target_elem.remove(target_elem.find("path"))
 
-            new_vol_xml = ET.tostring(vol_root, encoding='unicode')
+            new_vol_xml = ET.tostring(vol_root, encoding="unicode")
 
             # Clone the volume using libvirt's storage pool API
             try:
@@ -139,15 +146,17 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                 # Flag 0 indicates a full (deep) clone
                 new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
             except libvirt.libvirtError as e:
-                raise libvirt.libvirtError(f"Failed to perform a full clone of volume '{original_vol.name()}': {e}")
+                raise libvirt.libvirtError(
+                    f"Failed to perform a full clone of volume '{original_vol.name()}': {e}"
+                )
 
-            disk.set('type', 'volume')
-            if 'file' in source_elem.attrib:
-                del source_elem.attrib['file']
-            source_elem.set('pool', original_pool.name())
-            source_elem.set('volume', new_vol.name())
+            disk.set("type", "volume")
+            if "file" in source_elem.attrib:
+                del source_elem.attrib["file"]
+            source_elem.set("pool", original_pool.name())
+            source_elem.set("volume", new_vol.name())
 
-        new_xml = ET.tostring(root, encoding='unicode')
+        new_xml = ET.tostring(root, encoding="unicode")
         msg_end = "Defining the VM..."
         logging.info(msg_end)
         if log_callback:
@@ -165,6 +174,7 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
     # that is bound to the connection expected by the caller.
     new_vm = conn.lookupByUUIDString(new_vm_uuid)
     return new_vm
+
 
 def rename_vm(domain, new_name, delete_snapshots=False):
     """
@@ -196,10 +206,10 @@ def rename_vm(domain, new_name, delete_snapshots=False):
             try:
                 snapshots = get_vm_snapshots(domain)
                 # Sort by creation time to ensure parentage is respected
-                snapshots.sort(key=lambda x: x.get('creation_time', 0))
+                snapshots.sort(key=lambda x: x.get("creation_time", 0))
 
                 for snap in snapshots:
-                    snap_obj = snap['snapshot_object']
+                    snap_obj = snap["snapshot_object"]
                     # Get the XML with security info
                     xml = snap_obj.getXMLDesc(libvirt.VIR_DOMAIN_SNAPSHOT_XML_SECURE)
                     snapshot_xmls.append(xml)
@@ -215,7 +225,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         # "domain not found" is the expected error if the name is available.
         # We check the error code to be sure, as the error message string
         if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-            raise # Re-raise other libvirt errors.
+            raise  # Re-raise other libvirt errors.
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
@@ -237,26 +247,29 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                 if vol and pool:
                     old_nvram_vol = vol
                     _, ext = os.path.splitext(vol.name())
-                    if not ext: ext = ".fd"
+                    if not ext:
+                        ext = ".fd"
                     new_vol_name = f"{new_name}_VARS{ext}"
                     # Check if new volume name already exists
                     try:
                         pool.storageVolLookupByName(new_vol_name)
-                        logging.warning(f"Target NVRAM volume {new_vol_name} already exists. Will use it.")
+                        logging.warning(
+                            f"Target NVRAM volume {new_vol_name} already exists. Will use it."
+                        )
                     except libvirt.libvirtError:
                         # Clone old volume to new name
                         vol_xml_desc = vol.XMLDesc(0)
                         vol_root = ET.fromstring(vol_xml_desc)
-                        vol_root.find('name').text = new_vol_name
+                        vol_root.find("name").text = new_vol_name
 
                         # Clear keys/paths
-                        if vol_root.find('key') is not None:
-                            vol_root.remove(vol_root.find('key'))
-                        target = vol_root.find('target')
-                        if target is not None and target.find('path') is not None:
-                            target.remove(target.find('path'))
+                        if vol_root.find("key") is not None:
+                            vol_root.remove(vol_root.find("key"))
+                        target = vol_root.find("target")
+                        if target is not None and target.find("path") is not None:
+                            target.remove(target.find("path"))
 
-                        new_vol_xml = ET.tostring(vol_root, encoding='unicode')
+                        new_vol_xml = ET.tostring(vol_root, encoding="unicode")
                         pool.createXMLFrom(new_vol_xml, vol, 0)
                         logging.info(f"Cloned NVRAM to {new_vol_name}")
 
@@ -279,14 +292,14 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         try:
             undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_KEEP_NVRAM
         except AttributeError:
-            pass # older libvirt
+            pass  # older libvirt
 
     if snapshot_xmls:
         # Also undefine snapshot metadata. They will be recreated for the new domain.
         try:
             undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
         except AttributeError:
-            pass # older libvirt
+            pass  # older libvirt
 
     try:
         # Undefine the domain. Using undefineFlags if necessary.
@@ -300,21 +313,23 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         domain.undefine()
     except libvirt.libvirtError as e:
         # If undefine failed, re-raise with a more informative message.
-        if "does not support flags" in str(e): # another older libvirt case
+        if "does not support flags" in str(e):  # another older libvirt case
             domain.undefine()
         else:
-            raise libvirt.libvirtError(f"Failed to undefine domain '{domain.name()}' during rename: {e}")
+            raise libvirt.libvirtError(
+                f"Failed to undefine domain '{domain.name()}' during rename: {e}"
+            )
 
     try:
         # Modify XML with new name
         # We already modified root if NVRAM changed
-        name_elem = root.find('name')
+        name_elem = root.find("name")
         if name_elem is None:
             msg = "Could not find name element in VM XML."
             logging.error(msg)
             raise Exception(msg)
         name_elem.text = new_name
-        new_xml = ET.tostring(root, encoding='unicode')
+        new_xml = ET.tostring(root, encoding="unicode")
 
         # Define the new domain from the modified XML
         conn.defineXML(new_xml)
@@ -345,7 +360,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                             # We didn't change the UUID in the main XML, so it should be fine.
                             pass
 
-                    updated_snap_xml = ET.tostring(snap_root, encoding='unicode')
+                    updated_snap_xml = ET.tostring(snap_root, encoding="unicode")
 
                     # Re-create snapshot for the new domain
                     new_domain.snapshotCreateXML(updated_snap_xml, 0)
@@ -373,7 +388,15 @@ def rename_vm(domain, new_name, delete_snapshots=False):
         raise Exception(msg) from e
 
 
-def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, size_gb=10, disk_format='qcow2'):
+def add_disk(
+    domain,
+    disk_path,
+    device_type="disk",
+    bus="virtio",
+    create=False,
+    size_gb=10,
+    disk_format="qcow2",
+):
     """
     Adds a disk to a VM. Can optionally create a new disk image in a libvirt storage pool.
     device_type can be 'disk' or 'cdrom'
@@ -391,41 +414,43 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
 
     def count_disks_on_bus(bus_name):
         c = 0
-        for d in root.findall('.//disk'):
-            target = d.find('target')
-            if target is not None and target.get('bus') == bus_name:
+        for d in root.findall(".//disk"):
+            target = d.find("target")
+            if target is not None and target.get("bus") == bus_name:
                 c += 1
         return c
 
-    if bus == 'virtio':
-        prefix = 'vd'
+    if bus == "virtio":
+        prefix = "vd"
         # Count virtio disks to determine the next index (e.g., if 1 exists, next is 'b')
-        next_index = count_disks_on_bus('virtio')
-    elif bus == 'ide':
-        prefix = 'hd'
-        next_index = count_disks_on_bus('ide')
-    elif bus in ['sata', 'scsi', 'usb']:
-        prefix = 'sd'
+        next_index = count_disks_on_bus("virtio")
+    elif bus == "ide":
+        prefix = "hd"
+        next_index = count_disks_on_bus("ide")
+    elif bus in ["sata", "scsi", "usb"]:
+        prefix = "sd"
         # SATA, SCSI, USB, etc., share the 'sd' prefix namespace
-        next_index = count_disks_on_bus('sata') + count_disks_on_bus('scsi') + count_disks_on_bus('usb')
+        next_index = (
+            count_disks_on_bus("sata") + count_disks_on_bus("scsi") + count_disks_on_bus("usb")
+        )
     else:
         # Fallback for unknown bus types
-        prefix = 'sd'
-        next_index = 0 # Cannot reliably count, start with 'a'
+        prefix = "sd"
+        next_index = 0  # Cannot reliably count, start with 'a'
 
     all_used_devs = {t.get("dev") for t in root.findall(".//disk/target") if t.get("dev")}
 
     # Generate device names like 'vda', 'vdb', ..., 'vdz', 'vdaa', 'vdab'
     while True:
         if next_index < 26:
-            suffix = chr(ord('a') + next_index)
+            suffix = chr(ord("a") + next_index)
         else:
             # From 26 onwards, use two letters: aa, ab, ...
             major_index = (next_index - 26) // 26
             minor_index = (next_index - 26) % 26
-            if major_index < 26: # Supports up to 'za' (701 devices)
+            if major_index < 26:  # Supports up to 'za' (701 devices)
                 suffix = f"{chr(ord('a') + major_index)}{chr(ord('a') + minor_index)}"
-            else: # Should be more than enough
+            else:  # Should be more than enough
                 raise Exception("Exceeded maximum number of supported disk devices.")
 
         target_dev = f"{prefix}{suffix}"
@@ -444,7 +469,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
     disk_xml = ""
 
     if create:
-        if device_type != 'disk':
+        if device_type != "disk":
             msg = "Cannot create non-disk device types."
             logging.error(msg)
             raise Exception(msg)
@@ -472,7 +497,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                     try:
                         p_xml = p.XMLDesc(0)
                         p_root = ET.fromstring(p_xml)
-                        pool_type = p_root.get('type', 'unknown')
+                        pool_type = p_root.get("type", "unknown")
                         target_path = p_root.findtext("target/path")
                         info = f"{p.name()} ({pool_type})"
                         if target_path:
@@ -482,9 +507,11 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                         active_pools_info.append(f"{p.name()} (no XML)")
 
             pools_list = ", ".join(active_pools_info) if active_pools_info else "none"
-            msg = (f"No dir-based pool found for '{os.path.dirname(disk_path)}'. "
-                   f"Available active pools: {pools_list}. "
-                   f"Use existing volume path or dir-based pool directory.")
+            msg = (
+                f"No dir-based pool found for '{os.path.dirname(disk_path)}'. "
+                f"Available active pools: {pools_list}. "
+                f"Use existing volume path or dir-based pool directory."
+            )
             logging.error(msg)
             raise Exception(msg) from None
 
@@ -524,7 +551,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
         </disk>
         """
     else:  # not creating, just attaching
-        if device_type == 'cdrom':
+        if device_type == "cdrom":
             disk_xml = f"""
             <disk type='file' device='cdrom'>
                 <driver name='qemu' type='raw'/>
@@ -542,13 +569,13 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
                     vol_root = ET.fromstring(vol_xml_str)
                     format_elem = vol_root.find("target/format")
                     if format_elem is not None:
-                        vol_format = format_elem.get('type')
+                        vol_format = format_elem.get("type")
                 except (libvirt.libvirtError, ET.ParseError):
-                    pass # use default disk_format
+                    pass  # use default disk_format
 
             # QEMU does not support 'iso' as a driver type for disks, use 'raw' instead
-            if vol_format == 'iso':
-                vol_format = 'raw'
+            if vol_format == "iso":
+                vol_format = "raw"
 
             disk_xml = f"""
             <disk type='file' device='disk'>
@@ -569,6 +596,7 @@ def add_disk(domain, disk_path, device_type='disk', bus='virtio', create=False, 
 
     domain.attachDeviceFlags(disk_xml, flags)
     return target_dev
+
 
 def remove_disk(domain, disk_dev_path):
     """
@@ -662,16 +690,16 @@ def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         raise ValueError("Could not find <devices> in VM XML.")
 
     virtiofs_to_remove = None
     for fs_elem in devices.findall("./filesystem[@type='mount']"):
-        driver = fs_elem.find('driver')
-        target = fs_elem.find('target')
-        if driver is not None and driver.get('type') == 'virtiofs' and target is not None:
-            if target.get('dir') == target_dir:
+        driver = fs_elem.find("driver")
+        target = fs_elem.find("target")
+        if driver is not None and driver.get("type") == "virtiofs" and target is not None:
+            if target.get("dir") == target_dir:
                 virtiofs_to_remove = fs_elem
                 break
 
@@ -680,10 +708,11 @@ def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
 
     devices.remove(virtiofs_to_remove)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
 
     conn = domain.connect()
     conn.defineXML(new_xml)
+
 
 def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, readonly: bool):
     """
@@ -700,9 +729,9 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
     # Create the new virtiofs XML element
     fs_elem = ET.SubElement(devices, "filesystem", type="mount", accessmode="passthrough")
@@ -715,7 +744,7 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
         ET.SubElement(fs_elem, "readonly")
 
     # Redefine the VM with the updated XML
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
 
     conn = domain.connect()
     conn.defineXML(new_xml)
@@ -740,6 +769,7 @@ def add_network_interface(domain: libvirt.virDomain, network: str, model: str):
 
     domain.attachDeviceFlags(interface_xml, flags)
 
+
 def remove_network_interface(domain: libvirt.virDomain, mac_address: str):
     """Removes a network interface from a VM."""
     if not domain:
@@ -759,7 +789,7 @@ def remove_network_interface(domain: libvirt.virDomain, mac_address: str):
     if interface_to_remove is None:
         raise ValueError(f"Interface with MAC {mac_address} not found.")
 
-    interface_xml = ET.tostring(interface_to_remove, 'unicode')
+    interface_xml = ET.tostring(interface_to_remove, "unicode")
 
     flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
     if domain.isActive():
@@ -768,7 +798,9 @@ def remove_network_interface(domain: libvirt.virDomain, mac_address: str):
     domain.detachDeviceFlags(interface_xml, flags)
 
 
-def change_vm_network(domain: libvirt.virDomain, mac_address: str, new_network: str, new_model: str = None):
+def change_vm_network(
+    domain: libvirt.virDomain, mac_address: str, new_network: str, new_model: str = None
+):
     """Changes the network for a VM's network interface."""
     invalidate_cache(get_internal_id(domain))
     xml_desc = domain.XMLDesc(0)
@@ -793,14 +825,16 @@ def change_vm_network(domain: libvirt.virDomain, mac_address: str, new_network: 
         model_node = ET.SubElement(interface_to_update, "model")
 
     # Check if network is already the same
-    if source_node.get("network") == new_network and (new_model is None or model_node.get("type") == new_model):
-        return # Nothing to do
+    if source_node.get("network") == new_network and (
+        new_model is None or model_node.get("type") == new_model
+    ):
+        return  # Nothing to do
 
     source_node.set("network", new_network)
     if new_model:
         model_node.set("type", new_model)
 
-    interface_xml = ET.tostring(interface_to_update, 'unicode')
+    interface_xml = ET.tostring(interface_to_update, "unicode")
 
     state = domain.info()[0]
     flags = libvirt.VIR_DOMAIN_DEVICE_MODIFY_CONFIG
@@ -820,18 +854,18 @@ def disable_disk(domain, disk_path):
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         raise ValueError("Could not find <devices> in VM XML.")
 
     disk_to_disable = None
-    for disk in devices.findall('disk'):
-        source = disk.find('source')
+    for disk in devices.findall("disk"):
+        source = disk.find("source")
         path = None
-        if source is not None and 'file' in source.attrib:
-            path = source.attrib['file']
-        elif source is not None and 'dev' in source.attrib:
-            path = source.attrib['dev']
+        if source is not None and "file" in source.attrib:
+            path = source.attrib["file"]
+        elif source is not None and "dev" in source.attrib:
+            path = source.attrib["dev"]
 
         if path == disk_path:
             disk_to_disable = disk
@@ -845,8 +879,9 @@ def disable_disk(domain, disk_path):
     disabled_disks_elem = _get_disabled_disks_elem(root)
     disabled_disks_elem.append(disk_to_disable)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     conn.defineXML(new_xml)
+
 
 def enable_disk(domain, disk_path):
     """Enables a disk by moving it from metadata back to devices."""
@@ -861,13 +896,13 @@ def enable_disk(domain, disk_path):
     disabled_disks_elem = _get_disabled_disks_elem(root)
 
     disk_to_enable = None
-    for disk in disabled_disks_elem.findall('disk'):
-        source = disk.find('source')
+    for disk in disabled_disks_elem.findall("disk"):
+        source = disk.find("source")
         path = None
-        if source is not None and 'file' in source.attrib:
-            path = source.attrib['file']
-        elif source is not None and 'dev' in source.attrib:
-            path = source.attrib['dev']
+        if source is not None and "file" in source.attrib:
+            path = source.attrib["file"]
+        elif source is not None and "dev" in source.attrib:
+            path = source.attrib["dev"]
 
         if path == disk_path:
             disk_to_enable = disk
@@ -878,13 +913,14 @@ def enable_disk(domain, disk_path):
 
     disabled_disks_elem.remove(disk_to_enable)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
     devices.append(disk_to_enable)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     conn.defineXML(new_xml)
+
 
 def set_vcpu(domain, vcpu_count: int):
     """
@@ -901,12 +937,12 @@ def set_vcpu(domain, vcpu_count: int):
     xml_desc = domain.XMLDesc(xml_flags)
     root = ET.fromstring(xml_desc)
 
-    vcpu_elem = root.find('vcpu')
+    vcpu_elem = root.find("vcpu")
     if vcpu_elem is None:
-        vcpu_elem = ET.SubElement(root, 'vcpu')
+        vcpu_elem = ET.SubElement(root, "vcpu")
 
     vcpu_elem.text = str(vcpu_count)
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
 
     conn.defineXML(new_xml)
 
@@ -921,6 +957,7 @@ def set_vcpu(domain, vcpu_count: int):
                 f"Live vCPU update failed: {e}. "
                 "The configuration has been saved and will apply on the next reboot."
             )
+
 
 def set_memory(domain, memory_mb: int):
     """
@@ -939,20 +976,20 @@ def set_memory(domain, memory_mb: int):
     root = ET.fromstring(xml_desc)
 
     # Update max memory
-    memory_elem = root.find('memory')
+    memory_elem = root.find("memory")
     if memory_elem is None:
-        memory_elem = ET.SubElement(root, 'memory')
+        memory_elem = ET.SubElement(root, "memory")
     memory_elem.text = str(memory_kb)
-    memory_elem.set('unit', 'KiB')
+    memory_elem.set("unit", "KiB")
 
     # Update current memory
-    current_memory_elem = root.find('currentMemory')
+    current_memory_elem = root.find("currentMemory")
     if current_memory_elem is None:
-        current_memory_elem = ET.SubElement(root, 'currentMemory')
+        current_memory_elem = ET.SubElement(root, "currentMemory")
     current_memory_elem.text = str(memory_kb)
-    current_memory_elem.set('unit', 'KiB')
+    current_memory_elem.set("unit", "KiB")
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
 
     # Update the persistent definition of the VM.
     conn.defineXML(new_xml)
@@ -968,6 +1005,7 @@ def set_memory(domain, memory_mb: int):
                 f"Live memory update failed: {e}. "
                 "The configuration has been saved and will apply on the next reboot."
             )
+
 
 @log_function_call
 def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: dict):
@@ -1016,10 +1054,10 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
                 else:
                     driver.set(key, value)
 
-            if 'bus' in properties:
+            if "bus" in properties:
                 target = disk.find("target")
                 if target is not None:
-                    target.set('bus', properties['bus'])
+                    target.set("bus", properties["bus"])
 
             disk_found = True
             break
@@ -1027,8 +1065,9 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
     if not disk_found:
         raise ValueError(f"Disk with path '{disk_path}' not found.")
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     conn.defineXML(new_xml)
+
 
 def set_machine_type(domain, new_machine_type):
     """
@@ -1051,18 +1090,18 @@ def set_machine_type(domain, new_machine_type):
         logging.error(msg)
         raise Exception(msg)
 
-    current_machine_type = type_elem.get('machine', '')
+    current_machine_type = type_elem.get("machine", "")
 
     # Do nothing if machine type is not actually changing
     if current_machine_type == new_machine_type:
         return
 
-    type_elem.set('machine', new_machine_type)
+    type_elem.set("machine", new_machine_type)
 
-    current_family = '-'.join(current_machine_type.split('-')[:2])
-    new_family = '-'.join(new_machine_type.split('-')[:2])
+    current_family = "-".join(current_machine_type.split("-")[:2])
+    new_family = "-".join(new_machine_type.split("-")[:2])
 
-    new_xml_desc = ET.tostring(root, encoding='unicode')
+    new_xml_desc = ET.tostring(root, encoding="unicode")
     conn = domain.connect()
     conn.defineXML(new_xml_desc)
 
@@ -1084,28 +1123,28 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
     conn = domain.connect()
     original_vm_name = domain.name()
     original_xml_desc = domain.XMLDesc(0)
-    temp_xml_desc = "" # Initialize to prevent UnboundLocalError
+    temp_xml_desc = ""  # Initialize to prevent UnboundLocalError
 
     # Prepare XML for the new VM
     root = ET.fromstring(original_xml_desc)
 
     # Generate a temporary new name for the VM
     temp_vm_name = f"{original_vm_name}-MIGRATE-TEMP"
-    name_elem = root.find('name')
+    name_elem = root.find("name")
     if name_elem is not None:
         name_elem.text = temp_vm_name
     else:
         raise Exception("VM XML is missing the 'name' element.")
 
     # Generate a new UUID for the temporary VM to avoid conflicts
-    uuid_elem = root.find('uuid')
+    uuid_elem = root.find("uuid")
     if uuid_elem is not None:
         uuid_elem.text = str(uuid.uuid4())
     else:
-        ET.SubElement(root, 'uuid').text = str(uuid.uuid4())
+        ET.SubElement(root, "uuid").text = str(uuid.uuid4())
 
     # Remove all PCI devices and Watchdog, and chipset-dependent controllers as per `set_machine_type` logic
-    devices_elem = root.find('devices')
+    devices_elem = root.find("devices")
     if devices_elem is not None:
         # Remove all PCI and USB addresses from all devices
         for device in list(devices_elem):
@@ -1119,9 +1158,9 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
 
         # Remove all chipset-dependent controllers (PCI, IDE, SATA, USB)
         controllers_to_remove = []
-        for controller in devices_elem.findall('controller'):
-            ctype = controller.get('type')
-            if ctype in ['pci', 'ide', 'sata', 'usb']:
+        for controller in devices_elem.findall("controller"):
+            ctype = controller.get("type")
+            if ctype in ["pci", "ide", "sata", "usb"]:
                 controllers_to_remove.append(controller)
 
         for controller in controllers_to_remove:
@@ -1137,22 +1176,24 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
     if type_elem is None:
         raise Exception("Could not find OS type element in VM XML.")
 
-    current_machine_type = type_elem.get('machine', '')
+    current_machine_type = type_elem.get("machine", "")
     if current_machine_type == new_machine_type:
         if log_callback:
             log_callback(f"Machine type is already {new_machine_type}. No migration needed.")
         return
 
     # Set the new machine type
-    type_elem.set('machine', new_machine_type)
-    temp_xml_desc = ET.tostring(root, encoding='unicode')
+    type_elem.set("machine", new_machine_type)
+    temp_xml_desc = ET.tostring(root, encoding="unicode")
 
     # Validate the XML config with libvirt (by defining transient)
     temp_vm = None
     try:
         temp_vm = conn.defineXML(temp_xml_desc)
         if temp_vm is None:
-            raise libvirt.libvirtError(f"Failed to define new VM '{temp_vm_name}'. XML was:\n{temp_xml_desc}")
+            raise libvirt.libvirtError(
+                f"Failed to define new VM '{temp_vm_name}'. XML was:\n{temp_xml_desc}"
+            )
         domain.undefine()
         rename_vm(temp_vm, original_vm_name)
 
@@ -1171,8 +1212,12 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
             conn.defineXML(original_xml_desc)
             logging.info(f"Original VM '{original_vm_name}' restored after migration failure.")
         except libvirt.libvirtError as restore_e:
-            logging.critical(f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}")
-            error_msg += "\nCRITICAL: Original VM could not be restored. Manual intervention required."
+            logging.critical(
+                f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}"
+            )
+            error_msg += (
+                "\nCRITICAL: Original VM could not be restored. Manual intervention required."
+            )
         raise libvirt.libvirtError(error_msg)
     except Exception as e:
         error_msg = f"Unexpected error during machine type migration for '{original_vm_name}': {e}"
@@ -1187,11 +1232,17 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
             conn.defineXML(original_xml_desc)
             logging.info(f"Original VM '{original_vm_name}' restored after migration failure.")
         except libvirt.libvirtError as restore_e:
-            logging.critical(f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}")
-            error_msg += "\nCRITICAL: Original VM could not be restored. Manual intervention required."
+            logging.critical(
+                f"CRITICAL ERROR: Failed to restore original VM '{original_vm_name}' after migration failure: {restore_e}"
+            )
+            error_msg += (
+                "\nCRITICAL: Original VM could not be restored. Manual intervention required."
+            )
         raise Exception(error_msg)
     finally:
-        invalidate_cache(get_internal_id(domain)) # Invalidate original VM cache in case it was renamed or recreated
+        invalidate_cache(
+            get_internal_id(domain)
+        )  # Invalidate original VM cache in case it was renamed or recreated
 
 
 def set_shared_memory(domain: libvirt.virDomain, enable: bool):
@@ -1203,41 +1254,42 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
     xml_content = domain.XMLDesc(0)
     root = ET.fromstring(xml_content)
 
-    memory_backing = root.find('memoryBacking')
+    memory_backing = root.find("memoryBacking")
 
     if enable:
         if memory_backing is None:
-            memory_backing = ET.SubElement(root, 'memoryBacking')
+            memory_backing = ET.SubElement(root, "memoryBacking")
 
         # Ensure no conflicting access mode is set
-        access_elem = memory_backing.find('access')
-        if access_elem is not None and access_elem.get('mode') != 'shared':
+        access_elem = memory_backing.find("access")
+        if access_elem is not None and access_elem.get("mode") != "shared":
             memory_backing.remove(access_elem)
-            access_elem = None # It's gone
+            access_elem = None  # It's gone
 
         # Add it if it doesn't exist
         if access_elem is None:
-            ET.SubElement(memory_backing, 'access', mode='shared')
+            ET.SubElement(memory_backing, "access", mode="shared")
 
     else:  # disable
         if memory_backing is not None:
             # Remove both possible shared memory indicators
-            shared_elem = memory_backing.find('shared')
+            shared_elem = memory_backing.find("shared")
             if shared_elem is not None:
                 memory_backing.remove(shared_elem)
 
-            access_elem = memory_backing.find('access')
-            if access_elem is not None and access_elem.get('mode') == 'shared':
+            access_elem = memory_backing.find("access")
+            if access_elem is not None and access_elem.get("mode") == "shared":
                 memory_backing.remove(access_elem)
 
             # If memoryBacking is now empty, and has no attributes, remove it.
             if not list(memory_backing) and not memory_backing.attrib:
                 root.remove(memory_backing)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
 
     conn = domain.connect()
     conn.defineXML(new_xml)
+
 
 @log_function_call
 def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str]):
@@ -1249,34 +1301,34 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
     conn = domain.connect()
-    os_elem = root.find('.//os')
+    os_elem = root.find(".//os")
     if os_elem is None:
-        os_elem = ET.SubElement(root, 'os')
+        os_elem = ET.SubElement(root, "os")
 
     # Remove old <boot> elements under <os>
-    for boot_elem in os_elem.findall('boot'):
+    for boot_elem in os_elem.findall("boot"):
         os_elem.remove(boot_elem)
 
     # Remove old <boot> elements under devices
-    for dev_node in root.findall('.//devices/*[boot]'):
-        boot_elem = dev_node.find('boot')
+    for dev_node in root.findall(".//devices/*[boot]"):
+        boot_elem = dev_node.find("boot")
         if boot_elem is not None:
             dev_node.remove(boot_elem)
 
     # Set boot menu
-    boot_menu_elem = os_elem.find('bootmenu')
+    boot_menu_elem = os_elem.find("bootmenu")
     if boot_menu_elem is not None:
         os_elem.remove(boot_menu_elem)
     if menu_enabled:
-        ET.SubElement(os_elem, 'bootmenu', enable='yes')
+        ET.SubElement(os_elem, "bootmenu", enable="yes")
 
     # Set new boot order
     for i, device_id in enumerate(order, 1):
         # Find the device and add a <boot order='...'> element
         # Check disks first
         disk_found = False
-        for disk_elem in root.findall('.//devices/disk'):
-            source_elem = disk_elem.find('source')
+        for disk_elem in root.findall(".//devices/disk"):
+            source_elem = disk_elem.find("source")
             if source_elem is not None:
                 path = None
                 if "file" in source_elem.attrib:
@@ -1291,25 +1343,26 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
                         vol = pool.storageVolLookupByName(vol_name)
                         path = vol.path()
                     except libvirt.libvirtError:
-                        pass # Could not resolve path, so it cannot match device_id
+                        pass  # Could not resolve path, so it cannot match device_id
 
                 if path == device_id:
-                    ET.SubElement(disk_elem, 'boot', order=str(i))
+                    ET.SubElement(disk_elem, "boot", order=str(i))
                     disk_found = True
                     break
         if disk_found:
             continue
 
         # Check interfaces
-        for iface_elem in root.findall('.//devices/interface'):
-            mac_elem = iface_elem.find('mac')
-            if mac_elem is not None and mac_elem.get('address') == device_id:
-                ET.SubElement(iface_elem, 'boot', order=str(i))
+        for iface_elem in root.findall(".//devices/interface"):
+            mac_elem = iface_elem.find("mac")
+            if mac_elem is not None and mac_elem.get("address") == device_id:
+                ET.SubElement(iface_elem, "boot", order=str(i))
                 break
 
     # Update the domain
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     conn.defineXML(new_xml)
+
 
 def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bool | None = None):
     """Sets the video model and 3D acceleration for a VM."""
@@ -1320,56 +1373,56 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        if model is None or model == 'none':
-            return # No devices and no model to set, so nothing to do.
-        devices = ET.SubElement(root, 'devices')
+        if model is None or model == "none":
+            return  # No devices and no model to set, so nothing to do.
+        devices = ET.SubElement(root, "devices")
 
-    video = devices.find('video')
+    video = devices.find("video")
 
     # If model is being set to none, remove the entire video tag.
-    if model is None or model == 'none':
+    if model is None or model == "none":
         if video is not None:
             devices.remove(video)
-        new_xml = ET.tostring(root, encoding='unicode')
+        new_xml = ET.tostring(root, encoding="unicode")
         domain.connect().defineXML(new_xml)
         return
 
     if video is None:
-        video = ET.SubElement(devices, 'video')
+        video = ET.SubElement(devices, "video")
 
-    model_elem = video.find('model')
+    model_elem = video.find("model")
     if model_elem is None:
-        model_elem = ET.SubElement(video, 'model')
+        model_elem = ET.SubElement(video, "model")
 
     # Check for existing acceleration before clearing (correct location)
     existing_accel = False
-    existing_accel_node = model_elem.find('acceleration')
-    if existing_accel_node is not None and existing_accel_node.get('accel3d') == 'yes':
+    existing_accel_node = model_elem.find("acceleration")
+    if existing_accel_node is not None and existing_accel_node.get("accel3d") == "yes":
         existing_accel = True
 
     old_attribs = model_elem.attrib.copy()
     model_elem.clear()
-    model_elem.set('type', model)
+    model_elem.set("type", model)
 
-    if model == 'virtio':
-        model_elem.set('heads', old_attribs.get('heads', '1'))
-        model_elem.set('primary', old_attribs.get('primary', 'yes'))
-    elif model == 'qxl':
-        model_elem.set('vram', old_attribs.get('vram', '65536'))
-        model_elem.set('ram', old_attribs.get('ram', '65536'))
+    if model == "virtio":
+        model_elem.set("heads", old_attribs.get("heads", "1"))
+        model_elem.set("primary", old_attribs.get("primary", "yes"))
+    elif model == "qxl":
+        model_elem.set("vram", old_attribs.get("vram", "65536"))
+        model_elem.set("ram", old_attribs.get("ram", "65536"))
     else:  # vga, cirrus etc.
-        model_elem.set('vram', old_attribs.get('vram', '16384'))
+        model_elem.set("vram", old_attribs.get("vram", "16384"))
 
     # Handle 3D acceleration
     final_accel = accel3d if accel3d is not None else existing_accel
 
-    if model in ['virtio', 'qxl'] and final_accel:
-        accel_elem = ET.SubElement(model_elem, 'acceleration')
-        accel_elem.set('accel3d', 'yes')
+    if model in ["virtio", "qxl"] and final_accel:
+        accel_elem = ET.SubElement(model_elem, "acceleration")
+        accel_elem.set("accel3d", "yes")
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
@@ -1383,37 +1436,42 @@ def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
     root = ET.fromstring(xml_desc)
 
     # Remove existing cpu element to rebuild it
-    cpu = root.find('.//cpu')
+    cpu = root.find(".//cpu")
     if cpu is not None:
         root.remove(cpu)
 
-    if cpu_model == 'default':
+    if cpu_model == "default":
         # Default usually means no specific CPU config, or let libvirt decide.
         pass
     else:
-        cpu = ET.SubElement(root, 'cpu')
+        cpu = ET.SubElement(root, "cpu")
 
-        if cpu_model == 'host-passthrough':
-            cpu.set('mode', 'host-passthrough')
-        elif cpu_model == 'host-model':
-            cpu.set('mode', 'host-model')
+        if cpu_model == "host-passthrough":
+            cpu.set("mode", "host-passthrough")
+        elif cpu_model == "host-model":
+            cpu.set("mode", "host-model")
         else:
             # Assume custom model
-            cpu.set('mode', 'custom')
-            cpu.set('match', 'exact')
-            cpu.set('check', 'none')
-            model_elem = ET.SubElement(cpu, 'model')
-            model_elem.set('fallback', 'allow')
+            cpu.set("mode", "custom")
+            cpu.set("match", "exact")
+            cpu.set("check", "none")
+            model_elem = ET.SubElement(cpu, "model")
+            model_elem.set("fallback", "allow")
             model_elem.text = cpu_model
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
+
 
 @log_function_call
 def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot: bool):
     """
     Sets the UEFI file for a VM and optionally enables/disables secure boot.
     The VM must be stopped.
+
+    Note: Removes both the firmware attribute and the firmware element to allow libvirt to
+    auto-select based on the loader path. This is necessary to avoid the
+    "Unable to find 'efi' firmware that is compatible" error.
     """
     invalidate_cache(get_internal_id(domain))
     if domain.isActive():
@@ -1422,46 +1480,48 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    os_elem = root.find('os')
+    os_elem = root.find("os")
     if os_elem is None:
         raise ValueError("Could not find <os> element in VM XML.")
 
+    # Always remove firmware attribute to allow libvirt auto-selection
+    if "firmware" in os_elem.attrib:
+        del os_elem.attrib["firmware"]
+
+    # Always remove the firmware element (contains feature specifications)
+    # to allow libvirt to auto-select the appropriate firmware
+    firmware_feature_elem = os_elem.find("firmware")
+    if firmware_feature_elem is not None:
+        os_elem.remove(firmware_feature_elem)
+
+    # Remove current loader and nvram
+    loader_elem = os_elem.find("loader")
+    if loader_elem is not None:
+        os_elem.remove(loader_elem)
+
+    nvram_elem = os_elem.find("nvram")
+    if nvram_elem is not None:
+        os_elem.remove(nvram_elem)
+
     if not uefi_path:  # Switching to BIOS
-        if 'firmware' in os_elem.attrib:
-            del os_elem.attrib['firmware']
-
-        firmware_feature_elem = os_elem.find('firmware')
-        if firmware_feature_elem is not None:
-            os_elem.remove(firmware_feature_elem)
-
-        loader_elem = os_elem.find('loader')
-        if loader_elem is not None:
-            os_elem.remove(loader_elem)
-
-        nvram_elem = os_elem.find('nvram')
-        if nvram_elem is not None:
-            os_elem.remove(nvram_elem)
+        # Just remove the UEFI elements (already done above)
+        pass
     else:  # Switching to UEFI
-        os_elem.set('firmware', 'efi')
-
-        loader_elem = os_elem.find('loader')
-        if loader_elem is None:
-            loader_elem = ET.SubElement(os_elem, 'loader', type='pflash')
+        # Add loader with required attributes
+        loader_elem = ET.SubElement(os_elem, "loader", readonly="yes", type="pflash")
         loader_elem.text = uefi_path
+
         if secure_boot:
-            loader_elem.set('secure', 'yes')
-        elif 'secure' in loader_elem.attrib:
-            del loader_elem.attrib['secure']
+            loader_elem.set("secure", "yes")
 
-        nvram_elem = os_elem.find('nvram')
-        if nvram_elem is None:
-            ET.SubElement(os_elem, 'nvram', template=f"{uefi_path.replace('.bin', '_VARS.fd')}", templateFormat='qcow2')
-        else:
-            nvram_elem.set('template', uefi_path.replace('.bin', '_VARS.fd'))
-            nvram_elem.set('templateFormat', 'qcow2')
+        # For NVRAM, derive the template path from the loader path
+        # Typically: /path/to/ovmf-x86_64-code.bin -> /path/to/ovmf-x86_64-vars.bin
+        nvram_template = uefi_path.replace("-code.bin", "-vars.bin").replace(".bin", "_VARS.fd")
+        nvram_elem = ET.SubElement(os_elem, "nvram", template=nvram_template)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
+
 
 def set_vm_sound_model(domain: libvirt.virDomain, model: str | None):
     """
@@ -1477,32 +1537,42 @@ def set_vm_sound_model(domain: libvirt.virDomain, model: str | None):
 
     devices = root.find("devices")
     if devices is None:
-        if model is None or model == 'none':
+        if model is None or model == "none":
             return
         devices = ET.SubElement(root, "devices")
 
     sound = devices.find("sound")
 
     # If the desired model is None or 'none', remove the sound device.
-    if model is None or model == 'none':
+    if model is None or model == "none":
         if sound is not None:
             devices.remove(sound)
     else:
         if sound is None:
             sound = ET.SubElement(devices, "sound")
 
-        sound.set('model', model)
+        sound.set("model", model)
 
     new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
-def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen_type: str, address: str, port: int | None, autoport: bool, password_enabled: bool, password: str | None):
+def set_vm_graphics(
+    domain: libvirt.virDomain,
+    graphics_type: str | None,
+    listen_type: str,
+    address: str,
+    port: int | None,
+    autoport: bool,
+    password_enabled: bool,
+    password: str | None,
+):
     """
     Sets the graphics configuration (VNC/Spice) for a VM.
     The VM must be stopped.
     """
     invalidate_cache(get_internal_id(domain))
+
     # Password validation and sanitization
     def _sanitize_password(pwd: str | None) -> str | None:
         if not pwd:
@@ -1510,16 +1580,16 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
         pwd = pwd.strip()
 
         # Validation
-        if graphics_type == 'vnc' and len(pwd) > 8:
+        if graphics_type == "vnc" and len(pwd) > 8:
             raise ValueError("VNC password cannot exceed 8 characters")
 
-        if not pwd.isprintable() or any(c in pwd for c in '\n\r\t'):
+        if not pwd.isprintable() or any(c in pwd for c in "\n\r\t"):
             raise ValueError("Password contains invalid characters")
         return pwd
 
     def _log_password_safe(password: str | None) -> str:
         """Returns '[redacted]' instead of actual password for logs"""
-        return '[redacted]' if password else 'none'
+        return "[redacted]" if password else "none"
 
     # Validate parameters
     if password_enabled and not password:
@@ -1532,12 +1602,12 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
     # Remove existing graphics elements of other types or if no graphics type is specified
-    existing_graphics_elements = devices.findall('graphics')
+    existing_graphics_elements = devices.findall("graphics")
     for elem in existing_graphics_elements:
         logging.info("Removing previous graphics")
         devices.remove(elem)
@@ -1547,49 +1617,57 @@ def set_vm_graphics(domain: libvirt.virDomain, graphics_type: str | None, listen
         logging.info("No more graphics")
         pass
     else:
-        graphics_elem = ET.SubElement(devices, 'graphics', type=graphics_type)
+        graphics_elem = ET.SubElement(devices, "graphics", type=graphics_type)
 
         # Set port and autoport
         if autoport:
-            graphics_elem.set('autoport', 'yes')
-            if 'port' in graphics_elem.attrib:
-                del graphics_elem.attrib['port']
+            graphics_elem.set("autoport", "yes")
+            if "port" in graphics_elem.attrib:
+                del graphics_elem.attrib["port"]
         else:
-            if 'autoport' in graphics_elem.attrib:
-                del graphics_elem.attrib['autoport']
+            if "autoport" in graphics_elem.attrib:
+                del graphics_elem.attrib["autoport"]
             if port is not None:
-                graphics_elem.set('port', str(port))
-            elif 'port' in graphics_elem.attrib:
-                del graphics_elem.attrib['port'] # If autoport is off and no port provided, remove it
-
+                graphics_elem.set("port", str(port))
+            elif "port" in graphics_elem.attrib:
+                del graphics_elem.attrib[
+                    "port"
+                ]  # If autoport is off and no port provided, remove it
 
         # Set listen address
-        listen_elem = graphics_elem.find('listen')
-        if listen_type == 'address':
+        listen_elem = graphics_elem.find("listen")
+        if listen_type == "address":
             if listen_elem is None:
-                listen_elem = ET.SubElement(graphics_elem, 'listen', type='address')
+                listen_elem = ET.SubElement(graphics_elem, "listen", type="address")
             else:
-                listen_elem.set('type', 'address')
-            listen_elem.set('address', address)
+                listen_elem.set("type", "address")
+            listen_elem.set("address", address)
         else:  # listen_type == 'none'
             if listen_elem is not None:
                 graphics_elem.remove(listen_elem)
 
         # Set password
         if password_enabled and password_safe:
-            graphics_elem.set('passwd', password_safe)
-        elif 'passwd' in graphics_elem.attrib:
-            del graphics_elem.attrib['passwd']
+            graphics_elem.set("passwd", password_safe)
+        elif "passwd" in graphics_elem.attrib:
+            del graphics_elem.attrib["passwd"]
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
-def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str | None, tpm_type: str = 'emulated', device_path: str = None, backend_type: str = None, backend_path: str = None):
+def set_vm_tpm(
+    domain: libvirt.virDomain,
+    tpm_model: str | None,
+    tpm_type: str = "emulated",
+    device_path: str = None,
+    backend_type: str = None,
+    backend_path: str = None,
+):
     """
     Sets TPM configuration for a VM. If tpm_model is None, removes the TPM device.
     The VM must be stopped.
-    
+
     Args:
         domain: libvirt domain object
         tpm_model: TPM model (e.g., 'tpm-crb', 'tpm-tis') or None to remove.
@@ -1605,40 +1683,45 @@ def set_vm_tpm(domain: libvirt.virDomain, tpm_model: str | None, tpm_type: str =
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         if tpm_model is None:
-            return # Nothing to do
-        devices = ET.SubElement(root, 'devices')
+            return  # Nothing to do
+        devices = ET.SubElement(root, "devices")
 
     # Remove existing TPM elements
-    existing_tpm_elements = devices.findall('./tpm')
+    existing_tpm_elements = devices.findall("./tpm")
     for elem in existing_tpm_elements:
         devices.remove(elem)
 
     # If model is None, we are just removing the device.
     if tpm_model is not None:
         # Create new TPM element
-        tpm_elem = ET.SubElement(devices, 'tpm', model=tpm_model)
+        tpm_elem = ET.SubElement(devices, "tpm", model=tpm_model)
 
-        if tpm_type == 'passthrough':
-            backend_elem = ET.SubElement(tpm_elem, 'backend', type='passthrough')
+        if tpm_type == "passthrough":
+            backend_elem = ET.SubElement(tpm_elem, "backend", type="passthrough")
             if device_path:
-                ET.SubElement(backend_elem, 'device', path=device_path)
-        elif tpm_type == 'emulated':
+                ET.SubElement(backend_elem, "device", path=device_path)
+        elif tpm_type == "emulated":
             # For emulated TPM, add a backend of type 'emulator'
-            ET.SubElement(tpm_elem, 'backend', type='emulator')
+            ET.SubElement(tpm_elem, "backend", type="emulator")
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
 @log_function_call
-def set_vm_rng(domain: libvirt.virDomain, rng_model: str = 'virtio', backend_model: str = 'random', backend_path: str = '/dev/urandom'):
+def set_vm_rng(
+    domain: libvirt.virDomain,
+    rng_model: str = "virtio",
+    backend_model: str = "random",
+    backend_path: str = "/dev/urandom",
+):
     """
     Sets RNG (Random Number Generator) configuration for a VM.
     The VM must be stopped.
-    
+
     Args:
         domain: libvirt domain object
         rng_model: RNG model (e.g., 'virtio')
@@ -1651,33 +1734,35 @@ def set_vm_rng(domain: libvirt.virDomain, rng_model: str = 'virtio', backend_mod
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
     # Remove existing RNG elements
-    existing_rng_elements = devices.findall('./rng')
+    existing_rng_elements = devices.findall("./rng")
     for elem in existing_rng_elements:
         devices.remove(elem)
 
-    rng_elem = ET.SubElement(devices, 'rng', model=rng_model)
-    backend_elem = ET.SubElement(rng_elem, 'backend', model=backend_model)
-    if backend_model == 'random' and backend_path:
+    rng_elem = ET.SubElement(devices, "rng", model=rng_model)
+    backend_elem = ET.SubElement(rng_elem, "backend", model=backend_model)
+    if backend_model == "random" and backend_path:
         backend_elem.text = backend_path
     elif backend_path:
-        ET.SubElement(backend_elem, 'source', path=backend_path)
+        ET.SubElement(backend_elem, "source", path=backend_path)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
     invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
-def set_vm_watchdog(domain: libvirt.virDomain, watchdog_model: str = 'i6300esb', action: str = 'reset'):
+def set_vm_watchdog(
+    domain: libvirt.virDomain, watchdog_model: str = "i6300esb", action: str = "reset"
+):
     """
     Sets Watchdog configuration for a VM.
     The VM must be stopped.
-    
+
     Args:
         domain: libvirt domain object
         watchdog_model: Watchdog model (e.g., 'i6300esb', 'pcie-vpd')
@@ -1690,19 +1775,19 @@ def set_vm_watchdog(domain: libvirt.virDomain, watchdog_model: str = 'i6300esb',
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
     # Remove existing Watchdog elements
-    existing_watchdog_elements = devices.findall('./watchdog')
+    existing_watchdog_elements = devices.findall("./watchdog")
     for elem in existing_watchdog_elements:
         devices.remove(elem)
 
     # Create new Watchdog element
-    ET.SubElement(devices, 'watchdog', model=watchdog_model, action=action)
+    ET.SubElement(devices, "watchdog", model=watchdog_model, action=action)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
@@ -1718,29 +1803,29 @@ def remove_vm_watchdog(domain: libvirt.virDomain):
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        return # No devices, so no watchdog
+        return  # No devices, so no watchdog
 
     # Remove existing Watchdog elements
-    existing_watchdog_elements = devices.findall('./watchdog')
+    existing_watchdog_elements = devices.findall("./watchdog")
     if not existing_watchdog_elements:
         raise ValueError("No watchdog device found to remove.")
 
     for elem in existing_watchdog_elements:
         devices.remove(elem)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
     invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
-def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bus: str = 'usb'):
+def set_vm_input(domain: libvirt.virDomain, input_type: str = "tablet", input_bus: str = "usb"):
     """
     Sets Input (keyboard and mouse) configuration for a VM.
     The VM must be stopped.
-    
+
     Args:
         domain: libvirt domain object
         input_type: Input device type (e.g., 'mouse', 'keyboard', 'tablet')
@@ -1752,9 +1837,9 @@ def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bu
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
     # Remove existing input elements of the same type
     existing_input_elements = devices.findall(f'./input[@type="{input_type}"]')
@@ -1762,9 +1847,9 @@ def set_vm_input(domain: libvirt.virDomain, input_type: str = 'tablet', input_bu
         devices.remove(elem)
 
     # Create new input element
-    ET.SubElement(devices, 'input', type=input_type, bus=input_bus)
+    ET.SubElement(devices, "input", type=input_type, bus=input_bus)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
     invalidate_cache(get_internal_id(domain))
 
@@ -1780,13 +1865,13 @@ def add_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
-    ET.SubElement(devices, 'input', type=input_type, bus=input_bus)
+    ET.SubElement(devices, "input", type=input_type, bus=input_bus)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
     invalidate_cache(get_internal_id(domain))
 
@@ -1803,13 +1888,13 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         raise ValueError("Could not find <devices> in VM XML.")
 
     input_to_remove = None
-    for elem in devices.findall('input'):
-        if elem.get('type') == input_type and elem.get('bus') == input_bus:
+    for elem in devices.findall("input"):
+        if elem.get("type") == input_type and elem.get("bus") == input_bus:
             input_to_remove = elem
             break
 
@@ -1818,7 +1903,7 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
 
     devices.remove(input_to_remove)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
@@ -1830,17 +1915,17 @@ def start_vm(domain):
     root = ET.fromstring(xml_desc)
     conn = domain.connect()
 
-    for disk in root.findall('.//devices/disk'):
-        if disk.get('device') != 'disk':
+    for disk in root.findall(".//devices/disk"):
+        if disk.get("device") != "disk":
             continue
 
-        source_elem = disk.find('source')
+        source_elem = disk.find("source")
         if source_elem is None:
             continue
 
-        if 'pool' in source_elem.attrib and 'volume' in source_elem.attrib:
-            pool_name = source_elem.get('pool')
-            vol_name = source_elem.get('volume')
+        if "pool" in source_elem.attrib and "volume" in source_elem.attrib:
+            pool_name = source_elem.get("pool")
+            vol_name = source_elem.get("volume")
             try:
                 pool = conn.storagePoolLookupByName(pool_name)
                 if not pool.isActive():
@@ -1857,6 +1942,7 @@ def start_vm(domain):
     invalidate_cache(get_internal_id(domain))
     domain.create()
 
+
 def stop_vm(domain: libvirt.virDomain):
     """
     Initiates a graceful shutdown of the VM.
@@ -1868,6 +1954,7 @@ def stop_vm(domain: libvirt.virDomain):
 
     invalidate_cache(get_internal_id(domain))
     domain.shutdown()
+
 
 def hibernate_vm(domain: libvirt.virDomain):
     """
@@ -1881,6 +1968,7 @@ def hibernate_vm(domain: libvirt.virDomain):
     invalidate_cache(get_internal_id(domain))
     domain.managedSave(0)
 
+
 def pause_vm(domain: libvirt.virDomain):
     """
     Pauses the execution of the VM.
@@ -1892,6 +1980,7 @@ def pause_vm(domain: libvirt.virDomain):
 
     invalidate_cache(get_internal_id(domain))
     domain.suspend()
+
 
 def force_off_vm(domain: libvirt.virDomain):
     """
@@ -1906,7 +1995,14 @@ def force_off_vm(domain: libvirt.virDomain):
     invalidate_cache(get_internal_id(domain))
     domain.destroy()
 
-def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: bool = False, log_callback=None, conn: libvirt.virConnect = None):
+
+def delete_vm(
+    domain: libvirt.virDomain,
+    delete_storage: bool,
+    delete_nvram: bool = False,
+    log_callback=None,
+    conn: libvirt.virConnect = None,
+):
     """
     Deletes a VM and optionally its associated storage and NVRAM.
     If the VM has snapshots, their metadata will be removed as well.
@@ -1931,7 +2027,7 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
         vm_uuid = domain.UUIDString()
         vm_internal_id = get_internal_id(domain)
     except libvirt.libvirtError:
-        pass # Domain might already be gone
+        pass  # Domain might already be gone
 
     log(f"Starting deletion process for VM '{vm_name}'...")
 
@@ -1960,7 +2056,7 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
         xml_desc = None
 
         if domain_to_delete:
-             if delete_storage or delete_nvram:
+            if delete_storage or delete_nvram:
                 try:
                     xml_desc = domain_to_delete.XMLDesc(0)
                     root = ET.fromstring(xml_desc)
@@ -1971,7 +2067,7 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                     log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
                     # If we can't get XML, we can't find disks to delete, but we should still try to undefine
 
-             if domain_to_delete.isActive():
+            if domain_to_delete.isActive():
                 log(f"VM '{vm_name}' is active. Forcefully stopping it...")
                 try:
                     domain_to_delete.destroy()
@@ -1980,21 +2076,21 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                     log(f"[red]ERROR:[/] Failed to stop VM '{vm_name}': {e}")
                     raise
 
-             # Undefine the VM using the new connection object
-             if vm_internal_id:
+            # Undefine the VM using the new connection object
+            if vm_internal_id:
                 invalidate_cache(vm_internal_id)
-             log(f"Undefining VM '{vm_name}'...")
-             undefine_flags = libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
-             if delete_nvram and root is not None:
-                os_elem = root.find('os')
-                if os_elem is not None and os_elem.find('nvram') is not None:
+            log(f"Undefining VM '{vm_name}'...")
+            undefine_flags = libvirt.VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
+            if delete_nvram and root is not None:
+                os_elem = root.find("os")
+                if os_elem is not None and os_elem.find("nvram") is not None:
                     log("...including NVRAM.")
                     undefine_flags |= libvirt.VIR_DOMAIN_UNDEFINE_NVRAM
 
-             try:
+            try:
                 domain_to_delete.undefineFlags(undefine_flags)
                 log(f"VM '{vm_name}' undefined.")
-             except libvirt.libvirtError as e:
+            except libvirt.libvirtError as e:
                 # It might already be gone, which is fine.
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     log(f"VM '{vm_name}' was already undefined.")
@@ -2002,9 +2098,9 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                     log(f"[red]ERROR:[/] Failed to undefine VM '{vm_name}': {e}")
                     raise
         else:
-             # Domain not found, but we might still have storage to delete if we could get XML?
-             # If domain is not found, we can't get XML, so we can't know which storage to delete.
-             pass
+            # Domain not found, but we might still have storage to delete if we could get XML?
+            # If domain is not found, we can't get XML, so we can't know which storage to delete.
+            pass
 
         if delete_storage:
             if not disks_to_delete:
@@ -2013,8 +2109,8 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                 log(f"Deleting {len(disks_to_delete)} storage volume(s)...")
 
             for disk_info in disks_to_delete:
-                disk_path = disk_info.get('path')
-                if not disk_path or not disk_info.get('status') == 'enabled':
+                disk_path = disk_info.get("path")
+                if not disk_path or not disk_info.get("status") == "enabled":
                     continue
 
                 log(f"Attempting to delete volume: {disk_path}")
@@ -2036,17 +2132,27 @@ def delete_vm(domain: libvirt.virDomain, delete_storage: bool, delete_nvram: boo
                         if backing_path:
                             log(f"  - Found backing file for overlay: {backing_path}")
                             try:
-                                backing_vol, backing_pool = _find_vol_by_path(delete_conn, backing_path)
+                                backing_vol, backing_pool = _find_vol_by_path(
+                                    delete_conn, backing_path
+                                )
                                 if backing_vol:
                                     backing_vol.delete(0)
-                                    log(f"  - Deleted backing file: {backing_path} from pool {backing_pool.name()}")
+                                    log(
+                                        f"  - Deleted backing file: {backing_path} from pool {backing_pool.name()}"
+                                    )
                                 else:
-                                    log(f"  - [yellow]Warning:[/] Backing file '{backing_path}' not found as a managed volume.")
+                                    log(
+                                        f"  - [yellow]Warning:[/] Backing file '{backing_path}' not found as a managed volume."
+                                    )
                             except Exception as e:
-                                log(f"  - [red]ERROR:[/] Failed to delete backing file '{backing_path}': {e}")
+                                log(
+                                    f"  - [red]ERROR:[/] Failed to delete backing file '{backing_path}': {e}"
+                                )
 
                     else:
-                        log(f"  - [yellow]Skipped:[/] Disk '{disk_path}' is not a managed libvirt volume.")
+                        log(
+                            f"  - [yellow]Skipped:[/] Disk '{disk_path}' is not a managed libvirt volume."
+                        )
 
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
@@ -2073,28 +2179,28 @@ def check_for_other_spice_devices(domain: libvirt.virDomain) -> bool:
     logging.info(f"Checking for SPICE devices in XML:\n{xml_desc}")
 
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         logging.info("No <devices> element found.")
         return False
 
     for channel in devices.findall("channel"):
-        if channel.get('type') == 'spicevmc':
+        if channel.get("type") == "spicevmc":
             logging.info("Found spicevmc channel.")
             return True
-        elif channel.get('type') == 'spiceport':
-            target = channel.find('target')
-            if target is not None and target.get('name') == 'com.redhat.spice.0':
+        elif channel.get("type") == "spiceport":
+            target = channel.find("target")
+            if target is not None and target.get("name") == "com.redhat.spice.0":
                 logging.info("Found spiceport channel.")
                 return True
 
     for redirdev in devices.findall("redirdev"):
-        if redirdev.get('bus') == 'usb':
+        if redirdev.get("bus") == "usb":
             logging.info("Found USB redirection device.")
             return True
 
     for audio in devices.findall("audio"):
-        if audio.get('type') == 'spice':
+        if audio.get("type") == "spice":
             logging.info("Found SPICE audio device.")
             return True
 
@@ -2119,7 +2225,7 @@ def remove_spice_devices(domain: libvirt.virDomain):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if not devices:
         return
 
@@ -2128,16 +2234,18 @@ def remove_spice_devices(domain: libvirt.virDomain):
         logging.info(f"Removed SPICE graphics from VM '{domain.name()}'.")
 
     for channel in devices.findall("channel"):
-        if channel.get('type') in ['spicevmc', 'spiceport']:
+        if channel.get("type") in ["spicevmc", "spiceport"]:
             devices.remove(channel)
-            logging.info(f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'.")
+            logging.info(
+                f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'."
+            )
 
     for redirdev in devices.findall("redirdev[@bus='usb']"):
         devices.remove(redirdev)
         logging.info(f"Removed USB redirection device from VM '{domain.name()}'.")
 
     for audio in devices.findall("audio"):
-        if audio.get('type') == 'spice':
+        if audio.get("type") == "spice":
             devices.remove(audio)
             logging.info(f"Removed SPICE audio device from VM '{domain.name()}'.")
 
@@ -2147,22 +2255,25 @@ def remove_spice_devices(domain: libvirt.virDomain):
         video_model.set("type", "virtio")
         logging.info(f"Changed qxl video model to virtio for VM '{domain.name()}'.")
         # Remove qxl-specific attributes if they exist
-        for attr in ['vram', 'ram', 'vgamem']:
+        for attr in ["vram", "ram", "vgamem"]:
             if attr in video_model.attrib:
                 del video_model.attrib[attr]
 
     # After removing SPICE, it's good to add a default VNC graphics device if no other graphics device exists.
     if not devices.find("graphics"):
         logging.info("No graphics device found after removing SPICE. Adding default VNC graphics.")
-        graphics_elem = ET.SubElement(devices, 'graphics', type='vnc', port='-1', autoport='yes')
-        ET.SubElement(graphics_elem, 'listen', type='address')
+        graphics_elem = ET.SubElement(devices, "graphics", type="vnc", port="-1", autoport="yes")
+        ET.SubElement(graphics_elem, "listen", type="address")
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     conn = domain.connect()
     conn.defineXML(new_xml)
 
+
 @log_function_call
-def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, domain_name: str, is_live: bool):
+def check_server_migration_compatibility(
+    source_conn: libvirt.virConnect, dest_conn: libvirt.virConnect, domain_name: str, is_live: bool
+):
     """
     Checks if two servers are compatible for migration.
     Returns a list of issues, where each issue is a dict with 'severity' and 'message'.
@@ -2176,16 +2287,26 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
         source_domain = source_conn.lookupByName(domain_name)
         _, source_root = _get_domain_root(source_domain)
     except libvirt.libvirtError as e:
-        issues.append({'severity': 'ERROR', 'message': f"Could not retrieve source VM '{domain_name}' details: {e}"})
-        return issues # Cannot proceed with further checks without source VM info
+        issues.append(
+            {
+                "severity": "ERROR",
+                "message": f"Could not retrieve source VM '{domain_name}' details: {e}",
+            }
+        )
+        return issues  # Cannot proceed with further checks without source VM info
 
     try:
         source_arch = source_conn.getInfo()[0]
         dest_arch = dest_conn.getInfo()[0]
         if source_arch != dest_arch:
-            issues.append({'severity': 'ERROR', 'message': f"Host architecture mismatch. Source: {source_arch}, Destination: {dest_arch}"})
+            issues.append(
+                {
+                    "severity": "ERROR",
+                    "message": f"Host architecture mismatch. Source: {source_arch}, Destination: {dest_arch}",
+                }
+            )
     except libvirt.libvirtError as e:
-        issues.append({'severity': 'WARNING', 'message': f"Could not check host architecture: {e}"})
+        issues.append({"severity": "WARNING", "message": f"Could not check host architecture: {e}"})
 
     # TPM Check
     if source_root is not None:
@@ -2198,38 +2319,61 @@ def check_server_migration_compatibility(source_conn: libvirt.virConnect, dest_c
 
                     # Check if destination host supports TPM devices at all
                     if dest_caps_root.find(".//devices/tpm") is None:
-                        issues.append({
-                            'severity': 'ERROR',
-                            'message': f"Source VM '{domain_name}' uses TPM, but destination host '{dest_conn.getURI()}' does not appear to support TPM devices."
-                        })
+                        issues.append(
+                            {
+                                "severity": "ERROR",
+                                "message": f"Source VM '{domain_name}' uses TPM, but destination host '{dest_conn.getURI()}' does not appear to support TPM devices.",
+                            }
+                        )
                     else:
                         for tpm_dev in source_tpm_info:
-                            if tpm_dev['type'] == 'passthrough':
+                            if tpm_dev["type"] == "passthrough":
                                 # More specific check for passthrough TPM
-                                issues.append({
-                                    'severity': 'WARNING',
-                                    'message': f"Source VM '{domain_name}' uses passthrough TPM ({tpm_dev['model']}). Passthrough TPM migration is often problematic due to hardware dependencies. Manual verification on destination host '{dest_conn.getURI()}' recommended."
-                                })
-                            elif tpm_dev['type'] == 'emulated' and is_live:
+                                issues.append(
+                                    {
+                                        "severity": "WARNING",
+                                        "message": f"Source VM '{domain_name}' uses passthrough TPM ({tpm_dev['model']}). Passthrough TPM migration is often problematic due to hardware dependencies. Manual verification on destination host '{dest_conn.getURI()}' recommended.",
+                                    }
+                                )
+                            elif tpm_dev["type"] == "emulated" and is_live:
                                 # Emulated TPM should generally be fine for cold migration.
                                 # Live migration of emulated TPM might be tricky.
-                                issues.append({
-                                    'severity': 'WARNING',
-                                    'message': f"Source VM '{domain_name}' uses emulated TPM. Live migration with TPM can sometimes have issues; cold migration is safer."
-                                })
+                                issues.append(
+                                    {
+                                        "severity": "WARNING",
+                                        "message": f"Source VM '{domain_name}' uses emulated TPM. Live migration with TPM can sometimes have issues; cold migration is safer.",
+                                    }
+                                )
                 else:
-                    issues.append({'severity': 'WARNING', 'message': "Could not retrieve destination host capabilities for TPM check."})
+                    issues.append(
+                        {
+                            "severity": "WARNING",
+                            "message": "Could not retrieve destination host capabilities for TPM check.",
+                        }
+                    )
 
             except libvirt.libvirtError as e:
-                issues.append({'severity': 'WARNING', 'message': f"Could not retrieve destination host capabilities for TPM check: {e}"})
+                issues.append(
+                    {
+                        "severity": "WARNING",
+                        "message": f"Could not retrieve destination host capabilities for TPM check: {e}",
+                    }
+                )
             except ET.ParseError as e:
-                issues.append({'severity': 'WARNING', 'message': f"Failed to parse destination host capabilities XML for TPM check: {e}"})
+                issues.append(
+                    {
+                        "severity": "WARNING",
+                        "message": f"Failed to parse destination host capabilities XML for TPM check: {e}",
+                    }
+                )
 
     return issues
 
 
 @log_function_call
-def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool):
+def check_vm_migration_compatibility(
+    domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool
+):
     """
     Checks if a VM is compatible for migration to a destination host.
     Returns a list of issues, where each issue is a dict with 'severity' and 'message'.
@@ -2239,104 +2383,209 @@ def check_vm_migration_compatibility(domain: libvirt.virDomain, dest_conn: libvi
     # Check for name collision
     try:
         dest_conn.lookupByName(domain.name())
-        issues.append({'severity': 'ERROR', 'message': f"A VM with the name '{domain.name()}' already exists on the destination host."})
+        issues.append(
+            {
+                "severity": "ERROR",
+                "message": f"A VM with the name '{domain.name()}' already exists on the destination host.",
+            }
+        )
     except libvirt.libvirtError as e:
         if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-             issues.append({'severity': 'WARNING', 'message': f"Could not check for name collision on destination: {e}"})
+            issues.append(
+                {
+                    "severity": "WARNING",
+                    "message": f"Could not check for name collision on destination: {e}",
+                }
+            )
 
     try:
         xml_desc = domain.XMLDesc(0)
         root = ET.fromstring(xml_desc)
-        issues.append({'severity': 'INFO', 'message': "Getting VM XML description"})
+        issues.append({"severity": "INFO", "message": "Getting VM XML description"})
     except libvirt.libvirtError as e:
-        issues.append({'severity': 'ERROR', 'message': f"Could not get VM XML description: {e}"})
+        issues.append({"severity": "ERROR", "message": f"Could not get VM XML description: {e}"})
         return issues
 
-    cpu_elem = root.find('cpu')
+    cpu_elem = root.find("cpu")
     if cpu_elem is not None:
-        if cpu_elem.get('mode') in ['host-passthrough', 'host-model']:
-            issues.append({'severity': 'WARNING', 'message': "VM CPU is set to 'host-passthrough' or 'host-model'. This requires highly compatible CPUs on source and destination."})
-            issues.append({'severity': 'WARNING', 'message': "IE: snapshots maybe be not usable after migration as the CPU register could be different on the destination host."})
-        cpu_xml = ET.tostring(cpu_elem, encoding='unicode')
+        if cpu_elem.get("mode") in ["host-passthrough", "host-model"]:
+            issues.append(
+                {
+                    "severity": "WARNING",
+                    "message": "VM CPU is set to 'host-passthrough' or 'host-model'. This requires highly compatible CPUs on source and destination.",
+                }
+            )
+            issues.append(
+                {
+                    "severity": "WARNING",
+                    "message": "IE: snapshots maybe be not usable after migration as the CPU register could be different on the destination host.",
+                }
+            )
+        cpu_xml = ET.tostring(cpu_elem, encoding="unicode")
         try:
             compare_result = dest_conn.compareCPU(cpu_xml, 0)
             if compare_result == libvirt.VIR_CPU_COMPARE_INCOMPATIBLE:
-                issues.append({'severity': 'ERROR', 'message': "The VM's CPU configuration is not compatible with the destination host's CPU."})
+                issues.append(
+                    {
+                        "severity": "ERROR",
+                        "message": "The VM's CPU configuration is not compatible with the destination host's CPU.",
+                    }
+                )
             else:
-                issues.append({'severity': 'INFO', 'message': "The VM's CPU configuration is compatible with the destination host's CPU"})
+                issues.append(
+                    {
+                        "severity": "INFO",
+                        "message": "The VM's CPU configuration is compatible with the destination host's CPU",
+                    }
+                )
         except libvirt.libvirtError as e:
-            issues.append({'severity': 'WARNING', 'message': f"Could not compare VM CPU with destination host: {e}"})
+            issues.append(
+                {
+                    "severity": "WARNING",
+                    "message": f"Could not compare VM CPU with destination host: {e}",
+                }
+            )
 
     # Network configuration check
-    dest_networks = {net['name']: net for net in list_networks(dest_conn)}
+    dest_networks = {net["name"]: net for net in list_networks(dest_conn)}
     for iface in root.findall(".//devices/interface[@type='network']"):
-        source = iface.find('source')
+        source = iface.find("source")
         if source is not None:
-            network_name = source.get('network')
+            network_name = source.get("network")
             if network_name:
                 if network_name not in dest_networks:
-                    issues.append({'severity': 'ERROR', 'message': f"Network '{network_name}' not found on the destination host."})
-                elif not dest_networks[network_name]['active']:
-                    issues.append({'severity': 'ERROR', 'message': f"Network '{network_name}' is not active on the destination host."})
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "message": f"Network '{network_name}' not found on the destination host.",
+                        }
+                    )
+                elif not dest_networks[network_name]["active"]:
+                    issues.append(
+                        {
+                            "severity": "ERROR",
+                            "message": f"Network '{network_name}' is not active on the destination host.",
+                        }
+                    )
 
     if is_live:
         for disk in root.findall(".//disk[@device='disk']"):
-            target = disk.find('target')
-            if target is not None and target.get('bus') == 'sata':
-                issues.append({'severity': 'ERROR', 'message': "VM has a SATA disk, which is NOT migratable live."})
+            target = disk.find("target")
+            if target is not None and target.get("bus") == "sata":
+                issues.append(
+                    {
+                        "severity": "ERROR",
+                        "message": "VM has a SATA disk, which is NOT migratable live.",
+                    }
+                )
                 break
             else:
-                issues.append({'severity': 'INFO', 'message': "No SATA disk on VM"})
+                issues.append({"severity": "INFO", "message": "No SATA disk on VM"})
 
         if root.find(".//devices/filesystem[@type='mount']") is not None:
-            issues.append({'severity': 'ERROR', 'message': "VM uses filesystem pass-through, which is incompatible with live migration."})
+            issues.append(
+                {
+                    "severity": "ERROR",
+                    "message": "VM uses filesystem pass-through, which is incompatible with live migration.",
+                }
+            )
         else:
-            issues.append({'severity': 'INFO', 'message': "VM is NOT using filesystem pass-through,"})
+            issues.append(
+                {"severity": "INFO", "message": "VM is NOT using filesystem pass-through,"}
+            )
 
         if root.find(".//devices/hostdev") is not None:
-            issues.append({'severity': 'ERROR', 'message': "VM uses PCI or USB pass-through (hostdev), which is not supported for live migration."})
+            issues.append(
+                {
+                    "severity": "ERROR",
+                    "message": "VM uses PCI or USB pass-through (hostdev), which is not supported for live migration.",
+                }
+            )
         else:
-            issues.append({'severity': 'INFO', 'message': "VM dont uses PCI or USB pass-through (hostdev)"})
+            issues.append(
+                {"severity": "INFO", "message": "VM dont uses PCI or USB pass-through (hostdev)"}
+            )
 
-    if root.find('cputune') is not None:
-        issues.append({'severity': 'WARNING', 'message': "VM has CPU pinning (cputune) configured. Ensure the destination host has matching CPU topology/core count."})
+    if root.find("cputune") is not None:
+        issues.append(
+            {
+                "severity": "WARNING",
+                "message": "VM has CPU pinning (cputune) configured. Ensure the destination host has matching CPU topology/core count.",
+            }
+        )
 
-    if root.find('numatune') is not None:
-        issues.append({'severity': 'WARNING', 'message': "VM has NUMA tuning configured. Ensure the destination host has matching NUMA topology."})
+    if root.find("numatune") is not None:
+        issues.append(
+            {
+                "severity": "WARNING",
+                "message": "VM has NUMA tuning configured. Ensure the destination host has matching NUMA topology.",
+            }
+        )
 
     for disk in root.findall(".//devices/disk[@device='cdrom']"):
-        if disk.find('source') is not None:
-             issues.append({'severity': 'WARNING', 'message': "VM has a CD-ROM mounted. Ensure the ISO path is accessible on the destination, or eject it before migrating."})
+        if disk.find("source") is not None:
+            issues.append(
+                {
+                    "severity": "WARNING",
+                    "message": "VM has a CD-ROM mounted. Ensure the ISO path is accessible on the destination, or eject it before migrating.",
+                }
+            )
 
     disk_paths = []
     for disk in root.findall(".//devices/disk"):
-        source = disk.find('source')
+        source = disk.find("source")
         if source is not None:
-            path = source.get('file') or source.get('dev')
+            path = source.get("file") or source.get("dev")
             if path:
                 disk_paths.append(path)
-            elif source.get('pool') and source.get('volume'):
-                pool_name = source.get('pool')
+            elif source.get("pool") and source.get("volume"):
+                pool_name = source.get("pool")
                 try:
                     dest_pool = dest_conn.storagePoolLookupByName(pool_name)
                     if not dest_pool.isActive():
-                        issues.append({'severity': 'ERROR', 'message': f"Storage pool '{pool_name}' is not active on destination host."})
+                        issues.append(
+                            {
+                                "severity": "ERROR",
+                                "message": f"Storage pool '{pool_name}' is not active on destination host.",
+                            }
+                        )
                     else:
                         dest_pool_xml = ET.fromstring(dest_pool.XMLDesc(0))
-                        type_elem = dest_pool_xml.find('type')
+                        type_elem = dest_pool_xml.find("type")
                         dest_pool_type = type_elem.text if type_elem is not None else "unknown"
-                        if dest_pool_type not in ['netfs', 'iscsi', 'glusterfs', 'rbd', 'nfs']:
-                            issues.append({'severity': 'WARNING', 'message': f"Storage pool '{pool_name}' on destination is of type '{dest_pool_type}', which may not be shared. Live migration requires shared storage."})
+                        if dest_pool_type not in ["netfs", "iscsi", "glusterfs", "rbd", "nfs"]:
+                            issues.append(
+                                {
+                                    "severity": "WARNING",
+                                    "message": f"Storage pool '{pool_name}' on destination is of type '{dest_pool_type}', which may not be shared. Live migration requires shared storage.",
+                                }
+                            )
                 except libvirt.libvirtError:
-                    issues.append({'severity': 'WARNING', 'message': f"Storage pool '{pool_name}' not found on destination host."})
+                    issues.append(
+                        {
+                            "severity": "WARNING",
+                            "message": f"Storage pool '{pool_name}' not found on destination host.",
+                        }
+                    )
 
     if disk_paths:
-        issues.append({'severity': 'INFO', 'message': "The VM uses disk images at the following paths. For migration to succeed, these paths MUST be accessible on the destination host:"})
+        issues.append(
+            {
+                "severity": "INFO",
+                "message": "The VM uses disk images at the following paths. For migration to succeed, these paths MUST be accessible on the destination host:",
+            }
+        )
         for path in disk_paths:
-            issues.append({'severity': 'INFO', 'message': f"  - {path}"})
-        issues.append({'severity': 'INFO', 'message': "This usually means using a shared storage system like NFS or iSCSI, mounted at the same location on both hosts."})
+            issues.append({"severity": "INFO", "message": f"  - {path}"})
+        issues.append(
+            {
+                "severity": "INFO",
+                "message": "This usually means using a shared storage system like NFS or iSCSI, mounted at the same location on both hosts.",
+            }
+        )
 
     return issues
+
 
 def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: int = 0):
     """
@@ -2398,7 +2647,9 @@ def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: in
         vol_root = ET.fromstring(vol_xml)
         backing_store = vol_root.find("backingStore")
         if backing_store is None:
-            raise Exception(f"Volume '{disk_path}' does not have a backing store (it is not an overlay).")
+            raise Exception(
+                f"Volume '{disk_path}' does not have a backing store (it is not an overlay)."
+            )
 
         backing_path_elem = backing_store.find("path")
         if backing_path_elem is None or not backing_path_elem.text:
@@ -2406,26 +2657,23 @@ def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: in
 
         base_path = backing_path_elem.text
 
-        logging.info(f"Starting blockCommit for disk '{disk_target}' ({disk_path}) into base '{base_path}'...")
+        logging.info(
+            f"Starting blockCommit for disk '{disk_target}' ({disk_path}) into base '{base_path}'..."
+        )
         flags = libvirt.VIR_DOMAIN_BLOCK_COMMIT_ACTIVE
 
-        domain.blockCommit(
-            disk_target,
-            base_path,
-            disk_path,
-            bandwidth,
-            flags
-        )
+        domain.blockCommit(disk_target, base_path, disk_path, bandwidth, flags)
 
         # Monitor the job
         import time
+
         while True:
             job_info = domain.blockJobInfo(disk_target, 0)
             if not job_info:
                 break
 
-            cur = job_info.get('cur', 0)
-            end = job_info.get('end', 0)
+            cur = job_info.get("cur", 0)
+            end = job_info.get("end", 0)
 
             if cur == end and end > 0:
                 logging.info(f"Block commit synchronized. Pivoting '{disk_target}'...")
@@ -2434,8 +2682,8 @@ def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: in
                     domain.blockJobAbort(disk_target, libvirt.VIR_DOMAIN_BLOCK_JOB_ABORT_PIVOT)
                     logging.info("Pivot successful.")
                 except libvirt.libvirtError as e:
-                     logging.error(f"Pivot failed: {e}")
-                     domain.blockJobAbort(disk_target, libvirt.VIR_DOMAIN_BLOCK_JOB_ABORT_ASYNC)
+                    logging.error(f"Pivot failed: {e}")
+                    domain.blockJobAbort(disk_target, libvirt.VIR_DOMAIN_BLOCK_JOB_ABORT_ASYNC)
                 break
 
             time.sleep(0.5)
@@ -2477,7 +2725,10 @@ def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
         logging.error(msg)
         raise Exception(msg) from e
 
-def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = "", quiesce: bool = False):
+
+def create_vm_snapshot(
+    domain: libvirt.virDomain, name: str, description: str = "", quiesce: bool = False
+):
     """
     Creates a snapshot for the VM.
     """
@@ -2499,6 +2750,7 @@ def create_vm_snapshot(domain: libvirt.virDomain, name: str, description: str = 
         logging.error(msg)
         raise libvirt.libvirtError(msg) from e
 
+
 @log_function_call
 def restore_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
     """
@@ -2513,6 +2765,7 @@ def restore_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
         logging.error(msg)
         raise Exception(msg) from e
 
+
 @log_function_call
 def delete_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
     """
@@ -2526,6 +2779,7 @@ def delete_vm_snapshot(domain: libvirt.virDomain, snapshot_name: str):
         msg = f"Failed to delete snapshot '{snapshot_name}': {e}"
         logging.error(msg)
         raise Exception(msg) from e
+
 
 def detach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str):
     """
@@ -2557,9 +2811,9 @@ def add_serial_console(domain: libvirt.virDomain):
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
     used_ports = [
         int(target.get("port"))
@@ -2570,19 +2824,19 @@ def add_serial_console(domain: libvirt.virDomain):
     while port in used_ports:
         port += 1
 
-    serial_elem = ET.SubElement(devices, 'serial', type='pty')
-    ET.SubElement(serial_elem, 'target', port=str(port))
+    serial_elem = ET.SubElement(devices, "serial", type="pty")
+    ET.SubElement(serial_elem, "target", port=str(port))
 
-    console_elem = ET.SubElement(devices, 'console', type='pty')
-    ET.SubElement(console_elem, 'target', type='serial', port=str(port))
+    console_elem = ET.SubElement(devices, "console", type="pty")
+    ET.SubElement(console_elem, "target", type="serial", port=str(port))
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
     invalidate_cache(get_internal_id(domain))
 
     if domain.isActive():
-        serial_xml_str = ET.tostring(serial_elem, 'unicode')
-        console_xml_str = ET.tostring(console_elem, 'unicode')
+        serial_xml_str = ET.tostring(serial_elem, "unicode")
+        console_xml_str = ET.tostring(console_elem, "unicode")
         try:
             domain.attachDeviceFlags(serial_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
             domain.attachDeviceFlags(console_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
@@ -2593,6 +2847,7 @@ def add_serial_console(domain: libvirt.virDomain):
             )
     return port
 
+
 def remove_serial_console(domain: libvirt.virDomain, port: str):
     """Removes a serial console from the VM based on its port."""
     if not domain:
@@ -2600,7 +2855,7 @@ def remove_serial_console(domain: libvirt.virDomain, port: str):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         return
 
@@ -2610,15 +2865,15 @@ def remove_serial_console(domain: libvirt.virDomain, port: str):
     if serial_elem is None and console_elem is None:
         raise ValueError(f"No serial or console device found on port {port}.")
 
-    serial_xml_str = ET.tostring(serial_elem, 'unicode') if serial_elem is not None else None
-    console_xml_str = ET.tostring(console_elem, 'unicode') if console_elem is not None else None
+    serial_xml_str = ET.tostring(serial_elem, "unicode") if serial_elem is not None else None
+    console_xml_str = ET.tostring(console_elem, "unicode") if console_elem is not None else None
 
     if serial_elem is not None:
         devices.remove(serial_elem)
     if console_elem is not None:
         devices.remove(console_elem)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
     invalidate_cache(get_internal_id(domain))
 
@@ -2629,15 +2884,16 @@ def remove_serial_console(domain: libvirt.virDomain, port: str):
             if serial_xml_str:
                 domain.detachDeviceFlags(serial_xml_str, libvirt.VIR_DOMAIN_AFFECT_LIVE)
         except libvirt.libvirtError as e:
-             raise libvirt.libvirtError(
+            raise libvirt.libvirtError(
                 f"Live detach failed: {e}. "
                 "The configuration has been saved and will apply on the next reboot."
             )
 
+
 def add_usb_device(domain: libvirt.virDomain, usb_type: str, model: str):
     """
     Adds a USB controller to a VM.
-    
+
     Args:
         domain: libvirt domain object
         usb_type: Type of device ('usb' for USB controller)
@@ -2646,7 +2902,7 @@ def add_usb_device(domain: libvirt.virDomain, usb_type: str, model: str):
     if not domain:
         raise ValueError("Invalid domain object.")
 
-    if usb_type != 'usb':
+    if usb_type != "usb":
         raise ValueError(f"Unsupported USB type: {usb_type}")
 
     # Determine next available index for USB controllers
@@ -2654,15 +2910,15 @@ def add_usb_device(domain: libvirt.virDomain, usb_type: str, model: str):
     root = ET.fromstring(xml_desc)
     usb_controllers = root.findall(".//controller[@type='usb']")
 
-    indices = [int(c.get('index', '0')) for c in usb_controllers if c.get('index')]
+    indices = [int(c.get("index", "0")) for c in usb_controllers if c.get("index")]
     next_index = max(indices) + 1 if indices else 0
 
-    if model == 'usb2':
+    if model == "usb2":
         # usb2 often needs multiple controllers (UHCI/EHCI) for full compatibility,
         # but here we follow the existing pattern of adding one.
-        controller_model = 'piix3-uhci'
-    elif model == 'usb3':
-        controller_model = 'qemu-xhci'
+        controller_model = "piix3-uhci"
+    elif model == "usb3":
+        controller_model = "qemu-xhci"
     else:
         raise ValueError(f"Unsupported USB model: {model}")
 
@@ -2676,10 +2932,10 @@ def add_usb_device(domain: libvirt.virDomain, usb_type: str, model: str):
     invalidate_cache(get_internal_id(domain))
 
 
-def add_scsi_controller(domain: libvirt.virDomain, model: str = 'virtio-scsi'):
+def add_scsi_controller(domain: libvirt.virDomain, model: str = "virtio-scsi"):
     """
     Adds a SCSI controller to a VM.
-    
+
     Args:
         domain: libvirt domain object
         model: SCSI controller model ('virtio-scsi')
@@ -2687,7 +2943,7 @@ def add_scsi_controller(domain: libvirt.virDomain, model: str = 'virtio-scsi'):
     if not domain:
         raise ValueError("Invalid domain object.")
 
-    if model != 'virtio-scsi':
+    if model != "virtio-scsi":
         raise ValueError(f"Unsupported SCSI model: {model}")
 
     # Determine next available index for SCSI controllers
@@ -2695,7 +2951,7 @@ def add_scsi_controller(domain: libvirt.virDomain, model: str = 'virtio-scsi'):
     root = ET.fromstring(xml_desc)
     scsi_controllers = root.findall(".//controller[@type='scsi']")
 
-    indices = [int(c.get('index', '0')) for c in scsi_controllers if c.get('index')]
+    indices = [int(c.get("index", "0")) for c in scsi_controllers if c.get("index")]
     next_index = max(indices) + 1 if indices else 0
 
     controller_xml = f"<controller type='scsi' index='{next_index}' model='virtio-scsi'/>"
@@ -2719,7 +2975,9 @@ def remove_usb_device(domain: libvirt.virDomain, model: str, index: str):
     """
     if not domain:
         raise ValueError("Invalid domain object.")
-    controller_model_libvirt = 'piix3-uhci' if model == 'usb2' else 'qemu-xhci' if model == 'usb3' else None
+    controller_model_libvirt = (
+        "piix3-uhci" if model == "usb2" else "qemu-xhci" if model == "usb3" else None
+    )
 
     if not controller_model_libvirt:
         raise ValueError(f"Unsupported USB model: {model}")
@@ -2730,14 +2988,16 @@ def remove_usb_device(domain: libvirt.virDomain, model: str, index: str):
     target_controller = None
 
     for c in root.findall(".//controller[@type='usb']"):
-        if c.get('model') == controller_model_libvirt and c.get('index') == index:
+        if c.get("model") == controller_model_libvirt and c.get("index") == index:
             target_controller = c
             break
 
     if target_controller is None:
-        raise ValueError(f"USB controller with model '{controller_model_libvirt}' and index '{index}' not found.")
+        raise ValueError(
+            f"USB controller with model '{controller_model_libvirt}' and index '{index}' not found."
+        )
 
-    controller_xml = ET.tostring(target_controller, encoding='unicode')
+    controller_xml = ET.tostring(target_controller, encoding="unicode")
     flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
 
     if domain.isActive():
@@ -2745,6 +3005,7 @@ def remove_usb_device(domain: libvirt.virDomain, model: str, index: str):
 
     domain.detachDeviceFlags(controller_xml, flags)
     invalidate_cache(get_internal_id(domain))
+
 
 def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
     """
@@ -2758,7 +3019,7 @@ def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
     if not domain:
         raise ValueError("Invalid domain object.")
 
-    if model != 'virtio-scsi':
+    if model != "virtio-scsi":
         raise ValueError(f"Unsupported SCSI model: {model}")
 
     # Find the controller in XML to get its full definition
@@ -2767,14 +3028,14 @@ def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
     target_controller = None
 
     for c in root.findall(".//controller[@type='scsi']"):
-        if c.get('model') == model and c.get('index') == index:
+        if c.get("model") == model and c.get("index") == index:
             target_controller = c
             break
 
     if target_controller is None:
         raise ValueError(f"SCSI controller with model '{model}' and index '{index}' not found.")
 
-    controller_xml = ET.tostring(target_controller, encoding='unicode')
+    controller_xml = ET.tostring(target_controller, encoding="unicode")
     flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
 
     if domain.isActive():
@@ -2782,6 +3043,7 @@ def remove_scsi_controller(domain: libvirt.virDomain, model: str, index: str):
 
     domain.detachDeviceFlags(controller_xml, flags)
     invalidate_cache(get_internal_id(domain))
+
 
 def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_name: str):
     """
@@ -2822,7 +3084,7 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
                     p_name = source.attrib["pool"]
                     v_name = source.attrib["volume"]
                     if p_name == pool.name() and v_name == vol.name():
-                        path = disk_path # Effective match
+                        path = disk_path  # Effective match
 
                 # Check if this is the disk we want to update
                 match = False
@@ -2856,19 +3118,21 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
                     new_vol_path = new_vol.path()
 
                     # Check if entry already exists (cleanup if replacing - though rare for new overlay)
-                    for entry in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
-                        if entry.get('path') == new_vol_path:
+                    for entry in backing_chain_elem.findall(f"{{{VIRTUI_MANAGER_NS}}}overlay"):
+                        if entry.get("path") == new_vol_path:
                             backing_chain_elem.remove(entry)
 
-                    overlay_elem = ET.SubElement(backing_chain_elem, f'{{{VIRTUI_MANAGER_NS}}}overlay')
-                    overlay_elem.set('path', new_vol_path)
-                    overlay_elem.set('backing', disk_path)
+                    overlay_elem = ET.SubElement(
+                        backing_chain_elem, f"{{{VIRTUI_MANAGER_NS}}}overlay"
+                    )
+                    overlay_elem.set("path", new_vol_path)
+                    overlay_elem.set("backing", disk_path)
 
                     updated = True
                     break
 
         if updated:
-            conn.defineXML(ET.tostring(root, encoding='unicode'))
+            conn.defineXML(ET.tostring(root, encoding="unicode"))
         else:
             # Cleanup if we didn't find the disk in XML to update
             new_vol.delete(0)
@@ -2877,15 +3141,16 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
     except Exception as e:
         # Try to cleanup overlay if XML update failed
         try:
-            if 'new_vol' in locals():
+            if "new_vol" in locals():
                 new_vol.delete(0)
         except:
             pass
         raise Exception(f"Failed to update VM configuration: {e}")
 
+
 def discard_overlay(domain: libvirt.virDomain, disk_path: str):
     """
-    Updates the VM to use the backing file of the current overlay, 
+    Updates the VM to use the backing file of the current overlay,
     and deletes the overlay volume.
     The VM must be stopped.
     """
@@ -2944,13 +3209,17 @@ def discard_overlay(domain: libvirt.virDomain, disk_path: str):
                 if backing_pool and backing_vol:
                     source.set("pool", backing_pool.name())
                     source.set("volume", backing_vol.name())
-                    if "file" in source.attrib: del source.attrib["file"]
-                    if "dev" in source.attrib: del source.attrib["dev"]
+                    if "file" in source.attrib:
+                        del source.attrib["file"]
+                    if "dev" in source.attrib:
+                        del source.attrib["dev"]
                 else:
                     # Just set file path
                     source.set("file", backing_path)
-                    if "pool" in source.attrib: del source.attrib["pool"]
-                    if "volume" in source.attrib: del source.attrib["volume"]
+                    if "pool" in source.attrib:
+                        del source.attrib["pool"]
+                    if "volume" in source.attrib:
+                        del source.attrib["volume"]
 
                 updated = True
                 break
@@ -2959,17 +3228,17 @@ def discard_overlay(domain: libvirt.virDomain, disk_path: str):
         # Remove backing chain info from metadata
         backing_chain_elem = vm_root.find(f".//{{{VIRTUI_MANAGER_NS}}}backing-chain")
         if backing_chain_elem is not None:
-            for entry in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
-                if entry.get('path') == disk_path:
+            for entry in backing_chain_elem.findall(f"{{{VIRTUI_MANAGER_NS}}}overlay"):
+                if entry.get("path") == disk_path:
                     backing_chain_elem.remove(entry)
 
             # If backing chain is empty, remove it
             if len(list(backing_chain_elem)) == 0:
-                 vmanager_elem = vm_root.find(f".//{{{VIRTUI_MANAGER_NS}}}virtuimanager")
-                 if vmanager_elem is not None:
-                     vmanager_elem.remove(backing_chain_elem)
+                vmanager_elem = vm_root.find(f".//{{{VIRTUI_MANAGER_NS}}}virtuimanager")
+                if vmanager_elem is not None:
+                    vmanager_elem.remove(backing_chain_elem)
 
-        domain.connect().defineXML(ET.tostring(vm_root, encoding='unicode'))
+        domain.connect().defineXML(ET.tostring(vm_root, encoding="unicode"))
         # Delete the old overlay volume
         try:
             vol.delete(0)
@@ -2978,8 +3247,15 @@ def discard_overlay(domain: libvirt.virDomain, disk_path: str):
     else:
         raise Exception("Could not find disk in VM configuration.")
 
+
 @log_function_call
-def add_vm_channel(domain: libvirt.virDomain, channel_type: str, target_name: str, target_type: str = 'virtio', target_state: str = None):
+def add_vm_channel(
+    domain: libvirt.virDomain,
+    channel_type: str,
+    target_name: str,
+    target_type: str = "virtio",
+    target_state: str = None,
+):
     """
     Adds a channel device to a VM.
     The VM must be stopped.
@@ -2990,23 +3266,24 @@ def add_vm_channel(domain: libvirt.virDomain, channel_type: str, target_name: st
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
-        devices = ET.SubElement(root, 'devices')
+        devices = ET.SubElement(root, "devices")
 
-    channel = ET.SubElement(devices, 'channel', type=channel_type)
-    target_attrs = {'type': target_type, 'name': target_name}
+    channel = ET.SubElement(devices, "channel", type=channel_type)
+    target_attrs = {"type": target_type, "name": target_name}
     if target_state:
-        target_attrs['state'] = target_state
+        target_attrs["state"] = target_state
 
-    ET.SubElement(channel, 'target', **target_attrs)
+    ET.SubElement(channel, "target", **target_attrs)
 
     # For qemu-guest-agent (unix socket), we usually need a source too (bind)
-    if channel_type == 'unix':
-        ET.SubElement(channel, 'source', mode='bind')
+    if channel_type == "unix":
+        ET.SubElement(channel, "source", mode="bind")
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
+
 
 @log_function_call
 def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
@@ -3020,14 +3297,14 @@ def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    devices = root.find('devices')
+    devices = root.find("devices")
     if devices is None:
         raise ValueError("Could not find <devices> in VM XML.")
 
     channel_to_remove = None
-    for channel in devices.findall('channel'):
-        target = channel.find('target')
-        if target is not None and target.get('name') == target_name:
+    for channel in devices.findall("channel"):
+        target = channel.find("target")
+        if target is not None and target.get("name") == target_name:
             channel_to_remove = channel
             break
 
@@ -3036,7 +3313,7 @@ def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
 
     devices.remove(channel_to_remove)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
 
 
@@ -3053,17 +3330,18 @@ def set_vm_cputune(domain: libvirt.virDomain, vcpupin_list: list[dict]):
     root = ET.fromstring(xml_desc)
 
     # Remove existing cputune
-    cputune = root.find('cputune')
+    cputune = root.find("cputune")
     if cputune is not None:
         root.remove(cputune)
 
     if vcpupin_list:
-        cputune = ET.SubElement(root, 'cputune')
+        cputune = ET.SubElement(root, "cputune")
         for pin in vcpupin_list:
-            ET.SubElement(cputune, 'vcpupin', vcpu=str(pin['vcpu']), cpuset=str(pin['cpuset']))
+            ET.SubElement(cputune, "vcpupin", vcpu=str(pin["vcpu"]), cpuset=str(pin["cpuset"]))
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
+
 
 def set_vm_numatune(domain: libvirt.virDomain, mode: str, nodeset: str):
     """
@@ -3077,13 +3355,13 @@ def set_vm_numatune(domain: libvirt.virDomain, mode: str, nodeset: str):
     root = ET.fromstring(xml_desc)
 
     # Remove existing numatune
-    numatune = root.find('numatune')
+    numatune = root.find("numatune")
     if numatune is not None:
         root.remove(numatune)
 
     if mode and mode != "None":
-        numatune = ET.SubElement(root, 'numatune')
-        ET.SubElement(numatune, 'memory', mode=mode, nodeset=nodeset)
+        numatune = ET.SubElement(root, "numatune")
+        ET.SubElement(numatune, "memory", mode=mode, nodeset=nodeset)
 
-    new_xml = ET.tostring(root, encoding='unicode')
+    new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
