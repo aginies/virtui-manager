@@ -2,12 +2,14 @@
 """
 Simple remote viewer
 """
-#import os
-#os.environ['GDK_BACKEND'] = 'x11'
+
+# import os
+# os.environ['GDK_BACKEND'] = 'x11'
 import argparse
 import json
 import os
 import socket
+import re
 import subprocess
 import sys
 import threading
@@ -19,15 +21,16 @@ import libvirt
 
 from . import libvirt_utils, vm_actions, vm_queries
 
-gi.require_version('Gtk', '3.0')
-gi.require_version('GtkVnc', '2.0')
-gi.require_version('Gdk', '3.0')
-gi.require_version('GdkPixbuf', '2.0')
+gi.require_version("Gtk", "3.0")
+gi.require_version("GtkVnc", "2.0")
+gi.require_version("Gdk", "3.0")
+gi.require_version("GdkPixbuf", "2.0")
 
 try:
-    gi.require_version('SpiceClientGtk', '3.0')
-    gi.require_version('SpiceClientGLib', '2.0')
+    gi.require_version("SpiceClientGtk", "3.0")
+    gi.require_version("SpiceClientGLib", "2.0")
     from gi.repository import SpiceClientGLib, SpiceClientGtk
+
     SPICE_AVAILABLE = True
 except (ValueError, ImportError):
     SPICE_AVAILABLE = False
@@ -36,7 +39,18 @@ from gi.repository import Gdk, GLib, Gtk, GtkVnc
 
 
 class RemoteViewer(Gtk.Application):
-    def __init__(self, uri, domain_name, uuid, verbose, password=None, show_logs=False, attach=False, wait=False, direct=False):
+    def __init__(
+        self,
+        uri,
+        domain_name,
+        uuid,
+        verbose,
+        password=None,
+        show_logs=False,
+        attach=False,
+        wait=False,
+        direct=False,
+    ):
         super().__init__(application_id=None)
         self.uri = uri
         self.domain_name = domain_name
@@ -59,9 +73,9 @@ class RemoteViewer(Gtk.Application):
         self.lossy_encoding_enabled = False
         self.view_only_enabled = False
         self.vnc_depth = 0
-        self.display_widget = None # VNC or SPICE widget
+        self.display_widget = None  # VNC or SPICE widget
         self.spice_session = None
-        self.protocol = None # 'vnc' or 'spice'
+        self.protocol = None  # 'vnc' or 'spice'
         self.reconnect_pending = False
         self.fs_button = None
         self.info_bar = None
@@ -85,6 +99,12 @@ class RemoteViewer(Gtk.Application):
         self.ssh_gateway_port = None
         self.notification_timeout_id = None
         self.clipboard_handler_id = None
+        # Wait for VM state
+        self.wait_timeout_id = None
+        self.wait_start_time = None
+        self.wait_max_seconds = 300  # 5 minutes default timeout
+        self.wait_cancel_button = None
+        self.no_display_label = None
 
     def show_error_dialog(self, message):
         dialog = Gtk.MessageDialog(
@@ -92,7 +112,7 @@ class RemoteViewer(Gtk.Application):
             flags=0,
             message_type=Gtk.MessageType.ERROR,
             buttons=Gtk.ButtonsType.OK,
-            text="Error"
+            text="Error",
         )
         dialog.format_secondary_text(message)
         dialog.run()
@@ -135,7 +155,7 @@ class RemoteViewer(Gtk.Application):
         if self.verbose:
             print(full_msg.strip())
 
-        if hasattr(self, 'log_buffer') and self.log_buffer:
+        if hasattr(self, "log_buffer") and self.log_buffer:
             GLib.idle_add(self._append_log_safe, full_msg)
 
     def _append_log_safe(self, text):
@@ -152,12 +172,12 @@ class RemoteViewer(Gtk.Application):
         except Exception:
             # If no events or error, just ignore
             pass
-        return True # Continue calling
+        return True  # Continue calling
 
     def _find_free_port(self):
         """Find a free local port for SSH tunnel"""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('localhost', 0))
+            s.bind(("localhost", 0))
             s.listen(1)
             port = s.getsockname()[1]
         return port
@@ -168,12 +188,13 @@ class RemoteViewer(Gtk.Application):
           qemu+ssh://user@host/system -> gateway: user@host, port: 22
           qemu+ssh://user@host:999/system -> gateway: user@host, port: 999
         """
-        if not self.uri or 'qemu+ssh' not in self.uri:
+        if not self.uri or "qemu+ssh" not in self.uri:
             return None, None
 
         import re
+
         # Pattern: qemu+ssh://[user@]host[:port]/path
-        match = re.search(r'qemu\+ssh://([^@]+@)?([^/:]+)(?::(\d+))?', self.uri)
+        match = re.search(r"qemu\+ssh://([^@]+@)?([^/:]+)(?::(\d+))?", self.uri)
         if not match:
             return None, None
 
@@ -186,7 +207,7 @@ class RemoteViewer(Gtk.Application):
 
     def setup_ssh_tunnel(self):
         """Setup SSH tunnel for qemu+ssh:// connections"""
-        if not self.uri or 'qemu+ssh' not in self.uri or self.direct_connection:
+        if not self.uri or "qemu+ssh" not in self.uri or self.direct_connection:
             return False
 
         try:
@@ -197,7 +218,9 @@ class RemoteViewer(Gtk.Application):
                 self.log_message("ERROR: Could not parse qemu+ssh URI")
                 return False
 
-            self.log_message(f"Detected remote SSH connection via {self.ssh_gateway}:{self.ssh_gateway_port}")
+            self.log_message(
+                f"Detected remote SSH connection via {self.ssh_gateway}:{self.ssh_gateway_port}"
+            )
 
             # Find a free local port for the tunnel
             self.ssh_tunnel_local_port = self._find_free_port()
@@ -211,7 +234,11 @@ class RemoteViewer(Gtk.Application):
             return False
 
     def start_ssh_tunnel(self, remote_host, remote_port):
-        """Start the actual SSH tunnel process"""
+        """Start the actual SSH tunnel process.
+
+        Uses BatchMode to avoid interactive prompts that would hang the UI.
+        Verifies the tunnel is established before returning.
+        """
         if not self.ssh_gateway or not self.ssh_tunnel_local_port:
             return False
 
@@ -219,27 +246,107 @@ class RemoteViewer(Gtk.Application):
         self.stop_ssh_tunnel()
 
         # SSH command: ssh -N -C -L local_port:remote_host:remote_port gateway -p gateway_port
+        # -o BatchMode=yes: Fail immediately if password/passphrase is needed or host key unknown
+        # -o ConnectTimeout=10: Don't wait forever for connection
+        # -o StrictHostKeyChecking=accept-new: Accept new host keys but reject changed ones
         ssh_cmd = [
-            'ssh', '-N', '-C', '-L',
-            f'{self.ssh_tunnel_local_port}:{remote_host}:{remote_port}',
-            self.ssh_gateway, '-p', self.ssh_gateway_port
+            "ssh",
+            "-N",
+            "-C",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            "ExitOnForwardFailure=yes",
+            "-L",
+            f"{self.ssh_tunnel_local_port}:{remote_host}:{remote_port}",
+            self.ssh_gateway,
+            "-p",
+            self.ssh_gateway_port,
         ]
 
         self.log_message(f"Starting SSH tunnel: {' '.join(ssh_cmd)}")
-        self.ssh_tunnel_process = subprocess.Popen(ssh_cmd)
+
+        try:
+            self.ssh_tunnel_process = subprocess.Popen(
+                ssh_cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            self.log_message("ERROR: 'ssh' command not found. Please install OpenSSH client.")
+            self.show_notification(
+                "SSH client not found. Cannot establish tunnel.", Gtk.MessageType.ERROR
+            )
+            return False
+        except Exception as e:
+            self.log_message(f"ERROR: Failed to start SSH process: {e}")
+            self.show_notification(f"Failed to start SSH tunnel: {e}", Gtk.MessageType.ERROR)
+            return False
+
+        # Verify tunnel is established by checking if the process is still running
+        # and if the local port is listening
+        if not self._verify_ssh_tunnel():
+            return False
+
+        self.ssh_tunnel_active = True
+        self.log_message("SSH tunnel established successfully.")
+        return True
+
+    def _verify_ssh_tunnel(self, timeout=5):
+        """Verify that the SSH tunnel process started and local port is listening.
+
+        Returns True if tunnel is ready, False otherwise.
+        """
+        import time
+
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            # Check if process died
+            if self.ssh_tunnel_process.poll() is not None:
+                # Process exited, get error output
+                _, stderr = self.ssh_tunnel_process.communicate()
+                error_msg = stderr.decode().strip() if stderr else "Unknown error"
+                self.log_message(f"ERROR: SSH tunnel failed to start: {error_msg}")
+                self.show_notification(f"SSH tunnel failed: {error_msg}", Gtk.MessageType.ERROR)
+                self.ssh_tunnel_process = None
+                return False
+
+            # Check if local port is now listening
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    result = s.connect_ex(("localhost", self.ssh_tunnel_local_port))
+                    if result == 0:
+                        return True
+            except Exception:
+                pass
+
+            time.sleep(0.2)
+
+        # Timeout reached, tunnel may still be starting but taking too long
+        self.log_message("WARNING: SSH tunnel verification timed out, proceeding anyway.")
         return True
 
     def stop_ssh_tunnel(self, *args):
         """Terminate the SSH tunnel process if active."""
-        if self.ssh_tunnel_process:
-            self.log_message("Terminating SSH tunnel")
-            self.ssh_tunnel_process.terminate()
-            try:
-                self.ssh_tunnel_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.ssh_tunnel_process.kill()
-            self.ssh_tunnel_process = None
-            self.log_message("SSH tunnel terminated.")
+        if not self.ssh_tunnel_process:
+            return
+
+        self.log_message("Terminating SSH tunnel")
+        self.ssh_tunnel_process.terminate()
+        try:
+            self.ssh_tunnel_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.ssh_tunnel_process.kill()
+        self.ssh_tunnel_process = None
+        self.ssh_tunnel_active = False
+        self.log_message("SSH tunnel terminated.")
 
     def register_domain_events(self):
         if not self.conn or not self.domain:
@@ -254,7 +361,7 @@ class RemoteViewer(Gtk.Application):
                 self.domain,
                 libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE,
                 self._event_lifecycle_callback,
-                None
+                None,
             )
 
             # Graphics events
@@ -262,7 +369,7 @@ class RemoteViewer(Gtk.Application):
                 self.domain,
                 libvirt.VIR_DOMAIN_EVENT_ID_GRAPHICS,
                 self._event_generic_callback,
-                "Graphics"
+                "Graphics",
             )
 
             # Reboot
@@ -270,7 +377,7 @@ class RemoteViewer(Gtk.Application):
                 self.domain,
                 libvirt.VIR_DOMAIN_EVENT_ID_REBOOT,
                 self._event_generic_callback,
-                "Reboot"
+                "Reboot",
             )
 
             # IO Error
@@ -278,7 +385,7 @@ class RemoteViewer(Gtk.Application):
                 self.domain,
                 libvirt.VIR_DOMAIN_EVENT_ID_IO_ERROR,
                 self._event_generic_callback,
-                "IO Error"
+                "IO Error",
             )
 
             # Watchdog
@@ -286,7 +393,7 @@ class RemoteViewer(Gtk.Application):
                 self.domain,
                 libvirt.VIR_DOMAIN_EVENT_ID_WATCHDOG,
                 self._event_generic_callback,
-                "Watchdog"
+                "Watchdog",
             )
 
             # Start the event loop ticker
@@ -307,7 +414,7 @@ class RemoteViewer(Gtk.Application):
             5: "Stopped",
             6: "Shutdown",
             7: "PMSuspended",
-            8: "Crashed"
+            8: "Crashed",
         }
         event_type = event_strs.get(event, f"Unknown({event})")
         self.log_message(f"Event: Lifecycle - {event_type} (Detail: {detail})")
@@ -330,7 +437,6 @@ class RemoteViewer(Gtk.Application):
 
         # Call this to update sensitivity of restore button if needed
         self.update_restore_button_sensitivity()
-
 
     def _event_generic_callback(self, conn, dom, *args):
         info = "Event"
@@ -370,9 +476,9 @@ class RemoteViewer(Gtk.Application):
                 "smoothing": self.smoothing_enabled,
                 "lossy_encoding": self.lossy_encoding_enabled,
                 "view_only": self.view_only_enabled,
-                "vnc_depth": self.vnc_depth
+                "vnc_depth": self.vnc_depth,
             }
-            with open(self.get_config_path(), 'w') as f:
+            with open(self.get_config_path(), "w") as f:
                 json.dump(data, f)
         except Exception as e:
             if self.verbose:
@@ -381,7 +487,7 @@ class RemoteViewer(Gtk.Application):
     def do_activate(self):
         # Connection to libvirt
         try:
-            if 'qemu+ssh' in self.uri and not self.direct_connection:
+            if "qemu+ssh" in self.uri and not self.direct_connection:
                 self.setup_ssh_tunnel()
             self.conn = libvirt.open(self.uri)
         except libvirt.libvirtError as e:
@@ -403,7 +509,7 @@ class RemoteViewer(Gtk.Application):
                 self.domain = self.conn.lookupByName(self.domain_name)
             elif self.uuid:
                 self.domain = self.conn.lookupByUUIDString(self.uuid)
-             # Store the original domain UUID to prevent connecting to wrong VM
+            # Store the original domain UUID to prevent connecting to wrong VM
             if self.domain and not self.original_domain_uuid:
                 self.original_domain_uuid = self.domain.UUIDString()
         except libvirt.libvirtError as e:
@@ -495,24 +601,97 @@ class RemoteViewer(Gtk.Application):
             self.show_viewer()
 
     def _wait_and_connect_cb(self):
+        """Callback for waiting for VM to start. Returns True to keep waiting, False to stop."""
+        import time
+
+        # Check if wait was cancelled
+        if self.wait_timeout_id is None:
+            self._cleanup_wait_ui()
+            return False
+
+        # Check for timeout
+        if self.wait_start_time:
+            elapsed = time.time() - self.wait_start_time
+            remaining = self.wait_max_seconds - elapsed
+
+            if elapsed >= self.wait_max_seconds:
+                self.log_message("Wait timeout reached. Stopping wait for VM.")
+                self.show_notification(
+                    f"Timed out waiting for VM to start after {self.wait_max_seconds} seconds.",
+                    Gtk.MessageType.WARNING,
+                )
+                self._cleanup_wait_ui()
+                return False
+
+            # Update notification with remaining time
+            mins, secs = divmod(int(remaining), 60)
+            if mins > 0:
+                time_str = f"{mins}m {secs}s"
+            else:
+                time_str = f"{secs}s"
+            self.show_notification(
+                f"Waiting for VM to start... ({time_str} remaining)", Gtk.MessageType.INFO
+            )
+
         try:
             # Refresh domain info
             if self.original_domain_uuid:
                 try:
                     self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
                 except libvirt.libvirtError:
-                    pass # Keep using current domain object if lookup fails
+                    pass  # Keep using current domain object if lookup fails
 
             protocol, host, port, pwd = self.get_display_info()
             if not self.attach and (not host or not port):
-                return True # Keep waiting
+                return True  # Keep waiting
 
             self.show_notification("VM started! Connecting...", Gtk.MessageType.INFO)
+            self._cleanup_wait_ui()
             self.connect_display()
             return False
         except Exception as e:
-            if self.verbose: print(f"Wait error: {e}")
+            if self.verbose:
+                print(f"Wait error: {e}")
             return True
+
+    def _cancel_wait_clicked(self, button):
+        """Handle cancel button click during wait."""
+        self.log_message("Wait for VM cancelled by user.")
+        if self.wait_timeout_id:
+            GLib.source_remove(self.wait_timeout_id)
+            self.wait_timeout_id = None
+        self._cleanup_wait_ui()
+        self.show_notification("Wait for VM cancelled.", Gtk.MessageType.INFO)
+
+    def _cleanup_wait_ui(self):
+        """Remove the cancel button from the info bar."""
+        self.wait_timeout_id = None
+        self.wait_start_time = None
+        if self.wait_cancel_button and self.wait_cancel_button.get_parent():
+            self.wait_cancel_button.get_parent().remove(self.wait_cancel_button)
+            self.wait_cancel_button = None
+
+    def _start_wait_for_vm(self):
+        """Start waiting for VM with timeout and cancel button."""
+        import time
+
+        self.wait_start_time = time.time()
+
+        # Add cancel button to info bar action area
+        if self.info_bar:
+            action_area = self.info_bar.get_action_area()
+            if action_area:
+                self.wait_cancel_button = Gtk.Button(label="Cancel")
+                self.wait_cancel_button.connect("clicked", self._cancel_wait_clicked)
+                action_area.pack_start(self.wait_cancel_button, False, False, 0)
+                self.wait_cancel_button.show()
+
+        mins, secs = divmod(self.wait_max_seconds, 60)
+        self.show_notification(
+            f"Waiting for VM to start... ({mins}m {secs}s remaining)", Gtk.MessageType.INFO
+        )
+
+        self.wait_timeout_id = GLib.timeout_add_seconds(3, self._wait_and_connect_cb)
 
     def show_viewer(self):
         # Allow viewer to start even if domain is not found
@@ -683,13 +862,13 @@ class RemoteViewer(Gtk.Application):
         btn_pull_clip = Gtk.ModelButton()
         btn_pull_clip.set_label("Pull Guest Clipboard to Host")
         btn_pull_clip.connect("clicked", self.on_pull_clipboard, clip_popover)
-        #vbox_clip.pack_start(btn_pull_clip, False, False, 0)
+        # vbox_clip.pack_start(btn_pull_clip, False, False, 0)
 
         # Manual Push
         btn_push_clip = Gtk.ModelButton()
         btn_push_clip.set_label("Push Host Clipboard to Guest")
         btn_push_clip.connect("clicked", self.on_push_clipboard, clip_popover)
-        #vbox_clip.pack_start(btn_push_clip, False, False, 0)
+        # vbox_clip.pack_start(btn_push_clip, False, False, 0)
 
         vbox_clip.show_all()
         clip_popover.add(vbox_clip)
@@ -783,12 +962,12 @@ class RemoteViewer(Gtk.Application):
 
         self.delete_snapshot_button = Gtk.Button(label="Delete Snapshot")
         self.delete_snapshot_button.connect("clicked", self.on_delete_snapshot_clicked)
-        self.delete_snapshot_button.set_sensitive(False) # Initially insensitive
+        self.delete_snapshot_button.set_sensitive(False)  # Initially insensitive
         action_buttons_box.pack_start(self.delete_snapshot_button, True, True, 0)
 
         self.restore_snapshot_button = Gtk.Button(label="Restore Snapshot")
         self.restore_snapshot_button.connect("clicked", self.on_restore_snapshot_clicked)
-        self.restore_snapshot_button.set_sensitive(False) # Initially insensitive
+        self.restore_snapshot_button.set_sensitive(False)  # Initially insensitive
         action_buttons_box.pack_start(self.restore_snapshot_button, True, True, 0)
 
         # Refresh button (keeping it separate or integrating as preferred)
@@ -806,8 +985,12 @@ class RemoteViewer(Gtk.Application):
         self.notebook.append_page(self.usb_tab, Gtk.Label(label="USB Devices"))
 
         # Attached USB Devices
-        self.usb_tab.pack_start(Gtk.Label(label="<b>Attached USB Devices</b>", use_markup=True), False, False, 0)
-        self.attached_usb_store = Gtk.ListStore(str, str, str, str, str) # vendor_id, product_id, vendor_name, product_name, description
+        self.usb_tab.pack_start(
+            Gtk.Label(label="<b>Attached USB Devices</b>", use_markup=True), False, False, 0
+        )
+        self.attached_usb_store = Gtk.ListStore(
+            str, str, str, str, str
+        )  # vendor_id, product_id, vendor_name, product_name, description
         self.attached_usb_tree_view = Gtk.TreeView(model=self.attached_usb_store)
         self._add_usb_tree_columns(self.attached_usb_tree_view)
         scroll_attached_usb = Gtk.ScrolledWindow()
@@ -816,8 +999,12 @@ class RemoteViewer(Gtk.Application):
         self.usb_tab.pack_start(scroll_attached_usb, True, True, 0)
 
         # Host USB Devices
-        self.usb_tab.pack_start(Gtk.Label(label="<b>Available Host USB Devices</b>", use_markup=True), False, False, 0)
-        self.host_usb_store = Gtk.ListStore(str, str, str, str, str) # vendor_id, product_id, vendor_name, product_name, description
+        self.usb_tab.pack_start(
+            Gtk.Label(label="<b>Available Host USB Devices</b>", use_markup=True), False, False, 0
+        )
+        self.host_usb_store = Gtk.ListStore(
+            str, str, str, str, str
+        )  # vendor_id, product_id, vendor_name, product_name, description
         self.host_usb_tree_view = Gtk.TreeView(model=self.host_usb_store)
         self._add_usb_tree_columns(self.host_usb_tree_view)
         scroll_host_usb = Gtk.ScrolledWindow()
@@ -844,8 +1031,12 @@ class RemoteViewer(Gtk.Application):
         usb_action_buttons_box.pack_start(refresh_usb_button, True, True, 0)
 
         # Connect selection changes for sensitivity
-        self.attached_usb_tree_view.get_selection().connect("changed", self.on_attached_usb_selection_changed)
-        self.host_usb_tree_view.get_selection().connect("changed", self.on_host_usb_selection_changed)
+        self.attached_usb_tree_view.get_selection().connect(
+            "changed", self.on_attached_usb_selection_changed
+        )
+        self.host_usb_tree_view.get_selection().connect(
+            "changed", self.on_host_usb_selection_changed
+        )
         # Connect tab-select signal to populate snapshots when the tab is switched to
         self.notebook.connect("switch-page", self.on_notebook_switch_page)
 
@@ -888,23 +1079,32 @@ class RemoteViewer(Gtk.Application):
         if self.wait_for_vm:
             protocol, host, port, pwd = self.get_display_info()
             if not self.attach and (not host or not port):
-                self.show_notification("Waiting for VM to start...", Gtk.MessageType.INFO)
-                GLib.timeout_add_seconds(3, self._wait_and_connect_cb)
+                self._start_wait_for_vm()
                 return
-        else: # Check current state if not waiting for VM to start
+        else:  # Check current state if not waiting for VM to start
             if self.domain:
                 try:
                     state, _ = self.domain.state()
                     if state == libvirt.VIR_DOMAIN_PAUSED:
-                        self.show_notification(f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING)
+                        self.show_notification(
+                            f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING
+                        )
                     elif state == libvirt.VIR_DOMAIN_RUNNING:
-                        self.show_notification(f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO)
-                    elif state == libvirt.VIR_DOMAIN_SHUTOFF or state == libvirt.VIR_DOMAIN_SHUTDOWN:
-                        self.show_notification(f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO)
+                        self.show_notification(
+                            f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO
+                        )
+                    elif (
+                        state == libvirt.VIR_DOMAIN_SHUTOFF or state == libvirt.VIR_DOMAIN_SHUTDOWN
+                    ):
+                        self.show_notification(
+                            f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO
+                        )
                 except libvirt.libvirtError as e:
-                    self.show_notification(f"Could not determine VM state: {e}", Gtk.MessageType.ERROR)
+                    self.show_notification(
+                        f"Could not determine VM state: {e}", Gtk.MessageType.ERROR
+                    )
             else:
-                 self.show_notification("VM domain not found/loaded.", Gtk.MessageType.WARNING)
+                self.show_notification("VM domain not found/loaded.", Gtk.MessageType.WARNING)
 
         self.connect_display()
 
@@ -913,13 +1113,14 @@ class RemoteViewer(Gtk.Application):
         self.stop_ssh_tunnel()
 
         # If SSH tunnel is configured, setup tunnel for this specific port
-        if self.ssh_gateway: # Removed `self.ssh_tunnel_process is None` as stop_ssh_tunnel handles it
+        if (
+            self.ssh_gateway
+        ):  # Removed `self.ssh_tunnel_process is None` as stop_ssh_tunnel handles it
             # Start tunnel to the actual remote host/port
             remote_host = listen if not self.direct_connection else None
-            if listen == 'localhost' or listen == '0.0.0.0':
+            if listen == "localhost" or listen == "0.0.0.0":
                 # Extract remote host from libvirt URI
-                import re
-                match = re.search(r'qemu\+ssh://(?:[^@]+@)?([^/:]+)', self.uri)
+                match = re.search(r"qemu\+ssh://(?:[^@]+@)?([^/:]+)", self.uri)
                 if match:
                     remote_host = match.group(1)
 
@@ -938,35 +1139,37 @@ class RemoteViewer(Gtk.Application):
             root = ET.fromstring(xml_desc)
 
             def get_graphics_info(g_node):
-                if g_node is None: return None
-                port = g_node.get('port')
-                if not port or port == '-1':
-                    port = g_node.get('tlsPort')
+                if g_node is None:
+                    return None
+                port = g_node.get("port")
+                if not port or port == "-1":
+                    port = g_node.get("tlsPort")
 
-                listen = g_node.get('listen')
-                if not listen or listen == '0.0.0.0':
-                    listen = 'localhost'
+                listen = g_node.get("listen")
+                if not listen or listen == "0.0.0.0":
+                    listen = "localhost"
 
-                password = g_node.get('passwd')
+                password = g_node.get("passwd")
+                password_required = password is not None
 
-                if port and port != '-1':
-                    return listen, port, password
+                if port and port != "-1":
+                    return listen, port, password_required
                 return None
 
             # Check SPICE (only if client is available)
             if SPICE_AVAILABLE:
                 info = get_graphics_info(root.find(".//graphics[@type='spice']"))
                 if info:
-                    listen, port, password = info
+                    listen, port, password_required = info
                     self._setup_tunnel_if_needed(listen, port)
-                    return 'spice', listen, port, password
+                    return "spice", listen, port, password_required
 
             # Check VNC
             info = get_graphics_info(root.find(".//graphics[@type='vnc']"))
             if info:
-                listen, port, password = info
+                listen, port, password_required = info
                 self._setup_tunnel_if_needed(listen, port)
-                return 'vnc', listen, port, password
+                return "vnc", listen, port, password_required
 
         except Exception as e:
             msg = f"XML parse error: {e}"
@@ -983,7 +1186,7 @@ class RemoteViewer(Gtk.Application):
             parent = self.display_widget.get_parent()
             if parent and isinstance(parent, Gtk.ScrolledWindow):
                 if parent.get_parent() == self.view_container:
-                     self.view_container.remove(parent)
+                    self.view_container.remove(parent)
                 parent.destroy()
             elif parent == self.view_container:
                 self.view_container.remove(self.display_widget)
@@ -991,11 +1194,14 @@ class RemoteViewer(Gtk.Application):
             self.display_widget.destroy()
             self.display_widget = None
 
+        # Remove any existing placeholder
+        self._remove_no_display_placeholder()
+
         # Disconnect previous clipboard handler if exists
-        if hasattr(self, 'clipboard_handler_id') and self.clipboard_handler_id:
-             if self.clipboard.handler_is_connected(self.clipboard_handler_id):
-                 self.clipboard.disconnect(self.clipboard_handler_id)
-             self.clipboard_handler_id = None
+        if hasattr(self, "clipboard_handler_id") and self.clipboard_handler_id:
+            if self.clipboard.handler_is_connected(self.clipboard_handler_id):
+                self.clipboard.disconnect(self.clipboard_handler_id)
+            self.clipboard_handler_id = None
 
         protocol, host, port, password_required = self.get_display_info()
         self.protocol = protocol
@@ -1003,15 +1209,19 @@ class RemoteViewer(Gtk.Application):
         msg = f"Initializing display for protocol: {protocol}"
         self.log_message(msg)
         if self.verbose:
-             print(msg)
+            print(msg)
 
         if protocol is None:
-            self.log_message("No display protocol detected. Skipping display initialization for now.")
+            self.log_message(
+                "No display protocol detected. Skipping display initialization for now."
+            )
+            # Show placeholder message in the display tab so user isn't confused by blank screen
+            self._show_no_display_placeholder()
             return
 
         scroll = Gtk.ScrolledWindow()
 
-        if protocol == 'spice' and SPICE_AVAILABLE:
+        if protocol == "spice" and SPICE_AVAILABLE:
             self.depth_settings_box.set_visible(False)
             self.lossy_check.set_visible(False)
             self.spice_session = SpiceClientGLib.Session()
@@ -1031,7 +1241,7 @@ class RemoteViewer(Gtk.Application):
             GLib.MainContext.default().iteration(False)
             self.depth_settings_box.set_visible(True)
             self.lossy_check.set_visible(True)
-            self.protocol = 'vnc' # Fallback if spice not available
+            self.protocol = "vnc"  # Fallback if spice not available
             self.vnc_display = GtkVnc.Display()
             self.display_widget = self.vnc_display
 
@@ -1050,11 +1260,43 @@ class RemoteViewer(Gtk.Application):
             self.vnc_display.connect("vnc-server-cut-text", self.on_vnc_server_cut_text)
 
             # Local clipboard -> VNC
-            self.clipboard_handler_id = self.clipboard.connect("owner-change", self.on_clipboard_owner_change)
+            self.clipboard_handler_id = self.clipboard.connect(
+                "owner-change", self.on_clipboard_owner_change
+            )
 
         scroll.add(self.display_widget)
         self.view_container.pack_start(scroll, True, True, 0)
         self.view_container.show_all()
+
+    def _show_no_display_placeholder(self):
+        """Show a placeholder message when no display protocol is available."""
+        # Remove existing placeholder if any
+        self._remove_no_display_placeholder()
+
+        # Create centered placeholder
+        self.no_display_label = Gtk.Label()
+        self.no_display_label.set_markup(
+            "<span size='large'><b>No Display Available</b></span>\n\n"
+            "The VM does not have an active graphics device (VNC or SPICE),\n"
+            "or the VM is not currently running.\n\n"
+            "Possible actions:\n"
+            "  - Start the VM using the power menu\n"
+            "  - Check that the VM has a graphics device configured\n"
+            "  - Click Reconnect once the VM is running"
+        )
+        self.no_display_label.set_justify(Gtk.Justification.CENTER)
+        self.no_display_label.set_valign(Gtk.Align.CENTER)
+        self.no_display_label.set_halign(Gtk.Align.CENTER)
+        self.no_display_label.set_vexpand(True)
+
+        self.view_container.pack_start(self.no_display_label, True, True, 0)
+        self.no_display_label.show()
+
+    def _remove_no_display_placeholder(self):
+        """Remove the no-display placeholder if it exists."""
+        if self.no_display_label and self.no_display_label.get_parent():
+            self.view_container.remove(self.no_display_label)
+            self.no_display_label = None
 
     def connect_display(self, force=False, password=None):
         """Attempts connection"""
@@ -1081,8 +1323,12 @@ class RemoteViewer(Gtk.Application):
                 current_uuid = self.domain.UUIDString()
                 self.log_message(f"INFO: {current_uuid}")
                 if current_uuid != self.original_domain_uuid:
-                    self.log_message(f"ERROR: Domain UUID mismatch! Expected {self.original_domain_uuid}, got {current_uuid}")
-                    self.show_error_dialog("Security error: Domain UUID changed. Refusing to connect.")
+                    self.log_message(
+                        f"ERROR: Domain UUID mismatch! Expected {self.original_domain_uuid}, got {current_uuid}"
+                    )
+                    self.show_error_dialog(
+                        "Security error: Domain UUID changed. Refusing to connect."
+                    )
                     return False
             except libvirt.libvirtError:
                 pass
@@ -1124,8 +1370,6 @@ class RemoteViewer(Gtk.Application):
             password = None
             self.log_message("Debug: No password provided via command line or found in VM XML.")
 
-            password = xml_password_required
-
         self._pending_password = password
 
         try:
@@ -1138,11 +1382,11 @@ class RemoteViewer(Gtk.Application):
                     self.show_error_dialog(f"Failed to attach to graphics: {e}")
                     return True
 
-                if self.protocol == 'spice' and SPICE_AVAILABLE:
+                if self.protocol == "spice" and SPICE_AVAILABLE:
                     self.spice_session.open_fd(fd)
-                elif self.protocol == 'vnc':
+                elif self.protocol == "vnc":
                     if self.vnc_display.is_open() and force:
-                         self.vnc_display.close()
+                        self.vnc_display.close()
                     # Ensure no pending reconnect
                     self.reconnect_pending = False
                     self._apply_vnc_depth()
@@ -1151,67 +1395,85 @@ class RemoteViewer(Gtk.Application):
                 return False
 
             # Standard Network Connection
-            if self.protocol == 'spice' and SPICE_AVAILABLE:
+            if self.protocol == "spice" and SPICE_AVAILABLE:
                 # Spice connection
                 # Use tunneled connection if SSH tunnel is active and not in direct mode
                 if self.ssh_gateway and self.ssh_tunnel_local_port and not self.direct_connection:
-                    host = 'localhost'
+                    host = "localhost"
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
-                    # Give tunnel time to establish
-                    time.sleep(2)
-                uri = f"spice://{host}:{port}"
-                self.log_message(f"Connecting to SPICE at {uri}")
-                self.spice_session.set_property("uri", uri)
-                if password:
-                    self.spice_session.set_property("password", password)
-                try:
-                    self.spice_session.connect()
-                except Exception as e:
-                    error_msg = f"Failed to connect to SPICE server at {host}:{port}\n\nError: {e}"
-                    self.log_message(f"ERROR: {error_msg}")
-                    self.show_notification(error_msg)
+                    # Give tunnel time to establish using non-blocking delay
+                    GLib.timeout_add_seconds(2, self._do_spice_connect, host, port, password)
                     return False
+                self._do_spice_connect(host, port, password)
 
             else:
                 # VNC connection
                 # Use tunneled connection if SSH tunnel is active and not in direct mode
                 if self.ssh_gateway and self.ssh_tunnel_local_port and not self.direct_connection:
-                    host = 'localhost'
+                    host = "localhost"
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
-                    # Give tunnel time to establish
-                    time.sleep(2)
-                self.log_message(f"Connecting to VNC at {host}:{port}")
-                if self.vnc_display.is_open():
-                    if force:
-                        if self.verbose: print("Forcing reconnection (closing first)...")
-                        self.reconnect_pending = True
-                        self.vnc_display.close()
+                    # Give tunnel time to establish using non-blocking delay
+                    GLib.timeout_add_seconds(2, self._do_vnc_connect, host, port, force)
                     return False
+                self._do_vnc_connect(host, port, force)
 
-                # Ensure no pending reconnect if we are opening normally
-                self.reconnect_pending = False
-                # Re-apply depth setting before connecting to ensure it takes effect
-                self._apply_vnc_depth()
-
-                self.vnc_display.open_host(host, str(port))
-
-                return False # Stop retrying
+                return False  # Stop retrying
         except Exception as e:
             if self.verbose:
                 print(f"Connection failed: {e}")
             self.show_notification(f"Connection failed: {e}", Gtk.MessageType.ERROR)
             return False
 
+    def _do_spice_connect(self, host, port, password):
+        """Perform the actual SPICE connection (called directly or via GLib.timeout)."""
+        try:
+            uri = f"spice://{host}:{port}"
+            self.log_message(f"Connecting to SPICE at {uri}")
+            self.spice_session.set_property("uri", uri)
+            if password:
+                self.spice_session.set_property("password", password)
+            self.spice_session.connect()
+        except Exception as e:
+            error_msg = f"Failed to connect to SPICE server at {host}:{port}\n\nError: {e}"
+            self.log_message(f"ERROR: {error_msg}")
+            self.show_notification(error_msg, Gtk.MessageType.ERROR)
+        return False  # Don't repeat the timeout
+
+    def _do_vnc_connect(self, host, port, force=False):
+        """Perform the actual VNC connection (called directly or via GLib.timeout)."""
+        try:
+            self.log_message(f"Connecting to VNC at {host}:{port}")
+            if self.vnc_display.is_open():
+                if force:
+                    if self.verbose:
+                        print("Forcing reconnection (closing first)...")
+                    self.reconnect_pending = True
+                    self.vnc_display.close()
+                return False
+
+            # Ensure no pending reconnect if we are opening normally
+            self.reconnect_pending = False
+            # Re-apply depth setting before connecting to ensure it takes effect
+            self._apply_vnc_depth()
+
+            self.vnc_display.open_host(host, str(port))
+        except Exception as e:
+            error_msg = f"Failed to connect to VNC server at {host}:{port}\n\nError: {e}"
+            self.log_message(f"ERROR: {error_msg}")
+            self.show_notification(error_msg, Gtk.MessageType.ERROR)
+        return False  # Don't repeat the timeout
+
     def _prompt_for_password(self, protocol):
         dialog = Gtk.Dialog(
             title=f"{protocol.upper()} Password Required",
             parent=self.window,
-            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                           Gtk.STOCK_OK, Gtk.ResponseType.OK)
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK
+        )
 
         hbox = Gtk.Box(spacing=6)
         dialog.get_content_area().pack_start(hbox, True, True, 0)
@@ -1250,13 +1512,16 @@ class RemoteViewer(Gtk.Application):
             self.vnc_display.close()
 
     def on_vnc_connected(self, vnc):
-        if self.verbose: print("VNC Connected")
+        if self.verbose:
+            print("VNC Connected")
 
     def on_vnc_disconnected(self, vnc):
-        if self.verbose: print("VNC Disconnected")
+        if self.verbose:
+            print("VNC Disconnected")
 
         if self.reconnect_pending:
-            if self.verbose: print("Pending reconnect detected, reconnecting in 1500ms...")
+            if self.verbose:
+                print("Pending reconnect detected, reconnecting in 1500ms...")
             self.reconnect_pending = False
             # Increase delay to 1500ms to ensure socket cleanup
             GLib.timeout_add(1500, self.connect_display)
@@ -1286,7 +1551,7 @@ class RemoteViewer(Gtk.Application):
         if self.clipboard_update_in_progress:
             return
 
-        if self.protocol == 'vnc' and self.vnc_display and self.vnc_display.is_open():
+        if self.protocol == "vnc" and self.vnc_display and self.vnc_display.is_open():
             # Use async request to avoid blocking UI
             clipboard.request_text(self._on_clipboard_text_received)
 
@@ -1294,7 +1559,7 @@ class RemoteViewer(Gtk.Application):
         if not text:
             return
 
-        if self.protocol == 'vnc' and self.vnc_display and self.vnc_display.is_open():
+        if self.protocol == "vnc" and self.vnc_display and self.vnc_display.is_open():
             if text != self.last_clipboard_content:
                 self.last_clipboard_content = text
                 if self.verbose:
@@ -1306,10 +1571,12 @@ class RemoteViewer(Gtk.Application):
         popover.popdown()
         text = self.clipboard.wait_for_text()
         if text:
-            if self.protocol == 'vnc' and self.vnc_display and self.vnc_display.is_open():
+            if self.protocol == "vnc" and self.vnc_display and self.vnc_display.is_open():
                 self.vnc_display.client_cut_text(text)
-                self.log_message(f"Clipboard: Manually pushed {len(text)} characters to guest (VNC)")
-            elif self.protocol == 'spice' and self.spice_gtk_session:
+                self.log_message(
+                    f"Clipboard: Manually pushed {len(text)} characters to guest (VNC)"
+                )
+            elif self.protocol == "spice" and self.spice_gtk_session:
                 # Spice auto-clipboard should handle it, but we can try to force it if needed
                 self.log_message("Clipboard: SPICE auto-clipboard should sync automatically.")
         else:
@@ -1325,10 +1592,14 @@ class RemoteViewer(Gtk.Application):
                 self.clipboard.store()
             finally:
                 self.clipboard_update_in_progress = False
-            self.log_message(f"Clipboard: Manually pulled {len(text)} characters from cache to host")
+            self.log_message(
+                f"Clipboard: Manually pulled {len(text)} characters from cache to host"
+            )
             self.show_notification(f"Restored {len(text)} chars from guest clipboard cache.")
         else:
-            self.show_notification("No clipboard content received from guest yet.", Gtk.MessageType.INFO)
+            self.show_notification(
+                "No clipboard content received from guest yet.", Gtk.MessageType.INFO
+            )
 
     def check_shutdown(self):
         # Poll VM state for a few seconds to detect shutdown
@@ -1344,8 +1615,12 @@ class RemoteViewer(Gtk.Application):
     def _check_shutdown_async(self, counter):
         try:
             if not self.domain.isActive():
-                if self.verbose: print("VM is shutdown. Exiting...")
-                self.show_notification("VM has shut down. You can restart it from the Power menu.", Gtk.MessageType.INFO)
+                if self.verbose:
+                    print("VM is shutdown. Exiting...")
+                self.show_notification(
+                    "VM has shut down. You can restart it from the Power menu.",
+                    Gtk.MessageType.INFO,
+                )
                 return False
         except:
             self.quit()
@@ -1360,9 +1635,9 @@ class RemoteViewer(Gtk.Application):
             self.quit()
             return False
 
-        if counter < 10: # Try for 10 seconds
+        if counter < 10:  # Try for 10 seconds
             GLib.timeout_add_seconds(1, self._check_shutdown_async, counter + 1)
-            return False # Don't repeat *this* specific call scheduler
+            return False  # Don't repeat *this* specific call scheduler
 
         if self.verbose:
             print("VM still active after disconnect (Reboot or Network issue?). Reconnecting...")
@@ -1372,7 +1647,9 @@ class RemoteViewer(Gtk.Application):
         return False
 
     def on_key_press(self, widget, event):
-        if (event.keyval == Gdk.KEY_f or event.keyval == Gdk.KEY_F) and (event.state & Gdk.ModifierType.CONTROL_MASK):
+        if (event.keyval == Gdk.KEY_f or event.keyval == Gdk.KEY_F) and (
+            event.state & Gdk.ModifierType.CONTROL_MASK
+        ):
             self.fs_button.set_active(not self.fs_button.get_active())
             return True
         return False
@@ -1387,21 +1664,21 @@ class RemoteViewer(Gtk.Application):
 
     def on_scaling_toggled(self, button):
         self.scaling_enabled = button.get_active()
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             self.vnc_display.set_scaling(self.scaling_enabled)
-        elif self.protocol == 'spice' and self.display_widget:
+        elif self.protocol == "spice" and self.display_widget:
             self.display_widget.set_property("scaling", self.scaling_enabled)
         self.save_state()
 
     def on_smoothing_toggled(self, button):
         self.smoothing_enabled = button.get_active()
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             self.vnc_display.set_smoothing(self.smoothing_enabled)
         self.save_state()
 
     def on_lossy_toggled(self, button):
         self.lossy_encoding_enabled = button.get_active()
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             self.vnc_display.set_lossy_encoding(self.lossy_encoding_enabled)
         self.save_state()
 
@@ -1410,7 +1687,7 @@ class RemoteViewer(Gtk.Application):
         self.update_logs_visibility()
 
     def update_logs_visibility(self):
-        if not hasattr(self, 'notebook'):
+        if not hasattr(self, "notebook"):
             return
 
         # Page numbers: 0=Display, 1=Snapshots, 2=USB Devices, 3=Logs & Events
@@ -1420,13 +1697,15 @@ class RemoteViewer(Gtk.Application):
 
         if self.show_logs:
             self.notebook.get_nth_page(logs_page_num).show()
-            self.notebook.get_nth_page(snapshots_page_num).show() # Show snapshots too if logs are visible
-            self.notebook.get_nth_page(usb_page_num).show() # Show USB tab
+            self.notebook.get_nth_page(
+                snapshots_page_num
+            ).show()  # Show snapshots too if logs are visible
+            self.notebook.get_nth_page(usb_page_num).show()  # Show USB tab
             self.notebook.set_show_tabs(True)
         else:
             self.notebook.get_nth_page(logs_page_num).hide()
             self.notebook.get_nth_page(snapshots_page_num).hide()
-            self.notebook.get_nth_page(usb_page_num).hide() # Hide USB tab
+            self.notebook.get_nth_page(usb_page_num).hide()  # Hide USB tab
             self.notebook.set_show_tabs(False)
 
         # Always default to Display tab when toggling or at startup
@@ -1434,22 +1713,21 @@ class RemoteViewer(Gtk.Application):
 
     def on_view_only_toggled(self, button):
         self.view_only_enabled = button.get_active()
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             self.vnc_display.set_read_only(self.view_only_enabled)
         self.save_state()
 
     def on_reconnect_clicked(self, button):
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             # Force disconnect and reconnect (will go through on_vnc_disconnected -> connect_display)
             self.connect_display(force=True)
-        elif self.protocol == 'spice' and self.spice_session:
+        elif self.protocol == "spice" and self.spice_session:
             if self.spice_session.is_connected():
                 self.spice_session.disconnect()
                 # Schedule reconnection after disconnect
                 GLib.timeout_add(1500, self.connect_display)
             else:
                 self.connect_display()
-
 
     def on_power_menu_show(self, popover):
         try:
@@ -1458,7 +1736,7 @@ class RemoteViewer(Gtk.Application):
             else:
                 state = libvirt.VIR_DOMAIN_NOSTATE
         except libvirt.libvirtError:
-            state = libvirt.VIR_DOMAIN_NOSTATE # Assume unknown if error
+            state = libvirt.VIR_DOMAIN_NOSTATE  # Assume unknown if error
 
         # All buttons initially insensitive
         for btn in self.power_buttons.values():
@@ -1485,16 +1763,17 @@ class RemoteViewer(Gtk.Application):
             self.power_buttons["Graceful Shutdown"].set_sensitive(False)
             self.power_buttons["Reboot"].set_sensitive(False)
             self.power_buttons["Force Power Off"].set_sensitive(False)
-        else: # NOSTATE, BLOCKED, CRASHED, PMSUSPENDED, etc. or unknown
-            self.power_buttons["Start"].set_sensitive(True) # Allow start if in uncertain state
-            self.power_buttons["Force Power Off"].set_sensitive(True) # Always allow force off as a last resort
-
+        else:  # NOSTATE, BLOCKED, CRASHED, PMSUSPENDED, etc. or unknown
+            self.power_buttons["Start"].set_sensitive(True)  # Allow start if in uncertain state
+            self.power_buttons["Force Power Off"].set_sensitive(
+                True
+            )  # Always allow force off as a last resort
 
     def on_depth_changed(self, combo):
         depth_str = combo.get_active_id()
         if depth_str:
             self.vnc_depth = int(depth_str)
-            if self.protocol == 'vnc' and self.vnc_display:
+            if self.protocol == "vnc" and self.vnc_display:
                 self._apply_vnc_depth()
                 if self.vnc_display.is_open():
                     # Ask user if they want to reconnect
@@ -1503,7 +1782,7 @@ class RemoteViewer(Gtk.Application):
                         flags=0,
                         message_type=Gtk.MessageType.QUESTION,
                         buttons=Gtk.ButtonsType.YES_NO,
-                        text="Reconnect required"
+                        text="Reconnect required",
                     )
                     dialog.format_secondary_text(
                         "Changing color depth requires a reconnection. Reconnect now?"
@@ -1529,12 +1808,7 @@ class RemoteViewer(Gtk.Application):
         self.vnc_display.set_depth(depth_enum)
 
     def _add_snapshots_tree_columns(self):
-        columns = [
-            ("Name", 0),
-            ("Description", 1),
-            ("Creation Time", 2),
-            ("State", 3)
-        ]
+        columns = [("Name", 0), ("Description", 1), ("Creation Time", 2), ("State", 3)]
         for title, col_id in columns:
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(title, renderer, text=col_id)
@@ -1545,17 +1819,21 @@ class RemoteViewer(Gtk.Application):
         if self.domain:
             snapshots = vm_queries.get_vm_snapshots(self.domain)
             # Sort by creation time to ensure newest first is displayed top
-            snapshots.sort(key=lambda x: x.get('creation_time', ''), reverse=True)
+            snapshots.sort(key=lambda x: x.get("creation_time", ""), reverse=True)
             for snap in snapshots:
-                self.snapshots_store.append([
-                    snap.get("name", "N/A"),
-                    snap.get("description", ""),
-                    snap.get("creation_time", "N/A"),
-                    snap.get("state", "N/A"),
-                    snap.get("snapshot_object")
-                ])
+                self.snapshots_store.append(
+                    [
+                        snap.get("name", "N/A"),
+                        snap.get("description", ""),
+                        snap.get("creation_time", "N/A"),
+                        snap.get("state", "N/A"),
+                        snap.get("snapshot_object"),
+                    ]
+                )
         else:
-            self.show_notification("No VM domain available to list snapshots.", Gtk.MessageType.WARNING)
+            self.show_notification(
+                "No VM domain available to list snapshots.", Gtk.MessageType.WARNING
+            )
 
     def on_refresh_snapshots_clicked(self, button):
         self._populate_snapshots_list()
@@ -1563,18 +1841,19 @@ class RemoteViewer(Gtk.Application):
 
     def on_notebook_switch_page(self, notebook, page, page_num):
         # Only populate when switching to the specific tab
-        if page_num == 1: # Snapshots tab
+        if page_num == 1:  # Snapshots tab
             self._populate_snapshots_list()
-        elif page_num == 2: # USB Devices tab
+        elif page_num == 2:  # USB Devices tab
             self._populate_usb_lists()
 
     def on_send_key(self, button, keys, popover):
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             self.vnc_display.send_keys(keys)
-        elif self.protocol == 'spice' and self.display_widget:
+        elif self.protocol == "spice" and self.display_widget:
             # Spice send keys implementation would go here
             # Need to map GDK keys to Spice scancodes or use generic input
-            if self.verbose: print("Send keys not fully implemented for SPICE yet")
+            if self.verbose:
+                print("Send keys not fully implemented for SPICE yet")
             pass
         popover.popdown()
 
@@ -1586,7 +1865,7 @@ class RemoteViewer(Gtk.Application):
         if not text:
             return
 
-        if self.protocol == 'vnc' and self.vnc_display and self.vnc_display.is_open():
+        if self.protocol == "vnc" and self.vnc_display and self.vnc_display.is_open():
             if self.verbose:
                 print(f"Typing clipboard: {len(text)} chars")
 
@@ -1602,9 +1881,9 @@ class RemoteViewer(Gtk.Application):
 
     def on_screenshot_clicked(self, button):
         pixbuf = None
-        if self.protocol == 'vnc' and self.vnc_display:
+        if self.protocol == "vnc" and self.vnc_display:
             pixbuf = self.vnc_display.get_pixbuf()
-        elif self.protocol == 'spice' and self.display_widget:
+        elif self.protocol == "spice" and self.display_widget:
             try:
                 pixbuf = self.display_widget.get_pixbuf()
             except:
@@ -1615,13 +1894,10 @@ class RemoteViewer(Gtk.Application):
             return
 
         dialog = Gtk.FileChooserDialog(
-            title="Save Screenshot",
-            parent=self.window,
-            action=Gtk.FileChooserAction.SAVE
+            title="Save Screenshot", parent=self.window, action=Gtk.FileChooserAction.SAVE
         )
         dialog.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_SAVE, Gtk.ResponseType.ACCEPT
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_SAVE, Gtk.ResponseType.ACCEPT
         )
 
         timestamp = time.strftime("%Y%m%d-%H%M%S")
@@ -1643,7 +1919,7 @@ class RemoteViewer(Gtk.Application):
     def on_power_start(self, button, popover):
         popover.popdown()
         try:
-        # Refresh domain object to ensure validity, but verify it's the same VM
+            # Refresh domain object to ensure validity, but verify it's the same VM
             if self.original_domain_uuid:
                 self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
             elif self.domain_name:
@@ -1695,14 +1971,14 @@ class RemoteViewer(Gtk.Application):
 
     def on_snapshots_selection_changed(self, selection):
         model, treeiter = selection.get_selected()
-        has_selection = (treeiter is not None)
+        has_selection = treeiter is not None
         self.delete_snapshot_button.set_sensitive(has_selection)
         self.update_restore_button_sensitivity()
 
     def update_restore_button_sensitivity(self):
         selection = self.snapshots_tree_view.get_selection()
         model, treeiter = selection.get_selected()
-        is_vm_active = self.domain.isActive() if self.domain else True # Assume active if no domain
+        is_vm_active = self.domain.isActive() if self.domain else True  # Assume active if no domain
 
         # Restore button is sensitive only if a snapshot is selected AND the VM is NOT active
         self.restore_snapshot_button.set_sensitive(treeiter is not None and not is_vm_active)
@@ -1711,10 +1987,11 @@ class RemoteViewer(Gtk.Application):
         dialog = Gtk.Dialog(
             title="Create Snapshot",
             parent=self.window,
-            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
         )
-        dialog.add_buttons(Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-                           Gtk.STOCK_OK, Gtk.ResponseType.OK)
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK
+        )
 
         content_area = dialog.get_content_area()
         grid = Gtk.Grid(row_spacing=5, column_spacing=5, margin=10)
@@ -1751,15 +2028,29 @@ class RemoteViewer(Gtk.Application):
             # Function to run in a separate thread
             def _create_snapshot_thread():
                 try:
-                    vm_actions.create_vm_snapshot(self.domain, snapshot_name, snapshot_description, quiesce)
-                    GLib.idle_add(self.show_notification, f"Snapshot '{snapshot_name}' created successfully.", Gtk.MessageType.INFO)
+                    vm_actions.create_vm_snapshot(
+                        self.domain, snapshot_name, snapshot_description, quiesce
+                    )
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"Snapshot '{snapshot_name}' created successfully.",
+                        Gtk.MessageType.INFO,
+                    )
                 except libvirt.libvirtError as e:
-                    GLib.idle_add(self.show_notification, f"Failed to create snapshot: {e}", Gtk.MessageType.ERROR)
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"Failed to create snapshot: {e}",
+                        Gtk.MessageType.ERROR,
+                    )
                 except Exception as e:
-                    GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"An unexpected error occurred: {e}",
+                        Gtk.MessageType.ERROR,
+                    )
                 finally:
                     GLib.idle_add(self._hide_wait_dialog)
-                    GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
+                    GLib.idle_add(self._populate_snapshots_list)  # Refresh list on main thread
 
             threading.Thread(target=_create_snapshot_thread).start()
 
@@ -1767,16 +2058,18 @@ class RemoteViewer(Gtk.Application):
         selection = self.snapshots_tree_view.get_selection()
         model, treeiter = selection.get_selected()
         if treeiter:
-            snapshot_name = model[treeiter][0] # Name is at index 0
+            snapshot_name = model[treeiter][0]  # Name is at index 0
 
             dialog = Gtk.MessageDialog(
                 transient_for=self.window,
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
                 buttons=Gtk.ButtonsType.YES_NO,
-                text="Confirm Snapshot Deletion"
+                text="Confirm Snapshot Deletion",
             )
-            dialog.format_secondary_text(f"Are you sure you want to delete snapshot '{snapshot_name}'?")
+            dialog.format_secondary_text(
+                f"Are you sure you want to delete snapshot '{snapshot_name}'?"
+            )
             response = dialog.run()
             dialog.destroy()
 
@@ -1787,14 +2080,26 @@ class RemoteViewer(Gtk.Application):
                 def _delete_snapshot_thread():
                     try:
                         vm_actions.delete_vm_snapshot(self.domain, snapshot_name)
-                        GLib.idle_add(self.show_notification, f"Snapshot '{snapshot_name}' deleted successfully.", Gtk.MessageType.INFO)
+                        GLib.idle_add(
+                            self.show_notification,
+                            f"Snapshot '{snapshot_name}' deleted successfully.",
+                            Gtk.MessageType.INFO,
+                        )
                     except libvirt.libvirtError as e:
-                        GLib.idle_add(self.show_notification, f"Failed to delete snapshot: {e}", Gtk.MessageType.ERROR)
+                        GLib.idle_add(
+                            self.show_notification,
+                            f"Failed to delete snapshot: {e}",
+                            Gtk.MessageType.ERROR,
+                        )
                     except Exception as e:
-                        GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                        GLib.idle_add(
+                            self.show_notification,
+                            f"An unexpected error occurred: {e}",
+                            Gtk.MessageType.ERROR,
+                        )
                     finally:
                         GLib.idle_add(self._hide_wait_dialog)
-                        GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
+                        GLib.idle_add(self._populate_snapshots_list)  # Refresh list on main thread
 
                 threading.Thread(target=_delete_snapshot_thread).start()
         else:
@@ -1804,10 +2109,13 @@ class RemoteViewer(Gtk.Application):
         selection = self.snapshots_tree_view.get_selection()
         model, treeiter = selection.get_selected()
         if treeiter:
-            snapshot_name = model[treeiter][0] # Name is at index 0
+            snapshot_name = model[treeiter][0]  # Name is at index 0
 
             if self.domain and self.domain.isActive():
-                self.show_notification("Cannot restore snapshot while VM is running. Please stop the VM first.", Gtk.MessageType.ERROR)
+                self.show_notification(
+                    "Cannot restore snapshot while VM is running. Please stop the VM first.",
+                    Gtk.MessageType.ERROR,
+                )
                 return
 
             dialog = Gtk.MessageDialog(
@@ -1815,10 +2123,12 @@ class RemoteViewer(Gtk.Application):
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
                 buttons=Gtk.ButtonsType.YES_NO,
-                text="Confirm Snapshot Restore"
+                text="Confirm Snapshot Restore",
             )
-            dialog.format_secondary_text(f"Are you sure you want to restore to snapshot '{snapshot_name}'? "
-                                        "Any unsaved work in the current VM state will be lost.")
+            dialog.format_secondary_text(
+                f"Are you sure you want to restore to snapshot '{snapshot_name}'? "
+                "Any unsaved work in the current VM state will be lost."
+            )
             response = dialog.run()
             dialog.destroy()
 
@@ -1829,39 +2139,51 @@ class RemoteViewer(Gtk.Application):
                 def _restore_snapshot_thread():
                     try:
                         vm_actions.restore_vm_snapshot(self.domain, snapshot_name)
-                        GLib.idle_add(self.show_notification, f"VM restored to snapshot '{snapshot_name}' successfully.", Gtk.MessageType.INFO)
-                        GLib.idle_add(self.connect_display) # Reconnect display after successful restore
+                        GLib.idle_add(
+                            self.show_notification,
+                            f"VM restored to snapshot '{snapshot_name}' successfully.",
+                            Gtk.MessageType.INFO,
+                        )
+                        GLib.idle_add(
+                            self.connect_display
+                        )  # Reconnect display after successful restore
                     except libvirt.libvirtError as e:
-                        GLib.idle_add(self.show_notification, f"Failed to restore snapshot: {e}", Gtk.MessageType.ERROR)
+                        GLib.idle_add(
+                            self.show_notification,
+                            f"Failed to restore snapshot: {e}",
+                            Gtk.MessageType.ERROR,
+                        )
                     except Exception as e:
-                        GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                        GLib.idle_add(
+                            self.show_notification,
+                            f"An unexpected error occurred: {e}",
+                            Gtk.MessageType.ERROR,
+                        )
                     finally:
                         GLib.idle_add(self._hide_wait_dialog)
-                        GLib.idle_add(self._populate_snapshots_list) # Refresh list on main thread
+                        GLib.idle_add(self._populate_snapshots_list)  # Refresh list on main thread
 
                 threading.Thread(target=_restore_snapshot_thread).start()
 
-
-
     def _add_usb_tree_columns(self, tree_view):
         columns = [
-            ("Description", 4), # Index of the description column in ListStore
+            ("Description", 4),  # Index of the description column in ListStore
             ("Vendor ID", 0),
-            ("Product ID", 1)
+            ("Product ID", 1),
         ]
         for title, col_id in columns:
             renderer = Gtk.CellRendererText()
             column = Gtk.TreeViewColumn(title, renderer, text=col_id)
             tree_view.append_column(column)
 
-
-
     def _populate_usb_lists(self):
         self.attached_usb_store.clear()
         self.host_usb_store.clear()
 
         if not self.domain:
-            self.show_notification("No VM domain available for USB actions.", Gtk.MessageType.WARNING)
+            self.show_notification(
+                "No VM domain available for USB actions.", Gtk.MessageType.WARNING
+            )
             return
 
         # Populate attached USB devices
@@ -1870,28 +2192,37 @@ class RemoteViewer(Gtk.Application):
             root = ET.fromstring(domain_xml)
             attached_devices = vm_queries.get_attached_usb_devices(root)
             for dev in attached_devices:
-                self.attached_usb_store.append([
-                    dev.get("vendor_id", "N/A"),
-                    dev.get("product_id", "N/A"),
-                    "", "", # Vendor/Product Name not directly in attached_usb_devices from vm_queries
-                    f"{dev.get('vendor_id', '')}:{dev.get('product_id', '')}"
-                ])
+                self.attached_usb_store.append(
+                    [
+                        dev.get("vendor_id", "N/A"),
+                        dev.get("product_id", "N/A"),
+                        "",
+                        "",  # Vendor/Product Name not directly in attached_usb_devices from vm_queries
+                        f"{dev.get('vendor_id', '')}:{dev.get('product_id', '')}",
+                    ]
+                )
         except libvirt.libvirtError as e:
-            self.show_notification(f"Failed to get attached USB devices: {e}", Gtk.MessageType.ERROR)
+            self.show_notification(
+                f"Failed to get attached USB devices: {e}", Gtk.MessageType.ERROR
+            )
         except Exception as e:
-            self.show_notification(f"Error getting attached USB devices: {e}", Gtk.MessageType.ERROR)
+            self.show_notification(
+                f"Error getting attached USB devices: {e}", Gtk.MessageType.ERROR
+            )
 
         # Populate host USB devices
         try:
             host_devices = libvirt_utils.get_host_usb_devices(self.conn)
             for dev in host_devices:
-                self.host_usb_store.append([
-                    dev.get("vendor_id", "N/A"),
-                    dev.get("product_id", "N/A"),
-                    dev.get("vendor_name", ""),
-                    dev.get("product_name", ""),
-                    dev.get("description", "N/A")
-                ])
+                self.host_usb_store.append(
+                    [
+                        dev.get("vendor_id", "N/A"),
+                        dev.get("product_id", "N/A"),
+                        dev.get("vendor_name", ""),
+                        dev.get("product_name", ""),
+                        dev.get("description", "N/A"),
+                    ]
+                )
         except libvirt.libvirtError as e:
             self.show_notification(f"Failed to get host USB devices: {e}", Gtk.MessageType.ERROR)
         except Exception as e:
@@ -1901,21 +2232,24 @@ class RemoteViewer(Gtk.Application):
         self.on_attached_usb_selection_changed(self.attached_usb_tree_view.get_selection())
         self.on_host_usb_selection_changed(self.host_usb_tree_view.get_selection())
 
-
     def on_refresh_usb_lists_clicked(self, button):
         self._populate_usb_lists()
         self.show_notification("USB device lists refreshed.", Gtk.MessageType.INFO)
 
     def on_attached_usb_selection_changed(self, selection):
         model, treeiter = selection.get_selected()
-        self.detach_usb_button.set_sensitive(treeiter is not None and self.domain and self.domain.isActive())
+        self.detach_usb_button.set_sensitive(
+            treeiter is not None and self.domain and self.domain.isActive()
+        )
         # If an attached device is selected, deselect host device to avoid conflict
         if treeiter:
             self.host_usb_tree_view.get_selection().unselect_all()
 
     def on_host_usb_selection_changed(self, selection):
         model, treeiter = selection.get_selected()
-        self.attach_usb_button.set_sensitive(treeiter is not None and self.domain and self.domain.isActive())
+        self.attach_usb_button.set_sensitive(
+            treeiter is not None and self.domain and self.domain.isActive()
+        )
         # If a host device is selected, deselect attached device to avoid conflict
         if treeiter:
             self.attached_usb_tree_view.get_selection().unselect_all()
@@ -1937,24 +2271,47 @@ class RemoteViewer(Gtk.Application):
                 self.log_message(f"Attempting to attach USB in thread: {description}")
                 try:
                     vm_actions.attach_usb_device(self.domain, vendor_id, product_id)
-                    self.log_message(f"USB device {description} attached successfully by vm_actions.")
-                    GLib.idle_add(self.show_notification, f"USB device '{description}' attached successfully.", Gtk.MessageType.INFO)
+                    self.log_message(
+                        f"USB device {description} attached successfully by vm_actions."
+                    )
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"USB device '{description}' attached successfully.",
+                        Gtk.MessageType.INFO,
+                    )
                 except libvirt.libvirtError as e:
                     self.log_message(f"libvirtError attaching USB: {e}")
-                    print(f"ERROR (libvirt): Failed to attach USB device: {e}", file=sys.stderr) # Direct print for debug
-                    GLib.idle_add(self.show_notification, f"Failed to attach USB device: {e}", Gtk.MessageType.ERROR)
+                    print(
+                        f"ERROR (libvirt): Failed to attach USB device: {e}", file=sys.stderr
+                    )  # Direct print for debug
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"Failed to attach USB device: {e}",
+                        Gtk.MessageType.ERROR,
+                    )
                 except Exception as e:
                     self.log_message(f"Generic error attaching USB: {e}")
-                    print(f"ERROR (generic): An unexpected error occurred during USB attach: {e}", file=sys.stderr) # Direct print for debug
-                    GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                    print(
+                        f"ERROR (generic): An unexpected error occurred during USB attach: {e}",
+                        file=sys.stderr,
+                    )  # Direct print for debug
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"An unexpected error occurred: {e}",
+                        Gtk.MessageType.ERROR,
+                    )
                 finally:
-                    self.log_message("Attaching USB thread finished. Hiding wait dialog and refreshing lists.")
+                    self.log_message(
+                        "Attaching USB thread finished. Hiding wait dialog and refreshing lists."
+                    )
                     GLib.idle_add(self._hide_wait_dialog)
-                    GLib.idle_add(self._populate_usb_lists) # Refresh lists on main thread
+                    GLib.idle_add(self._populate_usb_lists)  # Refresh lists on main thread
 
             threading.Thread(target=_attach_usb_thread).start()
         else:
-            self.show_notification("No host USB device selected for attachment.", Gtk.MessageType.WARNING)
+            self.show_notification(
+                "No host USB device selected for attachment.", Gtk.MessageType.WARNING
+            )
             self.log_message("No host USB device selected.")
 
     def on_detach_usb_clicked(self, button):
@@ -1974,35 +2331,58 @@ class RemoteViewer(Gtk.Application):
                 self.log_message(f"Attempting to detach USB in thread: {description}")
                 try:
                     vm_actions.detach_usb_device(self.domain, vendor_id, product_id)
-                    self.log_message(f"USB device {description} detached successfully by vm_actions.")
-                    GLib.idle_add(self.show_notification, f"USB device '{description}' detached successfully.", Gtk.MessageType.INFO)
+                    self.log_message(
+                        f"USB device {description} detached successfully by vm_actions."
+                    )
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"USB device '{description}' detached successfully.",
+                        Gtk.MessageType.INFO,
+                    )
                 except libvirt.libvirtError as e:
                     self.log_message(f"libvirtError detaching USB: {e}")
-                    print(f"ERROR (libvirt): Failed to detach USB device: {e}", file=sys.stderr) # Direct print for debug
-                    GLib.idle_add(self.show_notification, f"Failed to detach USB device: {e}", Gtk.MessageType.ERROR)
+                    print(
+                        f"ERROR (libvirt): Failed to detach USB device: {e}", file=sys.stderr
+                    )  # Direct print for debug
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"Failed to detach USB device: {e}",
+                        Gtk.MessageType.ERROR,
+                    )
                 except Exception as e:
                     self.log_message(f"Generic error detaching USB: {e}")
-                    print(f"ERROR (generic): An unexpected error occurred during USB detach: {e}", file=sys.stderr) # Direct print for debug
-                    GLib.idle_add(self.show_notification, f"An unexpected error occurred: {e}", Gtk.MessageType.ERROR)
+                    print(
+                        f"ERROR (generic): An unexpected error occurred during USB detach: {e}",
+                        file=sys.stderr,
+                    )  # Direct print for debug
+                    GLib.idle_add(
+                        self.show_notification,
+                        f"An unexpected error occurred: {e}",
+                        Gtk.MessageType.ERROR,
+                    )
                 finally:
-                    self.log_message("Detaching USB thread finished. Hiding wait dialog and refreshing lists.")
+                    self.log_message(
+                        "Detaching USB thread finished. Hiding wait dialog and refreshing lists."
+                    )
                     GLib.idle_add(self._hide_wait_dialog)
-                    GLib.idle_add(self._populate_usb_lists) # Refresh lists on main thread
+                    GLib.idle_add(self._populate_usb_lists)  # Refresh lists on main thread
 
             threading.Thread(target=_detach_usb_thread).start()
         else:
-            self.show_notification("No attached USB device selected for detachment.", Gtk.MessageType.WARNING)
+            self.show_notification(
+                "No attached USB device selected for detachment.", Gtk.MessageType.WARNING
+            )
             self.log_message("No attached USB device selected.")
 
     def _show_wait_dialog(self, message):
         self.wait_dialog = Gtk.Dialog(
             title="Please Wait",
             parent=self.window,
-            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
         )
         self.wait_dialog.set_default_size(250, 100)
         self.wait_dialog.set_resizable(False)
-        self.wait_dialog.set_decorated(False) # Hide title bar etc.
+        self.wait_dialog.set_decorated(False)  # Hide title bar etc.
 
         content_area = self.wait_dialog.get_content_area()
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -2014,7 +2394,7 @@ class RemoteViewer(Gtk.Application):
 
         spinner = Gtk.Spinner()
         spinner.props.active = True
-        spinner.set_size_request(30, 30) # Make spinner a bit larger
+        spinner.set_size_request(30, 30)  # Make spinner a bit larger
         vbox.pack_start(spinner, False, False, 0)
 
         label = Gtk.Label(label=message)
@@ -2028,16 +2408,18 @@ class RemoteViewer(Gtk.Application):
             Gtk.main_iteration()
 
     def _hide_wait_dialog(self):
-        if hasattr(self, 'wait_dialog') and self.wait_dialog:
+        if hasattr(self, "wait_dialog") and self.wait_dialog:
             self.wait_dialog.destroy()
             self.wait_dialog = None
             # Ensure UI updates
             while Gtk.events_pending():
                 Gtk.main_iteration()
+
     def do_shutdown(self):
         """Cleanup SSH tunnel on application shutdown"""
-        self.stop_ssh_tunnel() # Call the unified cleanup method
+        self.stop_ssh_tunnel()  # Call the unified cleanup method
         Gtk.Application.do_shutdown(self)
+
 
 def main():
     try:
@@ -2045,27 +2427,50 @@ def main():
     except Exception as e:
         print(f"Warning: Failed to register libvirt event implementation: {e}")
 
-    parser = argparse.ArgumentParser(description='Simple Remote Viewer for VMs with VNC/SPICE (GTK3)')
-    parser.add_argument('-c', '--connect', dest='uri', required=True, help='libvirt URI connexion (ie: qemu:///system)')
+    parser = argparse.ArgumentParser(
+        description="Simple Remote Viewer for VMs with VNC/SPICE (GTK3)"
+    )
+    parser.add_argument(
+        "-c",
+        "--connect",
+        dest="uri",
+        required=True,
+        help="libvirt URI connexion (ie: qemu:///system)",
+    )
 
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--domain-name', help='Virtual Machine name')
-    group.add_argument('--uuid', help='Virtual Machine UUID')
+    group.add_argument("--domain-name", help="Virtual Machine name")
+    group.add_argument("--uuid", help="Virtual Machine UUID")
 
-    parser.add_argument('--password', help='VNC/SPICE Password')
-    parser.add_argument('--verbose', action='store_true', help='Verbose mode')
-    parser.add_argument('--logs', action='store_true', help='Enable Logs & Events tab')
-    parser.add_argument('-a', '--attach', action='store_true', help='Attach to the local display using libvirt')
-    parser.add_argument('-w', '--wait', action='store_true', help='Wait for VM to start')
-    parser.add_argument('--direct', action='store_true', help='Direct connection (disable SSH tunneling)')
+    parser.add_argument("--password", help="VNC/SPICE Password")
+    parser.add_argument("--verbose", action="store_true", help="Verbose mode")
+    parser.add_argument("--logs", action="store_true", help="Enable Logs & Events tab")
+    parser.add_argument(
+        "-a", "--attach", action="store_true", help="Attach to the local display using libvirt"
+    )
+    parser.add_argument("-w", "--wait", action="store_true", help="Wait for VM to start")
+    parser.add_argument(
+        "--direct", action="store_true", help="Direct connection (disable SSH tunneling)"
+    )
 
     args = parser.parse_args()
 
-    app = RemoteViewer(args.uri, args.domain_name, args.uuid, args.verbose, args.password, show_logs=args.logs, attach=args.attach, wait=args.wait, direct=args.direct)
+    app = RemoteViewer(
+        args.uri,
+        args.domain_name,
+        args.uuid,
+        args.verbose,
+        args.password,
+        show_logs=args.logs,
+        attach=args.attach,
+        wait=args.wait,
+        direct=args.direct,
+    )
     try:
         app.run([sys.argv[0]])
     except KeyboardInterrupt:
         pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

@@ -288,7 +288,7 @@ class AddPoolModal(BaseModal[bool | None]):
                 with ScrollableContainer():
                     yield Label(StaticText.TARGET_PATH_HOST)
                     with Vertical():
-                        yield Input(placeholder=StaticText.NETFS_TARGET_PATH_PLACEHOLDER, id="netfs-target-path-input")
+                        yield Input("/mnt/nfs", id="netfs-target-path-input")
                         yield Button(ButtonLabels.BROWSE, id="browse-netfs-btn")
                     yield Select(
                         [("auto", "auto"), ("nfs", "nfs"), ("glusterfs", "glusterfs"), ("cifs", "cifs")],
@@ -296,9 +296,9 @@ class AddPoolModal(BaseModal[bool | None]):
                         value="auto"
                     )
                     yield Label(StaticText.SOURCE_HOSTNAME)
-                    yield Input(placeholder=StaticText.NETFS_HOST_PLACEHOLDER, id="netfs-host-input")
+                    yield Input(placeholder="nfs.example.com", id="netfs-host-input")
                     yield Label(StaticText.SOURCE_PATH_REMOTE)
-                    yield Input(placeholder=StaticText.NETFS_SOURCE_PATH_PLACEHOLDER, id="netfs-source-path-input", value="host0")
+                    yield Input(placeholder="host0", id="netfs-source-path-input", value="host0")
 
             with Horizontal():
                 yield Button(ButtonLabels.ADD, variant="primary", id="add-btn")

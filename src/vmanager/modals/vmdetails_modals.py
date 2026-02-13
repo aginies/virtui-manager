@@ -1749,8 +1749,8 @@ class VMDetailModal(ModalScreen):
                                     yield ListView(id="boot-order-list", classes="boot-list-container")
                                 with Vertical(classes="boot-buttons-container"):
                                     yield Label(StaticText.EMPTY_LABEL)
-                                    yield Button(ButtonLabels.BOOT_ADD, id="boot-add", disabled=not self.is_vm_stopped)
-                                    yield Button(ButtonLabels.BOOT_REMOVE, id="boot-remove", disabled=not self.is_vm_stopped)
+                                    yield Button("<", id="boot-add", disabled=not self.is_vm_stopped)
+                                    yield Button(">", id="boot-remove", disabled=not self.is_vm_stopped)
                                     yield Button(ButtonLabels.BOOT_UP, id="boot-up", disabled=not self.is_vm_stopped)
                                     yield Button(ButtonLabels.BOOT_DOWN, id="boot-down", disabled=not self.is_vm_stopped)
                                 with Vertical(classes="boot-main-container"):
@@ -1978,7 +1978,7 @@ class VMDetailModal(ModalScreen):
                             value=tpm_device_path,
                             id="tpm-device-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder=StaticText.DEVICE_PATH_PLACEHOLDER
+                            placeholder="=/dev/tpm0"
                         )
                         yield Label(StaticText.BACKEND_TYPE_PASSTHROUGH)
                         yield Input(
@@ -1992,7 +1992,7 @@ class VMDetailModal(ModalScreen):
                             value=tpm_backend_path,
                             id="tpm-backend-path-input",
                             disabled=not self.is_vm_stopped or tpm_type != 'passthrough',
-                            placeholder=StaticText.BACKEND_PATH_PLACEHOLDER
+                            placeholder="/dev/tpmrm0"
                         )
                     yield Button(ButtonLabels.APPLY_TPM_SETTINGS, id="apply-tpm-btn", variant="primary", disabled=not self.is_vm_stopped)
 
