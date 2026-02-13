@@ -306,7 +306,7 @@ class MigrationModal(ModalScreen):
                     migration_confirmed.wait()
 
                     if user_selections:
-                        write_log("[bold]User confirmed custom migration. Executing...[/bold]")
+                        write_log(StaticText.USER_CONFIRMED_CUSTOM_MIGRATION)
                         execute_custom_migration(
                             self.source_conn,
                             self.dest_conn,
@@ -316,10 +316,10 @@ class MigrationModal(ModalScreen):
                             progress_callback=log_progress
                          )
                     else:
-                        write_log("[yellow]Custom migration cancelled by user.[/yellow]")
+                        write_log(StaticText.CUSTOM_MIGRATION_CANCELLED)
 
                 except Exception as e:
-                    write_log(f"[red]ERROR: Custom migration failed for {vm.name()}: {e}[/red]")
+                    write_log(StaticText.ERROR_CUSTOM_MIGRATION_FAILED.format(vm_name=vm.name(), error=e))
 
                 self.app.call_from_thread(progress_bar.advance, 1)
                 continue
@@ -339,7 +339,7 @@ class MigrationModal(ModalScreen):
                     if tunnelled:
                         flags |= libvirt.VIR_MIGRATE_TUNNELLED
 
-                    write_log(f"[dim]Using live migration flags: {flags}[/dim]")
+                    write_log(StaticText.USING_LIVE_MIGRATION_FLAGS.format(flags=flags))
                     # Pass self.dest_uri as the uri argument to ensure correct port/transport is used
                     vm.migrate(self.dest_conn, flags, None, self.dest_uri, 0)
                 else:  # Offline migration
@@ -351,26 +351,26 @@ class MigrationModal(ModalScreen):
                     if copy_storage_all:
                         flags |= libvirt.VIR_MIGRATE_NON_SHARED_DISK
                         params = {libvirt.VIR_MIGRATE_PARAM_MIGRATE_DISKS: "*"}
-                        write_log("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
+                        write_log(StaticText.USING_MIGRATE_TO_URI3_OFFLINE)
                         vm.migrateToURI3(self.dest_uri, params, flags)
                     else:
-                        write_log("[dim]Using migrate for offline migration without storage copy.[/dim]")
+                        write_log(StaticText.USING_MIGRATE_OFFLINE)
                         vm.migrate(self.dest_conn, flags, None, self.dest_uri, 0)
 
 
-                write_log(f"[green]✓ Successfully migrated {vm.name()}.[/]")
+                write_log(StaticText.SUCCESSFULLY_MIGRATED_VM.format(vm_name=vm.name()))
 
                 if persistent:
                     try:
                         vm.undefine()
-                        write_log(f"[green]✓ Successfully undefined {vm.name()} from the source host.[/]")
+                        write_log(StaticText.SUCCESSFULLY_UNDEFINED_VM.format(vm_name=vm.name()))
                     except libvirt.libvirtError as e:
-                        write_log(f"[yellow]WARNING: Failed to undefine {vm.name()} from the source host: {e}[/]")
+                        write_log(StaticText.WARNING_FAILED_TO_UNDEFINE_VM.format(vm_name=vm.name(), error=e))
 
             except libvirt.libvirtError as e:
-                write_log(f"[red]ERROR: Failed to migrate {vm.name()}: {e}[/]")
-                if "Host key verification failed" in str(e):
-                    write_log("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
+                write_log(StaticText.ERROR_FAILED_TO_MIGRATE_VM.format(vm_name=vm.name(), error=e))
+                if StaticText.HOST_KEY_VERIFICATION_FAILED in str(e):
+                    write_log(StaticText.HINT_SSH_KEY_ISSUE)
 
             self.app.call_from_thread(progress_bar.advance, 1)
 
@@ -386,7 +386,7 @@ class MigrationModal(ModalScreen):
             self.query_one("#tunnelled").disabled = True
             self.query_one("#close").disabled = False
 
-        write_log("\n[bold]--- Migration process finished ---[/]")
+        write_log(StaticText.MIGRATION_PROCESS_FINISHED)
         self.app.call_from_thread(lambda: setattr(progress_bar.styles, "display", "none"))
         self.app.call_from_thread(self.app.refresh_vm_list, force=True)
         self.app.call_from_thread(final_ui_state)

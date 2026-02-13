@@ -587,6 +587,50 @@ Specify the NUMA nodes to use.
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
 
+    # Migration modals messages
+    USER_CONFIRMED_CUSTOM_MIGRATION = _("[bold]User confirmed custom migration. Executing...[/bold]")
+    CUSTOM_MIGRATION_CANCELLED = _("[yellow]Custom migration cancelled by user.[/yellow]")
+    ERROR_CUSTOM_MIGRATION_FAILED = _("[red]ERROR: Custom migration failed for {vm_name}: {error}[/red]")
+    USING_LIVE_MIGRATION_FLAGS = _("[dim]Using live migration flags: {flags}[/dim]")
+    USING_MIGRATE_TO_URI3_OFFLINE = _("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
+    USING_MIGRATE_OFFLINE = _("[dim]Using migrate for offline migration without storage copy.[/dim]")
+    SUCCESSFULLY_MIGRATED_VM = _("[green]✓ Successfully migrated {vm_name}.[/]")
+    SUCCESSFULLY_UNDEFINED_VM = _("[green]✓ Successfully undefined {vm_name} from the source host.[/]")
+    WARNING_FAILED_TO_UNDEFINE_VM = _("[yellow]WARNING: Failed to undefine {vm_name} from the source host: {error}[/]")
+    ERROR_FAILED_TO_MIGRATE_VM = _("[red]ERROR: Failed to migrate {vm_name}: {error}[/]")
+    HOST_KEY_VERIFICATION_FAILED = _("Host key verification failed")
+    HINT_SSH_KEY_ISSUE = _("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
+    MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
+
+    # VMCard dialog messages
+    ARE_YOU_SURE_DELETE_VM = _("Are you sure you want to delete VM '{vm_name}'?")
+    CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
+    SNAPSHOT_TIME_FORMAT = _("%Y-%m-%d %H:%M:%S")
+    SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
+    WEB_CONSOLE_RUNNING_AT = _("**Web Console** is running at:")
+    WESOCKIFY_SINGLE_CONNECTION_NOTE = _("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console.")
+    RUN_WEB_CONSOLE_REMOTE = _("Run Web console on remote server. This will use a **LOT** of network bandwidth. It is recommended to **reduce quality** and enable **max compression**.")
+    RUN_WEB_CONSOLE_LOCAL = _("Run Web console on local machine")
+    VNC_QUALITY_LABEL = _("VNC Quality (0=low, 9=high)")
+    VNC_COMPRESSION_LABEL = _("VNC Compression (0=none, 9=max)")
+
+    # Utils modals messages
+    IN_PROGRESS_TITLE = _("In Progress")
+    QUICK_INFO_TITLE = _("Quick Info")
+
+    # Virsh modals messages
+    CLOSE_SHELL_BINDING = _("Close Shell")
+    VIRSH_COMMAND_PLACEHOLDER = _("Enter virsh command...")
+    STARTING_VIRSH_SHELL = _("Starting virsh shell...")
+    CONNECTED_TO_URI = _("Connected to: {uri}\n")
+    VIRSH_NOT_FOUND_ERROR = _("Error: 'virsh' command not found. Please ensure libvirt-client is installed.")
+    ERROR_STARTING_VIRSH = _("Error starting virsh: {error}")
+    ERROR_READING_FROM_VIRSH = _("Error reading from virsh: {error}")
+    VIRSH_PROMPT = _("virsh> {command}\n")
+    ERROR_SENDING_COMMAND = _("Error sending command: {error}")
+    VIRSH_PROCESS_NOT_RUNNING = _("Virsh process not running.")
+    VIRSH_SHELL_TERMINATED = _("Virsh shell terminated.\n")
+
 class SparklineLabels:
     """Constants for sparkline labels"""
     DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
