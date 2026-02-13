@@ -590,7 +590,6 @@ Specify the NUMA nodes to use.
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
-    SNAPSHOT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"  # Technical date format, not translated
     SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
     WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")
     WESOCKIFY_SINGLE_CONNECTION_MESSAGE = _("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console.")
@@ -637,12 +636,6 @@ Specify the NUMA nodes to use.
     HOST_KEY_HINT = _("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
     MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
 
-    # Migration filter strings (used for filtering redundant info messages)
-    # Note: These are not translated as they match against English-only internal message content
-    FILTER_MANUALLY_VERIFY = "manually verify"
-    FILTER_FIREWALLS = "Firewalls"
-    FILTER_USER_AND = "user and"
-
     # server_prefs_modals.py strings
     SERVER_PREFERENCES_TITLE_TEMPLATE = _("Server Preferences ({hostname})")
     STORAGE_POOLS_LABEL = _("Storage Pools")
@@ -657,12 +650,8 @@ Specify the NUMA nodes to use.
     POOL_NOT_ACTIVE = _("Pool is not active")
     AUTOSTART_OFF = _("Autostart Off")
     AUTOSTART_ON = _("Autostart On")
-    POOL_PREFIX = "pool_"  # Technical prefix for pool naming, not translated
     NO_VOLUMES = _("No volumes")
     MOVING_VOLUME_TEMPLATE = _("Moving {volume_name}...")
-
-    # provisioning_modals.py strings
-    START_VIEW_PREFIX = "start_view_"  # Technical prefix for worker naming, not translated
 
     # utils_modals.py strings
     IN_PROGRESS_TITLE = _("In Progress")
