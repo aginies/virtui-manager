@@ -148,9 +148,40 @@ class RemoteViewer(Gtk.Application):
         self.notification_timeout_id = None
         return False
 
+    def _sanitize_log_message(self, message: str) -> str:
+        """
+        Redact obviously sensitive values from log messages.
+
+        This is a best-effort safeguard to avoid logging secrets such as
+        passwords in clear text, while preserving overall message content.
+        """
+        if not isinstance(message, str):
+            return message
+
+        redacted = message
+
+        # Redact common "key=value" style password fields.
+        redacted = re.sub(
+            r"(?i)\b(passwd|password)\s*=\s*[^,\s;]+",
+            r"\1=***",
+            redacted,
+        )
+
+        # Redact generic "pwd=" fields.
+        redacted = re.sub(
+            r"(?i)\bpwd\s*=\s*[^,\s;]+",
+            "pwd=***",
+            redacted,
+        )
+
+        return redacted
+
     def log_message(self, message):
+        # Best-effort sanitization to avoid logging sensitive data.
+        safe_message = self._sanitize_log_message(message)
+
         timestamp = time.strftime("%H:%M:%S")
-        full_msg = f"[{timestamp}] {message}\n"
+        full_msg = f"[{timestamp}] {safe_message}\n"
 
         if self.verbose:
             print(full_msg.strip())
