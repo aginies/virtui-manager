@@ -855,7 +855,7 @@ class VManagerCMD(cmd.Cmd):
                         print("    None")
                     for net in networks:
                         print(
-                            f"    - {net.get('network')} ({net.get('mac')}, model: {net.get('model')})"
+                            f"    - {net.get('network')} (MAC: <redacted>, model: {net.get('model')})"
                         )
 
                     # IP addresses if available
@@ -865,7 +865,7 @@ class VManagerCMD(cmd.Cmd):
                         for iface in detail_net:
                             ips = iface.get("ipv4", []) + iface.get("ipv6", [])
                             print(
-                                f"    - {iface.get('interface')} ({iface.get('mac')}): {', '.join(ips)}"
+                                f"    - {iface.get('interface')} (MAC: <redacted>): {', '.join(ips)}"
                             )
 
                     print("  Disks:")
