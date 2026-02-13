@@ -1,6 +1,7 @@
 """
 Modals for input device configuration and all Input dialog
 """
+
 import re
 
 from textual import on
@@ -14,6 +15,7 @@ from .base_modals import BaseModal
 
 class InputModal(BaseModal[str | None]):
     """A generic modal for getting text input from the user."""
+
     def __init__(self, prompt: str, initial_value: str = "", restrict: str | None = None):
         super().__init__()
         self.prompt = prompt
@@ -33,6 +35,7 @@ class InputModal(BaseModal[str | None]):
             self.dismiss(self.query_one(Input).value)
         else:
             self.dismiss(None)
+
 
 class AddInputDeviceModal(BaseModal[None]):
     """A modal for adding a new input device."""
@@ -81,6 +84,7 @@ class AddInputDeviceModal(BaseModal[None]):
         else:
             self.dismiss()
 
+
 class AddChannelModal(BaseModal[dict | None]):
     """A modal for adding a new channel device."""
 
@@ -91,14 +95,14 @@ class AddChannelModal(BaseModal[dict | None]):
                 [("unix", "unix"), ("virtio", "virtio"), ("spicevmc", "spicevmc")],
                 prompt=StaticText.CHANNEL_TYPE_PROMPT,
                 id="channel-type-select",
-                value="unix"
+                value="unix",
             )
             yield Label(StaticText.STANDARD_TARGET_NAMES)
             yield Select(
                 [],
                 id="target-preset-select",
                 prompt=StaticText.TARGET_PRESET_PROMPT,
-                value=Select.BLANK
+                value=Select.BLANK,
             )
             yield Label(StaticText.TARGET_NAME)
             yield Input(placeholder=StaticText.TARGET_NAME_PLACEHOLDER, id="target-name-input")
@@ -127,7 +131,7 @@ class AddChannelModal(BaseModal[dict | None]):
         elif channel_type == "virtio":
             options = [
                 ("org.qemu.guest_agent.0", "org.qemu.guest_agent.0"),
-                ("org.libguestfs.channel.0", "org.libguestfs.channel.0")
+                ("org.libguestfs.channel.0", "org.libguestfs.channel.0"),
             ]
             default_val = "org.qemu.guest_agent.0"
 
@@ -155,6 +159,7 @@ class AddChannelModal(BaseModal[dict | None]):
         elif event.button.id == "cancel-channel-btn":
             self.dismiss(None)
 
+
 def _sanitize_input(input_string: str) -> tuple[str, bool]:
     """
     Sanitise input to alphanumeric, underscore, hyphen only, period.
@@ -165,9 +170,9 @@ def _sanitize_input(input_string: str) -> tuple[str, bool]:
     was_modified = False
 
     if not original_stripped:
-        return "", True # Empty input is considered modified
+        return "", True  # Empty input is considered modified
 
-    sanitized = re.sub(r'[^a-zA-Z0-9.-_]', '', original_stripped)
+    sanitized = re.sub(r"[^a-zA-Z0-9._-]", "", original_stripped)
 
     if len(sanitized) > 64:
         raise ValueError(ErrorMessages.SANITIZED_INPUT_TOO_LONG)
@@ -176,6 +181,7 @@ def _sanitize_input(input_string: str) -> tuple[str, bool]:
         was_modified = True
 
     return sanitized, was_modified
+
 
 def _sanitize_domain_name(input_string: str) -> tuple[str, bool]:
     """
@@ -187,12 +193,12 @@ def _sanitize_domain_name(input_string: str) -> tuple[str, bool]:
     was_modified = False
 
     if not original_stripped:
-        return "", True # Empty input is considered modified
+        return "", True  # Empty input is considered modified
 
     # Allow alphanumeric, hyphens, and periods
-    sanitized = re.sub(r'[^a-zA-Z0-9.-]', '', original_stripped)
+    sanitized = re.sub(r"[^a-zA-Z0-9.-]", "", original_stripped)
 
-    if len(sanitized) > 64: # Common domain name length limit
+    if len(sanitized) > 64:  # Common domain name length limit
         raise ValueError(ErrorMessages.SANITIZED_DOMAIN_TOO_LONG)
 
     if sanitized != original_stripped:
