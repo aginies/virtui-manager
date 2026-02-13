@@ -559,7 +559,7 @@ class ServerPrefModal(BaseModal[None]):
                 self._load_storage_pools(expand_pools=[existing_pool.name()])
                 return
 
-            new_pool_name = f"{StaticText.POOL_PREFIX}{os.path.basename(volume_dir)}".replace(" ", "_").replace(".", "_")
+            new_pool_name = f"pool_{os.path.basename(volume_dir)}".replace(" ", "_").replace(".", "_")
 
             def on_confirm_create(confirmed: bool) -> None:
                 if confirmed:
