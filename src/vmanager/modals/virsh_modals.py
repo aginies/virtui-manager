@@ -22,7 +22,7 @@ class VirshShellScreen(ModalScreen):
     """Screen for an interactive virsh shell."""
 
     BINDINGS = [
-        ("escape", "app.pop_screen", "Close Shell"),
+        ("escape", "app.pop_screen", StaticText.CLOSE_SHELL_BINDING),
     ]
 
     def __init__(self, uri: str) -> None:
@@ -43,7 +43,7 @@ class VirshShellScreen(ModalScreen):
             with Horizontal(id="virsh-input-container"):
                 #yield Label("virsh>")
                 yield Input(
-                    placeholder="Enter virsh command...",
+                    placeholder=StaticText.VIRSH_COMMAND_PLACEHOLDER,
                     id="virsh-command-input",
                     classes="virsh-input-field"
                 )
@@ -54,7 +54,7 @@ class VirshShellScreen(ModalScreen):
         self.output_textarea = self.query_one("#virsh-output", TextArea)
         self.command_input = self.query_one("#virsh-command-input", Input)
 
-        starting_virsh_text = "Starting virsh shell..."
+        starting_virsh_text = StaticText.STARTING_VIRSH_SHELL
         self.app.show_success_message(starting_virsh_text)
 
         try:
@@ -66,7 +66,7 @@ class VirshShellScreen(ModalScreen):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            self.output_textarea.text += f"Connected to: {uri}\n"
+            self.output_textarea.text += StaticText.CONNECTED_TO_URI.format(uri=uri)
 
             self.read_stdout_task = asyncio.create_task(self._read_stream(self.virsh_process.stdout))
             self.read_stderr_task = asyncio.create_task(self._read_stream(self.virsh_process.stderr))
@@ -74,11 +74,11 @@ class VirshShellScreen(ModalScreen):
             self.command_input.focus()
 
         except FileNotFoundError:
-            error_msg = "Error: 'virsh' command not found. Please ensure libvirt-client is installed."
+            error_msg = StaticText.VIRSH_NOT_FOUND_ERROR
             self.app.show_error_message(error_msg)
             self.command_input.disabled = True
         except Exception as e:
-            error_msg = f"Error starting virsh: {e}"
+            error_msg = StaticText.ERROR_STARTING_VIRSH.format(error=e)
             self.app.show_error_message(error_msg)
             self.command_input.disabled = True
 
@@ -92,7 +92,7 @@ class VirshShellScreen(ModalScreen):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                reading_err_msg = f"Error reading from virsh: {e}"
+                reading_err_msg = StaticText.ERROR_READING_FROM_VIRSH.format(error=e)
                 self.app.show_error_message(reading_err_msg)
                 break
 
@@ -103,17 +103,17 @@ class VirshShellScreen(ModalScreen):
         if not command:
             return
 
-        self.output_textarea.text += f"virsh> {command}\n"
+        self.output_textarea.text += StaticText.VIRSH_PROMPT.format(command=command)
 
         if self.virsh_process and self.virsh_process.stdin:
             try:
                 self.virsh_process.stdin.write(command.encode() + b"\n")
                 await self.virsh_process.stdin.drain()
             except Exception as e:
-                error_msg = f"Error sending command: {e}"
+                error_msg = StaticText.ERROR_SENDING_COMMAND.format(error=e)
                 self.app.show_error_message(error_msg)
         else:
-            error_msg = "Virsh process not running."
+            error_msg = StaticText.VIRSH_PROCESS_NOT_RUNNING
             self.app.show_error_message(error_msg)
 
         # Scroll to the end after writing output
@@ -130,5 +130,5 @@ class VirshShellScreen(ModalScreen):
         if self.virsh_process and self.virsh_process.returncode is None:
             self.virsh_process.terminate()
             await self.virsh_process.wait()
-            tmsg = "Virsh shell terminated.\n"
+            tmsg = StaticText.VIRSH_SHELL_TERMINATED
             self.app.show_success_message(tmsg)
