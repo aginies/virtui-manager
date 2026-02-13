@@ -89,7 +89,7 @@ class ServerPrefModal(BaseModal[None]):
 
         # Get server hostname and update the title
         server_hostname = self.conn.getHostname()
-        self.query_one("#server-pref-title", Label).update(f"Server Preferences ({server_hostname})")
+        self.query_one("#server-pref-title", Label).update(StaticText.SERVER_PREFERENCES_TITLE_TEMPLATE.format(hostname=server_hostname))
         # Load network content by default (first tab)
         self._load_network_content()
 
@@ -173,7 +173,7 @@ class ServerPrefModal(BaseModal[None]):
         storage_pane.remove_children()
 
         # Build storage UI
-        tree = Tree("Storage Pools", id="storage-tree")
+        tree = Tree(StaticText.STORAGE_POOLS_LABEL, id="storage-tree")
         scroll_container = ScrollableContainer(tree)
 
         button_container = Vertical(
@@ -257,12 +257,12 @@ class ServerPrefModal(BaseModal[None]):
             try:
                 pool_name = pool_data['name']
                 status = pool_data['status']
-                autostart = "autostart" if pool_data['autostart'] else "no autostart"
+                autostart = "autostart" if pool_data['autostart'] else StaticText.NO_AUTOSTART_LABEL
                 label = f"{pool_name} [{status}, {autostart}]"
                 pool_node = tree.root.add(label, data=pool_data)
                 pool_node.data["type"] = "pool"
                 # Add a dummy node to make the pool node expandable
-                pool_node.add_leaf("Loading volumes...")
+                pool_node.add_leaf(StaticText.LOADING_VOLUMES)
 
                 if expand_pools and pool_name in expand_pools:
                     self.app.call_later(pool_node.expand)
@@ -288,7 +288,7 @@ class ServerPrefModal(BaseModal[None]):
             table.add_column("Mode", key="mode")
             table.add_column("Active", key="active")
             table.add_column("Autostart", key="autostart")
-            table.add_column("Used By", key="used_by")
+            table.add_column(StaticText.USED_BY_COLUMN, key="used_by")
 
         table.clear()
 
@@ -297,7 +297,7 @@ class ServerPrefModal(BaseModal[None]):
         self.networks_list = list_networks(self.conn)
 
         for net in self.networks_list:
-            vms_str = ", ".join(network_usage.get(net['name'], [])) or "Not in use"
+            vms_str = ", ".join(network_usage.get(net['name'], [])) or StaticText.NOT_IN_USE
             active_str = "✔️" if net['active'] else "❌"
             autostart_str = "✔️" if net['autostart'] else "❌"
 
@@ -331,15 +331,15 @@ class ServerPrefModal(BaseModal[None]):
                     capacity_gb = round(vol_data['capacity'] / (1024**3), 2)
 
                     vm_names = self.path_to_vm_list.get(vol_path, [])
-                    usage_info = f" (in use by {', '.join(vm_names)})" if vm_names else ""
+                    usage_info = StaticText.IN_USE_BY_TEMPLATE.format(vms=', '.join(vm_names)) if vm_names else ""
 
-                    label = f"{vol_name} ({capacity_gb} GB){usage_info}"
+                    label = f"{vol_name}{StaticText.VOLUME_SIZE_TEMPLATE.format(size=capacity_gb)}{usage_info}"
                     child_node = node.add(label, data=vol_data)
                     child_node.data["type"] = "volume"
                     child_node.allow_expand = False
             else:
                 # Handle case where pool is not active
-                node.add_leaf("Pool is not active")
+                node.add_leaf(StaticText.POOL_NOT_ACTIVE)
 
 
     @on(Tree.NodeSelected)
@@ -370,7 +370,7 @@ class ServerPrefModal(BaseModal[None]):
             is_active = node_data.get('status') == 'active'
             has_autostart = node_data.get('autostart', False)
             toggle_active_btn.label = "Deactivate" if is_active else "Activate"
-            toggle_autostart_btn.label = "Autostart Off" if has_autostart else "Autostart On"
+            toggle_autostart_btn.label = StaticText.AUTOSTART_OFF if has_autostart else StaticText.AUTOSTART_ON
 
         self.query_one("#add-vol-btn").display = is_pool and is_active
         self.query_one("#attach-vol-btn").display = is_pool and is_active
@@ -713,7 +713,7 @@ class ServerPrefModal(BaseModal[None]):
                     parent_node = tree.cursor_node.parent
                     tree.cursor_node.remove()
                     if parent_node and not parent_node.children:
-                        parent_node.add_leaf("No volumes")
+                        parent_node.add_leaf(StaticText.NO_VOLUMES)
                     target_node = find_node_by_label(tree, dest_pool_name)
                     target_node.add_leaf(new_volume_name)
                     self._load_storage_pools()
@@ -756,7 +756,7 @@ class ServerPrefModal(BaseModal[None]):
                 parent_node = tree.cursor_node.parent
                 tree.cursor_node.remove()
                 if parent_node and not parent_node.children:
-                    parent_node.add_leaf("No volumes")
+                    parent_node.add_leaf(StaticText.NO_VOLUMES)
 
                 updated_vms = result.get("updated_vms", [])
                 if updated_vms:
@@ -782,7 +782,7 @@ class ServerPrefModal(BaseModal[None]):
         net_info = next((net for net in self.networks_list if net['name'] == selected_net_name), None)
         if net_info:
             toggle_active_btn.label = "Deactivate" if net_info['active'] else "Activate"
-            toggle_autostart_btn.label = "Autostart Off" if net_info['autostart'] else "Autostart On"
+            toggle_autostart_btn.label = StaticText.AUTOSTART_OFF if net_info['autostart'] else StaticText.AUTOSTART_ON
 
     @on(Button.Pressed, "#toggle-net-active-btn")
     def on_toggle_net_active_pressed(self, event: Button.Pressed) -> None:

@@ -586,6 +586,81 @@ Specify the NUMA nodes to use.
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
+    
+    # vmcard_dialog.py strings
+    DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
+    CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
+    SNAPSHOT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+    SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
+    WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")
+    WESOCKIFY_SINGLE_CONNECTION_MESSAGE = _("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console.")
+    RUN_WEB_CONSOLE_REMOTE_MESSAGE = _("Run Web console on remote server. This will use a **LOT** of network bandwidth. It is recommended to **reduce quality** and enable **max compression**.")
+    RUN_WEB_CONSOLE_LOCAL_MESSAGE = _("Run Web console on local machine")
+    VNC_QUALITY_LABEL = _("VNC Quality (0=low, 9=high)")
+    VNC_COMPRESSION_LABEL = _("VNC Compression (0=none, 9=max)")
+    
+    # base_modals.py strings
+    NAME_CANNOT_BE_EMPTY = _("Name cannot be empty.")
+    NAME_MUST_BE_ALPHANUMERIC = _("Name must be alphanumeric and can contain underscores, but not hyphens.")
+    
+    # migration_modals.py strings
+    SHARED_STORAGE_POOLS_HEADER = _("\n[bold]-- Shared Storage Pools --[/]")
+    NO_SHARED_STORAGE_INFO = _("INFO: No common shared storage pools found between hosts.")
+    SHARED_POOL_INFO_TEMPLATE = _("INFO: Shared pool '[bold]{name}[/]' (Type: {pool_type})")
+    POOL_TARGET_INFO = _("  - Target: {target}")
+    POOL_STATUS_INFO = _("  - Status: Source: {source_status}, Destination: {dest_status}")
+    POOL_WARNING_TEMPLATE = _("  - [on yellow bold][black]WARNING[/][/]: [yellow]{warning}[/]")
+    CHECKING_VM_HEADER_TEMPLATE = _("\n[on blue][bold]--- CHECKING {vm_name} ---[/][/]")
+    SERVER_COMPATIBILITY_HEADER = _("[bold]-- Server Compatibility --[/]")
+    SERVER_ERROR_TEMPLATE = _("[on red bold]ERROR[/]: [red]{message}[/]")
+    SERVER_WARNING_TEMPLATE = _("[on yellow bold][black]WARNING[/][/]: [yellow]{message}[/]")
+    SERVER_INFO_TEMPLATE = _("[bold]INFO[/]: [green]{message}[/]")
+    VM_COMPATIBILITY_HEADER = _("[bold]-- VM Compatibility --[/]")
+    VM_ERROR_TEMPLATE = _("[on red bold]ERROR[/]: [red]{message}[/]")
+    VM_WARNING_TEMPLATE = _("[on yellow bold][black]WARNING[/][/]: [yellow]{message}[/]")
+    VM_INFO_TEMPLATE = _("[bold]INFO[/]: [green]{message}[/]")
+    COMPATIBILITY_CHECK_FAILED_TEMPLATE = _("\n[red]✗ Compatibility checks failed for {vm_name}[/]")
+    COMPATIBILITY_CHECK_PASSED_TEMPLATE = _("\n[green]✓ Compatibility checks passed for {vm_name}[/] (with warnings if any shown above).")
+    FATAL_ERROR_CHECKING_TEMPLATE = _("\n[on red bold]FATAL ERROR[/]: An unexpected error occurred while checking {vm_name}: {error}")
+    MIGRATING_VM_HEADER_TEMPLATE = _("\n[bold]--- Migrating {vm_name} ---[/]")
+    CUSTOM_MIGRATION_CONFIRMED = _("[bold]User confirmed custom migration. Executing...[/bold]")
+    CUSTOM_MIGRATION_CANCELLED = _("[yellow]Custom migration cancelled by user.[/yellow]")
+    CUSTOM_MIGRATION_FAILED_TEMPLATE = _("[red]ERROR: Custom migration failed for {vm_name}: {error}[/red]")
+    LIVE_MIGRATION_FLAGS_TEMPLATE = _("[dim]Using live migration flags: {flags}[/dim]")
+    OFFLINE_MIGRATION_URI3 = _("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
+    OFFLINE_MIGRATION_MIGRATE = _("[dim]Using migrate for offline migration without storage copy.[/dim]")
+    MIGRATION_SUCCESS_TEMPLATE = _("[green]✓ Successfully migrated {vm_name}.[/]")
+    UNDEFINE_SUCCESS_TEMPLATE = _("[green]✓ Successfully undefined {vm_name} from the source host.[/]")
+    UNDEFINE_FAILED_TEMPLATE = _("[yellow]WARNING: Failed to undefine {vm_name} from the source host: {error}[/]")
+    MIGRATION_FAILED_TEMPLATE = _("[red]ERROR: Failed to migrate {vm_name}: {error}[/]")
+    HOST_KEY_VERIFICATION_FAILED = _("Host key verification failed")
+    HOST_KEY_HINT = _("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
+    MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
+    
+    # server_prefs_modals.py strings
+    SERVER_PREFERENCES_TITLE_TEMPLATE = _("Server Preferences ({hostname})")
+    STORAGE_POOLS_LABEL = _("Storage Pools")
+    NO_AUTOSTART_LABEL = _("no autostart")
+    LOADING_VOLUMES = _("Loading volumes...")
+    POOL_UNAVAILABLE_SUFFIX = _("  [unavailable]")
+    POOL_UNAVAILABLE_LABEL = _("Pool unavailable")
+    USED_BY_COLUMN = _("Used By")
+    NOT_IN_USE = _("Not in use")
+    IN_USE_BY_TEMPLATE = _("  (in use by {vms})")
+    VOLUME_SIZE_TEMPLATE = _("  ({size} GB)")
+    POOL_NOT_ACTIVE = _("Pool is not active")
+    AUTOSTART_OFF = _("Autostart Off")
+    AUTOSTART_ON = _("Autostart On")
+    POOL_PREFIX = _("pool_")
+    NO_VOLUMES = _("No volumes")
+    MOVING_VOLUME_TEMPLATE = _("Moving {volume_name}...")
+    
+    # provisioning_modals.py strings
+    START_VIEW_PREFIX = _("start_view_")
+    
+    # utils_modals.py strings  
+    IN_PROGRESS_TITLE = _("In Progress")
+    QUICK_INFO_TITLE = _("Quick Info")
 
 class SparklineLabels:
     """Constants for sparkline labels"""

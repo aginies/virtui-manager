@@ -561,7 +561,7 @@ class InstallVMModal(BaseModal[str | None]):
                                         logging.error(f"Failed to start VM or viewer: {e}")
                                         app.call_from_thread(app.show_error_message, ErrorMessages.FAILED_TO_START_VM_OR_VIEWER_TEMPLATE.format(error=e))
 
-                                app.worker_manager.run(start_and_view, name=f"start_view_{vm_name}")
+                                app.worker_manager.run(start_and_view, name=f"{StaticText.START_VIEW_PREFIX}{vm_name}")
 
                             app.push_screen(
                                 VMDetailModal(vm_name, vm_info, domain_obj, conn_for_domain, app.vm_service.invalidate_vm_state_cache),
