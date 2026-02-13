@@ -252,7 +252,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         self.domain = domain
 
     def compose(self):
-        now = datetime.now().strftime(StaticText.SNAPSHOT_TIME_FORMAT)
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         default_name = datetime.now().strftime("snap_%Y%m%d_%H%M%S")
         agent_running = is_qemu_agent_running(self.domain) if self.domain else False
 
