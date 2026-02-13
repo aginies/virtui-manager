@@ -228,7 +228,11 @@ class RemoteViewer(Gtk.Application):
             return False
 
     def start_ssh_tunnel(self, remote_host, remote_port):
-        """Start the actual SSH tunnel process"""
+        """Start the actual SSH tunnel process.
+
+        Uses BatchMode to avoid interactive prompts that would hang the UI.
+        Verifies the tunnel is established before returning.
+        """
         if not self.ssh_gateway or not self.ssh_tunnel_local_port:
             return False
 
@@ -236,10 +240,21 @@ class RemoteViewer(Gtk.Application):
         self.stop_ssh_tunnel()
 
         # SSH command: ssh -N -C -L local_port:remote_host:remote_port gateway -p gateway_port
+        # -o BatchMode=yes: Fail immediately if password/passphrase is needed or host key unknown
+        # -o ConnectTimeout=10: Don't wait forever for connection
+        # -o StrictHostKeyChecking=accept-new: Accept new host keys but reject changed ones
         ssh_cmd = [
             "ssh",
             "-N",
             "-C",
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            "ExitOnForwardFailure=yes",
             "-L",
             f"{self.ssh_tunnel_local_port}:{remote_host}:{remote_port}",
             self.ssh_gateway,
@@ -248,20 +263,84 @@ class RemoteViewer(Gtk.Application):
         ]
 
         self.log_message(f"Starting SSH tunnel: {' '.join(ssh_cmd)}")
-        self.ssh_tunnel_process = subprocess.Popen(ssh_cmd)
+
+        try:
+            self.ssh_tunnel_process = subprocess.Popen(
+                ssh_cmd,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except FileNotFoundError:
+            self.log_message("ERROR: 'ssh' command not found. Please install OpenSSH client.")
+            self.show_notification(
+                "SSH client not found. Cannot establish tunnel.", Gtk.MessageType.ERROR
+            )
+            return False
+        except Exception as e:
+            self.log_message(f"ERROR: Failed to start SSH process: {e}")
+            self.show_notification(f"Failed to start SSH tunnel: {e}", Gtk.MessageType.ERROR)
+            return False
+
+        # Verify tunnel is established by checking if the process is still running
+        # and if the local port is listening
+        if not self._verify_ssh_tunnel():
+            return False
+
+        self.ssh_tunnel_active = True
+        self.log_message("SSH tunnel established successfully.")
+        return True
+
+    def _verify_ssh_tunnel(self, timeout=5):
+        """Verify that the SSH tunnel process started and local port is listening.
+
+        Returns True if tunnel is ready, False otherwise.
+        """
+        import time
+
+        start_time = time.time()
+
+        while time.time() - start_time < timeout:
+            # Check if process died
+            if self.ssh_tunnel_process.poll() is not None:
+                # Process exited, get error output
+                _, stderr = self.ssh_tunnel_process.communicate()
+                error_msg = stderr.decode().strip() if stderr else "Unknown error"
+                self.log_message(f"ERROR: SSH tunnel failed to start: {error_msg}")
+                self.show_notification(f"SSH tunnel failed: {error_msg}", Gtk.MessageType.ERROR)
+                self.ssh_tunnel_process = None
+                return False
+
+            # Check if local port is now listening
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(0.5)
+                    result = s.connect_ex(("localhost", self.ssh_tunnel_local_port))
+                    if result == 0:
+                        return True
+            except Exception:
+                pass
+
+            time.sleep(0.2)
+
+        # Timeout reached, tunnel may still be starting but taking too long
+        self.log_message("WARNING: SSH tunnel verification timed out, proceeding anyway.")
         return True
 
     def stop_ssh_tunnel(self, *args):
         """Terminate the SSH tunnel process if active."""
-        if self.ssh_tunnel_process:
-            self.log_message("Terminating SSH tunnel")
-            self.ssh_tunnel_process.terminate()
-            try:
-                self.ssh_tunnel_process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.ssh_tunnel_process.kill()
-            self.ssh_tunnel_process = None
-            self.log_message("SSH tunnel terminated.")
+        if not self.ssh_tunnel_process:
+            return
+
+        self.log_message("Terminating SSH tunnel")
+        self.ssh_tunnel_process.terminate()
+        try:
+            self.ssh_tunnel_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self.ssh_tunnel_process.kill()
+        self.ssh_tunnel_process = None
+        self.ssh_tunnel_active = False
+        self.log_message("SSH tunnel terminated.")
 
     def register_domain_events(self):
         if not self.conn or not self.domain:
