@@ -14,6 +14,9 @@ from .utils import log_function_call
 
 FIRMWARE_META_BASE_DIR = "/usr/share/qemu/firmware/"
 
+# Cache for firmware list to avoid repeated calls
+_firmware_cache = {}
+
 
 class Firmware:
     """
@@ -71,7 +74,7 @@ class Firmware:
 
 
 @log_function_call
-def get_uefi_files(conn: libvirt.virConnect | None = None):
+def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = True):
     """
     Retrieves available UEFI firmware configurations from the hypervisor via libvirt.
 
@@ -81,16 +84,25 @@ def get_uefi_files(conn: libvirt.virConnect | None = None):
 
     Args:
         conn: libvirt connection object. If None, reads from local filesystem.
+        use_cache: If True, use cached results when available.
 
     Returns:
         List of Firmware objects with available configurations.
     """
+    # Generate cache key based on connection
+    cache_key = "local" if conn is None else "remote"
+
+    # Check cache first
+    if use_cache and cache_key in _firmware_cache:
+        logging.debug(f"Using cached firmware list for {cache_key} system")
+        return _firmware_cache[cache_key]
+
     uefi_files = []
 
     if conn:
         # Use libvirt to retrieve firmware info from the host
         try:
-            # Get domain capabilities for x86_64 to discover available loaders
+            # Try to get domain capabilities for x86_64 first (most common)
             # This works for both local and remote systems
             caps_xml = get_domain_capabilities_xml(
                 conn=conn, emulatorbin=None, arch="x86_64", machine="pc", flags=0
@@ -98,6 +110,9 @@ def get_uefi_files(conn: libvirt.virConnect | None = None):
 
             if not caps_xml:
                 logging.warning("Could not get domain capabilities from libvirt")
+                # Fall back to local filesystem if no capabilities available
+                _load_firmware_from_files(uefi_files)
+                _firmware_cache[cache_key] = uefi_files
                 return uefi_files
 
             root = ET.fromstring(caps_xml)
@@ -112,6 +127,9 @@ def get_uefi_files(conn: libvirt.virConnect | None = None):
 
             if not loader_values:
                 logging.warning("No loader values found in domain capabilities")
+                # Fall back to local filesystem if no loaders found
+                _load_firmware_from_files(uefi_files)
+                _firmware_cache[cache_key] = uefi_files
                 return uefi_files
 
             # For remote systems, we need to read the firmware JSON metadata
@@ -119,19 +137,42 @@ def get_uefi_files(conn: libvirt.virConnect | None = None):
             # This might require the directory to be NFS-mounted or similar for remote hosts
             try:
                 _load_firmware_from_files(uefi_files)
+                if uefi_files:
+                    # Successfully loaded metadata
+                    _firmware_cache[cache_key] = uefi_files
+                    return uefi_files
             except (OSError, IOError) as e:
                 logging.warning(f"Could not read firmware JSON files: {e}")
-                # Fallback: create Firmware objects from loader values alone
-                # This provides basic firmware info even if metadata is unavailable
-                for loader_path in loader_values:
-                    firmware = Firmware()
-                    firmware.executable = loader_path
+
+            # Fallback: create Firmware objects from loader values alone
+            # This provides basic firmware info even if metadata is unavailable
+            logging.info("Using fallback firmware creation from loader values")
+            for loader_path in loader_values:
+                firmware = Firmware()
+                firmware.executable = loader_path
+
+                # Infer architecture from path (default to x86_64)
+                if "aarch64" in loader_path.lower() or "arm64" in loader_path.lower():
+                    firmware.architectures = ["aarch64"]
+                else:
                     firmware.architectures = ["x86_64"]
+
+                # Infer interface type from path
+                if "bios" in loader_path.lower():
+                    firmware.interfaces = ["bios"]
+                else:
                     firmware.interfaces = ["uefi"]
-                    # Try to infer features from the path
-                    if "secure" in loader_path.lower():
-                        firmware.features = ["secure-boot"]
-                    uefi_files.append(firmware)
+
+                # Try to infer features from the path
+                if "secboot" in loader_path.lower() or "secure" in loader_path.lower():
+                    firmware.features = ["secure-boot"]
+                if "sev" in loader_path.lower():
+                    if "sev-es" in loader_path.lower() or "snp" in loader_path.lower():
+                        firmware.features.append("amd-sev-es")
+                    else:
+                        firmware.features.append("amd-sev")
+
+                uefi_files.append(firmware)
 
         except libvirt.libvirtError as e:
             logging.error(f"Error retrieving firmware via libvirt: {e}")
@@ -141,7 +182,26 @@ def get_uefi_files(conn: libvirt.virConnect | None = None):
         # Original behavior: read from local filesystem
         _load_firmware_from_files(uefi_files)
 
+    # Cache the result
+    _firmware_cache[cache_key] = uefi_files
     return uefi_files
+
+
+def clear_firmware_cache(cache_key: str | None = None):
+    """
+    Clear the firmware cache. Useful when the system firmware might have changed.
+
+    Args:
+        cache_key: Specific cache key to clear ("local" or "remote").
+                  If None, clears all cache entries.
+    """
+    global _firmware_cache
+    if cache_key is None:
+        logging.debug("Clearing all firmware cache")
+        _firmware_cache.clear()
+    elif cache_key in _firmware_cache:
+        logging.debug(f"Clearing firmware cache for {cache_key}")
+        del _firmware_cache[cache_key]
 
 
 def _load_firmware_from_files(uefi_files: list):
