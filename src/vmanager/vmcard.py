@@ -320,7 +320,7 @@ class VMCard(Static):
             id="vm-select-checkbox",
             classes="vm-select-checkbox",
             value=self.is_selected,
-            tooltip= StaticText.SELECT_VM,
+            tooltip=StaticText.SELECT_VM,
         )
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
@@ -811,8 +811,15 @@ class VMCard(Static):
         if not self.vm:
             return
 
-        # Cancel previous timer if it exists to prevent accumulation
+        # Capture uuid early to use consistently throughout
+        uuid = self.internal_id
+        if not uuid:
+            return
+
+        # Use lock to ensure atomic timer management and prevent race conditions
+        # where multiple concurrent calls could create duplicate timers
         with self._timer_lock:
+            # Cancel previous timer if it exists to prevent accumulation
             if self.timer:
                 self.timer.stop()
                 self.timer = None
@@ -827,25 +834,22 @@ class VMCard(Static):
                 interval = self.app.config.get("STATS_INTERVAL", 5)
                 self.timer = self.set_timer(interval, self.update_stats)
 
-        # If the VM is stopped, we still run the worker once to catch external state changes.
-        uuid = self.internal_id
-        if not uuid:
-            return
+            # Capture necessary state for the worker while still under lock
+            # to ensure consistent snapshot of VM state
+            worker_context = {
+                "uuid": uuid,
+                "vm": self.vm,
+                "conn": self.conn,
+                "current_status": self.status,
+                "boot_device": self.boot_device,
+                "cpu_model": self.cpu_model,
+                "graphics_type": self.graphics_type,
+                "boot_device_checked": getattr(self, "_boot_device_checked", False),
+                "is_remote": self._is_remote_server(),
+            }
 
-        # Capture necessary state for the worker
-        # We use a dict to pass context cleanly
-        worker_context = {
-            "uuid": uuid,
-            "vm": self.vm,
-            "conn": self.conn,
-            "current_status": self.status,
-            "boot_device": self.boot_device,
-            "cpu_model": self.cpu_model,
-            "graphics_type": self.graphics_type,
-            "boot_device_checked": getattr(self, "_boot_device_checked", False),
-            "is_remote": self._is_remote_server(),
-        }
-
+        # Run worker outside the lock to avoid holding it during potentially
+        # blocking operations. The worker_manager handles its own concurrency.
         self.app.worker_manager.run(
             partial(self._stats_data_fetch_worker, worker_context), name=f"update_stats_{uuid}"
         )
@@ -2066,7 +2070,9 @@ class VMCard(Static):
                                     if latest
                                     else "Unknown"
                                 )
-                                pane.tooltip = TabTitles.TOTAL_TAB.format(info=info, snapshot_count=snapshot_count)
+                                pane.tooltip = TabTitles.TOTAL_TAB.format(
+                                    info=info, snapshot_count=snapshot_count
+                                )
                             else:
                                 pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
                         except Exception:
