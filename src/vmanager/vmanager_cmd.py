@@ -1,5 +1,11 @@
 """
 the Cmd line tool
+
+SECURITY NOTE:
+This module implements comprehensive sanitization of sensitive information to prevent
+accidental exposure of passwords, connection URIs, libvirt error details, and other
+secrets in command-line output, logs, and error messages. All sensitive data is
+redacted with "***" placeholders while preserving enough context for debugging.
 """
 
 import cmd
@@ -23,7 +29,7 @@ from .network_manager import (
     set_network_autostart,
 )
 from .storage_manager import list_storage_pools, list_unused_volumes
-from .utils import remote_viewer_cmd
+from .utils import remote_viewer_cmd, sanitize_sensitive_data
 from .vm_actions import (
     clone_vm,
     create_vm_snapshot,
@@ -38,7 +44,6 @@ from .vm_actions import (
 )
 from .vm_queries import get_vm_snapshots
 from .vm_service import VMService
-from .utils import sanitize_credentials
 
 
 class CLILogger:
@@ -68,7 +73,7 @@ class CLILogger:
                 with open(self.filepath, "a") as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
                     for line in complete_lines:
-                        sanitized_line = sanitize_credentials(line)
+                        sanitized_line = sanitize_sensitive_data(line)
                         f.write(f"{timestamp} [CLI] {sanitized_line}\n")
             except Exception:
                 pass
@@ -80,7 +85,7 @@ class CLILogger:
             try:
                 with open(self.filepath, "a") as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
-                    sanitized_buffer = sanitize_credentials(self.buffer)
+                    sanitized_buffer = sanitize_sensitive_data(self.buffer)
                     f.write(f"{timestamp} [CLI] {sanitized_buffer}\n")
             except Exception:
                 pass
@@ -120,8 +125,8 @@ class VManagerCMD(cmd.Cmd):
         for server in self.servers:
             if server.get("autoconnect", False):
                 try:
-                    print(
-                        f"Autoconnecting to {self._colorize(server['name'], server['name'])} ({server['uri']})..."
+                    self._safe_print(
+                        f"Autoconnecting to {self._colorize(server['name'], server['name'])} ({self._sanitize_message(server['uri'])})..."
                     )
                     conn = self.vm_service.connect(server["uri"])
                     if conn:
@@ -134,7 +139,7 @@ class VManagerCMD(cmd.Cmd):
                             f"Failed to autoconnect to '{self._colorize(server['name'], server['name'])}'."
                         )
                 except Exception as e:
-                    print(f"Error autoconnecting to {server['name']}: {e}")
+                    self._safe_print(f"Error autoconnecting to {server['name']}: {e}")
 
         self.status_map = {
             libvirt.VIR_DOMAIN_NOSTATE: "No State",
@@ -182,6 +187,30 @@ class VManagerCMD(cmd.Cmd):
             pass
 
         self._update_prompt()
+
+    def _sanitize_message(self, message: str) -> str:
+        """
+        Comprehensive sanitization of sensitive information for CLI output.
+
+        Uses the shared sanitization function from utils.py for consistent
+        security across all modules.
+
+        Args:
+            message: The message to sanitize
+
+        Returns:
+            Sanitized message with sensitive data replaced by safe placeholders
+        """
+        return sanitize_sensitive_data(message)
+
+    def _safe_print(self, message: str) -> None:
+        """
+        Safely print a message with sanitization applied.
+
+        Args:
+            message: The message to print
+        """
+        print(self._sanitize_message(message))
 
     def _colorize(self, text, server_name):
         """Wraps text in ANSI escape codes for the server's assigned color."""
@@ -241,7 +270,8 @@ class VManagerCMD(cmd.Cmd):
             conn = self.active_connections[target_server]
             try:
                 uri = conn.getURI()
-                print(f"Connecting to virsh on {target_server} ({uri})...")
+                sanitized_uri = self._sanitize_message(uri)
+                self._safe_print(f"Connecting to virsh on {target_server} ({sanitized_uri})...")
                 print("Type 'exit' or 'quit' to return to virtui-manager.")
 
                 # Check if virsh is installed
@@ -254,9 +284,9 @@ class VManagerCMD(cmd.Cmd):
                 self._update_prompt()  # Restore title
                 print(f"\nReturned from virsh ({target_server}).")
             except libvirt.libvirtError as e:
-                print(f"Error getting URI for {target_server}: {e}")
+                self._safe_print(f"Error getting URI for {target_server}: {e}")
             except Exception as e:
-                print(f"Error launching virsh: {e}")
+                self._safe_print(f"Error launching virsh: {e}")
 
     def complete_virsh(self, text, line, begidx, endidx):
         return self.complete_disconnect(text, line, begidx, endidx)
@@ -381,7 +411,7 @@ class VManagerCMD(cmd.Cmd):
                 if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
                     continue
                 else:
-                    print(f"A libvirt error occurred on server {server_name}: {e}")
+                    self._safe_print(f"A libvirt error occurred on server {server_name}: {e}")
 
         if not found_vms:
             print(f"Error: VM '{vm_name}' not found on any connected server.")
@@ -485,7 +515,9 @@ class VManagerCMD(cmd.Cmd):
                 continue
 
             try:
-                print(f"Connecting to {server_name} at {server_info['uri']}...")
+                self._safe_print(
+                    f"Connecting to {server_name} at {self._sanitize_message(server_info['uri'])}..."
+                )
                 conn = self.vm_service.connect(server_info["uri"])
                 if conn:
                     self.active_connections[server_name] = conn
@@ -493,7 +525,7 @@ class VManagerCMD(cmd.Cmd):
                 else:
                     print(f"Failed to connect to '{server_name}'.")
             except libvirt.libvirtError as e:
-                print(f"Error connecting to {server_name}: {e}")
+                self._safe_print(f"Error connecting to {server_name}: {e}")
 
         self._update_prompt()
 
@@ -527,7 +559,7 @@ class VManagerCMD(cmd.Cmd):
                         del self.selected_vms[server_name]
                     print(f"Disconnected from '{server_name}'.")
                 except libvirt.libvirtError as e:
-                    print(f"Error during disconnection from '{server_name}': {e}")
+                    self._safe_print(f"Error during disconnection from '{server_name}': {e}")
             else:
                 print(f"Not connected to '{server_name}'.")
 
@@ -567,7 +599,7 @@ class VManagerCMD(cmd.Cmd):
                 else:
                     print("No VMs found on this server.")
             except libvirt.libvirtError as e:
-                print(f"Error listing VMs on {server_name}: {e}")
+                self._safe_print(f"Error listing VMs on {server_name}: {e}")
 
     def do_select_vm(self, args):
         """Select one or more VMs from any connected server. Can use patterns with 're:' prefix.
@@ -598,7 +630,7 @@ class VManagerCMD(cmd.Cmd):
                         if server_name not in vm_lookup[identifier]["servers"]:
                             vm_lookup[identifier]["servers"].append(server_name)
             except libvirt.libvirtError as e:
-                print(f"Could not fetch VMs from {server_name}: {e}")
+                self._safe_print(f"Could not fetch VMs from {server_name}: {e}")
                 continue
 
         # This will hold the names of the VMs to be selected if only name/UUID is provided
@@ -856,9 +888,7 @@ class VManagerCMD(cmd.Cmd):
                     for net in networks:
                         network_name = net.get("network", "<unknown>")
                         model = net.get("model", "default")
-                        print(
-                            f"    - {network_name} (MAC: <redacted>, model: {model})"
-                        )
+                        print(f"    - {network_name} (MAC: <redacted>, model: {model})")
 
                     # IP addresses if available
                     detail_net = info.get("detail_network", [])
@@ -970,7 +1000,7 @@ class VManagerCMD(cmd.Cmd):
                     start_vm(domain)
                     print(f"VM '{vm_name}' started successfully.")
                 except libvirt.libvirtError as e:
-                    print(f"Error starting VM '{vm_name}': {e}")
+                    self._safe_print(f"Error starting VM '{vm_name}': {e}")
                 except Exception as e:
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
@@ -1003,7 +1033,7 @@ class VManagerCMD(cmd.Cmd):
                     stop_vm(domain)
                     print(f"Sent shutdown signal to VM '{vm_name}'.")
                 except libvirt.libvirtError as e:
-                    print(f"Error stopping VM '{vm_name}': {e}")
+                    self._safe_print(f"Error stopping VM '{vm_name}': {e}")
 
     def complete_stop(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
@@ -1286,9 +1316,11 @@ class VManagerCMD(cmd.Cmd):
                 print(f"Successfully cloned '{original_vm_name}' to '{current_new_name}'.")
 
             except libvirt.libvirtError as e:
-                print(f"Error cloning VM '{current_new_name}': {e}")
+                self._safe_print(f"Error cloning VM '{current_new_name}': {e}")
             except Exception as e:
-                print(f"An unexpected error occurred during cloning '{current_new_name}': {e}")
+                self._safe_print(
+                    f"An unexpected error occurred during cloning '{current_new_name}': {e}"
+                )
 
     def complete_clone_vm(self, text, line, begidx, endidx):
         """Auto-completion for the original VM to clone."""

@@ -32,6 +32,7 @@ import gi
 import libvirt
 
 from . import libvirt_utils, vm_actions, vm_queries
+from .utils import sanitize_sensitive_data
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("GtkVnc", "2.0")
@@ -162,97 +163,21 @@ class RemoteViewer(Gtk.Application):
 
     def _sanitize_log_message(self, message: str) -> str:
         """
-        Redact obviously sensitive values from log messages.
-
-        This is a comprehensive safeguard to avoid logging secrets such as
-        passwords, SSH keys, tokens, and other sensitive data in clear text,
-        while preserving overall message content for debugging purposes.
+        Sanitize log messages using shared sanitization function.
         """
-        if not isinstance(message, str):
-            return message
-
-        redacted = message
-
-        # Redact common "key=value" style password fields.
-        redacted = re.sub(
-            r"(?i)\b(passwd|password|pwd|pass|secret|key|token|auth)\s*=\s*[^,\s;\'\"]+",
-            r"\1=***",
-            redacted,
-        )
-
-        # Redact passwords in URIs (e.g., spice://user:password@host:port)
-        redacted = re.sub(
-            r"://([^/:]+):([^@]+)@",
-            r"://\1:***@",
-            redacted,
-        )
-
-        # Redact SSH private keys and certificates
-        redacted = re.sub(
-            r"-----BEGIN [A-Z\s]+ PRIVATE KEY-----.*?-----END [A-Z\s]+ PRIVATE KEY-----",
-            "-----BEGIN ***REDACTED*** PRIVATE KEY-----",
-            redacted,
-            flags=re.DOTALL,
-        )
-
-        # Redact SSH command arguments that might contain passwords
-        redacted = re.sub(
-            r"(ssh\s+[^'\"]*-o\s+[^=]*=)[^,\s;'\"]+",
-            r"\1***",
-            redacted,
-        )
-
-        # Redact potential authentication tokens or session IDs
-        redacted = re.sub(
-            r"\b[A-Za-z0-9+/]{40,}={0,2}\b",  # Base64-like strings 40+ chars
-            "***TOKEN***",
-            redacted,
-        )
-
-        # Redact hexadecimal strings that might be keys/hashes (32+ chars)
-        redacted = re.sub(
-            r"\b[a-fA-F0-9]{32,}\b",
-            "***HEX***",
-            redacted,
-        )
-
-        # Redact JSON/XML password fields
-        redacted = re.sub(
-            r'(?i)"(passwd|password|pwd|pass|secret|key|token|auth)"\s*:\s*"[^"]*"',
-            r'"\1":"***"',
-            redacted,
-        )
-
-        redacted = re.sub(
-            r"(?i)<(passwd|password|pwd|pass|secret|key|token|auth)>.*?</\1>",
-            r"<\1>***</\1>",
-            redacted,
-        )
-
-        # Redact command line password arguments
-        redacted = re.sub(
-            r"(?i)(-+(?:passwd|password|pwd|pass|secret|key|token|auth))[\s=][^,\s;'\"]+",
-            r"\1 ***",
-            redacted,
-        )
-
-        return redacted
+        return sanitize_sensitive_data(message)
 
     def _sanitize_verbose_output(self, message: str) -> str:
         """
-        Sanitize verbose output to avoid exposing sensitive information
-        in console output during debugging or verbose mode.
-        Uses the same sanitization logic as log messages.
+        Sanitize verbose output using shared sanitization function.
         """
-        return self._sanitize_log_message(message)
+        return sanitize_sensitive_data(message)
 
     def _sanitize_error_message(self, message: str) -> str:
         """
-        Sanitize error messages shown to users to avoid exposing sensitive
-        information like passwords, connection details, or internal system info
-        while preserving enough detail for troubleshooting.
+        Sanitize error messages using shared sanitization function.
         """
-        return self._sanitize_log_message(message)
+        return sanitize_sensitive_data(message)
 
     def log_message(self, message):
         # Best-effort sanitization to avoid logging sensitive data.

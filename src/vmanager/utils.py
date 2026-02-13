@@ -46,6 +46,129 @@ def sanitize_credentials(message: str) -> str:
     return _URI_CREDENTIAL_PATTERN.sub(r"\1\2:***\4", message)
 
 
+def sanitize_sensitive_data(message: str) -> str:
+    """
+    Comprehensive sanitization of sensitive information for logs, CLI output,
+    error messages, and debugging output.
+
+    This function provides enterprise-grade sanitization to prevent accidental
+    exposure of passwords, SSH keys, tokens, connection credentials, and other
+    sensitive data in:
+    - Log messages and console output
+    - Error dialogs and notifications
+    - CLI command output
+    - Debugging and verbose output
+    - Exception messages
+
+    Args:
+        message: The message to sanitize
+
+    Returns:
+        Sanitized message with sensitive data replaced by safe placeholders
+    """
+    if not isinstance(message, str):
+        return str(message)
+
+    # Start with existing URI credential sanitization
+    sanitized = sanitize_credentials(message)
+
+    # 1. Redact common password patterns in various formats
+    sanitized = re.sub(
+        r"(?i)\b(passwd|password|pwd|pass|secret|key|token|auth|credential|cred)\s*[=:]\s*[^,\s;'\"]+",
+        r"\1=***",
+        sanitized,
+    )
+
+    # 2. Redact passwords in various URI formats
+    # Already covered by sanitize_credentials, but add additional patterns
+    sanitized = re.sub(
+        r"://([^/:@]+):([^@]+)@",  # Catch any protocol://user:pass@host
+        r"://\1:***@",
+        sanitized,
+    )
+
+    # 2a. Redact SSH-style user:password@host patterns (without protocol)
+    sanitized = re.sub(
+        r"\b([a-zA-Z_][a-zA-Z0-9_]*):([^@\s]+)@([a-zA-Z0-9.-]+)",
+        r"\1:***@\3",
+        sanitized,
+    )
+
+    # 3. Redact SSH private keys and certificates
+    sanitized = re.sub(
+        r"-----BEGIN [A-Z\s]+ PRIVATE KEY-----.*?-----END [A-Z\s]+ PRIVATE KEY-----",
+        "[SSH_PRIVATE_KEY_REDACTED]",
+        sanitized,
+        flags=re.DOTALL,
+    )
+
+    # 4. Redact SSH command arguments that might contain sensitive data
+    sanitized = re.sub(
+        r"(ssh\s+[^'\"]*-o\s+[^=]*=)[^,\s;'\"]+",
+        r"\1***",
+        sanitized,
+    )
+
+    # 5. Redact Base64-like tokens and authentication strings (40+ characters)
+    sanitized = re.sub(
+        r"\b[A-Za-z0-9+/]{40,}={0,2}\b",
+        "[TOKEN_REDACTED]",
+        sanitized,
+    )
+
+    # 6. Redact hexadecimal strings that might be keys/hashes (32+ chars)
+    sanitized = re.sub(
+        r"\b[a-fA-F0-9]{32,}\b",
+        "[HEX_KEY_REDACTED]",
+        sanitized,
+    )
+
+    # 7. Redact JSON password fields
+    sanitized = re.sub(
+        r'(?i)"(passwd|password|pwd|pass|secret|key|token|auth|credential|cred)"\s*:\s*"[^"]*"',
+        r'"\1":"***"',
+        sanitized,
+    )
+
+    # 8. Redact XML password fields
+    sanitized = re.sub(
+        r"(?i)<(passwd|password|pwd|pass|secret|key|token|auth|credential|cred)>.*?</\1>",
+        r"<\1>***</\1>",
+        sanitized,
+    )
+
+    # 9. Redact command line password arguments
+    sanitized = re.sub(
+        r"(?i)(-+(?:passwd|password|pwd|pass|secret|key|token|auth|credential|cred))[\s=][^,\s;'\"]+",
+        r"\1 ***",
+        sanitized,
+    )
+
+    # 10. Redact environment variable-style secrets
+    sanitized = re.sub(
+        r"(?i)\b[A-Z_]*(PASSWORD|SECRET|KEY|TOKEN|CRED)[A-Z_]*\s*=\s*[^,\s;'\"]+",
+        r"\1=***",
+        sanitized,
+    )
+
+    # 11. Redact API keys and similar patterns
+    sanitized = re.sub(
+        r"(?i)\b(api_key|apikey|access_token|refresh_token|bearer|authorization)\s*[=:]\s*[^,\s;'\"]+",
+        r"\1=***",
+        sanitized,
+    )
+
+    # 12. Redact certificate content (public certificates can also be sensitive)
+    sanitized = re.sub(
+        r"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+        "[CERTIFICATE_REDACTED]",
+        sanitized,
+        flags=re.DOTALL,
+    )
+
+    return sanitized
+
+
 class SanitizingFilter(logging.Filter):
     """A logging filter that sanitizes sensitive information from log messages.
 
@@ -68,14 +191,14 @@ class SanitizingFilter(logging.Filter):
             sanitized_args = []
             for arg in record.args:
                 if isinstance(arg, str):
-                    sanitized_args.append(sanitize_credentials(arg))
+                    sanitized_args.append(sanitize_sensitive_data(arg))
                 else:
                     sanitized_args.append(arg)
             record.args = tuple(sanitized_args)
 
         # Also sanitize the message itself in case it's a pre-formatted string
         if isinstance(record.msg, str):
-            record.msg = sanitize_credentials(record.msg)
+            record.msg = sanitize_sensitive_data(record.msg)
 
         return True
 
