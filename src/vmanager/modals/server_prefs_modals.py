@@ -272,10 +272,10 @@ class ServerPrefModal(BaseModal[None]):
             except libvirt.libvirtError:
                 # Handle cases where pool might be listed but inaccessible (e.g. NFS down)
                 pool_name = pool_data.get('name', 'Unknown')
-                label = f"{pool_name} [unavailable]"
+                label = f"{pool_name}{StaticText.POOL_UNAVAILABLE_SUFFIX}"
                 pool_node = tree.root.add(label, data=pool_data)
                 pool_node.data["type"] = "pool"
-                pool_node.add_leaf("Pool unavailable")
+                pool_node.add_leaf(StaticText.POOL_UNAVAILABLE_LABEL)
 
         if node_to_select:
             self.app.call_later(tree.select_node, node_to_select)
@@ -559,7 +559,7 @@ class ServerPrefModal(BaseModal[None]):
                 self._load_storage_pools(expand_pools=[existing_pool.name()])
                 return
 
-            new_pool_name = f"pool_{os.path.basename(volume_dir)}".replace(" ", "_").replace(".", "_")
+            new_pool_name = f"{StaticText.POOL_PREFIX}{os.path.basename(volume_dir)}".replace(" ", "_").replace(".", "_")
 
             def on_confirm_create(confirmed: bool) -> None:
                 if confirmed:
@@ -641,7 +641,7 @@ class ServerPrefModal(BaseModal[None]):
                     parent_node = tree.cursor_node.parent
                     tree.cursor_node.remove()
                     if parent_node and not parent_node.children:
-                        parent_node.add_leaf("No volumes")
+                        parent_node.add_leaf(StaticText.NO_VOLUMES)
 
                 except Exception as e:
                     self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
@@ -674,7 +674,7 @@ class ServerPrefModal(BaseModal[None]):
             dest_pool_name = result['dest_pool']
             new_volume_name = result['new_name']
 
-            progress_modal = ProgressModal(title=f"Moving {volume_name}...")
+            progress_modal = ProgressModal(title=StaticText.MOVING_VOLUME_TEMPLATE.format(volume_name=volume_name))
             self.app.push_screen(progress_modal)
 
             def progress_callback(progress: float):

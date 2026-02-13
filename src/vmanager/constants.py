@@ -637,6 +637,11 @@ Specify the NUMA nodes to use.
     HOST_KEY_HINT = _("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
     MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
     
+    # Migration filter strings (used for filtering redundant info messages)
+    FILTER_MANUALLY_VERIFY = "manually verify"
+    FILTER_FIREWALLS = "Firewalls"
+    FILTER_USER_AND = "user and"
+    
     # server_prefs_modals.py strings
     SERVER_PREFERENCES_TITLE_TEMPLATE = _("Server Preferences ({hostname})")
     STORAGE_POOLS_LABEL = _("Storage Pools")

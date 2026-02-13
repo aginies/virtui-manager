@@ -195,9 +195,9 @@ class MigrationModal(ModalScreen):
                 if i > 0:
                     server_infos = [
                         issue for issue in server_infos
-                        if "manually verify" not in issue['message'] and
-                           "Firewalls" not in issue['message'] and
-                           "user and" not in issue['message']
+                        if StaticText.FILTER_MANUALLY_VERIFY not in issue['message'] and
+                           StaticText.FILTER_FIREWALLS not in issue['message'] and
+                           StaticText.FILTER_USER_AND not in issue['message']
                     ]
                 for issue in server_infos:
                     write_log(StaticText.SERVER_INFO_TEMPLATE.format(message=issue['message']))
