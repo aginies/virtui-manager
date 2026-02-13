@@ -1,6 +1,7 @@
 """
 Utils functions
 """
+
 import logging
 import os
 import re
@@ -15,8 +16,73 @@ from urllib.parse import urlparse
 from .constants import AppInfo
 
 
+# Regex to match URIs with embedded credentials (user:password@host pattern)
+# Matches patterns like: qemu+ssh://user:password@host/system
+# Uses a non-greedy match for password and looks ahead for host pattern
+_URI_CREDENTIAL_PATTERN = re.compile(
+    r"((?:qemu|xen|lxc|vbox|vmware|hyperv|esx|vpx|libxl|bhyve|ch|vz|test)"  # libvirt drivers
+    r"(?:\+[a-z]+)?"  # optional transport (+ssh, +tcp, etc.)
+    r"://)"  # scheme separator
+    r"([^:@/]+)"  # username
+    r":(.+?)"  # password (non-greedy capture to redact)
+    r"(@)"  # @ before host
+    r"(?=[a-zA-Z0-9.\-]+(?:/|$|\s))",  # lookahead for hostname pattern
+    re.IGNORECASE,
+)
+
+
+def sanitize_credentials(message: str) -> str:
+    """Sanitize sensitive information from messages.
+
+    Redacts credentials from URIs (e.g., qemu+ssh://user:password@host
+    becomes qemu+ssh://user:***@host).
+
+    Args:
+        message: The message to sanitize.
+
+    Returns:
+        The sanitized message with credentials redacted.
+    """
+    return _URI_CREDENTIAL_PATTERN.sub(r"\1\2:***\4", message)
+
+
+class SanitizingFilter(logging.Filter):
+    """A logging filter that sanitizes sensitive information from log messages.
+
+    This filter redacts credentials from URIs in log messages to prevent
+    clear-text logging of sensitive information.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter and sanitize the log record.
+
+        Args:
+            record: The log record to filter.
+
+        Returns:
+            Always returns True (record is not filtered out), but the
+            record's message is sanitized in place.
+        """
+        if record.args:
+            # Sanitize format arguments
+            sanitized_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    sanitized_args.append(sanitize_credentials(arg))
+                else:
+                    sanitized_args.append(arg)
+            record.args = tuple(sanitized_args)
+
+        # Also sanitize the message itself in case it's a pre-formatted string
+        if isinstance(record.msg, str):
+            record.msg = sanitize_credentials(record.msg)
+
+        return True
+
+
 def is_running_under_flatpak():
-    return 'FLATPAK_ID' in os.environ
+    return "FLATPAK_ID" in os.environ
+
 
 def find_free_port(start: int, end: int) -> int:
     """
@@ -43,7 +109,7 @@ def find_free_port(start: int, end: int) -> int:
     for port in range(start, end + 1):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('', port))
+                s.bind(("", port))
                 return port
         except OSError:
             continue
@@ -76,10 +142,13 @@ def log_function_call(func) -> callable:
         except Exception as e:
             logging.error(f"Exception in {func.__name__}: {e}")
             raise
+
     return wrapper
 
 
-def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str = None) -> List[Tuple[str, str]]:
+def generate_webconsole_keys_if_needed(
+    config_dir: Path = None, remote_host: str = None
+) -> List[Tuple[str, str]]:
     """
     Checks for WebConsole TLS key and certificate and generates them if not found.
     Can generate locally or on a remote host via SSH.
@@ -93,19 +162,21 @@ def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str
     """
     messages = []
     if config_dir is None:
-        config_dir = Path.home() / '.config' / AppInfo.name
+        config_dir = Path.home() / ".config" / AppInfo.name
 
     # If remote, we treat config_dir as a string path on the remote
     if remote_host:
         key_path = f"{config_dir}/key.pem"
         cert_path = f"{config_dir}/cert.pem"
     else:
-        key_path = config_dir / 'key.pem'
-        cert_path = config_dir / 'cert.pem'
+        key_path = config_dir / "key.pem"
+        cert_path = config_dir / "cert.pem"
 
     # Only proceed if required tools are available (local check only makes sense for local gen)
     if not remote_host and not (check_websockify() and check_novnc_path()):
-        messages.append(('info', "WebConsole tools not available locally. Skipping key generation."))
+        messages.append(
+            ("info", "WebConsole tools not available locally. Skipping key generation.")
+        )
         return messages
 
     # Check existence
@@ -114,7 +185,8 @@ def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str
         try:
             subprocess.run(
                 ["ssh", remote_host, f"test -f {key_path} && test -f {cert_path}"],
-                check=True, timeout=5
+                check=True,
+                timeout=5,
             )
             exists = True
         except:
@@ -123,52 +195,75 @@ def generate_webconsole_keys_if_needed(config_dir: Path = None, remote_host: str
         exists = key_path.exists() and cert_path.exists()
 
     if not exists:
-        messages.append(('info', f"WebConsole TLS key/cert not found on {'remote' if remote_host else 'local'}. Generating..."))
+        messages.append(
+            (
+                "info",
+                f"WebConsole TLS key/cert not found on {'remote' if remote_host else 'local'}. Generating...",
+            )
+        )
 
         hostname = "localhost"
         if remote_host:
-            hostname = remote_host.split('@')[-1]
+            hostname = remote_host.split("@")[-1]
 
         gen_cmd = [
-            "openssl", "req", "-x509", "-newkey", "rsa:4096",
-            "-keyout", str(key_path),
-            "-out", str(cert_path),
-            "-sha256", "-days", "365", "-nodes",
-            "-subj", f"/CN={hostname}",
-            "-addext", f"subjectAltName = DNS:{hostname}"
+            "openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:4096",
+            "-keyout",
+            str(key_path),
+            "-out",
+            str(cert_path),
+            "-sha256",
+            "-days",
+            "365",
+            "-nodes",
+            "-subj",
+            f"/CN={hostname}",
+            "-addext",
+            f"subjectAltName = DNS:{hostname}",
         ]
 
         try:
             if remote_host:
                 # Ensure directory exists first
-                subprocess.run(["ssh", remote_host, f"mkdir -p {config_dir}"], check=True, timeout=5)
+                subprocess.run(
+                    ["ssh", remote_host, f"mkdir -p {config_dir}"], check=True, timeout=5
+                )
                 # Run openssl remotely
                 # We need to quote the command for ssh
                 remote_cmd = " ".join(gen_cmd)
                 subprocess.run(
                     ["ssh", remote_host, remote_cmd],
-                    check=True, capture_output=True, text=True, timeout=30
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
                 )
             else:
                 config_dir.mkdir(parents=True, exist_ok=True)
-                subprocess.run(
-                    gen_cmd,
-                    check=True, capture_output=True, text=True, timeout=30
-                )
+                subprocess.run(gen_cmd, check=True, capture_output=True, text=True, timeout=30)
 
-            messages.append(('info', f"Successfully generated WebConsole TLS key and certificate in {config_dir} on {'remote' if remote_host else 'local'}."))
+            messages.append(
+                (
+                    "info",
+                    f"Successfully generated WebConsole TLS key and certificate in {config_dir} on {'remote' if remote_host else 'local'}.",
+                )
+            )
 
         except subprocess.TimeoutExpired:
             error_message = "Failed to generate WebConsole TLS key/cert: Operation timed out"
-            messages.append(('error', error_message))
+            messages.append(("error", error_message))
         except subprocess.CalledProcessError as e:
             error_message = f"Failed to generate WebConsole TLS key/cert: {e.stderr.strip() if e.stderr else str(e)}"
-            messages.append(('error', error_message))
+            messages.append(("error", error_message))
         except FileNotFoundError:
-            messages.append(('error', "openssl command not found. Please install openssl."))
+            messages.append(("error", "openssl command not found. Please install openssl."))
         except Exception as e:
             error_message = f"Unexpected error generating WebConsole keys: {str(e)}"
-            messages.append(('error', error_message))
+            messages.append(("error", error_message))
 
     return messages
 
@@ -195,7 +290,9 @@ def check_r_viewer(configured_viewer: str = None) -> str:
                 return "virtui-remote-viewer"
             elif configured_viewer == "virt-viewer" and virt:
                 return "virt-viewer"
-            logging.warning(f"Configured viewer {configured_viewer} not found. Falling back to auto-detection.")
+            logging.warning(
+                f"Configured viewer {configured_viewer} not found. Falling back to auto-detection."
+            )
 
         if virtui is not None:
             return "virtui-remote-viewer"
@@ -207,6 +304,7 @@ def check_r_viewer(configured_viewer: str = None) -> str:
         logging.error(f"Error checking r-viewer: {e}")
         return None
 
+
 def remote_viewer_cmd(uri: str, domain_name: str, viewer_cmd: str = None) -> list:
     """
     return the remote viewer command line
@@ -217,10 +315,11 @@ def remote_viewer_cmd(uri: str, domain_name: str, viewer_cmd: str = None) -> lis
         check_which_one = check_r_viewer()
 
     if check_which_one == "virt-viewer":
-        command = [ check_which_one, "--connect", uri, "--wait", domain_name]
+        command = [check_which_one, "--connect", uri, "--wait", domain_name]
     else:
-        command = [ check_which_one, "--connect", uri, "--wait", "--domain-name", domain_name]
+        command = [check_which_one, "--connect", uri, "--wait", "--domain-name", domain_name]
     return command
+
 
 def check_firewalld() -> bool:
     """
@@ -306,7 +405,7 @@ def check_is_firewalld_running() -> Union[str, bool]:
             capture_output=True,
             text=True,
             check=True,
-            timeout=10
+            timeout=10,
         )
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
@@ -316,6 +415,7 @@ def check_is_firewalld_running() -> Union[str, bool]:
     except Exception as e:
         logging.error(f"Error checking firewalld status: {e}")
         return False
+
 
 @lru_cache(maxsize=16)
 def extract_server_name_from_uri(server_name: str) -> str:
@@ -338,8 +438,8 @@ def extract_server_name_from_uri(server_name: str) -> str:
     if not server_name:
         return "Unknown"
 
-    if server_name == 'qemu:///system':
-        return 'Local'
+    if server_name == "qemu:///system":
+        return "Local"
 
     try:
         parsed_uri = urlparse(server_name)
@@ -350,28 +450,29 @@ def extract_server_name_from_uri(server_name: str) -> str:
             return server_name
 
         # Strip user info if it exists
-        if '@' in netloc:
-            netloc = netloc.split('@', 1)[1]
+        if "@" in netloc:
+            netloc = netloc.split("@", 1)[1]
 
         # Strip port if it exists
-        if ':' in netloc:
-            netloc = netloc.split(':', 1)[0]
+        if ":" in netloc:
+            netloc = netloc.split(":", 1)[0]
 
         return netloc if netloc else "Unknown"
 
     except Exception:
         # Fallback to original logic if parsing fails for any reason
-        if server_name.startswith('qemu+ssh://'):
-            if '@' in server_name:
-                server_display = server_name.split('@')[1].split('/')[0]
+        if server_name.startswith("qemu+ssh://"):
+            if "@" in server_name:
+                server_display = server_name.split("@")[1].split("/")[0]
             else:
-                server_display = server_name.split('://')[1].split('/')[0]
-        elif server_name.startswith('qemu+tcp://') or server_name.startswith('qemu+tls://'):
-            server_display = server_name.split('://')[1].split('/')[0]
+                server_display = server_name.split("://")[1].split("/")[0]
+        elif server_name.startswith("qemu+tcp://") or server_name.startswith("qemu+tls://"):
+            server_display = server_name.split("://")[1].split("/")[0]
         else:
             server_display = server_name
 
         return server_display if server_display else "Unknown"
+
 
 @lru_cache(maxsize=512)
 def natural_sort_key(text):
@@ -380,13 +481,15 @@ def natural_sort_key(text):
     'A10' becomes ['A', 10], 'A2' becomes ['A', 2]
     This ensures A2 comes before A10.
     """
+
     def tryint(s):
         try:
             return int(s)
         except ValueError:
             return s.lower()
 
-    return [tryint(c) for c in re.split('([0-9]+)', text)]
+    return [tryint(c) for c in re.split("([0-9]+)", text)]
+
 
 @lru_cache(maxsize=8)
 def format_server_names(server_uris: tuple[str]) -> str:
@@ -397,8 +500,10 @@ def format_server_names(server_uris: tuple[str]) -> str:
     names = [extract_server_name_from_uri(uri) for uri in server_uris]
     return ", ".join(sorted(set(names)))
 
+
 _server_color_cache = {}
 _color_index = 0
+
 
 @lru_cache(maxsize=16)
 def get_server_color_cached(uri: str, palette: tuple) -> str:
@@ -415,6 +520,7 @@ def get_server_color_cached(uri: str, palette: tuple) -> str:
 
     return _server_color_cache[uri]
 
+
 class CacheMonitor:
     """Monitor for tracking LRU cache performance."""
 
@@ -429,18 +535,18 @@ class CacheMonitor:
         """Get statistics for all tracked caches."""
         stats = {}
         for name, func in self.tracked_functions.items():
-            if hasattr(func, 'cache_info'):
+            if hasattr(func, "cache_info"):
                 info = func.cache_info()
                 total = info.hits + info.misses
                 hit_rate = (info.hits / total * 100) if total > 0 else 0.0
 
                 stats[name] = {
-                    'hits': info.hits,
-                    'misses': info.misses,
-                    'hit_rate': hit_rate,
-                    'current_size': info.currsize,
-                    'max_size': info.maxsize,
-                    'efficiency': 'good' if hit_rate > 70 else 'poor'
+                    "hits": info.hits,
+                    "misses": info.misses,
+                    "hit_rate": hit_rate,
+                    "current_size": info.currsize,
+                    "max_size": info.maxsize,
+                    "efficiency": "good" if hit_rate > 70 else "poor",
                 }
         return stats
 
@@ -458,9 +564,10 @@ class CacheMonitor:
     def clear_all_caches(self) -> None:
         """Clear all tracked caches."""
         for func in self.tracked_functions.values():
-            if hasattr(func, 'cache_clear'):
+            if hasattr(func, "cache_clear"):
                 func.cache_clear()
         logging.info("All caches cleared")
+
 
 @lru_cache(maxsize=128)
 def format_memory_display(memory_mib: int) -> str:
@@ -469,6 +576,7 @@ def format_memory_display(memory_mib: int) -> str:
     if memory_mib >= 1024:
         mem_str += f" ({memory_mib / 1024:.2f} GiB)"
     return mem_str
+
 
 @lru_cache(maxsize=128)
 def generate_tooltip_markdown(
@@ -479,7 +587,7 @@ def generate_tooltip_markdown(
     boot: str,
     cpu: int,
     cpu_model: str,
-    memory: int
+    memory: int,
 ) -> str:
     """Generate tooltip markdown (pure function, cacheable)."""
     mem_display = format_memory_display(memory)
@@ -493,7 +601,7 @@ def generate_tooltip_markdown(
         f"**Boot:** {boot}  \n"
         f"**VCPUs:** {cpu_display}  \n"
         f"**Memory:** {mem_display}"
-)
+    )
 
 
 def setup_cache_monitoring(enable: bool = True):
@@ -518,6 +626,7 @@ def setup_cache_monitoring(enable: bool = True):
         get_host_pci_devices,
         get_host_usb_devices,
     )
+
     cache_monitor.track(_get_vm_names_from_uuids)
     cache_monitor.track(get_host_pci_devices)
     cache_monitor.track(get_host_usb_devices)
@@ -533,6 +642,7 @@ def setup_cache_monitoring(enable: bool = True):
         get_vm_disks_info,
         get_vm_network_dns_gateway_info,
     )
+
     cache_monitor.track(_parse_domain_xml)
     cache_monitor.track(get_vm_description)
     cache_monitor.track(get_vm_disks_info)
@@ -548,6 +658,7 @@ def setup_cache_monitoring(enable: bool = True):
         list_storage_pools,
         list_storage_volumes,
     )
+
     cache_monitor.track(list_storage_pools)
     cache_monitor.track(list_storage_volumes)
     cache_monitor.track(find_vms_using_volume)
@@ -558,6 +669,7 @@ def setup_cache_monitoring(enable: bool = True):
         get_vms_using_network,
         list_networks,
     )
+
     cache_monitor.track(list_networks)
     cache_monitor.track(get_vms_using_network)
     cache_monitor.track(get_host_network_info)
@@ -566,8 +678,13 @@ def setup_cache_monitoring(enable: bool = True):
 
 
 def setup_logging():
-    """Configures the logging for the application."""
+    """Configures the logging for the application.
+
+    Sets up file-based logging with a sanitizing filter that redacts
+    sensitive information (like credentials in URIs) from log messages.
+    """
     from .config import get_log_path, load_config
+
     config = load_config()
     log_level_str = config.get("LOG_LEVEL", "INFO").upper()
     log_level = getattr(logging, log_level_str, logging.INFO)
@@ -578,19 +695,27 @@ def setup_logging():
     root_logger = logging.getLogger()
 
     for handler in root_logger.handlers[:]:
-        if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+        if isinstance(handler, logging.StreamHandler) and not isinstance(
+            handler, logging.FileHandler
+        ):
             root_logger.removeHandler(handler)
 
     # Check if we already added a FileHandler to this path
     has_file_handler = False
     for handler in root_logger.handlers:
-        if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(log_path.absolute()):
+        if isinstance(handler, logging.FileHandler) and handler.baseFilename == str(
+            log_path.absolute()
+        ):
             has_file_handler = True
             break
 
     if not has_file_handler:
         file_handler = logging.FileHandler(log_path)
-        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+        # Add sanitizing filter to prevent clear-text logging of sensitive information
+        file_handler.addFilter(SanitizingFilter())
         root_logger.addHandler(file_handler)
 
     root_logger.setLevel(log_level)

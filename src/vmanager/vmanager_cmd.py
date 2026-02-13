@@ -38,22 +38,15 @@ from .vm_actions import (
 )
 from .vm_queries import get_vm_snapshots
 from .vm_service import VMService
+from .utils import sanitize_credentials
 
 
 class CLILogger:
-    # Regex to match URIs with embedded credentials (user:password@host pattern)
-    # Matches patterns like: qemu+ssh://user:password@host/system
-    # Uses a non-greedy match for password and looks ahead for host pattern
-    URI_CREDENTIAL_PATTERN = re.compile(
-        r"((?:qemu|xen|lxc|vbox|vmware|hyperv|esx|vpx|libxl|bhyve|ch|vz|test)"  # libvirt drivers
-        r"(?:\+[a-z]+)?"  # optional transport (+ssh, +tcp, etc.)
-        r"://)"  # scheme separator
-        r"([^:@/]+)"  # username
-        r":(.+?)"  # password (non-greedy capture to redact)
-        r"(@)"  # @ before host
-        r"(?=[a-zA-Z0-9.\-]+(?:/|$|\s))",  # lookahead for hostname pattern
-        re.IGNORECASE,
-    )
+    """A logger that captures stdout/stderr and logs to a file.
+
+    This logger sanitizes sensitive information (like credentials in URIs)
+    before writing to the log file to prevent clear-text logging of secrets.
+    """
 
     def __init__(self, filepath, stream):
         self.filepath = filepath
@@ -62,15 +55,6 @@ class CLILogger:
 
     def __getattr__(self, name):
         return getattr(self.stream, name)
-
-    @staticmethod
-    def _sanitize_for_log(message):
-        """Sanitize sensitive information from log messages.
-
-        Redacts credentials from URIs (e.g., qemu+ssh://user:password@host
-        becomes qemu+ssh://user:***@host).
-        """
-        return CLILogger.URI_CREDENTIAL_PATTERN.sub(r"\1\2:***\4", message)
 
     def write(self, message):
         res = self.stream.write(message)
@@ -84,7 +68,7 @@ class CLILogger:
                 with open(self.filepath, "a") as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
                     for line in complete_lines:
-                        sanitized_line = self._sanitize_for_log(line)
+                        sanitized_line = sanitize_credentials(line)
                         f.write(f"{timestamp} [CLI] {sanitized_line}\n")
             except Exception:
                 pass
@@ -96,7 +80,7 @@ class CLILogger:
             try:
                 with open(self.filepath, "a") as f:
                     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S,%f")[:-3]
-                    sanitized_buffer = self._sanitize_for_log(self.buffer)
+                    sanitized_buffer = sanitize_credentials(self.buffer)
                     f.write(f"{timestamp} [CLI] {sanitized_buffer}\n")
             except Exception:
                 pass
