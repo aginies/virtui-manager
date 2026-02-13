@@ -1209,7 +1209,8 @@ class RemoteViewer(Gtk.Application):
         msg = f"Initializing display for protocol: {protocol}"
         self.log_message(msg)
         if self.verbose:
-            print(msg)
+            # Avoid printing potentially sensitive or tainted data directly
+            print("Initializing display")
 
         if protocol is None:
             self.log_message(
