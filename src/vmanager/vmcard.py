@@ -465,7 +465,9 @@ class VMCard(Static):
         if self.status == StatusText.RUNNING and self.ip_addresses:
             ips = []
             for iface in self.ip_addresses:
-                ips.extend(iface.get("ipv4", []))
+                # Guard against None or non-dict entries in ip_addresses list
+                if iface and isinstance(iface, dict):
+                    ips.extend(iface.get("ipv4", []))
             if ips:
                 ip_display = ", ".join(ips)
 
