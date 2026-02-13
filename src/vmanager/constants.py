@@ -590,7 +590,7 @@ Specify the NUMA nodes to use.
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
-    SNAPSHOT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+    SNAPSHOT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"  # Technical date format, not translated
     SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
     WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")
     WESOCKIFY_SINGLE_CONNECTION_MESSAGE = _("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console.")
@@ -657,12 +657,12 @@ Specify the NUMA nodes to use.
     POOL_NOT_ACTIVE = _("Pool is not active")
     AUTOSTART_OFF = _("Autostart Off")
     AUTOSTART_ON = _("Autostart On")
-    POOL_PREFIX = _("pool_")
+    POOL_PREFIX = "pool_"  # Technical prefix for pool naming, not translated
     NO_VOLUMES = _("No volumes")
     MOVING_VOLUME_TEMPLATE = _("Moving {volume_name}...")
     
     # provisioning_modals.py strings
-    START_VIEW_PREFIX = _("start_view_")
+    START_VIEW_PREFIX = "start_view_"  # Technical prefix for worker naming, not translated
     
     # utils_modals.py strings  
     IN_PROGRESS_TITLE = _("In Progress")
