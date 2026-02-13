@@ -103,8 +103,6 @@ class VirshShellScreen(ModalScreen):
         if not command:
             return
 
-        self.output_textarea.text += StaticText.VIRSH_PROMPT.format(command=command)
-
         if self.virsh_process and self.virsh_process.stdin:
             try:
                 self.virsh_process.stdin.write(command.encode() + b"\n")
