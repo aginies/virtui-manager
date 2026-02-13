@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
 """
 Simple remote viewer
+
+SECURITY NOTE:
+This module implements comprehensive sanitization of sensitive information to prevent
+accidental exposure of passwords, SSH keys, connection details, and other secrets in:
+- Log messages (via _sanitize_log_message)
+- Verbose console output (via _sanitize_verbose_output)
+- Error dialogs shown to users (via _sanitize_error_message)
+- SSH command logging
+- Connection error messages
+
+All sensitive data is redacted with "***" placeholders while preserving enough
+context for debugging and troubleshooting.
 """
 
 # import os
@@ -20,6 +32,7 @@ import gi
 import libvirt
 
 from . import libvirt_utils, vm_actions, vm_queries
+from .utils import sanitize_sensitive_data
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("GtkVnc", "2.0")
@@ -114,7 +127,7 @@ class RemoteViewer(Gtk.Application):
             buttons=Gtk.ButtonsType.OK,
             text="Error",
         )
-        dialog.format_secondary_text(message)
+        dialog.format_secondary_text(self._sanitize_error_message(message))
         dialog.run()
         dialog.destroy()
 
@@ -137,7 +150,7 @@ class RemoteViewer(Gtk.Application):
             self.show_error_dialog(message)
         else:
             if self.verbose:
-                print(f"Notification ({message_type}): {message}")
+                print(self._sanitize_verbose_output(f"Notification ({message_type}): {message}"))
 
     def on_info_bar_response(self, bar, response):
         bar.set_revealed(False)
@@ -150,31 +163,21 @@ class RemoteViewer(Gtk.Application):
 
     def _sanitize_log_message(self, message: str) -> str:
         """
-        Redact obviously sensitive values from log messages.
-
-        This is a best-effort safeguard to avoid logging secrets such as
-        passwords in clear text, while preserving overall message content.
+        Sanitize log messages using shared sanitization function.
         """
-        if not isinstance(message, str):
-            return message
+        return sanitize_sensitive_data(message)
 
-        redacted = message
+    def _sanitize_verbose_output(self, message: str) -> str:
+        """
+        Sanitize verbose output using shared sanitization function.
+        """
+        return sanitize_sensitive_data(message)
 
-        # Redact common "key=value" style password fields.
-        redacted = re.sub(
-            r"(?i)\b(passwd|password)\s*=\s*[^,\s;]+",
-            r"\1=***",
-            redacted,
-        )
-
-        # Redact generic "pwd=" fields.
-        redacted = re.sub(
-            r"(?i)\bpwd\s*=\s*[^,\s;]+",
-            "pwd=***",
-            redacted,
-        )
-
-        return redacted
+    def _sanitize_error_message(self, message: str) -> str:
+        """
+        Sanitize error messages using shared sanitization function.
+        """
+        return sanitize_sensitive_data(message)
 
     def log_message(self, message):
         # Best-effort sanitization to avoid logging sensitive data.
@@ -184,7 +187,7 @@ class RemoteViewer(Gtk.Application):
         full_msg = f"[{timestamp}] {safe_message}\n"
 
         if self.verbose:
-            print(full_msg.strip())
+            print(self._sanitize_verbose_output(full_msg.strip()))
 
         if hasattr(self, "log_buffer") and self.log_buffer:
             GLib.idle_add(self._append_log_safe, full_msg)
@@ -299,7 +302,7 @@ class RemoteViewer(Gtk.Application):
             self.ssh_gateway_port,
         ]
 
-        self.log_message(f"Starting SSH tunnel: {' '.join(ssh_cmd)}")
+        self.log_message(f"Starting SSH tunnel: {self._sanitize_log_message(' '.join(ssh_cmd))}")
 
         try:
             self.ssh_tunnel_process = subprocess.Popen(
@@ -316,7 +319,10 @@ class RemoteViewer(Gtk.Application):
             return False
         except Exception as e:
             self.log_message(f"ERROR: Failed to start SSH process: {e}")
-            self.show_notification(f"Failed to start SSH tunnel: {e}", Gtk.MessageType.ERROR)
+            self.show_notification(
+                self._sanitize_error_message(f"Failed to start SSH tunnel: {e}"),
+                Gtk.MessageType.ERROR,
+            )
             return False
 
         # Verify tunnel is established by checking if the process is still running
@@ -344,7 +350,10 @@ class RemoteViewer(Gtk.Application):
                 _, stderr = self.ssh_tunnel_process.communicate()
                 error_msg = stderr.decode().strip() if stderr else "Unknown error"
                 self.log_message(f"ERROR: SSH tunnel failed to start: {error_msg}")
-                self.show_notification(f"SSH tunnel failed: {error_msg}", Gtk.MessageType.ERROR)
+                self.show_notification(
+                    self._sanitize_error_message(f"SSH tunnel failed: {error_msg}"),
+                    Gtk.MessageType.ERROR,
+                )
                 self.ssh_tunnel_process = None
                 return False
 
@@ -546,7 +555,7 @@ class RemoteViewer(Gtk.Application):
         except libvirt.libvirtError as e:
             self.log_message(f"Error finding domain: {e}")
             if self.verbose:
-                print(f"Error finding domain: {e}")
+                print(self._sanitize_verbose_output(f"Error finding domain: {e}"))
 
     def show_vm_list(self):
         self.list_window = Gtk.Window(application=self, title="Select VM to Connect")
@@ -584,7 +593,7 @@ class RemoteViewer(Gtk.Application):
 
                 store.append([dom.name(), state_str, proto, dom])
         except libvirt.libvirtError as e:
-            print(f"Error listing domains: {e}")
+            print(self._sanitize_verbose_output(f"Error listing domains: {e}"))
 
         tree = Gtk.TreeView(model=store)
 
@@ -682,7 +691,7 @@ class RemoteViewer(Gtk.Application):
             return False
         except Exception as e:
             if self.verbose:
-                print(f"Wait error: {e}")
+                print(self._sanitize_verbose_output(f"Wait error: {e}"))
             return True
 
     def _cancel_wait_clicked(self, button):
@@ -1205,8 +1214,8 @@ class RemoteViewer(Gtk.Application):
         except Exception as e:
             msg = f"XML parse error: {e}"
             self.log_message(msg)
-            if self.verbose:
-                print(msg)
+        if self.verbose:
+            print(self._sanitize_verbose_output(msg))
         return None, None, None, None
 
     def init_display(self):
@@ -1263,7 +1272,9 @@ class RemoteViewer(Gtk.Application):
                 self.spice_gtk_session.set_property("auto-clipboard", True)
             except Exception as e:
                 if self.verbose:
-                    print(f"Failed to configure SPICE clipboard: {e}")
+                    print(
+                        self._sanitize_verbose_output(f"Failed to configure SPICE clipboard: {e}")
+                    )
 
             self.display_widget = SpiceClientGtk.Display(session=self.spice_session)
             # SPICE specific configs?
@@ -1454,8 +1465,10 @@ class RemoteViewer(Gtk.Application):
                 return False  # Stop retrying
         except Exception as e:
             if self.verbose:
-                print(f"Connection failed: {e}")
-            self.show_notification(f"Connection failed: {e}", Gtk.MessageType.ERROR)
+                print(self._sanitize_verbose_output(f"Connection failed: {e}"))
+            self.show_notification(
+                self._sanitize_error_message(f"Connection failed: {e}"), Gtk.MessageType.ERROR
+            )
             return False
 
     def _do_spice_connect(self, host, port, password):
@@ -1468,7 +1481,9 @@ class RemoteViewer(Gtk.Application):
                 self.spice_session.set_property("password", password)
             self.spice_session.connect()
         except Exception as e:
-            error_msg = f"Failed to connect to SPICE server at {host}:{port}\n\nError: {e}"
+            error_msg = self._sanitize_error_message(
+                f"Failed to connect to SPICE server at {host}:{port}\n\nError: {e}"
+            )
             self.log_message(f"ERROR: {error_msg}")
             self.show_notification(error_msg, Gtk.MessageType.ERROR)
         return False  # Don't repeat the timeout
@@ -1492,7 +1507,9 @@ class RemoteViewer(Gtk.Application):
 
             self.vnc_display.open_host(host, str(port))
         except Exception as e:
-            error_msg = f"Failed to connect to VNC server at {host}:{port}\n\nError: {e}"
+            error_msg = self._sanitize_error_message(
+                f"Failed to connect to VNC server at {host}:{port}\n\nError: {e}"
+            )
             self.log_message(f"ERROR: {error_msg}")
             self.show_notification(error_msg, Gtk.MessageType.ERROR)
         return False  # Don't repeat the timeout
