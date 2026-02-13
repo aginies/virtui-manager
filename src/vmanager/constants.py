@@ -586,7 +586,7 @@ Specify the NUMA nodes to use.
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
-    
+
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
@@ -598,11 +598,11 @@ Specify the NUMA nodes to use.
     RUN_WEB_CONSOLE_LOCAL_MESSAGE = _("Run Web console on local machine")
     VNC_QUALITY_LABEL = _("VNC Quality (0=low, 9=high)")
     VNC_COMPRESSION_LABEL = _("VNC Compression (0=none, 9=max)")
-    
+
     # base_modals.py strings
     NAME_CANNOT_BE_EMPTY = _("Name cannot be empty.")
     NAME_MUST_BE_ALPHANUMERIC = _("Name must be alphanumeric and can contain underscores, but not hyphens.")
-    
+
     # migration_modals.py strings
     SHARED_STORAGE_POOLS_HEADER = _("\n[bold]-- Shared Storage Pools --[/]")
     NO_SHARED_STORAGE_INFO = _("INFO: No common shared storage pools found between hosts.")
@@ -636,13 +636,13 @@ Specify the NUMA nodes to use.
     HOST_KEY_VERIFICATION_FAILED = _("Host key verification failed")
     HOST_KEY_HINT = _("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
     MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
-    
+
     # Migration filter strings (used for filtering redundant info messages)
     # Note: These are not translated as they match against English-only internal message content
     FILTER_MANUALLY_VERIFY = "manually verify"
     FILTER_FIREWALLS = "Firewalls"
     FILTER_USER_AND = "user and"
-    
+
     # server_prefs_modals.py strings
     SERVER_PREFERENCES_TITLE_TEMPLATE = _("Server Preferences ({hostname})")
     STORAGE_POOLS_LABEL = _("Storage Pools")
@@ -660,11 +660,11 @@ Specify the NUMA nodes to use.
     POOL_PREFIX = "pool_"  # Technical prefix for pool naming, not translated
     NO_VOLUMES = _("No volumes")
     MOVING_VOLUME_TEMPLATE = _("Moving {volume_name}...")
-    
+
     # provisioning_modals.py strings
     START_VIEW_PREFIX = "start_view_"  # Technical prefix for worker naming, not translated
-    
-    # utils_modals.py strings  
+
+    # utils_modals.py strings
     IN_PROGRESS_TITLE = _("In Progress")
     QUICK_INFO_TITLE = _("Quick Info")
 
