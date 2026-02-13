@@ -619,7 +619,6 @@ Specify the NUMA nodes to use.
     VIRSH_NOT_FOUND_ERROR = _("Error: 'virsh' command not found. Please ensure libvirt-client is installed.")
     ERROR_STARTING_VIRSH = _("Error starting virsh: {error}")
     ERROR_READING_FROM_VIRSH = _("Error reading from virsh: {error}")
-    VIRSH_PROMPT = _("virsh> {command}\n")
     ERROR_SENDING_COMMAND = _("Error sending command: {error}")
     VIRSH_PROCESS_NOT_RUNNING = _("Virsh process not running.")
     VIRSH_SHELL_TERMINATED = _("Virsh shell terminated.\n")
