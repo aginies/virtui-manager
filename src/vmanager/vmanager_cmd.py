@@ -1794,7 +1794,6 @@ def main():
     cmd_app = VManagerCMD()
     try:
         cmd_app.cmdloop()
-        break  # Exit loop if cmdloop returns normally (e.g. quit command)
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
         cmd_app.intro = "" # Avoid re-printing intro on resume
