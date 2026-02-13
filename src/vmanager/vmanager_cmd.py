@@ -854,8 +854,10 @@ class VManagerCMD(cmd.Cmd):
                     if not networks:
                         print("    None")
                     for net in networks:
+                        network_name = net.get("network", "<unknown>")
+                        model = net.get("model", "default")
                         print(
-                            f"    - {net.get('network')} (MAC: <redacted>, model: {net.get('model')})"
+                            f"    - {network_name} (MAC: <redacted>, model: {model})"
                         )
 
                     # IP addresses if available
