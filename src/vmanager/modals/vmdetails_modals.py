@@ -747,7 +747,7 @@ class VMDetailModal(ModalScreen):
         try:
             sev_es_checkbox = self.query_one("#sev-es-checkbox", Checkbox)
             if sev_es_checkbox.display and sev_es_checkbox.value:
-                uefi_files_to_show = [f for f in uefi_files_to_show if "sev-es" in f.features]
+                uefi_files_to_show = [f for f in uefi_files_to_show if "amd-sev-es" in f.features]
         except Exception:  # QueryError
             pass
 
@@ -3034,13 +3034,38 @@ class VMDetailModal(ModalScreen):
 
         elif event.button.id == "switch-to-uefi":
             all_uefi_files = get_uefi_files(self.conn)
+
+            # Debug logging for firmware discovery
+            logging.info(f"Retrieved {len(all_uefi_files)} total firmware configurations")
+            for fw in all_uefi_files:
+                logging.debug(
+                    f"Firmware: {fw.executable}, arch={fw.architectures}, "
+                    f"interfaces={fw.interfaces}, features={fw.features}"
+                )
+
             xml_root = ET.fromstring(self.xml_desc)
             arch_elem = xml_root.find(".//os/type")
             arch = arch_elem.get("arch") if arch_elem is not None else "x86_64"
-            uefi_for_arch = [f for f in all_uefi_files if arch in f.architectures]
+
+            # Filter for UEFI firmware specifically (not BIOS)
+            uefi_for_arch = [
+                f for f in all_uefi_files if arch in f.architectures and "uefi" in f.interfaces
+            ]
+
+            logging.info(f"Filtered {len(uefi_for_arch)} UEFI firmware for architecture '{arch}'")
+            for fw in uefi_for_arch:
+                logging.debug(f"Selected UEFI: {fw.executable}")
 
             if not uefi_for_arch:
-                self.app.show_error_message(f"No UEFI firmware found for architecture '{arch}'.")
+                # Additional debug info in error message
+                bios_count = sum(1 for f in all_uefi_files if "bios" in f.interfaces)
+                other_arch = [f.architectures for f in all_uefi_files if f.architectures != [arch]]
+                error_detail = (
+                    f"No UEFI firmware found for architecture '{arch}'. "
+                    f"(Total: {len(all_uefi_files)}, BIOS: {bios_count}, Other arch: {len(other_arch)})"
+                )
+                logging.error(error_detail)
+                self.app.show_error_message(error_detail)
                 return
 
             uefi_paths = [f.executable for f in uefi_for_arch]
