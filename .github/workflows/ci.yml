@@ -6,6 +6,8 @@ on:
 
 jobs:
   check-code:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
