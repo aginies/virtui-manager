@@ -1,6 +1,7 @@
 """
 Library for VM creation and provisioning, specifically focused on OpenSUSE.
 """
+
 import hashlib
 import logging
 import os
@@ -35,6 +36,7 @@ class VMType(Enum):
     WLDESKTOP = "Windows Legacy"
     SERVER = "Server"
 
+
 class OpenSUSEDistro(Enum):
     LEAP = "Leap"
     TUMBLEWEED = "Tumbleweed"
@@ -42,6 +44,7 @@ class OpenSUSEDistro(Enum):
     STABLE = "Stable (Leap)"
     CURRENT = "Current (Tumbleweed)"
     CUSTOM = "Custom ISO"
+
 
 class VMProvisioner:
     def __init__(self, conn: libvirt.virConnect):
@@ -52,7 +55,7 @@ class VMProvisioner:
             OpenSUSEDistro.TUMBLEWEED: "https://download.opensuse.org/tumbleweed/iso/",
             OpenSUSEDistro.SLOWROLL: "https://download.opensuse.org/slowroll/iso/",
             OpenSUSEDistro.STABLE: "https://download.opensuse.org/distribution/openSUSE-stable/offline/",
-            OpenSUSEDistro.CURRENT: "https://download.opensuse.org/distribution/openSUSE-current/installer/iso/"
+            OpenSUSEDistro.CURRENT: "https://download.opensuse.org/distribution/openSUSE-current/installer/iso/",
         }
 
     def get_custom_repos(self) -> List[Dict[str, str]]:
@@ -60,18 +63,18 @@ class VMProvisioner:
         Retrieves the list of custom ISO repositories from the configuration.
         """
         config = load_config()
-        return config.get('custom_ISO_repo', [])
+        return config.get("custom_ISO_repo", [])
 
     def get_iso_details(self, url: str) -> Dict[str, Any]:
         """
         Fetches details (Last-Modified) for a given ISO URL.
         """
-        name = url.split('/')[-1]
+        name = url.split("/")[-1]
         try:
             context = ssl._create_unverified_context()
-            req = urllib.request.Request(url, method='HEAD')
+            req = urllib.request.Request(url, method="HEAD")
             with urllib.request.urlopen(req, context=context, timeout=5) as response:
-                last_modified = response.getheader('Last-Modified')
+                last_modified = response.getheader("Last-Modified")
                 date_str = ""
                 if last_modified:
                     try:
@@ -80,17 +83,19 @@ class VMProvisioner:
                     except:
                         date_str = last_modified
 
-                return {'name': name, 'url': url, 'date': date_str}
+                return {"name": name, "url": url, "date": date_str}
         except Exception as e:
             logging.warning(f"Failed to get details for {url}: {e}")
-            return {'name': name, 'url': url, 'date': ''}
+            return {"name": name, "url": url, "date": ""}
 
     def get_cached_isos(self) -> List[Dict[str, Any]]:
         """
         Retrieves a list of ISOs already present in the local cache directory.
         """
         config = load_config()
-        iso_cache_dir = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
+        iso_cache_dir = Path(
+            config.get("ISO_DOWNLOAD_PATH", str(Path.home() / ".cache" / AppInfo.name / "isos"))
+        )
 
         if not iso_cache_dir.exists():
             return []
@@ -101,11 +106,13 @@ class VMProvisioner:
                 # Use stats for date
                 mtime = f.stat().st_mtime
                 dt_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
-                isos.append({
-                    'name': f.name,
-                    'url': f.name, # Use filename as URL for local detection logic
-                    'date': f"{dt_str} (Cached)"
-                })
+                isos.append(
+                    {
+                        "name": f.name,
+                        "url": f.name,  # Use filename as URL for local detection logic
+                        "date": f"{dt_str} (Cached)",
+                    }
+                )
         except Exception as e:
             logging.error(f"Error reading cached ISOs: {e}")
 
@@ -129,15 +136,11 @@ class VMProvisioner:
                 try:
                     stats = f.stat()
                     dt_str = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
-                    results.append({
-                        'name': f.name,
-                        'url': str(f.absolute()),
-                        'date': dt_str
-                    })
+                    results.append({"name": f.name, "url": str(f.absolute()), "date": dt_str})
                 except Exception as e:
-                     logging.warning(f"Error reading file {f}: {e}")
+                    logging.warning(f"Error reading file {f}: {e}")
 
-            results.sort(key=lambda x: x['name'], reverse=True)
+            results.sort(key=lambda x: x["name"], reverse=True)
         except Exception as e:
             logging.error(f"Error listing local ISOs from {path}: {e}")
 
@@ -174,35 +177,38 @@ class VMProvisioner:
             def fetch_isos_from_url(url):
                 try:
                     with urllib.request.urlopen(url, context=context, timeout=10) as response:
-                        html = response.read().decode('utf-8')
+                        html = response.read().decode("utf-8")
 
-                    pattern = r'href="([^"]+\.iso)"' # Relaxed to find any ISO
+                    pattern = r'href="([^"]+\.iso)"'  # Relaxed to find any ISO
                     links = re.findall(pattern, html)
 
                     valid_links = []
                     for link in links:
                         # Basic filtering: ends with .iso
-                        if not link.endswith('.iso'): continue
+                        if not link.endswith(".iso"):
+                            continue
 
                         link_lower = link.lower()
-                        is_arch_specific = any(a in link_lower for a in ['x86_64', 'amd64', 'aarch64', 'arm64'])
+                        is_arch_specific = any(
+                            a in link_lower for a in ["x86_64", "amd64", "aarch64", "arm64"]
+                        )
 
                         if is_arch_specific:
                             # Map host arch to common names
                             # self.host_arch is likely x86_64
                             target_arch = self.host_arch
-                            if target_arch == 'x86_64':
-                                if 'x86_64' in link_lower or 'amd64' in link_lower:
+                            if target_arch == "x86_64":
+                                if "x86_64" in link_lower or "amd64" in link_lower:
                                     pass
                                 else:
-                                    continue # specific to another arch
-                            elif target_arch == 'aarch64':
-                                if 'aarch64' in link_lower or 'arm64' in link_lower:
+                                    continue  # specific to another arch
+                            elif target_arch == "aarch64":
+                                if "aarch64" in link_lower or "arm64" in link_lower:
                                     pass
                                 else:
                                     continue
 
-                        full_url = os.path.join(url, link) if not link.startswith('http') else link
+                        full_url = os.path.join(url, link) if not link.startswith("http") else link
                         valid_links.append(full_url)
 
                     return valid_links
@@ -212,7 +218,7 @@ class VMProvisioner:
 
             if isinstance(distro, OpenSUSEDistro) and distro == OpenSUSEDistro.LEAP:
                 # Use hardcoded versions
-                versions = ['15.5', '15.6', '16.0']
+                versions = ["15.5", "15.6", "16.0"]
                 for ver in versions:
                     ver_iso_url = f"{base_url}{ver}/iso/"
                     iso_urls.extend(fetch_isos_from_url(ver_iso_url))
@@ -229,7 +235,7 @@ class VMProvisioner:
                 results = list(executor.map(self.get_iso_details, unique_urls))
 
             # Sort by name descending (or date?) - keeping name sort for consistency
-            results.sort(key=lambda x: x['name'], reverse=True)
+            results.sort(key=lambda x: x["name"], reverse=True)
 
             return results
 
@@ -237,7 +243,9 @@ class VMProvisioner:
             logging.error(f"Failed to fetch ISO list: {e}")
             return []
 
-    def download_iso(self, url: str, dest_path: str, progress_callback: Optional[Callable[[int], None]] = None):
+    def download_iso(
+        self, url: str, dest_path: str, progress_callback: Optional[Callable[[int], None]] = None
+    ):
         """
         Downloads the ISO from the given URL to the destination path.
         """
@@ -253,10 +261,12 @@ class VMProvisioner:
         context = ssl._create_unverified_context()
 
         try:
-            with urllib.request.urlopen(url, context=context) as response, open(dest_path, 'wb') as out_file:
-                total_size = int(response.getheader('Content-Length').strip())
+            with urllib.request.urlopen(url, context=context) as response, open(
+                dest_path, "wb"
+            ) as out_file:
+                total_size = int(response.getheader("Content-Length").strip())
                 downloaded_size = 0
-                chunk_size = 1024 * 1024 # 1MB chunks
+                chunk_size = 1024 * 1024  # 1MB chunks
 
                 while True:
                     chunk = response.read(chunk_size)
@@ -272,10 +282,15 @@ class VMProvisioner:
         except Exception as e:
             logging.error(f"Failed to download ISO: {e}")
             if os.path.exists(dest_path):
-                os.remove(dest_path) # Clean up partial file
+                os.remove(dest_path)  # Clean up partial file
             raise e
 
-    def upload_iso(self, local_path: str, storage_pool_name: str, progress_callback: Optional[Callable[[int], None]] = None) -> str:
+    def upload_iso(
+        self,
+        local_path: str,
+        storage_pool_name: str,
+        progress_callback: Optional[Callable[[int], None]] = None,
+    ) -> str:
         """
         Uploads a local ISO file to the specified storage pool.
         Returns the path of the uploaded volume on the server.
@@ -293,12 +308,14 @@ class VMProvisioner:
         # Check if volume already exists
         try:
             vol = pool.storageVolLookupByName(iso_name)
-            logging.info(f"Volume '{iso_name}' already exists in pool '{storage_pool_name}'. Skipping upload.")
+            logging.info(
+                f"Volume '{iso_name}' already exists in pool '{storage_pool_name}'. Skipping upload."
+            )
             if progress_callback:
                 progress_callback(100)
             return vol.path()
         except libvirt.libvirtError:
-            pass # Volume does not exist, proceed to create
+            pass  # Volume does not exist, proceed to create
 
         # Create volume
         vol_xml = f"""
@@ -337,7 +354,7 @@ class VMProvisioner:
                     uploaded = 0
                     chunk_count = 0
                     while True:
-                        data = f.read(1024*1024) # 1MB chunk
+                        data = f.read(1024 * 1024)  # 1MB chunk
                         if not data:
                             break
                         stream.send(data)
@@ -371,7 +388,9 @@ class VMProvisioner:
             if old_interval != -1:
                 try:
                     self.conn.setKeepAlive(old_interval, old_count)
-                    logging.info(f"Restored libvirt keepalive to interval={old_interval}, count={old_count}.")
+                    logging.info(
+                        f"Restored libvirt keepalive to interval={old_interval}, count={old_count}."
+                    )
                 except libvirt.libvirtError:
                     logging.warning("Could not restore original libvirt keepalive settings.")
 
@@ -404,13 +423,14 @@ class VMProvisioner:
         # getDomainCapabilities or /sys/module/kvm_amd/parameters/sev
         # For now, we return 'auto' defaults or hardcoded safe values if needed.
         return {
-            'cbitpos': 47, # Typical for AMD EPYC
-            'reducedPhysBits': 1,
-            'policy': '0x0033'
+            "cbitpos": 47,  # Typical for AMD EPYC
+            "reducedPhysBits": 1,
+            "policy": "0x0033",
         }
 
-    def _setup_uefi_nvram(self, vm_name: str, target_pool_name: str, vm_type: VMType,
-                           support_snapshots: bool = True) -> tuple[str, str]:
+    def _setup_uefi_nvram(
+        self, vm_name: str, target_pool_name: str, vm_type: VMType, support_snapshots: bool = True
+    ) -> tuple[str, str]:
         """
         Sets up UEFI NVRAM on the server side by:
         1. Finding suitable firmware using the firmware_manager.
@@ -422,7 +442,7 @@ class VMProvisioner:
 
         Returns: (loader_path, nvram_path)
         """
-        all_firmwares = get_uefi_files()
+        all_firmwares = get_uefi_files(self.conn)
         candidate_fw = None
 
         # Score each firmware to find the best match
@@ -436,8 +456,8 @@ class VMProvisioner:
                 continue
 
             score = 0
-            is_secure = 'secure-boot' in fw.features
-            has_pflash = 'pflash' in fw.interfaces
+            is_secure = "secure-boot" in fw.features
+            has_pflash = "pflash" in fw.interfaces
 
             # Match VM type requirements
             if vm_type == VMType.SECURE:
@@ -449,15 +469,15 @@ class VMProvisioner:
 
             # Check for snapshot-related features
             # Some firmware metadata may include hints about snapshot support
-            if 'enrolled-keys' in fw.features:
+            if "enrolled-keys" in fw.features:
                 score += 10
 
-           # Prefer firmware with certain naming patterns known to work well
+            # Prefer firmware with certain naming patterns known to work well
             if fw.executable:
                 exec_lower = fw.executable.lower()
-                if 'ovmf' in exec_lower:
+                if "ovmf" in exec_lower:
                     score += 5
-                if 'code' in exec_lower:
+                if "code" in exec_lower:
                     score += 5
 
             # Massive preference for pflash to preserve original behavior
@@ -475,10 +495,12 @@ class VMProvisioner:
         vars_template_path = candidate_fw.nvram_template
 
         # Check if we need conversion (fallback to non-pflash)
-        has_pflash = 'pflash' in candidate_fw.interfaces
+        has_pflash = "pflash" in candidate_fw.interfaces
         needs_conversion = not has_pflash
 
-        logging.info(f"Selected firmware (score={best_score}, pflash={has_pflash}): loader='{loader_path}', nvram_template='{vars_template_path}'")
+        logging.info(
+            f"Selected firmware (score={best_score}, pflash={has_pflash}): loader='{loader_path}', nvram_template='{vars_template_path}'"
+        )
 
         fw_dir = os.path.dirname(vars_template_path)
         vars_vol_name = os.path.basename(vars_template_path)
@@ -503,15 +525,15 @@ class VMProvisioner:
             source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
             target_pool = self.conn.storagePoolLookupByName(target_pool_name)
 
-           # Determine NVRAM format based on snapshot requirement
+            # Determine NVRAM format based on snapshot requirement
             # For snapshot support, qcow2 is generally better, but we need to ensure
             # the template can be properly converted
             if support_snapshots:
-                nvram_format = 'qcow2'
+                nvram_format = "qcow2"
                 nvram_name = f"{vm_name}_VARS.qcow2"
             else:
                 # Use raw format - simpler, but no snapshot support for NVRAM
-                nvram_format = 'raw'
+                nvram_format = "raw"
                 nvram_name = f"{vm_name}_VARS.fd"
 
             nvram_path = None
@@ -522,7 +544,9 @@ class VMProvisioner:
                 logging.info(f"NVRAM volume '{nvram_name}' already exists.")
                 nvram_path = target_vol.path()
             except libvirt.libvirtError:
-                logging.info(f"Creating new {nvram_format} NVRAM volume '{nvram_name}' from '{vars_vol_name}'")
+                logging.info(
+                    f"Creating new {nvram_format} NVRAM volume '{nvram_name}' from '{vars_vol_name}'"
+                )
 
                 source_capacity = source_vol.info()[1]
 
@@ -545,10 +569,14 @@ class VMProvisioner:
                 stream_down.finish()
 
                 if not received_data:
-                    raise Exception(f"Failed to download content from NVRAM template '{vars_vol_name}'. Template appears to be empty.")
+                    raise Exception(
+                        f"Failed to download content from NVRAM template '{vars_vol_name}'. Template appears to be empty."
+                    )
 
                 if needs_conversion:
-                    logging.info(f"Firmware does not support pflash directly. Converting NVRAM template to {nvram_format} using qemu-img.")
+                    logging.info(
+                        f"Firmware does not support pflash directly. Converting NVRAM template to {nvram_format} using qemu-img."
+                    )
                     # Create temporary files for conversion
                     with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_in:
                         try:
@@ -559,7 +587,7 @@ class VMProvisioner:
                             os.remove(tmp_in.name)
                             raise e
 
-                    tmp_out_name = tmp_in_name + f".{nvram_format}" # safe suffix
+                    tmp_out_name = tmp_in_name + f".{nvram_format}"  # safe suffix
 
                     try:
                         # Run qemu-img convert
@@ -573,8 +601,10 @@ class VMProvisioner:
                         # Update capacity to match converted size
                         source_capacity = len(received_data)
                     finally:
-                        if os.path.exists(tmp_in_name): os.remove(tmp_in_name)
-                        if os.path.exists(tmp_out_name): os.remove(tmp_out_name)
+                        if os.path.exists(tmp_in_name):
+                            os.remove(tmp_in_name)
+                        if os.path.exists(tmp_out_name):
+                            os.remove(tmp_out_name)
 
                 # Create new volume in target pool with specified format
                 new_vol_xml = f"""
@@ -609,7 +639,6 @@ class VMProvisioner:
                 except libvirt.libvirtError:
                     pass
 
-
     def _get_pool_path(self, pool: libvirt.virStoragePool) -> str:
         xml = ET.fromstring(pool.XMLDesc(0))
         return xml.find("target/path").text
@@ -642,115 +671,139 @@ class VMProvisioner:
 
         return None
 
-    def _get_vm_settings(self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None) -> Dict[str, Any]:
+    def _get_vm_settings(
+        self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None
+    ) -> Dict[str, Any]:
         """
         Returns a dictionary of VM settings based on type and options.
         """
         settings = {
             # Storage
-            'disk_bus': 'virtio',
-            'disk_format': 'qcow2',
-            'disk_cache': 'none',
+            "disk_bus": "virtio",
+            "disk_format": "qcow2",
+            "disk_cache": "none",
             # Guest
-            'machine': 'pc-q35-10.1' if boot_uefi else 'pc-i440fx-10.1',
-            'video': 'virtio',
-            'network_model': 'e1000',
-            'suspend_to_mem': 'off',
-            'suspend_to_disk': 'off',
-            'boot_uefi': boot_uefi,
-            'iothreads': 0,
-            'input_bus': 'virtio',
-            'sound_model': 'none',
+            "machine": "pc-q35-10.1" if boot_uefi else "pc-i440fx-10.1",
+            "video": "virtio",
+            "network_model": "e1000",
+            "suspend_to_mem": "off",
+            "suspend_to_disk": "off",
+            "boot_uefi": boot_uefi,
+            "iothreads": 0,
+            "input_bus": "virtio",
+            "sound_model": "none",
             # Features
-            'sev': False,
-            'tpm': False,
-            'mem_backing': False,
-            'watchdog': False,
-            'on_poweroff': 'destroy',
-            'on_reboot': 'restart',
-            'on_crash': 'destroy',
+            "sev": False,
+            "tpm": False,
+            "mem_backing": False,
+            "watchdog": False,
+            "on_poweroff": "destroy",
+            "on_reboot": "restart",
+            "on_crash": "destroy",
         }
         if vm_type == VMType.SECURE:
-            settings.update({
-                'disk_cache': 'writethrough',
-                'disk_format': 'qcow2',
-                'video': 'qxl',
-                'tpm': True,
-                'sev': True,
-                'input_bus': 'ps2',
-                'mem_backing': False, # Explicitly off in table
-                'on_poweroff': 'destroy',
-                'on_reboot': 'destroy',
-                'on_crash': 'destroy',
-            })
+            settings.update(
+                {
+                    "disk_cache": "writethrough",
+                    "disk_format": "qcow2",
+                    "video": "qxl",
+                    "tpm": True,
+                    "sev": True,
+                    "input_bus": "ps2",
+                    "mem_backing": False,  # Explicitly off in table
+                    "on_poweroff": "destroy",
+                    "on_reboot": "destroy",
+                    "on_crash": "destroy",
+                }
+            )
         elif vm_type == VMType.COMPUTATION:
-            settings.update({
-                'disk_cache': 'unsafe',
-                'disk_format': 'raw',
-                'video': 'qxl',
-                'network_model': 'virtio',
-                'iothreads': 4,
-                'mem_backing': 'memfd', # memfd/shared
-                'watchdog': True,
-                'on_poweroff': 'restart',
-                'on_reboot': 'restart',
-                'on_crash': 'restart',
-            })
+            settings.update(
+                {
+                    "disk_cache": "unsafe",
+                    "disk_format": "raw",
+                    "video": "qxl",
+                    "network_model": "virtio",
+                    "iothreads": 4,
+                    "mem_backing": "memfd",  # memfd/shared
+                    "watchdog": True,
+                    "on_poweroff": "restart",
+                    "on_reboot": "restart",
+                    "on_crash": "restart",
+                }
+            )
         elif vm_type == VMType.DESKTOP:
-            settings.update({
-                'disk_cache': 'none',
-                'disk_format': 'qcow2',
-                'video': 'virtio',
-                'network_model': 'e1000',
-                'suspend_to_mem': 'on',
-                'suspend_to_disk': 'on',
-                'mem_backing': 'memfd',
-                'sound_model': 'ich9',
-                'on_poweroff': 'destroy',
-                'on_reboot': 'restart',
-                'on_crash': 'destroy',
-            })
+            settings.update(
+                {
+                    "disk_cache": "none",
+                    "disk_format": "qcow2",
+                    "video": "virtio",
+                    "network_model": "e1000",
+                    "suspend_to_mem": "on",
+                    "suspend_to_disk": "on",
+                    "mem_backing": "memfd",
+                    "sound_model": "ich9",
+                    "on_poweroff": "destroy",
+                    "on_reboot": "restart",
+                    "on_crash": "destroy",
+                }
+            )
         elif vm_type == VMType.WDESKTOP or vm_type == VMType.WLDESKTOP:
-            settings.update({
-                'disk_bus': 'sata',
-                'disk_cache': 'none',
-                'disk_format': 'qcow2',
-                'video': 'virtio',
-                'network_model': 'e1000',
-                'suspend_to_mem': 'on',
-                'suspend_to_disk': 'on',
-                'mem_backing': 'memfd',
-                'sound_model': 'ich9',
-                'tpm': True if vm_type == VMType.WDESKTOP else False,
-                'on_poweroff': 'destroy',
-                'on_reboot': 'restart',
-                'on_crash': 'destroy',
-            })
+            settings.update(
+                {
+                    "disk_bus": "sata",
+                    "disk_cache": "none",
+                    "disk_format": "qcow2",
+                    "video": "virtio",
+                    "network_model": "e1000",
+                    "suspend_to_mem": "on",
+                    "suspend_to_disk": "on",
+                    "mem_backing": "memfd",
+                    "sound_model": "ich9",
+                    "tpm": True if vm_type == VMType.WDESKTOP else False,
+                    "on_poweroff": "destroy",
+                    "on_reboot": "restart",
+                    "on_crash": "destroy",
+                }
+            )
             if vm_type == VMType.WLDESKTOP:
-                settings['machine'] = 'pc-i440fx-10.1'
-                settings['input_bus'] = 'usb'
+                settings["machine"] = "pc-i440fx-10.1"
+                settings["input_bus"] = "usb"
 
         elif vm_type == VMType.SERVER:
-            settings.update({
-                'disk_cache': 'none',
-                'disk_format': 'qcow2',
-                'video': 'virtio',
-                'network_model': 'virtio',
-                'suspend_to_mem': 'on',
-                'suspend_to_disk': 'on',
-                'mem_backing': False,
-                'on_poweroff': 'destroy',
-                'on_reboot': 'restart',
-                'on_crash': 'restart',
-            })
+            settings.update(
+                {
+                    "disk_cache": "none",
+                    "disk_format": "qcow2",
+                    "video": "virtio",
+                    "network_model": "virtio",
+                    "suspend_to_mem": "on",
+                    "suspend_to_disk": "on",
+                    "mem_backing": False,
+                    "on_poweroff": "destroy",
+                    "on_reboot": "restart",
+                    "on_crash": "restart",
+                }
+            )
 
         # Override disk format if provided
         if disk_format:
-            settings['disk_format'] = disk_format
+            settings["disk_format"] = disk_format
 
         return settings
 
-    def generate_xml(self, vm_name: str, vm_type: VMType, disk_path: str, iso_path: str, memory_mb: int = 4096, vcpu: int = 2, disk_format: str | None = None, loader_path: str | None = None, nvram_path: str | None = None, boot_uefi: bool = True) -> str:
+    def generate_xml(
+        self,
+        vm_name: str,
+        vm_type: VMType,
+        disk_path: str,
+        iso_path: str,
+        memory_mb: int = 4096,
+        vcpu: int = 2,
+        disk_format: str | None = None,
+        loader_path: str | None = None,
+        nvram_path: str | None = None,
+        boot_uefi: bool = True,
+    ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
@@ -765,18 +818,18 @@ class VMProvisioner:
   <currentMemory unit='KiB'>{memory_mb * 1024}</currentMemory>
   <vcpu placement='static'>{vcpu}</vcpu>
 """
-        if settings['boot_uefi']:
+        if settings["boot_uefi"]:
             if loader_path and nvram_path:
                 xml += f"""
   <os>
-    <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
+    <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
     <loader readonly='yes' type='pflash'>{loader_path}</loader>
     <nvram format='qcow2'>{nvram_path}</nvram>
 """
             else:
                 xml += f"""
   <os firmware='efi'>
-    <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
+    <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
     <loader readonly='yes' type='pflash'/>
 """
                 if nvram_path:
@@ -786,7 +839,7 @@ class VMProvisioner:
         else:
             xml += f"""
   <os>
-    <type arch='x86_64' machine='{settings['machine']}'>hvm</type>
+    <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
 """
         xml += """
     <boot dev='hd'/>
@@ -803,21 +856,27 @@ class VMProvisioner:
   <on_poweroff>{0}</on_poweroff>
   <on_reboot>{1}</on_reboot>
   <on_crash>{2}</on_crash>
-""".format(settings.get('on_poweroff', 'destroy'), settings.get('on_reboot', 'restart'), settings.get('on_crash', 'destroy'))
+""".format(
+            settings.get("on_poweroff", "destroy"),
+            settings.get("on_reboot", "restart"),
+            settings.get("on_crash", "destroy"),
+        )
 
-        if settings['suspend_to_mem'] == 'on' or settings['suspend_to_disk'] == 'on':
+        if settings["suspend_to_mem"] == "on" or settings["suspend_to_disk"] == "on":
             xml += "  <pm>\n"
-            if settings['suspend_to_mem'] == 'on': xml += "    <suspend-to-mem enabled='yes'/>\n"
-            if settings['suspend_to_disk'] == 'on': xml += "    <suspend-to-disk enabled='yes'/>\n"
+            if settings["suspend_to_mem"] == "on":
+                xml += "    <suspend-to-mem enabled='yes'/>\n"
+            if settings["suspend_to_disk"] == "on":
+                xml += "    <suspend-to-disk enabled='yes'/>\n"
             xml += "  </pm>\n"
 
-        if settings['sev']:
+        if settings["sev"]:
             sev_caps = self._get_sev_capabilities()
             xml += f"""
   <launchSecurity type='sev'>
-    <cbitpos>{sev_caps['cbitpos']}</cbitpos>
-    <reducedPhysBits>{sev_caps['reducedPhysBits']}</reducedPhysBits>
-    <policy>{sev_caps['policy']}</policy>
+    <cbitpos>{sev_caps["cbitpos"]}</cbitpos>
+    <reducedPhysBits>{sev_caps["reducedPhysBits"]}</reducedPhysBits>
+    <policy>{sev_caps["policy"]}</policy>
   </launchSecurity>
 """
 
@@ -826,9 +885,9 @@ class VMProvisioner:
         # Disk
         xml += f"""
     <disk type='file' device='disk'>
-      <driver name='qemu' type='{settings['disk_format']}' cache='{settings['disk_cache']}'/>
+      <driver name='qemu' type='{settings["disk_format"]}' cache='{settings["disk_cache"]}'/>
       <source file='{disk_path}'/>
-      <target dev='vda' bus='{settings['disk_bus']}'/>
+      <target dev='vda' bus='{settings["disk_bus"]}'/>
     </disk>
 """
 
@@ -846,34 +905,34 @@ class VMProvisioner:
         xml += f"""
     <interface type='network'>
       <source network='default'/>
-      <model type='{settings['network_model']}'/>
+      <model type='{settings["network_model"]}'/>
     </interface>
 """
 
         # Video
         xml += f"""
     <video>
-      <model type='{settings['video']}'/>
+      <model type='{settings["video"]}'/>
     </video>
     <graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'>
       <listen type='address' address='0.0.0.0'/>
     </graphics>
 """
         # Sound
-        if settings.get('sound_model') and settings['sound_model'] != 'none':
+        if settings.get("sound_model") and settings["sound_model"] != "none":
             xml += f"""
-    <sound model='{settings['sound_model']}'/>
+    <sound model='{settings["sound_model"]}'/>
 """
 
         # TPM (Secure VM)
-        if settings['tpm']:
+        if settings["tpm"]:
             xml += """
     <tpm model='tpm-crb'>
       <backend type='emulator' version='2.0'/>
     </tpm>
 """
         # Watchdog (Computation)
-        if settings['watchdog']:
+        if settings["watchdog"]:
             xml += """
     <watchdog model='i6300esb' action='poweroff'/>
 """
@@ -895,16 +954,16 @@ class VMProvisioner:
         # Input devices (Tablet for better mouse)
         xml += f"""
     <input type='tablet' bus='usb'/>
-    <input type='mouse' bus='{settings['input_bus']}'/>
-    <input type='keyboard' bus='{settings['input_bus']}'/>
+    <input type='mouse' bus='{settings["input_bus"]}'/>
+    <input type='keyboard' bus='{settings["input_bus"]}'/>
 """
 
         xml += "  </devices>\n"
 
-        if settings['mem_backing']:
+        if settings["mem_backing"]:
             xml += f"  <memoryBacking>\n    <source type='{settings['mem_backing']}'/>\n"
-            if settings.get('sev'):
-                xml += "    <locked/>\n" # Often needed for SEV
+            if settings.get("sev"):
+                xml += "    <locked/>\n"  # Often needed for SEV
             xml += "  </memoryBacking>\n"
         xml += "</domain>"
         return xml
@@ -913,9 +972,18 @@ class VMProvisioner:
         """Checks if virt-install is available on the system."""
         return shutil.which("virt-install") is not None
 
-    def _run_virt_install(self, vm_name: str, settings: Dict[str, Any], disk_path: str, iso_path: str,
-                          memory_mb: int, vcpu: int, loader_path: str | None, nvram_path: str | None,
-                          print_xml: bool = False) -> str | None:
+    def _run_virt_install(
+        self,
+        vm_name: str,
+        settings: Dict[str, Any],
+        disk_path: str,
+        iso_path: str,
+        memory_mb: int,
+        vcpu: int,
+        loader_path: str | None,
+        nvram_path: str | None,
+        print_xml: bool = False,
+    ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
         If print_xml is True, it returns the generated XML instead of creating the VM.
@@ -945,10 +1013,10 @@ class VMProvisioner:
         cmd.extend(["--graphics", "vnc,port=-1,listen=0.0.0.0"])
 
         # Video
-        cmd.extend(["--video", settings['video']])
+        cmd.extend(["--video", settings["video"]])
 
         # Sound
-        if settings.get('sound_model') and settings['sound_model'] != 'none':
+        if settings.get("sound_model") and settings["sound_model"] != "none":
             cmd.extend(["--sound", f"model={settings['sound_model']}"])
 
         # Console
@@ -958,33 +1026,45 @@ class VMProvisioner:
         cmd.extend(["--channel", "unix,target.type=virtio,name=org.qemu.guest_agent.0"])
 
         # Machine
-        cmd.extend(["--machine", settings['machine']])
+        cmd.extend(["--machine", settings["machine"]])
 
         # Boot / Firmware
-        if settings['boot_uefi']:
+        if settings["boot_uefi"]:
             if loader_path and nvram_path:
                 # Explicit paths
-                cmd.extend(["--boot", f"loader={loader_path},loader.readonly=yes,loader.type=pflash,nvram={nvram_path},nvram.templateFormat=qcow2"])
+                cmd.extend(
+                    [
+                        "--boot",
+                        f"loader={loader_path},loader.readonly=yes,loader.type=pflash,nvram={nvram_path},nvram.templateFormat=qcow2",
+                    ]
+                )
             else:
                 # Auto
                 cmd.extend(["--boot", "uefi"])
 
         # Features
-        if settings['sev']:
+        if settings["sev"]:
             sev_caps = self._get_sev_capabilities()
-            cmd.extend(["--launchSecurity", f"sev,cbitpos={sev_caps['cbitpos']},reducedPhysBits={sev_caps['reducedPhysBits']},policy={sev_caps['policy']}"])
+            cmd.extend(
+                [
+                    "--launchSecurity",
+                    f"sev,cbitpos={sev_caps['cbitpos']},reducedPhysBits={sev_caps['reducedPhysBits']},policy={sev_caps['policy']}",
+                ]
+            )
 
-        if settings['tpm']:
+        if settings["tpm"]:
             cmd.extend(["--tpm", "model=tpm-crb,backend.type=emulator,backend.version=2.0"])
 
-        if settings['watchdog']:
+        if settings["watchdog"]:
             cmd.extend(["--watchdog", "model=i6300esb,action=poweroff"])
 
         # PM
-        if settings['suspend_to_mem'] == 'on' or settings['suspend_to_disk'] == 'on':
+        if settings["suspend_to_mem"] == "on" or settings["suspend_to_disk"] == "on":
             pm_opts = []
-            if settings['suspend_to_mem'] == 'on': pm_opts.append("suspend_to_mem=on")
-            if settings['suspend_to_disk'] == 'on': pm_opts.append("suspend_to_disk=on")
+            if settings["suspend_to_mem"] == "on":
+                pm_opts.append("suspend_to_mem=on")
+            if settings["suspend_to_disk"] == "on":
+                pm_opts.append("suspend_to_disk=on")
             cmd.extend(["--pm", ",".join(pm_opts)])
 
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
@@ -1010,12 +1090,22 @@ class VMProvisioner:
             logging.error(f"An unexpected error occurred while running virt-install: {e}")
             raise
 
-    def provision_vm(self, vm_name: str, vm_type: VMType, iso_url: str, storage_pool_name: str,
-                     memory_mb: int = 4096, vcpu: int = 2, disk_size_gb: int = 8, disk_format: str | None = None,
-                     boot_uefi: bool = True, use_virt_install: bool = True,
-                     configure_before_install: bool = False,
-                     show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
-                     progress_callback: Optional[Callable[[str, int], None]] = None) -> libvirt.virDomain:
+    def provision_vm(
+        self,
+        vm_name: str,
+        vm_type: VMType,
+        iso_url: str,
+        storage_pool_name: str,
+        memory_mb: int = 4096,
+        vcpu: int = 2,
+        disk_size_gb: int = 8,
+        disk_format: str | None = None,
+        boot_uefi: bool = True,
+        use_virt_install: bool = True,
+        configure_before_install: bool = False,
+        show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
+    ) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
 
@@ -1033,6 +1123,7 @@ class VMProvisioner:
             configure_before_install: If True, defines VM and shows details modal before starting.
             show_config_modal_callback: Optional callback to show configuration modal. Takes (domain) as parameters.
         """
+
         def report(stage, percent):
             if progress_callback:
                 progress_callback(stage, percent)
@@ -1051,7 +1142,7 @@ class VMProvisioner:
         if disk_format:
             storage_format = disk_format
         else:
-            storage_format = 'raw' if vm_type == VMType.COMPUTATION else 'qcow2'
+            storage_format = "raw" if vm_type == VMType.COMPUTATION else "qcow2"
 
         disk_name = f"{vm_name}.{storage_format}"
         disk_path = os.path.join(pool_target_path, disk_name)
@@ -1059,7 +1150,9 @@ class VMProvisioner:
         # Download ISO
         # Define local cache path for ISOs
         config = load_config()
-        iso_cache_dir = Path(config.get('ISO_DOWNLOAD_PATH', str(Path.home() / ".cache" / AppInfo.name / "isos")))
+        iso_cache_dir = Path(
+            config.get("ISO_DOWNLOAD_PATH", str(Path.home() / ".cache" / AppInfo.name / "isos"))
+        )
         iso_cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Helper function to determine the final ISO path
@@ -1069,9 +1162,13 @@ class VMProvisioner:
             if existing_iso_volume_path:
                 report(f"Using existing ISO volume: {existing_iso_volume_path}", 55)
                 return existing_iso_volume_path
-            else: # original behavior, downloads/copies to cache and then uploads to storage pool
-                iso_name = current_iso_url.split('/')[-1]
-                is_local_source = current_iso_url.startswith("/") or current_iso_url.startswith("file://") or os.path.exists(current_iso_url)
+            else:  # original behavior, downloads/copies to cache and then uploads to storage pool
+                iso_name = current_iso_url.split("/")[-1]
+                is_local_source = (
+                    current_iso_url.startswith("/")
+                    or current_iso_url.startswith("file://")
+                    or os.path.exists(current_iso_url)
+                )
 
                 if is_local_source:
                     if current_iso_url.startswith("file://"):
@@ -1084,7 +1181,7 @@ class VMProvisioner:
                     local_iso_path_for_upload = str(iso_cache_dir / iso_name)
 
                     def download_cb(percent):
-                        report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4)) # 10-50%
+                        report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4))  # 10-50%
 
                     if not os.path.exists(local_iso_path_for_upload):
                         self.download_iso(current_iso_url, local_iso_path_for_upload, download_cb)
@@ -1097,7 +1194,6 @@ class VMProvisioner:
         iso_path = _determine_iso_path(iso_url)
 
         # Setup NVRAM if UEFI
-
 
         # Setup NVRAM if UEFI
         loader_path = None
@@ -1112,11 +1208,19 @@ class VMProvisioner:
             loader_path, nvram_path = self._setup_uefi_nvram(vm_name, storage_pool_name, vm_type)
 
         # Create Disk
-        report("Creating Storage", 78) # Adjusted percentage
+        report("Creating Storage", 78)  # Adjusted percentage
 
-        preallocation = 'metadata' if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP] else 'off'
+        preallocation = (
+            "metadata"
+            if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP]
+            else "off"
+        )
         lazy_refcounts = True if vm_type in [VMType.SECURE, VMType.COMPUTATION] else False
-        cluster_size = '1024k' if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP] else None
+        cluster_size = (
+            "1024k"
+            if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP]
+            else None
+        )
 
         create_volume(
             pool,
@@ -1125,7 +1229,7 @@ class VMProvisioner:
             vol_format=storage_format,
             preallocation=preallocation,
             lazy_refcounts=lazy_refcounts,
-            cluster_size=cluster_size
+            cluster_size=cluster_size,
         )
 
         # Handle Configure Before Install feature
@@ -1133,9 +1237,30 @@ class VMProvisioner:
             # Generate the XML configuration that would be used
             if is_virt_install_available:
                 settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
-                xml_desc = self._run_virt_install(vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path, print_xml=True)
+                xml_desc = self._run_virt_install(
+                    vm_name,
+                    settings,
+                    disk_path,
+                    iso_path,
+                    memory_mb,
+                    vcpu,
+                    loader_path,
+                    nvram_path,
+                    print_xml=True,
+                )
             else:
-                xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path, boot_uefi=boot_uefi)
+                xml_desc = self.generate_xml(
+                    vm_name,
+                    vm_type,
+                    disk_path,
+                    iso_path,
+                    memory_mb,
+                    vcpu,
+                    disk_format,
+                    loader_path=loader_path,
+                    nvram_path=nvram_path,
+                    boot_uefi=boot_uefi,
+                )
 
             # Define the VM
             report("Defining VM", 85)
@@ -1156,7 +1281,9 @@ class VMProvisioner:
             report("Configuring VM (virt-install)", 80)
             settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
             try:
-                self._run_virt_install(vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path)
+                self._run_virt_install(
+                    vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path
+                )
             except Exception as e:
                 logging.info(f"Can't install domain {vm_name}: {e}")
 
@@ -1166,7 +1293,18 @@ class VMProvisioner:
         else:
             # Generate XML
             report("Configuring VM (XML)", 80)
-            xml_desc = self.generate_xml(vm_name, vm_type, disk_path, iso_path, memory_mb, vcpu, disk_format, loader_path=loader_path, nvram_path=nvram_path, boot_uefi=boot_uefi)
+            xml_desc = self.generate_xml(
+                vm_name,
+                vm_type,
+                disk_path,
+                iso_path,
+                memory_mb,
+                vcpu,
+                disk_format,
+                loader_path=loader_path,
+                nvram_path=nvram_path,
+                boot_uefi=boot_uefi,
+            )
 
             # Define and Start VM
             report("Starting VM", 90)
