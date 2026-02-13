@@ -8,10 +8,6 @@ from textual._context import active_app
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-# Mock libvirt to avoid actual system calls
-mock_libvirt = MagicMock()
-sys.modules["libvirt"] = mock_libvirt
-
 # Mock translation function globally for tests
 builtins._ = lambda s: s
 
