@@ -1096,37 +1096,34 @@ class VMCard(Static):
                 return
 
             last_fetch_key = f"snapshot_fetch_{self.internal_id}"
-            if hasattr(self.app, "_last_snapshot_fetch"):
-                cached_data = self.app._last_snapshot_fetch.get(last_fetch_key)
-                # dict format for caching data
-                if isinstance(cached_data, dict):
-                    last_fetch = cached_data.get("time", 0)
-                    if time.time() - last_fetch < 2:
-                        # Use cached data and update UI immediately
-                        snapshot_summary = cached_data.get(
-                            "snapshot_summary", {"count": 0, "latest": None}
-                        )
-                        has_overlay = cached_data.get("has_overlay", False)
-                        try:
-                            self.app.call_from_thread(
-                                self._update_slow_buttons, snapshot_summary, has_overlay
+
+            # Use vm_service._cache_lock for thread-safe access to _last_snapshot_fetch
+            # This prevents race conditions when multiple workers access the cache concurrently
+            with self.app.vm_service._cache_lock:
+                if hasattr(self.app, "_last_snapshot_fetch"):
+                    cached_data = self.app._last_snapshot_fetch.get(last_fetch_key)
+                    # dict format for caching data
+                    if isinstance(cached_data, dict):
+                        last_fetch = cached_data.get("time", 0)
+                        if time.time() - last_fetch < 2:
+                            # Use cached data and update UI immediately
+                            snapshot_summary = cached_data.get(
+                                "snapshot_summary", {"count": 0, "latest": None}
                             )
-                        except RuntimeError:
-                            self._update_slow_buttons(snapshot_summary, has_overlay)
-                        return
-                elif isinstance(cached_data, (int, float)):
-                    if time.time() - cached_data < 2:
-                        return
+                            has_overlay = cached_data.get("has_overlay", False)
+                            try:
+                                self.app.call_from_thread(
+                                    self._update_slow_buttons, snapshot_summary, has_overlay
+                                )
+                            except RuntimeError:
+                                self._update_slow_buttons(snapshot_summary, has_overlay)
+                            return
+                    elif isinstance(cached_data, (int, float)):
+                        if time.time() - cached_data < 2:
+                            return
 
-            # try:
-            #    if self.vm:
-            #        snapshot_count = self.vm.snapshotNum(0)
-            # except libvirt.libvirtError as e:
-            #    if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-            #        domain_missing = True
-            #    else:
-            #        logging.warning(f"Could not get snapshot count for {self.name}: {e}")
-
+            # Fetch snapshot data outside the lock to avoid holding it during
+            # potentially slow libvirt operations
             try:
                 if self.vm and not domain_missing:
                     # Optimization: only fetch full details if there are snapshots
@@ -1155,15 +1152,16 @@ class VMCard(Static):
                     self.app.refresh_vm_list()
                 return
 
-            # Record fetch time and data
-            if not hasattr(self.app, "_last_snapshot_fetch"):
-                self.app._last_snapshot_fetch = {}
+            # Record fetch time and data with thread-safe access
+            with self.app.vm_service._cache_lock:
+                if not hasattr(self.app, "_last_snapshot_fetch"):
+                    self.app._last_snapshot_fetch = {}
 
-            self.app._last_snapshot_fetch[last_fetch_key] = {
-                "time": time.time(),
-                "snapshot_summary": snapshot_summary,
-                "has_overlay": has_overlay,
-            }
+                self.app._last_snapshot_fetch[last_fetch_key] = {
+                    "time": time.time(),
+                    "snapshot_summary": snapshot_summary,
+                    "has_overlay": has_overlay,
+                }
 
             def update_ui():
                 self._update_slow_buttons(snapshot_summary, has_overlay)
