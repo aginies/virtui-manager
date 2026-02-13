@@ -99,6 +99,12 @@ class RemoteViewer(Gtk.Application):
         self.ssh_gateway_port = None
         self.notification_timeout_id = None
         self.clipboard_handler_id = None
+        # Wait for VM state
+        self.wait_timeout_id = None
+        self.wait_start_time = None
+        self.wait_max_seconds = 300  # 5 minutes default timeout
+        self.wait_cancel_button = None
+        self.no_display_label = None
 
     def show_error_dialog(self, message):
         dialog = Gtk.MessageDialog(
@@ -595,6 +601,38 @@ class RemoteViewer(Gtk.Application):
             self.show_viewer()
 
     def _wait_and_connect_cb(self):
+        """Callback for waiting for VM to start. Returns True to keep waiting, False to stop."""
+        import time
+
+        # Check if wait was cancelled
+        if self.wait_timeout_id is None:
+            self._cleanup_wait_ui()
+            return False
+
+        # Check for timeout
+        if self.wait_start_time:
+            elapsed = time.time() - self.wait_start_time
+            remaining = self.wait_max_seconds - elapsed
+
+            if elapsed >= self.wait_max_seconds:
+                self.log_message("Wait timeout reached. Stopping wait for VM.")
+                self.show_notification(
+                    f"Timed out waiting for VM to start after {self.wait_max_seconds} seconds.",
+                    Gtk.MessageType.WARNING,
+                )
+                self._cleanup_wait_ui()
+                return False
+
+            # Update notification with remaining time
+            mins, secs = divmod(int(remaining), 60)
+            if mins > 0:
+                time_str = f"{mins}m {secs}s"
+            else:
+                time_str = f"{secs}s"
+            self.show_notification(
+                f"Waiting for VM to start... ({time_str} remaining)", Gtk.MessageType.INFO
+            )
+
         try:
             # Refresh domain info
             if self.original_domain_uuid:
@@ -608,12 +646,52 @@ class RemoteViewer(Gtk.Application):
                 return True  # Keep waiting
 
             self.show_notification("VM started! Connecting...", Gtk.MessageType.INFO)
+            self._cleanup_wait_ui()
             self.connect_display()
             return False
         except Exception as e:
             if self.verbose:
                 print(f"Wait error: {e}")
             return True
+
+    def _cancel_wait_clicked(self, button):
+        """Handle cancel button click during wait."""
+        self.log_message("Wait for VM cancelled by user.")
+        if self.wait_timeout_id:
+            GLib.source_remove(self.wait_timeout_id)
+            self.wait_timeout_id = None
+        self._cleanup_wait_ui()
+        self.show_notification("Wait for VM cancelled.", Gtk.MessageType.INFO)
+
+    def _cleanup_wait_ui(self):
+        """Remove the cancel button from the info bar."""
+        self.wait_timeout_id = None
+        self.wait_start_time = None
+        if self.wait_cancel_button and self.wait_cancel_button.get_parent():
+            self.wait_cancel_button.get_parent().remove(self.wait_cancel_button)
+            self.wait_cancel_button = None
+
+    def _start_wait_for_vm(self):
+        """Start waiting for VM with timeout and cancel button."""
+        import time
+
+        self.wait_start_time = time.time()
+
+        # Add cancel button to info bar action area
+        if self.info_bar:
+            action_area = self.info_bar.get_action_area()
+            if action_area:
+                self.wait_cancel_button = Gtk.Button(label="Cancel")
+                self.wait_cancel_button.connect("clicked", self._cancel_wait_clicked)
+                action_area.pack_start(self.wait_cancel_button, False, False, 0)
+                self.wait_cancel_button.show()
+
+        mins, secs = divmod(self.wait_max_seconds, 60)
+        self.show_notification(
+            f"Waiting for VM to start... ({mins}m {secs}s remaining)", Gtk.MessageType.INFO
+        )
+
+        self.wait_timeout_id = GLib.timeout_add_seconds(3, self._wait_and_connect_cb)
 
     def show_viewer(self):
         # Allow viewer to start even if domain is not found
@@ -1001,8 +1079,7 @@ class RemoteViewer(Gtk.Application):
         if self.wait_for_vm:
             protocol, host, port, pwd = self.get_display_info()
             if not self.attach and (not host or not port):
-                self.show_notification("Waiting for VM to start...", Gtk.MessageType.INFO)
-                GLib.timeout_add_seconds(3, self._wait_and_connect_cb)
+                self._start_wait_for_vm()
                 return
         else:  # Check current state if not waiting for VM to start
             if self.domain:
@@ -1116,6 +1193,9 @@ class RemoteViewer(Gtk.Application):
             self.display_widget.destroy()
             self.display_widget = None
 
+        # Remove any existing placeholder
+        self._remove_no_display_placeholder()
+
         # Disconnect previous clipboard handler if exists
         if hasattr(self, "clipboard_handler_id") and self.clipboard_handler_id:
             if self.clipboard.handler_is_connected(self.clipboard_handler_id):
@@ -1134,6 +1214,8 @@ class RemoteViewer(Gtk.Application):
             self.log_message(
                 "No display protocol detected. Skipping display initialization for now."
             )
+            # Show placeholder message in the display tab so user isn't confused by blank screen
+            self._show_no_display_placeholder()
             return
 
         scroll = Gtk.ScrolledWindow()
@@ -1184,6 +1266,36 @@ class RemoteViewer(Gtk.Application):
         scroll.add(self.display_widget)
         self.view_container.pack_start(scroll, True, True, 0)
         self.view_container.show_all()
+
+    def _show_no_display_placeholder(self):
+        """Show a placeholder message when no display protocol is available."""
+        # Remove existing placeholder if any
+        self._remove_no_display_placeholder()
+
+        # Create centered placeholder
+        self.no_display_label = Gtk.Label()
+        self.no_display_label.set_markup(
+            "<span size='large'><b>No Display Available</b></span>\n\n"
+            "The VM does not have an active graphics device (VNC or SPICE),\n"
+            "or the VM is not currently running.\n\n"
+            "Possible actions:\n"
+            "  - Start the VM using the power menu\n"
+            "  - Check that the VM has a graphics device configured\n"
+            "  - Click Reconnect once the VM is running"
+        )
+        self.no_display_label.set_justify(Gtk.Justification.CENTER)
+        self.no_display_label.set_valign(Gtk.Align.CENTER)
+        self.no_display_label.set_halign(Gtk.Align.CENTER)
+        self.no_display_label.set_vexpand(True)
+
+        self.view_container.pack_start(self.no_display_label, True, True, 0)
+        self.no_display_label.show()
+
+    def _remove_no_display_placeholder(self):
+        """Remove the no-display placeholder if it exists."""
+        if self.no_display_label and self.no_display_label.get_parent():
+            self.view_container.remove(self.no_display_label)
+            self.no_display_label = None
 
     def connect_display(self, force=False, password=None):
         """Attempts connection"""
