@@ -1150,25 +1150,26 @@ class RemoteViewer(Gtk.Application):
                     listen = "localhost"
 
                 password = g_node.get("passwd")
+                password_required = password is not None
 
                 if port and port != "-1":
-                    return listen, port, password
+                    return listen, port, password_required
                 return None
 
             # Check SPICE (only if client is available)
             if SPICE_AVAILABLE:
                 info = get_graphics_info(root.find(".//graphics[@type='spice']"))
                 if info:
-                    listen, port, password = info
+                    listen, port, password_required = info
                     self._setup_tunnel_if_needed(listen, port)
-                    return "spice", listen, port, password
+                    return "spice", listen, port, password_required
 
             # Check VNC
             info = get_graphics_info(root.find(".//graphics[@type='vnc']"))
             if info:
-                listen, port, password = info
+                listen, port, password_required = info
                 self._setup_tunnel_if_needed(listen, port)
-                return "vnc", listen, port, password
+                return "vnc", listen, port, password_required
 
         except Exception as e:
             msg = f"XML parse error: {e}"
