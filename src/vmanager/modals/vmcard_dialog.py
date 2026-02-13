@@ -24,7 +24,7 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
 
     def compose(self):
         yield Vertical(
-            Markdown(f"Are you sure you want to delete VM '{self.vm_name}'?", id="question"),
+            Markdown(StaticText.DELETE_VM_CONFIRMATION_TEMPLATE.format(vm_name=self.vm_name), id="question"),
             Checkbox(StaticText.DELETE_STORAGE_VOLUMES, id="delete-storage-checkbox", value=True),
             Label(""),
             Horizontal(
@@ -90,7 +90,7 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             Label(StaticText.ENTER_BASE_NAME),
             Input(placeholder="new_vm_base_name", id="base_name_input", restrict=r"[a-zA-Z0-9_-]*"),
             Label(StaticText.SUFFIX_FOR_CLONE_NAMES),
-            Input(placeholder="e.g., -clone", id="clone_suffix_input", restrict=r"[a-zA-Z0-9_-]*"),
+            Input(placeholder=StaticText.CLONE_SUFFIX_PLACEHOLDER, id="clone_suffix_input", restrict=r"[a-zA-Z0-9_-]*"),
             Label(StaticText.NUMBER_OF_CLONES_TO_CREATE),
             Input(value="1", id="clone_count_input", type="integer"),
             Label(StaticText.DO_NOT_CLONE_STORAGE),
@@ -264,7 +264,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             Label(StaticText.ENTER_SNAPSHOT_NAME, id="question"),
             Input(value=default_name, placeholder="snapshot_name", id="name-input", restrict=r"[a-zA-Z0-9_-]*"),
             Label(StaticText.DESCRIPTION_OPTIONAL),
-            Input(placeholder="snapshot description", id="description-input"),
+            Input(placeholder=StaticText.SNAPSHOT_DESCRIPTION_PLACEHOLDER, id="description-input"),
             Checkbox(StaticText.QUIESCE_GUEST,
                      value=agent_running,
                      disabled=not agent_running,
@@ -320,9 +320,9 @@ class WebConsoleDialog(BaseDialog[str | None]):
 
     def compose(self):
         yield Vertical(
-            Markdown("**Web Console** is running at:"),
+            Markdown(StaticText.WEB_CONSOLE_RUNNING_MESSAGE),
             Markdown(self.url),
-            Markdown("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console."),
+            Markdown(StaticText.WESOCKIFY_SINGLE_CONNECTION_MESSAGE),
             Label(""),
             Horizontal(
                 Button(ButtonLabels.STOP, variant="error", id="stop"),
@@ -345,7 +345,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
         super().__init__()
         self.is_remote = is_remote
         self.config = load_config()
-        self.text_remote = "Run Web console on remote server. This will use a **LOT** of network bandwidth. It is recommended to **reduce quality** and enable **max compression**."
+        self.text_remote = StaticText.RUN_WEB_CONSOLE_REMOTE_MESSAGE
 
     def compose(self) -> ComposeResult:
         with Vertical(id="webconsole-config-dialog"):
@@ -353,7 +353,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
 
             if self.is_remote:
                 remote_console_enabled = self.config.get('REMOTE_WEBCONSOLE', False)
-                label_text = self.text_remote if remote_console_enabled else "Run Web console on local machine"
+                label_text = self.text_remote if remote_console_enabled else StaticText.RUN_WEB_CONSOLE_LOCAL_MESSAGE
                 yield Markdown(label_text, id="console-location-label")
                 with Vertical():
                     switch_widget = Switch(value=remote_console_enabled, id="remote-console-switch")
@@ -375,9 +375,9 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                     compression_options = [(str(i), i) for i in range(10)]
 
                     yield Grid(
-                        Label("VNC Quality (0=low, 9=high)"),
+                        Label(StaticText.VNC_QUALITY_LABEL),
                         Select(quality_options, value=self.config.get('VNC_QUALITY', 0), id="quality-select"),
-                        Label("VNC Compression (0=none, 9=max)"),
+                        Label(StaticText.VNC_COMPRESSION_LABEL),
                         Select(compression_options, value=self.config.get('VNC_COMPRESSION', 9), id="compression-select"),
                         id="grid-vnc-config"
                         )
@@ -400,7 +400,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             else:
                 switch.remove_class("switch-on")
                 switch.add_class("switch-off")
-                markdown.update("Run Web console on local machine")
+                markdown.update(StaticText.RUN_WEB_CONSOLE_LOCAL_MESSAGE)
                 remote_opts.display = False
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

@@ -63,12 +63,12 @@ def show_success_message(app, message: str):
 def show_in_progress_message(app, message: str):
     """Shows an 'In Progress' notification."""
     logging.info(message)
-    app.notify(_sanitize_message(message), timeout=5, title="In Progress", severity="inprogress")
+    app.notify(_sanitize_message(message), timeout=5, title=StaticText.IN_PROGRESS_TITLE, severity="inprogress")
 
 def show_quick_message(app, message: str):
     """Shows a quick notification."""
     logging.info(message)
-    app.notify(_sanitize_message(message), timeout=2, title="Quick Info")
+    app.notify(_sanitize_message(message), timeout=2, title=StaticText.QUICK_INFO_TITLE)
 
 def show_warning_message(app, message: str):
     """Shows a warning notification."""

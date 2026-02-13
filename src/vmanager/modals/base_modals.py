@@ -7,6 +7,8 @@ from typing import Any, TypeVar
 from textual.screen import ModalScreen, Screen
 from textual.widgets import ListItem
 
+from ..constants import StaticText
+
 T = TypeVar("T")
 
 class ValueListItem(ListItem):
@@ -37,7 +39,7 @@ class BaseDialog(Screen[T]):
         Returns an error message string if invalid, otherwise None.
         """
         if not name:
-            return "Name cannot be empty."
+            return StaticText.NAME_CANNOT_BE_EMPTY
         if not re.fullmatch(r"^[a-zA-Z0-9_]+$", name):
-            return "Name must be alphanumeric and can contain underscores, but not hyphens."
+            return StaticText.NAME_MUST_BE_ALPHANUMERIC
         return None
