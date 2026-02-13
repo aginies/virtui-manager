@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import socket
+import re
 import subprocess
 import sys
 import threading
@@ -1176,8 +1177,6 @@ class RemoteViewer(Gtk.Application):
             # No password required - set to None to skip auth
             password = None
             self.log_message("Debug: No password provided via command line or found in VM XML.")
-
-            password = xml_password_required
 
         self._pending_password = password
 
