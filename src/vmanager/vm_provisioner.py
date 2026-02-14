@@ -218,10 +218,15 @@ class VMProvisioner:
 
             if isinstance(distro, OpenSUSEDistro) and distro == OpenSUSEDistro.LEAP:
                 # Use hardcoded versions
-                versions = ["15.5", "15.6", "16.0"]
-                for ver in versions:
-                    ver_iso_url = f"{base_url}{ver}/iso/"
-                    iso_urls.extend(fetch_isos_from_url(ver_iso_url))
+                versions15 = ["15.5", "15.6"]
+                versions16 = ["16.0", "16.1"]
+                for ver in versions15 + versions16:
+                    if versions15:
+                        ver_iso_url = f"{base_url}{ver}/iso/"
+                        iso_urls.extend(fetch_isos_from_url(ver_iso_url))
+                    if versions16:
+                        ver_iso_url = f"{base_url}{ver}/offline/"
+                        iso_urls.extend(fetch_isos_from_url(ver_iso_url))
 
             else:
                 # Direct ISO directories
