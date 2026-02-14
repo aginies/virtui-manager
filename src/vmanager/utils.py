@@ -390,14 +390,12 @@ def generate_webconsole_keys_if_needed(
 
     return messages
 
-
 def check_r_viewer(configured_viewer: str = None) -> str:
     """
     Checks if r-viewer is installed.
 
     Args:
         configured_viewer (str, optional): The viewer configured by the user.
-
     Returns:
         str: return the viewer to use or None
 
@@ -407,7 +405,6 @@ def check_r_viewer(configured_viewer: str = None) -> str:
     try:
         virtui = shutil.which("virtui-remote-viewer")
         virt = shutil.which("virt-viewer")
-
         if configured_viewer:
             if configured_viewer == "virtui-remote-viewer" and virtui:
                 return "virtui-remote-viewer"
@@ -421,12 +418,11 @@ def check_r_viewer(configured_viewer: str = None) -> str:
             return "virtui-remote-viewer"
         elif virt is not None:
             return "virt-viewer"
-        else:
-            return None
     except Exception as e:
-        logging.error(f"Error checking r-viewer: {e}")
-        return None
+        logging.error(f"Unexpected error checking r-viewer: {e}")
 
+    logging.error("Neither 'virtui-remote-viewer' nor 'virt-viewer' is installed.")
+    return None
 
 def remote_viewer_cmd(uri: str, domain_name: str, viewer_cmd: str = None) -> list:
     """
