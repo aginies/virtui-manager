@@ -274,6 +274,43 @@ modules:
         url: https://download.gnome.org/sources/vte/0.83/vte-0.83.90.tar.xz
         sha256: a43441a78f8893268ae927e7bae3b17ffe669913ed954e172fbd12d3e083e286
 
+  - name: qemu
+    buildsystem: autotools
+    config-opts:
+      - --disable-system
+      - --disable-user
+      - --disable-docs
+      - --disable-guest-agent
+      - --disable-modules
+      - --disable-sdl
+      - --disable-gtk
+      - --disable-vnc
+      - --disable-spice
+      - --disable-curses
+      - --disable-iconv
+      - --disable-vde
+      - --disable-netmap
+      - --disable-linux-aio
+      - --disable-cap-ng
+      - --disable-attr
+      - --disable-vhost-net
+      - --disable-vhost-crypto
+      - --disable-vhost-user
+      - --disable-slirp
+      - --enable-tools
+      - --disable-libssh
+      - --disable-gnutls
+      - --disable-nettle
+      - --disable-gcrypt
+      - --disable-lzo
+      - --disable-snappy
+      - --disable-bzip2
+      - --disable-zstd
+    sources:
+      - type: archive
+        url: https://download.qemu.org/qemu-10.2.1.tar.xz
+        sha256: a3717477d8e2c84d630bfffbc20f6cd3293eb45aa1e6dac6d0cc27689991c9e1
+
   - name: virtui-manager
     buildsystem: simple
     build-commands:

@@ -500,7 +500,7 @@ class VMDetailModal(ModalScreen):
             item_to_move = available_list.highlighted_child
 
             # Create a new ListItem with the same data
-            new_item = ListItem(Label(item_to_move.children[0].renderable))
+            new_item = ListItem(Label(item_to_move.data.description))
             new_item.data = item_to_move.data
 
             # Remove the original item
@@ -518,7 +518,7 @@ class VMDetailModal(ModalScreen):
             item_to_move = boot_list.highlighted_child
 
             # Create a new ListItem with the same data
-            new_item = ListItem(Label(item_to_move.children[0].renderable))
+            new_item = ListItem(Label(item_to_move.data.description))
             new_item.data = item_to_move.data
 
             # Remove the original item
