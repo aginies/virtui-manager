@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 1.9.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-02-13 14:19+0100\n"
+"POT-Creation-Date: 2026-02-14 08:35+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -290,11 +290,11 @@ msgid "Apply"
 msgstr ""
 
 #: constants.py:144
-msgid "! Clone !"
+msgid "Clone"
 msgstr ""
 
 #: constants.py:145
-msgid "! Migration !"
+msgid "Migration"
 msgstr ""
 
 #: constants.py:146
