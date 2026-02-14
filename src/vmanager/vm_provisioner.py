@@ -23,7 +23,7 @@ import libvirt
 
 from .config import load_config
 from .constants import AppInfo
-from .firmware_manager import get_uefi_files
+from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
 from .storage_manager import create_volume
 
@@ -437,70 +437,41 @@ class VMProvisioner:
         2. Identifying the code/vars pair from the firmware metadata.
         3. Cloning the vars template to the target pool.
 
+        Note: NVRAM is always created in QCOW2 format to support snapshots.
+
         Args:
-            support_snapshots: If True, ensures NVRAM format is snapshot-compatible
+            support_snapshots: Deprecated parameter, kept for backward compatibility.
+                              NVRAM is always created in QCOW2 format.
 
         Returns: (loader_path, nvram_path)
         """
         all_firmwares = get_uefi_files(self.conn)
-        candidate_fw = None
 
-        # Score each firmware to find the best match
-        best_score = -1
+        # Determine requirements based on vm_type
+        secure_boot = vm_type == VMType.SECURE
 
-        for fw in all_firmwares:
-            if self.host_arch not in fw.architectures:
-                continue
+        candidate_fw = select_best_firmware(
+            all_firmwares,
+            architecture=self.host_arch,
+            secure_boot=secure_boot,
+            prefer_nvram=True,
+        )
 
-            if not fw.nvram_template:
-                continue
+        if not candidate_fw or not candidate_fw.executable:
+            # If absolutely no firmware is found, we should probably fail or also fallback to auto
+            # But if select_best_firmware returns None, it means no suitable firmware found at all.
+            logging.warning("No suitable UEFI firmware found by manager. Letting libvirt decide.")
+            return None, None
 
-            score = 0
-            is_secure = "secure-boot" in fw.features
-            has_pflash = "pflash" in fw.interfaces
-
-            # Match VM type requirements
-            if vm_type == VMType.SECURE:
-                if is_secure:
-                    score += 100  # High priority for secure boot
-            else:
-                if not is_secure:
-                    score += 50  # Prefer non-secure for non-secure VMs
-
-            # Check for snapshot-related features
-            # Some firmware metadata may include hints about snapshot support
-            if "enrolled-keys" in fw.features:
-                score += 10
-
-            # Prefer firmware with certain naming patterns known to work well
-            if fw.executable:
-                exec_lower = fw.executable.lower()
-                if "ovmf" in exec_lower:
-                    score += 5
-                if "code" in exec_lower:
-                    score += 5
-
-            # Massive preference for pflash to preserve original behavior
-            if has_pflash:
-                score += 1000
-
-            if score > best_score:
-                best_score = score
-                candidate_fw = fw
-
-        if not candidate_fw or not candidate_fw.executable or not candidate_fw.nvram_template:
-            raise Exception("Could not find suitable UEFI firmware (OVMF) using firmware_manager.")
+        if not candidate_fw.nvram_template:
+            logging.warning(
+                f"Selected firmware '{candidate_fw.executable}' has no NVRAM template. "
+                "Skipping manual NVRAM setup and letting libvirt decide."
+            )
+            return None, None
 
         loader_path = candidate_fw.executable
         vars_template_path = candidate_fw.nvram_template
-
-        # Check if we need conversion (fallback to non-pflash)
-        has_pflash = "pflash" in candidate_fw.interfaces
-        needs_conversion = not has_pflash
-
-        logging.info(
-            f"Selected firmware (score={best_score}, pflash={has_pflash}): loader='{loader_path}', nvram_template='{vars_template_path}'"
-        )
 
         fw_dir = os.path.dirname(vars_template_path)
         vars_vol_name = os.path.basename(vars_template_path)
@@ -525,18 +496,22 @@ class VMProvisioner:
             source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
             target_pool = self.conn.storagePoolLookupByName(target_pool_name)
 
-            # Determine NVRAM format based on snapshot requirement
-            # For snapshot support, qcow2 is generally better, but we need to ensure
-            # the template can be properly converted
-            if support_snapshots:
-                nvram_format = "qcow2"
-                nvram_name = f"{vm_name}_VARS.qcow2"
-            else:
-                # Use raw format - simpler, but no snapshot support for NVRAM
-                nvram_format = "raw"
-                nvram_name = f"{vm_name}_VARS.fd"
+            # Always use QCOW2 format for NVRAM to support snapshots
+            nvram_format = "qcow2"
+            nvram_name = f"{vm_name}_VARS.qcow2"
 
             nvram_path = None
+
+            # Check if we need conversion
+            # We need conversion if:
+            # 1. The firmware interface is not pflash (legacy reason)
+            # 2. OR we are requesting qcow2 format (source templates are almost always raw)
+            has_pflash = "pflash" in candidate_fw.interfaces
+            needs_conversion = (not has_pflash) or (nvram_format == "qcow2")
+
+            logging.info(
+                f"Selected firmware: loader='{loader_path}', nvram_template='{vars_template_path}'"
+            )
 
             # Check if already exists in target pool
             try:
@@ -575,7 +550,7 @@ class VMProvisioner:
 
                 if needs_conversion:
                     logging.info(
-                        f"Firmware does not support pflash directly. Converting NVRAM template to {nvram_format} using qemu-img."
+                        f"Converting NVRAM template to {nvram_format} using qemu-img (pflash={has_pflash})."
                     )
                     # Create temporary files for conversion
                     with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_in:

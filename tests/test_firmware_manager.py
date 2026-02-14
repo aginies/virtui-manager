@@ -351,6 +351,38 @@ class TestGetUefiFiles(unittest.TestCase):
         )
 
 
+    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
+    def test_get_uefi_files_fallback_infers_nvram(self, mock_get_caps):
+        """Test that fallback logic infers NVRAM template from loader path"""
+        caps_xml = """<?xml version="1.0"?>
+        <domainCapabilities>
+            <os>
+                <loader>
+                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
+                    <value>/usr/share/OVMF/OVMF_CODE.secboot.fd</value>
+                </loader>
+            </os>
+        </domainCapabilities>
+        """
+        mock_get_caps.return_value = caps_xml
+        mock_conn = MagicMock()
+
+        with patch(
+            "vmanager.firmware_manager._load_firmware_from_files",
+            side_effect=OSError("Simulated error"),
+        ):
+            result = get_uefi_files(mock_conn)
+
+        # Check if nvram_template was inferred
+        fw_with_nvram = [f for f in result if f.nvram_template is not None]
+        self.assertGreater(len(fw_with_nvram), 0, "Should have inferred NVRAM template")
+
+        # Check specific inference
+        ovmf_fw = next((f for f in result if "OVMF_CODE.fd" in f.executable), None)
+        self.assertIsNotNone(ovmf_fw)
+        self.assertEqual(ovmf_fw.nvram_template, "/usr/share/OVMF/OVMF_VARS.fd")
+
+
 class TestFirmwareFeatureInference(unittest.TestCase):
     """Tests for firmware feature inference from loader paths"""
 
