@@ -2304,11 +2304,12 @@ class VMCard(Static):
 
             app.worker_manager.run(do_clone, name=f"clone_{self.name}")
 
-        def on_confirm(confirmed: bool) -> None:
-            if confirmed:
-                self.app.push_screen(AdvancedCloneDialog(), handle_clone_results)
+        #def on_confirm(confirmed: bool) -> None:
+        #    if confirmed:
+        #        self.app.push_screen(AdvancedCloneDialog(), handle_clone_results)
 
-        self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
+        #self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
+        self.app.push_screen(AdvancedCloneDialog(), handle_clone_results)
 
     def _handle_rename_button(self) -> None:
         """Handles the rename button press."""

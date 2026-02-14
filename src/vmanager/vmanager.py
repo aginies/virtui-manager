@@ -1177,11 +1177,6 @@ class VMManagerTUI(App):
             else:
                 self.push_screen(ServerPrefModal(uri=uri))
 
-        # def on_confirm(confirmed: bool) -> None:
-        #    if confirmed:
-        #        self._select_server_and_run(launch_server_prefs, "Select a server for Preferences", "Open")
-
-        # self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
         self._select_server_and_run(
             launch_server_prefs, StaticText.SELECT_SERVER_FOR_PREFS, ButtonLabels.OPEN
         )
@@ -1491,14 +1486,11 @@ class VMManagerTUI(App):
             if self.vm_service.get_connection(uri)
         }
 
-        def on_confirm(confirmed: bool) -> None:
-            if confirmed:
-                self.push_screen(
-                    MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections)
+        self.push_screen(
+                MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections)
                 )
-                self.selected_vm_uuids.clear()
+        self.selected_vm_uuids.clear()
 
-        self.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
 
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""
