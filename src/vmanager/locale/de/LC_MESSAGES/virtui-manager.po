@@ -290,12 +290,12 @@ msgid "Apply"
 msgstr "Anwenden"
 
 #: constants.py:144
-msgid "! Clone !"
-msgstr "! Klonen !"
+msgid "Clone"
+msgstr "Klonen"
 
 #: constants.py:145
-msgid "! Migration !"
-msgstr "! Migration !"
+msgid "Migration"
+msgstr "Migration"
 
 #: constants.py:146
 msgid "View XML"
