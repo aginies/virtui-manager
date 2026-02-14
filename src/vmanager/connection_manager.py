@@ -168,7 +168,8 @@ class ConnectionManager:
                     conn = future.result(timeout=15)
                     executor.shutdown(wait=True)
                 except TimeoutError:
-                    # If it times out, we raise a libvirtError to be caught by the existing error handling.
+                    # If it times out, we raise a libvirtError to be caught by the
+                    # existing error handling.
                     executor.shutdown(wait=False)
                     msg = "Connection timed out after 15 seconds."
                     # Check if the URI suggests an SSH connection
