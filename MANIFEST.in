@@ -1,6 +1,24 @@
+# CSS Stylesheets (for GTK3 remote viewer)
 include src/vmanager/*.css
+
+# Python modules (already auto-discovered by setuptools, but explicit for clarity)
 recursive-include src/vmanager/modals *.py
+
+# Application Documentation (help docs and how-to guides)
+recursive-include src/vmanager/appdocs *.md
+
+# Internationalization (translations for multiple languages)
+recursive-include src/vmanager/locale *.pot
+recursive-include src/vmanager/locale *.po
+recursive-include src/vmanager/locale *.mo
+
+# Project metadata
 include README.md
+include LICENSE
 include requirements.txt
+
+# Exclude build artifacts and cache directories
 global-exclude __pycache__
 global-exclude *.py[co]
+global-exclude .pytest_cache
+global-exclude .mypy_cache
