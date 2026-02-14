@@ -40,7 +40,7 @@ class AppInfo:
     """Define app data"""
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "1.9.0"
+    version = "1.9.1"
 
 class VMCardConstants:
     """Constants for VMCard styling"""
