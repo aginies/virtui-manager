@@ -74,7 +74,8 @@ def sanitize_sensitive_data(message: str) -> str:
 
     # 1. Redact common password patterns in various formats
     sanitized = re.sub(
-        r"(?i)\b(passwd|password|pwd|pass|secret|key|token|auth|credential|cred)\s*[=:]\s*[^,\s;'\"]+",
+        r"(?i)\b(passwd|password|pwd|pass|secret|key|token|auth|credential|cred)"
+        r"\s*[=:]\s*[^,\s;'\"]+",
         r"\1=***",
         sanitized,
     )
@@ -139,7 +140,8 @@ def sanitize_sensitive_data(message: str) -> str:
 
     # 9. Redact command line password arguments
     sanitized = re.sub(
-        r"(?i)(-+(?:passwd|password|pwd|pass|secret|key|token|auth|credential|cred))[\s=][^,\s;'\"]+",
+        r"(?i)(-+(?:passwd|password|pwd|pass|secret|key|token|auth|credential|cred))"
+        r"[\s=][^,\s;'\"]+",
         r"\1 ***",
         sanitized,
     )
@@ -153,7 +155,8 @@ def sanitize_sensitive_data(message: str) -> str:
 
     # 11. Redact API keys and similar patterns
     sanitized = re.sub(
-        r"(?i)\b(api_key|apikey|access_token|refresh_token|bearer|authorization)\s*[=:]\s*[^,\s;'\"]+",
+        r"(?i)\b(api_key|apikey|access_token|refresh_token|bearer|authorization)"
+        r"\s*[=:]\s*[^,\s;'\"]+",
         r"\1=***",
         sanitized,
     )
@@ -169,7 +172,7 @@ def sanitize_sensitive_data(message: str) -> str:
     return sanitized
 
 
-class SanitizingFilter(logging.Filter):
+class SanitizingFilter(logging.Filter):  # pylint: disable=too-few-public-methods
     """A logging filter that sanitizes sensitive information from log messages.
 
     This filter redacts credentials from URIs in log messages to prevent
@@ -204,6 +207,12 @@ class SanitizingFilter(logging.Filter):
 
 
 def is_running_under_flatpak():
+    """
+    Check if the application is running under Flatpak.
+
+    Returns:
+        bool: True if running under Flatpak, False otherwise
+    """
     return "FLATPAK_ID" in os.environ
 
 
@@ -257,19 +266,19 @@ def log_function_call(func) -> callable:
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        logging.info(f"Calling {func.__name__} with args: {args}, kwargs: {kwargs}")
+        logging.info("Calling %s with args: %s, kwargs: %s", func.__name__, args, kwargs)
         try:
             result = func(*args, **kwargs)
-            logging.info(f"{func.__name__} returned: {result}")
+            logging.info("%s returned: %s", func.__name__, result)
             return result
         except Exception as e:
-            logging.error(f"Exception in {func.__name__}: {e}")
+            logging.error("Exception in %s: %s", func.__name__, e)
             raise
 
     return wrapper
 
 
-def generate_webconsole_keys_if_needed(
+def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
     config_dir: Path = None, remote_host: str = None
 ) -> List[Tuple[str, str]]:
     """
@@ -277,7 +286,8 @@ def generate_webconsole_keys_if_needed(
     Can generate locally or on a remote host via SSH.
 
     Args:
-        config_dir (Path, optional): Directory to check/generate keys in. Defaults to ~/.config/virtui-manager.
+        config_dir (Path, optional): Directory to check/generate keys in.
+            Defaults to ~/.config/virtui-manager.
         remote_host (str, optional): SSH host string (user@host) for remote generation.
 
     Returns:
@@ -312,7 +322,7 @@ def generate_webconsole_keys_if_needed(
                 timeout=5,
             )
             exists = True
-        except:
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
             exists = False
     else:
         exists = key_path.exists() and cert_path.exists()
@@ -321,7 +331,8 @@ def generate_webconsole_keys_if_needed(
         messages.append(
             (
                 "info",
-                f"WebConsole TLS key/cert not found on {'remote' if remote_host else 'local'}. Generating...",
+                f"WebConsole TLS key/cert not found on "
+                f"{'remote' if remote_host else 'local'}. Generating...",
             )
         )
 
@@ -372,7 +383,8 @@ def generate_webconsole_keys_if_needed(
             messages.append(
                 (
                     "info",
-                    f"Successfully generated WebConsole TLS key and certificate in {config_dir} on {'remote' if remote_host else 'local'}.",
+                    f"Successfully generated WebConsole TLS key and certificate in {config_dir} "
+                    f"on {'remote' if remote_host else 'local'}.",
                 )
             )
 
@@ -380,7 +392,10 @@ def generate_webconsole_keys_if_needed(
             error_message = "Failed to generate WebConsole TLS key/cert: Operation timed out"
             messages.append(("error", error_message))
         except subprocess.CalledProcessError as e:
-            error_message = f"Failed to generate WebConsole TLS key/cert: {e.stderr.strip() if e.stderr else str(e)}"
+            error_message = (
+                f"Failed to generate WebConsole TLS key/cert: "
+                f"{e.stderr.strip() if e.stderr else str(e)}"
+            )
             messages.append(("error", error_message))
         except FileNotFoundError:
             messages.append(("error", "openssl command not found. Please install openssl."))
@@ -389,6 +404,7 @@ def generate_webconsole_keys_if_needed(
             messages.append(("error", error_message))
 
     return messages
+
 
 def check_r_viewer(configured_viewer: str = None) -> str:
     """
@@ -408,21 +424,22 @@ def check_r_viewer(configured_viewer: str = None) -> str:
         if configured_viewer:
             if configured_viewer == "virtui-remote-viewer" and virtui:
                 return "virtui-remote-viewer"
-            elif configured_viewer == "virt-viewer" and virt:
+            if configured_viewer == "virt-viewer" and virt:
                 return "virt-viewer"
             logging.warning(
-                f"Configured viewer {configured_viewer} not found. Falling back to auto-detection."
+                "Configured viewer %s not found. Falling back to auto-detection.", configured_viewer
             )
 
         if virtui is not None:
             return "virtui-remote-viewer"
-        elif virt is not None:
+        if virt is not None:
             return "virt-viewer"
     except Exception as e:
-        logging.error(f"Unexpected error checking r-viewer: {e}")
+        logging.error("Unexpected error checking r-viewer: %s", e)
 
     logging.error("Neither 'virtui-remote-viewer' nor 'virt-viewer' is installed.")
     return None
+
 
 def remote_viewer_cmd(uri: str, domain_name: str, viewer_cmd: str = None) -> list:
     """
@@ -452,8 +469,8 @@ def check_firewalld() -> bool:
     """
     try:
         return shutil.which("firewalld") is not None
-    except Exception as e:
-        logging.error(f"Error checking firewalld: {e}")
+    except (OSError, AttributeError) as e:
+        logging.error("Error checking firewalld: %s", e)
         return False
 
 
@@ -469,8 +486,8 @@ def check_novnc_path() -> bool:
     """
     try:
         return os.path.exists("/usr/share/novnc") or os.path.exists("/usr/share/webapps/novnc")
-    except Exception as e:
-        logging.error(f"Error checking novnc path: {e}")
+    except (OSError, AttributeError) as e:
+        logging.error("Error checking novnc path: %s", e)
         return False
 
 
@@ -486,8 +503,8 @@ def check_websockify() -> bool:
     """
     try:
         return shutil.which("websockify") is not None
-    except Exception as e:
-        logging.error(f"Error checking websockify: {e}")
+    except (OSError, AttributeError) as e:
+        logging.error("Error checking websockify: %s", e)
         return False
 
 
@@ -500,8 +517,8 @@ def check_tmux() -> bool:
     """
     try:
         return os.environ.get("TMUX") is not None and shutil.which("tmux") is not None
-    except Exception as e:
-        logging.error(f"Error checking tmux: {e}")
+    except (OSError, AttributeError) as e:
+        logging.error("Error checking tmux: %s", e)
         return False
 
 
@@ -532,7 +549,7 @@ def check_is_firewalld_running() -> Union[str, bool]:
     except subprocess.CalledProcessError:
         return False
     except Exception as e:
-        logging.error(f"Error checking firewalld status: {e}")
+        logging.error("Error checking firewalld status: %s", e)
         return False
 
 
@@ -621,7 +638,8 @@ def format_server_names(server_uris: tuple[str]) -> str:
 
 
 _server_color_cache = {}
-_color_index = 0
+# Global variable for color indexing - used across module
+_COLOR_INDEX = 0
 
 
 @lru_cache(maxsize=16)
@@ -630,12 +648,12 @@ def get_server_color_cached(uri: str, palette: tuple) -> str:
     Get consistent color for a server URI.
     Uses global cache to avoid instance issues.
     """
-    global _server_color_cache, _color_index
+    global _COLOR_INDEX
 
     if uri not in _server_color_cache:
-        color = palette[_color_index % len(palette)]
+        color = palette[_COLOR_INDEX % len(palette)]
         _server_color_cache[uri] = color
-        _color_index += 1
+        _COLOR_INDEX += 1
 
     return _server_color_cache[uri]
 
@@ -675,9 +693,13 @@ class CacheMonitor:
         logging.info("=== Cache Statistics ===")
         for name, data in stats.items():
             logging.info(
-                f"{name}: {data['hit_rate']:.1f}% hit rate "
-                f"({data['hits']} hits, {data['misses']} misses, "
-                f"{data['current_size']}/{data['max_size']} entries)"
+                "%s: %.1f%% hit rate (%d hits, %d misses, %d/%d entries)",
+                name,
+                data["hit_rate"],
+                data["hits"],
+                data["misses"],
+                data["current_size"],
+                data["max_size"],
             )
 
     def clear_all_caches(self) -> None:
@@ -698,6 +720,7 @@ def format_memory_display(memory_mib: int) -> str:
 
 
 @lru_cache(maxsize=128)
+# pylint: disable=too-many-arguments,too-many-positional-arguments
 def generate_tooltip_markdown(
     uuid: str,
     hypervisor: str,
@@ -723,13 +746,13 @@ def generate_tooltip_markdown(
     )
 
 
-def setup_cache_monitoring(enable: bool = True):
+def setup_cache_monitoring(enable: bool = True):  # pylint: disable=too-many-locals
     """Initialize or clear the cache monitor and track relevant functions."""
     cache_monitor = CacheMonitor()
     cache_monitor.tracked_functions.clear()
     if not enable:
         logging.debug("Cache monitoring disabled.")
-        return
+        return None
 
     logging.debug("Cache monitoring enabled.")
     cache_monitor.track(format_server_names)
