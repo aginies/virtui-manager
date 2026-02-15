@@ -1,12 +1,20 @@
+"""
+Libvirt error handling module.
+
+This module provides custom error handling for libvirt operations, including
+a custom error handler that properly logs libvirt errors using the Python
+logging framework and functions to register the error handler with libvirt.
+"""
+
 import logging
 
 import libvirt
 
 
-def libvirt_error_handler(conn, error):
+def libvirt_error_handler(conn, error):  # pylint: disable=unused-argument
     """
     Custom libvirt error handler that logs errors to the logging framework.
-    
+
     Args:
         conn: The libvirt connection object
         error: The error tuple from libvirt (code, domain, message, level, conn)
@@ -38,9 +46,10 @@ def libvirt_error_handler(conn, error):
             level,
             conn_str,
         )
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         # Fallback logging if the error handler itself fails
-        logging.error(f"Error in libvirt error handler: {e}")
+        logging.error("Error in libvirt error handler: %s", e)
+
 
 def register_error_handler():
     """
@@ -49,5 +58,5 @@ def register_error_handler():
     try:
         libvirt.registerErrorHandler(f=libvirt_error_handler, ctx=None)
         logging.info("Successfully registered custom libvirt error handler")
-    except Exception as e:
-        logging.error(f"Failed to register libvirt error handler: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logging.error("Failed to register libvirt error handler: %s", e)
