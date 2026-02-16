@@ -1,6 +1,7 @@
 """
 Manage the configuration of the tool
 """
+
 import os
 from pathlib import Path
 
@@ -10,26 +11,27 @@ from .constants import AppInfo
 
 #    'VMS_PER_PAGE': 4,
 DEFAULT_CONFIG = {
-    'STATS_INTERVAL': 5,
-    'WC_PORT_RANGE_START': 40000,
-    'WC_PORT_RANGE_END': 40050,
-    'websockify_path': '/usr/bin/websockify',
-    'novnc_path': '/usr/share/novnc/',
-    'REMOTE_VIEWER': None,
-    'REMOTE_WEBCONSOLE': False,
-    'VNC_QUALITY': 0,
-    'VNC_COMPRESSION': 9,
-    'WEBSOCKIFY_BUF_SIZE': 4096,
-    'network_models': ["virtio", "e1000", "e1000e", "rtl8139", "ne2k_pci", "pcnet"],
-    'sound_models': ["none", "ich6", "ich9", "ac97", "sb16", "usb"],
-    'servers': [
-        {'name': 'Localhost', 'uri': 'qemu:///system'},
+    "STATS_INTERVAL": 5,
+    "WC_PORT_RANGE_START": 40000,
+    "WC_PORT_RANGE_END": 40050,
+    "websockify_path": "/usr/bin/websockify",
+    "novnc_path": "/usr/share/novnc/",
+    "REMOTE_VIEWER": None,
+    "REMOTE_WEBCONSOLE": False,
+    "VNC_QUALITY": 0,
+    "VNC_COMPRESSION": 9,
+    "WEBSOCKIFY_BUF_SIZE": 4096,
+    "network_models": ["virtio", "e1000", "e1000e", "rtl8139", "ne2k_pci", "pcnet"],
+    "sound_models": ["none", "ich6", "ich9", "ac97", "sb16", "usb"],
+    "servers": [
+        {"name": "Localhost", "uri": "qemu:///system"},
     ],
-    'custom_ISO_repo': [],
-    'LOG_FILE_PATH': str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
-    'LOG_LEVEL': 'INFO',
-    'ISO_DOWNLOAD_PATH': str(Path.home() / ".cache" / AppInfo.name / "isos"),
+    "custom_ISO_repo": [],
+    "LOG_FILE_PATH": str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
+    "LOG_LEVEL": "INFO",
+    "ISO_DOWNLOAD_PATH": str(Path.home() / ".cache" / AppInfo.name / "isos"),
 }
+
 
 def get_log_path() -> Path:
     """
@@ -37,21 +39,24 @@ def get_log_path() -> Path:
     ensuring its parent directory exists.
     """
     config = load_config()
-    log_file_path_str = config.get('LOG_FILE_PATH', DEFAULT_CONFIG['LOG_FILE_PATH'])
+    log_file_path_str = config.get("LOG_FILE_PATH", DEFAULT_CONFIG["LOG_FILE_PATH"])
     log_path = Path(log_file_path_str)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     return log_path
 
+
 def get_config_paths():
     """Returns the potential paths for the config file."""
     return [
-        Path.home() / '.config' / AppInfo.name / 'config.yaml',
-        Path('/etc') / AppInfo.name / 'config.yaml'
+        Path.home() / ".config" / AppInfo.name / "config.yaml",
+        Path("/etc") / AppInfo.name / "config.yaml",
     ]
+
 
 def get_user_config_path():
     """Returns the path to the user's config file."""
     return get_config_paths()[0]
+
 
 def load_config():
     """
@@ -69,7 +74,7 @@ def load_config():
             break
 
     if config_path:
-        with open(config_path) as f:
+        with open(config_path, encoding="utf-8") as f:
             user_config = yaml.safe_load(f) or {}
 
     # Start with default config and update with user's config
@@ -81,16 +86,16 @@ def load_config():
             if value is None and key in DEFAULT_CONFIG:
                 config[key] = DEFAULT_CONFIG[key]
 
-
     # Ensure 'servers' key exists and is a non-empty list
-    if not isinstance(config.get('servers'), list) or not config.get('servers'):
-        config['servers'] = DEFAULT_CONFIG['servers']
+    if not isinstance(config.get("servers"), list) or not config.get("servers"):
+        config["servers"] = DEFAULT_CONFIG["servers"]
 
     return config
+
 
 def save_config(config):
     """Saves the configuration to the user's config file."""
     config_path = get_config_paths()[0]  # Save to user's config
     os.makedirs(config_path.parent, exist_ok=True)
-    with open(config_path, 'w') as f:
+    with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False)

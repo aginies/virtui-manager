@@ -1,6 +1,7 @@
 """
 Main interface
 """
+
 import asyncio
 
 from textual import on
@@ -28,6 +29,11 @@ class VirshShellScreen(ModalScreen):
     def __init__(self, uri: str) -> None:
         super().__init__()
         self.uri = uri
+        self.virsh_process = None
+        self.output_textarea = None
+        self.command_input = None
+        self.read_stdout_task = None
+        self.read_stderr_task = None
 
     def compose(self) -> ComposeResult:
         with Vertical(id="virsh-shell-container"):
@@ -38,18 +44,19 @@ class VirshShellScreen(ModalScreen):
                 id="virsh-output",
                 read_only=True,
                 show_line_numbers=False,
-                classes="virsh-output-area"
+                classes="virsh-output-area",
             )
             with Horizontal(id="virsh-input-container"):
-                #yield Label("virsh>")
+                # yield Label("virsh>")
                 yield Input(
                     placeholder=StaticText.VIRSH_COMMAND_PLACEHOLDER,
                     id="virsh-command-input",
-                    classes="virsh-input-field"
+                    classes="virsh-input-field",
                 )
             yield Footer()
 
     async def on_mount(self) -> None:
+        """Handle mount event."""
         self.virsh_process = None
         self.output_textarea = self.query_one("#virsh-output", TextArea)
         self.command_input = self.query_one("#virsh-command-input", Input)
@@ -61,15 +68,21 @@ class VirshShellScreen(ModalScreen):
             uri = self.uri
 
             self.virsh_process = await asyncio.create_subprocess_exec(
-                "/usr/bin/virsh", "-c", uri,
+                "/usr/bin/virsh",
+                "-c",
+                uri,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
             self.output_textarea.text += StaticText.CONNECTED_TO_URI.format(uri=uri)
 
-            self.read_stdout_task = asyncio.create_task(self._read_stream(self.virsh_process.stdout))
-            self.read_stderr_task = asyncio.create_task(self._read_stream(self.virsh_process.stderr))
+            self.read_stdout_task = asyncio.create_task(
+                self._read_stream(self.virsh_process.stdout)
+            )
+            self.read_stderr_task = asyncio.create_task(
+                self._read_stream(self.virsh_process.stderr)
+            )
 
             self.command_input.focus()
 
@@ -77,27 +90,29 @@ class VirshShellScreen(ModalScreen):
             error_msg = StaticText.VIRSH_NOT_FOUND_ERROR
             self.app.show_error_message(error_msg)
             self.command_input.disabled = True
-        except Exception as e:
-            error_msg = StaticText.ERROR_STARTING_VIRSH.format(error=e)
+        except OSError:
+            error_msg = StaticText.ERROR_STARTING_VIRSH
             self.app.show_error_message(error_msg)
             self.command_input.disabled = True
 
     async def _read_stream(self, stream: asyncio.StreamReader) -> None:
+        """Read and process stream output."""
         while True:
             try:
                 data = await stream.read(4096)
                 if not data:
                     break
-                self.output_textarea.text += data.decode(errors='replace')
+                self.output_textarea.text += data.decode(errors="replace")
             except asyncio.CancelledError:
                 break
-            except Exception as e:
-                reading_err_msg = StaticText.ERROR_READING_FROM_VIRSH.format(error=e)
+            except OSError:
+                reading_err_msg = StaticText.ERROR_READING_FROM_VIRSH
                 self.app.show_error_message(reading_err_msg)
                 break
 
     @on(Input.Submitted, "#virsh-command-input")
     async def on_command_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle command input submission."""
         command = event.value.strip()
         self.command_input.value = ""
         if not command:
@@ -107,7 +122,7 @@ class VirshShellScreen(ModalScreen):
             try:
                 self.virsh_process.stdin.write(command.encode() + b"\n")
                 await self.virsh_process.stdin.drain()
-            except Exception as e:
+            except OSError as e:
                 error_msg = StaticText.ERROR_SENDING_COMMAND.format(error=e)
                 self.app.show_error_message(error_msg)
         else:
@@ -118,6 +133,7 @@ class VirshShellScreen(ModalScreen):
         self.output_textarea.scroll_end()
 
     async def on_unmount(self) -> None:
+        """Handle unmount event."""
         if self.read_stdout_task:
             self.read_stdout_task.cancel()
             await self.read_stdout_task

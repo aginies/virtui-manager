@@ -1,12 +1,13 @@
 """
 Modal for user configuration
 """
+
 import shutil
 
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
-from textual.widgets import Button, Checkbox, Input, Label, Select, Static
+from textual.widgets import Button, Checkbox, Input, Label, Select
 
 from ..config import get_user_config_path, save_config
 from ..constants import (
@@ -29,9 +30,13 @@ class ConfigModal(BaseModal[None]):
         self.config = config
 
     def compose(self) -> ComposeResult:
+        """Compose the configuration modal UI."""
         with Vertical(id="config-dialog"):
-            yield Label(StaticText.CONFIGURATION_TITLE.format(namecase=AppInfo.namecase), id="config-title")
-            yield Static(StaticText.EDITING_CONFIG_PATH.format(get_user_config_path=get_user_config_path()), id="config-title-file") #classes="config-path-label")
+            title = StaticText.CONFIGURATION_TITLE.format(namecase=AppInfo.namecase)
+            yield Label(title, id="config-title")
+            config_path = get_user_config_path()
+            path_label = StaticText.EDITING_CONFIG_PATH.format(get_user_config_path=config_path)
+            yield Label(path_label, id="config-title-file")
             with ScrollableContainer():
                 # Performance settings
                 yield Label(StaticText.PERFORMANCE, classes="config-section-label")
@@ -41,7 +46,7 @@ class ConfigModal(BaseModal[None]):
                         value=str(self.config.get("STATS_INTERVAL", 5)),
                         id="stats-interval-input",
                         type="integer",
-                        tooltip=StaticText.STATS_INTERVAL_TOOLTIP
+                        tooltip=StaticText.STATS_INTERVAL_TOOLTIP,
                     )
 
                 # Logging settings
@@ -49,7 +54,7 @@ class ConfigModal(BaseModal[None]):
                 yield Input(
                     value=self.config.get("LOG_FILE_PATH", ""),
                     id="log-file-path-input",
-                    tooltip=StaticText.LOG_FILE_PATH_TOOLTIP
+                    tooltip=StaticText.LOG_FILE_PATH_TOOLTIP,
                 )
 
                 yield Label(StaticText.LOGGING_LEVEL)
@@ -63,8 +68,8 @@ class ConfigModal(BaseModal[None]):
                     ],
                     value=self.config.get("LOG_LEVEL", "INFO"),
                     id="log-level-select",
-                    prompt=StaticText.LOG_LEVEL_PROMPT
-                    )
+                    prompt=StaticText.LOG_LEVEL_PROMPT,
+                )
 
                 # Remote Viewer Settings
                 yield Label(StaticText.REMOTE_VIEWER)
@@ -80,7 +85,7 @@ class ConfigModal(BaseModal[None]):
                     current_viewer = Select.BLANK
 
                 if not viewers:
-                     yield Label(StaticText.NO_REMOTE_VIEWERS_FOUND)
+                    yield Label(StaticText.NO_REMOTE_VIEWERS_FOUND)
                 else:
                     auto_detected = check_r_viewer()
                     yield Label(StaticText.REMOTE_VIEWER_SELECT_LABEL.format(viewer=auto_detected))
@@ -89,8 +94,8 @@ class ConfigModal(BaseModal[None]):
                         value=current_viewer,
                         id="remote-viewer-select",
                         allow_blank=True,
-                        prompt=StaticText.REMOTE_VIEWER_PROMPT
-                        )
+                        prompt=StaticText.REMOTE_VIEWER_PROMPT,
+                    )
 
                 # Web console settings
                 yield Label(StaticText.WEB_CONSOLE_NOVNC, classes="config-section-label")
@@ -98,19 +103,19 @@ class ConfigModal(BaseModal[None]):
                     StaticText.ENABLE_REMOTE_WEBCONSOLE,
                     self.config.get("REMOTE_WEBCONSOLE", False),
                     id="remote-webconsole-checkbox",
-                    tooltip=StaticText.REMOTE_WEBCONSOLE_TOOLTIP
+                    tooltip=StaticText.REMOTE_WEBCONSOLE_TOOLTIP,
                 )
                 yield Label(StaticText.WEBSOCKIFY_PATH)
                 yield Input(
                     value=self.config.get("websockify_path", "/usr/bin/websockify"),
                     id="websockify-path-input",
-                    tooltip=StaticText.WEBSOCKIFY_PATH_TOOLTIP
+                    tooltip=StaticText.WEBSOCKIFY_PATH_TOOLTIP,
                 )
                 yield Label(StaticText.NOVNC_PATH)
                 yield Input(
                     value=self.config.get("novnc_path", "/usr/share/novnc/"),
                     id="novnc-path-input",
-                    tooltip=StaticText.NOVNC_PATH_TOOLTIP
+                    tooltip=StaticText.NOVNC_PATH_TOOLTIP,
                 )
                 with Horizontal(classes="port-range-container"):
                     yield Label(StaticText.WEBSOCKIFY_PORT_RANGE, classes="port-range-label")
@@ -119,14 +124,14 @@ class ConfigModal(BaseModal[None]):
                         id="wc-port-start-input",
                         type="integer",
                         classes="port-range-input",
-                        tooltip=StaticText.WC_PORT_START_TOOLTIP
+                        tooltip=StaticText.WC_PORT_START_TOOLTIP,
                     )
                     yield Input(
                         value=str(self.config.get("WC_PORT_RANGE_END", 40050)),
                         id="wc-port-end-input",
                         type="integer",
                         classes="port-range-input",
-                        tooltip=StaticText.WC_PORT_END_TOOLTIP
+                        tooltip=StaticText.WC_PORT_END_TOOLTIP,
                     )
                 with Vertical():
                     with Horizontal():
@@ -135,14 +140,14 @@ class ConfigModal(BaseModal[None]):
                             value=str(self.config.get("VNC_QUALITY", 0)),
                             id="vnc-quality-input",
                             type="integer",
-                            tooltip=StaticText.VNC_QUALITY_TOOLTIP
+                            tooltip=StaticText.VNC_QUALITY_TOOLTIP,
                         )
                         yield Label(StaticText.VNC_COMPRESSION)
                         yield Input(
                             value=str(self.config.get("VNC_COMPRESSION", 9)),
                             id="vnc-compression-input",
                             type="integer",
-                            tooltip=StaticText.VNC_COMPRESSION_TOOLTIP
+                            tooltip=StaticText.VNC_COMPRESSION_TOOLTIP,
                         )
 
                 with Horizontal():
@@ -151,16 +156,29 @@ class ConfigModal(BaseModal[None]):
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
         if event.button.id == "save-config-btn":
             try:
-                self.config["REMOTE_WEBCONSOLE"] = self.query_one("#remote-webconsole-checkbox", Checkbox).value
-                self.config["websockify_path"] = self.query_one("#websockify-path-input", Input).value
+                self.config["REMOTE_WEBCONSOLE"] = self.query_one(
+                    "#remote-webconsole-checkbox", Checkbox
+                ).value
+                self.config["websockify_path"] = self.query_one(
+                    "#websockify-path-input", Input
+                ).value
                 self.config["novnc_path"] = self.query_one("#novnc-path-input", Input).value
-                self.config["WC_PORT_RANGE_START"] = int(self.query_one("#wc-port-start-input", Input).value)
-                self.config["WC_PORT_RANGE_END"] = int(self.query_one("#wc-port-end-input", Input).value)
+                self.config["WC_PORT_RANGE_START"] = int(
+                    self.query_one("#wc-port-start-input", Input).value
+                )
+                self.config["WC_PORT_RANGE_END"] = int(
+                    self.query_one("#wc-port-end-input", Input).value
+                )
                 self.config["VNC_QUALITY"] = int(self.query_one("#vnc-quality-input", Input).value)
-                self.config["VNC_COMPRESSION"] = int(self.query_one("#vnc-compression-input", Input).value)
-                self.config["STATS_INTERVAL"] = int(self.query_one("#stats-interval-input", Input).value)
+                self.config["VNC_COMPRESSION"] = int(
+                    self.query_one("#vnc-compression-input", Input).value
+                )
+                self.config["STATS_INTERVAL"] = int(
+                    self.query_one("#stats-interval-input", Input).value
+                )
                 self.config["LOG_FILE_PATH"] = self.query_one("#log-file-path-input", Input).value
                 self.config["LOG_LEVEL"] = self.query_one("#log-level-select", Select).value
 
@@ -171,13 +189,15 @@ class ConfigModal(BaseModal[None]):
                     else:
                         self.config["REMOTE_VIEWER"] = None
                         self.app.show_warning_message(WarningMessages.NO_REMOTE_VIEWER_SELECTED)
-                except Exception:
+                except LookupError:
                     pass
 
                 save_config(self.config)
                 self.app.show_success_message(SuccessMessages.CONFIGURATION_SAVED)
                 self.dismiss(self.config)
-            except Exception as e:
-                self.app.show_error_message(ErrorMessages.ERROR_SAVING_CONFIGURATION_TEMPLATE.format(e=e))
+            except (ValueError, KeyError) as e:
+                self.app.show_error_message(
+                    ErrorMessages.ERROR_SAVING_CONFIGURATION_TEMPLATE.format(e=e)
+                )
         elif event.button.id == "cancel-btn":
             self.dismiss(None)

@@ -2,6 +2,7 @@
 Module for managing firmware-related information and operations.
 """
 
+import fnmatch
 import json
 import logging
 import os
@@ -50,23 +51,23 @@ class Firmware:
             # Extract device type (e.g., "flash" for pflash devices)
             if "device" in jsondata["mapping"]:
                 self.device = jsondata["mapping"]["device"]
-                logging.debug(f"Firmware device type: {self.device}")
+                logging.debug("Firmware device type: %s", self.device)
 
             if (
                 "executable" in jsondata["mapping"]
                 and "filename" in jsondata["mapping"]["executable"]
             ):
                 self.executable = jsondata["mapping"]["executable"]["filename"]
-                logging.debug(f"Firmware executable: {self.executable}")
+                logging.debug("Firmware executable: %s", self.executable)
             elif "filename" in jsondata["mapping"]:
                 self.executable = jsondata["mapping"]["filename"]
-                logging.debug(f"Firmware executable (alt): {self.executable}")
+                logging.debug("Firmware executable (alt): %s", self.executable)
             if (
                 "nvram-template" in jsondata["mapping"]
                 and "filename" in jsondata["mapping"]["nvram-template"]
             ):
                 self.nvram_template = jsondata["mapping"]["nvram-template"]["filename"]
-                logging.debug(f"Firmware NVRAM: {self.nvram_template}")
+                logging.debug("Firmware NVRAM: %s", self.nvram_template)
 
         if self.executable is None:
             logging.debug("Firmware rejected: no executable")
@@ -81,7 +82,7 @@ class Firmware:
                 if "machines" in target:
                     self.machines.extend(target["machines"])
                 logging.debug(
-                    f"Firmware architectures: {self.architectures}, machines: {self.machines}"
+                    "Firmware architectures: %s, machines: %s", self.architectures, self.machines
                 )
 
         if not self.architectures:
@@ -94,12 +95,11 @@ class Firmware:
         if "tags" in jsondata:
             self.tags = jsondata.get("tags", [])
 
-        logging.debug(f"Firmware loaded successfully: {self.executable}")
+        logging.debug("Firmware loaded successfully: %s", self.executable)
         return True
 
     def __repr__(self):
         return f"<Firmware(executable='{self.executable}', archs={self.architectures})>"
-
 
 
 @log_function_call
@@ -123,7 +123,7 @@ def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = Tru
 
     # Check cache first
     if use_cache and cache_key in _firmware_cache:
-        logging.debug(f"Using cached firmware list for {cache_key} system")
+        logging.debug("Using cached firmware list for %s system", cache_key)
         return _firmware_cache[cache_key]
 
     uefi_files = []
@@ -171,7 +171,7 @@ def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = Tru
                     _firmware_cache[cache_key] = uefi_files
                     return uefi_files
             except (OSError, IOError) as e:
-                logging.warning(f"Could not read firmware JSON files: {e}")
+                logging.warning("Could not read firmware JSON files: %s", e)
 
             # Fallback: create Firmware objects from loader values alone
             # This provides basic firmware info even if metadata is unavailable
@@ -219,7 +219,7 @@ def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = Tru
                 uefi_files.append(firmware)
 
         except libvirt.libvirtError as e:
-            logging.error(f"Error retrieving firmware via libvirt: {e}")
+            logging.error("Error retrieving firmware via libvirt: %s", e)
             # Fall back to local filesystem
             _load_firmware_from_files(uefi_files)
     else:
@@ -239,12 +239,11 @@ def clear_firmware_cache(cache_key: str | None = None):
         cache_key: Specific cache key to clear ("local" or "remote").
                   If None, clears all cache entries.
     """
-    global _firmware_cache
     if cache_key is None:
         logging.debug("Clearing all firmware cache")
         _firmware_cache.clear()
     elif cache_key in _firmware_cache:
-        logging.debug(f"Clearing firmware cache for {cache_key}")
+        logging.debug("Clearing firmware cache for %s", cache_key)
         del _firmware_cache[cache_key]
 
 
@@ -256,13 +255,15 @@ def _load_firmware_from_files(uefi_files: list):
         uefi_files: List to append Firmware objects to.
     """
     if not os.path.isdir(FIRMWARE_META_BASE_DIR):
-        logging.debug(f"Firmware directory not found: {FIRMWARE_META_BASE_DIR}")
+        logging.debug("Firmware directory not found: %s", FIRMWARE_META_BASE_DIR)
         return
 
     files = os.listdir(FIRMWARE_META_BASE_DIR)
     json_files = [f for f in files if f.endswith(".json")]
     logging.info(
-        f"Loading firmware from JSON metadata: found {len(json_files)} JSON files in {FIRMWARE_META_BASE_DIR}"
+        "Loading firmware from JSON metadata: found %s JSON files in %s",
+        len(json_files),
+        FIRMWARE_META_BASE_DIR,
     )
 
     loaded = 0
@@ -279,19 +280,20 @@ def _load_firmware_from_files(uefi_files: list):
                 uefi_files.append(firmware)
                 has_nvram = "✓" if firmware.nvram_template else "✗"
                 logging.debug(
-                    f"Loaded firmware from {file}: {firmware.executable} ({has_nvram} NVRAM)"
+                    "Loaded firmware from %s: %s (%s NVRAM)", file, firmware.executable, has_nvram
                 )
                 loaded += 1
             else:
-                logging.debug(f"Firmware rejected from {file}: load_from_json returned False")
+                logging.debug("Firmware rejected from %s: load_from_json returned False", file)
                 rejected += 1
         except (OSError, json.JSONDecodeError) as e:
             # ignore malformed or unreadable files
-            logging.debug(f"Failed to load firmware JSON from {file}: {e}")
+            logging.debug("Failed to load firmware JSON from %s: %s", file, e)
             rejected += 1
             continue
 
-    logging.info(f"Firmware loading from JSON complete: {loaded} loaded, {rejected} rejected")
+    logging.info("Firmware loading from JSON complete: %s loaded, %s rejected", loaded, rejected)
+
 
 @log_function_call
 def get_host_sev_capabilities(conn):
@@ -357,8 +359,9 @@ def select_best_firmware(
     compatible_fw = [fw for fw in firmwares if architecture in fw.architectures]
     if not compatible_fw:
         logging.warning(
-            f"No firmware found for architecture {architecture}. "
-            f"Available: {[fw.architectures for fw in firmwares]}"
+            "No firmware found for architecture %s. Available: %s",
+            architecture,
+            [fw.architectures for fw in firmwares],
         )
         return None
     # Filter by machine type if specified
@@ -379,8 +382,9 @@ def select_best_firmware(
             compatible_fw = machine_compatible
         else:
             logging.debug(
-                f"No firmware found for machine type {machine_type}. "
-                "Using architecture-compatible firmware anyway."
+                "No firmware found for machine type %s. "
+                "Using architecture-compatible firmware anyway.",
+                machine_type,
             )
 
     # Filter by secure-boot requirement
@@ -400,8 +404,11 @@ def select_best_firmware(
         score = _score_firmware(fw, secure_boot, prefer_nvram)
 
         logging.debug(
-            f"Firmware {fw.executable}: score={score}, "
-            f"features={fw.features}, has_nvram={fw.nvram_template is not None}"
+            "Firmware %s: score=%s, features=%s, has_nvram=%s",
+            fw.executable,
+            score,
+            fw.features,
+            fw.nvram_template is not None,
         )
 
         if score > best_score:
@@ -410,7 +417,10 @@ def select_best_firmware(
 
     if best_fw:
         logging.info(
-            f"Selected firmware: {best_fw.executable} (score={best_score}, arch={architecture})"
+            "Selected firmware: %s (score=%s, arch=%s)",
+            best_fw.executable,
+            best_score,
+            architecture,
         )
     else:
         logging.error("No suitable firmware found after scoring")
@@ -430,9 +440,9 @@ def _match_machine_pattern(fw_pattern: str, machine_type: str) -> bool:
     Returns:
         True if machine_type matches the pattern
     """
-    import fnmatch
-
     return fnmatch.fnmatch(machine_type, fw_pattern)
+
+
 def _score_firmware(
     firmware: Firmware, secure_boot_required: bool = False, prefer_nvram: bool = True
 ) -> int:
@@ -542,4 +552,3 @@ def generate_firmware_debug_report(conn: libvirt.virConnect | None = None) -> st
     report.append("\n" + "=" * 80)
 
     return "\n".join(report)
-

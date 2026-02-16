@@ -496,14 +496,14 @@ class VirtuiWrapper(Gtk.Window):
                 return False
 
             menu = Gtk.Menu()
-            
+
             # Copy
             copy_item = Gtk.MenuItem(label="Copy")
             copy_item.connect("activate", lambda x: widget.copy_clipboard())
             if not widget.get_has_selection():
                 copy_item.set_sensitive(False)
             menu.append(copy_item)
-            
+
             # Paste
             paste_item = Gtk.MenuItem(label="Paste")
             paste_item.connect("activate", lambda x: widget.paste_clipboard())

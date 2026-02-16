@@ -1,9 +1,11 @@
 """
 Utility functions for libvirt XML parsing and common helpers.
 """
+
 import logging
 import xml.etree.ElementTree as ET
 from functools import lru_cache
+from typing import Optional, Dict, List, Tuple, Any
 
 import libvirt
 
@@ -11,16 +13,23 @@ VIRTUI_MANAGER_NS = "http://github.com/aginies/virtui-manager"
 ET.register_namespace("virtui-manager", VIRTUI_MANAGER_NS)
 
 
-def get_internal_id(domain: libvirt.virDomain, conn: libvirt.virConnect = None) -> str:
+def get_internal_id(domain: libvirt.virDomain, conn: Optional[libvirt.virConnect] = None) -> str:
     """
     Constructs the internal ID (UUID@URI) for a given domain.
+
+    Args:
+        domain: The libvirt domain object
+        conn: The libvirt connection object
+
+    Returns:
+        str: The internal ID in UUID@URI format
     """
     if not conn:
         conn = domain.connect()
     try:
         uri = conn.getURI()
     except libvirt.libvirtError:
-        uri = "unknown" # Should not happen if connection is valid
+        uri = "unknown"  # Should not happen if connection is valid
 
     try:
         uuid_str = domain.UUIDString()
@@ -30,8 +39,18 @@ def get_internal_id(domain: libvirt.virDomain, conn: libvirt.virConnect = None) 
     return f"{uuid_str}@{uri}"
 
 
-def _find_vol_by_path(conn: libvirt.virConnect, vol_path):
-    """Finds a storage volume by its path and returns the volume and its pool."""
+def _find_vol_by_path(
+    conn: libvirt.virConnect, vol_path: str
+) -> Tuple[Optional[libvirt.virStorageVol], Optional[libvirt.virStoragePool]]:
+    """Finds a storage volume by its path and returns the volume and its pool.
+
+    Args:
+        conn: The libvirt connection
+        vol_path: The path of the volume to find
+
+    Returns:
+        Tuple of (volume, pool) or (None, None) if not found
+    """
     try:
         # Get only active pools first (faster)
         active_pool_names = conn.listStoragePools()
@@ -64,44 +83,97 @@ def _find_vol_by_path(conn: libvirt.virConnect, vol_path):
         pass
     return None, None
 
-def _get_vmanager_metadata(root):
-    metadata_elem = root.find('metadata')
-    if metadata_elem is None:
-        metadata_elem = ET.SubElement(root, 'metadata')
 
-    vmanager_meta_elem = metadata_elem.find(f'{{{VIRTUI_MANAGER_NS}}}virtuimanager')
+def _get_vmanager_metadata(root: ET.Element) -> ET.Element:
+    """Get or create the virtui-manager metadata element.
+
+    Args:
+        root: The XML root element
+
+    Returns:
+        The virtui-manager metadata element
+    """
+    metadata_elem = root.find("metadata")
+    if metadata_elem is None:
+        metadata_elem = ET.SubElement(root, "metadata")
+
+    vmanager_meta_elem = metadata_elem.find(f"{{{VIRTUI_MANAGER_NS}}}virtuimanager")
     if vmanager_meta_elem is None:
-        vmanager_meta_elem = ET.SubElement(metadata_elem, f'{{{VIRTUI_MANAGER_NS}}}virtuimanager')
+        vmanager_meta_elem = ET.SubElement(metadata_elem, f"{{{VIRTUI_MANAGER_NS}}}virtuimanager")
 
     return vmanager_meta_elem
 
-def _get_metadata_elem(root, elem_name):
+
+def _get_metadata_elem(root: ET.Element, elem_name: str) -> ET.Element:
+    """Get or create a metadata element.
+
+    Args:
+        root: The XML root element
+        elem_name: The name of the element to get/create
+
+    Returns:
+        The metadata element
+    """
     vmanager_meta_elem = _get_vmanager_metadata(root)
-    elem = vmanager_meta_elem.find(f'{{{VIRTUI_MANAGER_NS}}}{elem_name}')
+    elem = vmanager_meta_elem.find(f"{{{VIRTUI_MANAGER_NS}}}{elem_name}")
     if elem is None:
-        elem = ET.SubElement(vmanager_meta_elem, f'{{{VIRTUI_MANAGER_NS}}}{elem_name}')
+        elem = ET.SubElement(vmanager_meta_elem, f"{{{VIRTUI_MANAGER_NS}}}{elem_name}")
     return elem
 
-def _get_disabled_disks_elem(root):
-    return _get_metadata_elem(root, 'disabled-disks')
 
-def _get_backing_chain_elem(root):
-    return _get_metadata_elem(root, 'backing-chain')
+def _get_disabled_disks_elem(root: ET.Element) -> ET.Element:
+    """Get the disabled disks metadata element.
 
-def get_overlay_backing_path(root, overlay_path):
+    Args:
+        root: The XML root element
+
+    Returns:
+        The disabled disks element
     """
-    Retrieves the backing path for a given overlay path from the metadata.
+    return _get_metadata_elem(root, "disabled-disks")
+
+
+def _get_backing_chain_elem(root: ET.Element) -> ET.Element:
+    """Get the backing chain metadata element.
+
+    Args:
+        root: The XML root element
+
+    Returns:
+        The backing chain element
+    """
+    return _get_metadata_elem(root, "backing-chain")
+
+
+def get_overlay_backing_path(root: ET.Element, overlay_path: str) -> Optional[str]:
+    """Retrieves the backing path for a given overlay path from the metadata.
+
+    Args:
+        root: The XML root element
+        overlay_path: The overlay path to look up
+
+    Returns:
+        The backing path or None if not found
     """
     backing_chain_elem = _get_backing_chain_elem(root)
     if backing_chain_elem is not None:
-        for overlay in backing_chain_elem.findall(f'{{{VIRTUI_MANAGER_NS}}}overlay'):
-            if overlay.get('path') == overlay_path:
-                return overlay.get('backing')
+        for overlay in backing_chain_elem.findall(f"{{{VIRTUI_MANAGER_NS}}}overlay"):
+            if overlay.get("path") == overlay_path:
+                return overlay.get("backing")
     return None
 
-def _find_pool_by_path(conn: libvirt.virConnect, file_path: str):
-    """
-    Finds an active storage pool that contains or manages the given file path.
+
+def _find_pool_by_path(
+    conn: libvirt.virConnect, file_path: str
+) -> Optional[libvirt.virStoragePool]:
+    """Finds an active storage pool that contains or manages the given file path.
+
+    Args:
+        conn: The libvirt connection
+        file_path: The file path to search for
+
+    Returns:
+        The pool if found, None otherwise
     """
     for pool_name in conn.listStoragePools():
         try:
@@ -109,16 +181,25 @@ def _find_pool_by_path(conn: libvirt.virConnect, file_path: str):
             if not pool.isActive():
                 continue
             pool_info = ET.fromstring(pool.XMLDesc(0))
-            source_path = pool_info.findtext("source/directory") or pool_info.findtext("target/path")
+            source_path = pool_info.findtext("source/directory") or pool_info.findtext(
+                "target/path"
+            )
             if source_path and file_path.startswith(source_path):
                 return pool
         except libvirt.libvirtError:
             continue
     return None
 
-def get_cpu_models(conn: libvirt.virConnect, arch: str):
-    """
-    Get a list of CPU models for a given architecture.
+
+def get_cpu_models(conn: Optional[libvirt.virConnect], arch: str) -> List[str]:
+    """Get a list of CPU models for a given architecture.
+
+    Args:
+        conn: The libvirt connection object
+        arch: The architecture to get models for
+
+    Returns:
+        List of CPU model names
     """
     if not conn:
         return []
@@ -127,12 +208,18 @@ def get_cpu_models(conn: libvirt.virConnect, arch: str):
         models = conn.getCPUModelNames(arch)
         return models
     except libvirt.libvirtError as e:
-        print(f"Error getting CPU models for arch {arch}: {e}")
+        logging.error("Error getting CPU models for arch %s: %s", arch, e)
         return []
 
-def get_host_resources(conn: libvirt.virConnect) -> dict:
-    """
-    Retrieves host resource information (CPU, Memory).
+
+def get_host_resources(conn: libvirt.virConnect) -> Dict[str, Any]:
+    """Retrieves host resource information (CPU, Memory).
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        Dictionary with host information
     """
     try:
         node_info = conn.getInfo()
@@ -140,29 +227,36 @@ def get_host_resources(conn: libvirt.virConnect) -> dict:
         mem_stats = conn.getMemoryStats(libvirt.VIR_NODE_MEMORY_STATS_ALL_CELLS)
         # mem_stats might have: total, free, buffers, cached
         host_info = {
-            'model': node_info[0],
-            'total_memory': node_info[1] // 1024, # GiB
-            'total_cpus': node_info[2],
-            'mhz': node_info[3],
-            'nodes': node_info[4],
-            'sockets': node_info[5],
-            'cores': node_info[6],
-            'threads': node_info[7],
-            'free_memory': mem_stats.get('free', 0) // 1024, # MB
-            'available_memory': mem_stats.get('total', 0) // 1024, # MB
+            "model": node_info[0],
+            "total_memory": node_info[1] // 1024,  # GiB
+            "total_cpus": node_info[2],
+            "mhz": node_info[3],
+            "nodes": node_info[4],
+            "sockets": node_info[5],
+            "cores": node_info[6],
+            "threads": node_info[7],
+            "free_memory": mem_stats.get("free", 0) // 1024,  # MB
+            "available_memory": mem_stats.get("total", 0) // 1024,  # MB
         }
 
-        if host_info['available_memory'] == 0:
-            host_info['available_memory'] = host_info['total_memory']
+        if host_info["available_memory"] == 0:
+            host_info["available_memory"] = host_info["total_memory"]
 
         return host_info
     except libvirt.libvirtError as e:
-        logging.error(f"Error getting host resources: {e}")
+        logging.error("Error getting host resources: %s", e)
         return {}
 
-def get_total_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> dict:
-    """
-    Calculates total resource allocation across all running or paused VMs on a host.
+
+def get_total_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> Dict[str, Any]:
+    """Calculates total resource allocation across all running or paused VMs on a host.
+
+    Args:
+        conn: The libvirt connection object
+        progress_callback: Optional callback function for progress updates
+
+    Returns:
+        Dictionary with allocation information
     """
     total_memory = 0
     total_vcpus = 0
@@ -196,19 +290,25 @@ def get_total_vm_allocation(conn: libvirt.virConnect, progress_callback=None) ->
                 continue
 
         return {
-            'total_allocated_memory': total_memory // 1024,  # Convert to MB
-            'total_allocated_vcpus': total_vcpus,
-            'active_allocated_memory': active_memory // 1024,  # Convert to MB
-            'active_allocated_vcpus': active_vcpus,
+            "total_allocated_memory": total_memory // 1024,  # Convert to MB
+            "total_allocated_vcpus": total_vcpus,
+            "active_allocated_memory": active_memory // 1024,  # Convert to MB
+            "active_allocated_vcpus": active_vcpus,
         }
     except libvirt.libvirtError as e:
-        logging.error(f"Error calculating VM allocation: {e}")
+        logging.error("Error calculating VM allocation: %s", e)
         return {}
 
-def get_active_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> dict:
-    """
-    Calculates resource allocation for only active (running/paused) VMs.
-    More efficient than get_total_vm_allocation for large numbers of inactive VMs.
+
+def get_active_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -> Dict[str, Any]:
+    """Calculates resource allocation for only active (running/paused) VMs.
+
+    Args:
+        conn: The libvirt connection object
+        progress_callback: Optional callback function for progress updates
+
+    Returns:
+        Dictionary with allocation information
     """
     active_memory = 0
     active_vcpus = 0
@@ -234,43 +334,55 @@ def get_active_vm_allocation(conn: libvirt.virConnect, progress_callback=None) -
                 continue
 
         return {
-            'active_allocated_memory': active_memory // 1024,  # Convert to MB
-            'active_allocated_vcpus': active_vcpus,
+            "active_allocated_memory": active_memory // 1024,  # Convert to MB
+            "active_allocated_vcpus": active_vcpus,
         }
     except libvirt.libvirtError as e:
-        logging.error(f"Error calculating active VM allocation: {e}")
+        logging.error("Error calculating active VM allocation: %s", e)
         return {}
 
+
 def get_host_architecture(conn: libvirt.virConnect) -> str:
-    """
-    Returns the host architecture (e.g., 'x86_64', 'aarch64').
+    """Returns the host architecture (e.g., 'x86_64', 'aarch64').
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        The host architecture
     """
     try:
         # getCapabilities returns an XML string describing the host capabilities
         caps_xml = get_host_domain_capabilities(conn)
         if not caps_xml:
-            return 'x86_64'
+            return "x86_64"
         root = ET.fromstring(caps_xml)
 
-        arch = root.findtext('host/cpu/arch')
+        arch = root.findtext("host/cpu/arch")
         if arch:
             return arch
 
         # in case of failure check guest
-        guest_arch = root.findtext('guest/arch[@name]')
+        guest_arch = root.findtext("guest/arch[@name]")
         if guest_arch:
             return guest_arch
 
     except libvirt.libvirtError as e:
-        logging.error(f"Error getting host architecture: {e}")
+        logging.error("Error getting host architecture: %s", e)
     except ET.ParseError as e:
-        logging.error(f"Error parsing capabilities XML: {e}")
+        logging.error("Error parsing capabilities XML: %s", e)
 
-    return 'x86_64'
+    return "x86_64"
 
-def find_all_vm(conn: libvirt.virConnect):
-    """
-    Find all VM from the current Hypervisor
+
+def find_all_vm(conn: libvirt.virConnect) -> List[str]:
+    """Find all VM from the current Hypervisor.
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        List of VM names
     """
     allvm_list = []
     # Store all VM from the hypervisor
@@ -281,35 +393,44 @@ def find_all_vm(conn: libvirt.virConnect):
             allvm_list.append(vmdomain)
     return allvm_list
 
+
 @lru_cache(maxsize=4)
 def get_domain_capabilities_xml(
-    conn: libvirt.virConnect,
-    emulatorbin: str,
-    arch: str,
-    machine: str,
-    flags: int = 0
-) -> str | None:
-    """
-    Retrieves the domain capabilities XML for a specific guest configuration.
+    conn: libvirt.virConnect, emulatorbin: str, arch: str, machine: str, flags: int = 0
+) -> Optional[str]:
+    """Retrieves the domain capabilities XML for a specific guest configuration.
+
+    Args:
+        conn: The libvirt connection object
+        emulatorbin: The emulator binary path
+        arch: The architecture
+        machine: The machine type
+        flags: The flags to use
+
+    Returns:
+        The domain capabilities XML or None
     """
     try:
         caps_xml = conn.getDomainCapabilities(
-            emulatorbin=emulatorbin,
-            arch=arch,
-            machine=machine,
-            flags=flags
+            emulatorbin=emulatorbin, arch=arch, machine=machine, flags=flags
         )
         return caps_xml
     except libvirt.libvirtError as e:
         logging.error(f"Error getting domain capabilities: {e}")
         return None
 
-def get_video_domain_capabilities(xml_content: str) -> dict:
-    """
-    Parses the domain capabilities XML to extract supported video
+
+def get_video_domain_capabilities(xml_content: str) -> Dict[str, Any]:
+    """Parses the domain capabilities XML to extract supported video.
+
+    Args:
+        xml_content: The XML content to parse
+
+    Returns:
+        Dictionary with supported video models
     """
     supported_models = {
-        'video_models': [],
+        "video_models": [],
     }
 
     if not xml_content:
@@ -320,23 +441,29 @@ def get_video_domain_capabilities(xml_content: str) -> dict:
 
         # Extract supported video models
         for video_elem in root.findall(".//video[@supported='yes']/enum[@name='modelType']"):
-            for value_elem in video_elem.findall('value'):
+            for value_elem in video_elem.findall("value"):
                 if value_elem.text:
-                    supported_models['video_models'].append(value_elem.text)
+                    supported_models["video_models"].append(value_elem.text)
 
     except ET.ParseError as e:
-        logging.error(f"Error parsing domain capabilities XML: {e}")
+        logging.error("Error parsing domain capabilities XML: %s", e)
     except Exception as e:
-        logging.error(f"An unexpected error occurred during XML parsing: {e}")
+        logging.error("An unexpected error occurred during XML parsing: %s", e)
 
     return supported_models
 
-def get_sound_domain_capabilities(xml_content: str) -> dict:
-    """
-    Parses the domain capabilities XML to extract supported sound models.
+
+def get_sound_domain_capabilities(xml_content: str) -> Dict[str, Any]:
+    """Parses the domain capabilities XML to extract supported sound models.
+
+    Args:
+        xml_content: The XML content to parse
+
+    Returns:
+        Dictionary with supported sound models
     """
     supported_models = {
-        'sound_models': [],
+        "sound_models": [],
     }
 
     if not xml_content:
@@ -347,20 +474,27 @@ def get_sound_domain_capabilities(xml_content: str) -> dict:
 
         # Extract supported sound models
         for sound_elem in root.findall(".//sound[@supported='yes']/enum[@name='model']"):
-            for value_elem in sound_elem.findall('value'):
+            for value_elem in sound_elem.findall("value"):
                 if value_elem.text:
-                    supported_models['sound_models'].append(value_elem.text)
+                    supported_models["sound_models"].append(value_elem.text)
 
     except ET.ParseError as e:
-        logging.error(f"Error parsing domain capabilities XML: {e}")
+        logging.error("Error parsing domain capabilities XML: %s", e)
     except Exception as e:
-        logging.error(f"An unexpected error occurred during XML parsing: {e}")
+        logging.error("An unexpected error occurred during XML parsing: %s", e)
 
     return supported_models
 
-def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: list[str]) -> list[str]:
-    """
-    Get VM name from their vm_uuids
+
+def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: List[str]) -> List[str]:
+    """Get VM name from their vm_uuids.
+
+    Args:
+        conn: The libvirt connection object
+        vm_uuids: List of VM UUIDs
+
+    Returns:
+        List of VM names
     """
     vm_names = []
     for uuid in vm_uuids:
@@ -372,10 +506,15 @@ def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: list[str]) -> l
     return vm_names
 
 
-def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
-    """
-    Get detailed information about a specific network based on its name.
-    Extracts forward mode, port, bridge, network, and DHCP information.
+def get_network_info(conn: libvirt.virConnect, network_name: str) -> Dict[str, Any]:
+    """Get detailed information about a specific network based on its name.
+
+    Args:
+        conn: The libvirt connection object
+        network_name: The name of the network
+
+    Returns:
+        Dictionary with network information
     """
     try:
         network = conn.networkLookupByName(network_name)
@@ -383,67 +522,79 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> dict:
         root = ET.fromstring(xml_desc)
 
         info = {
-            'name': network.name(),
-            'uuid': network.UUIDString(),
-            'forward_mode': 'isolated',  # Default
-            'bridge_name': None,
-            'ip_address': None,
-            'dhcp': False
+            "name": network.name(),
+            "uuid": network.UUIDString(),
+            "forward_mode": "isolated",  # Default
+            "bridge_name": None,
+            "ip_address": None,
+            "dhcp": False,
         }
 
         # Extract forward info
-        forward_elem = root.find('forward')
+        forward_elem = root.find("forward")
         if forward_elem is not None:
-            info['forward_mode'] = forward_elem.get('mode', 'isolated')
-            info['forward_dev'] = forward_elem.get('dev') or (
-                forward_elem.find('interface').get('dev') if forward_elem.find('interface') is not None else None
+            info["forward_mode"] = forward_elem.get("mode", "isolated")
+            info["forward_dev"] = forward_elem.get("dev") or (
+                forward_elem.find("interface").get("dev")
+                if forward_elem.find("interface") is not None
+                else None
             )
 
             # NAT port range
-            nat_elem = forward_elem.find('nat')
+            nat_elem = forward_elem.find("nat")
             if nat_elem is not None:
-                port_elem = nat_elem.find('port')
+                port_elem = nat_elem.find("port")
                 if port_elem is not None:
-                    info['port_forward_start'] = port_elem.get('start')
-                    info['port_forward_end'] = port_elem.get('end')
+                    info["port_forward_start"] = port_elem.get("start")
+                    info["port_forward_end"] = port_elem.get("end")
 
         # Extract bridge info
-        bridge_elem = root.find('bridge')
+        bridge_elem = root.find("bridge")
         if bridge_elem is not None:
-            info['bridge_name'] = bridge_elem.get('name')
+            info["bridge_name"] = bridge_elem.get("name")
 
         # Extract IP info
-        ip_elem = root.find('ip')
+        ip_elem = root.find("ip")
         if ip_elem is not None:
-            info.update({
-                'ip_address': ip_elem.get('address'),
-                'netmask': ip_elem.get('netmask'),
-                'prefix': ip_elem.get('prefix'),
-                'dhcp': ip_elem.find('dhcp') is not None
-            })
+            info.update(
+                {
+                    "ip_address": ip_elem.get("address"),
+                    "netmask": ip_elem.get("netmask"),
+                    "prefix": ip_elem.get("prefix"),
+                    "dhcp": ip_elem.find("dhcp") is not None,
+                }
+            )
 
-            if info['dhcp']:
-                dhcp_elem = ip_elem.find('dhcp')
+            if info["dhcp"]:
+                dhcp_elem = ip_elem.find("dhcp")
                 if dhcp_elem is not None:
-                    range_elem = dhcp_elem.find('range')
+                    range_elem = dhcp_elem.find("range")
                     if range_elem is not None:
-                        info.update({
-                            'dhcp_start': range_elem.get('start'),
-                            'dhcp_end': range_elem.get('end')
-                        })
+                        info.update(
+                            {
+                                "dhcp_start": range_elem.get("start"),
+                                "dhcp_end": range_elem.get("end"),
+                            }
+                        )
 
         # Extract domain name
-        domain_elem = root.find('domain')
+        domain_elem = root.find("domain")
         if domain_elem is not None:
-            info['domain_name'] = domain_elem.get('name')
+            info["domain_name"] = domain_elem.get("name")
         return info
 
     except libvirt.libvirtError:
         return {}
 
+
 def get_host_numa_nodes(conn: libvirt.virConnect) -> int:
-    """
-    Returns the number of NUMA nodes on the host.
+    """Returns the number of NUMA nodes on the host.
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        Number of NUMA nodes
     """
     caps_xml = get_host_domain_capabilities(conn)
     if not caps_xml:
@@ -456,9 +607,17 @@ def get_host_numa_nodes(conn: libvirt.virConnect) -> int:
         logging.error(f"Error getting host NUMA topology: {e}")
     return 1
 
+
 @lru_cache(maxsize=4)
-def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
-    """Gets all USB devices from the host."""
+def get_host_usb_devices(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
+    """Gets all USB devices from the host.
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        List of USB devices
+    """
     usb_devices = []
     try:
         devices = conn.listAllDevices(0)
@@ -468,10 +627,10 @@ def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
                 root = ET.fromstring(xml_desc)
                 if root.find("capability[@type='usb_device']") is not None:
                     capability = root.find("capability[@type='usb_device']")
-                    vendor_elem = capability.find('vendor')
-                    product_elem = capability.find('product')
-                    vendor_id = vendor_elem.get('id') if vendor_elem is not None else None
-                    product_id = product_elem.get('id') if product_elem is not None else None
+                    vendor_elem = capability.find("vendor")
+                    product_elem = capability.find("product")
+                    vendor_id = vendor_elem.get("id") if vendor_elem is not None else None
+                    product_id = product_elem.get("id") if product_elem is not None else None
 
                     if not vendor_id or not product_id:
                         continue
@@ -484,24 +643,36 @@ def get_host_usb_devices(conn: libvirt.virConnect) -> list[dict]:
                     if vendor_elem is not None and vendor_elem.text:
                         vendor_name = vendor_elem.text.strip()
 
-                    usb_devices.append({
-                        "name": dev.name(),
-                        "vendor_id": vendor_id,
-                        "product_id": product_id,
-                        "vendor_name": vendor_name,
-                        "product_name": product_name,
-                        "description": f"{vendor_name} - {product_name} ({vendor_id}:{product_id})"
-                    })
+                    usb_devices.append(
+                        {
+                            "name": dev.name(),
+                            "vendor_id": vendor_id,
+                            "product_id": product_id,
+                            "vendor_name": vendor_name,
+                            "product_name": product_name,
+                            "description": f"{vendor_name} - {product_name} ({vendor_id}:{product_id})",
+                        }
+                    )
             except libvirt.libvirtError as e:
-                logging.warning(f"Skipping device {dev.name() if hasattr(dev, 'name') else 'unknown'}: {e}")
+                logging.warning(
+                    f"Skipping device {dev.name() if hasattr(dev, 'name') else 'unknown'}: {e}"
+                )
                 continue
     except libvirt.libvirtError as e:
         logging.error(f"Error getting host USB devices: {e}")
     return usb_devices
 
+
 @lru_cache(maxsize=4)
-def get_host_pci_devices(conn: libvirt.virConnect) -> list[dict]:
-    """Gets all PCI devices from the host that are available for passthrough."""
+def get_host_pci_devices(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
+    """Gets all PCI devices from the host that are available for passthrough.
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        List of PCI devices
+    """
     pci_devices = []
     try:
         # Filter only PCI devices
@@ -512,12 +683,12 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> list[dict]:
                 root = ET.fromstring(xml_desc)
                 capability = root.find("capability[@type='pci']")
                 if capability is not None:
-                    vendor_elem = capability.find('vendor')
-                    product_elem = capability.find('product')
-                    address_elem = capability.find('address')
+                    vendor_elem = capability.find("vendor")
+                    product_elem = capability.find("product")
+                    address_elem = capability.find("address")
 
-                    vendor_id = vendor_elem.get('id') if vendor_elem is not None else None
-                    product_id = product_elem.get('id') if product_elem is not None else None
+                    vendor_id = vendor_elem.get("id") if vendor_elem is not None else None
+                    product_id = product_elem.get("id") if product_elem is not None else None
 
                     if not vendor_id or not product_id:
                         continue
@@ -532,34 +703,45 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> list[dict]:
 
                     pci_address = None
                     if address_elem is not None:
-                        domain = address_elem.get('domain')
-                        bus = address_elem.get('bus')
-                        slot = address_elem.get('slot')
-                        function = address_elem.get('function')
+                        domain = address_elem.get("domain")
+                        bus = address_elem.get("bus")
+                        slot = address_elem.get("slot")
+                        function = address_elem.get("function")
                         if all([domain, bus, slot, function]):
                             pci_address = f"{int(domain, 16):04x}:{int(bus, 16):02x}:{int(slot, 16):02x}.{int(function, 16)}"
 
-                    pci_devices.append({
-                        "name": dev.name(),
-                        "vendor_id": vendor_id,
-                        "product_id": product_id,
-                        "vendor_name": vendor_name,
-                        "product_name": product_name,
-                        "pci_address": pci_address,
-                        "description": f"{vendor_name} - {product_name} ({pci_address})" if pci_address else f"{vendor_name} - {product_name} ({vendor_id}:{product_id})"
-                    })
+                    pci_devices.append(
+                        {
+                            "name": dev.name(),
+                            "vendor_id": vendor_id,
+                            "product_id": product_id,
+                            "vendor_name": vendor_name,
+                            "product_name": product_name,
+                            "pci_address": pci_address,
+                            "description": f"{vendor_name} - {product_name} ({pci_address})"
+                            if pci_address
+                            else f"{vendor_name} - {product_name} ({vendor_id}:{product_id})",
+                        }
+                    )
             except (libvirt.libvirtError, ET.ParseError) as e:
-                logging.warning(f"Skipping device {dev.name() if hasattr(dev, 'name') else 'unknown'}: {e}")
+                logging.warning(
+                    f"Skipping device {dev.name() if hasattr(dev, 'name') else 'unknown'}: {e}"
+                )
                 continue
     except (libvirt.libvirtError, AttributeError) as e:
         logging.error(f"Error getting host PCI devices: {e}")
     return pci_devices
 
+
 @lru_cache(maxsize=8)
-def get_host_domain_capabilities(conn: libvirt.virConnect) -> str | None:
-    """
-    Get the host capabilities XML (which describes host and guest capabilities).
-    The result is cached per connection.
+def get_host_domain_capabilities(conn: libvirt.virConnect) -> Optional[str]:
+    """Get the host capabilities XML (which describes host and guest capabilities).
+
+    Args:
+        conn: The libvirt connection object
+
+    Returns:
+        The host capabilities XML or None
     """
     if not conn:
         return None
