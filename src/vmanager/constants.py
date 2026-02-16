@@ -1,12 +1,14 @@
 """
 Shared constants for the application.
 """
+# pylint: disable=too-many-lines
 
 from .i18n import _
 
 
-class ServerPallette:
-    """ Color for server"""
+class ServerPallette:  # pylint: disable=too-few-public-methods
+    """Color for server"""
+
     COLOR = [
         "#33FF57",  # Green
         "#F333FF",  # Magenta
@@ -30,27 +32,35 @@ class ServerPallette:
         "#00B8FF",  # Electric Blue
     ]
 
-class AppCacheTimeout:
-    """ All Cache timeout value"""
+
+class AppCacheTimeout:  # pylint: disable=too-few-public-methods
+    """All Cache timeout value"""
+
     INFO_CACHE_TTL = 60
-    XML_CACHE_TTL = 3600 # 1 hour
+    XML_CACHE_TTL = 3600  # 1 hour
     DONT_DISPLAY_DISK_USAGE = 50
 
-class AppInfo:
+
+class AppInfo:  # pylint: disable=too-few-public-methods
     """Define app data"""
+
     name = "virtui-manager"
     namecase = "VirtUI Manager"
     version = "1.9.1"
 
-class VMCardConstants:
+
+class VMCardConstants:  # pylint: disable=too-few-public-methods
     """Constants for VMCard styling"""
+
     DEFAULT_BORDER_COLOR = "green"
     SELECTED_BORDER_COLOR = "white"
     SELECTED_BORDER_TYPE = "panel"
     DEFAULT_BORDER_TYPE = "solid"
 
-class VmAction:
+
+class VmAction:  # pylint: disable=too-few-public-methods
     """Defines constants for VM action types."""
+
     START = "start"
     STOP = "stop"
     FORCE_OFF = "force_off"
@@ -58,8 +68,10 @@ class VmAction:
     RESUME = "resume"
     DELETE = "delete"
 
-class VmStatus:
+
+class VmStatus:  # pylint: disable=too-few-public-methods
     """Defines constants for VM status filters."""
+
     DEFAULT = "default"
     RUNNING = "running"
     PAUSED = "paused"
@@ -68,8 +80,10 @@ class VmStatus:
     STOPPED = "stopped"
     SELECTED = "selected"
 
-class ButtonLabels:
+
+class ButtonLabels:  # pylint: disable=too-few-public-methods
     """Constants for button labels"""
+
     ADD = _("Add")
     SAVE = _("Save")
     HIBERNATE_VM = _("Hibernate VM")
@@ -185,26 +199,35 @@ class ButtonLabels:
     LAUNCH = _("Launch")
     OPEN = _("Open")
     ACTIVATE_OR_DEACTIVATE_THE_SELECTED_NETWORK = _("Activate or Deactivate the selected netw. ..")
-    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_NETWORK = _("Enable or Disable autostart for the sele. ..")
+    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_NETWORK = _(
+        "Enable or Disable autostart for the sele. .."
+    )
     ADD_A_NEW_NETWORK = _("Add a new network.")
     EDIT_THE_SELECTED_NETWORK = _("Edit the selected network.")
     VIEW_XML_DETAILS_OF_THE_SELECTED_NETWORK = _("View XML details of the selected network. ..")
     DELETE_THE_SELECTED_NETWORK = _("Delete the selected network.")
     SHOW_NETWORK_CONFIGURATION_HELP = _("Show network configuration help.")
-    ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL = _("Activate or Deactivate the selected stor. ..")
-    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_STORAGE_POOL = _("Enable or Disable autostart for the sele. ..")
+    ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL = _(
+        "Activate or Deactivate the selected stor. .."
+    )
+    ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_STORAGE_POOL = _(
+        "Enable or Disable autostart for the sele. .."
+    )
     ADD_A_NEW_STORAGE_POOL = _("Add a new storage pool.")
     DELETE_THE_SELECTED_STORAGE_POOL = _("Delete the selected storage pool.")
     CREATE_A_NEW_VOLUME_IN_THE_SELECTED_POOL = _("Create a new volume in the selected pool. ..")
     ATTACH_AN_EXISTING_DISK_FILE_AS_A_VOLUME = _("Attach an existing disk file as a volume. ..")
     MOVE_THE_SELECTED_VOLUME_TO_ANOTHER_POOL = _("Move the selected volume to another pool. ..")
     DELETE_THE_SELECTED_VOLUME = _("Delete the selected volume.")
-    VIEW_XML_DETAILS_OF_THE_SELECTED_POOL_OR_VOLUME = _("View XML details of the selected pool or. ..")
+    VIEW_XML_DETAILS_OF_THE_SELECTED_POOL_OR_VOLUME = _(
+        "View XML details of the selected pool or. .."
+    )
     EDIT_XML_OF_THE_SELECTED_POOL = _("Edit XML of the selected pool.")
 
 
-class BindingDescriptions:
+class BindingDescriptions:  # pylint: disable=too-few-public-methods
     """Descriptions for app bindings"""
+
     LOG = _("Log")
     FILTER = _("Filter")
     COMPACT_VIEW = _("CompactView")
@@ -229,8 +252,9 @@ class BindingDescriptions:
     HOST_DASHBOARD = _("Host Dashboard")
 
 
-class TabTitles:
+class TabTitles:  # pylint: disable=too-few-public-methods
     """Constants for tab titles"""
+
     MANAGE = _("Manage")
     OTHER = _("Other")
     STATE_MANAGEMENT = _("State Management")
@@ -239,8 +263,10 @@ class TabTitles:
     TOTAL_ALLOCATION = _("Total Allocation")
     TOTAL_TAB = _("{info}\nTotal: {snapshot_count}:")
 
-class StatusText:
+
+class StatusText:  # pylint: disable=too-few-public-methods
     """Constants for status text"""
+
     STOPPED = _("Stopped")
     RUNNING = _("Running")
     PAUSED = _("Paused")
@@ -250,8 +276,9 @@ class StatusText:
     UNKNOWN = _("Unknown")
 
 
-class StaticText:
+class StaticText:  # pylint: disable=too-few-public-methods
     """Constants for static text in modals"""
+
     CACHE_PERFORMANCE_STATISTICS = _("Cache Performance Statistics")
     EDITING_CONFIG_PATH = _("(Editing: {get_user_config_path})")
     CUSTOM_MIGRATION_PLAN = _("[bold]Custom Migration Plan[/bold]")
@@ -409,7 +436,10 @@ class StaticText:
     ATTACHED_TO_VM = _("Attached to VM")
     AVAILABLE_HOST_PCI = _("Available Host PCI Devices")
     VIRSH_SHELL_TITLE = _("Virsh Interactive Shell (esc to quit)")
-    VIRSH_SHELL_NOTE = _("Note: This shell starts a new `virsh` process, which may require re-authentication for remote connections. Using SSH keys is recommended.")
+    VIRSH_SHELL_NOTE = _(
+        "Note: This shell starts a new `virsh` process, which may require re-authentication "
+        "for remote connections. Using SSH keys is recommended."
+    )
     INPUT_DEVICE = _("Input Device")
     ADD_CHANNEL_DEVICE = _("Add Channel Device")
     STANDARD_TARGET_NAMES = _("Standard Target Names:")
@@ -457,12 +487,16 @@ class StaticText:
     VIRTIOFS_SOURCE_PLACEHOLDER = _("Source Path (e.g., /mnt/share)")
     VIRTIOFS_TARGET_PLACEHOLDER = _("Target Path (e.g., /share)")
     CONFIGURATION_TITLE = _("{namecase} Configuration")
-    STATS_INTERVAL_TOOLTIP = _("Interval for updating VM Status, Statistics (CPU, Memory, I/O) in seconds.")
+    STATS_INTERVAL_TOOLTIP = _(
+        "Interval for updating VM Status, Statistics (CPU, Memory, I/O) in seconds."
+    )
     LOG_FILE_PATH_TOOLTIP = _("Full path to the application log file")
     LOG_LEVEL_PROMPT = _("Select a logging level")
     REMOTE_VIEWER_SELECT_LABEL = _("Select Default Remote Viewer (Auto-detect: {viewer}):")
     REMOTE_VIEWER_PROMPT = _("Select a viewer")
-    REMOTE_WEBCONSOLE_TOOLTIP = _("Enable secure SSH and noVNC remote viewing for headless server environments")
+    REMOTE_WEBCONSOLE_TOOLTIP = _(
+        "Enable secure SSH and noVNC remote viewing for headless server environments"
+    )
     WEBSOCKIFY_PATH_TOOLTIP = _("Path to the websockify binary")
     NOVNC_PATH_TOOLTIP = _("Path to noVNC files")
     WC_PORT_START_TOOLTIP = _("Start port for websockify")
@@ -553,7 +587,10 @@ Specify the NUMA nodes to use.
     SHUTTING_DOWN = _("Shutting down...")
     APP_DESCRIPTION = _("A Textual application to manage VMs.")
     CLI_HELP = _("Run in command-line interpreter mode.")
-    VIRSH_CONSOLE_HELP = _("virsh -c <uri> console <vm_name>; echo '\nConsole session ended. Press Enter to close window.'; read")
+    VIRSH_CONSOLE_HELP = _(
+        "virsh -c <uri> console <vm_name>; echo '\\nConsole session ended. "
+        "Press Enter to close window.'; read"
+    )
     ENABLE_3D_ACCELERATION = _("3D Acceleration")
     AUTO_PORT = _("Auto Port")
     PORT_PLACEHOLDER = _("Port (e.g., 5900)")
@@ -570,12 +607,20 @@ Specify the NUMA nodes to use.
     TUNNEL_MIGRATION_DATA_THROUGH_LIBVIRT = _("Tunnel migration data through libvirt da. ..")
     USE_CUSTOM_MIGRATION_WORKFLOW = _("Use custom migration workflow")
 
-    PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP = _("Pause the guest filesystem to ensure a c. ..")
+    PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP = _(
+        "Pause the guest filesystem to ensure a c. .."
+    )
     LEGACY_BOOT_TOOLTIP = _("Enable legacy boot mode.")
-    SHOW_VM_CONFIG_BEFORE_STARTING_TOOLTIP = _("Open the VM configuration dialog before starting the VM.")
+    SHOW_VM_CONFIG_BEFORE_STARTING_TOOLTIP = _(
+        "Open the VM configuration dialog before starting the VM."
+    )
     COPY_ALL_DISK_FILES_TOOLTIP = _("Copy all disk files to the destination server.")
-    PERFORM_UNSAFE_MIGRATION_TOOLTIP = _("Perform migration even if it might be unsafe (e.g., no shared storage).")
-    KEEP_VM_PERSISTENT_ON_DESTINATION_TOOLTIP = _("Ensure the VM remains persistent on the destination server after migration.")
+    PERFORM_UNSAFE_MIGRATION_TOOLTIP = _(
+        "Perform migration even if it might be unsafe (e.g., no shared storage)."
+    )
+    KEEP_VM_PERSISTENT_ON_DESTINATION_TOOLTIP = _(
+        "Ensure the VM remains persistent on the destination server after migration."
+    )
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
@@ -585,15 +630,24 @@ Specify the NUMA nodes to use.
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
     SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
     WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")
-    WESOCKIFY_SINGLE_CONNECTION_MESSAGE = _("Wesockify will handle a **single WebSocket** connection and exit. So it will be possible to **connect only ONE** time. If you disconnect you need to restart a new Web Console.")
-    RUN_WEB_CONSOLE_REMOTE_MESSAGE = _("Run Web console on remote server. This will use a **LOT** of network bandwidth. It is recommended to **reduce quality** and enable **max compression**.")
+    WESOCKIFY_SINGLE_CONNECTION_MESSAGE = _(
+        "Wesockify will handle a **single WebSocket** connection and exit. "
+        "So it will be possible to **connect only ONE** time. If you disconnect "
+        "you need to restart a new Web Console."
+    )
+    RUN_WEB_CONSOLE_REMOTE_MESSAGE = _(
+        "Run Web console on remote server. This will use a **LOT** of network bandwidth. "
+        "It is recommended to **reduce quality** and enable **max compression**."
+    )
     RUN_WEB_CONSOLE_LOCAL_MESSAGE = _("Run Web console on local machine")
     VNC_QUALITY_LABEL = _("VNC Quality (0=low, 9=high)")
     VNC_COMPRESSION_LABEL = _("VNC Compression (0=none, 9=max)")
 
     # base_modals.py strings
     NAME_CANNOT_BE_EMPTY = _("Name cannot be empty.")
-    NAME_MUST_BE_ALPHANUMERIC = _("Name must be alphanumeric and can contain underscores, but not hyphens.")
+    NAME_MUST_BE_ALPHANUMERIC = _(
+        "Name must be alphanumeric and can contain underscores, but not hyphens."
+    )
 
     # migration_modals.py strings
     SHARED_STORAGE_POOLS_HEADER = _("\n[bold]-- Shared Storage Pools --[/]")
@@ -616,7 +670,9 @@ Specify the NUMA nodes to use.
     VIRSH_COMMAND_PLACEHOLDER = _("Enter virsh command...")
     STARTING_VIRSH_SHELL = _("Starting virsh shell...")
     CONNECTED_TO_URI = _("Connected to: {uri}\n")
-    VIRSH_NOT_FOUND_ERROR = _("Error: 'virsh' command not found. Please ensure libvirt-client is installed.")
+    VIRSH_NOT_FOUND_ERROR = _(
+        "Error: 'virsh' command not found. Please ensure libvirt-client is installed."
+    )
     ERROR_STARTING_VIRSH = _("Error starting virsh: {error}")
     ERROR_READING_FROM_VIRSH = _("Error reading from virsh: {error}")
     ERROR_SENDING_COMMAND = _("Error sending command: {error}")
@@ -624,21 +680,42 @@ Specify the NUMA nodes to use.
     VIRSH_SHELL_TERMINATED = _("Virsh shell terminated.\n")
 
     COMPATIBILITY_CHECK_FAILED_TEMPLATE = _("\n[red]✗ Compatibility checks failed for {vm_name}[/]")
-    COMPATIBILITY_CHECK_PASSED_TEMPLATE = _("\n[green]✓ Compatibility checks passed for {vm_name}[/] (with warnings if any shown above).")
-    FATAL_ERROR_CHECKING_TEMPLATE = _("\n[on red bold]FATAL ERROR[/]: An unexpected error occurred while checking {vm_name}: {error}")
+    COMPATIBILITY_CHECK_PASSED_TEMPLATE = _(
+        "\\n[green]✓ Compatibility checks passed for {vm_name}[/] "
+        "(with warnings if any shown above)."
+    )
+    FATAL_ERROR_CHECKING_TEMPLATE = _(
+        "\\n[on red bold]FATAL ERROR[/]: An unexpected error occurred while checking "
+        "{vm_name}: {error}"
+    )
     MIGRATING_VM_HEADER_TEMPLATE = _("\n[bold]--- Migrating {vm_name} ---[/]")
     CUSTOM_MIGRATION_CONFIRMED = _("[bold]User confirmed custom migration. Executing...[/bold]")
     CUSTOM_MIGRATION_CANCELLED = _("[yellow]Custom migration cancelled by user.[/yellow]")
-    CUSTOM_MIGRATION_FAILED_TEMPLATE = _("[red]ERROR: Custom migration failed for {vm_name}: {error}[/red]")
+    CUSTOM_MIGRATION_FAILED_TEMPLATE = _(
+        "[red]ERROR: Custom migration failed for {vm_name}: {error}[/red]"
+    )
     LIVE_MIGRATION_FLAGS_TEMPLATE = _("[dim]Using live migration flags: {flags}[/dim]")
-    OFFLINE_MIGRATION_URI3 = _("[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]")
-    OFFLINE_MIGRATION_MIGRATE = _("[dim]Using migrate for offline migration without storage copy.[/dim]")
+    OFFLINE_MIGRATION_URI3 = _(
+        "[dim]Using migrateToURI3 for offline migration with storage copy.[/dim]"
+    )
+    OFFLINE_MIGRATION_MIGRATE = _(
+        "[dim]Using migrate for offline migration without storage copy.[/dim]"
+    )
     MIGRATION_SUCCESS_TEMPLATE = _("[green]✓ Successfully migrated {vm_name}.[/]")
-    UNDEFINE_SUCCESS_TEMPLATE = _("[green]✓ Successfully undefined {vm_name} from the source host.[/]")
-    UNDEFINE_FAILED_TEMPLATE = _("[yellow]WARNING: Failed to undefine {vm_name} from the source host: {error}[/]")
+    UNDEFINE_SUCCESS_TEMPLATE = _(
+        "[green]✓ Successfully undefined {vm_name} from the source host.[/]"
+    )
+    UNDEFINE_FAILED_TEMPLATE = _(
+        "[yellow]WARNING: Failed to undefine {vm_name} from the source host: {error}[/]"
+    )
     MIGRATION_FAILED_TEMPLATE = _("[red]ERROR: Failed to migrate {vm_name}: {error}[/]")
     HOST_KEY_VERIFICATION_FAILED = _("Host key verification failed")
-    HOST_KEY_HINT = _("[yellow]HINT: This usually means the user running the source libvirt daemon (root?) does not have the destination host in its known_hosts file, or cannot authenticate. Try running 'sudo ssh <destination_host>' on the source server to accept the host key.[/yellow]")
+    HOST_KEY_HINT = _(
+        "[yellow]HINT: This usually means the user running the source libvirt daemon (root?) "
+        "does not have the destination host in its known_hosts file, or cannot authenticate. "
+        "Try running 'sudo ssh <destination_host>' on the source server to accept "
+        "the host key.[/yellow]"
+    )
     MIGRATION_PROCESS_FINISHED = _("\n[bold]--- Migration process finished ---[/]")
 
     # server_prefs_modals.py strings
@@ -662,19 +739,26 @@ Specify the NUMA nodes to use.
     IN_PROGRESS_TITLE = _("In Progress")
     QUICK_INFO_TITLE = _("Quick Info")
 
-class SparklineLabels:
+
+class SparklineLabels:  # pylint: disable=too-few-public-methods
     """Constants for sparkline labels"""
+
     DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
     NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
     VCPU = _("{cpu} VCPU")
     MEMORY_GB = _("{mem} Gb")
 
-class ErrorMessages:
+
+class ErrorMessages:  # pylint: disable=too-few-public-methods
     """Constants for error messages"""
+
     R_VIEWER_NOT_FOUND = _("Remote viewer command not found. Please ensure it is installed.")
     CANNOT_OPEN_DISPLAY = _("Could not open display. Ensure you are in a graphical session.")
     HARD_STOP_WARNING = _("This is a hard stop, like unplugging the power cord.")
-    MIGRATION_LOCALHOST_NOT_SUPPORTED = _("Migration from localhost (qemu:///system) is not supported.\nA full remote URI (e.g., qemu+ssh://user@host/system) is required.")
+    MIGRATION_LOCALHOST_NOT_SUPPORTED = _(
+        "Migration from localhost (qemu:///system) is not supported.\\n"
+        "A full remote URI (e.g., qemu+ssh://user@host/system) is required."
+    )
     NO_DESTINATION_SERVERS = _("No destination servers available.")
     DIFFERENT_SOURCE_HOSTS = _("Cannot migrate VMs from different source hosts at the same time.")
     MIXED_VM_STATES = _("Cannot migrate running/paused and stopped VMs at the same time.")
@@ -685,9 +769,13 @@ class ErrorMessages:
     COULD_NOT_CONNECT_TO_SERVER = _("Could not connect to {uri}")
     NO_ACTION_TYPE_BULK_MODAL = _("No action type received from bulk action modal.")
     VM_NOT_FOUND_FOR_EDITING = _("Could not find any of the selected VMs for editing.")
-    VMS_MUST_BE_STOPPED_FOR_BULK_EDITING = _("All VMs must be stopped for bulk editing. Running VMs: {running_vms}")
+    VMS_MUST_BE_STOPPED_FOR_BULK_EDITING = _(
+        "All VMs must be stopped for bulk editing. Running VMs: {running_vms}"
+    )
     COULD_NOT_LOAD_DETAILS_FOR_REFERENCE_VM = _("Could not load details for reference VM.")
-    SERVER_DISCONNECTED_AUTOCONNECT_DISABLED = _("Server(s) {names} disconnected and autoconnect disabled due to connection failures.")
+    SERVER_DISCONNECTED_AUTOCONNECT_DISABLED = _(
+        "Server(s) {names} disconnected and autoconnect disabled due to connection failures."
+    )
     NO_ACTIVE_SERVERS = _("No active servers.")
     NO_VMS_IN_CACHE = _("No VMs found in cache. Try refreshing first.")
     NO_VMS_SELECTED = _("No VMs selected.")
@@ -705,7 +793,9 @@ class ErrorMessages:
     BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED = _("Could not retrieve names for selected VMs.")
     VM_CLONE_FAILED_TEMPLATE = _("Failed to clone to: {vm_names}")
     NO_SUITABLE_DISKS_FOR_OVERLAY = _("No suitable disks found for overlay.")
-    OVERLAY_NAME_EMPTY_AFTER_SANITIZATION = _("Overlay volume name cannot be empty after sanitization.")
+    OVERLAY_NAME_EMPTY_AFTER_SANITIZATION = _(
+        "Overlay volume name cannot be empty after sanitization."
+    )
     ERROR_CREATING_OVERLAY_TEMPLATE = _("Error creating overlay: {error}")
     ERROR_PREPARING_OVERLAY_CREATION_TEMPLATE = _("Error preparing overlay creation: {error}")
     NO_OVERLAY_DISKS_FOUND = _("No overlay disks found.")
@@ -714,14 +804,20 @@ class ErrorMessages:
     NO_DISKS_FOUND_TO_COMMIT = _("No disks found to commit.")
     ERROR_COMMITTING_DISK_TEMPLATE = _("Error committing disk: {error}")
     ERROR_PREPARING_COMMIT_TEMPLATE = _("Error preparing commit: {error}")
-    INVALID_XML_TEMPLATE = _("Invalid XML for '[b]{vm_name}[/b]': {error}. Your changes have been discarded.")
+    INVALID_XML_TEMPLATE = _(
+        "Invalid XML for '[b]{vm_name}[/b]': {error}. Your changes have been discarded."
+    )
     ERROR_GETTING_XML_TEMPLATE = _("Error getting XML for VM [b]{vm_name}[/b]: {error}")
     UNEXPECTED_ERROR_OCCURRED_TEMPLATE = _("An unexpected error occurred: {error}")
     CONNECTION_INFO_NOT_AVAILABLE = _("Connection info not available for this VM.")
-    REMOTE_VIEWER_FAILED_TO_START_TEMPLATE = _("{viewer} failed to start for {domain_name}: {error}")
+    REMOTE_VIEWER_FAILED_TO_START_TEMPLATE = _(
+        "{viewer} failed to start for {domain_name}: {error}"
+    )
     ERROR_GETTING_VM_DETAILS_TEMPLATE = _("Error getting VM details for [b]{vm_name}[/b]: {error}")
     UNEXPECTED_ERROR_CONNECTING = _("An unexpected error occurred while trying to connect.")
-    ERROR_CHECKING_WEB_CONSOLE_STATUS_TEMPLATE = _("Error checking web console status for [b]{vm_name}[/b]: {error}")
+    ERROR_CHECKING_WEB_CONSOLE_STATUS_TEMPLATE = _(
+        "Error checking web console status for [b]{vm_name}[/b]: {error}"
+    )
     SNAPSHOT_ERROR_TEMPLATE = _("Snapshot error for [b]{vm_name}[/b]: {error}")
     NO_SNAPSHOTS_TO_RESTORE = _("No snapshots to restore.")
     ERROR_FETCHING_SNAPSHOTS_TEMPLATE = _("Error fetching snapshots: {error}")
@@ -729,18 +825,34 @@ class ErrorMessages:
     ERROR_DELETING_VM_TEMPLATE = _("Error deleting VM '{vm_name}': {error}")
     VM_NAME_EMPTY_AFTER_SANITIZATION = _("VM name cannot be empty after sanitization.")
     ERROR_RENAMING_VM_TEMPLATE = _("Error renaming VM [b]{vm_name}[/b]: {error}")
-    VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = _("VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active server.")
+    VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = _(
+        "VM [b]{vm_name}[/b] with internal ID [b]{uuid}[/b] not found on any active server."
+    )
     ERROR_GETTING_ID_TEMPLATE = _("Error getting ID for [b]{vm_name}[/b]: {error}")
-    SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION = _("Please select at least two servers in 'Select Servers' to enable migration.")
-    SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = _("Selected VM with ID [b]{uuid}[/b] not found on any active server.")
+    SELECT_AT_LEAST_TWO_SERVERS_FOR_MIGRATION = _(
+        "Please select at least two servers in 'Select Servers' to enable migration."
+    )
+    SELECTED_VM_NOT_FOUND_ON_ACTIVE_SERVER_TEMPLATE = _(
+        "Selected VM with ID [b]{uuid}[/b] not found on any active server."
+    )
     ERROR_GETTING_EXISTING_VM_NAMES_TEMPLATE = _("Error getting existing VM names: {error}")
     WEBCONSOLE_VNC_ONLY = _("Web console only supports VNC graphics.")
     COULD_NOT_DETERMINE_VNC_PORT = _("Could not determine VNC port for the VM.")
     FAILED_TO_START_WEBCONSOLE_TEMPLATE = _("Failed to start web console: {error}")
-    NO_FREE_WEBCONSOLE_PORT = _("Could not find a free port for the web console (all ports in range used by other sessions).")
-    REMOTE_KEY_GENERATION_FAILED = _("Remote key generation failed. Falling back to insecure ws connection.")
-    FAILED_TO_START_REMOTE_WEBSOCKIFY_TEMPLATE = _("Failed to start remote websockify for [b]{vm_name}[/b]. Check logs.")
-    REMOTE_WEBCONSOLE_CRASHED_TEMPLATE = _("Remote web console process for [b]{vm_name}[/b] failed to start or crashed. Check remote logs.")
+    NO_FREE_WEBCONSOLE_PORT = _(
+        "Could not find a free port for the web console "
+        "(all ports in range used by other sessions)."
+    )
+    REMOTE_KEY_GENERATION_FAILED = _(
+        "Remote key generation failed. Falling back to insecure ws connection."
+    )
+    FAILED_TO_START_REMOTE_WEBSOCKIFY_TEMPLATE = _(
+        "Failed to start remote websockify for [b]{vm_name}[/b]. Check logs."
+    )
+    REMOTE_WEBCONSOLE_CRASHED_TEMPLATE = _(
+        "Remote web console process for [b]{vm_name}[/b] failed to start or crashed. "
+        "Check remote logs."
+    )
     NO_FREE_LOCAL_PORT_FOR_SSH_TUNNEL = _("Could not find a free local port for SSH tunnel.")
     FAILED_TO_CREATE_SSH_TUNNEL_TEMPLATE = _("Failed to create SSH tunnel: {error}")
     SSH_COMMAND_NOT_FOUND = _("SSH command not found. Cannot create tunnel.")
@@ -750,7 +862,9 @@ class ErrorMessages:
     VALIDATION_ERROR_TEMPLATE = _("Validation error: {error}")
     INVALID_FORMAT_TEMPLATE = _("Invalid format: {error}")
     INVALID_NODESET_SYNTAX_TEMPLATE = _("Invalid nodeset syntax: {nodeset}")
-    CREATE_DISK_REQUIRED_FIELDS = _("Pool, Volume Name, and Size are required to create a new disk.")
+    CREATE_DISK_REQUIRED_FIELDS = _(
+        "Pool, Volume Name, and Size are required to create a new disk."
+    )
     DISK_IMAGE_PATH_REQUIRED = _("Path to disk image is required.")
     POOL_NAME_REQUIRED = _("Pool name is required.")
     TARGET_PATH_REQUIRED_FOR_DIR = _("Target Path is required for `dir` type.")
@@ -763,7 +877,9 @@ class ErrorMessages:
     SELECT_DESTINATION_SERVER = _("Please select a destination server.")
     RUN_COMPATIBILITY_CHECK_FIRST = _("Please run compatibility check first.")
     MIGRATION_COMPATIBILITY_ERRORS = _("Cannot start migration due to compatibility errors.")
-    NETWORK_NOT_FOUND_TEMPLATE = _("Network '{network}' not found. Please select an available network.")
+    NETWORK_NOT_FOUND_TEMPLATE = _(
+        "Network '{network}' not found. Please select an available network."
+    )
     SELECT_NETWORK = _("Please select a network.")
     FORWARD_DEVICE_NOT_FOUND_TEMPLATE = _("Forward device '{device}' not found on host.")
     ERROR_GETTING_HOST_INTERFACES_TEMPLATE = _("Error getting host interfaces: {error}")
@@ -777,8 +893,12 @@ class ErrorMessages:
     SUBNET_OVERLAPS_TEMPLATE = _("Subnet {subnet} overlaps with an existing network.")
     ERROR_CREATING_NETWORK_TEMPLATE = _("Error creating network: {error}")
     ERROR_UPDATING_NETWORK_TEMPLATE = _("Error updating network: {error}")
-    NETWORK_NOT_FOUND_TEMPLATE_2 = _("Network '{network}' not found. Please select an available network.")
-    VM_NAME_ALREADY_EXISTS_TEMPLATE = _("A VM with the name '{vm_name}' already exists. Please choose a different name.")
+    NETWORK_NOT_FOUND_TEMPLATE_2 = _(
+        "Network '{network}' not found. Please select an available network."
+    )
+    VM_NAME_ALREADY_EXISTS_TEMPLATE = _(
+        "A VM with the name '{vm_name}' already exists. Please choose a different name."
+    )
     ERROR_CHECKING_VM_NAME_TEMPLATE = _("Error checking VM name: {error}")
     PLEASE_SELECT_VALID_STORAGE_POOL = _("Please select a valid storage pool.")
     ISO_VOLUME_NOT_FOUND_TEMPLATE = _("Selected ISO volume does not exist: {iso_url}")
@@ -787,7 +907,9 @@ class ErrorMessages:
     MEMORY_RANGE_ERROR = _("Memory must be between 1 and 8192 GB.")
     CPU_RANGE_ERROR = _("CPU count must be between 1 and 768.")
     DISK_SIZE_RANGE_ERROR = _("Disk size must be between 1 and 10000 GB.")
-    STORAGE_POOL_NOT_ACTIVE_TEMPLATE = _("Storage pool '{pool_name}' is not active. Please activate it first.")
+    STORAGE_POOL_NOT_ACTIVE_TEMPLATE = _(
+        "Storage pool '{pool_name}' is not active. Please activate it first."
+    )
     ERROR_ACCESSING_STORAGE_POOL_TEMPLATE = _("Error accessing storage pool '{pool_name}': {error}")
     CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE = _("Custom ISO path does not exist: {path}")
     CUSTOM_ISO_NOT_FILE_TEMPLATE = _("Custom ISO path is not a file: {path}")
@@ -797,16 +919,24 @@ class ErrorMessages:
     COULD_NOT_GET_VM_DETAILS_TEMPLATE = _("Could not get details for {vm_name}")
     FAILED_TO_START_VM_OR_VIEWER_TEMPLATE = _("Failed to start VM or viewer: {error}")
     PROVISIONING_FAILED_TEMPLATE = _("Provisioning failed: {error}")
-    FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE = _("Failed to fetch ISO volumes from {pool_name}: {error}")
+    FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE = _(
+        "Failed to fetch ISO volumes from {pool_name}: {error}"
+    )
     FAILED_TO_FETCH_ISOS_TEMPLATE = _("Failed to fetch ISOs: {error}")
     VM_NAME_CANNOT_BE_EMPTY = _("VM name cannot be empty.")
     CONNECTING_TO_SERVER_TEMPLATE = _("Connecting to {uri}...")
     FAILED_TO_CONNECT_TO_SERVER_TEMPLATE = _("Failed to connect to {uri}")
     ERROR_DELETING_SERVER_TEMPLATE = _("Error deleting server '{server_name}': {error}")
-    DELETE_SERVER_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete Server;\n'{server_name}'\nfrom list?")
+    DELETE_SERVER_CONFIRMATION_TEMPLATE = _(
+        "Are you sure you want to delete Server;\n'{server_name}'\nfrom list?"
+    )
     NOT_CONNECTED_TO_ANY_SERVER_PREFS = _("Not connected to any server.")
-    MULTIPLE_SERVERS_ACTIVE_NONE_SELECTED = _("Multiple servers active but none selected for preferences.")
-    FAILED_TO_GET_CONNECTION_PREFS_TEMPLATE = _("Failed to get connection for server preferences on {uri}.")
+    MULTIPLE_SERVERS_ACTIVE_NONE_SELECTED = _(
+        "Multiple servers active but none selected for preferences."
+    )
+    FAILED_TO_GET_CONNECTION_PREFS_TEMPLATE = _(
+        "Failed to get connection for server preferences on {uri}."
+    )
     COULD_NOT_FIND_OBJECT_XML = _("Could not find object to display XML for.")
     ERROR_GETTING_XML_FOR_TYPE_TEMPLATE = _("Error getting XML for {obj_type}: {error}")
     COULD_NOT_FIND_POOL_EDIT = _("Could not find pool object to edit.")
@@ -814,24 +944,41 @@ class ErrorMessages:
     ERROR_GETTING_XML_FOR_POOL_TEMPLATE = _("Error getting XML for pool: {error}")
     ERROR_UPDATING_POOL_XML_TEMPLATE = _("Error updating pool XML: {error}")
     UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML = _("An unexpected error occurred: {error}")
-    EDIT_POOL_XML_WARNING = _("Editing a pool's XML definition is an advanced operation.\nAn invalid configuration may make its volumes inaccessible to VMs.\n\nAre you sure you want to proceed?")
+    EDIT_POOL_XML_WARNING = _(
+        "Editing a pool's XML definition is an advanced operation.\\n"
+        "An invalid configuration may make its volumes inaccessible to VMs.\\n\\n"
+        "Are you sure you want to proceed?"
+    )
     ERROR_TOGGLE_POOL_ACTIVE_TEMPLATE = _("Error toggling pool active state: {error}")
     ERROR_TOGGLE_POOL_AUTOSTART_TEMPLATE = _("Error toggling pool autostart state: {error}")
     INVALID_OR_NON_EXISTENT_PATH_TEMPLATE = _("Invalid or non-existent path: {path}")
     ERROR_REFRESHING_POOL_TEMPLATE = _("Error refreshing pool: {error}")
-    POOL_ALREADY_MANAGES_DIRECTORY_TEMPLATE = _("A pool named '{pool_name}' already manages this directory.\nRefreshed pool to include the new volume.")
-    NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE = _("No storage pool exists for the directory:\n'{directory}'.\n\nCreate a new pool named '{pool_name}'?")
+    POOL_ALREADY_MANAGES_DIRECTORY_TEMPLATE = _(
+        "A pool named '{pool_name}' already manages this directory.\\n"
+        "Refreshed pool to include the new volume."
+    )
+    NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE = _(
+        "No storage pool exists for the directory:\n'{directory}'.\n\nCreate a new pool named '{pool_name}'?"
+    )
     ERROR_CREATING_STORAGE_POOL_FOR_DIR_TEMPLATE = _("Error creating storage pool: {error}")
     COULD_NOT_DETERMINE_SOURCE_POOL = _("Could not determine the source pool.")
     MOVE_OPERATION_FAILED_TEMPLATE = _("Move operation failed: {error}")
     ERROR_GETTING_NETWORK_XML_TEMPLATE = _("Error getting network XML: {error}")
-    COULD_NOT_RETRIEVE_NETWORK_INFO_TEMPLATE = _("Could not retrieve info for network '{network_name}'.")
+    COULD_NOT_RETRIEVE_NETWORK_INFO_TEMPLATE = _(
+        "Could not retrieve info for network '{network_name}'."
+    )
     ERROR_DELETING_NETWORK_TEMPLATE = _("Error deleting network '{network_name}': {error}")
-    DELETE_NETWORK_CONFIRM_TEMPLATE = _("Are you sure you want to delete network:\n'{network_name}'")
-    NETWORK_IN_USE_WARNING_TEMPLATE = _("\nThis network is currently in use by the following VMs:\n{vm_list}.")
+    DELETE_NETWORK_CONFIRM_TEMPLATE = _(
+        "Are you sure you want to delete network:\n'{network_name}'"
+    )
+    NETWORK_IN_USE_WARNING_TEMPLATE = _(
+        "\nThis network is currently in use by the following VMs:\n{vm_list}."
+    )
     NOT_CONNECTED_TO_LIBVIRT = _("Not connected to libvirt.")
     POOL_IS_NOT_ACTIVE = _("Pool is not active")
-    DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete storage pool:\n' {pool_name}'\nThis will delete the pool definition but not the data on it.")
+    DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE = _(
+        "Are you sure you want to delete storage pool:\n' {pool_name}'\nThis will delete the pool definition but not the data on it."
+    )
     VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
     VIRTIOFS_PATH_EMPTY = _("Source Path and Target Path cannot be empty.")
     SANITIZATION_ERROR_TEMPLATE = _("{error}")
@@ -842,9 +989,13 @@ class ErrorMessages:
     SUFFIX_MANDATORY_FOR_MULTIPLE_CLONES = _("Suffix is mandatory when creating multiple clones.")
     VM_NAME_CANNOT_BE_EMPTY_RENAME = _("VM name cannot be empty.")
     SNAPSHOT_NAME_CANNOT_BE_EMPTY = _("Snapshot name cannot be empty.")
-    QEMU_GUEST_AGENT_RECOMMENDATION = _("QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot.")
+    QEMU_GUEST_AGENT_RECOMMENDATION = _(
+        "QEMU Guest Agent not detected. It is recommended to pause the VM before taking a snapshot."
+    )
     VM_DETAIL_COULD_NOT_LOAD_NETWORKS = _("Could not load networks: {error}")
-    CANNOT_ENABLE_SECURE_BOOT_WITHOUT_UEFI = _("Cannot enable secure boot without a UEFI file selected.")
+    CANNOT_ENABLE_SECURE_BOOT_WITHOUT_UEFI = _(
+        "Cannot enable secure boot without a UEFI file selected."
+    )
     ERROR_UPDATING_NETWORK_TEMPLATE_SHORT = _("Error updating network: {error}")
     GRAPHICS_VM_MUST_BE_STOPPED = _("VM must be stopped to apply graphics settings.")
     RNG_VM_MUST_BE_STOPPED = _("VM must be stopped to apply RNG settings.")
@@ -860,7 +1011,9 @@ class ErrorMessages:
     CPU_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit CPU settings.")
     MEMORY_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit memory settings.")
     MACHINE_TYPE_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to change machine type.")
-    SHARED_MEMORY_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to change shared memory settings.")
+    SHARED_MEMORY_MUST_BE_STOPPED_TO_EDIT = _(
+        "VM must be stopped to change shared memory settings."
+    )
     FIRMWARE_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to change firmware settings.")
     BOOT_ORDER_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit boot order.")
     DISK_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit disk settings.")
@@ -910,8 +1063,12 @@ class ErrorMessages:
     ERROR_ADDING_VIRTIOFS_TEMPLATE = _("Error adding VirtIO-FS: {error}")
     ERROR_CHECKING_FOR_SPICE_DEVICES_TEMPLATE = _("Error checking for other SPICE devices: {error}")
     ERROR_REMOVING_SPICE_DEVICES_TEMPLATE = _("Error removing SPICE devices: {error}")
-    SPICE_REMOVAL_CONFIRMATION_SINGLE = _("This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?")
-    SPICE_REMOVAL_CONFIRMATION_BULK = _("Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?")
+    SPICE_REMOVAL_CONFIRMATION_SINGLE = _(
+        "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
+    )
+    SPICE_REMOVAL_CONFIRMATION_BULK = _(
+        "Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?"
+    )
     COULD_NOT_DETERMINE_SOURCE_POOL = _("Could not determine the source pool.")
     ERROR_SAVING_BOOT_ORDER_TEMPLATE = _("Error saving boot order: {error}")
     SANITIZED_INPUT_TOO_LONG = _("Sanitized input is too long (max 64 characters)")
@@ -924,26 +1081,48 @@ class ErrorMessages:
     TERMINAL_WIDTH_TOO_SMALL = _("Terminal width is too small ({width} columns). Please resize.")
 
 
-class DialogMessages:
+class DialogMessages:  # pylint: disable=too-few-public-methods
     """Constants for dialog messages"""
+
     DELETE_VM_CONFIRMATION = _("Are you sure you want to delete '{name}'?")
     DELETE_SNAPSHOT_CONFIRMATION = _("Are you sure you want to delete snapshot '{name}'?")
-    DELETE_SNAPSHOTS_AND_RENAME = _("VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?")
+    DELETE_SNAPSHOTS_AND_RENAME = _(
+        "VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"
+    )
     DELETE_VOLUME_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete volume '{vol_name}'?")
-    EXPERIMENTAL = _("Experimental Feature! Still contains bugs, fix in progress. You have been informed")
+    EXPERIMENTAL = _(
+        "Experimental Feature! Still contains bugs, fix in progress. You have been informed"
+    )
     CONFIRM_REMOVE_CHANNEL_TEMPLATE = _("Are you sure you want to remove channel '{target_name}'?")
-    CONFIRM_REMOVE_INPUT_DEVICE_TEMPLATE = _("Are you sure you want to remove input device '{device_type}'?")
-    CONFIRM_REMOVE_SERIAL_CONSOLE_TEMPLATE = _("Are you sure you want to remove serial console '{port}'?")
-    CONFIRM_REMOVE_USB_DEVICE_TEMPLATE = _("Are you sure you want to remove USB device '{description}'?")
-    CONFIRM_REMOVE_SCSI_CONTROLLER_TEMPLATE = _("Are you sure you want to remove SCSI controller '{model}' at index '{index}'?")
-    CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _("Are you sure you want to remove VirtIO-FS mount '{target_path}'?")
-    CONFIRM_DISCARD_CHANGES = _("Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone.")
-    CONFIRM_MERGE_CHANGES = _("Are you sure you want to merge changes from '{target_disk}' into its backing file?")
-    CONFIRM_BULK_EDIT = _("This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?")
+    CONFIRM_REMOVE_INPUT_DEVICE_TEMPLATE = _(
+        "Are you sure you want to remove input device '{device_type}'?"
+    )
+    CONFIRM_REMOVE_SERIAL_CONSOLE_TEMPLATE = _(
+        "Are you sure you want to remove serial console '{port}'?"
+    )
+    CONFIRM_REMOVE_USB_DEVICE_TEMPLATE = _(
+        "Are you sure you want to remove USB device '{description}'?"
+    )
+    CONFIRM_REMOVE_SCSI_CONTROLLER_TEMPLATE = _(
+        "Are you sure you want to remove SCSI controller '{model}' at index '{index}'?"
+    )
+    CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _(
+        "Are you sure you want to remove VirtIO-FS mount '{target_path}'?"
+    )
+    CONFIRM_DISCARD_CHANGES = _(
+        "Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."
+    )
+    CONFIRM_MERGE_CHANGES = _(
+        "Are you sure you want to merge changes from '{target_disk}' into its backing file?"
+    )
+    CONFIRM_BULK_EDIT = _(
+        "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
+    )
 
 
-class QuickMessages:
+class QuickMessages:  # pylint: disable=too-few-public-methods
     """Constants for quick messages"""
+
     REMOTE_VIEWER_SELECTED = _("The remote viewer {viewer} has been selected.")
     VM_DATA_LOADED = _("VM data loaded. Displaying VMs...")
     FILTER_RUNNING_VMS = _("Filter: Running VMs")
@@ -952,31 +1131,49 @@ class QuickMessages:
     CACHING_VM_STATE = _("Caching VM state for: {vms_list}")
 
 
-class WarningMessages:
+class WarningMessages:  # pylint: disable=too-few-public-methods
     """Constants for warning messages"""
+
     COMPACT_VIEW_LOCKED = _("Compact view is locked during bulk operations.")
-    VMS_PER_PAGE_PERFORMANCE_WARNING = _("Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance.")
+    VMS_PER_PAGE_PERFORMANCE_WARNING = _(
+        "Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
+    )
     VM_NOT_PAUSABLE = _("VM '{vm_name}' is not in a pausable state.")
-    LIBVIRT_XML_NO_EFFECTIVE_CHANGE = _("VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away.")
+    LIBVIRT_XML_NO_EFFECTIVE_CHANGE = _(
+        "VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away."
+    )
     NO_REMOTE_VIEWER_SELECTED = _("No remote viewer selected. Auto-detection will be used.")
-    RUNNING_NETWORK_USAGE_SCAN_WARNING = _("Running network usage scan, this can freeze the UI for larger numbers of VMs.")
-    TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE = _("More than {count} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze.")
-    RUNNING_DISK_USAGE_SCAN_WARNING = _("Running disk usage scan, this can freeze the UI for larger numbers of VMs and disks.")
-    VIRTIOFS_SHARED_MEM_WARNING = _("! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab.")
+    RUNNING_NETWORK_USAGE_SCAN_WARNING = _(
+        "Running network usage scan, this can freeze the UI for larger numbers of VMs."
+    )
+    TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE = _(
+        "More than {count} VMs detected on this server.\nSkipping disk usage scan to prevent UI freeze."
+    )
+    RUNNING_DISK_USAGE_SCAN_WARNING = _(
+        "Running disk usage scan, this can freeze the UI for larger numbers of VMs and disks."
+    )
+    VIRTIOFS_SHARED_MEM_WARNING = _(
+        "! Shared Memory is Mandatory to use VirtIO-FS.\n! Enable it in Mem tab."
+    )
     VM_START_OVERCOMMIT_MEMORY = _("Memory: {total} MB > {limit} MB")
     VM_START_OVERCOMMIT_VCPU = _("vCPUs: {total} > {limit}")
-    VM_START_OVERCOMMIT_WARNING = _("Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n{details}")
+    VM_START_OVERCOMMIT_WARNING = _(
+        "Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n{details}"
+    )
 
 
-class SuccessMessages:
+class SuccessMessages:  # pylint: disable=too-few-public-methods
     """Constants for success messages"""
+
     REMOTE_VIEWER_SELECTED = _("The remove viewer {viewer} has been selected.")
     CONNECTED_TO_SERVER = _("Connected to [b]{uri}[/b]")
     STATS_LOGGING_DISABLED = _("Statistics logging and monitoring disabled.")
     STATS_LOGGING_ENABLED = _("Statistics logging and monitoring enabled (every 10s).")
     CONFIG_UPDATED = _("Configuration updated.")
     VMS_SELECTED_BY_PATTERN = _("Selected {count} VMs matching pattern.")
-    TERMINAL_COPY_HINT = _("In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it.")
+    TERMINAL_COPY_HINT = _(
+        "In some Terminal use [b]Shift[/b] key while selecting text with the mouse to copy it."
+    )
     NO_SERVERS_CONFIGURED = _("No servers configured. Please add one via 'Servers List'.")
     LOG_LEVEL_CHANGED = _("Log level changed to {level}")
     BULK_ACTION_SUCCESS_TEMPLATE = _("Bulk action [b]{action_type}[/b] successful for {count} VMs.")
@@ -998,8 +1195,12 @@ class SuccessMessages:
     WEBCONSOLE_STOPPED = _("Web console stopped.")
     REMOTE_USER_CERT_FOUND = _("Remote user cert/key found, using secure wss connection.")
     REMOTE_SYSTEM_CERT_FOUND = _("Remote system cert/key found, using secure wss connection.")
-    NO_REMOTE_CERT_FOUND_GENERATING = _("No remote cert/key found. Attempting to generate in system directory...")
-    NO_REMOTE_CERT_CHECK_INSECURE = _("Could not check for remote cert/key, using insecure ws connection.")
+    NO_REMOTE_CERT_FOUND_GENERATING = _(
+        "No remote cert/key found. Attempting to generate in system directory..."
+    )
+    NO_REMOTE_CERT_CHECK_INSECURE = _(
+        "Could not check for remote cert/key, using insecure ws connection."
+    )
     REMOTE_CONNECTION_SSH_TUNNEL_SETUP = _("Remote connection detected. Setting up SSH tunnel...")
     LOCAL_CERT_FOUND = _("Found cert/key, using secure wss connection.")
     ALL_CACHES_CLEARED = _("All caches cleared")
@@ -1016,11 +1217,17 @@ class SuccessMessages:
     SERVER_DELETED_TEMPLATE = _("Server '{server_name}' deleted successfully.")
     POOL_ACTIVATION_CHANGE_TEMPLATE = _("Pool '{pool_name}' is now {status}.")
     POOL_AUTOSTART_CHANGE_TEMPLATE = _("Autostart for pool '{pool_name}' is now {status}.")
-    POOL_MANAGED_BY_EXISTING_POOL_TEMPLATE = _("A pool named '{pool_name}' already manages this directory.\nRefreshed pool to include the new volume.")
+    POOL_MANAGED_BY_EXISTING_POOL_TEMPLATE = _(
+        "A pool named '{pool_name}' already manages this directory.\nRefreshed pool to include the new volume."
+    )
     NETWORK_ACTIVATION_CHANGE_TEMPLATE = _("Network '{net_name}' is now {status}.")
     NETWORK_AUTOSTART_CHANGE_TEMPLATE = _("Autostart for network '{net_name}' is now {status}.")
-    BASE_NAME_SANITIZED_TEMPLATE = _("Base name sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]")
-    SUFFIX_SANITIZED_TEMPLATE = _("Suffix sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]")
+    BASE_NAME_SANITIZED_TEMPLATE = _(
+        "Base name sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
+    )
+    SUFFIX_SANITIZED_TEMPLATE = _(
+        "Suffix sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
+    )
     INPUT_SANITIZED_TEMPLATE = _("Input sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]")
     BOOT_ORDER_SAVED_SUCCESSFULLY = _("Boot order saved successfully.")
     GRAPHICS_SETTINGS_APPLIED_SUCCESSFULLY = _("Graphics settings applied successfully")
@@ -1064,18 +1271,29 @@ class SuccessMessages:
     VM_NETWORK_INTERFACE_CHANGED_TEMPLATE = _("Interface {mac_address} switched to {new_network}")
     VM_CPUTUNE_SET_SUCCESS = _("CPU pinning settings applied successfully.")
     VM_NUMATUNE_SET_SUCCESS = _("NUMA tuning settings applied successfully.")
-    STORAGE_POOL_UPDATED_SUCCESSFULLY_TEMPLATE = _("Storage pool '{pool_name}' updated successfully.")
+    STORAGE_POOL_UPDATED_SUCCESSFULLY_TEMPLATE = _(
+        "Storage pool '{pool_name}' updated successfully."
+    )
     UPDATED_VM_CONFIGURATIONS_TEMPLATE = _("Updated VM configurations for: {vm_list}")
     NETWORK_DELETED_SUCCESSFULLY_TEMPLATE = _("Network '{network_name}' deleted successfully.")
-    STORAGE_POOL_DELETED_SUCCESSFULLY_TEMPLATE = _("Storage pool '{pool_name}' deleted successfully.")
+    STORAGE_POOL_DELETED_SUCCESSFULLY_TEMPLATE = _(
+        "Storage pool '{pool_name}' deleted successfully."
+    )
     VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
-    VOLUME_CREATED_SUCCESSFULLY_TEMPLATE = _("Volume [b]{name} {size_gb}Gb {format}[/b] created successfully.")
-    VOLUME_MOVED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' moved to pool '{dest_pool_name}'.")
-    BULK_ACTION_SUMMARY = _("Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}")
+    VOLUME_CREATED_SUCCESSFULLY_TEMPLATE = _(
+        "Volume [b]{name} {size_gb}Gb {format}[/b] created successfully."
+    )
+    VOLUME_MOVED_SUCCESSFULLY_TEMPLATE = _(
+        "Volume '{volume_name}' moved to pool '{dest_pool_name}'."
+    )
+    BULK_ACTION_SUMMARY = _(
+        "Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}"
+    )
 
 
-class ProgressMessages:
+class ProgressMessages:  # pylint: disable=too-few-public-methods
     """Constants for success messages"""
+
     CONNECTING_TO_SERVER = _("Connecting to [b]{uri}[/b]...")
     CONFIG_UPDATED_REFRESHING_VM_LIST = _("Configuration updated. Refreshing VM list...")
     LOADING_VM_DATA_FROM_REMOTE_SERVERS = _("Loading VM data from remote server(s)...")

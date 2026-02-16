@@ -5,6 +5,7 @@ Module for performing actions and modifications on virtual machines.
 import logging
 import os
 import secrets
+import time
 import uuid
 import xml.etree.ElementTree as ET
 
@@ -78,7 +79,8 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             # Skip storage cloning if clone_storage is False
             if not clone_storage:
                 logging.info(
-                    f"Keeping original storage reference for disk: {ET.tostring(source_elem, encoding='unicode').strip()}"
+                    "Keeping original storage reference for disk: %s",
+                    ET.tostring(source_elem, encoding="unicode").strip(),
                 )
                 continue
 
@@ -101,13 +103,17 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                         original_vol = original_pool.storageVolLookupByName(vol_name)
                     except libvirt.libvirtError as e:
                         logging.warning(
-                            f"Could not find volume '{vol_name}' in pool '{pool_name}'. Skipping disk clone. Error: {e}"
+                            "Could not find volume '%s' in pool '%s'. Skipping disk clone. Error: %s",
+                            vol_name,
+                            pool_name,
+                            e,
                         )
                         continue
 
             if not original_vol or not original_pool:
                 logging.info(
-                    f"Skipping cloning for non-volume disk source: {ET.tostring(source_elem, encoding='unicode').strip()}"
+                    "Skipping cloning for non-volume disk source: %s",
+                    ET.tostring(source_elem, encoding="unicode").strip(),
                 )
                 continue
 
@@ -254,7 +260,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                     try:
                         pool.storageVolLookupByName(new_vol_name)
                         logging.warning(
-                            f"Target NVRAM volume {new_vol_name} already exists. Will use it."
+                            "Target NVRAM volume %s already exists. Will use it.", new_vol_name
                         )
                     except libvirt.libvirtError:
                         # Clone old volume to new name
@@ -271,7 +277,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
                         new_vol_xml = ET.tostring(vol_root, encoding="unicode")
                         pool.createXMLFrom(new_vol_xml, vol, 0)
-                        logging.info(f"Cloned NVRAM to {new_vol_name}")
+                        logging.info("Cloned NVRAM to %s", new_vol_name)
 
                     # Get new path
                     new_vol = pool.storageVolLookupByName(new_vol_name)
@@ -281,7 +287,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                     nvram_elem.text = new_nvram_path
 
             except Exception as e:
-                logging.warning(f"Failed to rename NVRAM volume, keeping old one: {e}")
+                logging.warning("Failed to rename NVRAM volume, keeping old one: %s", e)
 
     invalidate_cache(get_internal_id(domain))
 
@@ -364,9 +370,9 @@ def rename_vm(domain, new_name, delete_snapshots=False):
 
                     # Re-create snapshot for the new domain
                     new_domain.snapshotCreateXML(updated_snap_xml, 0)
-                    logging.info(f"Re-created snapshot during rename for {new_name}")
+                    logging.info("Re-created snapshot during rename for %s", new_name)
                 except Exception as e:
-                    logging.error(f"Failed to re-create snapshot for renamed VM {new_name}: {e}")
+                    logging.error("Failed to re-create snapshot for renamed VM %s: %s", new_name, e)
 
         # If successful, delete old NVRAM volume if we cloned it
         if old_nvram_vol and new_nvram_path and new_nvram_path != old_nvram_path:
@@ -383,7 +389,10 @@ def rename_vm(domain, new_name, delete_snapshots=False):
             msg = f"Failed to rename VM, but restored original state. Error: {e}"
             logging.error(msg)
         except Exception as restore_error:
-            msg = f"Failed to rename VM AND failed to restore original state! Error: {e}. Restore Error: {restore_error}"
+            msg = (
+                f"Failed to rename VM AND failed to restore original state! "
+                f"Error: {e}. Restore Error: {restore_error}"
+            )
             logging.critical(msg)
         raise Exception(msg) from e
 
@@ -613,7 +622,7 @@ def remove_disk(domain, disk_dev_path):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    logging.debug(f"remove_disk: Attempting to remove disk: {disk_dev_path}")
+    logging.debug("remove_disk: Attempting to remove disk: %s", disk_dev_path)
 
     disk_to_detach_elem = None
     warning_message = None
@@ -636,7 +645,7 @@ def remove_disk(domain, disk_dev_path):
                 break
 
             # 3. Match by pool/volume
-            elif "pool" in source.attrib and "volume" in source.attrib:
+            if "pool" in source.attrib and "volume" in source.attrib:
                 pool_name = source.get("pool")
                 vol_name = source.get("volume")
                 try:
@@ -644,7 +653,7 @@ def remove_disk(domain, disk_dev_path):
                     vol = pool.storageVolLookupByName(vol_name)
                     resolved_path = vol.path()
                     # Check against resolved path OR volume name
-                    if resolved_path == disk_dev_path or vol_name == disk_dev_path:
+                    if disk_dev_path in (resolved_path, vol_name):
                         disk_to_detach_elem = disk
                         break
                 except libvirt.libvirtError:
@@ -736,9 +745,9 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
     # Create the new virtiofs XML element
     fs_elem = ET.SubElement(devices, "filesystem", type="mount", accessmode="passthrough")
 
-    driver_elem = ET.SubElement(fs_elem, "driver", type="virtiofs")
-    source_elem = ET.SubElement(fs_elem, "source", dir=source_path)
-    target_elem = ET.SubElement(fs_elem, "target", dir=target_path)
+    ET.SubElement(fs_elem, "driver", type="virtiofs")
+    ET.SubElement(fs_elem, "source", dir=source_path)
+    ET.SubElement(fs_elem, "target", dir=target_path)
 
     if readonly:
         ET.SubElement(fs_elem, "readonly")
@@ -1097,9 +1106,6 @@ def set_machine_type(domain, new_machine_type):
         return
 
     type_elem.set("machine", new_machine_type)
-
-    current_family = "-".join(current_machine_type.split("-")[:2])
-    new_family = "-".join(new_machine_type.split("-")[:2])
 
     new_xml_desc = ET.tostring(root, encoding="unicode")
     conn = domain.connect()
@@ -2665,8 +2671,6 @@ def commit_disk_changes(domain: libvirt.virDomain, disk_path: str, bandwidth: in
         domain.blockCommit(disk_target, base_path, disk_path, bandwidth, flags)
 
         # Monitor the job
-        import time
-
         while True:
             job_info = domain.blockJobInfo(disk_target, 0)
             if not job_info:

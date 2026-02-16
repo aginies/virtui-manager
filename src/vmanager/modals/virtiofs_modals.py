@@ -1,6 +1,7 @@
 """
 virtiofs modals
 """
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import (
@@ -17,7 +18,13 @@ from .base_modals import BaseModal
 class AddEditVirtIOFSModal(BaseModal[dict | None]):
     """Modal screen for adding or editing a VirtIO-FS mount."""
 
-    def __init__(self, source_path: str = "", target_path: str = "", readonly: bool = False, is_edit: bool = False) -> None:
+    def __init__(
+        self,
+        source_path: str = "",
+        target_path: str = "",
+        readonly: bool = False,
+        is_edit: bool = False,
+    ) -> None:
         super().__init__()
         self.source_path = source_path
         self.target_path = target_path
@@ -26,15 +33,40 @@ class AddEditVirtIOFSModal(BaseModal[dict | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-edit-virtiofs-dialog"):
-            yield Label(StaticText.EDIT_VIRTIOFS_MOUNT if self.is_edit else StaticText.ADD_VIRTIOFS_MOUNT)
-            yield Input(placeholder=StaticText.VIRTIOFS_SOURCE_PLACEHOLDER, id="virtiofs-source-input", value=self.source_path)
-            yield Input(placeholder=StaticText.VIRTIOFS_TARGET_PLACEHOLDER, id="virtiofs-target-input", value=self.target_path)
-            yield Checkbox(StaticText.EXPORT_READONLY_MOUNT, id="virtiofs-readonly-checkbox", value=self.readonly)
+            yield Label(
+                StaticText.EDIT_VIRTIOFS_MOUNT if self.is_edit else StaticText.ADD_VIRTIOFS_MOUNT
+            )
+            yield Input(
+                placeholder=StaticText.VIRTIOFS_SOURCE_PLACEHOLDER,
+                id="virtiofs-source-input",
+                value=self.source_path,
+            )
+            yield Input(
+                placeholder=StaticText.VIRTIOFS_TARGET_PLACEHOLDER,
+                id="virtiofs-target-input",
+                value=self.target_path,
+            )
+            yield Checkbox(
+                StaticText.EXPORT_READONLY_MOUNT,
+                id="virtiofs-readonly-checkbox",
+                value=self.readonly,
+            )
             with Horizontal():
-                yield Button(ButtonLabels.SAVE if self.is_edit else ButtonLabels.ADD, variant="primary", id="save-add-btn", classes="Buttonpage")
-                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage")
+                yield Button(
+                    ButtonLabels.SAVE if self.is_edit else ButtonLabels.ADD,
+                    variant="primary",
+                    id="save-add-btn",
+                    classes="Buttonpage",
+                )
+                yield Button(
+                    ButtonLabels.CANCEL,
+                    variant="default",
+                    id="cancel-btn",
+                    classes="Buttonpage",
+                )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
         if event.button.id == "save-add-btn":
             source_path = self.query_one("#virtiofs-source-input", Input).value
             target_path = self.query_one("#virtiofs-target-input", Input).value
@@ -44,6 +76,8 @@ class AddEditVirtIOFSModal(BaseModal[dict | None]):
                 self.app.show_error_message(ErrorMessages.VIRTIOFS_PATH_EMPTY)
                 return
 
-            self.dismiss({'source_path': source_path, 'target_path': target_path, 'readonly': readonly})
+            self.dismiss(
+                {"source_path": source_path, "target_path": target_path, "readonly": readonly}
+            )
         elif event.button.id == "cancel-btn":
             self.dismiss(None)

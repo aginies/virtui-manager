@@ -1,6 +1,7 @@
 """
 Create a VMcard pool
 """
+
 import logging
 import threading
 
@@ -13,6 +14,7 @@ class VMCardPool:
     Manages a pool of VMCard widgets to avoid remounting/unmounting
     when changing pages.
     """
+
     def __init__(self, pool_size: int):
         if pool_size < 0:
             raise ValueError(f"pool_size must be non-negative, got {pool_size}")
@@ -28,7 +30,7 @@ class VMCardPool:
             current_count = len(self.available_cards)
             if current_count < self.pool_size:
                 to_create = self.pool_size - current_count
-                logging.debug(f"Prefilling pool with {to_create} cards")
+                logging.debug("Prefilling pool with %d cards", to_create)
                 for _ in range(to_create):
                     self.available_cards.append(VMCard(is_selected=False))
 
@@ -44,11 +46,11 @@ class VMCardPool:
             # Try to reuse a card from the pool
             if self.available_cards:
                 card = self.available_cards.pop()
-                logging.debug(f"Reusing card from pool for {uuid}")
+                logging.debug("Reusing card from pool for %s", uuid)
             else:
                 # Create new card if pool is empty
                 card = VMCard(is_selected=False)
-                logging.debug(f"Creating new card for {uuid}")
+                logging.debug("Creating new card for %s", uuid)
 
             self.active_cards[uuid] = card
             return card
@@ -60,7 +62,7 @@ class VMCardPool:
 
         with self.lock:
             if uuid not in self.active_cards:
-                logging.warning(f"Attempted to release card {uuid} that is not active")
+                logging.warning("Attempted to release card %s that is not active", uuid)
                 return
 
             card = self.active_cards.pop(uuid)
@@ -68,8 +70,8 @@ class VMCardPool:
             # Reset card state before returning to pool
             try:
                 card.reset_for_reuse()
-            except Exception as e:
-                logging.error(f"Error resetting card {uuid} for reuse: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Error resetting card %s for reuse: %s", uuid, e)
 
             card.vm = None
             card.conn = None
@@ -81,15 +83,20 @@ class VMCardPool:
 
             if len(self.available_cards) < self.pool_size:
                 self.available_cards.append(card)
-                logging.debug(f"Released card {uuid} to pool (pool size: {len(self.available_cards)}/{self.pool_size})")
+                logging.debug(
+                    "Released card %s to pool (pool size: %d/%d)",
+                    uuid,
+                    len(self.available_cards),
+                    self.pool_size,
+                )
             else:
                 # Pool is full, actually remove the card
                 try:
-                    if hasattr(card, 'is_mounted') and card.is_mounted:
+                    if hasattr(card, "is_mounted") and card.is_mounted:
                         card.remove()
-                    logging.debug(f"Pool full, removed card {uuid}")
-                except Exception as e:
-                    logging.error(f"Error removing card {uuid} when pool full: {e}")
+                    logging.debug("Pool full, removed card %s", uuid)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logging.error("Error removing card %s when pool full: %s", uuid, e)
 
     def clear_pool(self) -> None:
         """Clear the entire pool and release all resources."""
@@ -101,18 +108,18 @@ class VMCardPool:
         for uuid in active_uuids:
             try:
                 self.release_card(uuid)
-            except Exception as e:
-                logging.error(f"Error releasing active card {uuid} during pool clear: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logging.error("Error releasing active card %s during pool clear: %s", uuid, e)
 
         # Clean up all cards in pool
         with self.lock:
             # Clean up all cards in pool
             for card in self.available_cards:
                 try:
-                    if hasattr(card, 'is_mounted') and card.is_mounted:
+                    if hasattr(card, "is_mounted") and card.is_mounted:
                         card.remove()
-                except Exception as e:
-                    logging.error(f"Error removing card during pool clear: {e}")
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    logging.error("Error removing card during pool clear: %s", e)
 
             self.available_cards.clear()
             self.active_cards.clear()
@@ -122,8 +129,8 @@ class VMCardPool:
         """Returns statistics about the pool state."""
         with self.lock:
             return {
-                'pool_size': self.pool_size,
-                'active_cards': len(self.active_cards),
-                'available_cards': len(self.available_cards),
-                'total_cards': len(self.active_cards) + len(self.available_cards)
+                "pool_size": self.pool_size,
+                "active_cards": len(self.active_cards),
+                "available_cards": len(self.available_cards),
+                "total_cards": len(self.active_cards) + len(self.available_cards),
             }

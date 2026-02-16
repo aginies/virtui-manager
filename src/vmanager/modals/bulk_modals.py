@@ -1,6 +1,7 @@
 """
 Modal for bulk VM operations
 """
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -38,8 +39,18 @@ class BulkActionModal(BaseModal[None]):
             yield Checkbox(StaticText.DELETE_ASSOCIATED_STORAGE, id="delete-storage-checkbox")
 
             with Horizontal():
-                yield Button(ButtonLabels.EXECUTE, variant="primary", id="execute-action-btn", classes="button-container")
-                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="button-container")
+                yield Button(
+                    ButtonLabels.EXECUTE,
+                    variant="primary",
+                    id="execute-action-btn",
+                    classes="button-container",
+                )
+                yield Button(
+                    ButtonLabels.CANCEL,
+                    variant="default",
+                    id="cancel-btn",
+                    classes="button-container",
+                )
 
     def on_mount(self) -> None:
         """Called when the modal is mounted to initially hide the checkbox."""
@@ -51,16 +62,16 @@ class BulkActionModal(BaseModal[None]):
         checkbox = self.query_one("#delete-storage-checkbox")
         checkbox.display = event.pressed.id == "action_delete"
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    def on_button_pressed(self, event: Button.Pressed) -> None:  # pylint: disable=missing-function-docstring
         if event.button.id == "execute-action-btn":
             radioset = self.query_one(RadioSet)
             selected_action_button = radioset.pressed_button
             if selected_action_button:
                 action = selected_action_button.id.replace("action_", "")
-                result = {'action': action}
-                if action == 'delete':
+                result = {"action": action}
+                if action == "delete":
                     checkbox = self.query_one("#delete-storage-checkbox")
-                    result['delete_storage'] = checkbox.value
+                    result["delete_storage"] = checkbox.value
                 self.dismiss(result)
             else:
                 self.app.show_error_message(ErrorMessages.PLEASE_SELECT_ACTION)

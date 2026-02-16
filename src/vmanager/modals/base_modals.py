@@ -1,6 +1,7 @@
 """
 Base Modal stuff
 """
+
 import re
 from typing import Any, TypeVar
 
@@ -11,17 +12,24 @@ from ..constants import StaticText
 
 T = TypeVar("T")
 
+
 class ValueListItem(ListItem):
     """ListItem that holds a value."""
+
     def __init__(self, *children, value: Any = None, **kwargs) -> None:
         super().__init__(*children, **kwargs)
         self.value = value
 
+
 class BaseModal(ModalScreen[T]):
+    """Base class for all modal screens in the application."""
+
     BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
     def action_cancel_modal(self) -> None:
+        """Cancel and close the modal."""
         self.dismiss(None)
+
 
 class BaseDialog(Screen[T]):
     """A base class for dialogs with a cancel binding."""
