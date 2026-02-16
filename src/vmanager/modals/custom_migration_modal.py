@@ -1,3 +1,6 @@
+"""
+Custom migration modal module
+"""
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -21,20 +24,22 @@ class CustomMigrationModal(ModalScreen[dict | None]):
 
             for i, action in enumerate(self.actions):
                 if action["type"] == "move_volume":
-                    yield Static(StaticText.DISK_VOLUME_NAME.format(volume_name=action['volume_name']))
-                    yield Static(StaticText.SOURCE_POOL.format(source_pool=action['source_pool']))
+                    yield Static(
+                        StaticText.DISK_VOLUME_NAME.format(volume_name=action["volume_name"])
+                    )
+                    yield Static(StaticText.SOURCE_POOL.format(source_pool=action["source_pool"]))
                     dest_pools = action.get("dest_pools", [])
                     if dest_pools:
                         yield Select(
                             [(pool, pool) for pool in dest_pools],
                             prompt="Select Destination Pool",
-                            id=f"pool-select-{i}"
+                            id=f"pool-select-{i}",
                         )
                     else:
                         yield Static(StaticText.NO_DESTINATION_POOLS)
                 elif action["type"] == "manual_copy":
-                    yield Static(StaticText.DISK_PATH.format(disk_path=action['disk_path']))
-                    yield Static(StaticText.ACTION_MESSAGE.format(message=action['message']))
+                    yield Static(StaticText.DISK_PATH.format(disk_path=action["disk_path"]))
+                    yield Static(StaticText.ACTION_MESSAGE.format(message=action["message"]))
 
             yield Checkbox(StaticText.UNDEFINE_SOURCE_VM, value=True, id="undefine-checkbox")
 
@@ -43,13 +48,14 @@ class CustomMigrationModal(ModalScreen[dict | None]):
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button press events."""
         if event.button.id == "confirm":
             for i, action in enumerate(self.actions):
                 if action["type"] == "move_volume":
                     select = self.query_one(f"#pool-select-{i}", Select)
                     self.selections[i] = select.value
 
-            self.selections['undefine_source'] = self.query_one("#undefine-checkbox").value
+            self.selections["undefine_source"] = self.query_one("#undefine-checkbox").value
             self.dismiss(self.selections)
         else:
             self.dismiss(None)
