@@ -319,8 +319,15 @@ class VManagerCMD(cmd.Cmd):
         """
         print(self._sanitize_message(message))
 
-    def _colorize(self, text, server_name):
-        """Wraps text in ANSI escape codes for the server's assigned color."""
+    def _colorize(self, text, server_name, for_prompt=False):
+        """Wraps text in ANSI escape codes for the server's assigned color.
+
+        Args:
+            text: The text to colorize
+            server_name: The server name to look up color for
+            for_prompt: If True, wrap ANSI codes in readline ignore markers (\\001 and \\002)
+                       to prevent cursor positioning issues.
+        """
         color = self.server_colors.get(server_name)
         if not color:
             return text
@@ -328,7 +335,15 @@ class VManagerCMD(cmd.Cmd):
             r = int(color[1:3], 16)
             g = int(color[3:5], 16)
             b = int(color[5:7], 16)
-            return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
+
+            prefix = f"\033[38;2;{r};{g};{b}m"
+            suffix = "\033[0m"
+
+            if for_prompt:
+                prefix = f"\001{prefix}\002"
+                suffix = f"\001{suffix}\002"
+
+            return f"{prefix}{text}{suffix}"
         except (ValueError, IndexError):
             return text
 
@@ -588,13 +603,18 @@ class VManagerCMD(cmd.Cmd):
     def _update_prompt(self):
         if self.active_connections:
             server_names = ",".join(
-                [self._colorize(name, name) for name in self.active_connections.keys()]
+                [
+                    self._colorize(name, name, for_prompt=True)
+                    for name in self.active_connections.keys()
+                ]
             )
 
             all_selected_vms = []
             for server_name, vms in self.selected_vms.items():
                 for vm in vms:
-                    all_selected_vms.append(self._colorize(vm, server_name))
+                    all_selected_vms.append(
+                        self._colorize(vm, server_name, for_prompt=True)
+                    )
 
             if all_selected_vms:
                 self.prompt = f"({server_names}) [{','.join(all_selected_vms)}] "
@@ -624,7 +644,7 @@ class VManagerCMD(cmd.Cmd):
             # Default display
             print()
             self.columnize(matches, displaywidth=80)
-            print(self.prompt, end="", flush=True)
+            print(self.prompt.replace("\001", "").replace("\002", ""), end="", flush=True)
             print(readline.get_line_buffer(), end="", flush=True)
             return
 
@@ -649,7 +669,7 @@ class VManagerCMD(cmd.Cmd):
             self.columnize(sorted(uncategorized), displaywidth=80)
             print()
 
-        print(self.prompt, end="", flush=True)
+        print(self.prompt.replace("\001", "").replace("\002", ""), end="", flush=True)
         print(readline.get_line_buffer(), end="", flush=True)
 
     def _find_domain(self, vm_name):
