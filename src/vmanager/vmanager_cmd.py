@@ -167,7 +167,14 @@ class VManagerCMD(cmd.Cmd):
         # Categories for help and completion
         self.categories = {
             "Connection": ["connect", "disconnect", "host_info", "virsh"],
-            "VM Selection": ["list_vms", "select_vm", "unselect_vm", "status", "vm_info"],
+            "VM Selection": [
+                "list_vms",
+                "select_vm",
+                "unselect_vm",
+                "status",
+                "vm_info",
+                "show_selection",
+            ],
             "VM Operations": [
                 "start",
                 "stop",
@@ -232,6 +239,20 @@ class VManagerCMD(cmd.Cmd):
             return result
         else:
             return super().onecmd(line)
+
+    def _get_terminal_width(self):
+        """Get the terminal width, with fallback to 80 columns."""
+        try:
+            return os.get_terminal_size().columns
+        except (AttributeError, OSError):
+            try:
+                import subprocess
+                result = subprocess.run(["tput", "cols"], capture_output=True, text=True)
+                if result.returncode == 0:
+                    return int(result.stdout.strip())
+            except (subprocess.CalledProcessError, ValueError, FileNotFoundError):
+                pass
+        return 80
 
     def _setup_history(self):
         """Setup persistent command history using readline."""
@@ -617,7 +638,37 @@ class VManagerCMD(cmd.Cmd):
                     )
 
             if all_selected_vms:
-                self.prompt = f"({server_names}) [{','.join(all_selected_vms)}] "
+                # Check if the prompt would be too long
+                vm_list_str = ",".join(all_selected_vms)
+                test_prompt = f"({server_names}) [{vm_list_str}] "
+                term_width = self._get_terminal_width()
+
+                # If prompt is too long (more than half the terminal), truncate VM list
+                if self._get_display_width(test_prompt) > term_width // 2:
+                    if len(all_selected_vms) > 3:
+                        # Show first 2 VMs and count
+                        shown_vms = all_selected_vms[:2]
+                        remaining_count = len(all_selected_vms) - 2
+                        vm_display = ",".join(shown_vms) + f",+{remaining_count} more"
+                    else:
+                        # Truncate VM names individually if still too long
+                        max_vm_width = (term_width // 2 - 20) // len(
+                            all_selected_vms
+                        )  # Rough estimate
+                        shown_vms = []
+                        for vm in all_selected_vms:
+                            if self._get_display_width(vm) > max_vm_width:
+                                # Truncate individual VM name
+                                truncated = self._wrap_text(vm, max_vm_width)
+                                shown_vms.append(truncated)
+                            else:
+                                shown_vms.append(vm)
+                        vm_display = ",".join(shown_vms)
+
+                    self.prompt = f"({server_names}) [{vm_display}] "
+                else:
+                    self.prompt = test_prompt
+
             else:
                 self.prompt = f"({server_names}) "
 
@@ -627,6 +678,25 @@ class VManagerCMD(cmd.Cmd):
         else:
             self.prompt = "(" + AppInfo.name + ")> "
             self._set_title("Virtui Manager CLI")
+
+
+    def do_show_selection(self, args):
+        """Show the full list of currently selected VMs (useful when prompt is truncated).
+        Usage: show_selection"""
+        if not self.selected_vms:
+            print("No VMs are currently selected.")
+            return
+
+        total_count = sum(len(vms) for vms in self.selected_vms.values())
+        print(f"Currently selected VMs ({total_count} total):")
+
+        for server_name, vms in self.selected_vms.items():
+            colored_server = self._colorize(server_name, server_name)
+            print(f"  {colored_server}:")
+            for vm in vms:
+                colored_vm = self._colorize(vm, server_name)
+                print(f"    - {colored_vm}")
+
 
     def _display_completion_matches(self, substitution, matches, longest_match_length):
         """Custom display hook for readline completion to show categories."""
