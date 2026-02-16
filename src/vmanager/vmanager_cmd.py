@@ -121,6 +121,11 @@ class VManagerCMD(cmd.Cmd):
         self.active_connections = {}
         self.selected_vms = {}
 
+        # Cache for performance optimization
+        self._color_support = None  # Cache color support detection
+        self._status_colors_cache = {}  # Cache colored status strings
+        self._ansi_escape_regex = None  # Cache regex for ANSI codes
+
         # Auto-connect to servers
         for server in self.servers:
             if server.get("autoconnect", False):
@@ -224,6 +229,70 @@ class VManagerCMD(cmd.Cmd):
             return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
         except (ValueError, IndexError):
             return text
+
+    def _colorize_status(self, status_text):
+        """Wraps status text in ANSI escape codes based on VM state."""
+        # Check if terminal supports colors (cached)
+        if not self._supports_colors():
+            return status_text
+
+        # Use cached colored status if available
+        if status_text in self._status_colors_cache:
+            return self._status_colors_cache[status_text]
+
+        status_colors = {
+            "Running": "\033[48;2;144;238;144m\033[30m",  # lightgreen background, black text
+            "Stopped": "\033[48;2;255;0;0m\033[37m",  # red background, white text
+            "Paused": "\033[48;2;255;255;0m\033[30m",  # yellow background, black text
+            "Suspended": "\033[48;2;173;216;230m\033[30m",  # lightblue background, black text
+            "Blocked": "\033[48;2;255;165;0m\033[30m",  # orange background, black text
+            "No State": "\033[48;2;128;128;128m\033[37m",  # grey background, white text
+            "Shutting Down": "\033[48;2;128;128;128m\033[37m",  # grey background, white text
+            "Crashed": "\033[48;2;255;0;0m\033[37m",  # red background, white text
+            "Unknown": "\033[48;2;128;128;128m\033[37m",  # grey background, white text
+        }
+
+        color_code = status_colors.get(status_text, "")
+        if color_code:
+            colored_text = f"{color_code}{status_text}\033[0m"
+            # Cache the result
+            self._status_colors_cache[status_text] = colored_text
+            return colored_text
+
+        # Cache uncolored text too
+        self._status_colors_cache[status_text] = status_text
+        return status_text
+
+    def _supports_colors(self):
+        """Check if the terminal supports ANSI colors (cached)."""
+        if self._color_support is not None:
+            return self._color_support
+
+        import os
+
+        # Check common environment variables that indicate color support
+        term = os.environ.get("TERM", "")
+        if "color" in term or term in ["xterm", "xterm-256color", "screen", "tmux"]:
+            self._color_support = True
+            return True
+        # Check if stdout is a TTY
+        try:
+            self._color_support = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+            return self._color_support
+        except (AttributeError, OSError):
+            self._color_support = False
+            return False
+
+    def _get_display_width(self, text):
+        """Calculate display width of text, ignoring ANSI escape codes (cached regex)."""
+        import re
+
+        # Cache the regex compilation
+        if self._ansi_escape_regex is None:
+            self._ansi_escape_regex = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        # Remove ANSI escape sequences to get the actual display width
+        clean_text = self._ansi_escape_regex.sub("", text)
+        return len(clean_text)
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -595,7 +664,15 @@ class VManagerCMD(cmd.Cmd):
                         status_code = domain.info()[0]
                         status_str = self.status_map.get(status_code, "Unknown")
                         colored_name = self._colorize(domain.name(), server_name)
-                        print(f"{colored_name:<40} {status_str:<15}")
+                        colored_status = self._colorize_status(status_str)
+
+                        # Calculate proper spacing considering ANSI codes
+                        name_width = self._get_display_width(colored_name)
+                        name_padding = 40 - name_width
+                        if name_padding < 0:
+                            name_padding = 1
+
+                        print(f"{colored_name}{' ' * name_padding}{colored_status}")
                 else:
                     print("No VMs found on this server.")
             except libvirt.libvirtError as e:
@@ -838,7 +915,22 @@ class VManagerCMD(cmd.Cmd):
                     mem_kib = info[2]  # Current memory
                     mem_mib = mem_kib // 1024
                     colored_name = self._colorize(domain.name(), server_name)
-                    print(f"{colored_name:<40} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
+                    colored_status = self._colorize_status(state_str)
+
+                    # Calculate proper spacing considering ANSI codes
+                    name_width = self._get_display_width(colored_name)
+                    name_padding = 40 - name_width
+                    if name_padding < 0:
+                        name_padding = 1
+
+                    status_width = self._get_display_width(colored_status)
+                    status_padding = 15 - status_width
+                    if status_padding < 0:
+                        status_padding = 1
+
+                    print(
+                        f"{colored_name}{' ' * name_padding}{colored_status}{' ' * status_padding}{vcpus:<7} {mem_mib:<15}"
+                    )
                 except libvirt.libvirtError as e:
                     print(f"Could not retrieve status for '{vm_name}': {e}")
 
