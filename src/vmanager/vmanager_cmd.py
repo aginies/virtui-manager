@@ -8,8 +8,11 @@ secrets in command-line output, logs, and error messages. All sensitive data is
 redacted with "***" placeholders while preserving enough context for debugging.
 """
 
+import atexit
 import cmd
 import datetime
+import os
+from pathlib import Path
 import re
 import readline
 import shlex
@@ -44,6 +47,7 @@ from .vm_actions import (
 )
 from .vm_queries import get_vm_snapshots
 from .vm_service import VMService
+from .pipeline import PipelineExecutor, PipelineMode
 
 
 class CLILogger:
@@ -121,6 +125,14 @@ class VManagerCMD(cmd.Cmd):
         self.active_connections = {}
         self.selected_vms = {}
 
+        # Initialize pipeline executor
+        self.pipeline_executor = PipelineExecutor(self.vm_service, self)
+
+        # Cache for performance optimization
+        self._color_support = None  # Cache color support detection
+        self._status_colors_cache = {}  # Cache colored status strings
+        self._ansi_escape_regex = None  # Cache regex for ANSI codes
+
         # Auto-connect to servers
         for server in self.servers:
             if server.get("autoconnect", False):
@@ -155,7 +167,14 @@ class VManagerCMD(cmd.Cmd):
         # Categories for help and completion
         self.categories = {
             "Connection": ["connect", "disconnect", "host_info", "virsh"],
-            "VM Selection": ["list_vms", "select_vm", "unselect_vm", "status", "vm_info"],
+            "VM Selection": [
+                "list_vms",
+                "select_vm",
+                "unselect_vm",
+                "status",
+                "vm_info",
+                "show_selection",
+            ],
             "VM Operations": [
                 "start",
                 "stop",
@@ -177,16 +196,125 @@ class VManagerCMD(cmd.Cmd):
                 "net_autostart",
             ],
             "Storage": ["list_pool", "list_unused_volumes"],
-            "Shell/Utils": ["bash", "quit"],
+            "Pipelines": ["pipeline"],
+            "Shell/Utils": ["bash", "history", "quit"],
         }
         try:
-            import readline
-
             readline.set_completion_display_matches_hook(self._display_completion_matches)
         except Exception:
             pass
 
+        # Setup persistent command history
+        self._setup_history()
+
         self._update_prompt()
+
+    def emptyline(self):
+        """Override emptyline to prevent repeating the last command on empty input."""
+        return False
+
+    def onecmd(self, line):
+        """Override onecmd to prevent history/!/quit commands from being stored in readline history."""
+        line_stripped = line.strip()
+
+        if (
+            line_stripped.startswith("history")
+            or line_stripped.startswith("!")
+            or line_stripped == "quit"
+        ):
+            try:
+                history_length_before = readline.get_current_history_length()
+            except:
+                history_length_before = 0
+
+            result = super().onecmd(line)
+
+            try:
+                history_length_after = readline.get_current_history_length()
+                if history_length_after > history_length_before:
+                    readline.remove_history_item(history_length_after - 1)
+            except:
+                pass
+
+            return result
+        else:
+            return super().onecmd(line)
+
+    def _get_terminal_width(self):
+        """Get the terminal width, with fallback to 80 columns."""
+        try:
+            return os.get_terminal_size().columns
+        except (AttributeError, OSError):
+            try:
+                import subprocess
+                result = subprocess.run(["tput", "cols"], capture_output=True, text=True)
+                if result.returncode == 0:
+                    return int(result.stdout.strip())
+            except (subprocess.CalledProcessError, ValueError, FileNotFoundError):
+                pass
+        return 80
+
+    def _setup_history(self):
+        """Setup persistent command history using readline."""
+        try:
+            cache_dir = Path.home() / ".cache" / AppInfo.name
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            self.history_file = cache_dir / "vmanager_cmd_history.log"
+            readline.set_history_length(1000)  # Keep last 1000 commands
+            if self.history_file.exists():
+                try:
+                    readline.read_history_file(str(self.history_file))
+                except (IOError, OSError) as e:
+                    print(f"Warning: Could not load command history: {e}")
+
+            atexit.register(self._save_history)
+
+        except Exception as e:
+            print(f"Warning: Could not setup command history: {e}")
+            self.history_file = None
+
+    def _save_history(self):
+        """Save command history to file with sanitization."""
+        if not hasattr(self, "history_file") or self.history_file is None:
+            return
+
+        try:
+            history_length = readline.get_current_history_length()
+            if history_length == 0:
+                return
+
+            sanitized_history = []
+            for i in range(1, history_length + 1):
+                try:
+                    cmd = readline.get_history_item(i)
+                    if cmd:
+                        cmd_stripped = cmd.strip()
+                        if (
+                            cmd_stripped.startswith("!")
+                            or cmd_stripped.startswith("history")
+                            or cmd_stripped == "quit"
+                        ):
+                            continue
+
+                        sanitized_cmd = sanitize_sensitive_data(cmd)
+                        sanitized_history.append(sanitized_cmd)
+                except:
+                    continue
+
+            if sanitized_history:
+                if self.history_file.exists():
+                    backup_file = self.history_file.with_suffix(".log.bak")
+                    try:
+                        shutil.copy2(self.history_file, backup_file)
+                    except:
+                        pass
+
+                with open(self.history_file, "w", encoding="utf-8") as f:
+                    for cmd in sanitized_history:
+                        f.write(f"{cmd}\n")
+
+        except Exception as e:
+            pass
 
     def _sanitize_message(self, message: str) -> str:
         """
@@ -212,8 +340,15 @@ class VManagerCMD(cmd.Cmd):
         """
         print(self._sanitize_message(message))
 
-    def _colorize(self, text, server_name):
-        """Wraps text in ANSI escape codes for the server's assigned color."""
+    def _colorize(self, text, server_name, for_prompt=False):
+        """Wraps text in ANSI escape codes for the server's assigned color.
+
+        Args:
+            text: The text to colorize
+            server_name: The server name to look up color for
+            for_prompt: If True, wrap ANSI codes in readline ignore markers (\\001 and \\002)
+                       to prevent cursor positioning issues.
+        """
         color = self.server_colors.get(server_name)
         if not color:
             return text
@@ -221,9 +356,81 @@ class VManagerCMD(cmd.Cmd):
             r = int(color[1:3], 16)
             g = int(color[3:5], 16)
             b = int(color[5:7], 16)
-            return f"\033[38;2;{r};{g};{b}m{text}\033[0m"
+
+            prefix = f"\033[38;2;{r};{g};{b}m"
+            suffix = "\033[0m"
+
+            if for_prompt:
+                prefix = f"\001{prefix}\002"
+                suffix = f"\001{suffix}\002"
+
+            return f"{prefix}{text}{suffix}"
         except (ValueError, IndexError):
             return text
+
+    def _colorize_status(self, status_text):
+        """Wraps status text in ANSI escape codes based on VM state."""
+        # Check if terminal supports colors (cached)
+        if not self._supports_colors():
+            return status_text
+
+        # Use cached colored status if available
+        if status_text in self._status_colors_cache:
+            return self._status_colors_cache[status_text]
+
+        status_colors = {
+            "Running": "\033[48;2;144;238;144m\033[30m",  # lightgreen background, black text
+            "Stopped": "\033[48;2;255;0;0m\033[37m",  # red background, white text
+            "Paused": "\033[48;2;255;255;0m\033[30m",  # yellow background, black text
+            "Suspended": "\033[48;2;173;216;230m\033[30m",  # lightblue background, black text
+            "Blocked": "\033[48;2;255;165;0m\033[30m",  # orange background, black text
+            "No State": "\033[48;2;128;128;128m\033[37m",  # grey background, white text
+            "Shutting Down": "\033[48;2;128;128;128m\033[37m",  # grey background, white text
+            "Crashed": "\033[48;2;255;0;0m\033[37m",  # red background, white text
+            "Unknown": "\033[48;2;128;128;128m\033[37m",  # grey background, white text
+        }
+
+        color_code = status_colors.get(status_text, "")
+        if color_code:
+            colored_text = f"{color_code}{status_text}\033[0m"
+            # Cache the result
+            self._status_colors_cache[status_text] = colored_text
+            return colored_text
+
+        # Cache uncolored text too
+        self._status_colors_cache[status_text] = status_text
+        return status_text
+
+    def _supports_colors(self):
+        """Check if the terminal supports ANSI colors (cached)."""
+        if self._color_support is not None:
+            return self._color_support
+
+        import os
+
+        # Check common environment variables that indicate color support
+        term = os.environ.get("TERM", "")
+        if "color" in term or term in ["xterm", "xterm-256color", "screen", "tmux"]:
+            self._color_support = True
+            return True
+        # Check if stdout is a TTY
+        try:
+            self._color_support = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+            return self._color_support
+        except (AttributeError, OSError):
+            self._color_support = False
+            return False
+
+    def _get_display_width(self, text):
+        """Calculate display width of text, ignoring ANSI escape codes (cached regex)."""
+        import re
+
+        # Cache the regex compilation
+        if self._ansi_escape_regex is None:
+            self._ansi_escape_regex = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        # Remove ANSI escape sequences to get the actual display width
+        clean_text = self._ansi_escape_regex.sub("", text)
+        return len(clean_text)
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -312,6 +519,104 @@ class VManagerCMD(cmd.Cmd):
         except Exception as e:
             print(f"Error executing shell: {e}")
 
+    def do_history(self, args):
+        """Display command history.
+        Usage: history [number]
+               history all
+               history info
+
+        Shows the last N commands from history. If no number is provided,
+        shows the last 20 commands. Use 'history all' to show all commands.
+        Use 'history info' to show information about the history file.
+
+        Use !NUMBER to re-execute a command from history (e.g., !15)."""
+        try:
+            args_cleaned = args.strip().lower()
+            if args_cleaned == "info":
+                self._show_history_info()
+                return
+
+            history_length = readline.get_current_history_length()
+
+            if not args.strip():
+                num_to_show = min(20, history_length)
+                start_idx = max(1, history_length - num_to_show + 1)
+            elif args_cleaned == "all":
+                num_to_show = history_length
+                start_idx = 1
+            else:
+                try:
+                    num_to_show = int(args.strip())
+                    if num_to_show <= 0:
+                        print("Error: Number must be positive.")
+                        return
+                    num_to_show = min(num_to_show, history_length)
+                    start_idx = max(1, history_length - num_to_show + 1)
+                except ValueError:
+                    print(
+                        "Error: Invalid number. Use 'history [number]', 'history all', or 'history info'."
+                    )
+                    return
+
+            if history_length == 0:
+                print("No command history available.")
+                return
+
+            print(f"Command history (showing last {num_to_show} commands):")
+            print("-" * 50)
+
+            for i in range(start_idx, history_length + 1):
+                try:
+                    cmd = readline.get_history_item(i)
+                    if cmd:
+                        sanitized_cmd = self._sanitize_message(cmd)
+                        print(f"{i:4d}  {sanitized_cmd}")
+                except:
+                    continue
+
+        except Exception as e:
+            print(f"Error accessing command history: {e}")
+            print("Note: Command history may not be available in all environments.")
+
+    def _show_history_info(self):
+        """Show information about the persistent history file."""
+        if not hasattr(self, "history_file") or self.history_file is None:
+            print("History file is not configured.")
+            return
+
+        print("Command History Information:")
+        print(f"  History file: {self.history_file}")
+        print(f"  File exists: {self.history_file.exists()}")
+
+        if self.history_file.exists():
+            try:
+                stat = self.history_file.stat()
+                print(f"  File size: {stat.st_size} bytes")
+                print(f"  Last modified: {datetime.datetime.fromtimestamp(stat.st_mtime)}")
+
+                with open(self.history_file, "r", encoding="utf-8") as f:
+                    line_count = sum(1 for _ in f)
+                print(f"  Commands stored: {line_count}")
+
+            except Exception as e:
+                print(f"  Error reading file info: {e}")
+
+        try:
+            current_length = readline.get_current_history_length()
+            print(f"  Current session commands: {current_length}")
+            print(f"  History limit: {readline.get_history_length()}")
+        except:
+            print("  Current session info not available")
+
+    def complete_history(self, text, line, begidx, endidx):
+        """Auto-completion for history command."""
+        args = line.split()
+        if len(args) == 2 and not line.endswith(" "):
+            # Complete "all", "info", or common numbers
+            options = ["all", "info", "10", "20", "50", "100"]
+            return [opt for opt in options if opt.startswith(text)]
+        return []
+
     def _set_title(self, title):
         """Sets the terminal window title."""
         print(f"\033]0;{title}\007", end="", flush=True)
@@ -319,17 +624,51 @@ class VManagerCMD(cmd.Cmd):
     def _update_prompt(self):
         if self.active_connections:
             server_names = ",".join(
-                [self._colorize(name, name) for name in self.active_connections.keys()]
+                [
+                    self._colorize(name, name, for_prompt=True)
+                    for name in self.active_connections.keys()
+                ]
             )
 
-            # Flatten the list of selected VMs from all servers
             all_selected_vms = []
             for server_name, vms in self.selected_vms.items():
                 for vm in vms:
-                    all_selected_vms.append(self._colorize(vm, server_name))
+                    all_selected_vms.append(
+                        self._colorize(vm, server_name, for_prompt=True)
+                    )
 
             if all_selected_vms:
-                self.prompt = f"({server_names}) [{','.join(all_selected_vms)}] "
+                # Check if the prompt would be too long
+                vm_list_str = ",".join(all_selected_vms)
+                test_prompt = f"({server_names}) [{vm_list_str}] "
+                term_width = self._get_terminal_width()
+
+                # If prompt is too long (more than half the terminal), truncate VM list
+                if self._get_display_width(test_prompt) > term_width // 2:
+                    if len(all_selected_vms) > 3:
+                        # Show first 2 VMs and count
+                        shown_vms = all_selected_vms[:2]
+                        remaining_count = len(all_selected_vms) - 2
+                        vm_display = ",".join(shown_vms) + f",+{remaining_count} more"
+                    else:
+                        # Truncate VM names individually if still too long
+                        max_vm_width = (term_width // 2 - 20) // len(
+                            all_selected_vms
+                        )  # Rough estimate
+                        shown_vms = []
+                        for vm in all_selected_vms:
+                            if self._get_display_width(vm) > max_vm_width:
+                                # Truncate individual VM name
+                                truncated = self._wrap_text(vm, max_vm_width)
+                                shown_vms.append(truncated)
+                            else:
+                                shown_vms.append(vm)
+                        vm_display = ",".join(shown_vms)
+
+                    self.prompt = f"({server_names}) [{vm_display}] "
+                else:
+                    self.prompt = test_prompt
+
             else:
                 self.prompt = f"({server_names}) "
 
@@ -339,6 +678,25 @@ class VManagerCMD(cmd.Cmd):
         else:
             self.prompt = "(" + AppInfo.name + ")> "
             self._set_title("Virtui Manager CLI")
+
+
+    def do_show_selection(self, args):
+        """Show the full list of currently selected VMs (useful when prompt is truncated).
+        Usage: show_selection"""
+        if not self.selected_vms:
+            print("No VMs are currently selected.")
+            return
+
+        total_count = sum(len(vms) for vms in self.selected_vms.values())
+        print(f"Currently selected VMs ({total_count} total):")
+
+        for server_name, vms in self.selected_vms.items():
+            colored_server = self._colorize(server_name, server_name)
+            print(f"  {colored_server}:")
+            for vm in vms:
+                colored_vm = self._colorize(vm, server_name)
+                print(f"    - {colored_vm}")
+
 
     def _display_completion_matches(self, substitution, matches, longest_match_length):
         """Custom display hook for readline completion to show categories."""
@@ -356,7 +714,7 @@ class VManagerCMD(cmd.Cmd):
             # Default display
             print()
             self.columnize(matches, displaywidth=80)
-            print(self.prompt, end="", flush=True)
+            print(self.prompt.replace("\001", "").replace("\002", ""), end="", flush=True)
             print(readline.get_line_buffer(), end="", flush=True)
             return
 
@@ -381,7 +739,7 @@ class VManagerCMD(cmd.Cmd):
             self.columnize(sorted(uncategorized), displaywidth=80)
             print()
 
-        print(self.prompt, end="", flush=True)
+        print(self.prompt.replace("\001", "").replace("\002", ""), end="", flush=True)
         print(readline.get_line_buffer(), end="", flush=True)
 
     def _find_domain(self, vm_name):
@@ -595,7 +953,15 @@ class VManagerCMD(cmd.Cmd):
                         status_code = domain.info()[0]
                         status_str = self.status_map.get(status_code, "Unknown")
                         colored_name = self._colorize(domain.name(), server_name)
-                        print(f"{colored_name:<40} {status_str:<15}")
+                        colored_status = self._colorize_status(status_str)
+
+                        # Calculate proper spacing considering ANSI codes
+                        name_width = self._get_display_width(colored_name)
+                        name_padding = 40 - name_width
+                        if name_padding < 0:
+                            name_padding = 1
+
+                        print(f"{colored_name}{' ' * name_padding}{colored_status}")
                 else:
                     print("No VMs found on this server.")
             except libvirt.libvirtError as e:
@@ -838,7 +1204,22 @@ class VManagerCMD(cmd.Cmd):
                     mem_kib = info[2]  # Current memory
                     mem_mib = mem_kib // 1024
                     colored_name = self._colorize(domain.name(), server_name)
-                    print(f"{colored_name:<40} {state_str:<15} {vcpus:<7} {mem_mib:<15}")
+                    colored_status = self._colorize_status(state_str)
+
+                    # Calculate proper spacing considering ANSI codes
+                    name_width = self._get_display_width(colored_name)
+                    name_padding = 40 - name_width
+                    if name_padding < 0:
+                        name_padding = 1
+
+                    status_width = self._get_display_width(colored_status)
+                    status_padding = 15 - status_width
+                    if status_padding < 0:
+                        status_padding = 1
+
+                    print(
+                        f"{colored_name}{' ' * name_padding}{colored_status}{' ' * status_padding}{vcpus:<7} {mem_mib:<15}"
+                    )
                 except libvirt.libvirtError as e:
                     print(f"Could not retrieve status for '{vm_name}': {e}")
 
@@ -1420,6 +1801,9 @@ class VManagerCMD(cmd.Cmd):
     def do_help(self, arg):
         """List available commands with "help" or detailed help with "help cmd"."""
         if arg:
+            if arg == "pipeline":
+                self._show_pipeline_help()
+                return
             return super().do_help(arg)
 
         # Find any other commands not in categories
@@ -1443,10 +1827,95 @@ class VManagerCMD(cmd.Cmd):
             if cmds_to_print:
                 print(f"\n\033[1;36m{category}:\033[0m")
                 self.columnize(sorted(cmds_to_print), displaywidth=80)
+
+        # Add pipeline help summary
+        print(f"\n\033[1;32mPipeline Commands:\033[0m")
+        print("  Use | to chain commands together:")
+        print("    select re:web.* | stop | snapshot create backup | start")
+        print("    pipeline --dry-run select vm1 vm2 | pause")
+        print("  Type 'help pipelines' for detailed pipeline documentation.")
+
+        # Add history help summary
+        print(f"\n\033[1;32mHistory Commands:\033[0m")
+        print("  Use history to view previous commands:")
+        print("    history         # Show last 20 commands")
+        print("    history 50      # Show last 50 commands")
+        print("    history all     # Show all commands")
+        print("    !15             # Re-execute command #15 from history")
+        print("  Note: 'history', '!' and 'quit' commands are not stored in history")
         print()
+
+    def _show_pipeline_help(self):
+        """Show comprehensive pipeline help."""
+        help_text = """
+=== PIPELINE COMMANDS ===
+
+Pipelines allow you to chain commands together using the pipe operator (|) 
+to create powerful, efficient workflows.
+
+BASIC SYNTAX:
+  command1 | command2 | command3
+  pipeline [OPTIONS] command1 | command2 | command3
+
+PIPELINE OPTIONS:
+  --dry-run         Show what would be done without executing
+  --interactive, -i Ask for confirmation before execution
+
+SUPPORTED COMMANDS IN PIPELINES:
+
+VM Selection:
+  select <vm1> [vm2...]     - Select specific VMs
+  select re:<pattern>       - Select VMs matching regex pattern
+
+VM Operations: 
+  start                     - Start selected VMs
+  stop                      - Gracefully shutdown selected VMs  
+  force_off                 - Force shutdown selected VMs
+  pause                     - Pause selected VMs
+  resume                    - Resume paused/suspended VMs
+  hibernate                 - Hibernate selected VMs
+
+Snapshots:
+  snapshot create <name> [description]  - Create snapshot
+  snapshot delete <name>                - Delete snapshot
+  snapshot revert <name>                - Revert to snapshot
+
+Utilities:
+  wait <seconds>            - Wait specified seconds
+  view                      - Launch VM viewers
+  info                      - Display VM information
+
+VARIABLE EXPANSION:
+  $(date) - Expands to current date/time (YYYYMMDD_HHMMSS)  
+
+Examples:
+  snapshot create backup-$(date)     → backup-20240216_143052
+
+PIPELINE EXAMPLES:
+
+Basic VM lifecycle:
+  select re:web.* | stop | snapshot create backup-$(date) | start
+  
+Information and monitoring:
+  select re:win* | info
+  select vm1 vm2 | info | view
+  
+Maintenance workflow:
+  select vm1 vm2 | stop | wait 5 | start | view
+  
+Safe shutdown with backup:
+  pipeline -i select re:prod-.* | hibernate | snapshot create maintenance-$(date)
+  
+Dry-run testing:
+  pipeline --dry-run select re:.* | stop | start
+        """
+        print(help_text)
 
     def do_quit(self, arg):
         """Exit the virtui-manager shell."""
+        # Save command history before exiting
+        self._save_history()
+
         # Disconnect all connections when quitting
         self.vm_service.disconnect_all()
         print(f"\nExiting {AppInfo.namecase}.")
@@ -1901,11 +2370,14 @@ class VManagerCMD(cmd.Cmd):
                     print(f"\n--- Host Info: {server_name} ---")
                     print(f"CPU Model: {info.get('model')}")
                     print(
-                        f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes, {info.get('sockets')} sockets, {info.get('cores')} cores, {info.get('threads')} threads)"
+                        f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes,"
+                        "{info.get('sockets')} sockets, {info.get('cores')} cores,"
+                        "{info.get('threads')} threads)"
                     )
                     print(f"CPU Speed: {info.get('mhz')} MHz")
                     print(
-                        f"Memory: {info.get('total_memory')} GiB total, {info.get('free_memory')} MiB free"
+                        f"Memory: {info.get('total_memory')} GiB total,"
+                        "{info.get('free_memory')} MiB free"
                     )
             except Exception as e:
                 print(f"Error retrieving host info for {server_name}: {e}")
@@ -1931,6 +2403,244 @@ class VManagerCMD(cmd.Cmd):
             return list(all_nets)
         return [n for n in all_nets if n.startswith(text)]
 
+    def default(self, line):
+        """Handle unknown commands, pipeline syntax, or history execution."""
+        line = line.strip()
+        if not line:
+            return
+
+        # Check if this is a history execution command (!NUMBER)
+        if line.startswith("!"):
+            self._execute_history_command(line)
+            return
+
+        # Check if this is a pipeline command (contains |)
+        if "|" in line:
+            self.handle_pipeline(line)
+        else:
+            # Unknown single command
+            print(f"Unknown command: {line}")
+            print(
+                "Type 'help' for a list of available commands or 'help <command>'"
+                "for specific command help."
+            )
+
+    def _execute_history_command(self, line):
+        """Execute a command from history using !NUMBER syntax."""
+        try:
+            # Extract the number after !
+            number_str = line[1:].strip()
+            if not number_str:
+                print("Error: Usage is !NUMBER (e.g., !15)")
+                return
+
+            try:
+                history_number = int(number_str)
+            except ValueError:
+                print("Error: Invalid number. Usage is !NUMBER (e.g., !15)")
+                return
+
+            # Get the command from history
+            try:
+                history_cmd = readline.get_history_item(history_number)
+                if not history_cmd:
+                    print(f"Error: No command found at history position {history_number}")
+                    return
+            except:
+                print(f"Error: Cannot access command at history position {history_number}")
+                return
+
+            # Don't re-execute other ! commands to avoid nested execution
+            if history_cmd.startswith("!"):
+                print(f"Cannot re-execute ! commands: {history_cmd}")
+                return
+
+            print(f"Executing from history [{history_number}]: {history_cmd}")
+
+            # Execute the command by calling onecmd
+            # This will properly handle the command and add it to history
+            self.onecmd(history_cmd)
+
+        except Exception as e:
+            print(f"Error executing history command: {e}")
+
+    def handle_pipeline(self, pipeline_str: str):
+        """Handle pipeline commands."""
+        pipeline_str = pipeline_str.strip()
+
+        # Check for pipeline mode flags
+        mode = PipelineMode.NORMAL
+        if pipeline_str.startswith("--dry-run "):
+            mode = PipelineMode.DRY_RUN
+            pipeline_str = pipeline_str[10:]
+        elif pipeline_str.startswith("--interactive ") or pipeline_str.startswith("-i "):
+            mode = PipelineMode.INTERACTIVE
+            pipeline_str = (
+                pipeline_str[14:] if pipeline_str.startswith("--interactive") else pipeline_str[3:]
+            )
+
+        print(f"Executing pipeline: {pipeline_str}")
+        if mode == PipelineMode.DRY_RUN:
+            print("(DRY RUN MODE - No changes will be made)")
+
+        # Validate pipeline first
+        is_valid, errors = self.pipeline_executor.validate_pipeline(pipeline_str)
+        if not is_valid:
+            print("Pipeline validation failed:")
+            for error in errors:
+                print(f"  Error: {error}")
+            return
+
+        context = self.pipeline_executor.execute_pipeline(pipeline_str, mode)
+        self._display_pipeline_results(context, mode)
+
+        if context.selected_vms:
+            self.selected_vms = dict(context.selected_vms)
+            self._update_prompt()
+
+    def _display_pipeline_results(self, context, mode: PipelineMode):
+        """Display the results of a pipeline execution."""
+        print()
+
+        if mode == PipelineMode.DRY_RUN:
+            dry_run_actions = context.metadata.get("dry_run_actions", [])
+            if dry_run_actions:
+                print("=== Actions that would be performed ===")
+                for action in dry_run_actions:
+                    print(f"  • {action}")
+                print()
+
+        if context.warnings:
+            print("=== Warnings ===")
+            for warning in context.warnings:
+                print(f"  Warning: {warning}")
+            print()
+
+        if context.errors:
+            print("=== Errors ===")
+            for error in context.errors:
+                print(f"  Error: {error}")
+            print()
+
+        if context.stage.value == "complete":
+            success_counts = {
+                k: v for k, v in context.metadata.items() if k.endswith("_success_count")
+            }
+            if success_counts:
+                print("=== Pipeline Results ===")
+                for operation, count in success_counts.items():
+                    op_name = operation.replace("_success_count", "").replace("_", " ").title()
+                    print(f"  {op_name}: {count} VM(s) processed successfully")
+
+        if context.selected_vms:
+            selected_count = sum(len(vms) for vms in context.selected_vms.values())
+            print(f"Pipeline completed. {selected_count} VM(s) selected:")
+            for server, vms in context.selected_vms.items():
+                print(f"  {server}: {', '.join(vms)}")
+        elif context.stage.value == "complete":
+            print("Pipeline completed successfully.")
+
+        if context.last_output:
+            print(f"\nOutput: {context.last_output}")
+
+        print()
+
+    def do_pipeline(self, args):
+        """Execute a command pipeline with special options.
+        Usage: pipeline [--dry-run|--interactive|-i] <pipeline_commands>
+
+        Examples:
+          pipeline select re:web.* | stop | snapshot create backup-$(date) | start
+          pipeline --dry-run select vm1 vm2 | pause | view
+          pipeline -i list_vms running | hibernate
+        """
+        if not args:
+            print("Usage: pipeline [--dry-run|--interactive|-i] <pipeline_commands>")
+            print("\nExamples:")
+            print("  pipeline select re:web.* | stop | snapshot create backup-$(date) | start")
+            print("  pipeline --dry-run select vm1 vm2 | pause | view")
+            print("  pipeline -i list_vms running | hibernate")
+            return
+
+        self.handle_pipeline(args)
+
+    def complete_pipeline(self, text, line, begidx, endidx):
+        """Auto-completion for pipeline commands."""
+        words = line.split()
+
+        if len(words) == 2 and not line.endswith(" "):
+            # Completing first argument after "pipeline"
+            options = ["--dry-run", "--interactive", "-i"]
+            pipeline_commands = ["select"]
+
+            completions = []
+            if text.startswith("-"):
+                completions = [opt for opt in options if opt.startswith(text)]
+            else:
+                completions = [cmd for cmd in pipeline_commands if cmd.startswith(text)]
+
+            return completions
+
+        pipeline_start_idx = 1
+        for i, word in enumerate(words[1:], 1):
+            if not word.startswith("-"):
+                pipeline_start_idx = i
+                break
+
+        pipeline_words = words[pipeline_start_idx:]
+        if not pipeline_words:
+            return ["select"]
+
+        pipeline_text = " ".join(pipeline_words)
+        pipe_count = pipeline_text.count("|")
+
+        if "|" in pipeline_text:
+            current_segment = pipeline_text.split("|")[-1].strip()
+        else:
+            current_segment = pipeline_text.strip()
+
+        current_words = current_segment.split()
+        pipeline_commands = {
+            "select": [],
+            "start": [],
+            "stop": [],
+            "force_off": [],
+            "pause": [],
+            "resume": [],
+            "hibernate": [],
+            "snapshot": ["create", "delete", "revert"],
+            "wait": [],
+            "view": [],
+            "info": [],
+        }
+
+        # If we're at the start of a segment or after a pipe
+        if not current_words or (len(current_words) == 1 and not current_segment.endswith(" ")):
+            command_text = current_words[0] if current_words else ""
+            completions = [cmd for cmd in pipeline_commands.keys() if cmd.startswith(command_text)]
+
+            return completions
+
+        elif len(current_words) >= 1:
+            command = current_words[0]
+
+            if command == "select":
+                return self.complete_select_vm(text, line, begidx, endidx)
+
+            elif command == "snapshot":
+                if len(current_words) == 2 and not current_segment.endswith(" "):
+                    operations = ["create", "delete", "revert"]
+                    return [op for op in operations if op.startswith(current_words[1])]
+                elif len(current_words) >= 2 and current_words[1] in ["delete", "revert"]:
+                    return []
+
+            elif command == "wait":
+                if len(current_words) == 2 and not current_segment.endswith(" "):
+                    wait_times = ["1", "2", "5", "10", "30", "60"]
+                    return [t for t in wait_times if t.startswith(current_words[1])]
+
+        return []
+
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
@@ -1939,7 +2649,7 @@ def main():
         cmd_app.cmdloop()
     except KeyboardInterrupt:
         print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
-        cmd_app.intro = ""  # Avoid re-printing intro on resume
+        cmd_app.intro = ""
 
 
 if __name__ == "__main__":
