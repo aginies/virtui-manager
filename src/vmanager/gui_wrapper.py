@@ -14,15 +14,15 @@ import yaml
 # Add the directory containing the 'vmanager' package to sys.path
 # This allows running the gui_wrapper.py directly from the vmanager directory.
 script_dir = os.path.dirname(os.path.abspath(__file__))
-vmanager_package_parent_dir = os.path.abspath(os.path.join(script_dir, '..'))
+vmanager_package_parent_dir = os.path.abspath(os.path.join(script_dir, ".."))
 if vmanager_package_parent_dir not in sys.path:
     sys.path.insert(0, vmanager_package_parent_dir)
 
 # Require GTK 3.0, Gdk 3.0 and Vte 2.91
 try:
-    gi.require_version('Gdk', '3.0')
-    gi.require_version('Gtk', '3.0')
-    gi.require_version('Vte', '2.91')
+    gi.require_version("Gdk", "3.0")
+    gi.require_version("Gtk", "3.0")
+    gi.require_version("Vte", "2.91")
 except ValueError as e:
     print(f"Error: Missing required libraries. {e}")
     sys.exit(1)
@@ -31,7 +31,8 @@ from gi.repository import Gdk, GLib, Gtk, Pango, Vte
 
 
 def is_running_under_flatpak():
-    return 'FLATPAK_ID' in os.environ
+    return "FLATPAK_ID" in os.environ
+
 
 def check_tmux():
     try:
@@ -39,6 +40,7 @@ def check_tmux():
             return True
     except Exception:
         return False
+
 
 # Constants
 DEFAULT_WINDOW_WIDTH = 1200
@@ -50,6 +52,7 @@ TERMINAL_COLS = 92
 TERMINAL_ROWS = 34
 TERMINAL_SCROLLBACK = 10000
 FONT_SIZES = [8, 10, 12, 14, 16, 18, 20, 24]
+
 
 class VirtuiWrapper(Gtk.Window):
     CONFIG_DIR = Path.home() / ".config" / "virtui-manager"
@@ -264,10 +267,10 @@ class VirtuiWrapper(Gtk.Window):
                 "font_name": self.font_name,
                 "font_size": self.current_font_size,
                 "width": max(width, MIN_WINDOW_WIDTH),
-                "height": max(height, MIN_WINDOW_HEIGHT)
+                "height": max(height, MIN_WINDOW_HEIGHT),
             }
 
-            with open(self.CONFIG_FILE, 'w') as f:
+            with open(self.CONFIG_FILE, "w") as f:
                 yaml.dump(config, f, default_flow_style=False)
         except Exception as e:
             print(f"Error saving config: {e}")
@@ -281,7 +284,15 @@ class VirtuiWrapper(Gtk.Window):
 
         if check_tmux():
             session_name = f"vmanager-{int(time.time())}"
-            cmd = [tmux_bin, "new-session", "-s", session_name, sys.executable, "-m", "vmanager.vmanager"]
+            cmd = [
+                tmux_bin,
+                "new-session",
+                "-s",
+                session_name,
+                sys.executable,
+                "-m",
+                "vmanager.vmanager",
+            ]
         else:
             # Fallback to running without tmux if not available
             cmd = [sys.executable, "-m", "vmanager.wrapper"]
@@ -308,14 +319,17 @@ class VirtuiWrapper(Gtk.Window):
     def _get_log_path(self):
         try:
             from vmanager.config import get_log_path
+
             return get_log_path()
         except ImportError:
             return Path.home() / ".cache" / "virtui-manager" / "vm_manager.log"
 
     def set_font_size(self, size):
         """Sets the font size and applies it."""
-        if size < 6: size = 6
-        if size > 72: size = 72
+        if size < 6:
+            size = 6
+        if size > 72:
+            size = 72
         self.current_font_size = size
         self._apply_font_to_all_terminals()
         self.save_gui_config()
@@ -340,13 +354,13 @@ class VirtuiWrapper(Gtk.Window):
                 return True
             elif keyname == "C":
                 term = self.get_current_terminal()
-                if term and self.tabs.get(term, {}).get('allow_copy_paste', True):
+                if term and self.tabs.get(term, {}).get("allow_copy_paste", True):
                     term.copy_clipboard()
                     return True
                 return False
             elif keyname == "V":
                 term = self.get_current_terminal()
-                if term and self.tabs.get(term, {}).get('allow_copy_paste', True):
+                if term and self.tabs.get(term, {}).get("allow_copy_paste", True):
                     term.paste_clipboard()
                     return True
                 return False
@@ -382,7 +396,7 @@ class VirtuiWrapper(Gtk.Window):
         page_num = self.notebook.get_current_page()
         page = self.notebook.get_nth_page(page_num)
         for term, data in self.tabs.items():
-            if data['page'] == page:
+            if data["page"] == page:
                 return term
         return None
 
@@ -418,7 +432,9 @@ class VirtuiWrapper(Gtk.Window):
         if self.search_bar.get_search_mode():
             self.on_search_changed(self.search_entry)
 
-    def create_tab(self, title, command, fixed_title=False, session_name=None, allow_copy_paste=True):
+    def create_tab(
+        self, title, command, fixed_title=False, session_name=None, allow_copy_paste=True
+    ):
         terminal = Vte.Terminal()
         terminal.set_size(TERMINAL_COLS, TERMINAL_ROWS)
         terminal.set_scrollback_lines(TERMINAL_SCROLLBACK)
@@ -458,10 +474,10 @@ class VirtuiWrapper(Gtk.Window):
 
         # Store tab info
         self.tabs[terminal] = {
-            'page': scrolled_window,
-            'label': label,
-            'session_name': session_name,
-            'allow_copy_paste': allow_copy_paste
+            "page": scrolled_window,
+            "label": label,
+            "session_name": session_name,
+            "allow_copy_paste": allow_copy_paste,
         }
 
         self.spawn_process(terminal, command)
@@ -492,7 +508,7 @@ class VirtuiWrapper(Gtk.Window):
     def on_terminal_button_press(self, widget, event):
         """Handle mouse button press on terminal for context menu."""
         if event.button == 3:  # Right click
-            if not self.tabs.get(widget, {}).get('allow_copy_paste', True):
+            if not self.tabs.get(widget, {}).get("allow_copy_paste", True):
                 return False
 
             menu = Gtk.Menu()
@@ -521,9 +537,11 @@ class VirtuiWrapper(Gtk.Window):
             tmux_bin = "tmux"
 
         try:
-            subprocess.run([tmux_bin, "kill-session", "-t", session_name],
-                           stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL)
+            subprocess.run(
+                [tmux_bin, "kill-session", "-t", session_name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             print(f"Killed tmux session: {session_name}")
         except Exception as e:
             print(f"Error killing tmux session {session_name}: {e}")
@@ -537,7 +555,7 @@ class VirtuiWrapper(Gtk.Window):
         # Retrieve session name before potential early return
         session_name = None
         if terminal in self.tabs:
-            session_name = self.tabs[terminal].get('session_name')
+            session_name = self.tabs[terminal].get("session_name")
 
         if terminal in self.terminal_pids:
             pid = self.terminal_pids[terminal]
@@ -613,7 +631,7 @@ class VirtuiWrapper(Gtk.Window):
         try:
             if terminal in self.tabs:
                 self.cleanup_terminal(terminal)
-                page = self.tabs[terminal]['page']
+                page = self.tabs[terminal]["page"]
                 page_num = self.notebook.page_num(page)
 
                 if page_num != -1:
@@ -728,7 +746,7 @@ class VirtuiWrapper(Gtk.Window):
 
     def spawn_process(self, terminal, cmd):
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+        project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))
 
         env = os.environ.copy()
 
@@ -739,7 +757,7 @@ class VirtuiWrapper(Gtk.Window):
         # 2. Fallback to local source tree if not set and 'src' exists relative to script
         if not src_dir:
             # this script_dir is src/vmanager
-            possible_src_dir = os.path.dirname(script_dir) # this would be src/
+            possible_src_dir = os.path.dirname(script_dir)  # this would be src/
             # Check if this looks like a source tree (has vmanager package)
             if os.path.isdir(os.path.join(possible_src_dir, "vmanager")):
                 src_dir = possible_src_dir
@@ -748,7 +766,9 @@ class VirtuiWrapper(Gtk.Window):
         if src_dir:
             current_pythonpath = env.get("PYTHONPATH", "")
             if src_dir not in current_pythonpath:
-                env["PYTHONPATH"] = f"{src_dir}:{current_pythonpath}" if current_pythonpath else src_dir
+                env["PYTHONPATH"] = (
+                    f"{src_dir}:{current_pythonpath}" if current_pythonpath else src_dir
+                )
 
         # Convert env to list of strings "KEY=VALUE" for spawn_async
         envv = [f"{k}={v}" for k, v in env.items()]
@@ -757,20 +777,20 @@ class VirtuiWrapper(Gtk.Window):
             # Vte.Terminal.spawn_async(pty_flags, working_directory, argv, envv, spawn_flags, child_setup, child_setup_data, timeout, cancellable, callback, user_data)
             terminal.spawn_async(
                 Vte.PtyFlags.DEFAULT,
-                project_root, # Working directory changed to project_root
-                cmd,         # Command arguments
-                envv,        # Environment
+                project_root,  # Working directory changed to project_root
+                cmd,  # Command arguments
+                envv,  # Environment
                 GLib.SpawnFlags.DEFAULT,
-                None,        # child_setup
-                None,        # child_setup_data
-                -1,          # timeout
-                None,        # cancellable
+                None,  # child_setup
+                None,  # child_setup_data
+                -1,  # timeout
+                None,  # cancellable
                 self.on_spawn_complete,  # callback to get PID
-                terminal     # user_data (pass terminal to callback)
+                terminal,  # user_data (pass terminal to callback)
             )
         except Exception as e:
             error_msg = f"Error spawning application: {e}\n"
-            terminal.feed(error_msg.encode('utf-8'))
+            terminal.feed(error_msg.encode("utf-8"))
             print(error_msg)
 
     def on_spawn_complete(self, terminal, pid, error, user_data):
@@ -789,7 +809,7 @@ class VirtuiWrapper(Gtk.Window):
             return
 
         if terminal in self.tabs:
-            self.tabs[terminal]['label'].set_text(title)
+            self.tabs[terminal]["label"].set_text(title)
 
     def on_child_exited(self, terminal, status):
         """Handle child process exit."""
@@ -798,7 +818,7 @@ class VirtuiWrapper(Gtk.Window):
             del self.terminal_pids[terminal]
 
         if terminal in self.tabs:
-            page = self.tabs[terminal]['page']
+            page = self.tabs[terminal]["page"]
             page_num = self.notebook.page_num(page)
 
             if page_num != -1:
@@ -809,10 +829,12 @@ class VirtuiWrapper(Gtk.Window):
         if self.notebook.get_n_pages() == 0:
             self.destroy()
 
+
 def signal_handler(signum, frame):
     """Handle SIGTERM and SIGINT gracefully."""
     print(f"\nReceived signal {signum}, shutting down gracefully...")
     Gtk.main_quit()
+
 
 def main():
     # Register signal handlers for graceful shutdown
@@ -821,6 +843,7 @@ def main():
     app = VirtuiWrapper()
     app.show_all()
     Gtk.main()
+
 
 if __name__ == "__main__":
     main()

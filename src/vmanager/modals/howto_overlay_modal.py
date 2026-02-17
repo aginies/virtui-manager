@@ -1,6 +1,7 @@
 """
 Modal to show how overlay disks work.
 """
+
 from pathlib import Path
 
 from textual import on

@@ -1,6 +1,7 @@
 """
 Modal for displaying Host Domain Capabilities in a Tree View with Search.
 """
+
 import xml.etree.ElementTree as ET
 
 from textual import on
@@ -70,14 +71,20 @@ class CapabilitiesTreeModal(BaseModal[None]):
             return True
         return filter_text in (text or "").lower()
 
-    def _add_node_recursive(self, parent_node: TreeNode, element: ET.Element, filter_text: str) -> bool:
+    def _add_node_recursive(
+        self, parent_node: TreeNode, element: ET.Element, filter_text: str
+    ) -> bool:
         """
-        Recursively adds nodes. Returns True if the node (or any descendant) matches the filter 
+        Recursively adds nodes. Returns True if the node (or any descendant) matches the filter
         and should be kept.
         """
         # 1. Determine if this specific element matches (tag, text, or any attribute)
         tag_match = self._matches(element.tag, filter_text)
-        text_match = self._matches(element.text, filter_text) if element.text and element.text.strip() else False
+        text_match = (
+            self._matches(element.text, filter_text)
+            if element.text and element.text.strip()
+            else False
+        )
 
         matching_attrs = []
         for k, v in element.attrib.items():

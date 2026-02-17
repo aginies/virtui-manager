@@ -1,6 +1,7 @@
 """
 Modal to show how to use ssh-agent.
 """
+
 from pathlib import Path
 
 from textual import on

@@ -1,6 +1,7 @@
 """
 Modals for handling VM migration.
 """
+
 import threading
 from typing import Dict, List
 
@@ -18,14 +19,21 @@ from ..vm_actions import check_server_migration_compatibility, check_vm_migratio
 from ..vm_migration import custom_migrate_vm, execute_custom_migration
 from .custom_migration_modal import CustomMigrationModal
 
-#from pprint import pprint # pprint(vars(object))
+# from pprint import pprint # pprint(vars(object))
+
 
 class MigrationModal(ModalScreen):
     """A modal to handle VM migration."""
 
     BINDINGS = [("escape", "app.pop_screen", "Cancel")]
 
-    def __init__(self, vms: List[libvirt.virDomain], is_live: bool, connections: Dict[str, libvirt.virConnect], **kwargs):
+    def __init__(
+        self,
+        vms: List[libvirt.virDomain],
+        is_live: bool,
+        connections: Dict[str, libvirt.virConnect],
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.vms_to_migrate = vms
         self.is_live = is_live
@@ -46,7 +54,7 @@ class MigrationModal(ModalScreen):
         try:
             source_hostname = self.source_conn.getHostname()
         except libvirt.libvirtError:
-            source_hostname = None # Can't get hostname, will have to rely on URI
+            source_hostname = None  # Can't get hostname, will have to rely on URI
 
         dest_servers = []
         for uri, conn in self.connections.items():
@@ -57,7 +65,7 @@ class MigrationModal(ModalScreen):
                 try:
                     dest_hostname = conn.getHostname()
                     if dest_hostname == source_hostname:
-                        continue # It's the same host, skip it
+                        continue  # It's the same host, skip it
                 except libvirt.libvirtError:
                     # Could not get hostname for destination, can't compare.
                     # We will let it be in the list and let libvirt fail if it's the same.
@@ -74,21 +82,63 @@ class MigrationModal(ModalScreen):
             self.dest_conn = self.connections[default_dest_uri]
             self.dest_uri = default_dest_uri
 
-        with Vertical(id="migration-dialog",):
+        with Vertical(
+            id="migration-dialog",
+        ):
             with Vertical(id="migration-content-wrapper"):
-                yield Label(StaticText.MIGRATE_VMS_TITLE.format(migration_type=migration_type, vm_names=vm_names))
+                yield Label(
+                    StaticText.MIGRATE_VMS_TITLE.format(
+                        migration_type=migration_type, vm_names=vm_names
+                    )
+                )
                 yield Static(StaticText.SELECT_DESTINATION_SERVER)
-                yield Select(dest_servers, id="dest-server-select", prompt="Destination...", value=default_dest_uri, allow_blank=False)
+                yield Select(
+                    dest_servers,
+                    id="dest-server-select",
+                    prompt="Destination...",
+                    value=default_dest_uri,
+                    allow_blank=False,
+                )
 
                 yield Static(StaticText.MIGRATION_OPTIONS)
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox(StaticText.COPY_STORAGE_ALL, id="copy-storage-all", tooltip=StaticText.COPY_ALL_DISK_FILES_TOOLTIP, value=False)
-                    yield Checkbox(StaticText.UNSAFE_MIGRATION, id="unsafe", tooltip=StaticText.PERFORM_UNSAFE_MIGRATION_TOOLTIP, disabled=not self.is_live)
-                    yield Checkbox(StaticText.PERSISTENT_MIGRATION, id="persistent", tooltip=StaticText.KEEP_VM_PERSISTENT_ON_DESTINATION_TOOLTIP, value=True)
+                    yield Checkbox(
+                        StaticText.COPY_STORAGE_ALL,
+                        id="copy-storage-all",
+                        tooltip=StaticText.COPY_ALL_DISK_FILES_TOOLTIP,
+                        value=False,
+                    )
+                    yield Checkbox(
+                        StaticText.UNSAFE_MIGRATION,
+                        id="unsafe",
+                        tooltip=StaticText.PERFORM_UNSAFE_MIGRATION_TOOLTIP,
+                        disabled=not self.is_live,
+                    )
+                    yield Checkbox(
+                        StaticText.PERSISTENT_MIGRATION,
+                        id="persistent",
+                        tooltip=StaticText.KEEP_VM_PERSISTENT_ON_DESTINATION_TOOLTIP,
+                        value=True,
+                    )
                 with Horizontal(classes="checkbox-container"):
-                    yield Checkbox(StaticText.COMPRESS_DATA, id="compress", tooltip=StaticText.COMPRESS_DATA_DURING_MIGRATION_TOOLTIP, disabled=not self.is_live)
-                    yield Checkbox(StaticText.TUNNELLED_MIGRATION, id="tunnelled", tooltip=StaticText.TUNNEL_MIGRATION_DATA_TOOLTIP, disabled=not self.is_live)
-                    yield Checkbox(StaticText.CUSTOM_MIGRATION, id="custom", tooltip=StaticText.USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP, value=False)
+                    yield Checkbox(
+                        StaticText.COMPRESS_DATA,
+                        id="compress",
+                        tooltip=StaticText.COMPRESS_DATA_DURING_MIGRATION_TOOLTIP,
+                        disabled=not self.is_live,
+                    )
+                    yield Checkbox(
+                        StaticText.TUNNELLED_MIGRATION,
+                        id="tunnelled",
+                        tooltip=StaticText.TUNNEL_MIGRATION_DATA_TOOLTIP,
+                        disabled=not self.is_live,
+                    )
+                    yield Checkbox(
+                        StaticText.CUSTOM_MIGRATION,
+                        id="custom",
+                        tooltip=StaticText.USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP,
+                        value=False,
+                    )
                 yield Static(StaticText.COMPATIBILITY_CHECK_RESULTS)
                 yield ProgressBar(total=100, show_eta=False, id="migration-progress")
                 yield Static(id="results-log")
@@ -101,14 +151,30 @@ class MigrationModal(ModalScreen):
                         Static(StaticText.VMS_NOT_READY_FOR_MIGRATION, classes="summary-title"),
                         Static(id="cannot-migrate-list"),
                     ),
-                    id="migration-summary-grid"
+                    id="migration-summary-grid",
                 )
 
             with Horizontal(classes="modal-buttons"):
-                yield Button(ButtonLabels.CHECK_COMPATIBILITY, variant="primary", id="check", classes="Buttonpage")
-                yield Button(ButtonLabels.START_MIGRATION, variant="success", id="start", disabled=True, classes="Buttonpage")
-                yield Button(ButtonLabels.CLOSE, variant="default", id="close", disabled=False, classes="close-button")
-
+                yield Button(
+                    ButtonLabels.CHECK_COMPATIBILITY,
+                    variant="primary",
+                    id="check",
+                    classes="Buttonpage",
+                )
+                yield Button(
+                    ButtonLabels.START_MIGRATION,
+                    variant="success",
+                    id="start",
+                    disabled=True,
+                    classes="Buttonpage",
+                )
+                yield Button(
+                    ButtonLabels.CLOSE,
+                    variant="default",
+                    id="close",
+                    disabled=False,
+                    classes="close-button",
+                )
 
     def _lock_controls(self, lock: bool):
         self.query_one("#check").disabled = lock
@@ -122,7 +188,6 @@ class MigrationModal(ModalScreen):
         log.wrap = True
         self.query_one("#migration-progress").styles.display = "none"
         self.query_one("#migration-summary-grid").styles.display = "none"
-
 
     @on(Select.Changed, "#dest-server-select")
     def on_select_changed(self, event: Select.Changed):
@@ -168,11 +233,19 @@ class MigrationModal(ModalScreen):
             write_log(StaticText.NO_SHARED_STORAGE_INFO)
         else:
             for pool in shared_pools:
-                write_log(StaticText.SHARED_POOL_INFO_TEMPLATE.format(name=pool['name'], pool_type=pool.get('type', 'N/A')))
-                write_log(StaticText.POOL_TARGET_INFO.format(target=pool.get('target', 'N/A')))
-                write_log(StaticText.POOL_STATUS_INFO.format(source_status=pool['source_status'], dest_status=pool['dest_status']))
-                if pool['warning']:
-                    write_log(StaticText.POOL_WARNING_TEMPLATE.format(warning=pool['warning']))
+                write_log(
+                    StaticText.SHARED_POOL_INFO_TEMPLATE.format(
+                        name=pool["name"], pool_type=pool.get("type", "N/A")
+                    )
+                )
+                write_log(StaticText.POOL_TARGET_INFO.format(target=pool.get("target", "N/A")))
+                write_log(
+                    StaticText.POOL_STATUS_INFO.format(
+                        source_status=pool["source_status"], dest_status=pool["dest_status"]
+                    )
+                )
+                if pool["warning"]:
+                    write_log(StaticText.POOL_WARNING_TEMPLATE.format(warning=pool["warning"]))
 
         for i, vm in enumerate(self.vms_to_migrate):
             try:
@@ -180,58 +253,68 @@ class MigrationModal(ModalScreen):
 
                 # --- Server Compatibility ---
                 write_log(StaticText.SERVER_COMPATIBILITY_HEADER)
-                server_issues = check_server_migration_compatibility(self.source_conn, self.dest_conn, vm.name(), self.is_live)
+                server_issues = check_server_migration_compatibility(
+                    self.source_conn, self.dest_conn, vm.name(), self.is_live
+                )
 
-                server_errors = [issue for issue in server_issues if issue['severity'] == 'ERROR']
+                server_errors = [issue for issue in server_issues if issue["severity"] == "ERROR"]
                 for issue in server_errors:
-                    write_log(StaticText.SERVER_ERROR_TEMPLATE.format(message=issue['message']))
+                    write_log(StaticText.SERVER_ERROR_TEMPLATE.format(message=issue["message"]))
 
-                server_warnings = [issue for issue in server_issues if issue['severity'] == 'WARNING']
+                server_warnings = [
+                    issue for issue in server_issues if issue["severity"] == "WARNING"
+                ]
                 for issue in server_warnings:
-                    write_log(StaticText.SERVER_WARNING_TEMPLATE.format(message=issue['message']))
+                    write_log(StaticText.SERVER_WARNING_TEMPLATE.format(message=issue["message"]))
 
-                server_infos = [issue for issue in server_issues if issue['severity'] == 'INFO']
+                server_infos = [issue for issue in server_issues if issue["severity"] == "INFO"]
                 # Filter out redundant server-wide informational messages for subsequent VMs
                 if i > 0:
                     server_infos = [
-                        issue for issue in server_infos
-                        if "manually verify" not in issue['message'] and
-                           "Firewalls" not in issue['message'] and
-                           "user and" not in issue['message']
+                        issue
+                        for issue in server_infos
+                        if "manually verify" not in issue["message"]
+                        and "Firewalls" not in issue["message"]
+                        and "user and" not in issue["message"]
                     ]
                 for issue in server_infos:
-                    write_log(StaticText.SERVER_INFO_TEMPLATE.format(message=issue['message']))
-
+                    write_log(StaticText.SERVER_INFO_TEMPLATE.format(message=issue["message"]))
 
                 # --- VM Compatibility ---
                 write_log(StaticText.VM_COMPATIBILITY_HEADER)
                 vm_issues = check_vm_migration_compatibility(vm, self.dest_conn, self.is_live)
 
-                vm_errors = [issue for issue in vm_issues if issue['severity'] == 'ERROR']
+                vm_errors = [issue for issue in vm_issues if issue["severity"] == "ERROR"]
                 for issue in vm_errors:
-                    write_log(StaticText.VM_ERROR_TEMPLATE.format(message=issue['message']))
+                    write_log(StaticText.VM_ERROR_TEMPLATE.format(message=issue["message"]))
 
-                vm_warnings = [issue for issue in vm_issues if issue['severity'] == 'WARNING']
+                vm_warnings = [issue for issue in vm_issues if issue["severity"] == "WARNING"]
                 for issue in vm_warnings:
-                    write_log(StaticText.VM_WARNING_TEMPLATE.format(message=issue['message']))
+                    write_log(StaticText.VM_WARNING_TEMPLATE.format(message=issue["message"]))
 
-                vm_infos = [issue for issue in vm_issues if issue['severity'] == 'INFO']
+                vm_infos = [issue for issue in vm_issues if issue["severity"] == "INFO"]
                 for issue in vm_infos:
-                    write_log(StaticText.VM_INFO_TEMPLATE.format(message=issue['message']))
+                    write_log(StaticText.VM_INFO_TEMPLATE.format(message=issue["message"]))
 
                 errors = server_errors + vm_errors
                 if errors:
                     all_checks_ok = False
                     self.cannot_migrate_vms.append(vm.name())
-                    write_log(StaticText.COMPATIBILITY_CHECK_FAILED_TEMPLATE.format(vm_name=vm.name()))
+                    write_log(
+                        StaticText.COMPATIBILITY_CHECK_FAILED_TEMPLATE.format(vm_name=vm.name())
+                    )
                 else:
                     self.can_migrate_vms.append(vm.name())
-                    write_log(StaticText.COMPATIBILITY_CHECK_PASSED_TEMPLATE.format(vm_name=vm.name()))
+                    write_log(
+                        StaticText.COMPATIBILITY_CHECK_PASSED_TEMPLATE.format(vm_name=vm.name())
+                    )
             except Exception as e:
-                write_log(StaticText.FATAL_ERROR_CHECKING_TEMPLATE.format(vm_name=vm.name(), error=e))
+                write_log(
+                    StaticText.FATAL_ERROR_CHECKING_TEMPLATE.format(vm_name=vm.name(), error=e)
+                )
                 all_checks_ok = False
                 self.cannot_migrate_vms.append(vm.name())
-                continue # Continue to the next VM
+                continue  # Continue to the next VM
 
         self.checks_passed = all_checks_ok
         self.compatibility_checked = True
@@ -244,6 +327,7 @@ class MigrationModal(ModalScreen):
             self.query_one("#can-migrate-list").update(can_migrate_text)
             self.query_one("#cannot-migrate-list").update(cannot_migrate_text)
             self.query_one("#migration-summary-grid").styles.display = "block"
+
         self.app.call_from_thread(update_ui_after_check)
 
     @work(exclusive=True, thread=True)
@@ -265,7 +349,7 @@ class MigrationModal(ModalScreen):
         last_log_percentage = -1
 
         def log_progress(p):
-            p = p*10
+            p = p * 10
             nonlocal last_log_percentage
             # Log at 0 (start), then every 5%, then 100%
             if p == 0 or p >= last_log_percentage + 20:
@@ -290,7 +374,9 @@ class MigrationModal(ModalScreen):
 
             if custom_migration:
                 try:
-                    actions = custom_migrate_vm(self.source_conn, self.dest_conn, vm, log_callback=write_log)
+                    actions = custom_migrate_vm(
+                        self.source_conn, self.dest_conn, vm, log_callback=write_log
+                    )
 
                     migration_confirmed = threading.Event()
                     user_selections = {}
@@ -300,7 +386,11 @@ class MigrationModal(ModalScreen):
                             user_selections.update(selections)
                         migration_confirmed.set()
 
-                    self.app.call_from_thread(self.app.push_screen, CustomMigrationModal(actions), on_custom_migration_confirm)
+                    self.app.call_from_thread(
+                        self.app.push_screen,
+                        CustomMigrationModal(actions),
+                        on_custom_migration_confirm,
+                    )
 
                     # Wait for the user to interact with the modal
                     migration_confirmed.wait()
@@ -313,13 +403,17 @@ class MigrationModal(ModalScreen):
                             actions,
                             user_selections,
                             log_callback=write_log,
-                            progress_callback=log_progress
-                         )
+                            progress_callback=log_progress,
+                        )
                     else:
                         write_log(StaticText.CUSTOM_MIGRATION_CANCELLED)
 
                 except Exception as e:
-                    write_log(StaticText.CUSTOM_MIGRATION_FAILED_TEMPLATE.format(vm_name=vm.name(), error=e))
+                    write_log(
+                        StaticText.CUSTOM_MIGRATION_FAILED_TEMPLATE.format(
+                            vm_name=vm.name(), error=e
+                        )
+                    )
 
                 self.app.call_from_thread(progress_bar.advance, 1)
                 continue
@@ -357,7 +451,6 @@ class MigrationModal(ModalScreen):
                         write_log(StaticText.OFFLINE_MIGRATION_MIGRATE)
                         vm.migrate(self.dest_conn, flags, None, self.dest_uri, 0)
 
-
                 write_log(StaticText.MIGRATION_SUCCESS_TEMPLATE.format(vm_name=vm.name()))
 
                 if persistent:
@@ -365,7 +458,9 @@ class MigrationModal(ModalScreen):
                         vm.undefine()
                         write_log(StaticText.UNDEFINE_SUCCESS_TEMPLATE.format(vm_name=vm.name()))
                     except libvirt.libvirtError as e:
-                        write_log(StaticText.UNDEFINE_FAILED_TEMPLATE.format(vm_name=vm.name(), error=e))
+                        write_log(
+                            StaticText.UNDEFINE_FAILED_TEMPLATE.format(vm_name=vm.name(), error=e)
+                        )
 
             except libvirt.libvirtError as e:
                 write_log(StaticText.MIGRATION_FAILED_TEMPLATE.format(vm_name=vm.name(), error=e))

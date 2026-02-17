@@ -1,6 +1,7 @@
 """
 Basic modal to show stat of cache
 """
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, DataTable, Static
@@ -49,14 +50,14 @@ class CacheStatsModal(BaseModal[None]):
             table.add_row(
                 name,
                 f"{data['hit_rate']:.1f}%",
-                str(data['hits']),
-                str(data['misses']),
+                str(data["hits"]),
+                str(data["misses"]),
                 f"{data['current_size']}/{data['max_size']}",
-                data['efficiency']
+                data["efficiency"],
             )
 
         # Add Pool Stats if available
-        if hasattr(self.app, 'vm_card_pool'):
+        if hasattr(self.app, "vm_card_pool"):
             pool_stats = self.app.vm_card_pool.get_pool_stats()
             table.add_row(
                 "[bold]VM Card Pool[/bold]",
@@ -64,7 +65,7 @@ class CacheStatsModal(BaseModal[None]):
                 f"Active: {pool_stats['active_cards']}",
                 f"Avail: {pool_stats['available_cards']}",
                 f"{pool_stats['total_cards']}/{pool_stats['pool_size']}",
-                "N/A"
+                "N/A",
             )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

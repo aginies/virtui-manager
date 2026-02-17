@@ -1,6 +1,7 @@
 """
 Main interface
 """
+
 from textual.app import ComposeResult, on
 from textual.containers import Grid, Horizontal, Vertical
 from textual.widgets import Button, Checkbox, Label, Select
@@ -27,11 +28,11 @@ class SelectServerModal(BaseModal[None]):
 
             checkboxes = []
             for i, server in enumerate(self.servers):
-                is_active = server['uri'] in self.active_uris
+                is_active = server["uri"] in self.active_uris
                 cb_id = f"server_cb_{i}"
-                self.id_to_uri_map[cb_id] = server['uri']
-                cb = Checkbox(server['name'], value=is_active, id=cb_id, tooltip=server['uri'])
-                cb.styles.border = ("solid", server.get('color', "white"))
+                self.id_to_uri_map[cb_id] = server["uri"]
+                cb = Checkbox(server["name"], value=is_active, id=cb_id, tooltip=server["uri"])
+                cb.styles.border = ("solid", server.get("color", "white"))
                 checkboxes.append(cb)
 
             grid = Grid(*checkboxes, id="server-checkboxes-grid")
@@ -41,7 +42,9 @@ class SelectServerModal(BaseModal[None]):
             yield grid
 
             with Horizontal(classes="button-details"):
-                yield Button(ButtonLabels.DONE, id="done-servers", variant="primary", classes="done-button")
+                yield Button(
+                    ButtonLabels.DONE, id="done-servers", variant="primary", classes="done-button"
+                )
                 yield Button(ButtonLabels.CANCEL, id="cancel-servers", classes="cancel-button")
 
     @on(Checkbox.Changed)
@@ -54,7 +57,9 @@ class SelectServerModal(BaseModal[None]):
             return
 
         if event.value:  # If checkbox is checked
-            loading_modal = LoadingModal(ErrorMessages.CONNECTING_TO_SERVER_TEMPLATE.format(uri=uri))
+            loading_modal = LoadingModal(
+                ErrorMessages.CONNECTING_TO_SERVER_TEMPLATE.format(uri=uri)
+            )
             self.app.push_screen(loading_modal)
 
             def connect_and_update():
@@ -63,7 +68,7 @@ class SelectServerModal(BaseModal[None]):
                 if conn is None:
                     self.app.call_from_thread(
                         self.app.show_error_message,
-                        ErrorMessages.FAILED_TO_CONNECT_TO_SERVER_TEMPLATE.format(uri=uri)
+                        ErrorMessages.FAILED_TO_CONNECT_TO_SERVER_TEMPLATE.format(uri=uri),
                     )
                     # Revert checkbox state on failure
                     checkbox = self.query(f"#{checkbox_id}").first()
@@ -89,18 +94,21 @@ class SelectServerModal(BaseModal[None]):
         elif event.button.id == "cancel-servers":
             self.dismiss(None)
 
+
 class SelectOneServerModal(BaseModal[str]):
     def __init__(self, servers: list[dict], title: str = "", button_label: str = ""):
         super().__init__()
         self.servers = servers
-        self.server_options = [(s['name'], s['uri']) for s in servers]
+        self.server_options = [(s["name"], s["uri"]) for s in servers]
         self.title_text = title or StaticText.SELECT_A_SERVER
         self.button_label = button_label or ButtonLabels.LAUNCH
 
     def compose(self) -> ComposeResult:
         with Vertical(id="select-one-server-container"):
             yield Label(self.title_text)
-            yield Select(self.server_options, prompt=StaticText.SELECT_SERVER_PROMPT, id="server-select")
+            yield Select(
+                self.server_options, prompt=StaticText.SELECT_SERVER_PROMPT, id="server-select"
+            )
             yield Label(StaticText.EMPTY_LABEL)
             with Horizontal():
                 yield Button(self.button_label, id="launch-btn", variant="primary", disabled=True)

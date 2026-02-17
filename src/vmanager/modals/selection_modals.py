@@ -1,6 +1,7 @@
 """
 Modals for VM selection.
 """
+
 import logging
 import re
 
@@ -18,7 +19,9 @@ class PatternSelectModal(BaseModal[set[str] | None]):
 
     BINDINGS = [("ctrl+u", "unselect_all", "Unselect All")]
 
-    def __init__(self, available_vms: list[dict], available_servers: list[dict], selected_servers: list[str]) -> None:
+    def __init__(
+        self, available_vms: list[dict], available_servers: list[dict], selected_servers: list[str]
+    ) -> None:
         super().__init__()
         self.available_vms = available_vms
         self.available_servers = available_servers
@@ -33,17 +36,19 @@ class PatternSelectModal(BaseModal[set[str] | None]):
                 yield Input(
                     placeholder="Search pattern (e.g. web-*)",
                     id="pattern-input",
-                    restrict=r"[a-zA-Z0-9_\-\*\?\.\^\|\$\( \[ \] \+\{\}\\]*"
+                    restrict=r"[a-zA-Z0-9_\-\*\?\.\^\|\$\( \[ \] \+\{\}\\]*",
                 )
                 yield Checkbox(StaticText.REGEX, id="regex-checkbox")
 
             if self.available_servers:
-                #yield Label("Search in Servers:")
+                # yield Label("Search in Servers:")
                 checkboxes = []
                 for i, server in enumerate(self.available_servers):
-                    is_checked = server['uri'] in self.selected_servers
-                    cb = Checkbox(server['name'], value=is_checked, id=f"server_cb_{i}", name=server['uri'])
-                    cb.styles.border = ("solid", server.get('color', "white"))
+                    is_checked = server["uri"] in self.selected_servers
+                    cb = Checkbox(
+                        server["name"], value=is_checked, id=f"server_cb_{i}", name=server["uri"]
+                    )
+                    cb.styles.border = ("solid", server.get("color", "white"))
                     checkboxes.append(cb)
 
                 grid = Grid(*checkboxes, id="server-checkboxes-grid")
@@ -59,7 +64,9 @@ class PatternSelectModal(BaseModal[set[str] | None]):
                 yield DataTable(id="results-table", cursor_type="row")
 
             with Horizontal(id="pattern-action-buttons"):
-                yield Button(ButtonLabels.SELECT_MATCHING, variant="success", id="select-btn", disabled=True)
+                yield Button(
+                    ButtonLabels.SELECT_MATCHING, variant="success", id="select-btn", disabled=True
+                )
                 yield Button(ButtonLabels.CANCEL, variant="error", id="cancel-btn")
 
     def on_mount(self) -> None:
@@ -89,19 +96,22 @@ class PatternSelectModal(BaseModal[set[str] | None]):
                 match_func = lambda name: regex.search(name)
             else:
                 # Simple wildcard support: * -> .* , ? -> .
-                simple_pattern = re.escape(pattern).replace(r'\*', '.*').replace(r'\?', '.')
+                simple_pattern = re.escape(pattern).replace(r"\*", ".*").replace(r"\?", ".")
                 regex = re.compile(f"^{simple_pattern}$", re.IGNORECASE)
                 # If no wildcards, do a simple substring match
-                if '*' not in pattern and '?' not in pattern:
+                if "*" not in pattern and "?" not in pattern:
                     match_func = lambda name: pattern.lower() in name.lower()
                 else:
                     match_func = lambda name: regex.match(name)
 
             for vm in self.available_vms:
-                if vm['uri'] in selected_uris and match_func(vm['name']):
-                    server_name = next((s['name'] for s in self.available_servers if s['uri'] == vm['uri']), vm['uri'])
-                    table.add_row(" [X]", vm['name'], server_name, key=vm['uuid'])
-                    self.matching_uuids.add(vm['uuid'])
+                if vm["uri"] in selected_uris and match_func(vm["name"]):
+                    server_name = next(
+                        (s["name"] for s in self.available_servers if s["uri"] == vm["uri"]),
+                        vm["uri"],
+                    )
+                    table.add_row(" [X]", vm["name"], server_name, key=vm["uuid"])
+                    self.matching_uuids.add(vm["uuid"])
 
             count = len(self.matching_uuids)
             self.query_one("#results-label").update(f"Selected VMs ({count}):")

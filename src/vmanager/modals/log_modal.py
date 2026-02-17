@@ -1,6 +1,7 @@
 """
 Log function
 """
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Label, TextArea
@@ -10,7 +11,7 @@ from .base_modals import BaseModal
 
 
 class LogModal(BaseModal[None]):
-    """ Modal Screen to show Log"""
+    """Modal Screen to show Log"""
 
     def __init__(self, log_content: str, title: str = "Log View") -> None:
         super().__init__()
@@ -24,7 +25,9 @@ class LogModal(BaseModal[None]):
             text_area.load_text(self.log_content)
             yield text_area
         with Horizontal():
-            yield Button(ButtonLabels.CLOSE, variant="default", id="cancel-btn", classes="Buttonpage")
+            yield Button(
+                ButtonLabels.CLOSE, variant="default", id="cancel-btn", classes="Buttonpage"
+            )
 
     def on_mount(self) -> None:
         """Called when the modal is mounted."""

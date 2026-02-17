@@ -2140,9 +2140,11 @@ class VMDetailModal(ModalScreen):
                         yield Label("Sound Model:", id="sound-model-label")
                         yield Select(
                             sound_model_options,
-                            value=current_sound_model
-                            if current_sound_model in sound_models
-                            else "none",
+                            value=(
+                                current_sound_model
+                                if current_sound_model in sound_models
+                                else "none"
+                            ),
                             id="sound-model-select",
                             disabled=not self.is_vm_stopped,
                             allow_blank=False,
@@ -2193,9 +2195,11 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Input(
                             placeholder=StaticText.PORT_PLACEHOLDER,
-                            value=str(self.graphics_info["port"])
-                            if self.graphics_info["port"]
-                            else "",
+                            value=(
+                                str(self.graphics_info["port"])
+                                if self.graphics_info["port"]
+                                else ""
+                            ),
                             id="graphics-port-input",
                             type="integer",
                             disabled=not self.is_vm_stopped or self.graphics_info["autoport"],
@@ -2208,9 +2212,11 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Input(
                             placeholder=StaticText.PASSWORD_PLACEHOLDER,
-                            value=self.graphics_info["password"]
-                            if self.graphics_info["password_enabled"]
-                            else "",
+                            value=(
+                                self.graphics_info["password"]
+                                if self.graphics_info["password_enabled"]
+                                else ""
+                            ),
                             id="graphics-password-input",
                             password=True,  # Hide password input
                             disabled=not self.is_vm_stopped

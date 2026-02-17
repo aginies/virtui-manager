@@ -2,6 +2,7 @@
 Server pref modal
 Main interface
 """
+
 import os
 
 import libvirt
@@ -56,7 +57,9 @@ class ServerPrefModal(BaseModal[None]):
         self.path_to_vm_list = {}
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="server-pref-dialog",):
+        with Vertical(
+            id="server-pref-dialog",
+        ):
             yield Label(StaticText.SERVER_PREFERENCES, id="server-pref-title")
             yield Static(classes="button-separator")
             with TabbedContent(id="server-pref-tabs"):
@@ -83,13 +86,17 @@ class ServerPrefModal(BaseModal[None]):
 
         self.conn = self.app.vm_service.connect(uri_to_connect)
         if not self.conn:
-            self.app.show_error_message(ErrorMessages.FAILED_TO_GET_CONNECTION_PREFS_TEMPLATE.format(uri=uri_to_connect))
+            self.app.show_error_message(
+                ErrorMessages.FAILED_TO_GET_CONNECTION_PREFS_TEMPLATE.format(uri=uri_to_connect)
+            )
             self.dismiss()
             return
 
         # Get server hostname and update the title
         server_hostname = self.conn.getHostname()
-        self.query_one("#server-pref-title", Label).update(StaticText.SERVER_PREFERENCES_TITLE_TEMPLATE.format(hostname=server_hostname))
+        self.query_one("#server-pref-title", Label).update(
+            StaticText.SERVER_PREFERENCES_TITLE_TEMPLATE.format(hostname=server_hostname)
+        )
         # Load network content by default (first tab)
         self._load_network_content()
 
@@ -109,24 +116,64 @@ class ServerPrefModal(BaseModal[None]):
 
         button_container = Vertical(
             Horizontal(
-                Button(ButtonLabels.DE_ACTIVE, id="toggle-net-active-btn", classes="toggle-detail-button",
-                       variant="primary", disabled=True, tooltip=ButtonLabels.ACTIVATE_OR_DEACTIVATE_THE_SELECTED_NETWORK),
-                Button(ButtonLabels.AUTOSTART, id="toggle-net-autostart-btn", classes="toggle-detail-button",
-                       variant="primary", disabled=True, tooltip=ButtonLabels.ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_NETWORK),
+                Button(
+                    ButtonLabels.DE_ACTIVE,
+                    id="toggle-net-active-btn",
+                    classes="toggle-detail-button",
+                    variant="primary",
+                    disabled=True,
+                    tooltip=ButtonLabels.ACTIVATE_OR_DEACTIVATE_THE_SELECTED_NETWORK,
+                ),
+                Button(
+                    ButtonLabels.AUTOSTART,
+                    id="toggle-net-autostart-btn",
+                    classes="toggle-detail-button",
+                    variant="primary",
+                    disabled=True,
+                    tooltip=ButtonLabels.ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_NETWORK,
+                ),
             ),
             Horizontal(
-                Button(ButtonLabels.ADD, id="add-net-btn", variant="success", classes="toggle-detail-button",
-                       tooltip=ButtonLabels.ADD_A_NEW_NETWORK),
-                Button(ButtonLabels.EDIT, id="edit-net-btn", variant="success", classes="toggle-detail-button",
-                       disabled=True, tooltip=ButtonLabels.EDIT_THE_SELECTED_NETWORK),
-                Button(ButtonLabels.VIEW, id="view-net-btn", variant="success", classes="toggle-detail-button",
-                       disabled=True, tooltip=ButtonLabels.VIEW_XML_DETAILS_OF_THE_SELECTED_NETWORK),
-                Button(ButtonLabels.DELETE, id="delete-net-btn", variant="error", classes="toggle-detail-button",
-                       disabled=True, tooltip=ButtonLabels.DELETE_THE_SELECTED_NETWORK),
-                Button(ButtonLabels.HELP, id="help-net-btn", variant="success", classes="toggle-detail-button",
-                       tooltip=ButtonLabels.SHOW_NETWORK_CONFIGURATION_HELP),
+                Button(
+                    ButtonLabels.ADD,
+                    id="add-net-btn",
+                    variant="success",
+                    classes="toggle-detail-button",
+                    tooltip=ButtonLabels.ADD_A_NEW_NETWORK,
+                ),
+                Button(
+                    ButtonLabels.EDIT,
+                    id="edit-net-btn",
+                    variant="success",
+                    classes="toggle-detail-button",
+                    disabled=True,
+                    tooltip=ButtonLabels.EDIT_THE_SELECTED_NETWORK,
+                ),
+                Button(
+                    ButtonLabels.VIEW,
+                    id="view-net-btn",
+                    variant="success",
+                    classes="toggle-detail-button",
+                    disabled=True,
+                    tooltip=ButtonLabels.VIEW_XML_DETAILS_OF_THE_SELECTED_NETWORK,
+                ),
+                Button(
+                    ButtonLabels.DELETE,
+                    id="delete-net-btn",
+                    variant="error",
+                    classes="toggle-detail-button",
+                    disabled=True,
+                    tooltip=ButtonLabels.DELETE_THE_SELECTED_NETWORK,
+                ),
+                Button(
+                    ButtonLabels.HELP,
+                    id="help-net-btn",
+                    variant="success",
+                    classes="toggle-detail-button",
+                    tooltip=ButtonLabels.SHOW_NETWORK_CONFIGURATION_HELP,
+                ),
             ),
-            classes="server-pref-button"
+            classes="server-pref-button",
         )
 
         # Mount everything together
@@ -149,21 +196,26 @@ class ServerPrefModal(BaseModal[None]):
             except libvirt.libvirtError:
                 num_vms = 0
 
-
             if num_vms > AppCacheTimeout.DONT_DISPLAY_DISK_USAGE:
-                self.app.show_warning_message(WarningMessages.TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE.format(count=AppCacheTimeout.DONT_DISPLAY_DISK_USAGE))
+                self.app.show_warning_message(
+                    WarningMessages.TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE.format(
+                        count=AppCacheTimeout.DONT_DISPLAY_DISK_USAGE
+                    )
+                )
             else:
-                #self.app.show_warning_message(WarningMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
+                # self.app.show_warning_message(WarningMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
                 disk_map = get_all_vm_disk_usage(self.conn)
                 nvram_map = get_all_vm_nvram_usage(self.conn)
-                #overlay_map = get_all_vm_overlay_usage(self.conn)
+                # overlay_map = get_all_vm_overlay_usage(self.conn)
 
                 # Merge the dictionaries
                 self.path_to_vm_list = disk_map.copy()
                 for path, vm_names in nvram_map.items():
                     if path in self.path_to_vm_list:
                         # Combine lists and remove duplicates
-                        self.path_to_vm_list[path] = list(set(self.path_to_vm_list[path] + vm_names))
+                        self.path_to_vm_list[path] = list(
+                            set(self.path_to_vm_list[path] + vm_names)
+                        )
                     else:
                         self.path_to_vm_list[path] = vm_names
 
@@ -178,34 +230,82 @@ class ServerPrefModal(BaseModal[None]):
 
         button_container = Vertical(
             Horizontal(
-                Button(id="toggle-active-pool-btn", variant="primary", classes="toggle-detail-button",
-                       tooltip=ButtonLabels.ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL),
-                Button(id="toggle-autostart-pool-btn", variant="primary", classes="toggle-detail-button",
-                       tooltip=ButtonLabels.ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_STORAGE_POOL),
-                Vertical(
-                    Button(ButtonLabels.ADD_POOL, id="add-pool-btn", variant="success", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.ADD_A_NEW_STORAGE_POOL),
-                    Button(ButtonLabels.DELETE_POOL, id="del-pool-btn", variant="error", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.DELETE_THE_SELECTED_STORAGE_POOL),
+                Button(
+                    id="toggle-active-pool-btn",
+                    variant="primary",
+                    classes="toggle-detail-button",
+                    tooltip=ButtonLabels.ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL,
+                ),
+                Button(
+                    id="toggle-autostart-pool-btn",
+                    variant="primary",
+                    classes="toggle-detail-button",
+                    tooltip=ButtonLabels.ENABLE_OR_DISABLE_AUTOSTART_FOR_THE_SELECTED_STORAGE_POOL,
                 ),
                 Vertical(
-                    Button(ButtonLabels.NEW_VOLUME, id="add-vol-btn", variant="success", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.CREATE_A_NEW_VOLUME_IN_THE_SELECTED_POOL),
-                    Button(ButtonLabels.ATTACH_VOL, id="attach-vol-btn", variant="success", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.ATTACH_AN_EXISTING_DISK_FILE_AS_A_VOLUME),
-                    Button(ButtonLabels.MOVE_VOLUME, id="move-vol-btn", variant="success", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.MOVE_THE_SELECTED_VOLUME_TO_ANOTHER_POOL),
-                    Button(ButtonLabels.DELETE_VOLUME, id="del-vol-btn", variant="error", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.DELETE_THE_SELECTED_VOLUME),
+                    Button(
+                        ButtonLabels.ADD_POOL,
+                        id="add-pool-btn",
+                        variant="success",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.ADD_A_NEW_STORAGE_POOL,
+                    ),
+                    Button(
+                        ButtonLabels.DELETE_POOL,
+                        id="del-pool-btn",
+                        variant="error",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.DELETE_THE_SELECTED_STORAGE_POOL,
+                    ),
                 ),
                 Vertical(
-                    Button(ButtonLabels.VIEW_XML, id="view-storage-xml-btn", variant="primary", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.VIEW_XML_DETAILS_OF_THE_SELECTED_POOL_OR_VOLUME),
-                    Button(ButtonLabels.EDIT_XML, id="edit-pool-xml-btn", variant="primary", classes="toggle-detail-button",
-                           tooltip=ButtonLabels.EDIT_XML_OF_THE_SELECTED_POOL),
+                    Button(
+                        ButtonLabels.NEW_VOLUME,
+                        id="add-vol-btn",
+                        variant="success",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.CREATE_A_NEW_VOLUME_IN_THE_SELECTED_POOL,
+                    ),
+                    Button(
+                        ButtonLabels.ATTACH_VOL,
+                        id="attach-vol-btn",
+                        variant="success",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.ATTACH_AN_EXISTING_DISK_FILE_AS_A_VOLUME,
+                    ),
+                    Button(
+                        ButtonLabels.MOVE_VOLUME,
+                        id="move-vol-btn",
+                        variant="success",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.MOVE_THE_SELECTED_VOLUME_TO_ANOTHER_POOL,
+                    ),
+                    Button(
+                        ButtonLabels.DELETE_VOLUME,
+                        id="del-vol-btn",
+                        variant="error",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.DELETE_THE_SELECTED_VOLUME,
+                    ),
+                ),
+                Vertical(
+                    Button(
+                        ButtonLabels.VIEW_XML,
+                        id="view-storage-xml-btn",
+                        variant="primary",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.VIEW_XML_DETAILS_OF_THE_SELECTED_POOL_OR_VOLUME,
+                    ),
+                    Button(
+                        ButtonLabels.EDIT_XML,
+                        id="edit-pool-xml-btn",
+                        variant="primary",
+                        classes="toggle-detail-button",
+                        tooltip=ButtonLabels.EDIT_XML_OF_THE_SELECTED_POOL,
+                    ),
                 ),
             ),
-            classes="server-pref-button"
+            classes="server-pref-button",
         )
 
         storage_pane.mount(scroll_container, button_container)
@@ -246,7 +346,9 @@ class ServerPrefModal(BaseModal[None]):
             self._load_storage_content()
             self._unload_network_content()
 
-    def _load_storage_pools(self, expand_pools: list[str] | None = None, select_pool: str | None = None) -> None:
+    def _load_storage_pools(
+        self, expand_pools: list[str] | None = None, select_pool: str | None = None
+    ) -> None:
         """Load storage pools into the tree view."""
         tree: Tree[dict] = self.query_one("#storage-tree")
         tree.clear()
@@ -255,9 +357,9 @@ class ServerPrefModal(BaseModal[None]):
         node_to_select = None
         for pool_data in pools:
             try:
-                pool_name = pool_data['name']
-                status = pool_data['status']
-                autostart = "autostart" if pool_data['autostart'] else StaticText.NO_AUTOSTART_LABEL
+                pool_name = pool_data["name"]
+                status = pool_data["status"]
+                autostart = "autostart" if pool_data["autostart"] else StaticText.NO_AUTOSTART_LABEL
                 label = f"{pool_name} [{status}, {autostart}]"
                 pool_node = tree.root.add(label, data=pool_data)
                 pool_node.data["type"] = "pool"
@@ -271,7 +373,7 @@ class ServerPrefModal(BaseModal[None]):
                     node_to_select = pool_node
             except libvirt.libvirtError:
                 # Handle cases where pool might be listed but inaccessible (e.g. NFS down)
-                pool_name = pool_data.get('name', 'Unknown')
+                pool_name = pool_data.get("name", "Unknown")
                 label = f"{pool_name}{StaticText.POOL_UNAVAILABLE_SUFFIX}"
                 pool_node = tree.root.add(label, data=pool_data)
                 pool_node.data["type"] = "pool"
@@ -292,22 +394,17 @@ class ServerPrefModal(BaseModal[None]):
 
         table.clear()
 
-        #self.app.show_warning_message(WarningMessages.RUNNING_NETWORK_USAGE_SCAN_WARNING)
+        # self.app.show_warning_message(WarningMessages.RUNNING_NETWORK_USAGE_SCAN_WARNING)
         network_usage = get_all_network_usage(self.conn)
         self.networks_list = list_networks(self.conn)
 
         for net in self.networks_list:
-            vms_str = ", ".join(network_usage.get(net['name'], [])) or StaticText.NOT_IN_USE
-            active_str = "✔️" if net['active'] else "❌"
-            autostart_str = "✔️" if net['autostart'] else "❌"
+            vms_str = ", ".join(network_usage.get(net["name"], [])) or StaticText.NOT_IN_USE
+            active_str = "✔️" if net["active"] else "❌"
+            autostart_str = "✔️" if net["autostart"] else "❌"
 
             table.add_row(
-                net['name'],
-                net['mode'],
-                active_str,
-                autostart_str,
-                vms_str,
-                key=net['name']
+                net["name"], net["mode"], active_str, autostart_str, vms_str, key=net["name"]
             )
 
     @on(Tree.NodeExpanded)
@@ -321,17 +418,21 @@ class ServerPrefModal(BaseModal[None]):
         # If it's the first time expanding, the only child is the dummy "Loading..."
         if len(node.children) == 1 and node.children[0].data is None:
             node.remove_children()
-            pool = node_data.get('pool')
+            pool = node_data.get("pool")
             # Check cached status instead of calling pool.isActive() to avoid blocking
-            if pool and node_data.get('status') == 'active':
+            if pool and node_data.get("status") == "active":
                 volumes = storage_manager.list_storage_volumes(pool)
                 for vol_data in volumes:
-                    vol_name = vol_data['name']
-                    vol_path = vol_data['volume'].path()
-                    capacity_gb = round(vol_data['capacity'] / (1024**3), 2)
+                    vol_name = vol_data["name"]
+                    vol_path = vol_data["volume"].path()
+                    capacity_gb = round(vol_data["capacity"] / (1024**3), 2)
 
                     vm_names = self.path_to_vm_list.get(vol_path, [])
-                    usage_info = StaticText.IN_USE_BY_TEMPLATE.format(vms=', '.join(vm_names)) if vm_names else ""
+                    usage_info = (
+                        StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names))
+                        if vm_names
+                        else ""
+                    )
 
                     label = f"{vol_name}{StaticText.VOLUME_SIZE_TEMPLATE.format(size=capacity_gb)}{usage_info}"
                     child_node = node.add(label, data=vol_data)
@@ -340,7 +441,6 @@ class ServerPrefModal(BaseModal[None]):
             else:
                 # Handle case where pool is not active
                 node.add_leaf(StaticText.POOL_NOT_ACTIVE)
-
 
     @on(Tree.NodeSelected)
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
@@ -367,10 +467,12 @@ class ServerPrefModal(BaseModal[None]):
         self.query_one("#edit-pool-xml-btn").display = is_pool
 
         if is_pool:
-            is_active = node_data.get('status') == 'active'
-            has_autostart = node_data.get('autostart', False)
+            is_active = node_data.get("status") == "active"
+            has_autostart = node_data.get("autostart", False)
             toggle_active_btn.label = "Deactivate" if is_active else "Activate"
-            toggle_autostart_btn.label = StaticText.AUTOSTART_OFF if has_autostart else StaticText.AUTOSTART_ON
+            toggle_autostart_btn.label = (
+                StaticText.AUTOSTART_OFF if has_autostart else StaticText.AUTOSTART_ON
+            )
 
         self.query_one("#add-vol-btn").display = is_pool and is_active
         self.query_one("#attach-vol-btn").display = is_pool and is_active
@@ -387,9 +489,9 @@ class ServerPrefModal(BaseModal[None]):
 
         target_obj = None
         if node_type == "pool":
-            target_obj = node_data.get('pool')
+            target_obj = node_data.get("pool")
         elif node_type == "volume":
-            target_obj = node_data.get('volume')
+            target_obj = node_data.get("volume")
         else:
             return
 
@@ -401,7 +503,11 @@ class ServerPrefModal(BaseModal[None]):
             xml_content = target_obj.XMLDesc(0)
             self.app.push_screen(XMLDisplayModal(xml_content, read_only=True))
         except libvirt.libvirtError as e:
-            self.app.show_error_message(ErrorMessages.ERROR_GETTING_XML_FOR_TYPE_TEMPLATE.format(obj_type=node_type, error=e))
+            self.app.show_error_message(
+                ErrorMessages.ERROR_GETTING_XML_FOR_TYPE_TEMPLATE.format(
+                    obj_type=node_type, error=e
+                )
+            )
 
     @on(Button.Pressed, "#edit-pool-xml-btn")
     def on_edit_pool_xml_button_pressed(self, event: Button.Pressed) -> None:
@@ -414,12 +520,12 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "pool":
             return
 
-        pool = node_data.get('pool')
+        pool = node_data.get("pool")
         if not pool:
             self.app.show_error_message(ErrorMessages.COULD_NOT_FIND_POOL_EDIT)
             return
 
-        if node_data.get('status') == 'active':
+        if node_data.get("status") == "active":
             self.app.show_error_message(ErrorMessages.POOL_MUST_BE_INACTIVE_FOR_XML_EDIT)
             return
 
@@ -430,7 +536,9 @@ class ServerPrefModal(BaseModal[None]):
             try:
                 xml_content = pool.XMLDesc(0)
             except libvirt.libvirtError as e:
-                self.app.show_error_message(ErrorMessages.ERROR_GETTING_XML_FOR_POOL_TEMPLATE.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.ERROR_GETTING_XML_FOR_POOL_TEMPLATE.format(error=e)
+                )
                 return
 
             def on_xml_save(new_xml: str | None) -> None:
@@ -440,13 +548,21 @@ class ServerPrefModal(BaseModal[None]):
                 try:
                     # Redefine the pool with the new XML
                     self.conn.storagePoolDefineXML(new_xml, 0)
-                    self.app.show_success_message(SuccessMessages.STORAGE_POOL_UPDATED_SUCCESSFULLY_TEMPLATE.format(pool_name=pool.name()))
+                    self.app.show_success_message(
+                        SuccessMessages.STORAGE_POOL_UPDATED_SUCCESSFULLY_TEMPLATE.format(
+                            pool_name=pool.name()
+                        )
+                    )
                     storage_manager.list_storage_pools.cache_clear()
                     self._load_storage_pools()  # Refresh the tree
                 except libvirt.libvirtError as e:
-                    self.app.show_error_message(ErrorMessages.ERROR_UPDATING_POOL_XML_TEMPLATE.format(error=e))
+                    self.app.show_error_message(
+                        ErrorMessages.ERROR_UPDATING_POOL_XML_TEMPLATE.format(error=e)
+                    )
                 except Exception as e:
-                    self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
+                    self.app.show_error_message(
+                        ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    )
 
             self.app.push_screen(XMLDisplayModal(xml_content, read_only=False), on_xml_save)
 
@@ -464,18 +580,24 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "pool":
             return
 
-        pool = node_data.get('pool')
-        pool_name = node_data.get('name')
-        is_active = node_data.get('status') == 'active'
+        pool = node_data.get("pool")
+        pool_name = node_data.get("name")
+        is_active = node_data.get("status") == "active"
         try:
             storage_manager.set_pool_active(pool, not is_active)
-            status = 'inactive' if is_active else 'active'
-            self.app.show_success_message(SuccessMessages.POOL_ACTIVATION_CHANGE_TEMPLATE.format(pool_name=pool.name(), status=status))
-            node_data['status'] = 'inactive' if is_active else 'active'
+            status = "inactive" if is_active else "active"
+            self.app.show_success_message(
+                SuccessMessages.POOL_ACTIVATION_CHANGE_TEMPLATE.format(
+                    pool_name=pool.name(), status=status
+                )
+            )
+            node_data["status"] = "inactive" if is_active else "active"
             storage_manager.list_storage_pools.cache_clear()
-            self._load_storage_pools(select_pool=pool_name) # Refresh the tree
+            self._load_storage_pools(select_pool=pool_name)  # Refresh the tree
         except Exception as e:
-            self.app.show_error_message(ErrorMessages.ERROR_TOGGLE_POOL_ACTIVE_TEMPLATE.format(error=e))
+            self.app.show_error_message(
+                ErrorMessages.ERROR_TOGGLE_POOL_ACTIVE_TEMPLATE.format(error=e)
+            )
 
     @on(Button.Pressed, "#toggle-autostart-pool-btn")
     def on_toggle_autostart_pool_button_pressed(self, event: Button.Pressed) -> None:
@@ -488,18 +610,24 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "pool":
             return
 
-        pool = node_data.get('pool')
-        pool_name = node_data.get('name')
-        has_autostart = node_data.get('autostart', False)
+        pool = node_data.get("pool")
+        pool_name = node_data.get("name")
+        has_autostart = node_data.get("autostart", False)
         try:
             storage_manager.set_pool_autostart(pool, not has_autostart)
-            status = 'off' if has_autostart else 'on'
-            self.app.show_success_message(SuccessMessages.POOL_AUTOSTART_CHANGE_TEMPLATE.format(pool_name=pool.name(), status=status))
-            node_data['autostart'] = not has_autostart
+            status = "off" if has_autostart else "on"
+            self.app.show_success_message(
+                SuccessMessages.POOL_AUTOSTART_CHANGE_TEMPLATE.format(
+                    pool_name=pool.name(), status=status
+                )
+            )
+            node_data["autostart"] = not has_autostart
             storage_manager.list_storage_pools.cache_clear()
-            self._load_storage_pools(select_pool=pool_name) # Refresh the tree
+            self._load_storage_pools(select_pool=pool_name)  # Refresh the tree
         except Exception as e:
-            self.app.show_error_message(ErrorMessages.ERROR_TOGGLE_POOL_AUTOSTART_TEMPLATE.format(error=e))
+            self.app.show_error_message(
+                ErrorMessages.ERROR_TOGGLE_POOL_AUTOSTART_TEMPLATE.format(error=e)
+            )
 
     @on(Button.Pressed, "#add-vol-btn")
     def on_add_volume_button_pressed(self, event: Button.Pressed) -> None:
@@ -511,21 +639,22 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "pool":
             return
 
-        pool = node_data.get('pool')
+        pool = node_data.get("pool")
         pool_node = tree.cursor_node
 
         def on_create(result: dict | None) -> None:
             if result:
                 try:
                     storage_manager.create_volume(
-                        pool,
-                        result['name'],
-                        result['size_gb'],
-                        result['format']
+                        pool, result["name"], result["size_gb"], result["format"]
                     )
-                    self.app.show_success_message(SuccessMessages.VOLUME_CREATED_SUCCESSFULLY_TEMPLATE.format(name=result['name'], size_gb=result['size_gb'], format=result['format']))
+                    self.app.show_success_message(
+                        SuccessMessages.VOLUME_CREATED_SUCCESSFULLY_TEMPLATE.format(
+                            name=result["name"], size_gb=result["size_gb"], format=result["format"]
+                        )
+                    )
                     storage_manager.list_storage_volumes.cache_clear()
-                    pool_node.add_leaf(result['name'])
+                    pool_node.add_leaf(result["name"])
 
                 except Exception as e:
                     self.app.show_error_message(str(e))
@@ -538,9 +667,11 @@ class ServerPrefModal(BaseModal[None]):
             if not result:
                 return
 
-            volume_path = result.get('path')
+            volume_path = result.get("path")
             if not volume_path or not os.path.exists(volume_path):
-                self.app.show_error_message(ErrorMessages.INVALID_OR_NON_EXISTENT_PATH_TEMPLATE.format(path=volume_path))
+                self.app.show_error_message(
+                    ErrorMessages.INVALID_OR_NON_EXISTENT_PATH_TEMPLATE.format(path=volume_path)
+                )
                 return
 
             volume_dir = os.path.dirname(volume_path)
@@ -551,33 +682,47 @@ class ServerPrefModal(BaseModal[None]):
                     existing_pool.refresh(0)
                     storage_manager.list_storage_volumes.cache_clear()
                     self.app.show_success_message(
-                        SuccessMessages.POOL_MANAGED_BY_EXISTING_POOL_TEMPLATE.format(pool_name=existing_pool.name())
+                        SuccessMessages.POOL_MANAGED_BY_EXISTING_POOL_TEMPLATE.format(
+                            pool_name=existing_pool.name()
+                        )
                     )
                 except libvirt.libvirtError as e:
-                    self.app.show_error_message(ErrorMessages.ERROR_REFRESHING_POOL_TEMPLATE.format(error=e))
+                    self.app.show_error_message(
+                        ErrorMessages.ERROR_REFRESHING_POOL_TEMPLATE.format(error=e)
+                    )
 
                 self._load_storage_pools(expand_pools=[existing_pool.name()])
                 return
 
-            new_pool_name = f"pool_{os.path.basename(volume_dir)}".replace(" ", "_").replace(".", "_")
+            new_pool_name = f"pool_{os.path.basename(volume_dir)}".replace(" ", "_").replace(
+                ".", "_"
+            )
 
             def on_confirm_create(confirmed: bool) -> None:
                 if confirmed:
                     try:
-                        storage_manager.create_storage_pool(self.conn, new_pool_name, 'dir', volume_dir)
+                        storage_manager.create_storage_pool(
+                            self.conn, new_pool_name, "dir", volume_dir
+                        )
                         self.app.show_success_message(
                             SuccessMessages.STORAGE_POOL_CREATED_TEMPLATE.format(name=new_pool_name)
                         )
                         storage_manager.list_storage_pools.cache_clear()
                         self._load_storage_pools(expand_pools=[new_pool_name])
                     except Exception as e:
-                        self.app.show_error_message(ErrorMessages.ERROR_CREATING_STORAGE_POOL_FOR_DIR_TEMPLATE.format(error=e))
+                        self.app.show_error_message(
+                            ErrorMessages.ERROR_CREATING_STORAGE_POOL_FOR_DIR_TEMPLATE.format(
+                                error=e
+                            )
+                        )
 
             self.app.push_screen(
                 ConfirmationDialog(
-                    ErrorMessages.NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE.format(directory=volume_dir, pool_name=new_pool_name)
+                    ErrorMessages.NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE.format(
+                        directory=volume_dir, pool_name=new_pool_name
+                    )
                 ),
-                on_confirm_create
+                on_confirm_create,
             )
 
         self.app.push_screen(AttachVolumeModal(), on_attach)
@@ -601,21 +746,31 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "pool":
             return
 
-        pool_name = node_data.get('name')
-        pool = node_data.get('pool')
+        pool_name = node_data.get("name")
+        pool = node_data.get("pool")
 
         def on_confirm(confirmed: bool) -> None:
             if confirmed:
                 try:
                     storage_manager.delete_storage_pool(pool)
-                    self.app.show_success_message(SuccessMessages.STORAGE_POOL_DELETED_SUCCESSFULLY_TEMPLATE.format(pool_name=pool_name))
+                    self.app.show_success_message(
+                        SuccessMessages.STORAGE_POOL_DELETED_SUCCESSFULLY_TEMPLATE.format(
+                            pool_name=pool_name
+                        )
+                    )
                     storage_manager.list_storage_pools.cache_clear()
-                    self._load_storage_pools() # Refresh the tree
+                    self._load_storage_pools()  # Refresh the tree
                 except Exception as e:
-                    self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
+                    self.app.show_error_message(
+                        ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    )
 
         self.app.push_screen(
-                ConfirmationDialog(ErrorMessages.DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE.format(pool_name=pool_name)), on_confirm)
+            ConfirmationDialog(
+                ErrorMessages.DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE.format(pool_name=pool_name)
+            ),
+            on_confirm,
+        )
 
     @on(Button.Pressed, "#del-vol-btn")
     def on_delete_volume_button_pressed(self, event: Button.Pressed) -> None:
@@ -627,14 +782,18 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "volume":
             return
 
-        vol_name = node_data.get('name')
-        vol = node_data.get('volume')
+        vol_name = node_data.get("name")
+        vol = node_data.get("volume")
 
         def on_confirm(confirmed: bool) -> None:
             if confirmed:
                 try:
                     storage_manager.delete_volume(vol)
-                    self.app.show_success_message(SuccessMessages.VOLUME_DELETED_SUCCESSFULLY_TEMPLATE.format(volume_name=vol_name))
+                    self.app.show_success_message(
+                        SuccessMessages.VOLUME_DELETED_SUCCESSFULLY_TEMPLATE.format(
+                            volume_name=vol_name
+                        )
+                    )
                     # Clear the cache to force a refresh
                     list_storage_volumes.cache_clear()
                     # Refresh the parent node
@@ -644,11 +803,15 @@ class ServerPrefModal(BaseModal[None]):
                         parent_node.add_leaf(StaticText.NO_VOLUMES)
 
                 except Exception as e:
-                    self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
+                    self.app.show_error_message(
+                        ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    )
 
         self.app.push_screen(
-                ConfirmationDialog(DialogMessages.DELETE_VOLUME_CONFIRMATION_TEMPLATE.format(vol_name=vol_name)),
-            on_confirm
+            ConfirmationDialog(
+                DialogMessages.DELETE_VOLUME_CONFIRMATION_TEMPLATE.format(vol_name=vol_name)
+            ),
+            on_confirm,
         )
 
     @on(Button.Pressed, "#move-vol-btn")
@@ -661,20 +824,22 @@ class ServerPrefModal(BaseModal[None]):
         if node_data.get("type") != "volume":
             return
 
-        volume_name = node_data.get('name')
+        volume_name = node_data.get("name")
         if not tree.cursor_node.parent or not tree.cursor_node.parent.data:
             self.app.show_error_message(ErrorMessages.COULD_NOT_DETERMINE_SOURCE_POOL)
             return
-        source_pool_name = tree.cursor_node.parent.data.get('name')
+        source_pool_name = tree.cursor_node.parent.data.get("name")
 
         def on_move(result: dict | None) -> None:
             if not result:
                 return
 
-            dest_pool_name = result['dest_pool']
-            new_volume_name = result['new_name']
+            dest_pool_name = result["dest_pool"]
+            new_volume_name = result["new_name"]
 
-            progress_modal = ProgressModal(title=StaticText.MOVING_VOLUME_TEMPLATE.format(volume_name=volume_name))
+            progress_modal = ProgressModal(
+                title=StaticText.MOVING_VOLUME_TEMPLATE.format(volume_name=volume_name)
+            )
             self.app.push_screen(progress_modal)
 
             def progress_callback(progress: float):
@@ -685,6 +850,7 @@ class ServerPrefModal(BaseModal[None]):
 
             def find_node_by_label(tree, label_text):
                 """Find a node in the tree by its label."""
+
                 def search_node(node):
                     # Check if current node's label matches
                     if str(node.label) == label_text:
@@ -707,7 +873,7 @@ class ServerPrefModal(BaseModal[None]):
                         volume_name,
                         new_volume_name,
                         progress_callback=progress_callback,
-                        log_callback=log_callback
+                        log_callback=log_callback,
                     )
                     # Refresh the parent node
                     parent_node = tree.cursor_node.parent
@@ -719,10 +885,12 @@ class ServerPrefModal(BaseModal[None]):
                     self._load_storage_pools()
 
                     return {
-                        "message": SuccessMessages.VOLUME_MOVED_SUCCESSFULLY_TEMPLATE.format(volume_name=volume_name, dest_pool_name=dest_pool_name),
+                        "message": SuccessMessages.VOLUME_MOVED_SUCCESSFULLY_TEMPLATE.format(
+                            volume_name=volume_name, dest_pool_name=dest_pool_name
+                        ),
                         "source_pool": source_pool_name,
                         "dest_pool": dest_pool_name,
-                        "updated_vms": updated_vms
+                        "updated_vms": updated_vms,
                     }
                 except Exception as e:
                     return e
@@ -761,10 +929,14 @@ class ServerPrefModal(BaseModal[None]):
                 updated_vms = result.get("updated_vms", [])
                 if updated_vms:
                     vm_list = ", ".join(updated_vms)
-                    self.app.show_success_message(SuccessMessages.UPDATED_VM_CONFIGURATIONS_TEMPLATE.format(vm_list=vm_list))
+                    self.app.show_success_message(
+                        SuccessMessages.UPDATED_VM_CONFIGURATIONS_TEMPLATE.format(vm_list=vm_list)
+                    )
                 self._load_storage_pools(expand_pools=[result["source_pool"], result["dest_pool"]])
         elif event.worker.state == "ERROR":
-            self.app.show_error_message(ErrorMessages.MOVE_OPERATION_FAILED_TEMPLATE.format(error=event.worker.error))
+            self.app.show_error_message(
+                ErrorMessages.MOVE_OPERATION_FAILED_TEMPLATE.format(error=event.worker.error)
+            )
             self._load_storage_pools()
 
     @on(DataTable.RowSelected, "#networks-table")
@@ -779,10 +951,14 @@ class ServerPrefModal(BaseModal[None]):
         toggle_autostart_btn.disabled = False
 
         selected_net_name = event.row_key.value
-        net_info = next((net for net in self.networks_list if net['name'] == selected_net_name), None)
+        net_info = next(
+            (net for net in self.networks_list if net["name"] == selected_net_name), None
+        )
         if net_info:
-            toggle_active_btn.label = "Deactivate" if net_info['active'] else "Activate"
-            toggle_autostart_btn.label = StaticText.AUTOSTART_OFF if net_info['autostart'] else StaticText.AUTOSTART_ON
+            toggle_active_btn.label = "Deactivate" if net_info["active"] else "Activate"
+            toggle_autostart_btn.label = (
+                StaticText.AUTOSTART_OFF if net_info["autostart"] else StaticText.AUTOSTART_ON
+            )
 
     @on(Button.Pressed, "#toggle-net-active-btn")
     def on_toggle_net_active_pressed(self, event: Button.Pressed) -> None:
@@ -792,17 +968,23 @@ class ServerPrefModal(BaseModal[None]):
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
         net_name = row_key.value
-        net_info = next((net for net in self.networks_list if net['name'] == net_name), None)
+        net_info = next((net for net in self.networks_list if net["name"] == net_name), None)
 
         if net_info:
             try:
-                set_network_active(self.conn, net_name, not net_info['active'])
-                status = 'inactive' if net_info['active'] else 'active'
-                self.app.show_success_message(SuccessMessages.NETWORK_ACTIVATION_CHANGE_TEMPLATE.format(net_name=net_name, status=status))
+                set_network_active(self.conn, net_name, not net_info["active"])
+                status = "inactive" if net_info["active"] else "active"
+                self.app.show_success_message(
+                    SuccessMessages.NETWORK_ACTIVATION_CHANGE_TEMPLATE.format(
+                        net_name=net_name, status=status
+                    )
+                )
                 list_networks.cache_clear()
                 self._load_networks()
             except Exception as e:
-                self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                )
 
     @on(Button.Pressed, "#toggle-net-autostart-btn")
     def on_toggle_net_autostart_pressed(self, event: Button.Pressed) -> None:
@@ -812,17 +994,23 @@ class ServerPrefModal(BaseModal[None]):
 
         row_key, _ = table.coordinate_to_cell_key(table.cursor_coordinate)
         net_name = row_key.value
-        net_info = next((net for net in self.networks_list if net['name'] == net_name), None)
+        net_info = next((net for net in self.networks_list if net["name"] == net_name), None)
 
         if net_info:
             try:
-                set_network_autostart(self.conn, net_name, not net_info['autostart'])
-                status = 'off' if net_info['autostart'] else 'on'
-                self.app.show_success_message(SuccessMessages.NETWORK_AUTOSTART_CHANGE_TEMPLATE.format(net_name=net_name, status=status))
+                set_network_autostart(self.conn, net_name, not net_info["autostart"])
+                status = "off" if net_info["autostart"] else "on"
+                self.app.show_success_message(
+                    SuccessMessages.NETWORK_AUTOSTART_CHANGE_TEMPLATE.format(
+                        net_name=net_name, status=status
+                    )
+                )
                 list_networks.cache_clear()
                 self._load_networks()
             except Exception as e:
-                self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "close-btn":
@@ -843,9 +1031,13 @@ class ServerPrefModal(BaseModal[None]):
                 network_xml = net.XMLDesc(0)
                 self.app.push_screen(NetworkXMLModal(network_name, network_xml))
             except libvirt.libvirtError as e:
-                self.app.show_error_message(ErrorMessages.ERROR_GETTING_NETWORK_XML_TEMPLATE.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.ERROR_GETTING_NETWORK_XML_TEMPLATE.format(error=e)
+                )
             except Exception as e:
-                self.app.show_error_message(ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                )
 
         elif event.button.id == "edit-net-btn":
             table = self.query_one("#networks-table", DataTable)
@@ -857,20 +1049,29 @@ class ServerPrefModal(BaseModal[None]):
 
             network_info = get_network_info(self.conn, network_name)
             if not network_info:
-                self.app.show_error_message(ErrorMessages.COULD_NOT_RETRIEVE_NETWORK_INFO_TEMPLATE.format(network_name=network_name))
+                self.app.show_error_message(
+                    ErrorMessages.COULD_NOT_RETRIEVE_NETWORK_INFO_TEMPLATE.format(
+                        network_name=network_name
+                    )
+                )
                 return
 
             def on_create(success: bool):
                 if success:
                     list_networks.cache_clear()
                     self._load_networks()
-            self.app.push_screen(AddEditNetworkModal(self.conn, network_info=network_info), on_create)
+
+            self.app.push_screen(
+                AddEditNetworkModal(self.conn, network_info=network_info), on_create
+            )
 
         elif event.button.id == "add-net-btn":
+
             def on_create(success: bool):
                 if success:
                     list_networks.cache_clear()
                     self._load_networks()
+
             self.app.push_screen(AddEditNetworkModal(self.conn), on_create)
 
         elif event.button.id == "delete-net-btn":
@@ -882,24 +1083,34 @@ class ServerPrefModal(BaseModal[None]):
             network_name = row_key.value
             vms_using_network = get_vms_using_network(self.conn, network_name)
 
-            confirm_message = ErrorMessages.DELETE_NETWORK_CONFIRM_TEMPLATE.format(network_name=network_name)
+            confirm_message = ErrorMessages.DELETE_NETWORK_CONFIRM_TEMPLATE.format(
+                network_name=network_name
+            )
             if vms_using_network:
                 vm_list = ", ".join(vms_using_network)
-                confirm_message += ErrorMessages.NETWORK_IN_USE_WARNING_TEMPLATE.format(vm_list=vm_list)
+                confirm_message += ErrorMessages.NETWORK_IN_USE_WARNING_TEMPLATE.format(
+                    vm_list=vm_list
+                )
 
             def on_confirm(confirmed: bool) -> None:
                 if confirmed:
                     try:
                         delete_network(self.conn, network_name)
-                        self.app.show_success_message(SuccessMessages.NETWORK_DELETED_SUCCESSFULLY_TEMPLATE.format(network_name=network_name))
+                        self.app.show_success_message(
+                            SuccessMessages.NETWORK_DELETED_SUCCESSFULLY_TEMPLATE.format(
+                                network_name=network_name
+                            )
+                        )
                         list_networks.cache_clear()
                         self._load_networks()
                     except Exception as e:
-                        self.app.show_error_message(ErrorMessages.ERROR_DELETING_NETWORK_TEMPLATE.format(network_name=network_name, error=e))
+                        self.app.show_error_message(
+                            ErrorMessages.ERROR_DELETING_NETWORK_TEMPLATE.format(
+                                network_name=network_name, error=e
+                            )
+                        )
 
-            self.app.push_screen(
-                ConfirmationDialog(confirm_message), on_confirm
-            )
+            self.app.push_screen(ConfirmationDialog(confirm_message), on_confirm)
 
         elif event.button.id == "help-net-btn":
             self.app.push_screen(HowToNetworkModal())

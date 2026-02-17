@@ -1,6 +1,7 @@
 """
 Host Stats modals
 """
+
 import logging
 import threading
 
@@ -18,10 +19,12 @@ class SingleHostStat(Static):
     """
     Displays stats for a single host.
     """
+
     server_name = reactive("")
 
     class ServerLabelClicked(Message):
         """Posted when the server label is clicked."""
+
         def __init__(self, server_uri: str, server_name: str) -> None:
             super().__init__()
             self.server_uri = server_uri
@@ -46,7 +49,9 @@ class SingleHostStat(Static):
         self.server_name = name
         self.vm_service = vm_service
         self.server_color = server_color
-        self.server_label = Label("", id=f"single_host_stat_label_{self.server_name.replace(' ', '_').replace('.', '_')}")
+        self.server_label = Label(
+            "", id=f"single_host_stat_label_{self.server_name.replace(' ', '_').replace('.', '_')}"
+        )
         self.cpu_label = Label("", classes="stat-label")
         self.mem_label = Label("", classes="stat-label")
         self.host_res = None
@@ -67,6 +72,7 @@ class SingleHostStat(Static):
 
     def update_stats(self):
         """Fetches and updates stats for this host."""
+
         def _fetch_and_update():
             try:
                 # Check cancellation before potentially expensive op
@@ -98,14 +104,15 @@ class SingleHostStat(Static):
                 except Exception:
                     pass
 
-                total_cpus = self.host_res.get('total_cpus', 1)
-                total_mem = self.host_res.get('available_memory', 1) # MB
+                total_cpus = self.host_res.get("total_cpus", 1)
+                total_mem = self.host_res.get("available_memory", 1)  # MB
 
-                used_cpus = current_alloc.get('active_allocated_vcpus', 0)
-                used_mem = current_alloc.get('active_allocated_memory', 0) # MB
+                used_cpus = current_alloc.get("active_allocated_vcpus", 0)
+                used_mem = current_alloc.get("active_allocated_memory", 0)  # MB
 
                 cpu_pct = (used_cpus / total_cpus) * 100
                 mem_pct = (used_mem / total_mem) * 100
+
                 # Format memory string (GB if > 1024 MB)
                 def fmt_mem(mb):
                     if mb >= 1024:
@@ -116,12 +123,12 @@ class SingleHostStat(Static):
                 def _update_ui():
                     def get_status_bck(pct):
                         if pct >= 90:
-                            return ("red")
+                            return "red"
                         if pct >= 75:
-                            return ("orange")
+                            return "orange"
                         if pct >= 55:
-                            return ("yellow")
-                        return ("green")
+                            return "yellow"
+                        return "green"
 
                     self.cpu_label.update(f"{used_cpus}/{total_cpus}CPU")
                     self.cpu_label.styles.background = get_status_bck(cpu_pct)
@@ -145,10 +152,12 @@ class SingleHostStat(Static):
 
         _fetch_and_update()
 
+
 class HostStats(Static):
     """
     Container for multiple SingleHostStat widgets.
     """
+
     DEFAULT_CSS = """
     HostStats {
         layout: grid;
@@ -191,8 +200,8 @@ class HostStats(Static):
         """Helper to get server name from URI."""
         if servers:
             for s in servers:
-                if s['uri'] == uri:
-                    return s.get('name', extract_server_name_from_uri(uri))
+                if s["uri"] == uri:
+                    return s.get("name", extract_server_name_from_uri(uri))
         return extract_server_name_from_uri(uri)
 
     def refresh_stats(self):

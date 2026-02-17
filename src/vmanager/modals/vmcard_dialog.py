@@ -24,7 +24,10 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
 
     def compose(self):
         yield Vertical(
-            Markdown(StaticText.DELETE_VM_CONFIRMATION_TEMPLATE.format(vm_name=self.vm_name), id="question"),
+            Markdown(
+                StaticText.DELETE_VM_CONFIRMATION_TEMPLATE.format(vm_name=self.vm_name),
+                id="question",
+            ),
             Checkbox(StaticText.DELETE_STORAGE_VOLUMES, id="delete-storage-checkbox", value=True),
             Label(""),
             Horizontal(
@@ -46,6 +49,7 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
         """Cancel the modal."""
         self.dismiss((False, False))
 
+
 class ChangeNetworkDialog(BaseDialog[dict | None]):
     """A dialog to change a VM's network interface."""
 
@@ -55,7 +59,9 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
         self.networks = networks
 
     def compose(self):
-        interface_options = [(f"{iface['mac']} ({iface['network']})", iface['mac']) for iface in self.interfaces]
+        interface_options = [
+            (f"{iface['mac']} ({iface['network']})", iface["mac"]) for iface in self.interfaces
+        ]
         network_options = [(str(net), str(net)) for net in self.networks]
 
         with Vertical(id="dialog"):
@@ -82,6 +88,7 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
         else:
             self.dismiss(None)
 
+
 class AdvancedCloneDialog(BaseDialog[dict | None]):
     """A dialog to ask for a new VM name and number of clones."""
 
@@ -90,15 +97,19 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             Label(StaticText.ENTER_BASE_NAME),
             Input(placeholder="new_vm_base_name", id="base_name_input", restrict=r"[a-zA-Z0-9_-]*"),
             Label(StaticText.SUFFIX_FOR_CLONE_NAMES),
-            Input(placeholder=StaticText.CLONE_SUFFIX_PLACEHOLDER, id="clone_suffix_input", restrict=r"[a-zA-Z0-9_-]*"),
+            Input(
+                placeholder=StaticText.CLONE_SUFFIX_PLACEHOLDER,
+                id="clone_suffix_input",
+                restrict=r"[a-zA-Z0-9_-]*",
+            ),
             Label(StaticText.NUMBER_OF_CLONES_TO_CREATE),
             Input(value="1", id="clone_count_input", type="integer"),
             Label(StaticText.DO_NOT_CLONE_STORAGE),
             Checkbox("", id="skip_storage_checkbox", value=False),
             Button(ButtonLabels.CLONE, variant="success", id="clone"),
             Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
-            id="clone-dialog"
-            )
+            id="clone-dialog",
+        )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "clone":
@@ -114,9 +125,15 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             try:
                 base_name, base_name_modified = _sanitize_input(base_name_raw)
                 if base_name_modified:
-                    self.app.show_success_message(SuccessMessages.BASE_NAME_SANITIZED_TEMPLATE.format(original=base_name_raw, sanitized=base_name))
+                    self.app.show_success_message(
+                        SuccessMessages.BASE_NAME_SANITIZED_TEMPLATE.format(
+                            original=base_name_raw, sanitized=base_name
+                        )
+                    )
             except ValueError as e:
-                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e)
+                )
                 return
 
             if not base_name:
@@ -129,9 +146,15 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
                 try:
                     clone_suffix, suffix_modified = _sanitize_input(clone_suffix_raw)
                     if suffix_modified:
-                        self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=clone_suffix_raw, sanitized=clone_suffix))
+                        self.app.show_success_message(
+                            SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(
+                                original=clone_suffix_raw, sanitized=clone_suffix
+                            )
+                        )
                 except ValueError as e:
-                    self.app.show_error_message(ErrorMessages.INVALID_CHARS_IN_SUFFIX.format(error=e))
+                    self.app.show_error_message(
+                        ErrorMessages.INVALID_CHARS_IN_SUFFIX.format(error=e)
+                    )
                     return
 
             try:
@@ -148,12 +171,14 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
 
             clone_storage = not skip_storage_checkbox.value
 
-            self.dismiss({
-                "base_name": base_name,
-                "count": clone_count,
-                "suffix": clone_suffix,
-                "clone_storage": clone_storage
-                })
+            self.dismiss(
+                {
+                    "base_name": base_name,
+                    "count": clone_count,
+                    "suffix": clone_suffix,
+                    "clone_storage": clone_storage,
+                }
+            )
         else:
             self.dismiss(None)
 
@@ -187,11 +212,17 @@ class RenameVMDialog(BaseDialog[str | None]):
             try:
                 new_name, was_modified = _sanitize_input(new_name_raw)
             except ValueError as e:
-                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e)
+                )
                 return
 
             if was_modified:
-                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=new_name_raw, sanitized=new_name))
+                self.app.show_success_message(
+                    SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(
+                        original=new_name_raw, sanitized=new_name
+                    )
+                )
 
             if not new_name:
                 self.app.show_error_message(ErrorMessages.VM_NAME_CANNOT_BE_EMPTY_RENAME)
@@ -205,6 +236,7 @@ class RenameVMDialog(BaseDialog[str | None]):
             self.dismiss(new_name)
         else:
             self.dismiss(None)
+
 
 class SelectSnapshotDialog(BaseDialog[str | None]):
     """A dialog to select a snapshot from a list."""
@@ -220,7 +252,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
             DataTable(id="snapshot-table"),
             Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="dialog",
-            classes="snapshot-select-dialog"
+            classes="snapshot-select-dialog",
         )
 
     def on_mount(self) -> None:
@@ -230,11 +262,11 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
 
         for snap in self.snapshots:
             table.add_row(
-                snap['name'],
-                snap.get('state', 'N/A'),
-                snap['creation_time'],
-                snap['description'],
-                key=snap['name']
+                snap["name"],
+                snap.get("state", "N/A"),
+                snap["creation_time"],
+                snap["description"],
+                key=snap["name"],
             )
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
@@ -243,6 +275,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "cancel":
             self.dismiss(None)
+
 
 class SnapshotNameDialog(BaseDialog[dict | None]):
     """A dialog to ask for a snapshot name."""
@@ -262,14 +295,21 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
         yield Vertical(
             Label(StaticText.CURRENT_TIME.format(now=now), id="timestamp-label"),
             Label(StaticText.ENTER_SNAPSHOT_NAME, id="question"),
-            Input(value=default_name, placeholder="snapshot_name", id="name-input", restrict=r"[a-zA-Z0-9_-]*"),
+            Input(
+                value=default_name,
+                placeholder="snapshot_name",
+                id="name-input",
+                restrict=r"[a-zA-Z0-9_-]*",
+            ),
             Label(StaticText.DESCRIPTION_OPTIONAL),
             Input(placeholder=StaticText.SNAPSHOT_DESCRIPTION_PLACEHOLDER, id="description-input"),
-            Checkbox(StaticText.QUIESCE_GUEST,
-                     value=agent_running,
-                     disabled=not agent_running,
-                     id="quiesce-checkbox",
-                     tooltip=StaticText.PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP),
+            Checkbox(
+                StaticText.QUIESCE_GUEST,
+                value=agent_running,
+                disabled=not agent_running,
+                id="quiesce-checkbox",
+                tooltip=StaticText.PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP,
+            ),
             Horizontal(
                 Button(ButtonLabels.CREATE, variant="success", id="create"),
                 Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
@@ -292,11 +332,17 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             try:
                 snapshot_name, was_modified = _sanitize_input(snapshot_name_raw)
             except ValueError as e:
-                self.app.show_error_message(ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e))
+                self.app.show_error_message(
+                    ErrorMessages.SANITIZATION_ERROR_TEMPLATE.format(error=e)
+                )
                 return
 
             if was_modified:
-                self.app.show_success_message(SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(original=snapshot_name_raw, sanitized=snapshot_name))
+                self.app.show_success_message(
+                    SuccessMessages.INPUT_SANITIZED_TEMPLATE.format(
+                        original=snapshot_name_raw, sanitized=snapshot_name
+                    )
+                )
 
             if not snapshot_name:
                 self.app.show_error_message(ErrorMessages.SNAPSHOT_NAME_CANNOT_BE_EMPTY)
@@ -310,6 +356,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             self.dismiss({"name": snapshot_name, "description": description, "quiesce": quiesce})
         else:
             self.dismiss(None)
+
 
 class WebConsoleDialog(BaseDialog[str | None]):
     """A dialog to show the web console URL."""
@@ -338,6 +385,7 @@ class WebConsoleDialog(BaseDialog[str | None]):
         else:
             self.dismiss(None)
 
+
 class WebConsoleConfigDialog(BaseDialog[bool]):
     """A dialog to configure and start the web console."""
 
@@ -352,8 +400,12 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             yield Label(StaticText.WEB_CONSOLE_CONFIGURATION, id="webconsole-config-title")
 
             if self.is_remote:
-                remote_console_enabled = self.config.get('REMOTE_WEBCONSOLE', False)
-                label_text = self.text_remote if remote_console_enabled else StaticText.RUN_WEB_CONSOLE_LOCAL_MESSAGE
+                remote_console_enabled = self.config.get("REMOTE_WEBCONSOLE", False)
+                label_text = (
+                    self.text_remote
+                    if remote_console_enabled
+                    else StaticText.RUN_WEB_CONSOLE_LOCAL_MESSAGE
+                )
                 yield Markdown(label_text, id="console-location-label")
                 with Vertical():
                     switch_widget = Switch(value=remote_console_enabled, id="remote-console-switch")
@@ -362,11 +414,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                     else:
                         switch_widget.add_class("switch-off")
 
-                    yield Grid(
-                        Label(StaticText.REMOTE),
-                        switch_widget,
-                        id="grid-remote-local"
-                        )
+                    yield Grid(Label(StaticText.REMOTE), switch_widget, id="grid-remote-local")
 
                 with Vertical(id="remote-options") as remote_opts:
                     remote_opts.display = remote_console_enabled
@@ -376,11 +424,19 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
 
                     yield Grid(
                         Label(StaticText.VNC_QUALITY_LABEL),
-                        Select(quality_options, value=self.config.get('VNC_QUALITY', 0), id="quality-select"),
+                        Select(
+                            quality_options,
+                            value=self.config.get("VNC_QUALITY", 0),
+                            id="quality-select",
+                        ),
                         Label(StaticText.VNC_COMPRESSION_LABEL),
-                        Select(compression_options, value=self.config.get('VNC_COMPRESSION', 9), id="compression-select"),
-                        id="grid-vnc-config"
-                        )
+                        Select(
+                            compression_options,
+                            value=self.config.get("VNC_COMPRESSION", 9),
+                            id="compression-select",
+                        ),
+                        id="grid-vnc-config",
+                    )
             else:
                 yield Markdown(StaticText.WEBCONSOLE_LOCAL_RUN)
 
@@ -409,26 +465,32 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
             if self.is_remote:
                 remote_switch = self.query_one("#remote-console-switch", Switch)
                 new_remote_value = remote_switch.value
-                if self.config.get('REMOTE_WEBCONSOLE') != new_remote_value:
-                    self.config['REMOTE_WEBCONSOLE'] = new_remote_value
+                if self.config.get("REMOTE_WEBCONSOLE") != new_remote_value:
+                    self.config["REMOTE_WEBCONSOLE"] = new_remote_value
                     config_changed = True
 
                 if new_remote_value:
                     quality_select = self.query_one("#quality-select", Select)
                     new_quality_value = quality_select.value
-                    if new_quality_value is not Select.BLANK and self.config.get('VNC_QUALITY') != new_quality_value:
-                        self.config['VNC_QUALITY'] = new_quality_value
+                    if (
+                        new_quality_value is not Select.BLANK
+                        and self.config.get("VNC_QUALITY") != new_quality_value
+                    ):
+                        self.config["VNC_QUALITY"] = new_quality_value
                         config_changed = True
 
                     compression_select = self.query_one("#compression-select", Select)
                     new_compression_value = compression_select.value
-                    if new_compression_value is not Select.BLANK and self.config.get('VNC_COMPRESSION') != new_compression_value:
-                        self.config['VNC_COMPRESSION'] = new_compression_value
+                    if (
+                        new_compression_value is not Select.BLANK
+                        and self.config.get("VNC_COMPRESSION") != new_compression_value
+                    ):
+                        self.config["VNC_COMPRESSION"] = new_compression_value
                         config_changed = True
             else:
                 # Not remote, so webconsole must be local
-                if self.config.get('REMOTE_WEBCONSOLE') is not False:
-                    self.config['REMOTE_WEBCONSOLE'] = False
+                if self.config.get("REMOTE_WEBCONSOLE") is not False:
+                    self.config["REMOTE_WEBCONSOLE"] = False
                     config_changed = True
 
             if config_changed:

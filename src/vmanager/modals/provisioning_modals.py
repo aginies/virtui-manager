@@ -737,9 +737,9 @@ class InstallVMModal(BaseModal[str | None]):
                     disk_format=disk_format,
                     boot_uefi=boot_uefi,
                     configure_before_install=configure_before_install,
-                    show_config_modal_callback=show_config_modal
-                    if configure_before_install
-                    else None,
+                    show_config_modal_callback=(
+                        show_config_modal if configure_before_install else None
+                    ),
                     progress_callback=progress_cb,
                 )
             finally:

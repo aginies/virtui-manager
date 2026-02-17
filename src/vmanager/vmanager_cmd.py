@@ -247,6 +247,7 @@ class VManagerCMD(cmd.Cmd):
         except (AttributeError, OSError):
             try:
                 import subprocess
+
                 result = subprocess.run(["tput", "cols"], capture_output=True, text=True)
                 if result.returncode == 0:
                     return int(result.stdout.strip())
@@ -633,9 +634,7 @@ class VManagerCMD(cmd.Cmd):
             all_selected_vms = []
             for server_name, vms in self.selected_vms.items():
                 for vm in vms:
-                    all_selected_vms.append(
-                        self._colorize(vm, server_name, for_prompt=True)
-                    )
+                    all_selected_vms.append(self._colorize(vm, server_name, for_prompt=True))
 
             if all_selected_vms:
                 # Check if the prompt would be too long
@@ -679,7 +678,6 @@ class VManagerCMD(cmd.Cmd):
             self.prompt = "(" + AppInfo.name + ")> "
             self._set_title("Virtui Manager CLI")
 
-
     def do_show_selection(self, args):
         """Show the full list of currently selected VMs (useful when prompt is truncated).
         Usage: show_selection"""
@@ -696,7 +694,6 @@ class VManagerCMD(cmd.Cmd):
             for vm in vms:
                 colored_vm = self._colorize(vm, server_name)
                 print(f"    - {colored_vm}")
-
 
     def _display_completion_matches(self, substitution, matches, longest_match_length):
         """Custom display hook for readline completion to show categories."""

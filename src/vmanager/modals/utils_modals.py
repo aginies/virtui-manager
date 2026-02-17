@@ -1,6 +1,7 @@
 """
 Usefull Modal screen
 """
+
 import logging
 import os
 import pathlib
@@ -28,61 +29,75 @@ def _sanitize_message(message: str) -> str:
     Escapes brackets in strings that look like file paths or invalid tags.
     Preserves valid Rich markup tags.
     """
+
     def replacer(match):
         content = match.group(1)
         # Valid closing tags: [/] or [/name]
-        if content.startswith('/'):
-             if content == '/' or re.fullmatch(r"/[a-zA-Z0-9_-]+", content):
-                 return match.group(0)
-             # Invalid closing tag -> escape
-             return f"\\[{content}]"
+        if content.startswith("/"):
+            if content == "/" or re.fullmatch(r"/[a-zA-Z0-9_-]+", content):
+                return match.group(0)
+            # Invalid closing tag -> escape
+            return f"\\[{content}]"
 
         # Rich doesn't support / in style names (except for closing tag prefix).
-        if '/' in content and '=' not in content:
-             return f"\\[{content}]"
+        if "/" in content and "=" not in content:
+            return f"\\[{content}]"
 
         # If it has . inside, like [file.txt]
-        if '.' in content and '=' not in content:
-             return f"\\[{content}]"
+        if "." in content and "=" not in content:
+            return f"\\[{content}]"
 
         return match.group(0)
 
     # Use regex to find [...] patterns and replace them
     return re.sub(r"\[(.*?)\]", replacer, message)
 
+
 def show_error_message(app, message: str):
     """Shows an error notification."""
     logging.error(message)
     app.notify(_sanitize_message(message), severity="error", timeout=10, title="Error!")
+
 
 def show_success_message(app, message: str):
     """Shows a success notification."""
     logging.info(message)
     app.notify(_sanitize_message(message), timeout=10, title="Info")
 
+
 def show_in_progress_message(app, message: str):
     """Shows an 'In Progress' notification."""
     logging.info(message)
-    app.notify(_sanitize_message(message), timeout=5, title=StaticText.IN_PROGRESS_TITLE, severity="inprogress")
+    app.notify(
+        _sanitize_message(message),
+        timeout=5,
+        title=StaticText.IN_PROGRESS_TITLE,
+        severity="inprogress",
+    )
+
 
 def show_quick_message(app, message: str):
     """Shows a quick notification."""
     logging.info(message)
     app.notify(_sanitize_message(message), timeout=2, title=StaticText.QUICK_INFO_TITLE)
 
+
 def show_warning_message(app, message: str):
     """Shows a warning notification."""
     logging.warning(message)
     app.notify(_sanitize_message(message), severity="warning", timeout=10, title="Warning")
 
+
 class SafeDirectoryTree(DirectoryTree):
     """
     A DirectoryTree that excludes problematic paths like /proc, /sys, and /dev.
     """
+
     def filter_paths(self, paths: Iterable[pathlib.Path]) -> Iterable[pathlib.Path]:
         """Filters out blacklisted paths to prevent recursion and performance issues."""
         BLACKLIST = ("proc", "sys", "dev")
         return [p for p in paths if not any(part in BLACKLIST for part in p.parts)]
+
 
 class DirectorySelectionModal(BaseModal[str | None]):
     """A modal screen for selecting a directory."""
@@ -114,14 +129,19 @@ class DirectorySelectionModal(BaseModal[str | None]):
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 
+
 class FileSelectionModal(BaseModal[str | None]):
     """A modal screen for selecting a file."""
 
     def __init__(self, path: str | None = None) -> None:
         super().__init__()
-        start_dir = path if path and os.path.isdir(path) else os.path.dirname(path) if path else os.path.expanduser("/")
+        start_dir = (
+            path
+            if path and os.path.isdir(path)
+            else os.path.dirname(path) if path else os.path.expanduser("/")
+        )
         if not os.path.isdir(start_dir):
-             start_dir = os.path.expanduser("/")
+            start_dir = os.path.expanduser("/")
         self.start_path = start_dir
         self._selected_path: str | None = None
 
@@ -151,7 +171,7 @@ class FileSelectionModal(BaseModal[str | None]):
 class LoadingModal(BaseModal[None]):
     """A modal screen that displays a loading indicator."""
 
-    BINDINGS = [] # Override BaseModal's bindings to prevent user dismissal with escape
+    BINDINGS = []  # Override BaseModal's bindings to prevent user dismissal with escape
 
     def __init__(self, message: str = "Loading...") -> None:
         super().__init__()
@@ -161,6 +181,7 @@ class LoadingModal(BaseModal[None]):
         with Vertical():
             yield Label(self.message)
             yield LoadingIndicator()
+
 
 class ProgressModal(BaseModal[None]):
     """A modal that shows a progress bar and logs for a long-running task."""
@@ -224,6 +245,7 @@ class ConfirmationDialog(BaseDialog[bool]):
     def action_cancel_modal(self) -> None:
         """Cancel the modal."""
         self.dismiss(False)
+
 
 class InfoModal(BaseModal[None]):
     """A modal that shows an information message."""
