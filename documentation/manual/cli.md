@@ -22,7 +22,7 @@ The prompt dynamically updates to show your active context:
 
 **Visual Distinction**: Server names and their associated VMs are color-coded based on a unique palette, making it easy to distinguish between different environments at a glance.
 
-**Logging**: The CLI automatically logs all output and operations to a file (typically `~/.cache/virtui-manager/vm_manager.log`), which is useful for audit trails and debugging.
+**Logging**: The CLI automatically logs all output and operations to a file (typically `~/.cache/virtui-manager/vm_manager.log`), which is useful for audit trails and debugging. Sensitive data (passwords, URIs) is automatically sanitized in logs and output.
 
 ## Connection Management
 
@@ -43,6 +43,8 @@ Most commands operate on the "current selection" if no arguments are provided.
     *   *Example:* `select_vm re:^web-.*` (Selects all VMs starting with "web-")
 *   **`unselect_vm <name|uuid> | re:<pattern> | all`**
     Removes VMs from the current selection.
+*   **`show_selection`**
+    Displays the full list of currently selected VMs. Useful when the prompt is truncated due to many selected VMs.
 
 ## VM Operations
 
@@ -68,6 +70,13 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`net_info <name>`**: Shows detailed information (UUID, bridge, IP, DHCP range) for a network.
 *   **`net_autostart <name> <on|off>`**: Enables or disables autostart for a network.
 
+## Snapshot Management
+
+*   **`snapshot_list <vm_name>`**: Lists all snapshots for a specific VM.
+*   **`snapshot_create <vm_name> <snapshot_name> [--description "desc"]`**: Creates a new snapshot with an optional description.
+*   **`snapshot_delete <vm_name> <snapshot_name>`**: Deletes a specific snapshot.
+*   **`snapshot_revert <vm_name> <snapshot_name>`**: Reverts a VM to a previously saved snapshot state.
+
 ## Information & Discovery
 
 *   **`list_vms`**: Lists all VMs on all connected servers with their current status.
@@ -79,6 +88,48 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 
 *   **`virsh [server]`**: Launches an interactive `virsh` shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.
 *   **`bash [command]`**: Executes a local shell command or starts an interactive bash shell.
+*   **`history [number|all|info]`**: Displays the command history. Use `history all` to see all history, `history <number>` for a specific number of recent commands, or `history info` for history file location.
+*   **`!<number>`**: Re-executes a command from the history by its number (e.g., `!15` runs command #15).
+
+## Pipelines
+
+The CLI supports command pipelines for chaining multiple operations together using the `|` operator.
+
+### Pipeline Syntax
+
+```bash
+pipeline [options] <command1> | <command2> | ...
+```
+
+### Pipeline Options
+
+*   **`--dry-run`**: Shows what commands would be executed without actually running them.
+*   **`--interactive` / `-i`**: Prompts for confirmation before executing the pipeline.
+
+### Pipeline-Supported Commands
+
+*   **Selection**: `select <vm1> [vm2...]` or `select re:<pattern>`
+*   **VM Operations**: `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`
+*   **Snapshots**: `snapshot create <name> [desc]`, `snapshot delete <name>`, `snapshot revert <name>`
+*   **Utilities**: `wait <seconds>`, `view`, `info`
+
+### Variable Expansion
+
+*   **`$(date)`**: Expands to current date/time in `YYYYMMDD_HHMMSS` format.
+*   **`$(time)`**: Expands to current time in `HHMMSS` format.
+
+### Pipeline Examples
+
+```bash
+# Stop all web VMs, create a snapshot, then start them
+select re:web.* | stop | snapshot create backup-$(date) | start
+
+# Preview what would happen without executing
+pipeline --dry-run select vm1 vm2 | pause
+
+# Interactive confirmation before critical operations
+pipeline -i select re:prod-.* | hibernate | snapshot create maintenance-$(date)
+```
 
 ## Usage Example
 
@@ -102,4 +153,24 @@ VM 'web-02' started successfully.
 # Open a graphical console
 (Localhost) [web-01] > view
 Launching viewer for 'web-01' on Localhost...
+
+# Create a snapshot before maintenance
+(Localhost) [web-01,web-02] > snapshot_create web-01 pre-update --description "Before security update"
+Snapshot 'pre-update' created for 'web-01'.
+
+# Use pipelines for batch operations
+(Localhost) > select re:web-.* | stop | snapshot create maintenance-$(date) | start
 ```
+
+## Command Reference Summary
+
+| Category | Commands |
+|----------|----------|
+| Connection | `connect`, `disconnect`, `host_info`, `virsh` |
+| VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `show_selection` |
+| VM Operations | `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `view` |
+| Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
+| Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `net_autostart` |
+| Storage | `list_pool`, `list_unused_volumes` |
+| Pipelines | `pipeline` (with `|` chaining) |
+| Shell/Utils | `bash`, `history`, `!<number>`, `quit`, `help` |

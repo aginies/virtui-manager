@@ -60,37 +60,118 @@ flatpak run io.github.aginies.virtui-manager
 
 ## Nix Package
 
-This project includes Nix package definitions for easy installation and development:
+This project includes comprehensive Nix package definitions for easy installation and development. The Nix files are located in the `nix/` directory.
 
-### Building with Nix
+### Prerequisites
 
-To build the package using Nix:
+Ensure you have Nix installed with flakes enabled. Add the following to your Nix configuration (`~/.config/nix/nix.conf` or `/etc/nix/nix.conf`):
 
-```bash
-nix build
+```
+experimental-features = nix-command flakes
 ```
 
-Or to build and run directly:
+### Quick Install (Flake)
 
-```bash
-nix run
-```
-
-### Development Shell
-
-To enter a development shell with all dependencies:
-
-```bash
-nix develop
-```
-
-### Using as a Nix Flake
-
-This project can also be used as a Nix flake:
+Run VirtUI Manager directly without installing:
 
 ```bash
 nix run github:aginies/virtui-manager
 ```
+
+Or install it to your profile:
+
+```bash
+nix profile install github:aginies/virtui-manager
+```
+
+### Building Locally
+
+Clone the repository and build:
+
+```bash
+git clone https://github.com/aginies/virtui-manager.git
+cd virtui-manager/nix
+
+# Build the package
+nix build
+
+# Run directly
+nix run
+```
+
+### Traditional Nix (without flakes)
+
+If you prefer not to use flakes:
+
+```bash
+cd virtui-manager/nix
+
+# Build
+nix-build default.nix
+
+# Run the result
+./result/bin/virtui-manager
+```
+
+### Development Shell
+
+Enter a fully configured development environment with all dependencies, testing tools (pytest, pytest-cov, pytest-asyncio), and code quality tools (black, ruff, mypy):
+
+**Using flakes:**
+```bash
+cd virtui-manager/nix
+nix develop
+```
+
+**Without flakes:**
+```bash
+cd virtui-manager/nix
+nix-shell shell.nix
+```
+
+Once in the development shell, you'll have access to:
+
+| Command | Description |
+|---------|-------------|
+| `pytest tests/` | Run tests |
+| `black src/` | Format code |
+| `ruff check src/` | Lint code |
+| `mypy src/` | Type check |
+| `python -m pip install -e .` | Install in editable mode |
+
+### NixOS Configuration
+
+To add VirtUI Manager to your NixOS configuration:
+
+```nix
+# In your flake.nix inputs
+inputs.virtui-manager.url = "github:aginies/virtui-manager";
+
+# In your configuration
+environment.systemPackages = [
+  inputs.virtui-manager.packages.${pkgs.system}.default
+];
+```
+
+### Home Manager
+
+For Home Manager users:
+
+```nix
+# In your home.nix or flake
+home.packages = [
+  inputs.virtui-manager.packages.${pkgs.system}.default
+];
+```
+
+### Package Details
+
+The Nix package includes:
+
+*   **Dependencies**: libvirt-python, textual, pyyaml, markdown-it-py
+*   **Optional**: websockify (for webconsole support)
+*   **Platforms**: Linux only
+*   **License**: GPL-3.0+
 
 ## Installation Steps from Source Code
 
