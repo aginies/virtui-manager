@@ -18,3 +18,5 @@ documentation/manual/appdocs/
 docs/manual/pdf/
 src/vmanager/locales/*/LC_MESSAGES/*.mo
 virtui-manager-*.tar.gz
+tests/.coverage
+TODO
