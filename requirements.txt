@@ -3,3 +3,4 @@ libvirt-python==10.0.0
 pyyaml
 markdown-it-py
 websockify
+pytest-cov

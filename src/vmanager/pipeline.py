@@ -1068,9 +1068,15 @@ class PipelineParser:
 
     def parse(self, pipeline_str: str) -> List[PipelineCommand]:
         """Parse a pipeline string into commands."""
+        if not pipeline_str.strip():
+            raise ValueError("Empty pipeline string")
+
         if "|" not in pipeline_str:
             # Single command, not a pipeline
-            return self._parse_single_command(pipeline_str.strip())
+            commands = self._parse_single_command(pipeline_str.strip())
+            if not commands:
+                raise ValueError(f"Invalid command: {pipeline_str}")
+            return commands
 
         # Split on pipes, handling quoted strings
         commands = []
@@ -1091,8 +1097,9 @@ class PipelineParser:
                     quote_char = None
                 current_command += char
             elif char == "|" and not in_quotes:
-                if current_command.strip():
-                    commands.extend(self._parse_single_command(current_command.strip()))
+                if not current_command.strip():
+                    raise ValueError("Empty command segment in pipeline")
+                commands.extend(self._parse_single_command(current_command.strip()))
                 current_command = ""
             else:
                 current_command += char
@@ -1100,8 +1107,12 @@ class PipelineParser:
             i += 1
 
         # Add final command
-        if current_command.strip():
-            commands.extend(self._parse_single_command(current_command.strip()))
+        if not current_command.strip():
+            raise ValueError("Trailing pipe or empty command segment in pipeline")
+        commands.extend(self._parse_single_command(current_command.strip()))
+
+        if not commands:
+            raise ValueError(f"No valid commands found in pipeline: {pipeline_str}")
 
         return commands
 
