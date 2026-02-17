@@ -1487,10 +1487,9 @@ class VMManagerTUI(App):
         }
 
         self.push_screen(
-                MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections)
-                )
+            MigrationModal(vms=selected_vms, is_live=is_live, connections=all_connections)
+        )
         self.selected_vm_uuids.clear()
-
 
     def handle_bulk_action_result(self, result: dict | None) -> None:
         """Handles the result from the BulkActionModal."""

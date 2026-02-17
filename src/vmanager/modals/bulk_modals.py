@@ -62,7 +62,9 @@ class BulkActionModal(BaseModal[None]):
         checkbox = self.query_one("#delete-storage-checkbox")
         checkbox.display = event.pressed.id == "action_delete"
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:  # pylint: disable=missing-function-docstring
+    def on_button_pressed(
+        self, event: Button.Pressed
+    ) -> None:  # pylint: disable=missing-function-docstring
         if event.button.id == "execute-action-btn":
             radioset = self.query_one(RadioSet)
             selected_action_button = radioset.pressed_button

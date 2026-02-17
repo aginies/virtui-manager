@@ -1,6 +1,7 @@
 """
 Module for managing network-related operations for virtual machines.
 """
+
 import ipaddress
 import logging
 import secrets
@@ -27,18 +28,32 @@ def list_networks(conn):
         xml_desc = net.XMLDesc(0)
         root = ET.fromstring(xml_desc)
 
-        forward_elem = root.find('forward')
-        mode = forward_elem.get('mode') if forward_elem is not None else 'isolated'
+        forward_elem = root.find("forward")
+        mode = forward_elem.get("mode") if forward_elem is not None else "isolated"
 
-        networks.append({
-            'name': net.name(),
-            'mode': mode,
-            'active': net.isActive(),
-            'autostart': net.autostart(),
-        })
+        networks.append(
+            {
+                "name": net.name(),
+                "mode": mode,
+                "active": net.isActive(),
+                "autostart": net.autostart(),
+            }
+        )
     return networks
 
-def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, dhcp_start, dhcp_end, domain_name, uuid=None):
+
+def create_network(
+    conn,
+    name,
+    typenet,
+    forward_dev,
+    ip_network,
+    dhcp_enabled,
+    dhcp_start,
+    dhcp_end,
+    domain_name,
+    uuid=None,
+):
     """
     Creates a new NAT/Routed network.
     """
@@ -47,7 +62,7 @@ def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, d
 
     net = ipaddress.ip_network(ip_network)
     generated_mac = generate_mac_address()
-    uuid_str = f'<uuid>{uuid}</uuid>' if uuid else ''
+    uuid_str = f"<uuid>{uuid}</uuid>" if uuid else ""
     nat_xml = ""
     if typenet == "nat":
         nat_xml = """
@@ -83,6 +98,7 @@ def create_network(conn, name, typenet, forward_dev, ip_network, dhcp_enabled, d
     net = conn.networkDefineXML(xml)
     net.create()
     net.setAutostart(True)
+
 
 def delete_network(conn, network_name):
     """
@@ -123,6 +139,7 @@ def get_vms_using_network(conn, network_name):
                     break
     return vm_names
 
+
 def set_network_active(conn, network_name, active):
     """
     Sets a network to active or inactive.
@@ -139,6 +156,7 @@ def set_network_active(conn, network_name, active):
         msg = f"Error setting network active status: {e}"
         logging.error(msg)
         raise Exception(msg) from e
+
 
 @log_function_call
 def set_network_autostart(conn, network_name, autostart):
@@ -164,29 +182,26 @@ def get_host_network_interfaces():
     """
     try:
         result = subprocess.run(
-            ['ip', '-o', 'link', 'show'],
-            capture_output=True,
-            text=True,
-            check=True
+            ["ip", "-o", "link", "show"], capture_output=True, text=True, check=True
         )
         interfaces = []
         for line in result.stdout.splitlines():
-            parts = line.split(': ')
+            parts = line.split(": ")
             if len(parts) > 1:
-                interface_name = parts[1].split('@')[0]
-                if interface_name != 'lo':
+                interface_name = parts[1].split("@")[0]
+                if interface_name != "lo":
                     ip_address = ""
                     # Get IPv4 address for the interface
                     ip_result = subprocess.run(
-                        ['ip', '-o', '-4', 'addr', 'show', interface_name],
+                        ["ip", "-o", "-4", "addr", "show", interface_name],
                         capture_output=True,
                         text=True,
-                        check=False # Do not raise error if interface has no IP
+                        check=False,  # Do not raise error if interface has no IP
                     )
                     if ip_result.returncode == 0:
                         ip_parts = ip_result.stdout.split()
                         if len(ip_parts) > 3:
-                            ip_address = ip_parts[3].split('/')[0] # Extract IP before the /
+                            ip_address = ip_parts[3].split("/")[0]  # Extract IP before the /
 
                     interfaces.append((interface_name, ip_address))
         return interfaces
@@ -197,17 +212,25 @@ def get_host_network_interfaces():
         print("Error: 'ip' command not found. Please ensure iproute2 is installed.")
         return []
 
+
 @log_function_call
 def generate_mac_address():
     """Generates a random MAC address."""
-    mac = [ 0x52, 0x54, 0x00,
-            secrets.randbelow(0x7f),
-            secrets.randbelow(0xff),
-            secrets.randbelow(0xff) ]
-    return ':'.join(map(lambda x: "%02x" % x, mac))
+    mac = [
+        0x52,
+        0x54,
+        0x00,
+        secrets.randbelow(0x7F),
+        secrets.randbelow(0xFF),
+        secrets.randbelow(0xFF),
+    ]
+    return ":".join(map(lambda x: "%02x" % x, mac))
+
 
 @log_function_call
-def get_existing_subnets(conn: libvirt.virConnect) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+def get_existing_subnets(
+    conn: libvirt.virConnect,
+) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
     """
     Returns a list of all IP subnets currently configured for libvirt networks.
     """
@@ -229,17 +252,18 @@ def get_existing_subnets(conn: libvirt.virConnect) -> list[ipaddress.IPv4Network
                             subnet = ipaddress.ip_network(subnet_str, strict=False)
                             subnets.append(subnet)
                         except ValueError:
-                            pass # Ignore invalid configurations
+                            pass  # Ignore invalid configurations
                     elif prefix:
                         subnet_str = f"{ip_addr}/{prefix}"
                         try:
                             subnet = ipaddress.ip_network(subnet_str, strict=False)
                             subnets.append(subnet)
                         except ValueError:
-                            pass # Ignore invalid configurations
+                            pass  # Ignore invalid configurations
         except libvirt.libvirtError:
-            continue # Ignore networks we can't get XML for
+            continue  # Ignore networks we can't get XML for
     return subnets
+
 
 @lru_cache(maxsize=32)
 def get_host_network_info(conn: libvirt.virConnect):

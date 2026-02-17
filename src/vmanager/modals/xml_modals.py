@@ -1,6 +1,7 @@
 """
 XML Display and Edit Modal
 """
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, TextArea
@@ -25,7 +26,7 @@ class XMLDisplayModal(BaseModal[str | None]):
                 show_line_numbers=True,
                 read_only=self.read_only,
                 theme="monokai",
-                id="xml-textarea"
+                id="xml-textarea",
             )
             try:
                 text_area.language = "xml"

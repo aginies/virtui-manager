@@ -38,40 +38,51 @@ def setup_path():
         # Insert at the beginning to ensure local source takes precedence
         sys.path.insert(0, src_dir)
 
+
 def run_tui():
     from vmanager import vmanager
-    if hasattr(vmanager, 'main'):
+
+    if hasattr(vmanager, "main"):
         vmanager.main()
     else:
         print("Error: vmanager module has no 'main' function.")
 
+
 def run_cli():
     from vmanager import vmanager_cmd
-    if hasattr(vmanager_cmd, 'main'):
+
+    if hasattr(vmanager_cmd, "main"):
         vmanager_cmd.main()
     else:
         print("Error: vmanager_cmd module has no 'main' function.")
 
+
 def run_viewer():
     from vmanager import remote_viewer
-    if hasattr(remote_viewer, 'main'):
+
+    if hasattr(remote_viewer, "main"):
         remote_viewer.main()
     else:
         print("Error: remote_viewer module has no 'main' function.")
 
+
 def run_viewer_gtk4():
     from vmanager import remote_viewer_gtk4
-    if hasattr(remote_viewer_gtk4, 'main'):
+
+    if hasattr(remote_viewer_gtk4, "main"):
         remote_viewer_gtk4.main()
     else:
         print("Error: remote_viewer_gtk4 module has no 'main' function.")
 
+
 def run_gui():
     from vmanager import gui_wrapper
-    if hasattr(gui_wrapper, 'main'):
+
+    if hasattr(gui_wrapper, "main"):
         gui_wrapper.main()
     else:
         print("Error: gui_wrapper module has no 'main' function.")
+
 
 if __name__ == "__main__":
     setup_path()
@@ -80,11 +91,15 @@ if __name__ == "__main__":
     # We use parse_known_args because the remaining arguments should be passed
     # to the actual application (e.g. viewer args)
     parser = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        add_help=False
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter, add_help=False
     )
-    parser.add_argument("mode", nargs="?", choices=["tui", "cli", "viewer", "gui"], default="tui", help="Application mode to run")
+    parser.add_argument(
+        "mode",
+        nargs="?",
+        choices=["tui", "cli", "viewer", "gui"],
+        default="tui",
+        help="Application mode to run",
+    )
 
     # Handle help explicitly
     if len(sys.argv) > 1 and sys.argv[1] in ["-h", "--help"]:

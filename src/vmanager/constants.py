@@ -1,6 +1,7 @@
 """
 Shared constants for the application.
 """
+
 # pylint: disable=too-many-lines
 
 from .i18n import _
@@ -543,7 +544,8 @@ class StaticText:  # pylint: disable=too-few-public-methods
     ACTIONS = _("Actions")
     NODESET_EXAMPLE = _("e.g., 0-1")
     CPU_TUNE_HELP_TITLE = _("CPU Tuning Help")
-    CPU_TUNE_HELP_TEXT = _("""
+    CPU_TUNE_HELP_TEXT = _(
+        """
 # CPU Tune Help
 
 ## CPU Pinning (vcpupin)
@@ -560,9 +562,11 @@ Specify which physical CPUs (host CPUs) each virtual CPU (guest CPU) can run on.
 * `0:0-3`: Pin vCPU 0 to physical CPUs 0, 1, 2, and 3.
 * `0:0,2`: Pin vCPU 0 to physical CPUs 0 and 2.
 * `0:0-1; 1:2-3`: Pin vCPU 0 to physical CPUs 0-1, and vCPU 1 to physical CPUs 2-3.
-""")
+"""
+    )
     NUMA_TUNE_HELP_TITLE = _("NUMA Tuning Help")
-    NUMA_TUNE_HELP_TEXT = _("""
+    NUMA_TUNE_HELP_TEXT = _(
+        """
 # NUMA Tune Help
 
 ## Memory Modes
@@ -575,7 +579,8 @@ Specify the NUMA nodes to use.
 * Example: `0` (Node 0 only)
 * Example: `0-1` (Nodes 0 and 1)
 * Example: `0,2-3` (Node 0 and nodes 2 through 3)
-""")
+"""
+    )
     REFRESHING_HOST_STATS = _("Refreshing host stats")
     SELECT_SERVER_FOR_PREFS = _("Select a server for Preferences")
     SELECT_SERVER_FOR_VIRSH = _("Select a server for Virsh Shell")

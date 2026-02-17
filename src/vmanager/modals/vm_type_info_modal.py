@@ -1,6 +1,7 @@
 """
 Modal to show VM Type differences from DEFAULT_SETTINGS.md.
 """
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import ScrollableContainer
@@ -50,6 +51,7 @@ VM_TYPE_INFO_TEXT = """
 | sec reducedPhysBits | auto | NA | NA | NA | NA | auto |
 | sec policy | auto | NA | NA | NA | NA | auto |
 """
+
 
 class VMTypeInfoModal(BaseModal[None]):
     """A modal to display instructions for VM Types."""

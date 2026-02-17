@@ -1,6 +1,7 @@
 """
 Manages multiple libvirt connections.
 """
+
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -16,13 +17,16 @@ class ConnectionManager:
 
     class BaseWrapper:
         """Base class for proxying libvirt objects to track statistics."""
+
         def __init__(self, obj, uri, manager):
             self._obj = obj
             self._uri = uri
             self._manager = manager
+
         def __getattr__(self, name):
             attr = getattr(self._obj, name)
             if callable(attr):
+
                 def wrapped(*args, **kwargs):
                     self._manager._record_call(self._uri, name)
                     res = attr(*args, **kwargs)
@@ -30,15 +34,13 @@ class ConnectionManager:
                     # Wrap returned domain objects to track their calls too
                     if isinstance(res, libvirt.virDomain):
                         return ConnectionManager.DomainWrapper(res, self._uri, self._manager)
-                    if (
-                        isinstance(res, list) and res
-                        and isinstance(res[0], libvirt.virDomain)
-                    ):
+                    if isinstance(res, list) and res and isinstance(res[0], libvirt.virDomain):
                         return [
                             ConnectionManager.DomainWrapper(d, self._uri, self._manager)
                             for d in res
                         ]
                     return res
+
                 return wrapped
             return attr
 
@@ -47,23 +49,24 @@ class ConnectionManager:
 
     class ConnectionWrapper(BaseWrapper):
         """Proxies libvirt connection calls."""
+
         pass
 
     class DomainWrapper(BaseWrapper):
         """Proxies libvirt domain calls."""
+
         pass
 
     def __init__(self):
         """Initializes the ConnectionManager."""
         self.connections: dict[str, libvirt.virConnect] = {}  # uri -> virConnect object
-        self.connection_errors: dict[str, str] = {}           # uri -> error message
-        self.call_stats: dict[str, dict[str, int]] = {}       # uri -> {method -> count}
+        self.connection_errors: dict[str, str] = {}  # uri -> error message
+        self.call_stats: dict[str, dict[str, int]] = {}  # uri -> {method -> count}
         self._lock = threading.RLock()
         self._alive_cache = {}  # Cache liveness (default 30s)
         self._alive_lock = threading.RLock()
-        self._last_check = {}   # Per-URI last check time
-        self._failed_attempts: dict[str, int] = {} # uri -> count
-
+        self._last_check = {}  # Per-URI last check time
+        self._failed_attempts: dict[str, int] = {}  # uri -> count
 
     def _record_call(self, uri: str, method_name: str):
         """Increments the call counter for a URI and method."""
@@ -155,8 +158,8 @@ class ConnectionManager:
             def open_connection():
                 connect_uri = uri
                 # Append no_tty=1 to prevent interactive password prompts
-                if 'ssh' in uri.lower() and 'no_tty=' not in uri.lower():
-                    sep = '&' if '?' in uri else '?'
+                if "ssh" in uri.lower() and "no_tty=" not in uri.lower():
+                    sep = "&" if "?" in uri else "?"
                     connect_uri += f"{sep}no_tty=1"
                 return libvirt.open(connect_uri)
 
@@ -173,15 +176,15 @@ class ConnectionManager:
                     executor.shutdown(wait=False)
                     msg = "Connection timed out after 15 seconds."
                     # Check if the URI suggests an SSH connection
-                    if 'ssh' in uri.lower():
+                    if "ssh" in uri.lower():
                         msg += (
-                        " If using SSH, this can happen if a password or SSH key"
-                        " passphrase is required."
-                    )
+                            " If using SSH, this can happen if a password or SSH key"
+                            " passphrase is required."
+                        )
                         msg += (
-                        " Please use an SSH agent or a key without a passphrase,"
-                        " as interactive prompts are not supported."
-                    )
+                            " Please use an SSH agent or a key without a passphrase,"
+                            " as interactive prompts are not supported."
+                        )
                     raise libvirt.libvirtError(msg)
             except Exception:
                 # Ensure executor is shut down in case of other errors during submission/execution
@@ -194,7 +197,7 @@ class ConnectionManager:
 
             # Enable keepalive for remote connections
             # Local connections (qemu:///system, etc.) usually don't support it and raise an error
-            is_remote = 'ssh' in uri.lower() or 'tcp' in uri.lower() or 'tls' in uri.lower()
+            is_remote = "ssh" in uri.lower() or "tcp" in uri.lower() or "tls" in uri.lower()
             if is_remote:
                 try:
                     conn.setKeepAlive(5, 3)
@@ -203,7 +206,7 @@ class ConnectionManager:
 
             with self._lock:
                 self.connections[uri] = conn
-                self._failed_attempts[uri] = 0 # Reset failure count on success
+                self._failed_attempts[uri] = 0  # Reset failure count on success
                 if uri in self.connection_errors:
                     del self.connection_errors[uri]  # Clear previous error on successful connect
             return conn

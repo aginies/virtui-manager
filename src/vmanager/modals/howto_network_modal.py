@@ -1,6 +1,7 @@
 """
 Modal to show how to configure networks.
 """
+
 from pathlib import Path
 
 from textual import on

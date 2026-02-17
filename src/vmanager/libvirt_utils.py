@@ -718,9 +718,11 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                             "vendor_name": vendor_name,
                             "product_name": product_name,
                             "pci_address": pci_address,
-                            "description": f"{vendor_name} - {product_name} ({pci_address})"
-                            if pci_address
-                            else f"{vendor_name} - {product_name} ({vendor_id}:{product_id})",
+                            "description": (
+                                f"{vendor_name} - {product_name} ({pci_address})"
+                                if pci_address
+                                else f"{vendor_name} - {product_name} ({vendor_id}:{product_id})"
+                            ),
                         }
                     )
             except (libvirt.libvirtError, ET.ParseError) as e:

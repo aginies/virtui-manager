@@ -5,20 +5,21 @@ import os
 
 # Setup path to locale
 # This assumes the 'locales' directory is next to this file
-LOCALE_DIR = os.path.join(os.path.dirname(__file__), 'locale')
-DOMAIN = 'virtui-manager'
+LOCALE_DIR = os.path.join(os.path.dirname(__file__), "locale")
+DOMAIN = "virtui-manager"
 
 _ = lambda s: s
+
 
 def setup_i18n():
     global _
     try:
         lang, _ = locale.getdefaultlocale()
     except Exception:
-        lang = 'en'
+        lang = "en"
 
     if not lang:
-        lang = 'en'
+        lang = "en"
 
     try:
         t = gettext.translation(DOMAIN, LOCALE_DIR, fallback=True)
@@ -27,5 +28,6 @@ def setup_i18n():
     except Exception as e:
         logging.warning(f"Failed to initialize i18n: {e}")
         _ = lambda s: s
+
 
 setup_i18n()
