@@ -1365,9 +1365,33 @@ class VMManagerTUI(App):
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)
                 elif message.action == VmAction.PAUSE:
-                    self.vm_service.pause_vm(domain, invalidate_cache=False)
+                    # Run in a thread to avoid blocking UI
+                    def do_pause():
+                        try:
+                            self.vm_service.pause_vm(domain, invalidate_cache=False)
+                        except Exception as e:
+                            self.call_from_thread(
+                                self.show_error_message,
+                                ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(
+                                    vm_name=vm_name, action=message.action, error=e
+                                ),
+                            )
+
+                    threading.Thread(target=do_pause, daemon=True).start()
                 elif message.action == VmAction.RESUME:
-                    self.vm_service.resume_vm(domain, invalidate_cache=False)
+                    # Run in a thread to avoid blocking UI
+                    def do_resume():
+                        try:
+                            self.vm_service.resume_vm(domain, invalidate_cache=False)
+                        except Exception as e:
+                            self.call_from_thread(
+                                self.show_error_message,
+                                ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(
+                                    vm_name=vm_name, action=message.action, error=e
+                                ),
+                            )
+
+                    threading.Thread(target=do_resume, daemon=True).start()
                 elif message.action == VmAction.FORCE_OFF:
                     self.vm_service.force_off_vm(domain)
                 elif message.action == VmAction.DELETE:
