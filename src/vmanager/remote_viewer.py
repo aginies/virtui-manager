@@ -453,7 +453,7 @@ class RemoteViewer(Gtk.Application):
             4: "Resumed",
             5: "Stopped",
             6: "Shutdown",
-            7: "PMSuspended",
+            7: "Guest Suspended",
             8: "Crashed",
         }
         event_type = event_strs.get(event, f"Unknown({event})")

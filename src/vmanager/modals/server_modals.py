@@ -17,7 +17,6 @@ from .howto_ssh_modal import HowToSSHModal
 
 
 class ConnectionModal(BaseModal[str | None]):
-
     def compose(self) -> ComposeResult:
         with Vertical(id="connection-dialog"):
             yield Label(StaticText.ENTER_QEMU_CONNECTION_URI)
@@ -78,7 +77,6 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
 
 
 class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
-
     def __init__(self, server_name: str, server_uri: str, autoconnect: bool = False) -> None:
         super().__init__()
         self.server_name = server_name
@@ -169,7 +167,15 @@ class ServerManagementModal(BaseModal[str | None]):
             table.add_row(server["name"], server["uri"], autoconnect_display, key=str(idx))
         table.focus()
 
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Handle row highlight to enable buttons immediately on hover/click."""
+        self.selected_row = event.cursor_row
+        self.query_one("#edit-server-btn").disabled = False
+        self.query_one("#delete-server-btn").disabled = False
+        self.query_one("#select-btn").disabled = False
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Handle row selection (Enter key or double-click)."""
         self.selected_row = event.cursor_row
         self.query_one("#edit-server-btn").disabled = False
         self.query_one("#delete-server-btn").disabled = False

@@ -32,6 +32,7 @@ class BulkActionModal(BaseModal[None]):
                 yield RadioButton(StaticText.STOP_VMS_GRACEFUL, id="action_stop")
                 yield RadioButton(StaticText.FORCE_OFF_VMS, id="action_force_off")
                 yield RadioButton(StaticText.PAUSE_VMS, id="action_pause")
+                yield RadioButton(StaticText.HIBERNATE_VMS, id="action_hibernate")
                 yield RadioButton(StaticText.DELETE_VMS, id="action_delete")
                 yield RadioButton(StaticText.MIGRATE_VMS, id="action_migrate")
                 yield RadioButton(StaticText.EDIT_CONFIGURATION, id="action_edit_config")
@@ -62,9 +63,7 @@ class BulkActionModal(BaseModal[None]):
         checkbox = self.query_one("#delete-storage-checkbox")
         checkbox.display = event.pressed.id == "action_delete"
 
-    def on_button_pressed(
-        self, event: Button.Pressed
-    ) -> None:  # pylint: disable=missing-function-docstring
+    def on_button_pressed(self, event: Button.Pressed) -> None:  # pylint: disable=missing-function-docstring
         if event.button.id == "execute-action-btn":
             radioset = self.query_one(RadioSet)
             selected_action_button = radioset.pressed_button

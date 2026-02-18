@@ -16,7 +16,7 @@ from .connection_manager import ConnectionManager
 from .constants import AppCacheTimeout, VmAction, VmStatus
 from .storage_manager import check_domain_volumes_in_use
 from .utils import extract_server_name_from_uri, natural_sort_key
-from .vm_actions import delete_vm, force_off_vm, pause_vm, start_vm, stop_vm
+from .vm_actions import delete_vm, force_off_vm, hibernate_vm, pause_vm, start_vm, stop_vm
 from .vm_queries import (
     get_boot_info,
     get_status,
@@ -1239,6 +1239,7 @@ class VMService:
             VmAction.STOP: self.stop_vm,
             VmAction.FORCE_OFF: self.force_off_vm,
             VmAction.PAUSE: self.pause_vm,
+            VmAction.HIBERNATE: self.hibernate_vm,
             VmAction.RESUME: self.resume_vm,
         }
 
@@ -1491,6 +1492,15 @@ class VMService:
         internal_id = self._get_internal_id(domain)
         logging.info(f"Forcefully stopping VM: {domain.name()} (ID: {internal_id})")
         force_off_vm(domain)
+        if invalidate_cache:
+            self.invalidate_vm_state_cache(internal_id)
+            self._force_update_event.set()
+
+    def hibernate_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
+        """Hibernates (saves) the VM."""
+        internal_id = self._get_internal_id(domain)
+        logging.info(f"Hibernating VM: {domain.name()} (ID: {internal_id})")
+        hibernate_vm(domain)
         if invalidate_cache:
             self.invalidate_vm_state_cache(internal_id)
             self._force_update_event.set()
