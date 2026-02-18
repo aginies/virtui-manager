@@ -50,6 +50,7 @@ from .constants import (
 from .events import VmActionRequest, VmCardUpdateRequest, VMSelectionChanged  # ,VMNameClicked
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_active_vm_allocation, get_host_resources, get_internal_id
+from .modals.about_modal import AboutModal
 from .modals.bulk_modals import BulkActionModal
 from .modals.cache_stats_modal import CacheStatsModal
 from .modals.capabilities_modal import CapabilitiesTreeModal
@@ -503,7 +504,7 @@ class VMManagerTUI(App):
             # yield Button(
             #    ButtonLabels.COMPACT_VIEW, id="compact-view-button", classes="Buttonpage"
             # )
-            yield Link("About", url="https://aginies.github.io/virtui-manager/")
+            yield Button("About", id="about_button", classes="Buttonpage")
 
         yield self.ui["pagination_controls"]
         yield self.host_stats
@@ -1135,6 +1136,11 @@ class VMManagerTUI(App):
         """Callback for the config button."""
         self.action_config()
 
+    @on(Button.Pressed, "#about_button")
+    def on_about_button_pressed(self, event: Button.Pressed) -> None:
+        """Callback for the about button."""
+        self.action_about()
+
     def on_server_management(self, result: list | str | None) -> None:
         """Callback for ServerManagementModal."""
         if result is None:
@@ -1294,6 +1300,10 @@ class VMManagerTUI(App):
         """Handle result from installation modal."""
         if result:
             self.refresh_vm_list(force=True)
+
+    def action_about(self) -> None:
+        """Show the About dialog with GPL license information."""
+        self.push_screen(AboutModal())
 
     @on(VmActionRequest)
     def on_vm_action_request(self, message: VmActionRequest) -> None:

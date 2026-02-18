@@ -100,7 +100,14 @@ class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""
 
     prompt = "(" + AppInfo.name + ") "
-    intro = f"Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.\n"
+    preintro = f"""Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.
+
+{AppInfo.namecase}  Copyright (C) {datetime.datetime.now().year}  {AppInfo.author}
+    This program comes with ABSOLUTELY NO WARRANTY; for details type 'about'.
+    This is free software, and you are welcome to redistribute it
+    under certain conditions; type 'about' for details.
+"""
+    print(f"{preintro}")
 
     def __init__(self, vm_service=None):
         super().__init__()
@@ -132,26 +139,6 @@ class VManagerCMD(cmd.Cmd):
         self._color_support = None  # Cache color support detection
         self._status_colors_cache = {}  # Cache colored status strings
         self._ansi_escape_regex = None  # Cache regex for ANSI codes
-
-        # Auto-connect to servers
-        for server in self.servers:
-            if server.get("autoconnect", False):
-                try:
-                    self._safe_print(
-                        f"Autoconnecting to {self._colorize(server['name'], server['name'])} ({self._sanitize_message(server['uri'])})..."
-                    )
-                    conn = self.vm_service.connect(server["uri"])
-                    if conn:
-                        self.active_connections[server["name"]] = conn
-                        print(
-                            f"Successfully connected to '{self._colorize(server['name'], server['name'])}'."
-                        )
-                    else:
-                        print(
-                            f"Failed to autoconnect to '{self._colorize(server['name'], server['name'])}'."
-                        )
-                except Exception as e:
-                    self._safe_print(f"Error autoconnecting to {server['name']}: {e}")
 
         self.status_map = {
             libvirt.VIR_DOMAIN_NOSTATE: "No State",
@@ -197,7 +184,7 @@ class VManagerCMD(cmd.Cmd):
             ],
             "Storage": ["list_pool", "list_unused_volumes"],
             "Pipelines": ["pipeline"],
-            "Shell/Utils": ["bash", "history", "quit"],
+            "Shell/Utils": ["bash", "history", "about", "quit"],
         }
         try:
             readline.set_completion_display_matches_hook(self._display_completion_matches)
@@ -206,8 +193,37 @@ class VManagerCMD(cmd.Cmd):
 
         # Setup persistent command history
         self._setup_history()
-
         self._update_prompt()
+
+    def preloop(self):
+        """Called after intro message is displayed but before the command loop starts."""
+        # Auto-connect to servers after intro is shown
+        self._perform_autoconnect()
+
+    def _perform_autoconnect(self):
+        """Auto-connect to servers that have autoconnect enabled."""
+        for server in self.servers:
+            if server.get("autoconnect", False):
+                try:
+                    self._safe_print(
+                        f"Autoconnecting to {self._colorize(server['name'], server['name'])} ({self._sanitize_message(server['uri'])})..."
+                    )
+                    conn = self.vm_service.connect(server["uri"])
+                    if conn:
+                        self.active_connections[server["name"]] = conn
+                        print(
+                            f"Successfully connected to '{self._colorize(server['name'], server['name'])}'."
+                        )
+                    else:
+                        print(
+                            f"Failed to autoconnect to '{self._colorize(server['name'], server['name'])}'."
+                        )
+                except Exception as e:
+                    self._safe_print(f"Error autoconnecting to {server['name']}: {e}")
+
+        # Update prompt after autoconnect
+        if self.active_connections:
+            self._update_prompt()
 
     def emptyline(self):
         """Override emptyline to prevent repeating the last command on empty input."""
@@ -1917,6 +1933,31 @@ Dry-run testing:
         self.vm_service.disconnect_all()
         print(f"\nExiting {AppInfo.namecase}.")
         return True
+
+    def do_about(self, args):
+        """Display GPL license and copyright information."""
+        from datetime import datetime
+
+        current_year = datetime.now().year
+        about_text = f"""
+{AppInfo.namecase} {AppInfo.version}
+
+Copyright (C) {current_year} {AppInfo.author}
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+        print(about_text)
 
     # --- Snapshot Management Commands ---
 
