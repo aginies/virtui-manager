@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 builtins._ = lambda s: s
 
 from vmanager.vmcard import VMCard
-from vmanager.constants import StatusText, VmAction
-from vmanager.events import VmActionRequest, VMSelectionChanged
+from vmanager.constants import StatusText, VmAction, VMCardConstants
+from vmanager.events import VmActionRequest, VMSelectionChanged, VMNameClicked
 
 
 class TestVMCard(unittest.TestCase):
@@ -676,6 +676,969 @@ class TestVMCard(unittest.TestCase):
         self.mock_app.worker_manager.cancel.assert_called_with(
             f"update_stats_{self.vm_card.internal_id}"
         )
+
+    # ========================================================================
+    # REACTIVE PROPERTY WATCHER TESTS
+    # ========================================================================
+
+    def test_watch_name_updates_vmname_widget(self):
+        """Test that watch_name updates the vmname widget when name changes."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.name = "old-name"
+
+        # Mock the vmname widget
+        mock_vmname = MagicMock()
+        self.vm_card.ui = {"vmname": mock_vmname}
+        self.vm_card.conn = MagicMock()
+        self.mock_app.vm_service.get_uri_for_connection.return_value = "qemu:///system"
+
+        with patch("vmanager.vmcard.extract_server_name_from_uri", return_value="localhost"):
+            # Trigger the watcher
+            VMCard.watch_name(self.vm_card, "new-vm-name")
+
+        mock_vmname.update.assert_called_once()
+
+    def test_watch_cpu_triggers_tooltip_update(self):
+        """Test that watch_cpu triggers tooltip update."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update") as mock_tooltip:
+            self.vm_card.cpu = 2
+
+        # Call watch_cpu manually
+        with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
+            VMCard.watch_cpu(self.vm_card, 4)
+            mock_tooltip.assert_called_once()
+
+    def test_watch_memory_triggers_tooltip_update(self):
+        """Test that watch_memory triggers tooltip update."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.memory = 1024
+
+        with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
+            VMCard.watch_memory(self.vm_card, 2048)
+            mock_tooltip.assert_called_once()
+
+    def test_watch_ip_addresses_triggers_tooltip_update(self):
+        """Test that watch_ip_addresses triggers tooltip update."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.ip_addresses = []
+
+        with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
+            VMCard.watch_ip_addresses(self.vm_card, [{"ipv4": ["192.168.1.100"]}])
+            mock_tooltip.assert_called_once()
+
+    def test_watch_boot_device_triggers_tooltip_update(self):
+        """Test that watch_boot_device triggers tooltip update."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.boot_device = ""
+
+        with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
+            VMCard.watch_boot_device(self.vm_card, "hd")
+            mock_tooltip.assert_called_once()
+
+    def test_watch_cpu_model_triggers_tooltip_update(self):
+        """Test that watch_cpu_model triggers tooltip update."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.cpu_model = ""
+
+        with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
+            VMCard.watch_cpu_model(self.vm_card, "Skylake")
+            mock_tooltip.assert_called_once()
+
+    def test_watch_graphics_type_triggers_tooltip_update(self):
+        """Test that watch_graphics_type triggers tooltip update."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.graphics_type = None
+
+        with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
+            VMCard.watch_graphics_type(self.vm_card, None, "spice")
+            mock_tooltip.assert_called_once()
+
+    # ========================================================================
+    # SPARKLINE AND VIEW MODE TESTS
+    # ========================================================================
+
+    def test_watch_stats_view_mode_resources(self):
+        """Test watch_stats_view_mode when switching to resources mode."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.compact_view = False
+
+        # Mock sparklines container
+        mock_sparklines_container = MagicMock()
+        self.vm_card.ui = {"sparklines_container": mock_sparklines_container}
+        self.vm_card.display = True
+
+        # Mock query for sparkline classes
+        mock_resources = [MagicMock(), MagicMock()]
+        mock_io = [MagicMock(), MagicMock()]
+
+        def mock_query(selector):
+            if selector == ".resources-sparkline":
+                return mock_resources
+            elif selector == ".io-sparkline":
+                return mock_io
+            return []
+
+        self.vm_card.query = MagicMock(side_effect=mock_query)
+
+        with patch.object(self.vm_card, "update_sparkline_data"):
+            VMCard.watch_stats_view_mode(self.vm_card, "io", "resources")
+
+        # Verify resources sparklines are shown
+        for widget in mock_resources:
+            self.assertTrue(widget.display)
+        # Verify IO sparklines are hidden
+        for widget in mock_io:
+            self.assertFalse(widget.display)
+
+    def test_watch_stats_view_mode_io(self):
+        """Test watch_stats_view_mode when switching to io mode."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.compact_view = False
+
+        mock_sparklines_container = MagicMock()
+        self.vm_card.ui = {"sparklines_container": mock_sparklines_container}
+        self.vm_card.display = True
+
+        mock_resources = [MagicMock(), MagicMock()]
+        mock_io = [MagicMock(), MagicMock()]
+
+        def mock_query(selector):
+            if selector == ".resources-sparkline":
+                return mock_resources
+            elif selector == ".io-sparkline":
+                return mock_io
+            return []
+
+        self.vm_card.query = MagicMock(side_effect=mock_query)
+
+        with patch.object(self.vm_card, "update_sparkline_data"):
+            VMCard.watch_stats_view_mode(self.vm_card, "resources", "io")
+
+        # Verify resources sparklines are hidden
+        for widget in mock_resources:
+            self.assertFalse(widget.display)
+        # Verify IO sparklines are shown
+        for widget in mock_io:
+            self.assertTrue(widget.display)
+
+    def test_toggle_stats_view_running_vm(self):
+        """Test toggle_stats_view toggles mode for running VM."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.stats_view_mode = "resources"
+
+        VMCard.toggle_stats_view(self.vm_card)
+        self.assertEqual(self.vm_card.stats_view_mode, "io")
+
+        VMCard.toggle_stats_view(self.vm_card)
+        self.assertEqual(self.vm_card.stats_view_mode, "resources")
+
+    def test_toggle_stats_view_stopped_vm_no_change(self):
+        """Test toggle_stats_view does not toggle for stopped VM."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.stats_view_mode = "resources"
+
+        VMCard.toggle_stats_view(self.vm_card)
+        # Should remain unchanged
+        self.assertEqual(self.vm_card.stats_view_mode, "resources")
+
+    def test_update_sparkline_data_resources_mode(self):
+        """Test update_sparkline_data in resources mode."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.stats_view_mode = "resources"
+            self.vm_card.cpu = 4
+            self.vm_card.memory = 4096
+            self.vm_card.compact_view = False
+
+        # Mock sparkline_data
+        self.mock_app.sparkline_data = {"uuid-123": {"cpu": [10, 20, 30], "mem": [50, 60, 70]}}
+        self.mock_app.vm_service._sparkline_lock = MagicMock()
+        self.mock_app.vm_service._sparkline_lock.__enter__ = MagicMock()
+        self.mock_app.vm_service._sparkline_lock.__exit__ = MagicMock()
+
+        mock_cpu_label = MagicMock()
+        mock_mem_label = MagicMock()
+        mock_cpu_sparkline = MagicMock()
+        mock_mem_sparkline = MagicMock()
+
+        self.vm_card.ui = {
+            "cpu_label": mock_cpu_label,
+            "mem_label": mock_mem_label,
+            "cpu_sparkline": mock_cpu_sparkline,
+            "mem_sparkline": mock_mem_sparkline,
+        }
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            self.vm_card.display = True
+            VMCard.update_sparkline_data(self.vm_card)
+
+        # Verify labels and sparklines were updated
+        mock_cpu_label.update.assert_called()
+        mock_mem_label.update.assert_called()
+
+    # ========================================================================
+    # COMPACT VIEW TESTS
+    # ========================================================================
+
+    def test_watch_compact_view_enables_compact_mode(self):
+        """Test watch_compact_view applies compact styles."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.compact_view = False
+
+        mock_sparklines = MagicMock()
+        mock_sparklines.is_mounted = True
+        mock_collapsible = MagicMock()
+        mock_collapsible.is_mounted = True
+        mock_vmname = MagicMock()
+        mock_vmstatus = MagicMock()
+        mock_checkbox = MagicMock()
+
+        self.vm_card.ui = {
+            "sparklines_container": mock_sparklines,
+            "collapsible": mock_collapsible,
+            "vmname": mock_vmname,
+            "status": mock_vmstatus,
+            "checkbox": mock_checkbox,
+        }
+
+        with patch.object(self.vm_card, "_perform_tooltip_update"):
+            VMCard.watch_compact_view(self.vm_card, True)
+
+        # Verify compact mode hides sparklines
+        self.assertFalse(mock_sparklines.display)
+
+    def test_apply_compact_view_styles_detailed_mode(self):
+        """Test _apply_compact_view_styles in detailed (non-compact) mode."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.compact_view = True
+
+        mock_sparklines = MagicMock()
+        mock_collapsible = MagicMock()
+        mock_vmname = MagicMock()
+        mock_vmstatus = MagicMock()
+        mock_checkbox = MagicMock()
+        mock_info_container = MagicMock()
+        mock_info_container.children = []
+
+        self.vm_card.ui = {
+            "sparklines_container": mock_sparklines,
+            "collapsible": mock_collapsible,
+            "vmname": mock_vmname,
+            "status": mock_vmstatus,
+            "checkbox": mock_checkbox,
+        }
+
+        self.vm_card.query_one = MagicMock(return_value=mock_info_container)
+
+        with patch.object(self.vm_card, "watch_stats_view_mode"):
+            VMCard._apply_compact_view_styles(self.vm_card, False)
+
+        # In detailed mode, sparklines should be visible
+        self.assertTrue(mock_sparklines.display)
+
+    # ========================================================================
+    # SELECTION AND CLICK HANDLING TESTS
+    # ========================================================================
+
+    def test_watch_is_selected_updates_checkbox(self):
+        """Test watch_is_selected updates checkbox value."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.is_selected = False
+
+        mock_checkbox = MagicMock()
+        self.vm_card.ui = {"checkbox": mock_checkbox}
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            VMCard.watch_is_selected(self.vm_card, False, True)
+
+        self.assertTrue(mock_checkbox.value)
+
+    def test_on_click_left_button_does_not_toggle_selection(self):
+        """Test on_click with left button does not toggle selection."""
+        mock_event = MagicMock()
+        mock_event.button = 1  # Left button
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123@uri"
+            self.vm_card.is_selected = False
+
+        self.vm_card.post_message = MagicMock()
+
+        self.vm_card.on_click(mock_event)
+
+        # Should not change selection
+        self.assertFalse(self.vm_card.is_selected)
+        # Should not post message
+        self.vm_card.post_message.assert_not_called()
+        # Should not stop event
+        mock_event.stop.assert_not_called()
+
+    def test_on_vm_select_checkbox_changed(self):
+        """Test on_vm_select_checkbox_changed handler."""
+        mock_event = MagicMock()
+        mock_event.value = True
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123@uri"
+            self.vm_card.is_selected = False
+
+        self.vm_card.post_message = MagicMock()
+
+        VMCard.on_vm_select_checkbox_changed(self.vm_card, mock_event)
+
+        self.assertTrue(self.vm_card.is_selected)
+        self.vm_card.post_message.assert_called_once()
+        args = self.vm_card.post_message.call_args[0][0]
+        self.assertIsInstance(args, VMSelectionChanged)
+        self.assertTrue(args.is_selected)
+
+    # ========================================================================
+    # STATUS STYLING TESTS
+    # ========================================================================
+
+    def test_update_status_styling_running(self):
+        """Test _update_status_styling for running status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        VMCard._update_status_styling(self.vm_card)
+
+        mock_status_widget.add_class.assert_called_with("running")
+
+    def test_update_status_styling_stopped(self):
+        """Test _update_status_styling for stopped status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        VMCard._update_status_styling(self.vm_card)
+
+        mock_status_widget.add_class.assert_called_with("stopped")
+
+    def test_update_status_styling_paused(self):
+        """Test _update_status_styling for paused status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.PAUSED
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        VMCard._update_status_styling(self.vm_card)
+
+        mock_status_widget.add_class.assert_called_with("paused")
+
+    def test_update_status_styling_loading(self):
+        """Test _update_status_styling for loading status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.LOADING
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        VMCard._update_status_styling(self.vm_card)
+
+        mock_status_widget.add_class.assert_called_with("loading")
+
+    def test_update_status_styling_pmsuspended(self):
+        """Test _update_status_styling for pmsuspended status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.PMSUSPENDED
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        VMCard._update_status_styling(self.vm_card)
+
+        mock_status_widget.add_class.assert_called_with("pmsuspended")
+
+    def test_update_status_styling_blocked(self):
+        """Test _update_status_styling for blocked status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.BLOCKED
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        VMCard._update_status_styling(self.vm_card)
+
+        mock_status_widget.add_class.assert_called_with("blocked")
+
+    # ========================================================================
+    # HELPER METHOD TESTS
+    # ========================================================================
+
+    def test_get_uri_with_conn(self):
+        """Test _get_uri returns correct URI."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.conn = MagicMock()
+
+        self.mock_app.vm_service.get_uri_for_connection.return_value = "qemu:///system"
+
+        result = self.vm_card._get_uri()
+
+        self.assertEqual(result, "qemu:///system")
+
+    def test_get_uri_without_conn(self):
+        """Test _get_uri returns empty string when no connection."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.conn = None
+
+        result = self.vm_card._get_uri()
+
+        self.assertEqual(result, "")
+
+    def test_get_snapshot_tab_title_with_snapshots(self):
+        """Test _get_snapshot_tab_title with snapshots."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.vm = MagicMock()
+
+        result = self.vm_card._get_snapshot_tab_title(5)
+
+        self.assertIn("5", result)
+
+    def test_get_snapshot_tab_title_no_snapshots(self):
+        """Test _get_snapshot_tab_title with no snapshots."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.vm = MagicMock()
+
+        result = self.vm_card._get_snapshot_tab_title(0)
+
+        self.assertEqual(result, "State Management")
+
+    def test_is_remote_server_local(self):
+        """Test _is_remote_server returns False for local connection."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.conn = MagicMock()
+
+        self.mock_app.vm_service.get_uri_for_connection.return_value = "qemu:///system"
+
+        result = self.vm_card._is_remote_server()
+
+        self.assertFalse(result)
+
+    def test_is_remote_server_remote_ssh(self):
+        """Test _is_remote_server returns True for remote SSH connection."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.conn = MagicMock()
+
+        self.mock_app.vm_service.get_uri_for_connection.return_value = (
+            "qemu+ssh://user@remote-host/system"
+        )
+
+        result = self.vm_card._is_remote_server()
+
+        self.assertTrue(result)
+
+    def test_is_remote_server_no_conn(self):
+        """Test _is_remote_server returns False when no connection."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.conn = None
+
+        result = self.vm_card._is_remote_server()
+
+        self.assertFalse(result)
+
+    # ========================================================================
+    # BUTTON HANDLER TESTS
+    # ========================================================================
+
+    def test_handle_stop_button_shows_confirmation(self):
+        """Test _handle_stop_button shows confirmation dialog."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.name = "test-vm"
+
+        self.mock_app.push_screen = MagicMock()
+
+        self.vm_card._handle_stop_button()
+
+        # Verify confirmation dialog was shown
+        self.mock_app.push_screen.assert_called_once()
+        from vmanager.modals.utils_modals import ConfirmationDialog
+
+        args = self.mock_app.push_screen.call_args[0][0]
+        self.assertIsInstance(args, ConfirmationDialog)
+
+    def test_handle_pause_button_running_vm(self):
+        """Test _handle_pause_button for running VM."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.name = "test-vm"
+            self.vm_card.timer = None
+
+        self.vm_card.post_message = MagicMock()
+        self.mock_app.worker_manager.cancel = MagicMock()
+
+        self.vm_card._handle_pause_button()
+
+        # Verify VmActionRequest was posted
+        self.vm_card.post_message.assert_called_once()
+        args = self.vm_card.post_message.call_args[0][0]
+        self.assertIsInstance(args, VmActionRequest)
+        self.assertEqual(args.action, VmAction.PAUSE)
+
+    def test_handle_pause_button_stopped_vm_shows_warning(self):
+        """Test _handle_pause_button for stopped VM shows warning."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.name = "test-vm"
+
+        self.mock_app.show_warning_message = MagicMock()
+
+        self.vm_card._handle_pause_button()
+
+        # Verify warning was shown
+        self.mock_app.show_warning_message.assert_called_once()
+
+    def test_handle_resume_button(self):
+        """Test _handle_resume_button posts correct action."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.PAUSED
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.name = "test-vm"
+            self.vm_card.timer = None
+
+        self.vm_card.post_message = MagicMock()
+        self.mock_app.worker_manager.cancel = MagicMock()
+        self.mock_app.set_timer = MagicMock()
+
+        self.vm_card._handle_resume_button()
+
+        # Verify VmActionRequest was posted
+        self.vm_card.post_message.assert_called_once()
+        args = self.vm_card.post_message.call_args[0][0]
+        self.assertIsInstance(args, VmActionRequest)
+        self.assertEqual(args.action, VmAction.RESUME)
+
+    def test_handle_migration_button_requires_two_servers(self):
+        """Test _handle_migration_button requires at least two servers."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+
+        self.mock_app.active_uris = ["qemu:///system"]
+        self.mock_app.show_error_message = MagicMock()
+
+        self.vm_card._handle_migration_button()
+
+        self.mock_app.show_error_message.assert_called_once()
+
+    # ========================================================================
+    # INTERNAL ID WATCHER TESTS
+    # ========================================================================
+
+    def test_watch_internal_id_cancels_old_workers(self):
+        """Test watch_internal_id cancels workers when ID changes."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "old-uuid-123"
+
+        self.mock_app.worker_manager.cancel = MagicMock()
+
+        with patch.object(self.vm_card, "update_snapshot_tab_title"), patch.object(
+            self.vm_card, "update_button_layout"
+        ), patch.object(self.vm_card, "update_stats"), patch.object(
+            self.vm_card, "_perform_tooltip_update"
+        ):
+            VMCard.watch_internal_id(self.vm_card, "old-uuid-123", "new-uuid-456")
+
+        # Verify old workers were cancelled
+        self.mock_app.worker_manager.cancel.assert_any_call("update_stats_old-uuid-123")
+        self.mock_app.worker_manager.cancel.assert_any_call("actions_state_old-uuid-123")
+        self.mock_app.worker_manager.cancel.assert_any_call("refresh_snapshot_tab_old-uuid-123")
+
+    # ========================================================================
+    # ERROR HANDLING TESTS
+    # ========================================================================
+
+    def test_handle_stats_error_no_domain(self):
+        """Test _handle_stats_error handles VIR_ERR_NO_DOMAIN."""
+        import libvirt
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.timer = MagicMock()
+
+        mock_error = MagicMock()
+        mock_error.get_error_code.return_value = libvirt.VIR_ERR_NO_DOMAIN
+
+        result = {"uuid": "uuid-123", "error": mock_error, "error_code": libvirt.VIR_ERR_NO_DOMAIN}
+
+        self.mock_app.refresh_vm_list = MagicMock()
+
+        VMCard._handle_stats_error(self.vm_card, result)
+
+        # Verify timer was stopped and refresh was triggered
+        self.vm_card.timer.stop.assert_called()
+        self.mock_app.refresh_vm_list.assert_called_once()
+
+    def test_handle_stats_error_connection_error(self):
+        """Test _handle_stats_error handles connection errors."""
+        import libvirt
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.name = "test-vm"
+            self.vm_card.timer = None
+
+        mock_error = MagicMock()
+        mock_error.get_error_code.return_value = libvirt.VIR_ERR_NO_CONNECT
+
+        result = {"uuid": "uuid-123", "error": mock_error, "error_code": libvirt.VIR_ERR_NO_CONNECT}
+
+        self.mock_app.refresh_vm_list = MagicMock()
+
+        VMCard._handle_stats_error(self.vm_card, result)
+
+        # Verify force refresh was triggered
+        self.mock_app.refresh_vm_list.assert_called_once_with(force=True)
+
+    # ========================================================================
+    # APPLY STATS UPDATE TESTS
+    # ========================================================================
+
+    def test_apply_stats_update_with_empty_stats(self):
+        """Test _apply_stats_update handles empty stats gracefully."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.status = StatusText.RUNNING
+
+        result = {
+            "uuid": "uuid-123",
+            "stats": None,
+            "boot_device": "hd",
+            "cpu_model": "Skylake",
+            "graphics_type": "spice",
+        }
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            VMCard._apply_stats_update(self.vm_card, result)
+
+        # Verify status was set to STOPPED
+        self.assertEqual(self.vm_card.status, StatusText.STOPPED)
+
+    def test_apply_stats_update_with_valid_stats(self):
+        """Test _apply_stats_update properly updates VM state."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.stats_view_mode = "resources"
+
+        self.mock_app.sparkline_data = {"uuid-123": {"cpu": [], "mem": []}}
+        self.mock_app.vm_service._sparkline_lock = MagicMock()
+        self.mock_app.vm_service._sparkline_lock.__enter__ = MagicMock()
+        self.mock_app.vm_service._sparkline_lock.__exit__ = MagicMock()
+
+        result = {
+            "uuid": "uuid-123",
+            "stats": {
+                "status": StatusText.RUNNING,
+                "cpu_percent": 50,
+                "mem_percent": 60,
+                "disk_read_kbps": 100,
+                "disk_write_kbps": 200,
+                "net_rx_kbps": 50,
+                "net_tx_kbps": 75,
+            },
+            "ips": [{"ipv4": ["192.168.1.100"]}],
+            "boot_device": "hd",
+            "cpu_model": "Skylake",
+            "graphics_type": "spice",
+            "boot_device_checked": True,
+        }
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            with patch.object(self.vm_card, "_update_webc_status"), patch.object(
+                self.vm_card, "update_sparkline_data"
+            ):
+                VMCard._apply_stats_update(self.vm_card, result)
+
+        # Verify state was updated
+        self.assertEqual(self.vm_card.status, StatusText.RUNNING)
+        self.assertEqual(self.vm_card.ip_addresses, [{"ipv4": ["192.168.1.100"]}])
+        self.assertEqual(self.vm_card.boot_device, "hd")
+        self.assertEqual(self.vm_card.cpu_model, "Skylake")
+        self.assertEqual(self.vm_card.latest_disk_read, 100)
+        self.assertEqual(self.vm_card.latest_disk_write, 200)
+
+    # ========================================================================
+    # RESET AND REUSE TESTS
+    # ========================================================================
+
+    def test_reset_for_reuse_cancels_workers(self):
+        """Test reset_for_reuse properly cancels workers and resets state."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.timer = MagicMock()
+            self.vm_card._boot_device_checked = True
+
+        self.mock_app.worker_manager.cancel = MagicMock()
+
+        VMCard.reset_for_reuse(self.vm_card)
+
+        # Verify timer was stopped
+        self.assertIsNone(self.vm_card.timer)
+        # Verify workers were cancelled
+        self.mock_app.worker_manager.cancel.assert_any_call("update_stats_uuid-123")
+        self.mock_app.worker_manager.cancel.assert_any_call("actions_state_uuid-123")
+        # Verify flag was reset
+        self.assertFalse(self.vm_card._boot_device_checked)
+
+    # ========================================================================
+    # WEB CONSOLE STATUS TESTS
+    # ========================================================================
+
+    def test_update_webc_status_not_running(self):
+        """Test _update_webc_status when console is not running."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.vm = MagicMock()
+            self.vm_card.webc_status_indicator = " (WebC On)"
+
+        self.mock_app.webconsole_manager.is_running.return_value = False
+
+        mock_button = MagicMock()
+        self.vm_card.query_one = MagicMock(return_value=mock_button)
+
+        VMCard._update_webc_status(self.vm_card)
+
+        # Verify indicator was cleared
+        self.assertEqual(self.vm_card.webc_status_indicator, "")
+        # Verify button was reset
+        self.assertEqual(mock_button.variant, "default")
+
+    def test_watch_webc_status_indicator_updates_status_widget(self):
+        """Test watch_webc_status_indicator updates status widget."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+
+        mock_status_widget = MagicMock()
+        self.vm_card.ui = {"status": mock_status_widget}
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            VMCard.watch_webc_status_indicator(self.vm_card, "", " (WebC On)")
+
+        mock_status_widget.update.assert_called_with(f"{StatusText.RUNNING} (WebC On)")
+
+    # ========================================================================
+    # DISPATCH ACTION TESTS
+    # ========================================================================
+
+    def test_dispatch_action_start(self):
+        """Test _dispatch_action for start action."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+
+        self.vm_card.post_message = MagicMock()
+
+        VMCard._dispatch_action(self.vm_card, "start")
+
+        self.vm_card.post_message.assert_called_once()
+        args = self.vm_card.post_message.call_args[0][0]
+        self.assertIsInstance(args, VmActionRequest)
+        self.assertEqual(args.action, VmAction.START)
+
+    def test_dispatch_action_unknown(self):
+        """Test _dispatch_action with unknown action does nothing."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+
+        # This should not raise an exception
+        VMCard._dispatch_action(self.vm_card, "unknown_action")
+
+    # ========================================================================
+    # SERVER BORDER COLOR TESTS
+    # ========================================================================
+
+    def test_watch_server_border_color_selected(self):
+        """Test watch_server_border_color when card is selected."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.is_selected = True
+
+        VMCard.watch_server_border_color(self.vm_card, "blue", "green")
+
+        # When selected, should use selected border style
+        # Check that border was set (border is an Edges object, so we check the top edge)
+        border_top = self.vm_card.styles.border.top
+        self.assertEqual(border_top[0], VMCardConstants.SELECTED_BORDER_TYPE)
+
+    def test_watch_server_border_color_not_selected(self):
+        """Test watch_server_border_color when card is not selected."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.is_selected = False
+
+        VMCard.watch_server_border_color(self.vm_card, "blue", "green")
+
+        # When not selected, should use default border type
+        border_top = self.vm_card.styles.border.top
+        self.assertEqual(border_top[0], VMCardConstants.DEFAULT_BORDER_TYPE)
+
+    def test_watch_server_border_color_not_selected(self):
+        """Test watch_server_border_color when card is not selected."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.is_selected = False
+
+        VMCard.watch_server_border_color(self.vm_card, "blue", "green")
+
+        # When not selected, should use default border type
+        border_top = self.vm_card.styles.border.top
+        self.assertEqual(border_top[0], VMCardConstants.DEFAULT_BORDER_TYPE)
+
+    # ========================================================================
+    # VMNAME CLICK TESTS
+    # ========================================================================
+
+    def test_on_click_vmname_single_click(self):
+        """Test on_click_vmname posts VMNameClicked on single click."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123@uri"
+            self.vm_card.name = "test-vm"
+            self.vm_card._last_click_time = 0
+
+        self.vm_card.post_message = MagicMock()
+
+        VMCard.on_click_vmname(self.vm_card)
+
+        self.vm_card.post_message.assert_called_once()
+        args = self.vm_card.post_message.call_args[0][0]
+        self.assertIsInstance(args, VMNameClicked)
+        self.assertEqual(args.vm_name, "test-vm")
+
+    def test_on_click_vmname_double_click_fetches_xml(self):
+        """Test on_click_vmname fetches XML on double click."""
+        import time
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123@uri"
+            self.vm_card.name = "test-vm"
+            self.vm_card.compact_view = False
+            # Set last click time to simulate recent click
+            self.vm_card._last_click_time = time.time()
+
+        self.vm_card.post_message = MagicMock()
+
+        with patch.object(self.vm_card, "_fetch_xml_and_update_tooltip") as mock_fetch:
+            VMCard.on_click_vmname(self.vm_card)
+            mock_fetch.assert_called_once()
 
 
 if __name__ == "__main__":
