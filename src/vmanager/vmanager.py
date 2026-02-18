@@ -50,6 +50,7 @@ from .constants import (
 from .events import VmActionRequest, VmCardUpdateRequest, VMSelectionChanged  # ,VMNameClicked
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_active_vm_allocation, get_host_resources, get_internal_id
+from .modals.about_modal import AboutModal
 from .modals.bulk_modals import BulkActionModal
 from .modals.cache_stats_modal import CacheStatsModal
 from .modals.capabilities_modal import CapabilitiesTreeModal
@@ -503,7 +504,7 @@ class VMManagerTUI(App):
             # yield Button(
             #    ButtonLabels.COMPACT_VIEW, id="compact-view-button", classes="Buttonpage"
             # )
-            yield Link("About", url="https://aginies.github.io/virtui-manager/")
+            yield Button("About", id="about_button", classes="Buttonpage")
 
         yield self.ui["pagination_controls"]
         yield self.host_stats
@@ -831,6 +832,19 @@ class VMManagerTUI(App):
             else:
                 self.show_error_message(ErrorMessages.FAILED_TO_OPEN_CONNECTION.format(uri=uri))
 
+    def _get_filter_summary(self) -> str:
+        """Builds an icon-based summary string for active filters."""
+        parts: list[str] = []
+        if self.sort_by != VmStatus.DEFAULT:
+            parts.append(f"⚡ {self.sort_by.capitalize()}")
+        if self.search_text:
+            parts.append(f"🔍 '{self.search_text}'")
+        if self.filtered_server_uris is not None and set(self.filtered_server_uris) != set(
+            self.active_uris
+        ):
+            parts.append(f"📡 {len(self.filtered_server_uris)}/{len(self.active_uris)}")
+        return ", ".join(parts) if parts else ""
+
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
         conn = self.vm_service.connect(uri)
@@ -1122,6 +1136,11 @@ class VMManagerTUI(App):
         """Callback for the config button."""
         self.action_config()
 
+    @on(Button.Pressed, "#about_button")
+    def on_about_button_pressed(self, event: Button.Pressed) -> None:
+        """Callback for the about button."""
+        self.action_about()
+
     def on_server_management(self, result: list | str | None) -> None:
         """Callback for ServerManagementModal."""
         if result is None:
@@ -1282,6 +1301,10 @@ class VMManagerTUI(App):
         if result:
             self.refresh_vm_list(force=True)
 
+    def action_about(self) -> None:
+        """Show the About dialog with GPL license information."""
+        self.push_screen(AboutModal())
+
     @on(VmActionRequest)
     def on_vm_action_request(self, message: VmActionRequest) -> None:
         """Handles a request to perform an action on a VM."""
@@ -1352,9 +1375,33 @@ class VMManagerTUI(App):
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)
                 elif message.action == VmAction.PAUSE:
-                    self.vm_service.pause_vm(domain)
+                    # Run in a thread to avoid blocking UI
+                    def do_pause():
+                        try:
+                            self.vm_service.pause_vm(domain, invalidate_cache=False)
+                        except Exception as e:
+                            self.call_from_thread(
+                                self.show_error_message,
+                                ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(
+                                    vm_name=vm_name, action=message.action, error=e
+                                ),
+                            )
+
+                    threading.Thread(target=do_pause, daemon=True).start()
                 elif message.action == VmAction.RESUME:
-                    self.vm_service.resume_vm(domain)
+                    # Run in a thread to avoid blocking UI
+                    def do_resume():
+                        try:
+                            self.vm_service.resume_vm(domain, invalidate_cache=False)
+                        except Exception as e:
+                            self.call_from_thread(
+                                self.show_error_message,
+                                ErrorMessages.ERROR_ON_VM_DURING_ACTION.format(
+                                    vm_name=vm_name, action=message.action, error=e
+                                ),
+                            )
+
+                    threading.Thread(target=do_resume, daemon=True).start()
                 elif message.action == VmAction.FORCE_OFF:
                     self.vm_service.force_off_vm(domain)
                 elif message.action == VmAction.DELETE:
@@ -2007,7 +2054,12 @@ class VMManagerTUI(App):
                     save_config(self.config)
 
                 # Main tittle with Servers name
-                self.title = f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
+                filter_summary = self._get_filter_summary()
+                filter_display = f" [{filter_summary}]" if filter_summary else ""
+                self.title = (
+                    f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
+                    + filter_display
+                )
                 self.update_pagination_controls(
                     total_filtered_vms, total_vms_unfiltered=len(domains_to_display)
                 )

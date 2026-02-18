@@ -48,6 +48,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
     name = "virtui-manager"
     namecase = "VirtUI Manager"
     version = "1.9.4"
+    author = "Antoine Ginies"
 
 
 class VMCardConstants:  # pylint: disable=too-few-public-methods
@@ -67,6 +68,7 @@ class VmAction:  # pylint: disable=too-few-public-methods
     FORCE_OFF = "force_off"
     PAUSE = "pause"
     RESUME = "resume"
+    HIBERNATE = "hibernate"
     DELETE = "delete"
 
 
@@ -271,7 +273,7 @@ class StatusText:  # pylint: disable=too-few-public-methods
     STOPPED = _("Stopped")
     RUNNING = _("Running")
     PAUSED = _("Paused")
-    PMSUSPENDED = _("PMSuspended")
+    PMSUSPENDED = _("Guest Suspended")
     BLOCKED = _("Blocked")
     LOADING = _("Loading")
     UNKNOWN = _("Unknown")
@@ -371,7 +373,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     ALL = _("All")
     RUNNING = _("Running")
     PAUSED = _("Paused")
-    PMSUSPENDED = _("PMSuspended")
+    PMSUSPENDED = _("Guest Suspended")
     BLOCKED = _("Blocked")
     STOPPED = _("Stopped")
     MANUALLY_SELECTED = _("Manually Selected")
@@ -380,6 +382,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     STOP_VMS_GRACEFUL = _("Stop VMs (Graceful Shutdown)")
     FORCE_OFF_VMS = _("Force Off VMs")
     PAUSE_VMS = _("Pause VMs")
+    HIBERNATE_VMS = _("Hibernate VMs")
     DELETE_VMS = _("Delete VMs")
     EDIT_CONFIGURATION = _("Edit Configuration")
     MIGRATE_VMS = _("Migrate VMs")

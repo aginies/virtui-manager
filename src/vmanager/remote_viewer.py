@@ -453,7 +453,7 @@ class RemoteViewer(Gtk.Application):
             4: "Resumed",
             5: "Stopped",
             6: "Shutdown",
-            7: "PMSuspended",
+            7: "Guest Suspended",
             8: "Crashed",
         }
         event_type = event_strs.get(event, f"Unknown({event})")
@@ -1992,10 +1992,14 @@ class RemoteViewer(Gtk.Application):
 
     def on_power_resume(self, button, popover):
         popover.popdown()
-        try:
-            self.domain.resume()
-        except libvirt.libvirtError as e:
-            self.show_error_dialog(f"Resume error: {e}")
+
+        def do_resume():
+            try:
+                self.domain.resume()
+            except libvirt.libvirtError as e:
+                GLib.idle_add(self.show_error_dialog, f"Resume error: {e}")
+
+        threading.Thread(target=do_resume, daemon=True).start()
 
     def on_power_shutdown(self, button, popover):
         popover.popdown()

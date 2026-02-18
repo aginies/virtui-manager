@@ -231,12 +231,14 @@ class ServerPrefModal(BaseModal[None]):
         button_container = Vertical(
             Horizontal(
                 Button(
+                    ButtonLabels.DE_ACTIVE,
                     id="toggle-active-pool-btn",
                     variant="primary",
                     classes="toggle-detail-button",
                     tooltip=ButtonLabels.ACTIVATE_OR_DEACTIVATE_THE_SELECTED_STORAGE_POOL,
                 ),
                 Button(
+                    ButtonLabels.AUTOSTART,
                     id="toggle-autostart-pool-btn",
                     variant="primary",
                     classes="toggle-detail-button",
@@ -355,6 +357,7 @@ class ServerPrefModal(BaseModal[None]):
         tree.root.data = {"type": "root"}
         pools = storage_manager.list_storage_pools(self.conn)
         node_to_select = None
+
         for pool_data in pools:
             try:
                 pool_name = pool_data["name"]
@@ -379,8 +382,12 @@ class ServerPrefModal(BaseModal[None]):
                 pool_node.data["type"] = "pool"
                 pool_node.add_leaf(StaticText.POOL_UNAVAILABLE_LABEL)
 
+        # Select the specified pool, or select root "Storage Pools" node by default
         if node_to_select:
             self.app.call_later(tree.select_node, node_to_select)
+        elif not select_pool:
+            # Auto-select the root "Storage Pools" node by default
+            self.app.call_later(tree.select_node, tree.root)
 
     def _load_networks(self):
         table = self.query_one("#networks-table", DataTable)

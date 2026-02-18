@@ -75,11 +75,6 @@ class FilterModal(BaseModal[None]):
                         id=f"status_{VmStatus.STOPPED}",
                         value=self.current_status == VmStatus.STOPPED,
                     )
-                    yield RadioButton(
-                        StaticText.MANUALLY_SELECTED,
-                        id=f"status_{VmStatus.SELECTED}",
-                        value=self.current_status == VmStatus.SELECTED,
-                    )
 
             if self.available_servers:
                 yield Label(StaticText.SELECT_SERVERS_TO_DISPLAY)
