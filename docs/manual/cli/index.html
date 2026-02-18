@@ -855,6 +855,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#snapshot-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Snapshot Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#information-discovery" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -877,10 +888,93 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pipelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipelines
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pipelines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Syntax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-supported-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline-Supported Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variable-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variable Expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#usage-example" class="md-nav__link">
     <span class="md-ellipsis">
       
         Usage Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-reference-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Reference Summary
       
     </span>
   </a>
@@ -1212,6 +1306,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#snapshot-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Snapshot Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#information-discovery" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1234,10 +1339,93 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#pipelines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipelines
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pipelines">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-syntax" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Syntax
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-supported-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline-Supported Commands
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variable-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variable Expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#usage-example" class="md-nav__link">
     <span class="md-ellipsis">
       
         Usage Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#command-reference-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Command Reference Summary
       
     </span>
   </a>
@@ -1281,7 +1469,7 @@
 <p>The prompt dynamically updates to show your active context:
 <code>(&lt;server_names&gt;) [&lt;selected_vms&gt;]</code></p>
 <p><strong>Visual Distinction</strong>: Server names and their associated VMs are color-coded based on a unique palette, making it easy to distinguish between different environments at a glance.</p>
-<p><strong>Logging</strong>: The CLI automatically logs all output and operations to a file (typically <code>~/.cache/virtui-manager/vm_manager.log</code>), which is useful for audit trails and debugging.</p>
+<p><strong>Logging</strong>: The CLI automatically logs all output and operations to a file (typically <code>~/.cache/virtui-manager/vm_manager.log</code>), which is useful for audit trails and debugging. Sensitive data (passwords, URIs) is automatically sanitized in logs and output.</p>
 <h2 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>connect &lt;server&gt; [server2 ...]</code></strong>
@@ -1304,6 +1492,8 @@
 </li>
 <li><strong><code>unselect_vm &lt;name|uuid&gt; | re:&lt;pattern&gt; | all</code></strong>
     Removes VMs from the current selection.</li>
+<li><strong><code>show_selection</code></strong>
+    Displays the full list of currently selected VMs. Useful when the prompt is truncated due to many selected VMs.</li>
 </ul>
 <h2 id="vm-operations">VM Operations<a class="headerlink" href="#vm-operations" title="Permanent link">&para;</a></h2>
 <p>All operations can take specific VM names or UUIDs as arguments. If omitted, they apply to the <strong>currently selected VMs</strong>.</p>
@@ -1328,6 +1518,13 @@
 <li><strong><code>net_info &lt;name&gt;</code></strong>: Shows detailed information (UUID, bridge, IP, DHCP range) for a network.</li>
 <li><strong><code>net_autostart &lt;name&gt; &lt;on|off&gt;</code></strong>: Enables or disables autostart for a network.</li>
 </ul>
+<h2 id="snapshot-management">Snapshot Management<a class="headerlink" href="#snapshot-management" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>snapshot_list &lt;vm_name&gt;</code></strong>: Lists all snapshots for a specific VM.</li>
+<li><strong><code>snapshot_create &lt;vm_name&gt; &lt;snapshot_name&gt; [--description "desc"]</code></strong>: Creates a new snapshot with an optional description.</li>
+<li><strong><code>snapshot_delete &lt;vm_name&gt; &lt;snapshot_name&gt;</code></strong>: Deletes a specific snapshot.</li>
+<li><strong><code>snapshot_revert &lt;vm_name&gt; &lt;snapshot_name&gt;</code></strong>: Reverts a VM to a previously saved snapshot state.</li>
+</ul>
 <h2 id="information-discovery">Information &amp; Discovery<a class="headerlink" href="#information-discovery" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>list_vms</code></strong>: Lists all VMs on all connected servers with their current status.</li>
@@ -1339,28 +1536,112 @@
 <ul>
 <li><strong><code>virsh [server]</code></strong>: Launches an interactive <code>virsh</code> shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.</li>
 <li><strong><code>bash [command]</code></strong>: Executes a local shell command or starts an interactive bash shell.</li>
+<li><strong><code>history [number|all|info]</code></strong>: Displays the command history. Use <code>history all</code> to see all history, <code>history &lt;number&gt;</code> for a specific number of recent commands, or <code>history info</code> for history file location.</li>
+<li><strong><code>!&lt;number&gt;</code></strong>: Re-executes a command from the history by its number (e.g., <code>!15</code> runs command #15).</li>
 </ul>
-<h2 id="usage-example">Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Connect to infrastructure</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="o">(</span>VirtUI<span class="o">)</span>&gt;<span class="w"> </span>connect<span class="w"> </span>Localhost
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="c1"># Select all web servers using pattern</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>select_vm<span class="w"> </span>re:web-.*
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="c1"># Check their detailed information</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>vm_info
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="c1"># Start them up</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>start
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a>VM<span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>VM<span class="w"> </span><span class="s1">&#39;web-02&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="c1"># Open a graphical console</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>view
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a>Launching<span class="w"> </span>viewer<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>on<span class="w"> </span>Localhost...
+<h2 id="pipelines">Pipelines<a class="headerlink" href="#pipelines" title="Permanent link">&para;</a></h2>
+<p>The CLI supports command pipelines for chaining multiple operations together using the <code>|</code> operator.</p>
+<h3 id="pipeline-syntax">Pipeline Syntax<a class="headerlink" href="#pipeline-syntax" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipeline<span class="w"> </span><span class="o">[</span>options<span class="o">]</span><span class="w"> </span>&lt;command1&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>&lt;command2&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>...
 </code></pre></div>
+<h3 id="pipeline-options">Pipeline Options<a class="headerlink" href="#pipeline-options" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>--dry-run</code></strong>: Shows what commands would be executed without actually running them.</li>
+<li><strong><code>--interactive</code> / <code>-i</code></strong>: Prompts for confirmation before executing the pipeline.</li>
+</ul>
+<h3 id="pipeline-supported-commands">Pipeline-Supported Commands<a class="headerlink" href="#pipeline-supported-commands" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Selection</strong>: <code>select &lt;vm1&gt; [vm2...]</code> or <code>select re:&lt;pattern&gt;</code></li>
+<li><strong>VM Operations</strong>: <code>start</code>, <code>stop</code>, <code>force_off</code>, <code>pause</code>, <code>resume</code>, <code>hibernate</code></li>
+<li><strong>Snapshots</strong>: <code>snapshot create &lt;name&gt; [desc]</code>, <code>snapshot delete &lt;name&gt;</code>, <code>snapshot revert &lt;name&gt;</code></li>
+<li><strong>Utilities</strong>: <code>wait &lt;seconds&gt;</code>, <code>view</code>, <code>info</code></li>
+</ul>
+<h3 id="variable-expansion">Variable Expansion<a class="headerlink" href="#variable-expansion" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>$(date)</code></strong>: Expands to current date/time in <code>YYYYMMDD_HHMMSS</code> format.</li>
+<li><strong><code>$(time)</code></strong>: Expands to current time in <code>HHMMSS</code> format.</li>
+</ul>
+<h3 id="pipeline-examples">Pipeline Examples<a class="headerlink" href="#pipeline-examples" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Stop all web VMs, create a snapshot, then start them</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">select</span><span class="w"> </span>re:web.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>stop<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>backup-<span class="k">$(</span>date<span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>start
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Preview what would happen without executing</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pipeline<span class="w"> </span>--dry-run<span class="w"> </span><span class="k">select</span><span class="w"> </span>vm1<span class="w"> </span>vm2<span class="w"> </span><span class="p">|</span><span class="w"> </span>pause
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Interactive confirmation before critical operations</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>pipeline<span class="w"> </span>-i<span class="w"> </span><span class="k">select</span><span class="w"> </span>re:prod-.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>hibernate<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>maintenance-<span class="k">$(</span>date<span class="k">)</span>
+</code></pre></div>
+<h2 id="usage-example">Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Connect to infrastructure</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="o">(</span>VirtUI<span class="o">)</span>&gt;<span class="w"> </span>connect<span class="w"> </span>Localhost
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Select all web servers using pattern</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>select_vm<span class="w"> </span>re:web-.*
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># Check their detailed information</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>vm_info
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># Start them up</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>start
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>VM<span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>VM<span class="w"> </span><span class="s1">&#39;web-02&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="c1"># Open a graphical console</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>view
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>Launching<span class="w"> </span>viewer<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>on<span class="w"> </span>Localhost...
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
+<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="c1"># Create a snapshot before maintenance</span>
+<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>snapshot_create<span class="w"> </span>web-01<span class="w"> </span>pre-update<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Before security update&quot;</span>
+<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>Snapshot<span class="w"> </span><span class="s1">&#39;pre-update&#39;</span><span class="w"> </span>created<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span>.
+<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>
+<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="c1"># Use pipelines for batch operations</span>
+<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span><span class="k">select</span><span class="w"> </span>re:web-.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>stop<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>maintenance-<span class="k">$(</span>date<span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>start
+</code></pre></div>
+<h2 id="command-reference-summary">Command Reference Summary<a class="headerlink" href="#command-reference-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Commands</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Connection</td>
+<td><code>connect</code>, <code>disconnect</code>, <code>host_info</code>, <code>virsh</code></td>
+</tr>
+<tr>
+<td>VM Selection</td>
+<td><code>list_vms</code>, <code>select_vm</code>, <code>unselect_vm</code>, <code>status</code>, <code>vm_info</code>, <code>show_selection</code></td>
+</tr>
+<tr>
+<td>VM Operations</td>
+<td><code>start</code>, <code>stop</code>, <code>force_off</code>, <code>pause</code>, <code>resume</code>, <code>hibernate</code>, <code>delete</code>, <code>clone_vm</code>, <code>view</code></td>
+</tr>
+<tr>
+<td>Snapshots</td>
+<td><code>snapshot_list</code>, <code>snapshot_create</code>, <code>snapshot_delete</code>, <code>snapshot_revert</code></td>
+</tr>
+<tr>
+<td>Networking</td>
+<td><code>list_networks</code>, <code>net_start</code>, <code>net_stop</code>, <code>net_delete</code>, <code>net_info</code>, <code>net_autostart</code></td>
+</tr>
+<tr>
+<td>Storage</td>
+<td><code>list_pool</code>, <code>list_unused_volumes</code></td>
+</tr>
+<tr>
+<td>Pipelines</td>
+<td><code>pipeline</code> (with <code>|</code> chaining)</td>
+</tr>
+<tr>
+<td>Shell/Utils</td>
+<td><code>bash</code>, <code>history</code>, <code>!&lt;number&gt;</code>, <code>quit</code>, <code>help</code></td>
+</tr>
+</tbody>
+</table>
 
 
 
