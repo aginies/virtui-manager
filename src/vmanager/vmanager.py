@@ -831,6 +831,19 @@ class VMManagerTUI(App):
             else:
                 self.show_error_message(ErrorMessages.FAILED_TO_OPEN_CONNECTION.format(uri=uri))
 
+    def _get_filter_summary(self) -> str:
+        """Builds an icon-based summary string for active filters."""
+        parts: list[str] = []
+        if self.sort_by != VmStatus.DEFAULT:
+            parts.append(f"⚡ {self.sort_by.capitalize()}")
+        if self.search_text:
+            parts.append(f"🔍 '{self.search_text}'")
+        if self.filtered_server_uris is not None and set(self.filtered_server_uris) != set(
+            self.active_uris
+        ):
+            parts.append(f"📡 {len(self.filtered_server_uris)}/{len(self.active_uris)}")
+        return ", ".join(parts) if parts else ""
+
     def connect_libvirt(self, uri: str) -> None:
         """Connects to libvirt."""
         conn = self.vm_service.connect(uri)
@@ -1352,9 +1365,9 @@ class VMManagerTUI(App):
                 elif message.action == VmAction.STOP:
                     self.vm_service.stop_vm(domain)
                 elif message.action == VmAction.PAUSE:
-                    self.vm_service.pause_vm(domain)
+                    self.vm_service.pause_vm(domain, invalidate_cache=False)
                 elif message.action == VmAction.RESUME:
-                    self.vm_service.resume_vm(domain)
+                    self.vm_service.resume_vm(domain, invalidate_cache=False)
                 elif message.action == VmAction.FORCE_OFF:
                     self.vm_service.force_off_vm(domain)
                 elif message.action == VmAction.DELETE:
@@ -2007,7 +2020,12 @@ class VMManagerTUI(App):
                     save_config(self.config)
 
                 # Main tittle with Servers name
-                self.title = f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
+                filter_summary = self._get_filter_summary()
+                filter_display = f" [{filter_summary}]" if filter_summary else ""
+                self.title = (
+                    f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
+                    + filter_display
+                )
                 self.update_pagination_controls(
                     total_filtered_vms, total_vms_unfiltered=len(domains_to_display)
                 )
