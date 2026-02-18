@@ -1456,9 +1456,12 @@ class VMService:
     def start_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
         """Performs pre-flight checks and starts the VM."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Starting VM: {domain.name()} (ID: {internal_id})")
+        logging.info(f"Starting VM (ID: {internal_id})")
         if domain.isActive():
             return  # Already running, do nothing
+
+        # Skip state check - let libvirt return error if VM is already running
+        # This prevents UI freezes when called from worker threads
 
         # Perform pre-flight checks
         check_domain_volumes_in_use(domain)
@@ -1472,7 +1475,7 @@ class VMService:
     def stop_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
         """Stops the VM."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Stopping VM: {domain.name()} (ID: {internal_id})")
+        logging.info(f"Stopping VM (ID: {internal_id})")
         stop_vm(domain)
         if invalidate_cache:
             self.invalidate_vm_state_cache(internal_id)
@@ -1481,7 +1484,7 @@ class VMService:
     def pause_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
         """Pauses the VM."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Pausing VM: {domain.name()} (ID: {internal_id})")
+        logging.info(f"Pausing VM (ID: {internal_id})")
         pause_vm(domain)
         if invalidate_cache:
             self.invalidate_vm_state_cache(internal_id)
@@ -1490,7 +1493,7 @@ class VMService:
     def force_off_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
         """Forcefully stops the VM."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Forcefully stopping VM: {domain.name()} (ID: {internal_id})")
+        logging.info(f"Forcefully stopping VM (ID: {internal_id})")
         force_off_vm(domain)
         if invalidate_cache:
             self.invalidate_vm_state_cache(internal_id)
@@ -1499,7 +1502,7 @@ class VMService:
     def hibernate_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
         """Hibernates (saves) the VM."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Hibernating VM: {domain.name()} (ID: {internal_id})")
+        logging.info(f"Hibernating VM (ID: {internal_id})")
         hibernate_vm(domain)
         if invalidate_cache:
             self.invalidate_vm_state_cache(internal_id)
@@ -1535,16 +1538,23 @@ class VMService:
     def resume_vm(self, domain: libvirt.virDomain, invalidate_cache: bool = True) -> None:
         """Resumes the VM (handles both PAUSED and PMSUSPENDED states)."""
         internal_id = self._get_internal_id(domain)
-        logging.info(f"Resuming/Waking up VM: {domain.name()} (ID: {internal_id})")
+        logging.info(f"Resuming/Waking up VM (ID: {internal_id})")
 
         try:
-            state, _ = domain.state()
+            # Use cached state to avoid blocking
+            state_tuple = self._get_domain_state(domain, internal_id)
+            if state_tuple:
+                state, _ = state_tuple
+            else:
+                # Fallback to direct call if cache miss
+                state, _ = domain.state()
+
             if state == libvirt.VIR_DOMAIN_PMSUSPENDED:
                 domain.pMWakeup(0)
             else:
                 domain.resume()
         except libvirt.libvirtError as e:
-            logging.error(f"Error resuming/waking up VM {domain.name()}: {e}")
+            logging.error(f"Error resuming/waking up VM (ID: {internal_id}): {e}")
             raise
 
         if invalidate_cache:
