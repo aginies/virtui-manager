@@ -188,7 +188,12 @@ class WindowsProvider(OSProvider):
         ]
 
     def generate_automation_file(
-        self, version: OSVersion, vm_name: str, user_config: Dict[str, Any], output_path: Path
+        self,
+        version: OSVersion,
+        vm_name: str,
+        user_config: Dict[str, Any],
+        output_path: Path,
+        template_name: str | None = None,
     ) -> Path:
         """Generate unattend.xml file for Windows automated installation."""
 

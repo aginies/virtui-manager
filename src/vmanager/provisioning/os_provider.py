@@ -98,7 +98,12 @@ class OSProvider(ABC):
 
     @abstractmethod
     def generate_automation_file(
-        self, version: OSVersion, vm_name: str, user_config: Dict[str, Any], output_path: Path
+        self,
+        version: OSVersion,
+        vm_name: str,
+        user_config: Dict[str, Any],
+        output_path: Path,
+        template_name: str | None = None,
     ) -> Path:
         """Generate automation file (unattend.xml, preseed, etc.) for unattended install."""
         pass
