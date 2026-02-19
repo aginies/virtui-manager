@@ -561,10 +561,10 @@ class AutoYaSTTemplateManager:
             warnings.append("Missing AutoYaST namespace declaration")
 
         # Check required sections
-        required_sections = ["<profile", "<general>", "<software>", "<users>"]
+        required_sections = ["<profile", "<general>", "<software>", "<users"]
         for section in required_sections:
             if section not in content:
-                warnings.append(f"Missing section: {section.strip('<>')}")
+                warnings.append(f"Missing section: {section.strip('<')}")
 
         # Check recommended variables
         recommended_vars = ["root_password", "user_name", "user_password", "hostname"]
