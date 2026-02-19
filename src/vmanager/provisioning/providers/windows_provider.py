@@ -300,9 +300,12 @@ class WindowsProvider(OSProvider):
             raise Exception(f"Failed to read unattend template: {e}")
 
         # Format template with variables
+        admin_password = variables.get("admin_password")
+
         return template.format(
             computer_name=variables.get("computer_name", "Windows-VM"),
-            admin_password=variables.get("admin_password", "VirtUIManager123!"),
+            # Only set admin_password if explicitly provided; otherwise leave empty
+            admin_password=admin_password or "",
             auto_logon_enabled="true" if variables.get("auto_logon", True) else "false",
             timezone=variables.get("timezone", "UTC"),
             language=variables.get("language", "en-US"),
