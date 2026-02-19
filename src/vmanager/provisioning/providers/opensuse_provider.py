@@ -386,16 +386,15 @@ class OpenSUSEProvider(OSProvider):
                 errors.append("Missing AutoYaST namespace declaration")
 
             # Check for required XML structure
-            required_sections = ["<profile", "<general>", "<software>", "<users>"]
+            required_sections = ["<profile", "<general>", "<software>", "<users"]
             missing_sections = []
 
             for section in required_sections:
                 if section not in template_content:
-                    missing_sections.append(section.strip("<>"))
+                    missing_sections.append(section.strip("<"))
 
             if missing_sections:
                 errors.append(f"Missing required sections: {', '.join(missing_sections)}")
-
             # Check for template variables (optional - warn but don't fail)
             recommended_variables = [
                 "language",
