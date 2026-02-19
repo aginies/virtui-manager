@@ -7,6 +7,72 @@ import time
 import tempfile
 import os
 import xml.etree.ElementTree as ET
+import pytest
+
+
+@pytest.fixture
+def template_content():
+    """Provide sample AutoYaST template content for testing"""
+    return """<?xml version="1.0"?>
+<!DOCTYPE profile>
+<profile xmlns="http://www.suse.com/1.0/yast2ns" 
+         xmlns:config="http://www.suse.com/1.0/configns">
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+    </mode>
+  </general>
+
+  <software>
+    <packages config:type="list">
+      <package>openssh</package>
+      <package>vim</package>
+      <package>git</package>
+      <package>curl</package>
+      <package>wget</package>
+    </packages>
+    <patterns config:type="list">
+      <pattern>base</pattern>
+      <pattern>enhanced_base</pattern>
+      <pattern>yast2_basis</pattern>
+    </patterns>
+  </software>
+
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <user_password>{{ROOT_PASSWORD}}</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+    </user>
+    <user>
+      <username>{{USER_NAME}}</username>
+      <user_password>{{USER_PASSWORD}}</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+      <home>/home/{{USER_NAME}}</home>
+      <shell>/bin/bash</shell>
+    </user>
+  </users>
+
+  <networking>
+    <interfaces config:type="list">
+      <interface>
+        <bootproto>dhcp</bootproto>
+        <device>eth0</device>
+        <startmode>auto</startmode>
+      </interface>
+    </interfaces>
+  </networking>
+
+  <services-manager>
+    <default_target>multi-user</default_target>
+    <services config:type="list">
+      <service>
+        <service_name>sshd</service_name>
+        <service_status>enable</service_status>
+      </service>
+    </services>
+  </services-manager>
+</profile>"""
 
 
 def test_sync_validation(template_content):
