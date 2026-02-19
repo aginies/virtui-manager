@@ -23,7 +23,7 @@ from .constants import AppInfo, ErrorMessages, SuccessMessages
 from .events import VmCardUpdateRequest
 from .libvirt_utils import get_internal_id
 from .modals.vmcard_dialog import WebConsoleDialog
-from .utils import generate_webconsole_keys_if_needed
+from .utils import generate_webconsole_keys_if_needed, is_remote_connection
 from .vm_queries import get_vm_graphics_info
 
 
@@ -90,17 +90,6 @@ wp.websockify_init()
                 del sessions[uuid]
                 with open(self.SESSION_FILE, "w", encoding="utf-8") as f:
                     json.dump(sessions, f, indent=4)
-
-    @staticmethod
-    def is_remote_connection(uri: str) -> bool:
-        """Determines if the connection URI is for a remote qemu+ssh host."""
-        if not uri:
-            return False
-        parsed_uri = urlparse(uri)
-        return (
-            parsed_uri.hostname not in (None, "localhost", "127.0.0.1")
-            and parsed_uri.scheme == "qemu+ssh"
-        )
 
     def is_running(self, uuid: str) -> bool:
         """Check if a web console process is running for a given VM UUID using stored session."""
