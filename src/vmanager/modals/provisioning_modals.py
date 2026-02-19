@@ -3,11 +3,7 @@ Modals for VM Provisioning (Installation).
 """
 
 import logging
-import os
 import subprocess
-import tempfile
-import uuid
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import libvirt
@@ -15,15 +11,10 @@ from textual import on, work
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Checkbox, Collapsible, Input, Label, ProgressBar, Select
 
-from ..config import (
-    load_config,
-    save_user_autoyast_template,
-    delete_user_autoyast_template,
-    get_user_autoyast_templates,
-)
+from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..storage_manager import list_storage_pools
-from ..utils import is_inside_tmux, remote_viewer_cmd
+from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
@@ -948,248 +939,142 @@ class InstallVMModal(BaseModal[str | None]):
             logging.error(f"Error updating template buttons: {e}")
 
     def _edit_template_with_editor(self, selected_template_filename, is_new=False):
-        """Edit a template using the system editor (vi or $EDITOR)."""
-        try:
-            # Get editor from environment or default to vi
-            editor = os.environ.get("EDITOR", "vi")
+        """Edit a template using the system editor via TemplateManager."""
+        template_manager = self.app.template_manager
+        template_manager.provisioner = self.provisioner  # Set provisioner for validation
 
-            # Get template data if editing existing
-            template_content = ""
-            template_name = ""
-            template_description = ""
-            template_id = None
-            is_user_template = False
+        # Prepare template data
+        template_content = ""
+        template_name = ""
+        template_description = ""
+        template_id = None
+        is_user_template = False
 
-            if not is_new and selected_template_filename:
-                provider = self.provisioner.get_provider("opensuse")
-                if not provider:
-                    self.notify("OpenSUSE provider not available", severity="error")
-                    return
+        if not is_new and selected_template_filename:
+            # Get template from TemplateManager
+            templates = template_manager.get_all_templates()
+            selected_template = None
 
-                templates = provider.get_available_templates()
-                selected_template = None
+            for template in templates:
+                if template["filename"] == selected_template_filename:
+                    selected_template = template
+                    break
 
-                for template in templates:
-                    if template["filename"] == selected_template_filename:
-                        selected_template = template
-                        break
+            if not selected_template:
+                self.notify("Selected template not found", severity="error")
+                return
 
-                if not selected_template:
-                    self.notify("Selected template not found", severity="error")
-                    return
+            template_name = selected_template["display_name"]
+            template_description = selected_template.get("description", "")
 
-                template_name = selected_template["display_name"]
-                template_description = selected_template.get("description", "")
-
-                if selected_template.get("type") == "user":
-                    # User template - edit existing
-                    template_content = selected_template.get("content", "")
-                    template_id = selected_template.get("template_id")
-                    is_user_template = True
-                    # Remove "(User)" suffix from name for editing
-                    template_name = template_name.replace(" (User)", "")
-                else:
-                    # Built-in template - create new based on this one
-                    if "path" in selected_template:
-                        with open(selected_template["path"], "r", encoding="utf-8") as f:
-                            template_content = f.read()
-                    template_name = f"Custom {template_name}"
-                    template_description = f"Based on {selected_template['display_name']}"
-                    is_user_template = False
-
+            if selected_template.get("type") == "user":
+                # User template - edit existing
+                template_content = selected_template.get("content", "")
+                template_id = selected_template.get("template_id")
+                is_user_template = True
+                # Remove "(User)" suffix from name for editing
+                template_name = template_name.replace(" (User)", "")
             else:
-                # Creating new template from scratch
-                template_name = "My Custom Template"
-                template_description = "Custom AutoYaST template"
-                template_content = """<?xml version="1.0"?>
-<!DOCTYPE profile>
-<profile xmlns="http://www.suse.com/1.0/yast2ns" 
-         xmlns:config="http://www.suse.com/1.0/configns">
-  <general>
-    <mode>
-      <confirm config:type="boolean">false</confirm>
-    </mode>
-  </general>
-
-  <software>
-    <packages config:type="list">
-      <package>openssh</package>
-    </packages>
-    <patterns config:type="list">
-      <pattern>base</pattern>
-    </patterns>
-  </software>
-
-  <users config:type="list">
-    <user>
-      <username>root</username>
-      <user_password>{{ROOT_PASSWORD}}</user_password>
-      <encrypted config:type="boolean">false</encrypted>
-    </user>
-    <user>
-      <username>{{USER_NAME}}</username>
-      <user_password>{{USER_PASSWORD}}</user_password>
-      <encrypted config:type="boolean">false</encrypted>
-    </user>
-  </users>
-
-  <networking>
-    <interfaces config:type="list">
-      <interface>
-        <bootproto>dhcp</bootproto>
-        <device>eth0</device>
-        <startmode>auto</startmode>
-      </interface>
-    </interfaces>
-  </networking>
-
-  <host>
-    <hosts config:type="list">
-      <hosts_entry>
-        <host_address>127.0.0.1</host_address>
-        <names config:type="list">
-          <name>localhost</name>
-          <name>{{HOSTNAME}}</name>
-        </names>
-      </hosts_entry>
-    </hosts>
-  </host>
-</profile>"""
-
-            # Create temporary file
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".xml", delete=False, encoding="utf-8"
-            ) as tmp_file:
-                tmp_file.write(template_content)
-                tmp_file_path = tmp_file.name
-
-            try:
-                # Check if tmux is available - required for editing templates
-                if not is_inside_tmux():
-                    self.notify(
-                        ErrorMessages.TMUX_REQUIRED_FOR_TEMPLATE_EDITING,
-                        severity="error",
-                    )
-                    return
-
-                # Launch editor in a new tmux window for clean terminal separation
-                editor = os.environ.get("EDITOR", "vi")
-                # Create a unique signal name for this edit session
-                signal_name = f"virtui-edit-{os.getpid()}"
-                # Run editor in new window, then signal when done
-                subprocess.run(
-                    [
-                        "tmux",
-                        "new-window",
-                        "-n",
-                        "template-editor",
-                        f"{editor} {tmp_file_path}; tmux wait-for -S {signal_name}",
-                    ],
-                    check=True,
+                # Built-in template - create new based on this one
+                template_content = (
+                    template_manager.get_template_content(selected_template_filename) or ""
                 )
-                # Wait for the signal (blocks until editor window closes)
-                subprocess.run(["tmux", "wait-for", signal_name], check=True)
+                template_name = f"Custom {template_name}"
+                template_description = f"Based on {selected_template['display_name']}"
+                is_user_template = False
+        else:
+            # Creating new template from scratch
+            template_name = "My Custom Template"
+            template_description = "Custom AutoYaST template"
+            template_content = template_manager.get_skeleton_template()
 
-                # Read the edited content
-                with open(tmp_file_path, "r", encoding="utf-8") as f:
-                    edited_content = f.read()
+        # Define callbacks for the editor
+        def on_save(edited_content: str):
+            """Handle saved template content."""
+            # Validate XML first
+            is_valid, error = template_manager.validate_xml(edited_content)
+            if not is_valid:
+                self.notify(f"Invalid XML: {error}", severity="error")
+                return
 
-                # Check if content was changed
-                if edited_content != template_content:
-                    # Do basic XML validation first (fast)
-                    try:
-                        ET.fromstring(edited_content)
-                    except ET.ParseError as e:
-                        self.notify(f"Invalid XML: {e}", severity="error")
-                        return
+            # Save the template
+            if is_user_template and template_id:
+                success, _ = template_manager.save_template(
+                    template_name, edited_content, template_description, template_id
+                )
+                action = "updated"
+            else:
+                success, new_id = template_manager.save_template(
+                    template_name, edited_content, template_description
+                )
+                action = "created"
 
-                    # Save the template immediately (responsive)
-                    if is_user_template and template_id:
-                        # Update existing user template
-                        success = save_user_autoyast_template(
-                            template_id, template_name, edited_content, template_description
-                        )
-                        action = "updated"
-                    else:
-                        # Create new template - generate new UUID
-                        template_id = str(uuid.uuid4())
-                        success = save_user_autoyast_template(
-                            template_id, template_name, edited_content, template_description
-                        )
-                        action = "created"
+            if success:
+                self.notify(f"Template '{template_name}' {action} successfully!")
+                # Reload templates immediately
+                self._load_automation_templates()
+                # Do comprehensive validation in background
+                self._validate_template_async(edited_content, template_name)
+            else:
+                self.notify("Error saving template", severity="error")
 
-                    if success:
-                        self.notify(f"Template '{template_name}' {action} successfully!")
-                        # Reload templates immediately
-                        self._load_automation_templates()
+        def on_cancel():
+            """Handle cancelled edit."""
+            self.notify("Template unchanged", severity="information")
 
-                        # Do comprehensive validation in background (async)
-                        self._validate_template_async(edited_content, template_name)
-                    else:
-                        self.notify("Error saving template", severity="error")
-                else:
-                    self.notify("Template unchanged", severity="information")
+        def on_error(error_msg: str):
+            """Handle editor error."""
+            self.notify(error_msg, severity="error")
 
-            finally:
-                # Clean up temporary file
-                os.unlink(tmp_file_path)
-
-        except subprocess.CalledProcessError:
-            self.notify("Editor was cancelled or failed", severity="warning")
-        except Exception as e:
-            logging.error(f"Error in template editor: {e}")
-            self.notify(f"Error editing template: {e}", severity="error")
+        # Launch editor via TemplateManager
+        template_manager.edit_template_in_tmux(
+            template_content,
+            on_save=on_save,
+            on_cancel=on_cancel,
+            on_error=on_error,
+        )
 
     @work(exclusive=False, thread=True)
     def _validate_template_async(self, template_content: str, template_name: str):
-        """Validate template content asynchronously in background"""
+        """Validate template content asynchronously in background."""
         try:
-            provider = self.provisioner.get_provider("opensuse")
-            if provider and hasattr(provider, "validate_template_content"):
-                validation_result = provider.validate_template_content(template_content)
+            template_manager = self.app.template_manager
+            template_manager.provisioner = self.provisioner
 
-                # Show results on the main thread
-                def show_validation_results():
-                    if not validation_result["valid"]:
-                        self.notify(
-                            f"Template '{template_name}' has validation issues: {validation_result['error']}",
-                            severity="warning",
-                        )
-                    elif validation_result.get("warnings"):
-                        warning_count = len(validation_result["warnings"])
-                        self.notify(
-                            f"Template '{template_name}' saved with {warning_count} warning(s)",
-                            severity="information",
-                        )
-                        # Optionally show first warning
-                        if validation_result["warnings"]:
-                            self.notify(
-                                f"Warning: {validation_result['warnings'][0]}",
-                                severity="information",
-                            )
-                    else:
-                        self.notify(
-                            f"Template '{template_name}' validation complete ✓",
-                            severity="information",
-                        )
+            validation_result = template_manager.validate_template(template_content)
 
-                self.app.call_from_thread(show_validation_results)
-            else:
-                # No validation available - just confirm it's saved
-                def confirm_saved():
+            def show_validation_results():
+                if not validation_result["valid"]:
                     self.notify(
-                        f"Template '{template_name}' saved (validation not available)",
+                        f"Template '{template_name}' has validation issues: {validation_result['error']}",
+                        severity="warning",
+                    )
+                elif validation_result.get("warnings"):
+                    warning_count = len(validation_result["warnings"])
+                    self.notify(
+                        f"Template '{template_name}' saved with {warning_count} warning(s)",
+                        severity="information",
+                    )
+                    if validation_result["warnings"]:
+                        self.notify(
+                            f"Warning: {validation_result['warnings'][0]}",
+                            severity="information",
+                        )
+                else:
+                    self.notify(
+                        f"Template '{template_name}' validation complete",
                         severity="information",
                     )
 
-                self.app.call_from_thread(confirm_saved)
+            self.app.call_from_thread(show_validation_results)
 
         except Exception as e:
             logging.error(f"Error in async template validation: {e}")
 
             def show_validation_error():
                 self.notify(
-                    f"Template '{template_name}' saved but validation failed", severity="warning"
+                    f"Template '{template_name}' saved but validation failed",
+                    severity="warning",
                 )
 
             self.app.call_from_thread(show_validation_error)
@@ -1231,33 +1116,30 @@ class InstallVMModal(BaseModal[str | None]):
                 self.notify("Please select a template to delete", severity="warning")
                 return
 
-            # Get template data
-            provider = self.provisioner.get_provider("opensuse")
-            if not provider:
-                self.notify("OpenSUSE provider not available", severity="error")
-                return
+            template_manager = self.app.template_manager
 
-            templates = provider.get_available_templates()
-            selected_template = None
-
-            for template in templates:
-                if template["filename"] == selected_value:
-                    selected_template = template
-                    break
-
-            if not selected_template or selected_template.get("type") != "user":
+            # Check if it's a user template
+            if not template_manager.is_user_template(selected_value):
                 self.notify("Only user templates can be deleted", severity="warning")
                 return
 
-            # Confirm deletion
-            template_name = selected_template["display_name"].replace(" (User)", "")
+            # Get template info for display
+            templates = template_manager.get_all_templates()
+            template_name = selected_value
+            for template in templates:
+                if template["filename"] == selected_value:
+                    template_name = template["display_name"].replace(" (User)", "")
+                    break
 
-            # For now, just delete without confirmation (you could add a confirmation modal)
-            template_id = selected_template.get("template_id")
+            # Extract template ID and delete
+            template_id = (
+                selected_value.replace("user_", "")
+                if selected_value.startswith("user_")
+                else selected_value
+            )
 
-            if delete_user_autoyast_template(template_id):
+            if template_manager.delete_template(template_id):
                 self.notify(f"Template '{template_name}' deleted successfully!")
-                # Reload templates and reset selection
                 self._load_automation_templates()
             else:
                 self.notify("Error deleting template", severity="error")
@@ -1277,55 +1159,16 @@ class InstallVMModal(BaseModal[str | None]):
                 self.notify("Please select a template to export", severity="warning")
                 return
 
-            # Get template data
-            provider = self.provisioner.get_provider("opensuse")
-            if not provider:
-                self.notify("OpenSUSE provider not available", severity="error")
-                return
-
-            templates = provider.get_available_templates()
-            selected_template = None
-
-            for template in templates:
-                if template["filename"] == selected_value:
-                    selected_template = template
-                    break
-
-            if not selected_template:
-                self.notify("Selected template not found", severity="error")
-                return
-
-            # Get template content
-            content = ""
-            if selected_template.get("type") == "user":
-                content = selected_template.get("content", "")
-            else:
-                if "path" in selected_template:
-                    with open(selected_template["path"], "r", encoding="utf-8") as f:
-                        content = f.read()
-
-            if not content:
-                self.notify("Template content is empty", severity="error")
-                return
+            template_manager = self.app.template_manager
 
             # Export to user's home directory
-            from pathlib import Path
+            export_dir = Path.home()
+            success, exported_path = template_manager.export_template(selected_value, export_dir)
 
-            template_name = (
-                selected_template["display_name"].replace(" (User)", "").replace(" ", "_")
-            )
-            export_path = Path.home() / f"autoyast_{template_name}.xml"
-
-            # Ensure unique filename
-            counter = 1
-            while export_path.exists():
-                export_path = Path.home() / f"autoyast_{template_name}_{counter}.xml"
-                counter += 1
-
-            with open(export_path, "w", encoding="utf-8") as f:
-                f.write(content)
-
-            self.notify(f"Template exported to {export_path}")
+            if success:
+                self.notify(f"Template exported to {exported_path}")
+            else:
+                self.notify("Error exporting template", severity="error")
 
         except Exception as e:
             logging.error(f"Error exporting template: {e}")
