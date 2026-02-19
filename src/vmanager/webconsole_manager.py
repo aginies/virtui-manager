@@ -92,25 +92,26 @@ wp.websockify_init()
 
     def is_running(self, uuid: str) -> bool:
         """Check if a web console process is running for a given VM UUID using stored session."""
-        sessions = self.load_sessions()
-        if uuid not in sessions:
-            return False
+        with self._lock:
+            sessions = self.load_sessions()
+            if uuid not in sessions:
+                return False
 
-        session = sessions[uuid]
-        pid = session.get("pid")
-        if not pid:
-            self.remove_session(uuid)
-            return False
+            session = sessions[uuid]
+            pid = session.get("pid")
+            if not pid:
+                self.remove_session(uuid)
+                return False
 
-        # Check if process exists (for local process ID)
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            # Process is dead
-            self.remove_session(uuid)
-            return False
+            # Check if process exists (for local process ID)
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                # Process is dead
+                self.remove_session(uuid)
+                return False
 
-        return True
+            return True
 
     def start_console(self, vm, conn):
         """Starts a web console for a given VM."""
@@ -158,7 +159,7 @@ wp.websockify_init()
                 )
                 return
 
-            is_remote_ssh = WebConsoleManager.is_remote_connection(conn.getURI())
+            is_remote_ssh = is_remote_connection(conn.getURI())
 
             if is_remote_ssh and self.config.get("REMOTE_WEBCONSOLE", False):
                 self._launch_remote_websockify(uuid, vm_name, conn, int(vnc_port), graphics_info)
@@ -327,7 +328,7 @@ wp.websockify_init()
         remote_websockify_cmd_list = [
             "python3",
             "-c",
-            f'"{self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size)}"',
+            self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size),
             "--run-once",
             "--verbose",
             str(web_port),
@@ -610,7 +611,7 @@ wp.websockify_init()
         self, uuid: str, conn, vm_name: str, vnc_port: int, graphics_info: dict
     ) -> tuple[str | None, int | None, dict]:
         """Sets up an SSH tunnel for remote connections if needed."""
-        is_remote_ssh = WebConsoleManager.is_remote_connection(conn.getURI())
+        is_remote_ssh = is_remote_connection(conn.getURI())
 
         vnc_target_host = graphics_info.get("listen", "127.0.0.1")
         if vnc_target_host in ["0.0.0.0", "::"]:
