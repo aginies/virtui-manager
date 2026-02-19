@@ -326,7 +326,11 @@ class OpenSUSEProvider(OSProvider):
                                 else:
                                     continue
 
-                        full_url = os.path.join(url, link) if not link.startswith("http") else link
+                        # Clean the link by removing ./ prefix if present
+                        clean_link = link.lstrip("./")
+                        full_url = (
+                            os.path.join(url, clean_link) if not link.startswith("http") else link
+                        )
                         valid_links.append(full_url)
 
                     return valid_links
@@ -337,7 +341,7 @@ class OpenSUSEProvider(OSProvider):
             if distro == OpenSUSEDistro.LEAP:
                 # Use hardcoded versions
                 versions15 = ["15.5", "15.6"]
-                versions16 = ["16.0", "16.1"]
+                versions16 = ["16.0"]
                 for ver in versions15 + versions16:
                     if ver in versions15:
                         ver_iso_url = f"{base_url}{ver}/iso/"
@@ -367,6 +371,8 @@ class OpenSUSEProvider(OSProvider):
     def _get_iso_details(self, url: str) -> Dict[str, Any]:
         """Fetch details (Last-Modified) for a given ISO URL."""
         name = url.split("/")[-1]
+        # Clean the name by removing ./ prefix if present (additional safety)
+        name = name.lstrip("./")
         try:
             context = ssl._create_unverified_context()
             req = urllib.request.Request(url, method="HEAD")
@@ -426,22 +432,35 @@ class OpenSUSEProvider(OSProvider):
 
         return isos
 
-    def get_iso_list(self, distro: OpenSUSEDistro) -> List[Dict[str, Any]]:
+    def get_iso_list(self, distro: OpenSUSEDistro | str) -> List[Dict[str, Any]]:
         """
         Get list of available ISOs for a specific OpenSUSE distribution.
 
         Args:
-            distro: OpenSUSE distribution type
+            distro: OpenSUSE distribution type (enum) or custom repository URL (string)
 
         Returns:
             List of ISO dictionaries with 'name', 'url', and 'date' keys
         """
+        # Handle string arguments (custom repositories, cached ISOs, etc.)
+        if isinstance(distro, str):
+            if distro == "cached":
+                return self.get_cached_isos()
+            elif distro == "pool_volumes":
+                return []  # Pool volumes are handled elsewhere
+            else:
+                # Treat as custom repository URL
+                return self.get_iso_list_from_url(distro)
+
+        # Handle OpenSUSEDistro enum values
         if distro == OpenSUSEDistro.CUSTOM:
             return []
 
         base_url = self.DISTRO_BASE_URLS.get(distro)
         if not base_url:
-            self.logger.warning(f"No base URL configured for {distro.value}")
+            # Use distro name safely - check if it's an enum first
+            distro_name = distro.value if hasattr(distro, "value") else str(distro)
+            self.logger.warning(f"No base URL configured for {distro_name}")
             return []
 
         return self.get_iso_list_from_url(base_url)
@@ -524,7 +543,9 @@ class OpenSUSEProvider(OSProvider):
                         else:
                             continue
 
-                full_url = os.path.join(url, link) if not link.startswith("http") else link
+                # Clean the link by removing ./ prefix if present
+                clean_link = link.lstrip("./")
+                full_url = os.path.join(url, clean_link) if not link.startswith("http") else link
                 valid_links.append(full_url)
 
             # Fetch details in parallel
