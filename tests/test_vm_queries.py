@@ -23,7 +23,6 @@ from vmanager.vm_queries import (
     get_vm_shared_memory_info,
     get_boot_info,
     _parse_domain_xml,
-    _parse_domain_xml_by_hash,
 )
 from vmanager.constants import StatusText
 
@@ -86,6 +85,8 @@ class TestVMQueries(unittest.TestCase):
         """Test domain XML parsing function."""
         root = _parse_domain_xml(self.xml_content)
         self.assertIsNotNone(root)
+        # Type checker: root is verified non-None above
+        assert root is not None
         self.assertEqual(root.tag, "domain")
 
     def test_parse_domain_xml_invalid(self):
@@ -99,28 +100,28 @@ class TestVMQueries(unittest.TestCase):
         networks = get_vm_networks_info(self.root)
         self.assertIsInstance(networks, list)
         self.assertEqual(len(networks), 1)
-        self.assertEqual(networks[0]['network'], 'default')
-        self.assertEqual(networks[0]['mac'], '52:54:00:12:34:56')
+        self.assertEqual(networks[0]["network"], "default")
+        self.assertEqual(networks[0]["mac"], "52:54:00:12:34:56")
 
     def test_get_vm_disks_info(self):
         """Test getting VM disk information."""
         disks = get_vm_disks_info(self.mock_conn, self.root)
         self.assertIsInstance(disks, list)
         self.assertEqual(len(disks), 1)
-        self.assertEqual(disks[0]['path'], '/var/lib/libvirt/images/test-vm.qcow2')
+        self.assertEqual(disks[0]["path"], "/var/lib/libvirt/images/test-vm.qcow2")
 
     def test_get_vm_devices_info(self):
         """Test getting VM devices information."""
         devices = get_vm_devices_info(self.root)
         self.assertIsInstance(devices, dict)
-        self.assertIn('graphics', devices)
-        self.assertEqual(devices['graphics'][0]['type'], 'spice')
+        self.assertIn("graphics", devices)
+        self.assertEqual(devices["graphics"][0]["type"], "spice")
 
     def test_get_vm_machine_info(self):
         """Test getting VM machine information."""
         machine_info = get_vm_machine_info(self.root)
         self.assertIsInstance(machine_info, str)
-        self.assertEqual(machine_info, 'pc-q35-6.2')
+        self.assertEqual(machine_info, "pc-q35-6.2")
 
     def test_get_vm_description(self):
         """Test getting VM description."""
@@ -135,40 +136,47 @@ class TestVMQueries(unittest.TestCase):
     def test_get_vm_cpu_model(self):
         """Test getting VM CPU model."""
         cpu_model = get_vm_cpu_model(self.root)
-        self.assertEqual(cpu_model, 'host-passthrough')
+        self.assertEqual(cpu_model, "host-passthrough")
 
     def test_get_vm_video_model(self):
         """Test getting VM video model."""
         video_model = get_vm_video_model(self.root)
-        self.assertEqual(video_model, 'virtio')
+        self.assertEqual(video_model, "virtio")
 
     def test_get_vm_firmware_info(self):
         """Test getting VM firmware information."""
         firmware = get_vm_firmware_info(self.root)
         self.assertIsInstance(firmware, dict)
-        self.assertEqual(firmware['type'], 'UEFI')
+        self.assertEqual(firmware["type"], "UEFI")
 
     def test_get_vm_network_dns_gateway_info(self):
         """Test getting VM network DNS gateway information."""
         mock_network = MagicMock()
-        mock_network.XMLDesc.return_value = "<network><ip address='192.168.1.1'/><dns><server address='8.8.8.8'/></dns></network>"
+        mock_network.XMLDesc.return_value = (
+            "<network><ip address='192.168.1.1'/><dns><server address='8.8.8.8'/></dns></network>"
+        )
         self.mock_conn.networkLookupByName.return_value = mock_network
-        
+
         dns_info = get_vm_network_dns_gateway_info(self.mock_domain, root=self.root)
         self.assertIsInstance(dns_info, list)
         self.assertEqual(len(dns_info), 1)
-        self.assertEqual(dns_info[0]['gateway'], '192.168.1.1')
-        self.assertIn('8.8.8.8', dns_info[0]['dns_servers'])
+        self.assertEqual(dns_info[0]["gateway"], "192.168.1.1")
+        self.assertIn("8.8.8.8", dns_info[0]["dns_servers"])
 
     def test_get_vm_network_ip(self):
         """Test getting VM network IP addresses."""
         self.mock_domain.interfaceAddresses.return_value = {
-            'vda': {'hwaddr': '52:54:00:12:34:56', 'addrs': [{'type': libvirt.VIR_IP_ADDR_TYPE_IPV4, 'addr': '192.168.1.10', 'prefix': 24}]}
+            "vda": {
+                "hwaddr": "52:54:00:12:34:56",
+                "addrs": [
+                    {"type": libvirt.VIR_IP_ADDR_TYPE_IPV4, "addr": "192.168.1.10", "prefix": 24}
+                ],
+            }
         }
         ip_info = get_vm_network_ip(self.mock_domain)
         self.assertIsInstance(ip_info, list)
         self.assertEqual(len(ip_info), 1)
-        self.assertEqual(ip_info[0]['mac'], '52:54:00:12:34:56')
+        self.assertEqual(ip_info[0]["mac"], "52:54:00:12:34:56")
 
     def test_get_vm_shared_memory_info(self):
         """Test getting VM shared memory information."""
@@ -180,7 +188,7 @@ class TestVMQueries(unittest.TestCase):
         """Test getting VM boot information."""
         boot_info = get_boot_info(self.mock_conn, self.root)
         self.assertIsInstance(boot_info, dict)
-        self.assertIn('order', boot_info)
+        self.assertIn("order", boot_info)
 
 
 if __name__ == "__main__":
