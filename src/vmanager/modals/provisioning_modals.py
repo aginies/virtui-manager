@@ -23,7 +23,7 @@ from ..config import (
 )
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..storage_manager import list_storage_pools
-from ..utils import remote_viewer_cmd
+from ..utils import is_inside_tmux, remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
@@ -238,69 +238,75 @@ class InstallVMModal(BaseModal[str | None]):
                     tooltip=StaticText.AUTOMATED_INSTALLATION_TOOLTIP,
                 )
 
-                # Template selection - only visible when automation is enabled
-                with Vertical(id="automation-template-container"):
-                    yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
-                    yield Select(
-                        [
-                            (StaticText.LOADING_TEMPLATES_OPTION, "loading")
-                        ],  # Placeholder option until templates load
-                        prompt=StaticText.SELECT_TEMPLATE_PROMPT,
-                        id="automation-template-select",
-                        disabled=True,
-                        allow_blank=True,
-                        tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
-                    )
-
-                    # Template management buttons
-                    with Horizontal(classes="template-management-buttons"):
-                        yield Button("Create New", id="create-template-btn", classes="small-button")
-                        yield Button(
-                            "Edit", id="edit-template-btn", classes="small-button", disabled=True
-                        )
-                        yield Button(
-                            "Delete",
-                            id="delete-template-btn",
-                            classes="small-button",
+                with Horizontal(id="auto-mode"):
+                    # Template selection - only visible when automation is enabled
+                    with Vertical(id="automation-template-container"):
+                        yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
+                        yield Select(
+                            [
+                                (StaticText.LOADING_TEMPLATES_OPTION, "loading")
+                            ],  # Placeholder option until templates load
+                            prompt=StaticText.SELECT_TEMPLATE_PROMPT,
+                            id="automation-template-select",
                             disabled=True,
-                        )
-                        yield Button(
-                            "Export",
-                            id="export-template-btn",
-                            classes="small-button",
-                            disabled=True,
+                            allow_blank=True,
+                            tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
                         )
 
-                # User configuration - only visible when automation is enabled
-                with Horizontal(id="automation-user-config"):
-                    with Vertical(id="automation-user-left"):
-                        yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
-                        yield Input(
-                            placeholder=StaticText.ROOT_PASSWORD_PLACEHOLDER,
-                            id="automation-root-password",
-                            password=True,
-                            disabled=True,
-                        )
-                        yield Label(StaticText.USERNAME_LABEL, classes="label")
-                        yield Input(
-                            placeholder=StaticText.USERNAME_PLACEHOLDER,
-                            id="automation-username",
-                            disabled=True,
-                        )
-                    with Vertical(id="automation-user-right"):
-                        yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
-                        yield Input(
-                            placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
-                            id="automation-user-password",
-                            password=True,
-                            disabled=True,
-                        )
-                        yield Label(StaticText.HOSTNAME_LABEL, classes="label")
-                        yield Input(
-                            placeholder=StaticText.HOSTNAME_PLACEHOLDER,
-                            id="automation-hostname",
-                            disabled=True,
-                        )
+                        # Template management buttons
+                        with Horizontal(classes="template-management-buttons"):
+                            yield Button(
+                                "Create New", id="create-template-btn", classes="small-button"
+                            )
+                            yield Button(
+                                "Edit",
+                                id="edit-template-btn",
+                                classes="small-button",
+                                disabled=True,
+                            )
+                            yield Button(
+                                "Delete",
+                                id="delete-template-btn",
+                                classes="small-button",
+                                disabled=True,
+                            )
+                            yield Button(
+                                "Export",
+                                id="export-template-btn",
+                                classes="small-button",
+                                disabled=True,
+                            )
+
+                    # User configuration - only visible when automation is enabled
+                    with Horizontal(id="automation-user-config"):
+                        with Vertical(id="automation-user-left"):
+                            yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.ROOT_PASSWORD_PLACEHOLDER,
+                                id="automation-root-password",
+                                password=True,
+                                disabled=True,
+                            )
+                            yield Label(StaticText.USERNAME_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.USERNAME_PLACEHOLDER,
+                                id="automation-username",
+                                disabled=True,
+                            )
+                        with Vertical(id="automation-user-right"):
+                            yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
+                                id="automation-user-password",
+                                password=True,
+                                disabled=True,
+                            )
+                            yield Label(StaticText.HOSTNAME_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.HOSTNAME_PLACEHOLDER,
+                                id="automation-hostname",
+                                disabled=True,
+                            )
 
             yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
@@ -1058,8 +1064,31 @@ class InstallVMModal(BaseModal[str | None]):
                 tmp_file_path = tmp_file.name
 
             try:
-                # Launch editor
-                result = subprocess.run([editor, tmp_file_path], check=True)
+                # Check if tmux is available - required for editing templates
+                if not is_inside_tmux():
+                    self.notify(
+                        ErrorMessages.TMUX_REQUIRED_FOR_TEMPLATE_EDITING,
+                        severity="error",
+                    )
+                    return
+
+                # Launch editor in a new tmux window for clean terminal separation
+                editor = os.environ.get("EDITOR", "vi")
+                # Create a unique signal name for this edit session
+                signal_name = f"virtui-edit-{os.getpid()}"
+                # Run editor in new window, then signal when done
+                subprocess.run(
+                    [
+                        "tmux",
+                        "new-window",
+                        "-n",
+                        "template-editor",
+                        f"{editor} {tmp_file_path}; tmux wait-for -S {signal_name}",
+                    ],
+                    check=True,
+                )
+                # Wait for the signal (blocks until editor window closes)
+                subprocess.run(["tmux", "wait-for", signal_name], check=True)
 
                 # Read the edited content
                 with open(tmp_file_path, "r", encoding="utf-8") as f:

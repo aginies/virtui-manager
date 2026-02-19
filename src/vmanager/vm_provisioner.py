@@ -859,6 +859,7 @@ class VMProvisioner:
         loader_path: str | None = None,
         nvram_path: str | None = None,
         boot_uefi: bool = True,
+        automation_file_path: str | None = None,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
@@ -957,6 +958,17 @@ class VMProvisioner:
     </disk>
 """
 
+        # Floppy disk for AutoYaST automation file
+        if automation_file_path:
+            xml += f"""
+    <disk type='file' device='floppy'>
+      <driver name='qemu' type='raw'/>
+      <source file='{automation_file_path}'/>
+      <target dev='fda' bus='fdc'/>
+      <readonly/>
+    </disk>
+"""
+
         # Interface
         xml += f"""
     <interface type='network'>
@@ -1024,6 +1036,48 @@ class VMProvisioner:
         xml += "</domain>"
         return xml
 
+    def _create_floppy_image(self, automation_file_path: str, output_dir: Path) -> str:
+        """
+        Create a floppy disk image containing the AutoYaST file.
+
+        Args:
+            automation_file_path: Path to the autoyast.xml file
+            output_dir: Directory to create the floppy image in
+
+        Returns:
+            Path to the created floppy image
+        """
+        floppy_path = output_dir / "autoyast_floppy.img"
+
+        try:
+            # Create a 1.44MB floppy image using qemu-img
+            subprocess.run(
+                ["qemu-img", "create", "-f", "raw", str(floppy_path), "1440K"],
+                check=True,
+                capture_output=True,
+            )
+
+            # Format as FAT12 filesystem
+            subprocess.run(
+                ["mkfs.vfat", str(floppy_path)],
+                check=True,
+                capture_output=True,
+            )
+
+            # Copy the autoyast.xml file to the floppy image using mcopy
+            subprocess.run(
+                ["mcopy", "-i", str(floppy_path), automation_file_path, "::autoyast.xml"],
+                check=True,
+                capture_output=True,
+            )
+
+            self.logger.info(f"Created floppy image with AutoYaST at {floppy_path}")
+            return str(floppy_path)
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to create floppy image: {e}")
+            raise Exception(f"Failed to create floppy image for AutoYaST: {e}")
+
     def check_virt_install(self) -> bool:
         """Checks if virt-install is available on the system."""
         return shutil.which("virt-install") is not None
@@ -1039,6 +1093,7 @@ class VMProvisioner:
         loader_path: str | None,
         nvram_path: str | None,
         print_xml: bool = False,
+        automation_file_path: str | None = None,
     ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
@@ -1124,6 +1179,11 @@ class VMProvisioner:
             cmd.extend(["--pm", ",".join(pm_opts)])
 
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
+
+        # AutoYaST/Automation file injection
+        if automation_file_path:
+            cmd.extend(["--initrd-inject", automation_file_path])
+            cmd.extend(["--extra-args", "autoyast=device://fd0/autoyast.xml"])
 
         cmd.extend(["--noautoconsole"])
         cmd.extend(["--wait", "0"])
@@ -1307,8 +1367,6 @@ class VMProvisioner:
                 provider = self.get_provider("opensuse")
                 if provider:
                     # Create a temporary directory for automation file
-                    import tempfile
-
                     temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
 
                     # Extract template name from automation config
@@ -1323,6 +1381,38 @@ class VMProvisioner:
                         template_name=template_name,
                     )
                     self.logger.info(f"Generated automation file: {automation_file_path}")
+
+                    # Open the generated file with EDITOR for user to review/modify
+                    report(StaticText.PROVISIONING_EDITING_AUTOMATION_FILE, 83)
+                    editor = os.environ.get("EDITOR", "vi")
+
+                    try:
+                        # Launch editor with proper TTY access
+                        # Open /dev/tty directly for stdin to ensure editor works properly
+                        with open("/dev/tty", "r") as tty_in, open("/dev/tty", "w") as tty_out:
+                            subprocess.run(
+                                [editor, str(automation_file_path)],
+                                stdin=tty_in,
+                                stdout=tty_out,
+                                stderr=tty_out,
+                                check=True,
+                            )
+
+                        # Validate the edited XML after user closes editor
+                        with open(automation_file_path, "r", encoding="utf-8") as f:
+                            edited_content = f.read()
+
+                        # Validate XML syntax
+                        try:
+                            ET.fromstring(edited_content)
+                            self.logger.info("Automation file validation passed")
+                        except ET.ParseError as parse_error:
+                            self.logger.error(f"Invalid XML in automation file: {parse_error}")
+                            raise Exception(f"Invalid XML in automation file: {parse_error}")
+
+                    except subprocess.CalledProcessError:
+                        self.logger.warning("Editor was cancelled, continuing without automation")
+                        automation_file_path = None
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
 
@@ -1330,6 +1420,18 @@ class VMProvisioner:
                 self.logger.error(f"Failed to generate automation file: {e}")
                 # Continue without automation rather than failing the entire process
                 automation_file_path = None
+
+        # Create floppy image for automation file if not using virt-install
+        # virt-install uses --initrd-inject, but direct XML needs a floppy device
+        floppy_image_path = None
+        if automation_file_path and not (use_virt_install and self.check_virt_install()):
+            try:
+                temp_dir = Path(automation_file_path).parent
+                floppy_image_path = self._create_floppy_image(str(automation_file_path), temp_dir)
+            except Exception as e:
+                self.logger.error(f"Failed to create floppy image: {e}")
+                # Continue without automation
+                floppy_image_path = None
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -1359,6 +1461,7 @@ class VMProvisioner:
                     loader_path=loader_path,
                     nvram_path=nvram_path,
                     boot_uefi=boot_uefi,
+                    automation_file_path=floppy_image_path,
                 )
 
             # Define the VM
@@ -1381,7 +1484,17 @@ class VMProvisioner:
             settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
             try:
                 self._run_virt_install(
-                    vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path
+                    vm_name,
+                    settings,
+                    disk_path,
+                    iso_path,
+                    memory_mb,
+                    vcpu,
+                    loader_path,
+                    nvram_path,
+                    automation_file_path=str(automation_file_path)
+                    if automation_file_path
+                    else None,
                 )
             except Exception as e:
                 logging.info(f"Can't install domain {vm_name}: {e}")
@@ -1403,6 +1516,7 @@ class VMProvisioner:
                 loader_path=loader_path,
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
+                automation_file_path=floppy_image_path,
             )
 
             # Define and Start VM
