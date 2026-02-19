@@ -91,6 +91,7 @@ from .vm_queries import (
     get_status,
 )
 from .vm_service import VMService
+from .template_manager import TemplateManager
 from .vmcard import VMCard
 from .vmcard_pool import VMCardPool
 from .webconsole_manager import WebConsoleManager
@@ -318,6 +319,7 @@ class VMManagerTUI(App):
         self.vm_service.set_data_update_callback(self.on_vm_data_update)
         self.vm_service.set_vm_update_callback(self.on_vm_update)
         self.vm_service.set_message_callback(self.on_service_message)
+        self.template_manager = TemplateManager()
         self.worker_manager = WorkerManager(self)
         self.webconsole_manager = WebConsoleManager(self)
         self.server_color_map = {}

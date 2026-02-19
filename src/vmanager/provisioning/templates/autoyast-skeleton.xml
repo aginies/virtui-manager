@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<!DOCTYPE profile>
+<profile xmlns="http://www.suse.com/1.0/yast2ns" 
+         xmlns:config="http://www.suse.com/1.0/configns">
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+    </mode>
+  </general>
+
+  <software>
+    <packages config:type="list">
+      <package>openssh</package>
+    </packages>
+    <patterns config:type="list">
+      <pattern>base</pattern>
+    </patterns>
+  </software>
+
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <user_password>{root_password}</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+    </user>
+    <user>
+      <username>{user_name}</username>
+      <user_password>{user_password}</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+    </user>
+  </users>
+
+  <networking>
+    <interfaces config:type="list">
+      <interface>
+        <bootproto>dhcp</bootproto>
+        <device>eth0</device>
+        <startmode>auto</startmode>
+      </interface>
+    </interfaces>
+  </networking>
+
+  <host>
+    <hosts config:type="list">
+      <hosts_entry>
+        <host_address>127.0.0.1</host_address>
+        <names config:type="list">
+          <name>localhost</name>
+          <name>{hostname}</name>
+        </names>
+      </hosts_entry>
+    </hosts>
+  </host>
+</profile>

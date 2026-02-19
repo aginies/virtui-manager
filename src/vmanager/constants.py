@@ -1161,6 +1161,7 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
         "Template editing requires running inside tmux. "
         "Please start virtui-manager inside a tmux session."
     )
+    EDITOR_CANCELLED_OR_FAILED = _("Editor was cancelled or failed")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
