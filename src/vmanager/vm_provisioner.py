@@ -23,7 +23,7 @@ from typing import Any, Callable, Dict, List, Optional
 import libvirt
 
 from .config import load_config
-from .constants import AppInfo
+from .constants import AppInfo, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
@@ -33,12 +33,12 @@ from .storage_manager import create_volume
 
 
 class VMType(Enum):
-    SECURE = "Secure VM"
-    COMPUTATION = "Computation"
-    DESKTOP = "Desktop (Linux)"
-    WDESKTOP = "Windows"
-    WLDESKTOP = "Windows Legacy"
-    SERVER = "Server"
+    SECURE = StaticText.VM_TYPE_SECURE
+    COMPUTATION = StaticText.VM_TYPE_COMPUTATION
+    DESKTOP = StaticText.VM_TYPE_DESKTOP
+    WDESKTOP = StaticText.VM_TYPE_WDESKTOP
+    WLDESKTOP = StaticText.VM_TYPE_WLDESKTOP
+    SERVER = StaticText.VM_TYPE_SERVER
 
 
 class VMProvisioner:
@@ -1161,6 +1161,7 @@ class VMProvisioner:
         configure_before_install: bool = False,
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
+        automation_config: Optional[Dict[str, Any]] = None,
     ) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -1184,7 +1185,7 @@ class VMProvisioner:
             if progress_callback:
                 progress_callback(stage, percent)
 
-        report("Checking Environment", 0)
+        report(StaticText.PROVISIONING_CHECKING_ENVIRONMENT, 0)
 
         # Prepare Storage Pool for Disk
         pool = self.conn.storagePoolLookupByName(storage_pool_name)
@@ -1216,7 +1217,12 @@ class VMProvisioner:
             # Check if iso_url already points to an existing libvirt storage volume
             existing_iso_volume_path = self._find_iso_volume_by_path(current_iso_url)
             if existing_iso_volume_path:
-                report(f"Using existing ISO volume: {existing_iso_volume_path}", 55)
+                report(
+                    StaticText.PROVISIONING_USING_EXISTING_ISO_VOLUME.format(
+                        path=existing_iso_volume_path
+                    ),
+                    55,
+                )
                 return existing_iso_volume_path
             else:  # original behavior, downloads/copies to cache and then uploads to storage pool
                 iso_name = current_iso_url.split("/")[-1]
@@ -1231,18 +1237,21 @@ class VMProvisioner:
                         local_iso_path_for_upload = current_iso_url[7:]
                     else:
                         local_iso_path_for_upload = current_iso_url
-                    report("Using local ISO image", 50)
+                    report(StaticText.PROVISIONING_USING_LOCAL_ISO_IMAGE, 50)
                     return local_iso_path_for_upload
                 else:
                     local_iso_path_for_upload = str(iso_cache_dir / iso_name)
 
                     def download_cb(percent):
-                        report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4))  # 10-50%
+                        report(
+                            StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(percent=percent),
+                            10 + int(percent * 0.4),
+                        )  # 10-50%
 
                     if not os.path.exists(local_iso_path_for_upload):
                         self.download_iso(current_iso_url, local_iso_path_for_upload, download_cb)
                     else:
-                        report("ISO found in cache, skipping download", 50)
+                        report(StaticText.PROVISIONING_ISO_FOUND_IN_CACHE, 50)
 
                 # Return the local cached path directly
                 return local_iso_path_for_upload
@@ -1258,13 +1267,13 @@ class VMProvisioner:
         is_virt_install_available = use_virt_install and self.check_virt_install()
 
         if boot_uefi and not is_virt_install_available:
-            report("Setting up UEFI Firmware", 75)
+            report(StaticText.PROVISIONING_SETTING_UP_UEFI_FIRMWARE, 75)
             # Only setup NVRAM if we are not using virt-install
             # virt-install --boot uefi will handle this automatically if we don't pass paths
             loader_path, nvram_path = self._setup_uefi_nvram(vm_name, storage_pool_name, vm_type)
 
         # Create Disk
-        report("Creating Storage", 78)  # Adjusted percentage
+        report(StaticText.PROVISIONING_CREATING_STORAGE, 78)  # Adjusted percentage
 
         preallocation = (
             "metadata"
@@ -1287,6 +1296,40 @@ class VMProvisioner:
             lazy_refcounts=lazy_refcounts,
             cluster_size=cluster_size,
         )
+
+        # Generate automation file if automation is enabled
+        automation_file_path = None
+        if automation_config:
+            try:
+                report(StaticText.PROVISIONING_GENERATING_AUTOMATION_CONFIG, 82)
+
+                # Get the OpenSUSE provider to generate automation file
+                provider = self.get_provider("opensuse")
+                if provider:
+                    # Create a temporary directory for automation file
+                    import tempfile
+
+                    temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
+
+                    # Extract template name from automation config
+                    template_name = automation_config.get("template_name", "autoyast-basic.xml")
+
+                    # Generate automation file using the provider
+                    automation_file_path = provider.generate_automation_file(
+                        version=None,  # We don't have version info here, provider should handle this
+                        vm_name=vm_name,
+                        user_config=automation_config,
+                        output_path=temp_dir,
+                        template_name=template_name,
+                    )
+                    self.logger.info(f"Generated automation file: {automation_file_path}")
+                else:
+                    self.logger.warning("OpenSUSE provider not available for automation")
+
+            except Exception as e:
+                self.logger.error(f"Failed to generate automation file: {e}")
+                # Continue without automation rather than failing the entire process
+                automation_file_path = None
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -1319,7 +1362,7 @@ class VMProvisioner:
                 )
 
             # Define the VM
-            report("Defining VM", 85)
+            report(StaticText.PROVISIONING_DEFINING_VM, 85)
             dom = self.conn.defineXML(xml_desc)
 
             # Show the configuration in a modal if callback is provided
@@ -1329,12 +1372,12 @@ class VMProvisioner:
                 # Fallback: just log the configuration
                 logging.info(f"VM configuration defined for {vm_name}")
 
-            report("Provisioning Complete (Configuration Mode)", 100)
+            report(StaticText.PROVISIONING_COMPLETE_CONFIG_MODE, 100)
             return dom
 
         # Continue with normal VM creation
         if is_virt_install_available:
-            report("Configuring VM (virt-install)", 80)
+            report(StaticText.PROVISIONING_CONFIGURING_VM_VIRT_INSTALL, 80)
             settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
             try:
                 self._run_virt_install(
@@ -1343,12 +1386,12 @@ class VMProvisioner:
             except Exception as e:
                 logging.info(f"Can't install domain {vm_name}: {e}")
 
-            report("Waiting for VM", 95)
+            report(StaticText.PROVISIONING_WAITING_FOR_VM, 95)
             # Fetch the domain object
             dom = self.conn.lookupByName(vm_name)
         else:
             # Generate XML
-            report("Configuring VM (XML)", 80)
+            report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 80)
             xml_desc = self.generate_xml(
                 vm_name,
                 vm_type,
@@ -1363,9 +1406,9 @@ class VMProvisioner:
             )
 
             # Define and Start VM
-            report("Starting VM", 90)
+            report(StaticText.PROVISIONING_STARTING_VM, 90)
             dom = self.conn.defineXML(xml_desc)
             dom.create()
 
-        report("Provisioning Complete", 100)
+        report(StaticText.PROVISIONING_COMPLETE, 100)
         return dom

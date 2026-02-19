@@ -633,6 +633,75 @@ Specify the NUMA nodes to use.
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
 
+    # Expert Mode and Automated Installation Tooltips
+    EXPERT_MODE_TOOLTIP = _(
+        "Configure VM hardware specifications. These settings work with Automated Installation to create and configure your VM."
+    )
+    MEMORY_GB_TOOLTIP = _(
+        "RAM allocated to the VM. More memory allows better performance but uses more host resources."
+    )
+    CPU_COUNT_TOOLTIP = _(
+        "Number of virtual CPUs. Match to your workload - more CPUs for multitasking, fewer for simple tasks."
+    )
+    DISK_SIZE_GB_TOOLTIP = _(
+        "Virtual disk size. This is the maximum storage space available to the VM's operating system."
+    )
+    DISK_FORMAT_TOOLTIP = _(
+        "Storage format. Qcow2 supports snapshots and compression, Raw offers better performance."
+    )
+    FIRMWARE_SECTION_TOOLTIP = _(
+        "Boot firmware type. UEFI is modern and secure, Legacy BIOS for older operating systems."
+    )
+    AUTOMATED_INSTALLATION_TOOLTIP = _(
+        "Automatically configure the operating system during installation using AutoYaST templates. Works with Expert Mode hardware settings."
+    )
+    AUTOMATION_TEMPLATE_TOOLTIP = _(
+        "Choose a pre-configured installation template. Templates define software packages, users, and system settings."
+    )
+    AUTOMATION_USER_CONFIG_TOOLTIP = _(
+        "Configure the initial user accounts and system hostname for automated installation."
+    )
+
+    # Automated Installation UI Labels
+    AUTOMATED_INSTALLATION_TITLE = _("Automated Installation")
+    ENABLE_AUTOMATED_INSTALLATION = _("Enable automated installation")
+    INSTALLATION_TEMPLATE_LABEL = _("Installation Template")
+    LOADING_TEMPLATES_OPTION = _("Loading templates...")
+    SELECT_TEMPLATE_PROMPT = _("Select a template...")
+    ROOT_PASSWORD_LABEL = _("Root Password")
+    ROOT_PASSWORD_PLACEHOLDER = _("root password")
+    USERNAME_LABEL = _("Username")
+    USERNAME_PLACEHOLDER = _("username")
+    USER_PASSWORD_LABEL = _("User Password")
+    USER_PASSWORD_PLACEHOLDER = _("user password")
+    HOSTNAME_LABEL = _("Hostname")
+    HOSTNAME_PLACEHOLDER = _("hostname")
+
+    # VM Provisioner Progress Messages
+    PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
+    PROVISIONING_USING_EXISTING_ISO_VOLUME = _("Using existing ISO volume: {path}")
+    PROVISIONING_USING_LOCAL_ISO_IMAGE = _("Using local ISO image")
+    PROVISIONING_DOWNLOADING_ISO_PERCENT = _("Downloading ISO: {percent}%")
+    PROVISIONING_ISO_FOUND_IN_CACHE = _("ISO found in cache, skipping download")
+    PROVISIONING_SETTING_UP_UEFI_FIRMWARE = _("Setting up UEFI Firmware")
+    PROVISIONING_CREATING_STORAGE = _("Creating Storage")
+    PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
+    PROVISIONING_DEFINING_VM = _("Defining VM")
+    PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
+    PROVISIONING_CONFIGURING_VM_VIRT_INSTALL = _("Configuring VM (virt-install)")
+    PROVISIONING_WAITING_FOR_VM = _("Waiting for VM")
+    PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
+    PROVISIONING_STARTING_VM = _("Starting VM")
+    PROVISIONING_COMPLETE = _("Provisioning Complete")
+
+    # VM Type constants
+    VM_TYPE_SECURE = _("Secure VM")
+    VM_TYPE_COMPUTATION = _("Computation")
+    VM_TYPE_DESKTOP = _("Desktop (Linux)")
+    VM_TYPE_WDESKTOP = _("Windows")
+    VM_TYPE_WLDESKTOP = _("Windows Legacy")
+    VM_TYPE_SERVER = _("Server")
+
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")

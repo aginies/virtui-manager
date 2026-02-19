@@ -217,13 +217,245 @@ class OpenSUSEProvider(OSProvider):
         """Return required drivers for OpenSUSE (typically none needed)."""
         return []  # OpenSUSE has excellent hardware support out of the box
 
+    def get_available_templates(self) -> List[Dict[str, Any]]:
+        """Scan and return available AutoYaST templates (built-in + user templates)."""
+        templates_dir = Path(__file__).parent.parent / "templates"
+        templates = []
+
+        try:
+            # Look for built-in autoyast-*.xml files
+            for template_file in templates_dir.glob("autoyast-*.xml"):
+                template_name = template_file.stem
+
+                # Create display name from filename
+                if template_name == "autoyast-basic":
+                    display_name = "Basic Server"
+                    description = "Basic server installation with essential packages"
+                elif template_name == "autoyast-minimal":
+                    display_name = "Minimal System"
+                    description = "Minimal installation with only core packages"
+                elif template_name == "autoyast-desktop":
+                    display_name = "Desktop Environment"
+                    description = "Full desktop environment with GNOME and applications"
+                elif template_name == "autoyast-development":
+                    display_name = "Development Workstation"
+                    description = "Development environment with programming tools and IDE"
+                elif template_name == "autoyast-server":
+                    display_name = "Full Server"
+                    description = "Server installation with web, database, and mail services"
+                else:
+                    # Custom template - use filename as display name
+                    display_name = template_name.replace("autoyast-", "").replace("-", " ").title()
+                    description = f"Custom template: {template_file.name}"
+
+                templates.append(
+                    {
+                        "filename": template_file.name,
+                        "display_name": display_name,
+                        "description": description,
+                        "path": template_file,
+                        "type": "built-in",
+                    }
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error scanning AutoYaST templates: {e}")
+            # Fall back to basic template if scanning fails
+            basic_template = templates_dir / "autoyast-basic.xml"
+            if basic_template.exists():
+                templates.append(
+                    {
+                        "filename": "autoyast-basic.xml",
+                        "display_name": "Basic Server",
+                        "description": "Basic server installation (fallback)",
+                        "path": basic_template,
+                        "type": "built-in",
+                    }
+                )
+
+        # Add user-defined templates from config
+        try:
+            from ...config import get_user_autoyast_templates
+
+            user_templates = get_user_autoyast_templates()
+
+            for template_id, template_data in user_templates.items():
+                templates.append(
+                    {
+                        "filename": f"user_{template_id}",  # Prefix to identify user templates
+                        "display_name": f"{template_data['name']} (User)",
+                        "description": template_data.get("description", "User-defined template"),
+                        "content": template_data["content"],  # Store content instead of path
+                        "type": "user",
+                        "template_id": template_id,
+                    }
+                )
+        except ImportError:
+            # Config module not available (shouldn't happen but be safe)
+            self.logger.warning("Could not import config module to load user templates")
+        except Exception as e:
+            self.logger.error(f"Error loading user templates: {e}")
+
+        # Sort by type (built-in first) then by display name
+        templates.sort(key=lambda x: (x["type"] != "built-in", x["display_name"]))
+        return templates
+
+    def validate_template(self, template_path: Path) -> bool:
+        """Validate an AutoYaST template file."""
+        try:
+            # Check if file exists
+            if not template_path.exists():
+                self.logger.error(f"Template file does not exist: {template_path}")
+                return False
+
+            # Check if file is readable
+            if not template_path.is_file():
+                self.logger.error(f"Template path is not a file: {template_path}")
+                return False
+
+            # Try to parse as XML
+            import xml.etree.ElementTree as ET
+
+            try:
+                with open(template_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                # Check if it contains required template variables
+                required_variables = [
+                    "language",
+                    "keyboard",
+                    "timezone",
+                    "root_password",
+                    "user_name",
+                    "user_password",
+                    "hostname",
+                ]
+                missing_variables = []
+
+                for var in required_variables:
+                    if f"{{{var}}}" not in content:
+                        missing_variables.append(var)
+
+                if missing_variables:
+                    self.logger.warning(
+                        f"Template {template_path.name} missing variables: {missing_variables}"
+                    )
+                    # Don't fail validation for missing variables, just log warning
+
+                # Try to parse XML
+                ET.fromstring(content)
+
+                # Check if it's a valid AutoYaST profile
+                if 'xmlns="http://www.suse.com/1.0/yast2ns"' not in content:
+                    self.logger.warning(
+                        f"Template {template_path.name} may not be a valid AutoYaST profile (missing namespace)"
+                    )
+
+                self.logger.debug(f"Template validation passed: {template_path.name}")
+                return True
+
+            except ET.ParseError as e:
+                self.logger.error(f"Template {template_path.name} is not valid XML: {e}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"Error validating template {template_path}: {e}")
+            return False
+
+    def validate_template_content(self, template_content: str) -> tuple[bool, list[str]]:
+        """
+        Validate AutoYaST template content directly.
+
+        Returns:
+            tuple[bool, list[str]]: (is_valid, list_of_errors)
+        """
+        errors = []
+
+        try:
+            # Try to parse as XML
+            import xml.etree.ElementTree as ET
+
+            try:
+                ET.fromstring(template_content)
+            except ET.ParseError as e:
+                errors.append(f"Invalid XML: {e}")
+                return False, errors
+
+            # Check if it's a valid AutoYaST profile
+            if 'xmlns="http://www.suse.com/1.0/yast2ns"' not in template_content:
+                errors.append("Missing AutoYaST namespace declaration")
+
+            # Check for required XML structure
+            required_sections = ["<profile", "<general>", "<software>", "<users>"]
+            missing_sections = []
+
+            for section in required_sections:
+                if section not in template_content:
+                    missing_sections.append(section.strip("<>"))
+
+            if missing_sections:
+                errors.append(f"Missing required sections: {', '.join(missing_sections)}")
+
+            # Check for template variables (optional - warn but don't fail)
+            recommended_variables = [
+                "language",
+                "keyboard",
+                "timezone",
+                "root_password",
+                "user_name",
+                "user_password",
+                "hostname",
+            ]
+            missing_variables = []
+
+            for var in recommended_variables:
+                if f"{{{var}}}" not in template_content:
+                    missing_variables.append(var)
+
+            if missing_variables:
+                errors.append(
+                    f"Recommended variables missing (will use defaults): {', '.join(missing_variables)}"
+                )
+
+            # Check for dangerous or forbidden content
+            dangerous_patterns = ["rm -rf", "format c:", "dd if=", "mkfs", "> /dev/"]
+            found_dangerous = []
+
+            for pattern in dangerous_patterns:
+                if pattern in template_content.lower():
+                    found_dangerous.append(pattern)
+
+            if found_dangerous:
+                errors.append(f"Potentially dangerous commands found: {', '.join(found_dangerous)}")
+
+            # If we have errors but they're only warnings, consider it valid
+            serious_errors = [
+                e
+                for e in errors
+                if any(x in e.lower() for x in ["invalid xml", "missing required"])
+            ]
+            is_valid = len(serious_errors) == 0
+
+            return is_valid, errors
+
+        except Exception as e:
+            errors.append(f"Validation error: {e}")
+            return False, errors
+
     def generate_automation_file(
-        self, version: OSVersion, vm_name: str, user_config: Dict[str, Any], output_path: Path
+        self,
+        version: OSVersion,
+        vm_name: str,
+        user_config: Dict[str, Any],
+        output_path: Path,
+        template_name: str | None = None,
     ) -> Path:
         """Generate AutoYaST XML file for OpenSUSE automated installation."""
 
         # Get automation config with defaults
         config = self.get_automation_config(version)
+        if not config:
+            raise Exception(f"No automation config available for {version.display_name}")
         variables = config.variables.copy()
 
         # Override with user-provided values
@@ -233,15 +465,20 @@ class OpenSUSEProvider(OSProvider):
         clean_vm_name = re.sub(r"[^a-zA-Z0-9-]", "", vm_name)[:63]  # hostname limit
         variables["hostname"] = clean_vm_name or "opensuse-vm"
 
+        # Use specified template or default to basic
+        template_filename = template_name if template_name else "autoyast-basic.xml"
+
         # Generate AutoYaST content
-        autoyast_content = self._generate_autoyast_xml(version, variables)
+        autoyast_content = self._generate_autoyast_xml(version, variables, template_filename)
 
         # Write to output file
         output_file = output_path / "autoyast.xml"
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(autoyast_content)
 
-        self.logger.info(f"Generated autoyast.xml for {version.display_name} at {output_file}")
+        self.logger.info(
+            f"Generated autoyast.xml using template {template_filename} for {version.display_name} at {output_file}"
+        )
         return output_file
 
     def get_post_install_scripts(self, version: OSVersion) -> List[str]:
@@ -391,21 +628,53 @@ class OpenSUSEProvider(OSProvider):
             self.logger.warning(f"Failed to get details for {url}: {e}")
             return {"name": name, "url": url, "date": ""}
 
-    def _generate_autoyast_xml(self, version: OSVersion, variables: Dict[str, Any]) -> str:
+    def _generate_autoyast_xml(
+        self,
+        version: OSVersion,
+        variables: Dict[str, Any],
+        template_filename: str = "autoyast-basic.xml",
+    ) -> str:
         """Generate AutoYaST XML content for automated OpenSUSE installation."""
 
-        # Load AutoYaST template from external file
-        template_path = Path(__file__).parent.parent / "templates" / "autoyast.xml"
+        template = None
 
-        try:
-            with open(template_path, "r", encoding="utf-8") as f:
-                template = f.read()
-        except FileNotFoundError:
-            self.logger.error(f"AutoYaST template not found at {template_path}")
-            raise Exception(f"AutoYaST template file not found: {template_path}")
-        except Exception as e:
-            self.logger.error(f"Error reading AutoYaST template: {e}")
-            raise Exception(f"Failed to read AutoYaST template: {e}")
+        # Check if this is a user template (prefixed with "user_")
+        if template_filename.startswith("user_"):
+            template_id = template_filename.replace("user_", "")
+            try:
+                from ...config import get_user_autoyast_template
+
+                user_template = get_user_autoyast_template(template_id)
+                if user_template:
+                    template = user_template["content"]
+                    self.logger.info(f"Using user template: {user_template['name']}")
+                else:
+                    self.logger.error(f"User template {template_id} not found")
+            except Exception as e:
+                self.logger.error(f"Error loading user template {template_id}: {e}")
+
+        # If not a user template or user template failed, load from file
+        if template is None:
+            template_path = Path(__file__).parent.parent / "templates" / template_filename
+
+            try:
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template = f.read()
+            except FileNotFoundError:
+                self.logger.error(f"AutoYaST template not found at {template_path}")
+                # Try to fall back to basic template
+                fallback_path = Path(__file__).parent.parent / "templates" / "autoyast-basic.xml"
+                try:
+                    with open(fallback_path, "r", encoding="utf-8") as f:
+                        template = f.read()
+                    self.logger.warning(f"Using fallback template: autoyast-basic.xml")
+                except FileNotFoundError:
+                    raise Exception(
+                        f"Neither template {template_filename} nor fallback autoyast-basic.xml found"
+                    )
+            except Exception as e:
+                self.logger.error(f"Error reading AutoYaST template: {e}")
+                raise Exception(f"Failed to read AutoYaST template: {e}")
 
         return template.format(**variables)
 
