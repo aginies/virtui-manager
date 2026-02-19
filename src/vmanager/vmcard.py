@@ -58,7 +58,7 @@ from .modals.vmcard_dialog import (
 from .modals.vmdetails_modals import VMDetailModal
 from .modals.xml_modals import XMLDisplayModal
 from .utils import (
-    check_tmux,
+    is_inside_tmux,
     extract_server_name_from_uri,
     generate_tooltip_markdown,
     remote_viewer_cmd,
@@ -103,7 +103,7 @@ class VMCardActions(Static):
                     with Vertical():
                         yield Button(ButtonLabels.WEB_CONSOLE, id="web_console", variant="default")
                         yield Button(ButtonLabels.CONNECT, id="connect", variant="default")
-                        if os.environ.get("TMUX") and check_tmux():
+                        if is_inside_tmux():
                             yield Button(
                                 ButtonLabels.TEXT_CONSOLE, id="tmux_console", variant="default"
                             )
