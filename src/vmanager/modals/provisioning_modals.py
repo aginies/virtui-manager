@@ -27,7 +27,7 @@ from .vmdetails_modals import VMDetailModal
 
 class InstallVMModal(BaseModal[str | None]):
     """
-    Modal for creating and provisioning a new OpenSUSE VM.
+    Modal for creating and provisioning a new VM supporting multiple OS types.
     """
 
     def __init__(self, vm_service: VMService, uri: str):
@@ -63,7 +63,60 @@ class InstallVMModal(BaseModal[str | None]):
                 )
                 yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            yield Label(StaticText.DISTRIBUTION, classes="label")
+            yield Label("Operating System", classes="label")
+            os_options = [
+                ("OpenSUSE Linux", "opensuse"),
+                ("Windows", "windows"),
+                ("Custom", "custom"),
+            ]
+            yield Select(os_options, value="opensuse", id="os-type", allow_blank=False)
+
+            # Container for Windows version selection
+            with Vertical(id="windows-version-container"):
+                yield Label("Windows Version", classes="label")
+                yield Select(
+                    [
+                        ("Windows 10 Enterprise", "10"),
+                        ("Windows 11 Enterprise", "11"),
+                        ("Windows Server 2019", "2019"),
+                        ("Windows Server 2022", "2022"),
+                    ],
+                    value="10",
+                    id="windows-version",
+                    allow_blank=False,
+                )
+
+            # Container for OpenSUSE version selection
+            with Vertical(id="opensuse-version-container"):
+                yield Label("OpenSUSE Version", classes="label")
+                yield Select(
+                    [
+                        ("Leap 15.6", "leap-15.6"),
+                        ("Leap 16.0", "leap-16.0"),
+                        (OpenSUSEDistro.TUMBLEWEED.value, OpenSUSEDistro.TUMBLEWEED),
+                        (OpenSUSEDistro.SLOWROLL.value, OpenSUSEDistro.SLOWROLL),
+                        (OpenSUSEDistro.STABLE.value, OpenSUSEDistro.STABLE),
+                        (OpenSUSEDistro.CURRENT.value, OpenSUSEDistro.CURRENT),
+                    ],
+                    value="leap-15.6",
+                    id="opensuse-version",
+                    allow_blank=False,
+                )
+
+            # Container for Custom repositories (only custom repos from config)
+            with Vertical(id="custom-repos-container"):
+                yield Label("Custom Repository", classes="label", id="custom-repos-label")
+                custom_repos = self.provisioner.get_custom_repos()
+                custom_repo_options = []
+                for repo in custom_repos:
+                    # Use URI as value, Name as label
+                    name = repo.get("name", repo["uri"])
+                    uri = repo["uri"]
+                    custom_repo_options.append((name, uri))
+
+                yield Select(custom_repo_options, id="custom-repos", allow_blank=True)
+
+            yield Label(StaticText.DISTRIBUTION, classes="label", id="distribution-label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -178,10 +231,22 @@ class InstallVMModal(BaseModal[str | None]):
 
     def on_mount(self):
         """Called when modal is mounted."""
-        # Initial state
+        # Initial state - show OpenSUSE containers, hide Windows and Custom
+        self.query_one("#windows-version-container").styles.display = "none"
+        self.query_one(
+            "#opensuse-version-container"
+        ).styles.display = "block"  # Show for default OpenSUSE selection
+        self.query_one("#custom-repos-container").styles.display = "none"
         self.query_one("#custom-iso-container").styles.display = "none"
-        self.query_one("#repo-iso-container").styles.display = "none"
-        self.query_one("#pool-iso-container").styles.display = "none"  # Hide new container
+        self.query_one(
+            "#repo-iso-container"
+        ).styles.display = "block"  # Show for OpenSUSE by default
+        self.query_one("#pool-iso-container").styles.display = "none"
+
+        # Hide the old Distribution field (we'll keep it for backwards compatibility but hide it)
+        self.query_one("#distribution-label").styles.display = "none"
+        self.query_one("#distro", Select).styles.display = "none"
+
         # Ensure expert defaults are set correctly based on initial selection
         self._update_expert_defaults(self.query_one("#vm-type", Select).value)
 
@@ -189,6 +254,39 @@ class InstallVMModal(BaseModal[str | None]):
         storage_pool_select = self.query_one("#storage-pool-select", Select)
         if storage_pool_select.value:
             self.fetch_pool_isos(storage_pool_select.value)
+
+        # Trigger initial OpenSUSE version selection to load ISOs
+        # Use call_later to ensure all widgets are fully initialized
+        self.call_later(self._load_initial_opensuse_isos)
+
+    def _load_initial_opensuse_isos(self):
+        """Load ISOs for the initial OpenSUSE version selection."""
+        try:
+            logging.info("_load_initial_opensuse_isos() called")
+            opensuse_version_select = self.query_one("#opensuse-version", Select)
+            logging.info(f"OpenSUSE version select widget: {opensuse_version_select}")
+            logging.info(f"OpenSUSE version select value: {opensuse_version_select.value}")
+
+            if opensuse_version_select.value:
+                logging.info(
+                    f"Loading initial ISOs for OpenSUSE version: {opensuse_version_select.value}"
+                )
+                self.fetch_isos(opensuse_version_select.value)
+            else:
+                logging.warning("No OpenSUSE version selected for initial ISO loading")
+                # Try to set a default value
+                if hasattr(opensuse_version_select, "options") and opensuse_version_select.options:
+                    first_option = opensuse_version_select.options[0][
+                        1
+                    ]  # Get the value of first option
+                    logging.info(f"Setting default OpenSUSE version to: {first_option}")
+                    opensuse_version_select.value = first_option
+                    self.fetch_isos(first_option)
+        except Exception as e:
+            logging.error(f"Error in _load_initial_opensuse_isos: {e}")
+            import traceback
+
+            logging.error(f"Traceback: {traceback.format_exc()}")
 
     def _update_expert_defaults(self, vm_type):
         mem = 4
@@ -232,6 +330,101 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#vm-type")
     def on_vm_type_changed(self, event: Select.Changed):
         self._update_expert_defaults(event.value)
+
+    @on(Select.Changed, "#os-type")
+    def on_os_type_changed(self, event: Select.Changed):
+        """Handle OS type selection (opensuse vs windows vs custom)."""
+        os_type = event.value
+
+        # Hide all containers first
+        self.query_one("#windows-version-container").styles.display = "none"
+        self.query_one("#opensuse-version-container").styles.display = "none"
+        self.query_one("#custom-repos-container").styles.display = "none"
+        self.query_one("#repo-iso-container").styles.display = "none"
+        self.query_one("#custom-iso-container").styles.display = "none"
+        self.query_one("#pool-iso-container").styles.display = "none"
+
+        # Keep Distribution field hidden (it's legacy)
+        self.query_one("#distribution-label").styles.display = "none"
+        self.query_one("#distro", Select).styles.display = "none"
+
+        if os_type == "windows":
+            # Show Windows version selector
+            self.query_one("#windows-version-container").styles.display = "block"
+            # Update VM type defaults for Windows
+            vm_type = self.query_one("#vm-type", Select)
+            if vm_type.value in [VMType.DESKTOP]:
+                vm_type.value = VMType.WDESKTOP
+            self._update_expert_defaults(vm_type.value)
+        elif os_type == "opensuse":
+            # Show OpenSUSE version selector
+            self.query_one("#opensuse-version-container").styles.display = "block"
+            # Trigger OpenSUSE version selection to load ISOs
+            opensuse_version_select = self.query_one("#opensuse-version", Select)
+            if opensuse_version_select.value:
+                self.on_opensuse_version_changed(
+                    Select.Changed(opensuse_version_select, opensuse_version_select.value)
+                )
+            # Update VM type defaults for Linux
+            vm_type = self.query_one("#vm-type", Select)
+            if vm_type.value in [VMType.WDESKTOP, VMType.WLDESKTOP]:
+                vm_type.value = VMType.DESKTOP
+            self._update_expert_defaults(vm_type.value)
+        elif os_type == "custom":
+            # Show Custom repositories selector
+            self.query_one("#custom-repos-container").styles.display = "block"
+            # Trigger custom repo selection
+            custom_repos_select = self.query_one("#custom-repos", Select)
+            if custom_repos_select.value:
+                self.on_custom_repo_changed(
+                    Select.Changed(custom_repos_select, custom_repos_select.value)
+                )
+            # Update VM type defaults for Linux
+            vm_type = self.query_one("#vm-type", Select)
+            if vm_type.value in [VMType.WDESKTOP, VMType.WLDESKTOP]:
+                vm_type.value = VMType.DESKTOP
+            self._update_expert_defaults(vm_type.value)
+
+        self._check_form_validity()
+
+    @on(Select.Changed, "#opensuse-version")
+    def on_opensuse_version_changed(self, event: Select.Changed):
+        """Handle OpenSUSE version selection."""
+        opensuse_version = event.value
+
+        # Hide all ISO source containers first
+        self.query_one("#repo-iso-container").styles.display = "none"
+        self.query_one("#custom-iso-container").styles.display = "none"
+        self.query_one("#pool-iso-container").styles.display = "none"
+
+        if opensuse_version:
+            # Show repo ISO container and fetch ISOs for this OpenSUSE version
+            self.query_one("#repo-iso-container").styles.display = "block"
+            self.fetch_isos(opensuse_version)
+
+        self._check_form_validity()
+
+    @on(Select.Changed, "#custom-repos")
+    def on_custom_repo_changed(self, event: Select.Changed):
+        """Handle custom repository selection."""
+        custom_repo_uri = event.value
+
+        # Hide all ISO source containers first
+        self.query_one("#repo-iso-container").styles.display = "none"
+        self.query_one("#custom-iso-container").styles.display = "none"
+        self.query_one("#pool-iso-container").styles.display = "none"
+
+        if custom_repo_uri:
+            # Show repo ISO container and fetch ISOs from this custom repo
+            self.query_one("#repo-iso-container").styles.display = "block"
+            self.fetch_isos(custom_repo_uri)
+
+        self._check_form_validity()
+
+    @on(Select.Changed, "#windows-version")
+    def on_windows_version_changed(self, event: Select.Changed):
+        """Handle Windows version selection."""
+        self._check_form_validity()
 
     @on(Select.Changed, "#distro")
     def on_distro_changed(self, event: Select.Changed):
@@ -347,38 +540,110 @@ class InstallVMModal(BaseModal[str | None]):
 
         try:
             isos = []
+            # Debug logging
+            logging.info(f"Fetching ISOs for distro: {distro}, type: {type(distro)}")
+
+            # Check if provisioner is available
+            if not self.provisioner:
+                raise Exception("Provisioner is not initialized")
+
             if distro == "cached":
+                logging.info("Fetching cached ISOs")
                 isos = self.provisioner.get_cached_isos()
+                logging.info(f"get_cached_isos() returned: {isos}")
+            elif isinstance(distro, str) and distro.startswith("leap-"):
+                # Handle specific Leap versions
+                leap_version = distro.replace("leap-", "")
+                # Leap 16.x uses /offline/, older versions use /iso/
+                if leap_version.startswith("16."):
+                    leap_path = "offline"
+                else:
+                    leap_path = "iso"
+                leap_url = (
+                    f"https://download.opensuse.org/distribution/leap/{leap_version}/{leap_path}/"
+                )
+                logging.info(f"Fetching ISOs for Leap {leap_version} from URL: {leap_url}")
+                isos = self.provisioner.get_iso_list_from_url(leap_url)
+                logging.info(f"get_iso_list_from_url({leap_url}) returned: {isos}")
             else:
+                logging.info(f"Calling provisioner.get_iso_list({distro})")
                 isos = self.provisioner.get_iso_list(distro)
+                logging.info(f"get_iso_list({distro}) returned: {isos}")
+
+            # Debug logging
+            logging.info(f"Retrieved {len(isos)} ISOs for {distro}")
+
+            # Remove test ISOs since real fetching is working
+            # TEMPORARY: Add test ISOs if none found (for debugging UI)
+            # if not isos and isinstance(distro, OpenSUSEDistro):
+            #     logging.warning(f"No ISOs found for {distro}, adding test ISOs for debugging")
+            #     isos = [
+            #         {
+            #             "name": f"Test-{distro.value}-DVD-x86_64-Current.iso",
+            #             "url": f"https://example.com/test-{distro.value.lower()}.iso",
+            #             "date": "2024-01-01"
+            #         },
+            #         {
+            #             "name": f"Test-{distro.value}-NET-x86_64-Current.iso",
+            #             "url": f"https://example.com/test-{distro.value.lower()}-net.iso",
+            #             "date": "2024-01-01"
+            #         }
+            #     ]
+            #     logging.info(f"Added test ISOs: {isos}")
 
             # Create Select options: (label, url)
             iso_options = []
-            for iso in isos:
-                name = iso["name"]
-                url = iso["url"]
-                date = iso.get("date", "")
+            for i, iso in enumerate(isos):
+                try:
+                    logging.info(f"Processing ISO {i}: {iso}")
+                    name = iso.get("name", "Unknown")
+                    url = iso.get("url", "")
+                    date = iso.get("date", "")
 
-                label = f"{name} ({date})" if date else name
-                iso_options.append((label, url))
+                    if not url:
+                        logging.warning(f"Skipping ISO with empty URL: {iso}")
+                        continue
+
+                    label = f"{name} ({date})" if date else name
+                    iso_options.append((label, url))
+                    logging.info(f"Added ISO option: {label} -> {url}")
+                except Exception as e:
+                    logging.error(f"Error processing ISO {i}: {iso}, error: {e}")
+                    continue
+
+            logging.info(f"Created {len(iso_options)} ISO options")
 
             def update_select():
                 sel = self.query_one("#iso-select", Select)
+                logging.info(f"Updating ISO select with {len(iso_options)} options")
                 sel.set_options(iso_options)
                 sel.disabled = False
                 if iso_options:
                     sel.value = iso_options[0][1]  # Select first by default
+                    logging.info(f"Set default ISO to: {iso_options[0][1]}")
                 else:
                     sel.clear()  # No options, clear any previous value
+                    logging.info("No ISO options available, cleared select")
                 self._update_iso_status("", False)
                 self._check_form_validity()  # Re-check validity after options change
 
             self.app.call_from_thread(update_select)
 
         except Exception as e:
+            logging.error(f"Error fetching ISOs for {distro}: {e}")
+            import traceback
+
+            logging.error(f"Traceback: {traceback.format_exc()}")
+
             self.app.call_from_thread(
                 self.app.show_error_message,
                 ErrorMessages.FAILED_TO_FETCH_ISOS_TEMPLATE.format(error=e),
+            )
+            self.app.call_from_thread(
+                self._update_iso_status, StaticText.ERROR_FETCHING_ISOS, False
+            )
+            self.app.call_from_thread(
+                self._update_iso_status, StaticText.ERROR_FETCHING_ISOS, False
             )
             self.app.call_from_thread(
                 self._update_iso_status, StaticText.ERROR_FETCHING_ISOS, False
@@ -405,21 +670,29 @@ class InstallVMModal(BaseModal[str | None]):
 
     def _check_form_validity(self):
         name = self.query_one("#vm-name", Input).value.strip()
-        distro = self.query_one("#distro", Select).value
+        os_type = self.query_one("#os-type", Select).value
 
-        valid_iso = False
-        if distro == OpenSUSEDistro.CUSTOM:
-            path = self.query_one("#custom-iso-path", Input).value.strip()
-            valid_iso = bool(path)  # Basic check, validation happens on install
-        elif distro == "pool_volumes":
-            iso_volume = self.query_one("#iso-volume-select", Select).value
-            valid_iso = iso_volume and iso_volume != Select.BLANK
-        else:
-            iso = self.query_one("#iso-select", Select).value
-            valid_iso = iso and iso != Select.BLANK
+        valid_config = False
+
+        if os_type == "windows":
+            # For Windows, just need a version selected
+            windows_version = self.query_one("#windows-version", Select).value
+            valid_config = bool(windows_version and windows_version != Select.BLANK)
+        elif os_type == "opensuse":
+            # For OpenSUSE, need version selected and ISO selected
+            opensuse_version = self.query_one("#opensuse-version", Select).value
+            if opensuse_version and opensuse_version != Select.BLANK:
+                iso = self.query_one("#iso-select", Select).value
+                valid_config = iso and iso != Select.BLANK
+        elif os_type == "custom":
+            # For Custom, need custom repo selected and ISO selected
+            custom_repo = self.query_one("#custom-repos", Select).value
+            if custom_repo and custom_repo != Select.BLANK:
+                iso = self.query_one("#iso-select", Select).value
+                valid_config = iso and iso != Select.BLANK
 
         btn = self.query_one("#install-btn", Button)
-        if name and valid_iso:
+        if name and valid_config:
             btn.disabled = False
         else:
             btn.disabled = True
@@ -488,7 +761,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         vm_type = self.query_one("#vm-type", Select).value
         pool_name = self.query_one("#pool", Select).value
-        distro = self.query_one("#distro", Select).value
+        os_type = self.query_one("#os-type", Select).value
         configure_before_install = self.query_one(
             "#configure-before-install-checkbox", Checkbox
         ).value
@@ -498,29 +771,39 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.show_error_message(ErrorMessages.PLEASE_SELECT_VALID_STORAGE_POOL)
             return
 
+        # Handle OS-specific configuration
         iso_url = None
         custom_path = None
         checksum = None
         validate = False
+        windows_version = None
 
-        if distro == OpenSUSEDistro.CUSTOM:
-            custom_path = self.query_one("#custom-iso-path", Input).value.strip()
-            validate = self.query_one("#validate-checksum", Checkbox).value
-            if validate:
-                checksum = self.query_one("#checksum-input", Input).value.strip()
-        elif distro == "pool_volumes":
-            iso_url = self.query_one("#iso-volume-select", Select).value
-            if not iso_url or iso_url == Select.BLANK:
-                self.app.show_error_message(ErrorMessages.SELECT_VALID_ISO_VOLUME)
+        if os_type == "windows":
+            # Windows VM configuration
+            windows_version = self.query_one("#windows-version", Select).value
+            if not windows_version or windows_version == Select.BLANK:
+                self.app.show_error_message("Please select a Windows version")
                 return
-            # Validate that the volume path exists and is accessible
-            if not os.path.exists(iso_url):
-                self.app.show_error_message(
-                    ErrorMessages.ISO_VOLUME_NOT_FOUND_TEMPLATE.format(iso_url=iso_url)
-                )
-                return
-        else:
+        elif os_type == "opensuse":
+            # OpenSUSE configuration - get selected ISO from the opensuse version selection
+            opensuse_version = self.query_one("#opensuse-version", Select).value
             iso_url = self.query_one("#iso-select", Select).value
+            if not opensuse_version or opensuse_version == Select.BLANK:
+                self.app.show_error_message("Please select an OpenSUSE version")
+                return
+            if not iso_url or iso_url == Select.BLANK:
+                self.app.show_error_message("Please select an OpenSUSE ISO")
+                return
+        elif os_type == "custom":
+            # Custom repository configuration
+            custom_repo = self.query_one("#custom-repos", Select).value
+            iso_url = self.query_one("#iso-select", Select).value
+            if not custom_repo or custom_repo == Select.BLANK:
+                self.app.show_error_message("Please select a custom repository")
+                return
+            if not iso_url or iso_url == Select.BLANK:
+                self.app.show_error_message("Please select an ISO from the custom repository")
+                return
 
         # Expert Mode Settings
         try:
@@ -574,6 +857,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.run_provisioning(
             vm_name,
             vm_type,
+            os_type,
             iso_url,
             pool_name,
             custom_path,
@@ -585,6 +869,7 @@ class InstallVMModal(BaseModal[str | None]):
             disk_format,
             boot_uefi,
             configure_before_install,
+            windows_version,
         )
 
     @work(exclusive=True, thread=True)
@@ -592,6 +877,7 @@ class InstallVMModal(BaseModal[str | None]):
         self,
         name,
         vm_type,
+        os_type,
         iso_url,
         pool_name,
         custom_path,
@@ -603,6 +889,7 @@ class InstallVMModal(BaseModal[str | None]):
         disk_format,
         boot_uefi,
         configure_before_install,
+        windows_version=None,
     ):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
@@ -726,22 +1013,42 @@ class InstallVMModal(BaseModal[str | None]):
 
                     self.app.call_from_thread(push_details)
 
-                dom = self.provisioner.provision_vm(
-                    vm_name=name,
-                    vm_type=vm_type,
-                    iso_url=final_iso_url,
-                    storage_pool_name=pool_name,
-                    memory_mb=memory_mb,
-                    vcpu=vcpu,
-                    disk_size_gb=disk_size,
-                    disk_format=disk_format,
-                    boot_uefi=boot_uefi,
-                    configure_before_install=configure_before_install,
-                    show_config_modal_callback=(
-                        show_config_modal if configure_before_install else None
-                    ),
-                    progress_callback=progress_cb,
-                )
+                # Call appropriate provisioning method based on OS type
+                if os_type == "windows":
+                    dom = self.provisioner.provision_windows_vm(
+                        vm_name=name,
+                        vm_type=vm_type,
+                        windows_version=windows_version,
+                        storage_pool_name=pool_name,
+                        memory_mb=memory_mb,
+                        vcpu=vcpu,
+                        disk_size_gb=disk_size,
+                        disk_format=disk_format,
+                        boot_uefi=boot_uefi,
+                        configure_before_install=configure_before_install,
+                        show_config_modal_callback=(
+                            show_config_modal if configure_before_install else None
+                        ),
+                        progress_callback=progress_cb,
+                    )
+                else:
+                    # Both OpenSUSE and Custom use the same provisioning method with ISO selection
+                    dom = self.provisioner.provision_vm(
+                        vm_name=name,
+                        vm_type=vm_type,
+                        iso_url=final_iso_url,
+                        storage_pool_name=pool_name,
+                        memory_mb=memory_mb,
+                        vcpu=vcpu,
+                        disk_size_gb=disk_size,
+                        disk_format=disk_format,
+                        boot_uefi=boot_uefi,
+                        configure_before_install=configure_before_install,
+                        show_config_modal_callback=(
+                            show_config_modal if configure_before_install else None
+                        ),
+                        progress_callback=progress_cb,
+                    )
             finally:
                 self.app.call_from_thread(self.app.vm_service.resume_global_updates)
                 self.app.call_from_thread(self.app.vm_service.invalidate_domain_cache)
