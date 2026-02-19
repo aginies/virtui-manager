@@ -463,6 +463,57 @@ def get_vm_disks(domain: libvirt.virDomain) -> list[dict]:
     return get_vm_disks_info(conn, root)
 
 
+def _parse_disk_element(conn: libvirt.virConnect, disk: ET.Element, status: str) -> dict | None:
+    """
+    Helper function to parse a single disk element and return its information.
+
+    Args:
+        conn: libvirt connection (for resolving pool/volume paths)
+        disk: XML element representing a disk
+        status: "enabled" or "disabled"
+
+    Returns:
+        Dictionary with disk info, or None if disk has no path
+    """
+    disk_path = ""
+    device_type = disk.get("device", "disk")  # Get device type (disk/cdrom)
+    disk_source = disk.find("source")
+
+    if disk_source is not None:
+        if "file" in disk_source.attrib:
+            disk_path = disk_source.attrib["file"]
+        elif "dev" in disk_source.attrib:
+            disk_path = disk_source.attrib["dev"]
+        elif "pool" in disk_source.attrib and "volume" in disk_source.attrib:
+            pool_name = disk_source.attrib["pool"]
+            vol_name = disk_source.attrib["volume"]
+            try:
+                pool = conn.storagePoolLookupByName(pool_name)
+                vol = pool.storageVolLookupByName(vol_name)
+                disk_path = vol.path()
+            except libvirt.libvirtError:
+                disk_path = f"Error: volume '{vol_name}' not found in pool '{pool_name}'"
+
+    if not disk_path:
+        return None
+
+    driver = disk.find("driver")
+    cache_mode = driver.get("cache") if driver is not None else "default"
+    discard_mode = driver.get("discard") if driver is not None else "ignore"
+
+    target_elem = disk.find("target")
+    bus = target_elem.get("bus") if target_elem is not None else "N/A"
+
+    return {
+        "path": disk_path,
+        "status": status,
+        "cache_mode": cache_mode,
+        "discard_mode": discard_mode,
+        "bus": bus,
+        "device_type": device_type,
+    }
+
+
 def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
     """
     Extracts disks info from a VM's XML definition.
@@ -477,44 +528,9 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
         devices = root.find("devices")
         if devices is not None:
             for disk in devices.findall("disk"):
-                disk_path = ""
-                device_type = disk.get("device", "disk")  # Get device type (disk/cdrom)
-                disk_source = disk.find("source")
-                if disk_source is not None:
-                    if "file" in disk_source.attrib:
-                        disk_path = disk_source.attrib["file"]
-                    elif "dev" in disk_source.attrib:
-                        disk_path = disk_source.attrib["dev"]
-                    elif "pool" in disk_source.attrib and "volume" in disk_source.attrib:
-                        pool_name = disk_source.attrib["pool"]
-                        vol_name = disk_source.attrib["volume"]
-                        try:
-                            pool = conn.storagePoolLookupByName(pool_name)
-                            vol = pool.storageVolLookupByName(vol_name)
-                            disk_path = vol.path()
-                        except libvirt.libvirtError:
-                            disk_path = (
-                                f"Error: volume '{vol_name}' not found in pool '{pool_name}'"
-                            )
-
-                if disk_path:
-                    driver = disk.find("driver")
-                    cache_mode = driver.get("cache") if driver is not None else "default"
-                    discard_mode = driver.get("discard") if driver is not None else "ignore"
-
-                    target_elem = disk.find("target")
-                    bus = target_elem.get("bus") if target_elem is not None else "N/A"
-
-                    disks.append(
-                        {
-                            "path": disk_path,
-                            "status": "enabled",
-                            "cache_mode": cache_mode,
-                            "discard_mode": discard_mode,
-                            "bus": bus,
-                            "device_type": device_type,
-                        }
-                    )
+                disk_info = _parse_disk_element(conn, disk, "enabled")
+                if disk_info:
+                    disks.append(disk_info)
 
         # Disabled disks from metadata
         metadata_elem = root.find("metadata")
@@ -525,42 +541,9 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
                 disabled_disks_elem = _get_disabled_disks_elem(root)
                 if disabled_disks_elem is not None:
                     for disk in disabled_disks_elem.findall("disk"):
-                        disk_path = ""
-                        device_type = disk.get("device", "disk")  # Get device type
-                        disk_source = disk.find("source")
-                        if disk_source is not None:
-                            if "file" in disk_source.attrib:
-                                disk_path = disk_source.attrib["file"]
-                            elif "dev" in disk_source.attrib:
-                                disk_path = disk_source.attrib["dev"]
-                            elif "pool" in disk_source.attrib and "volume" in disk_source.attrib:
-                                pool_name = disk_source.attrib["pool"]
-                                vol_name = disk_source.attrib["volume"]
-                                try:
-                                    pool = conn.storagePoolLookupByName(pool_name)
-                                    vol = pool.storageVolLookupByName(vol_name)
-                                    disk_path = vol.path()
-                                except libvirt.libvirtError:
-                                    disk_path = f"Error: volume '{vol_name}' not found in pool '{pool_name}'"
-
-                        if disk_path:
-                            driver = disk.find("driver")
-                            cache_mode = driver.get("cache") if driver is not None else "default"
-                            discard_mode = driver.get("discard") if driver is not None else "ignore"
-
-                            target_elem = disk.find("target")
-                            bus = target_elem.get("bus") if target_elem is not None else "N/A"
-
-                            disks.append(
-                                {
-                                    "path": disk_path,
-                                    "status": "disabled",
-                                    "cache_mode": cache_mode,
-                                    "discard_mode": discard_mode,
-                                    "bus": bus,
-                                    "device_type": device_type,
-                                }
-                            )
+                        disk_info = _parse_disk_element(conn, disk, "disabled")
+                        if disk_info:
+                            disks.append(disk_info)
     except Exception:
         pass  # Failed to get disks, continue without them
 
