@@ -508,7 +508,21 @@ def check_websockify() -> bool:
         return False
 
 
-def check_tmux() -> bool:
+def is_tmux_available() -> bool:
+    """
+    Checks if tmux command is available on the system.
+
+    Returns:
+        bool: True if tmux is installed, False otherwise
+    """
+    try:
+        return shutil.which("tmux") is not None
+    except (OSError, AttributeError) as e:
+        logging.error("Error checking tmux availability: %s", e)
+        return False
+
+
+def is_inside_tmux() -> bool:
     """
     Checks if running inside a tmux session and tmux command is available.
 
@@ -516,9 +530,9 @@ def check_tmux() -> bool:
         bool: True if inside tmux and tmux is installed, False otherwise
     """
     try:
-        return os.environ.get("TMUX") is not None and shutil.which("tmux") is not None
+        return os.environ.get("TMUX") is not None and is_tmux_available()
     except (OSError, AttributeError) as e:
-        logging.error("Error checking tmux: %s", e)
+        logging.error("Error checking tmux session: %s", e)
         return False
 
 
