@@ -686,6 +686,7 @@ Specify the NUMA nodes to use.
     PROVISIONING_SETTING_UP_UEFI_FIRMWARE = _("Setting up UEFI Firmware")
     PROVISIONING_CREATING_STORAGE = _("Creating Storage")
     PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
+    PROVISIONING_EDITING_AUTOMATION_FILE = _("Opening automation file in editor")
     PROVISIONING_DEFINING_VM = _("Defining VM")
     PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
     PROVISIONING_CONFIGURING_VM_VIRT_INSTALL = _("Configuring VM (virt-install)")
@@ -1156,6 +1157,10 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ERROR_READING_LOG_FILE = _("Error reading log file: {error}")
     TERMINAL_HEIGHT_TOO_SMALL = _("Terminal height is too small ({height} lines). Please resize.")
     TERMINAL_WIDTH_TOO_SMALL = _("Terminal width is too small ({width} columns). Please resize.")
+    TMUX_REQUIRED_FOR_TEMPLATE_EDITING = _(
+        "Template editing requires running inside tmux. "
+        "Please start virtui-manager inside a tmux session."
+    )
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
