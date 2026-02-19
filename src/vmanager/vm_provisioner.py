@@ -28,7 +28,7 @@ from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType
-from .provisioning.providers.opensuse_provider import OpenSUSEProvider
+from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
 from .storage_manager import create_volume
 
 
@@ -39,15 +39,6 @@ class VMType(Enum):
     WDESKTOP = "Windows"
     WLDESKTOP = "Windows Legacy"
     SERVER = "Server"
-
-
-class OpenSUSEDistro(Enum):
-    LEAP = "Leap"
-    TUMBLEWEED = "Tumbleweed"
-    SLOWROLL = "Slowroll"
-    STABLE = "Stable (Leap)"
-    CURRENT = "Current (Tumbleweed)"
-    CUSTOM = "Custom ISO"
 
 
 class VMProvisioner:
@@ -298,11 +289,14 @@ class VMProvisioner:
             Dictionary with ISO details or None if failed
         """
         try:
+            # Clean the ISO name by removing ./ prefix if present
+            clean_iso_name = iso_name.lstrip("./")
+
             # Construct full URL for the ISO
             if base_url.endswith("/"):
-                iso_url = base_url + iso_name
+                iso_url = base_url + clean_iso_name
             else:
-                iso_url = base_url + "/" + iso_name
+                iso_url = base_url + "/" + clean_iso_name
 
             # Make HEAD request to get Last-Modified header
             context = ssl._create_unverified_context()
@@ -321,13 +315,14 @@ class VMProvisioner:
                     except Exception:
                         date_str = last_modified
 
-                return {"name": iso_name, "url": iso_url, "date": date_str}
+                return {"name": clean_iso_name, "url": iso_url, "date": date_str}
 
         except Exception as e:
             logging.warning(f"Failed to get details for {iso_name}: {e}")
-            # Return basic info even if we can't get details
-            iso_url = f"{base_url.rstrip('/')}/{iso_name}"
-            return {"name": iso_name, "url": iso_url, "date": "Unknown"}
+            # Clean the ISO name and return basic info even if we can't get details
+            clean_iso_name = iso_name.lstrip("./")
+            iso_url = f"{base_url.rstrip('/')}/{clean_iso_name}"
+            return {"name": clean_iso_name, "url": iso_url, "date": "Unknown"}
 
     def download_iso(
         self, url: str, dest_path: str, progress_callback: Optional[Callable[[int], None]] = None
