@@ -8,7 +8,6 @@ import os
 import signal
 import socket
 import subprocess
-import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import partial
@@ -484,31 +483,39 @@ wp.websockify_init()
                 pass
             return
 
-        # Check if the remote process is still alive after a short delay
-        time.sleep(1)
-        try:
-            check_alive_cmd = ["ssh", remote_user_host, f"kill -0 {remote_pid}"]
-            result = subprocess.run(check_alive_cmd, check=False, capture_output=True, timeout=5)
-            if result.returncode != 0:
-                # Process is not alive
-                logging.error(
-                    f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch."
+        # Schedule delayed verification check (don't block main thread)
+        def verify_remote_process():
+            """Verify that the remote websockify process is still running after launch."""
+            try:
+                check_alive_cmd = ["ssh", remote_user_host, f"kill -0 {remote_pid}"]
+                if ssh_port != 22:
+                    check_alive_cmd.insert(1, "-p")
+                    check_alive_cmd.insert(2, str(ssh_port))
+                result = subprocess.run(
+                    check_alive_cmd, check=False, capture_output=True, timeout=5
                 )
-                self.app.call_from_thread(
-                    self.app.show_error_message,
-                    ErrorMessages.REMOTE_WEBCONSOLE_CRASHED_TEMPLATE.format(vm_name=vm_name),
+                if result.returncode != 0:
+                    # Process is not alive
+                    logging.error(
+                        f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch."
+                    )
+                    self.app.call_from_thread(
+                        self.app.show_error_message,
+                        ErrorMessages.REMOTE_WEBCONSOLE_CRASHED_TEMPLATE.format(vm_name=vm_name),
+                    )
+                    # Clean up the local ssh process
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                logging.warning(
+                    f"Failed to check remote process status for {remote_pid} on {remote_user_host}: {e}"
                 )
-                # Clean up the local ssh process
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-                return
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logging.warning(
-                f"Failed to check remote process status for {remote_pid} on {remote_user_host}: {e}"
-            )
-            # Can't verify, so we assume it's running and let it fail later if it's not.
+                # Can't verify, so we assume it's running and let it fail later if it's not.
+
+        # Schedule verification for 1 second later (non-blocking)
+        self.app.set_timer(1.0, verify_remote_process)
 
         # Find a free LOCAL port for the SSH tunnel
         local_tunnel_port = self._get_next_available_port(None)
@@ -618,6 +625,7 @@ wp.websockify_init()
         parsed_uri = urlparse(conn.getURI())
         user = parsed_uri.username
         host = parsed_uri.hostname
+        ssh_port = parsed_uri.port or 22  # Extract SSH port from URI
         remote_user_host = f"{user}@{host}" if user else host
 
         raw_uuid = uuid.split("@")[0]
@@ -638,10 +646,16 @@ wp.websockify_init()
             control_socket,
             "-f",
             "-N",
-            "-L",
-            f"{tunnel_port}:{vnc_target_host}:{vnc_port}",
-            remote_user_host,
         ]
+        if ssh_port != 22:
+            ssh_cmd.extend(["-p", str(ssh_port)])
+        ssh_cmd.extend(
+            [
+                "-L",
+                f"{tunnel_port}:{vnc_target_host}:{vnc_port}",
+                remote_user_host,
+            ]
+        )
 
         try:
             # Detach SSH tunnel process
@@ -654,7 +668,11 @@ wp.websockify_init()
                 stderr=subprocess.DEVNULL,
             )
             logging.info(f"SSH tunnel created for VM {vm_name} via {control_socket}")
-            return "127.0.0.1", tunnel_port, {"control_socket": control_socket}
+            return (
+                "127.0.0.1",
+                tunnel_port,
+                {"control_socket": control_socket, "ssh_port": ssh_port},
+            )
         except FileNotFoundError:
             self.app.call_from_thread(
                 self.app.show_error_message, ErrorMessages.SSH_COMMAND_NOT_FOUND
@@ -727,7 +745,9 @@ wp.websockify_init()
                 close_fds=True,
             )
 
-            url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
+            quality = self.config.get("VNC_QUALITY", 0)
+            compression = self.config.get("VNC_COMPRESSION", 9)
+            url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
 
             # Save session
             session_data = {
