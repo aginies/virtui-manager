@@ -940,7 +940,7 @@ class InstallVMModal(BaseModal[str | None]):
 
     def _edit_template_with_editor(self, selected_template_filename, is_new=False):
         """Edit a template using the system editor via TemplateManager."""
-        template_manager = self.app.template_manager
+        template_manager = self.app.autoyast_template_manager
         template_manager.provisioner = self.provisioner  # Set provisioner for validation
 
         # Prepare template data
@@ -1038,7 +1038,7 @@ class InstallVMModal(BaseModal[str | None]):
     def _validate_template_async(self, template_content: str, template_name: str):
         """Validate template content asynchronously in background."""
         try:
-            template_manager = self.app.template_manager
+            template_manager = self.app.autoyast_template_manager
             template_manager.provisioner = self.provisioner
 
             validation_result = template_manager.validate_template(template_content)
@@ -1116,7 +1116,7 @@ class InstallVMModal(BaseModal[str | None]):
                 self.notify("Please select a template to delete", severity="warning")
                 return
 
-            template_manager = self.app.template_manager
+            template_manager = self.app.autoyast_template_manager
 
             # Check if it's a user template
             if not template_manager.is_user_template(selected_value):
@@ -1159,7 +1159,7 @@ class InstallVMModal(BaseModal[str | None]):
                 self.notify("Please select a template to export", severity="warning")
                 return
 
-            template_manager = self.app.template_manager
+            template_manager = self.app.autoyast_template_manager
 
             # Export to user's home directory
             export_dir = Path.home()
