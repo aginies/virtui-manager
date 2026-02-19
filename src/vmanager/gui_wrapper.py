@@ -29,17 +29,11 @@ except ValueError as e:
 
 from gi.repository import Gdk, GLib, Gtk, Pango, Vte
 
+from vmanager.utils import is_tmux_available
+
 
 def is_running_under_flatpak():
     return "FLATPAK_ID" in os.environ
-
-
-def check_tmux():
-    try:
-        if shutil.which("tmux") is not None:
-            return True
-    except Exception:
-        return False
 
 
 # Constants
@@ -282,7 +276,7 @@ class VirtuiWrapper(Gtk.Window):
         else:
             tmux_bin = "tmux"
 
-        if check_tmux():
+        if is_tmux_available():
             session_name = f"vmanager-{int(time.time())}"
             cmd = [
                 tmux_bin,
