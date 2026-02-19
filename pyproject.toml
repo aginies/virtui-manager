@@ -80,7 +80,9 @@ vmanager = [
     "appdocs/*.md",
     "locale/*.pot",
     "locale/*/LC_MESSAGES/*.mo",
-    "locale/*/LC_MESSAGES/*.po"
+    "locale/*/LC_MESSAGES/*.po",
+    "provisioning/templates/*.xml",
+    "provisioning/templates/*.md"
 ]
 
 [tool.black]
