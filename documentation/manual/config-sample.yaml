@@ -1,0 +1,80 @@
+# VirtUI Manager Configuration File
+# 
+# Copy this file to ~/.config/virtui-manager/config.yaml and customize as needed.
+# This sample shows how to configure custom ISO repositories.
+
+# Custom ISO repositories for VM provisioning
+# These repositories will appear in the distribution dropdown during VM creation
+custom_ISO_repo:
+  # Example: Slackware Linux ISOs from official mirror
+  - name: Slackware 15
+    uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
+  
+  # Example: Qubes OS ISOs from kernel.org mirror
+  - name: Qubes R4 3.0
+    uri: https://mirrors.edge.kernel.org/qubes/iso/
+  
+  # Example: Local directory with Windows ISOs
+  - name: Windows
+    uri: /mnt/install/ISO/win/
+  
+  # Example: Local directory using file:// protocol
+  - name: Local ISOs
+    uri: file:///home/user/Downloads/isos/
+  
+  # Example: Ubuntu ISOs from official mirror
+  - name: Ubuntu Releases
+    uri: https://releases.ubuntu.com/
+  
+  # Example: Debian ISOs from official mirror  
+  - name: Debian ISOs
+    uri: https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/
+
+# Server connections (libvirt URIs)
+servers:
+  - name: Localhost
+    uri: qemu:///system
+  # - name: Remote Server
+  #   uri: qemu+ssh://user@server/system
+
+# Directory where downloaded ISOs are cached
+ISO_DOWNLOAD_PATH: ~/.cache/virtui-manager/isos
+
+# Log configuration
+LOG_FILE_PATH: ~/.cache/virtui-manager/vm_manager.log
+LOG_LEVEL: INFO
+
+# VNC/Console settings
+REMOTE_VIEWER: /usr/bin/remote-viewer
+REMOTE_WEBCONSOLE: false
+VNC_QUALITY: 0
+VNC_COMPRESSION: 9
+
+# Network and hardware model options
+network_models:
+  - virtio
+  - e1000
+  - e1000e
+  - rtl8139
+  - ne2k_pci
+  - pcnet
+
+sound_models:
+  - none
+  - ich6
+  - ich9
+  - ac97
+  - sb16
+  - usb
+
+# Performance settings
+STATS_INTERVAL: 5
+WEBSOCKIFY_BUF_SIZE: 4096
+
+# Web console port range
+WC_PORT_RANGE_START: 40000
+WC_PORT_RANGE_END: 40050
+
+# Paths to external tools
+websockify_path: /usr/bin/websockify
+novnc_path: /usr/share/novnc/
