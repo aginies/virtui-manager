@@ -3,7 +3,6 @@ Module for retrieving information about virtual machines.
 """
 
 import concurrent.futures
-import hashlib
 import logging
 import xml.etree.ElementTree as ET
 from functools import lru_cache
@@ -21,26 +20,19 @@ from .libvirt_utils import (
 )
 
 
-def _parse_domain_xml_by_hash(xml_hash: str, xml_content: str) -> ET.Element | None:
+@lru_cache(maxsize=256)
+def _parse_domain_xml(xml_content: str) -> ET.Element | None:
     """
-    Cache XML parsing results by hash for better hit rate.
-    Default cache size: 2048 (configurable via VIRTUI_XML_CACHE_SIZE env var)
-    Memory impact: ~30-90 MB for full cache
+    Cache XML parsing results.
+    Cache size: 256 entries (sufficient for typical VM counts)
+    Note: Caches by full XML content string for simplicity and correctness.
     """
+    if not xml_content:
+        return None
     try:
         return ET.fromstring(xml_content)
     except ET.ParseError:
         return None
-
-
-@lru_cache(maxsize=256)
-def _parse_domain_xml(xml_content: str) -> ET.Element | None:
-    """Cache XML parsing results."""
-    if not xml_content:
-        return None
-    # Use hash for cache key to handle equivalent XML with different whitespace
-    xml_hash = hashlib.md5(xml_content.encode()).hexdigest()
-    return _parse_domain_xml_by_hash(xml_hash, xml_content)
 
 
 def _get_domain_root(domain) -> tuple[str, ET.Element | None]:
@@ -129,12 +121,12 @@ def get_status(domain, state=None):
         return StatusText.STOPPED
 
 
-@lru_cache(maxsize=16)
 def get_vm_description(domain, root=None):
     """
     desc of the VM. Extracts it from XML to avoid triggering the noisy
     libvirt error handler that occurs when using domain.metadata()
     if the element is missing.
+    Note: Not cached due to unhashable domain parameter.
     """
     if root is None:
         _, root = _get_domain_root(domain)
@@ -461,21 +453,21 @@ def get_vm_devices_info(root: ET.Element) -> dict:
     return devices_info
 
 
-@lru_cache(maxsize=32)
 def get_vm_disks(domain: libvirt.virDomain) -> list[dict]:
     """
     Retrieves disk information for a domain.
+    Note: Not cached due to unhashable domain parameter.
     """
     conn = domain.connect()
     _, root = _get_domain_root(domain)
     return get_vm_disks_info(conn, root)
 
 
-@lru_cache(maxsize=256)
 def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
     """
     Extracts disks info from a VM's XML definition.
     Returns a list of dictionaries with 'path', 'status', 'bus', 'cache_mode', and 'discard_mode'.
+    Note: Not cached due to unhashable parameters (conn and root).
     """
     disks = []
     if root is None:
@@ -575,11 +567,11 @@ def get_vm_disks_info(conn: libvirt.virConnect, root: ET.Element) -> list[dict]:
     return disks
 
 
-@lru_cache(maxsize=32)
 def get_all_vm_disk_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     """
     Scans all VMs and returns a mapping of disk path to a list of VM names.
     Optimized to fetch VM XMLs and resolve disks in parallel.
+    Note: Not cached due to unhashable conn parameter.
     """
     disk_to_vms_map = {}
     if not conn:
@@ -709,10 +701,10 @@ def get_all_vm_nvram_usage(conn: libvirt.virConnect) -> dict[str, list[str]]:
     return nvram_to_vms_map
 
 
-@lru_cache(maxsize=32)
 def get_supported_machine_types(conn, domain):
     """
     Returns a list of supported machine types for the domain's architecture.
+    Note: Not cached due to unhashable parameters (conn and domain).
     """
     if not conn or not domain:
         return []
@@ -756,9 +748,11 @@ def get_vm_shared_memory_info(root: ET.Element) -> bool:
     return False
 
 
-@lru_cache(maxsize=32)
 def get_boot_info(conn: libvirt.virConnect, root: ET.Element) -> dict:
-    """Extracts boot information from the VM's XML."""
+    """
+    Extracts boot information from the VM's XML.
+    Note: Not cached due to unhashable parameters (conn and root).
+    """
     if root is None:
         return {"menu_enabled": False, "order": []}
     os_elem = root.find(".//os")
