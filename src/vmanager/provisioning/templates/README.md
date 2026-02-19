@@ -28,10 +28,37 @@ These templates use Python string formatting with the following variables:
 - `{language}`: System language (e.g., "en-US")
 - `{keyboard}`: Keyboard layout (e.g., "en-US")
 
+## Custom ISO Repositories
+
+Users can add custom ISO repositories in their config.yaml file using this syntax:
+
+```yaml
+custom_ISO_repo:
+  - name: Slackware 15
+    uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
+  - name: Qubes R4 3.0
+    uri: https://mirrors.edge.kernel.org/qubes/iso/
+  - name: Windows
+    uri: /mnt/install/ISO/win/
+  - name: Local ISOs
+    uri: file:///home/user/Downloads/isos/
+```
+
+### Repository Types Supported:
+- **HTTP/HTTPS URLs**: Remote directory listings are scraped for .iso files
+- **Local Paths**: Absolute paths to directories containing ISO files  
+- **file:// URLs**: File protocol URLs to local directories
+
+### Repository Features:
+- Architecture filtering (x86_64, aarch64)
+- Parallel detail fetching for remote repositories
+- Last-Modified date extraction from HTTP headers
+- Automatic SSL context handling for mirrors with certificate issues
+
 ## Usage
 
 Templates are automatically loaded by their respective providers:
 - OpenSUSEProvider loads `autoyast.xml`
 - WindowsProvider loads `unattend.xml`
 
-The providers handle variable substitution and generate the final automation files.
+Custom repositories are processed by VMProvisioner.get_iso_list() which delegates to appropriate handling methods based on the URI scheme.
