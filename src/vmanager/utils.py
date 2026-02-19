@@ -406,6 +406,33 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
     return messages
 
 
+def is_remote_connection(uri: str) -> bool:
+    """
+    Determines if the connection URI is for a remote qemu+ssh host.
+
+    Args:
+        uri: The libvirt connection URI
+
+    Returns:
+        bool: True if the URI represents a remote connection, False otherwise
+
+    Examples:
+        >>> is_remote_connection("qemu:///system")
+        False
+        >>> is_remote_connection("qemu+ssh://user@remote.host/system")
+        True
+        >>> is_remote_connection("qemu+ssh://localhost/system")
+        False
+    """
+    if not uri:
+        return False
+    parsed_uri = urlparse(uri)
+    return (
+        parsed_uri.hostname not in (None, "localhost", "127.0.0.1")
+        and parsed_uri.scheme == "qemu+ssh"
+    )
+
+
 def check_r_viewer(configured_viewer: str = None) -> str:
     """
     Checks if r-viewer is installed.
