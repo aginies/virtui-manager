@@ -3,6 +3,7 @@ Modals for VM Provisioning (Installation).
 """
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name
+from .template_modals import TemplateManagementModal
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
 from .vmdetails_modals import VMDetailModal
@@ -48,7 +50,7 @@ class InstallVMModal(BaseModal[str | None]):
         )
 
         with ScrollableContainer(id="install-dialog"):
-            yield Label(StaticText.INSTALL_OPENSUSE_VM.format(uri=self.uri), classes="title")
+            yield Label(StaticText.INSTALL_VM.format(uri=self.uri), classes="title")
             yield Label(StaticText.VM_NAME, classes="label")
             yield Input(placeholder="my-new-vm", id="vm-name")
 
@@ -60,60 +62,62 @@ class InstallVMModal(BaseModal[str | None]):
                     id="vm-type",
                     allow_blank=False,
                 )
-                yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
+                yield Button(ButtonLabels.INFO, id="vm-type-info-btn")
 
-            yield Label("Operating System", classes="label")
-            os_options = [
-                ("OpenSUSE Linux", "opensuse"),
-                ("Windows", "windows"),
-                ("Custom", "custom"),
-            ]
-            yield Select(os_options, value="opensuse", id="os-type", allow_blank=False)
-
-            # Container for Windows version selection
-            with Vertical(id="windows-version-container"):
-                yield Label("Windows Version", classes="label")
-                yield Select(
-                    [
-                        ("Windows 10 Enterprise", "10"),
-                        ("Windows 11 Enterprise", "11"),
-                        ("Windows Server 2019", "2019"),
-                        ("Windows Server 2022", "2022"),
-                    ],
-                    value="10",
-                    id="windows-version",
-                    allow_blank=False,
-                )
-
-            # Container for OpenSUSE version selection
-            with Vertical(id="opensuse-version-container"):
-                yield Label("OpenSUSE Version", classes="label")
-                yield Select(
-                    [
-                        ("Leap 15.6", "leap-15.6"),
-                        ("Leap 16.0", "leap-16.0"),
-                        (OpenSUSEDistro.TUMBLEWEED.value, OpenSUSEDistro.TUMBLEWEED),
-                        (OpenSUSEDistro.SLOWROLL.value, OpenSUSEDistro.SLOWROLL),
-                        (OpenSUSEDistro.STABLE.value, OpenSUSEDistro.STABLE),
-                        (OpenSUSEDistro.CURRENT.value, OpenSUSEDistro.CURRENT),
-                    ],
-                    value="leap-15.6",
-                    id="opensuse-version",
-                    allow_blank=False,
-                )
-
-            # Container for Custom repositories (only custom repos from config)
-            with Vertical(id="custom-repos-container"):
-                yield Label("Custom Repository", classes="label", id="custom-repos-label")
-                custom_repos = self.provisioner.get_custom_repos()
-                custom_repo_options = []
-                for repo in custom_repos:
-                    # Use URI as value, Name as label
-                    name = repo.get("name", repo["uri"])
-                    uri = repo["uri"]
-                    custom_repo_options.append((name, uri))
-
-                yield Select(custom_repo_options, id="custom-repos", allow_blank=True)
+            with Vertical(classes="label-row"):
+                # yield Label("Operating System", classes="label")
+                with Horizontal():
+                    with Vertical(id="os-type-container"):
+                        os_options = [
+                            ("OpenSUSE Linux", "opensuse"),
+                            ("Windows", "windows"),
+                            ("Custom", "custom"),
+                        ]
+                        yield Select(os_options, value="opensuse", id="os-type", allow_blank=False)
+                    with Vertical(id="os-version-containers"):
+                        # Container for Windows version selection
+                        with Vertical(id="windows-version-container"):
+                            # yield Label("Windows Version", classes="label")
+                            yield Select(
+                                [
+                                    ("Windows 10 Enterprise", "10"),
+                                    ("Windows 11 Enterprise", "11"),
+                                    ("Windows Server 2019", "2019"),
+                                    ("Windows Server 2022", "2022"),
+                                ],
+                                value="10",
+                                id="windows-version",
+                                allow_blank=False,
+                            )
+                        # Container for OpenSUSE version selection
+                        with Vertical(id="opensuse-version-container"):
+                            # yield Label("OpenSUSE Version", classes="label")
+                            yield Select(
+                                [
+                                    ("Leap 15.6", "leap-15.6"),
+                                    ("Leap 16.0", "leap-16.0"),
+                                    (OpenSUSEDistro.TUMBLEWEED.value, OpenSUSEDistro.TUMBLEWEED),
+                                    (OpenSUSEDistro.SLOWROLL.value, OpenSUSEDistro.SLOWROLL),
+                                    (OpenSUSEDistro.STABLE.value, OpenSUSEDistro.STABLE),
+                                    (OpenSUSEDistro.CURRENT.value, OpenSUSEDistro.CURRENT),
+                                ],
+                                value="leap-15.6",
+                                id="opensuse-version",
+                                allow_blank=False,
+                            )
+                        # Container for Custom repositories (custom repos from config + cached ISOs)
+                        with Vertical(id="custom-repos-container"):
+                            # yield Label("Custom Repository", classes="label", id="custom-repos-label")
+                            custom_repos = self.provisioner.get_custom_repos()
+                            custom_repo_options = [
+                                (StaticText.CACHED_ISOS, "cached")
+                            ]  # Start with cached ISOs
+                            for repo in custom_repos:
+                                # Use URI as value, Name as label
+                                name = repo.get("name", repo["uri"])
+                                uri = repo["uri"]
+                                custom_repo_options.append((name, uri))
+                            yield Select(custom_repo_options, id="custom-repos", allow_blank=False)
 
             yield Label(StaticText.DISTRIBUTION, classes="label", id="distribution-label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
@@ -133,7 +137,7 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
-                yield Label(StaticText.ISO_IMAGE_REPO, classes="label")
+                # yield Label(StaticText.ISO_IMAGE_REPO, classes="label")
                 config = load_config()
                 iso_path = Path(
                     config.get(
@@ -186,8 +190,10 @@ class InstallVMModal(BaseModal[str | None]):
                     disabled=True,
                 )
 
-            yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-            yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+            with Vertical(id="pool-selection"):
+                yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
+                yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
@@ -222,53 +228,28 @@ class InstallVMModal(BaseModal[str | None]):
                 id="automation-collapsible",
                 collapsed=True,
             ):
-                yield Checkbox(
-                    StaticText.ENABLE_AUTOMATED_INSTALLATION,
-                    id="enable-automation-checkbox",
-                    value=False,
-                    tooltip=StaticText.AUTOMATED_INSTALLATION_TOOLTIP,
-                )
-
                 with Horizontal(id="auto-mode"):
-                    # Template selection - only visible when automation is enabled
+                    # Template selection - "None" means no automation
                     with Vertical(id="automation-template-container"):
                         yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
-                        yield Select(
-                            [
-                                (StaticText.LOADING_TEMPLATES_OPTION, "loading")
-                            ],  # Placeholder option until templates load
-                            prompt=StaticText.SELECT_TEMPLATE_PROMPT,
-                            id="automation-template-select",
-                            disabled=True,
-                            allow_blank=True,
-                            tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
-                        )
-
-                        # Template management buttons
                         with Horizontal(classes="template-management-buttons"):
-                            yield Button(
-                                "Create New", id="create-template-btn", classes="small-button"
+                            yield Select(
+                                [("None", None)],  # Default: no automation
+                                value=None,
+                                id="automation-template-select",
+                                allow_blank=False,
+                                tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
                             )
+                            # Template management button
+                            # with Horizontal(classes="template-management-buttons"):
                             yield Button(
-                                "Edit",
-                                id="edit-template-btn",
+                                StaticText.MANAGE_TEMPLATES_BUTTON,
+                                id="manage-templates-btn",
                                 classes="small-button",
-                                disabled=True,
-                            )
-                            yield Button(
-                                "Delete",
-                                id="delete-template-btn",
-                                classes="small-button",
-                                disabled=True,
-                            )
-                            yield Button(
-                                "Export",
-                                id="export-template-btn",
-                                classes="small-button",
-                                disabled=True,
                             )
 
-                    # User configuration - only visible when automation is enabled
+                # User configuration - only visible when a template is selected
+                with Vertical(id="automation-user-config-wrapper"):
                     with Horizontal(id="automation-user-config"):
                         with Vertical(id="automation-user-left"):
                             yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
@@ -285,6 +266,12 @@ class InstallVMModal(BaseModal[str | None]):
                                 disabled=True,
                             )
                         with Vertical(id="automation-user-right"):
+                            yield Label(StaticText.HOSTNAME_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.HOSTNAME_PLACEHOLDER,
+                                id="automation-hostname",
+                                disabled=True,
+                            )
                             yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
                             yield Input(
                                 placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
@@ -292,11 +279,42 @@ class InstallVMModal(BaseModal[str | None]):
                                 password=True,
                                 disabled=True,
                             )
-                            yield Label(StaticText.HOSTNAME_LABEL, classes="label")
-                            yield Input(
-                                placeholder=StaticText.HOSTNAME_PLACEHOLDER,
-                                id="automation-hostname",
+                        with Vertical():
+                            yield Label(StaticText.LANGUAGE_LABEL, classes="label")
+                            yield Select(
+                                [
+                                    ("English (US)", "en_US"),
+                                    ("German", "de_DE"),
+                                    ("French", "fr_FR"),
+                                    ("Spanish", "es_ES"),
+                                    ("Italian", "it_IT"),
+                                    ("Portuguese (Brazil)", "pt_BR"),
+                                    ("Russian", "ru_RU"),
+                                    ("Japanese", "ja_JP"),
+                                    ("Chinese (Simplified)", "zh_CN"),
+                                ],
+                                value="en_US",
+                                id="automation-language",
                                 disabled=True,
+                                tooltip=StaticText.LANGUAGE_TOOLTIP,
+                            )
+                            yield Label(StaticText.KEYBOARD_LABEL, classes="label")
+                            yield Select(
+                                [
+                                    ("US", "us"),
+                                    ("German", "de"),
+                                    ("French", "fr"),
+                                    ("Spanish", "es"),
+                                    ("Italian", "it"),
+                                    ("Portuguese", "pt"),
+                                    ("Russian", "ru"),
+                                    ("Japanese", "jp"),
+                                    ("UK", "uk"),
+                                ],
+                                value="us",
+                                id="automation-keyboard",
+                                disabled=True,
+                                tooltip=StaticText.KEYBOARD_TOOLTIP,
                             )
 
             yield Checkbox(
@@ -328,9 +346,11 @@ class InstallVMModal(BaseModal[str | None]):
         ).styles.display = "block"  # Show for OpenSUSE by default
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        # Hide automation template container initially (will be shown when automation is enabled)
-        self.query_one("#automation-template-container").styles.display = "none"
-        self.query_one("#automation-user-config").styles.display = "none"
+        # Show automation template container and user config (always visible now)
+        self.query_one("#automation-template-container").styles.display = "block"
+        self.query_one(
+            "#automation-user-config-wrapper"
+        ).styles.display = "none"  # Hidden until template selected
 
         # Hide the old Distribution field (we'll keep it for backwards compatibility but hide it)
         self.query_one("#distribution-label").styles.display = "none"
@@ -348,8 +368,8 @@ class InstallVMModal(BaseModal[str | None]):
         # Use call_later to ensure all widgets are fully initialized
         self.call_later(self._load_initial_opensuse_isos)
 
-        # Note: AutoYaST templates will be loaded when automation is enabled
-        # to ensure the widget exists and is visible
+        # Load AutoYaST templates on mount
+        self.call_later(self._load_automation_templates)
 
     def _load_initial_opensuse_isos(self):
         """Load ISOs for the initial OpenSUSE version selection."""
@@ -393,6 +413,9 @@ class InstallVMModal(BaseModal[str | None]):
                 logging.warning(f"Automation template select widget not found: {widget_error}")
                 return  # Exit early if widget doesn't exist
 
+            # Start with "None" option (no automation)
+            template_options = [("None", None)]
+
             # Get the OpenSUSE provider
             provider = self.provisioner.get_provider("opensuse")
             if provider:
@@ -405,25 +428,12 @@ class InstallVMModal(BaseModal[str | None]):
                     templates = get_templates_method()
                     logging.info(f"Found {len(templates)} templates")
 
-                    # Convert to Select options format: (display_name, filename)
-                    template_options = []
+                    # Convert to Select options format: (display_name, identifier)
+                    # Use template_id for user templates (full path), filename for built-in
                     for template in templates:
-                        template_options.append((template["display_name"], template["filename"]))
-                        logging.info(f"  - {template['display_name']}: {template['filename']}")
-
-                    if template_options:
-                        logging.info("Setting template options...")
-                        template_select.set_options(template_options)
-                        template_select.disabled = False  # Enable the widget
-                        # Set default to the first option
-                        template_select.value = template_options[0][1]
-                        logging.info(
-                            f"Template select updated with {len(template_options)} options, default: {template_options[0][1]}"
-                        )
-                        return  # Success - exit early
-
-                    else:
-                        logging.warning("No templates returned from provider")
+                        identifier = template.get("template_id", template["filename"])
+                        template_options.append((template["display_name"], identifier))
+                        logging.info(f"  - {template['display_name']}: {identifier}")
 
                 else:
                     logging.warning(
@@ -433,25 +443,26 @@ class InstallVMModal(BaseModal[str | None]):
             else:
                 logging.warning("OpenSUSE provider not available")
 
-            # If we reach here, set fallback options
-            fallback_options = [("Basic Server", "autoyast-basic.xml")]
-            template_select.set_options(fallback_options)
-            template_select.disabled = False  # Enable the widget
-            template_select.value = "autoyast-basic.xml"
-            logging.warning("Using fallback template options")
+            # Always set options (at minimum, "None" will be available)
+            logging.info(f"Setting template options with {len(template_options)} options...")
+            template_select.set_options(template_options)
+            # Set default to "None" (first option)
+            template_select.value = None
+            logging.info(
+                f"Template select updated with {len(template_options)} options, default: None"
+            )
 
         except Exception as e:
             logging.error(f"Error loading automation templates: {e}")
             import traceback
 
             logging.error(f"Traceback: {traceback.format_exc()}")
-            # Set fallback options
+            # Set fallback options (just "None")
             try:
                 template_select = self.query_one("#automation-template-select", Select)
-                fallback_options = [("Basic Server", "autoyast-basic.xml")]
+                fallback_options = [("None", None)]
                 template_select.set_options(fallback_options)
-                template_select.disabled = False  # Enable the widget
-                template_select.value = "autoyast-basic.xml"
+                template_select.value = None
                 logging.info("Set fallback options after error")
             except Exception as widget_error:
                 logging.error(f"Failed to set fallback options: {widget_error}")
@@ -523,10 +534,9 @@ class InstallVMModal(BaseModal[str | None]):
             automation_collapsible.styles.display = "block"
         else:
             automation_collapsible.styles.display = "none"
-            # Reset automation checkbox when switching away from OpenSUSE
-            self.query_one("#enable-automation-checkbox", Checkbox).value = False
-            self.query_one("#automation-template-container").styles.display = "none"
-            self.query_one("#automation-user-config").styles.display = "none"
+            # Reset automation template to "None" when switching away from OpenSUSE
+            self.query_one("#automation-template-select", Select).value = None
+            self.query_one("#automation-user-config-wrapper").styles.display = "none"
 
         if os_type == "windows":
             # Show Windows version selector
@@ -551,14 +561,16 @@ class InstallVMModal(BaseModal[str | None]):
                 vm_type.value = VMType.DESKTOP
             self._update_expert_defaults(vm_type.value)
         elif os_type == "custom":
-            # Show Custom repositories selector
+            # Show Custom repositories selector (includes Cached ISOs option)
             self.query_one("#custom-repos-container").styles.display = "block"
-            # Trigger custom repo selection
+            # Show repo ISO container to display ISOs
+            self.query_one("#repo-iso-container").styles.display = "block"
+
+            # Trigger custom repo selection (will be "cached" by default)
             custom_repos_select = self.query_one("#custom-repos", Select)
             if custom_repos_select.value:
-                self.on_custom_repo_changed(
-                    Select.Changed(custom_repos_select, custom_repos_select.value)
-                )
+                self.fetch_isos(custom_repos_select.value)
+
             # Update VM type defaults for Linux
             vm_type = self.query_one("#vm-type", Select)
             if vm_type.value in [VMType.WDESKTOP, VMType.WLDESKTOP]:
@@ -586,7 +598,7 @@ class InstallVMModal(BaseModal[str | None]):
 
     @on(Select.Changed, "#custom-repos")
     def on_custom_repo_changed(self, event: Select.Changed):
-        """Handle custom repository selection."""
+        """Handle custom repository selection (includes cached ISOs)."""
         custom_repo_uri = event.value
 
         # Hide all ISO source containers first
@@ -595,7 +607,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#pool-iso-container").styles.display = "none"
 
         if custom_repo_uri:
-            # Show repo ISO container and fetch ISOs from this custom repo
+            # Show repo ISO container and fetch ISOs (from custom repo or cached)
             self.query_one("#repo-iso-container").styles.display = "block"
             self.fetch_isos(custom_repo_uri)
 
@@ -848,95 +860,35 @@ class InstallVMModal(BaseModal[str | None]):
     def on_name_changed(self):
         self._check_form_validity()
 
-    @on(Checkbox.Changed, "#enable-automation-checkbox")
-    def on_automation_checkbox_changed(self, event: Checkbox.Changed):
-        """Handle automation checkbox changes."""
-        automation_enabled = event.value
+    @on(Select.Changed, "#automation-template-select")
+    def on_automation_template_changed(self, event: Select.Changed):
+        """Handle automation template selection changes."""
+        template_value = event.value
+
+        # If "None" is selected, disable and hide user config
+        # Otherwise, enable and show user config
+        automation_enabled = template_value is not None
 
         # Enable/disable automation controls
-        self.query_one("#automation-template-select", Select).disabled = not automation_enabled
         self.query_one("#automation-root-password", Input).disabled = not automation_enabled
         self.query_one("#automation-username", Input).disabled = not automation_enabled
         self.query_one("#automation-user-password", Input).disabled = not automation_enabled
         self.query_one("#automation-hostname", Input).disabled = not automation_enabled
+        self.query_one("#automation-language", Select).disabled = not automation_enabled
+        self.query_one("#automation-keyboard", Select).disabled = not automation_enabled
 
-        # Show/hide automation containers
+        # Show/hide automation user config
         if automation_enabled:
-            self.query_one("#automation-template-container").styles.display = "block"
-            self.query_one("#automation-user-config").styles.display = "block"
+            self.query_one("#automation-user-config-wrapper").styles.display = "block"
 
-            # Load templates when automation is first enabled
-            # Check if templates are already loaded by checking if select has options
-            template_select = self.query_one("#automation-template-select", Select)
-            if (
-                not hasattr(template_select, "_options_loaded")
-                or not template_select._options_loaded
-            ):
-                self._load_automation_templates()
-                # Mark as loaded to avoid reloading
-                template_select._options_loaded = True
-        else:
-            self.query_one("#automation-template-container").styles.display = "none"
-            self.query_one("#automation-user-config").styles.display = "none"
-
-        # Set default values when enabling
-        if automation_enabled:
+            # Set default hostname from VM name if not already set
             vm_name = self.query_one("#vm-name", Input).value.strip()
             if vm_name and not self.query_one("#automation-hostname", Input).value:
                 self.query_one("#automation-hostname", Input).value = vm_name
+        else:
+            self.query_one("#automation-user-config-wrapper").styles.display = "none"
 
         self._check_form_validity()
-
-    @on(Select.Changed, "#automation-template-select")
-    def on_automation_template_changed(self, event: Select.Changed):
-        """Handle automation template selection changes."""
-        self._check_form_validity()
-        self._update_template_buttons()
-
-    def _update_template_buttons(self):
-        """Update template management button states based on current selection."""
-        try:
-            template_select = self.query_one("#automation-template-select", Select)
-            selected_value = template_select.value
-
-            # Get currently available templates to check if this is a user template
-            provider = self.provisioner.get_provider("opensuse")
-            if not provider:
-                return
-
-            templates = provider.get_available_templates()
-            selected_template = None
-
-            for template in templates:
-                if template["filename"] == selected_value:
-                    selected_template = template
-                    break
-
-            # Update button states
-            edit_btn = self.query_one("#edit-template-btn", Button)
-            delete_btn = self.query_one("#delete-template-btn", Button)
-            export_btn = self.query_one("#export-template-btn", Button)
-
-            if selected_template:
-                is_user_template = selected_template.get("type") == "user"
-                is_valid_selection = selected_value and selected_value != "loading"
-
-                # Edit: Can edit user templates or create new from built-in
-                edit_btn.disabled = not is_valid_selection
-
-                # Delete: Only user templates can be deleted
-                delete_btn.disabled = not is_user_template
-
-                # Export: Any template can be exported
-                export_btn.disabled = not is_valid_selection
-            else:
-                # No valid template selected
-                edit_btn.disabled = True
-                delete_btn.disabled = True
-                export_btn.disabled = True
-
-        except Exception as e:
-            logging.error(f"Error updating template buttons: {e}")
 
     def _edit_template_with_editor(self, selected_template_filename, is_new=False):
         """Edit a template using the system editor via TemplateManager."""
@@ -1079,100 +1031,24 @@ class InstallVMModal(BaseModal[str | None]):
 
             self.app.call_from_thread(show_validation_error)
 
-    @on(Button.Pressed, "#create-template-btn")
-    def create_new_template(self, event: Button.Pressed):
-        """Create a new template using system editor."""
+    @on(Button.Pressed, "#manage-templates-btn")
+    def manage_templates(self, event: Button.Pressed):
+        """Open the template management modal."""
         try:
-            self._edit_template_with_editor(None, is_new=True)
-        except Exception as e:
-            logging.error(f"Error creating template: {e}")
-            self.notify("Error creating template", severity="error")
-
-    @on(Button.Pressed, "#edit-template-btn")
-    def edit_template(self, event: Button.Pressed):
-        """Edit the selected template using system editor."""
-        try:
-            template_select = self.query_one("#automation-template-select", Select)
-            selected_value = template_select.value
-
-            if not selected_value or selected_value == "loading":
-                self.notify("Please select a template to edit", severity="warning")
-                return
-
-            self._edit_template_with_editor(selected_value, is_new=False)
-
-        except Exception as e:
-            logging.error(f"Error editing template: {e}")
-            self.notify("Error editing template", severity="error")
-
-    @on(Button.Pressed, "#delete-template-btn")
-    def delete_template(self, event: Button.Pressed):
-        """Delete the selected user template."""
-        try:
-            template_select = self.query_one("#automation-template-select", Select)
-            selected_value = template_select.value
-
-            if not selected_value or selected_value == "loading":
-                self.notify("Please select a template to delete", severity="warning")
-                return
-
             template_manager = self.app.autoyast_template_manager
 
-            # Check if it's a user template
-            if not template_manager.is_user_template(selected_value):
-                self.notify("Only user templates can be deleted", severity="warning")
-                return
+            # Open template management modal
+            def on_dismiss(result: bool | None):
+                """Handle modal dismissal - reload templates if needed."""
+                if result:
+                    # Reload templates in the select widget
+                    self._load_automation_templates()
 
-            # Get template info for display
-            templates = template_manager.get_all_templates()
-            template_name = selected_value
-            for template in templates:
-                if template["filename"] == selected_value:
-                    template_name = template["display_name"].replace(" (User)", "")
-                    break
-
-            # Extract template ID and delete
-            template_id = (
-                selected_value.replace("user_", "")
-                if selected_value.startswith("user_")
-                else selected_value
-            )
-
-            if template_manager.delete_template(template_id):
-                self.notify(f"Template '{template_name}' deleted successfully!")
-                self._load_automation_templates()
-            else:
-                self.notify("Error deleting template", severity="error")
+            self.app.push_screen(TemplateManagementModal(template_manager), on_dismiss)
 
         except Exception as e:
-            logging.error(f"Error deleting template: {e}")
-            self.notify("Error deleting template", severity="error")
-
-    @on(Button.Pressed, "#export-template-btn")
-    def export_template(self, event: Button.Pressed):
-        """Export the selected template to a file."""
-        try:
-            template_select = self.query_one("#automation-template-select", Select)
-            selected_value = template_select.value
-
-            if not selected_value or selected_value == "loading":
-                self.notify("Please select a template to export", severity="warning")
-                return
-
-            template_manager = self.app.autoyast_template_manager
-
-            # Export to user's home directory
-            export_dir = Path.home()
-            success, exported_path = template_manager.export_template(selected_value, export_dir)
-
-            if success:
-                self.notify(f"Template exported to {exported_path}")
-            else:
-                self.notify("Error exporting template", severity="error")
-
-        except Exception as e:
-            logging.error(f"Error exporting template: {e}")
-            self.notify("Error exporting template", severity="error")
+            logging.error(f"Error opening template management: {e}")
+            self.notify("Error opening template management", severity="error")
 
     @on(Input.Changed, "#automation-root-password")
     def on_automation_root_password_changed(self):
@@ -1216,22 +1092,19 @@ class InstallVMModal(BaseModal[str | None]):
         # Check automation requirements if automation is enabled and OS is OpenSUSE
         automation_valid = True
         if os_type == "opensuse":
-            automation_enabled = self.query_one("#enable-automation-checkbox", Checkbox).value
+            # Check if a template is selected (not None)
+            template = self.query_one("#automation-template-select", Select).value
+            automation_enabled = template is not None
+
             if automation_enabled:
                 # Require all automation fields to be filled
                 root_password = self.query_one("#automation-root-password", Input).value.strip()
                 username = self.query_one("#automation-username", Input).value.strip()
                 user_password = self.query_one("#automation-user-password", Input).value.strip()
                 hostname = self.query_one("#automation-hostname", Input).value.strip()
-                template = self.query_one("#automation-template-select", Select).value
 
                 automation_valid = bool(
-                    root_password
-                    and username
-                    and user_password
-                    and hostname
-                    and template
-                    and template != Select.BLANK
+                    root_password and username and user_password and hostname and template
                 )
 
         btn = self.query_one("#install-btn", Button)
@@ -1339,11 +1212,12 @@ class InstallVMModal(BaseModal[str | None]):
                 self.app.show_error_message("Please select an OpenSUSE ISO")
                 return
 
-            # Check if automation is enabled
-            automation_enabled = self.query_one("#enable-automation-checkbox", Checkbox).value
+            # Check if automation is enabled (template selected)
+            template_name = self.query_one("#automation-template-select", Select).value
+            automation_enabled = template_name is not None
+
             if automation_enabled:
                 # Collect automation configuration
-                template_name = self.query_one("#automation-template-select", Select).value
                 root_password = self.query_one("#automation-root-password", Input).value.strip()
                 username = self.query_one("#automation-username", Input).value.strip()
                 user_password = self.query_one("#automation-user-password", Input).value.strip()
@@ -1356,14 +1230,18 @@ class InstallVMModal(BaseModal[str | None]):
                     )
                     return
 
+                # Get language and keyboard selections
+                language = self.query_one("#automation-language", Select).value
+                keyboard = self.query_one("#automation-keyboard", Select).value
+
                 automation_config = {
                     "template_name": template_name,
                     "root_password": root_password,
                     "user_name": username,
                     "user_password": user_password,
                     "hostname": hostname,
-                    "language": "en_US",
-                    "keyboard": "us",
+                    "language": language,
+                    "keyboard": keyboard,
                     "timezone": "UTC",
                 }
 

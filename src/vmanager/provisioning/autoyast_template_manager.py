@@ -17,6 +17,8 @@ from ..config import (
     delete_user_autoyast_template,
     get_user_autoyast_template,
     get_user_autoyast_templates,
+    get_user_templates_dir,
+    get_user_templates_dir_for_os,
     save_user_autoyast_template,
 )
 from ..constants import ErrorMessages
@@ -113,7 +115,10 @@ class AutoYaSTTemplateManager:
 
     def get_user_templates(self) -> list[dict]:
         """
-        Get user-defined templates from configuration.
+        Get user-defined templates from file system.
+
+        Scans ~/.config/virtui-manager/templates/ and subdirectories for XML files.
+        Also checks legacy YAML config for backward compatibility.
 
         Returns:
             List of user template dicts
@@ -121,19 +126,72 @@ class AutoYaSTTemplateManager:
         templates = []
 
         try:
-            user_templates = get_user_autoyast_templates()
+            # Scan file system for user templates
+            base_dir = get_user_templates_dir()
 
-            for template_id, template_data in user_templates.items():
-                templates.append(
-                    {
-                        "filename": f"user_{template_id}",
-                        "display_name": f"{template_data['name']} (User)",
-                        "description": template_data.get("description", "User-defined template"),
-                        "content": template_data["content"],
-                        "type": "user",
-                        "template_id": template_id,
-                    }
-                )
+            # Recursively find all XML files in templates directory
+            for xml_file in base_dir.rglob("*.xml"):
+                try:
+                    # Get OS name from directory structure
+                    # e.g., templates/openSUSE/mytemplate.xml -> os_name = "openSUSE"
+                    relative_path = xml_file.relative_to(base_dir)
+                    os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
+
+                    # Read template content
+                    with open(xml_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+
+                    # Try to read metadata from companion .meta file
+                    meta_file = xml_file.with_suffix(".xml.meta")
+                    description = "User-defined template"
+                    if meta_file.exists():
+                        try:
+                            import json
+
+                            with open(meta_file, "r", encoding="utf-8") as f:
+                                meta = json.load(f)
+                                description = meta.get("description", description)
+                        except Exception as e:
+                            self.logger.warning(f"Could not read metadata for {xml_file}: {e}")
+
+                    template_name = xml_file.stem  # Filename without extension
+                    display_name = f"{template_name} ({os_name})"
+
+                    templates.append(
+                        {
+                            "filename": xml_file.name,
+                            "display_name": display_name,
+                            "description": description,
+                            "path": xml_file,
+                            "content": content,
+                            "type": "user",
+                            "template_id": str(xml_file),  # Use full path as ID
+                            "os_name": os_name,
+                        }
+                    )
+                except Exception as e:
+                    self.logger.error(f"Error reading user template {xml_file}: {e}")
+
+            # Backward compatibility: check legacy YAML config
+            legacy_templates = get_user_autoyast_templates()
+            if legacy_templates:
+                self.logger.info(f"Found {len(legacy_templates)} legacy templates in YAML config")
+                for template_id, template_data in legacy_templates.items():
+                    templates.append(
+                        {
+                            "filename": f"user_{template_id}",
+                            "display_name": f"{template_data['name']} (Legacy)",
+                            "description": template_data.get(
+                                "description", "User-defined template"
+                            ),
+                            "content": template_data["content"],
+                            "type": "user",
+                            "template_id": template_id,
+                            "os_name": "openSUSE",  # Legacy templates are AutoYaST (openSUSE)
+                            "is_legacy": True,
+                        }
+                    )
+
         except Exception as e:
             self.logger.error(f"Error loading user templates: {e}")
 
@@ -144,21 +202,60 @@ class AutoYaSTTemplateManager:
         Get a specific template by ID.
 
         Args:
-            template_id: Template identifier (filename for built-in, UUID for user)
+            template_id: Template identifier (filename for built-in, path for user files, UUID for legacy)
 
         Returns:
             Template dict or None if not found
         """
-        # Check user templates first
+        # If template_id is a file path, read it directly
+        template_path = Path(template_id)
+        if template_path.exists() and template_path.suffix == ".xml":
+            try:
+                with open(template_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                base_dir = get_user_templates_dir()
+                relative_path = template_path.relative_to(base_dir)
+                os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
+
+                # Read metadata
+                meta_file = template_path.with_suffix(".xml.meta")
+                description = "User-defined template"
+                if meta_file.exists():
+                    try:
+                        import json
+
+                        with open(meta_file, "r", encoding="utf-8") as f:
+                            meta = json.load(f)
+                            description = meta.get("description", description)
+                    except Exception:
+                        pass
+
+                return {
+                    "filename": template_path.name,
+                    "display_name": f"{template_path.stem} ({os_name})",
+                    "description": description,
+                    "content": content,
+                    "type": "user",
+                    "template_id": template_id,
+                    "path": template_path,
+                    "os_name": os_name,
+                }
+            except Exception as e:
+                self.logger.error(f"Error reading template file {template_id}: {e}")
+
+        # Check legacy YAML config
         user_template = get_user_autoyast_template(template_id)
         if user_template:
             return {
                 "filename": f"user_{template_id}",
-                "display_name": f"{user_template['name']} (User)",
+                "display_name": f"{user_template['name']} (Legacy)",
                 "description": user_template.get("description", ""),
                 "content": user_template["content"],
                 "type": "user",
                 "template_id": template_id,
+                "os_name": "openSUSE",
+                "is_legacy": True,
             }
 
         # Check built-in templates
@@ -178,6 +275,18 @@ class AutoYaSTTemplateManager:
         Returns:
             True if user template, False if built-in
         """
+        # Check if it's a file path in user templates directory
+        template_path = Path(template_id)
+        if template_path.exists():
+            try:
+                base_dir = get_user_templates_dir()
+                template_path.relative_to(base_dir)
+                return True
+            except ValueError:
+                # Not in user templates directory
+                pass
+
+        # Check legacy YAML config
         return (
             template_id.startswith("user_") or get_user_autoyast_template(template_id) is not None
         )
@@ -192,26 +301,61 @@ class AutoYaSTTemplateManager:
         content: str,
         description: str = "",
         template_id: str | None = None,
+        os_name: str = "openSUSE",
     ) -> tuple[bool, str]:
         """
-        Save a template (create new or update existing).
+        Save a template to file system (create new or update existing).
 
         Args:
-            name: Template name
+            name: Template name (used as filename)
             content: Template XML content
             description: Template description
-            template_id: Existing template ID for updates, None for new templates
+            template_id: Existing template path for updates, None for new templates
+            os_name: OS/distribution name (used for directory organization)
 
         Returns:
-            Tuple of (success: bool, template_id: str)
+            Tuple of (success: bool, template_path: str)
         """
         try:
-            if template_id is None:
-                template_id = str(uuid.uuid4())
+            # Get or create template file path
+            if template_id and Path(template_id).exists():
+                # Update existing file
+                template_path = Path(template_id)
+            else:
+                # Create new file
+                # Sanitize filename
+                safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).strip()
+                safe_name = safe_name.replace(" ", "_")
 
-            save_user_autoyast_template(template_id, name, content, description)
-            self.logger.info(f"Saved template '{name}' with ID {template_id}")
-            return True, template_id
+                # Get OS-specific directory
+                os_dir = get_user_templates_dir_for_os(os_name)
+                template_path = os_dir / f"{safe_name}.xml"
+
+                # Handle name conflicts
+                counter = 1
+                while template_path.exists():
+                    template_path = os_dir / f"{safe_name}_{counter}.xml"
+                    counter += 1
+
+            # Write template content
+            with open(template_path, "w", encoding="utf-8") as f:
+                f.write(content)
+
+            # Write metadata to companion .meta file
+            meta_file = template_path.with_suffix(".xml.meta")
+            import json
+
+            meta_data = {
+                "name": name,
+                "description": description,
+                "created_at": str(template_path.stat().st_mtime) if template_path.exists() else "",
+                "os_name": os_name,
+            }
+            with open(meta_file, "w", encoding="utf-8") as f:
+                json.dump(meta_data, f, indent=2)
+
+            self.logger.info(f"Saved template '{name}' to {template_path}")
+            return True, str(template_path)
 
         except Exception as e:
             self.logger.error(f"Error saving template: {e}")
@@ -219,20 +363,33 @@ class AutoYaSTTemplateManager:
 
     def delete_template(self, template_id: str) -> bool:
         """
-        Delete a user template.
+        Delete a user template file.
 
         Args:
-            template_id: Template UUID to delete
+            template_id: Template path or UUID (legacy) to delete
 
         Returns:
             True if deleted successfully, False otherwise
         """
-        # Extract actual ID if prefixed
-        actual_id = (
-            template_id.replace("user_", "") if template_id.startswith("user_") else template_id
-        )
-
         try:
+            # Check if it's a file path
+            template_path = Path(template_id)
+            if template_path.exists() and template_path.suffix == ".xml":
+                # Delete XML file
+                template_path.unlink()
+
+                # Delete companion .meta file if exists
+                meta_file = template_path.with_suffix(".xml.meta")
+                if meta_file.exists():
+                    meta_file.unlink()
+
+                self.logger.info(f"Deleted template {template_path}")
+                return True
+
+            # Legacy: try to delete from YAML config
+            actual_id = (
+                template_id.replace("user_", "") if template_id.startswith("user_") else template_id
+            )
             result = delete_user_autoyast_template(actual_id)
             if result:
                 self.logger.info(f"Deleted template {actual_id}")
@@ -284,6 +441,38 @@ class AutoYaSTTemplateManager:
         except Exception as e:
             self.logger.error(f"Error exporting template: {e}")
             return False, ""
+
+    def import_template(self, file_path: Path) -> tuple[bool, str, str]:
+        """
+        Import a template from a file.
+
+        Args:
+            file_path: Path to template file to import
+
+        Returns:
+            Tuple of (success: bool, content: str, error_message: str)
+        """
+        try:
+            # Read file
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # Validate XML
+            is_valid, error = self.validate_xml(content)
+            if not is_valid:
+                return False, "", f"Invalid XML: {error}"
+
+            self.logger.info(f"Imported template from {file_path}")
+            return True, content, ""
+
+        except FileNotFoundError:
+            error = f"File not found: {file_path}"
+            self.logger.error(error)
+            return False, "", error
+        except Exception as e:
+            error = f"Error importing template: {e}"
+            self.logger.error(error)
+            return False, "", error
 
     # -------------------------------------------------------------------------
     # Template Content
@@ -498,6 +687,90 @@ class AutoYaSTTemplateManager:
             return False
         except Exception as e:
             self.logger.error(f"Error in template editor: {e}")
+            if on_error:
+                on_error(str(e))
+            return False
+
+    def view_template_in_tmux(
+        self,
+        content: str,
+        on_close: Callable[[], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ) -> bool:
+        """
+        Open template content in external editor via tmux in read-only mode.
+
+        Args:
+            content: Template content to view
+            on_close: Optional callback when viewer closes
+            on_error: Optional callback with error message on failure
+
+        Returns:
+            True if viewing was initiated, False if tmux not available
+        """
+        # Check tmux availability
+        can_edit, error = self.can_edit_externally()
+        if not can_edit:
+            if on_error and error:
+                on_error(error)
+            return False
+
+        try:
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".xml", delete=False, encoding="utf-8"
+            ) as tmp_file:
+                tmp_file.write(content)
+                tmp_file_path = tmp_file.name
+
+            try:
+                # Get editor from environment
+                editor = os.environ.get("EDITOR", "vi")
+
+                # Determine read-only flag based on editor
+                if "vim" in editor or "vi" in editor:
+                    readonly_flag = "-R"
+                elif "nano" in editor:
+                    readonly_flag = "-v"
+                elif "emacs" in editor:
+                    readonly_flag = "--eval '(setq buffer-read-only t)'"
+                else:
+                    # Fallback to less for viewing
+                    editor = "less"
+                    readonly_flag = ""
+
+                # Create unique signal name
+                signal_name = f"virtui-view-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+
+                # Launch editor in read-only mode in new tmux window
+                cmd = f"{editor} {readonly_flag} {tmp_file_path}; tmux wait-for -S {signal_name}"
+                subprocess.run(
+                    ["tmux", "new-window", "-n", "template-viewer", cmd],
+                    check=True,
+                )
+
+                # Wait for signal (blocks until viewer closes)
+                subprocess.run(["tmux", "wait-for", signal_name], check=True)
+
+                if on_close:
+                    on_close()
+
+                return True
+
+            finally:
+                # Clean up temp file
+                try:
+                    os.unlink(tmp_file_path)
+                except OSError:
+                    pass
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Viewer process failed: {e}")
+            if on_error:
+                on_error(ErrorMessages.EDITOR_CANCELLED_OR_FAILED)
+            return False
+        except Exception as e:
+            self.logger.error(f"Error in template viewer: {e}")
             if on_error:
                 on_error(str(e))
             return False

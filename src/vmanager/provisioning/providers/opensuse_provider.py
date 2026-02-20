@@ -219,86 +219,75 @@ class OpenSUSEProvider(OSProvider):
 
     def get_available_templates(self) -> List[Dict[str, Any]]:
         """Scan and return available AutoYaST templates (built-in + user templates)."""
-        templates_dir = Path(__file__).parent.parent / "templates"
-        templates = []
-
+        # Use AutoYaSTTemplateManager to get all templates (built-in + user)
         try:
-            # Look for built-in autoyast-*.xml files
-            for template_file in templates_dir.glob("autoyast-*.xml"):
-                template_name = template_file.stem
+            from ..autoyast_template_manager import AutoYaSTTemplateManager
 
-                # Create display name from filename
-                if template_name == "autoyast-basic":
-                    display_name = "Basic Server"
-                    description = "Basic server installation with essential packages"
-                elif template_name == "autoyast-minimal":
-                    display_name = "Minimal System"
-                    description = "Minimal installation with only core packages"
-                elif template_name == "autoyast-desktop":
-                    display_name = "Desktop Environment"
-                    description = "Full desktop environment with GNOME and applications"
-                elif template_name == "autoyast-development":
-                    display_name = "Development Workstation"
-                    description = "Development environment with programming tools and IDE"
-                elif template_name == "autoyast-server":
-                    display_name = "Full Server"
-                    description = "Server installation with web, database, and mail services"
-                else:
-                    # Custom template - use filename as display name
-                    display_name = template_name.replace("autoyast-", "").replace("-", " ").title()
-                    description = f"Custom template: {template_file.name}"
-
-                templates.append(
-                    {
-                        "filename": template_file.name,
-                        "display_name": display_name,
-                        "description": description,
-                        "path": template_file,
-                        "type": "built-in",
-                    }
-                )
-
+            template_manager = AutoYaSTTemplateManager()
+            return template_manager.get_all_templates()
         except Exception as e:
-            self.logger.error(f"Error scanning AutoYaST templates: {e}")
-            # Fall back to basic template if scanning fails
-            basic_template = templates_dir / "autoyast-basic.xml"
-            if basic_template.exists():
-                templates.append(
-                    {
-                        "filename": "autoyast-basic.xml",
-                        "display_name": "Basic Server",
-                        "description": "Basic server installation (fallback)",
-                        "path": basic_template,
-                        "type": "built-in",
-                    }
-                )
+            self.logger.error(f"Error loading templates from AutoYaSTTemplateManager: {e}")
 
-        # Add user-defined templates from config
-        try:
-            from ...config import get_user_autoyast_templates
+            # Fallback: scan built-in templates manually
+            templates_dir = Path(__file__).parent.parent / "templates"
+            templates = []
 
-            user_templates = get_user_autoyast_templates()
+            try:
+                # Look for built-in autoyast-*.xml files
+                for template_file in templates_dir.glob("autoyast-*.xml"):
+                    template_name = template_file.stem
 
-            for template_id, template_data in user_templates.items():
-                templates.append(
-                    {
-                        "filename": f"user_{template_id}",  # Prefix to identify user templates
-                        "display_name": f"{template_data['name']} (User)",
-                        "description": template_data.get("description", "User-defined template"),
-                        "content": template_data["content"],  # Store content instead of path
-                        "type": "user",
-                        "template_id": template_id,
-                    }
-                )
-        except ImportError:
-            # Config module not available (shouldn't happen but be safe)
-            self.logger.warning("Could not import config module to load user templates")
-        except Exception as e:
-            self.logger.error(f"Error loading user templates: {e}")
+                    # Create display name from filename
+                    if template_name == "autoyast-basic":
+                        display_name = "Basic Server"
+                        description = "Basic server installation with essential packages"
+                    elif template_name == "autoyast-minimal":
+                        display_name = "Minimal System"
+                        description = "Minimal installation with only core packages"
+                    elif template_name == "autoyast-desktop":
+                        display_name = "Desktop Environment"
+                        description = "Full desktop environment with GNOME and applications"
+                    elif template_name == "autoyast-development":
+                        display_name = "Development Workstation"
+                        description = "Development environment with programming tools and IDE"
+                    elif template_name == "autoyast-server":
+                        display_name = "Full Server"
+                        description = "Server installation with web, database, and mail services"
+                    else:
+                        # Custom template - use filename as display name
+                        display_name = (
+                            template_name.replace("autoyast-", "").replace("-", " ").title()
+                        )
+                        description = f"Custom template: {template_file.name}"
 
-        # Sort by type (built-in first) then by display name
-        templates.sort(key=lambda x: (x["type"] != "built-in", x["display_name"]))
-        return templates
+                    templates.append(
+                        {
+                            "filename": template_file.name,
+                            "display_name": display_name,
+                            "description": description,
+                            "path": template_file,
+                            "type": "built-in",
+                        }
+                    )
+
+            except Exception as e:
+                self.logger.error(f"Error scanning AutoYaST templates: {e}")
+                # Fall back to basic template if scanning fails
+                basic_template = templates_dir / "autoyast-basic.xml"
+                if basic_template.exists():
+                    templates.append(
+                        {
+                            "filename": "autoyast-basic.xml",
+                            "display_name": "Basic Server",
+                            "description": "Basic server installation (fallback)",
+                            "path": basic_template,
+                            "type": "built-in",
+                        }
+                    )
+
+            # Sort by type (built-in first) then by display name
+            templates.sort(key=lambda x: (x["type"] != "built-in", x["display_name"]))
+            return templates
 
     def validate_template(self, template_path: Path) -> bool:
         """Validate an AutoYaST template file."""
@@ -454,7 +443,8 @@ class OpenSUSEProvider(OSProvider):
         # Get automation config with defaults
         config = self.get_automation_config(version)
         if not config:
-            raise Exception(f"No automation config available for {version.display_name}")
+            version_name = version.display_name if version else "OpenSUSE"
+            raise Exception(f"No automation config available for {version_name}")
         variables = config.variables.copy()
 
         # Override with user-provided values
@@ -475,8 +465,9 @@ class OpenSUSEProvider(OSProvider):
         with open(output_file, "w", encoding="utf-8") as f:
             f.write(autoyast_content)
 
+        version_name = version.display_name if version else "OpenSUSE"
         self.logger.info(
-            f"Generated autoyast.xml using template {template_filename} for {version.display_name} at {output_file}"
+            f"Generated autoyast.xml using template {template_filename} for {version_name} at {output_file}"
         )
         return output_file
 
@@ -637,8 +628,19 @@ class OpenSUSEProvider(OSProvider):
 
         template = None
 
-        # Check if this is a user template (prefixed with "user_")
-        if template_filename.startswith("user_"):
+        # Check if template_filename is a full path (user template from file system)
+        template_path = Path(template_filename)
+        if template_path.is_absolute() and template_path.exists():
+            # This is a user template with full path
+            try:
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template = f.read()
+                self.logger.info(f"Using user template: {template_path.name}")
+            except Exception as e:
+                self.logger.error(f"Error reading user template {template_path}: {e}")
+
+        # Check if this is a legacy user template (prefixed with "user_")
+        elif template_filename.startswith("user_"):
             template_id = template_filename.replace("user_", "")
             try:
                 from ...config import get_user_autoyast_template
@@ -646,21 +648,22 @@ class OpenSUSEProvider(OSProvider):
                 user_template = get_user_autoyast_template(template_id)
                 if user_template:
                     template = user_template["content"]
-                    self.logger.info(f"Using user template: {user_template['name']}")
+                    self.logger.info(f"Using legacy user template: {user_template['name']}")
                 else:
-                    self.logger.error(f"User template {template_id} not found")
+                    self.logger.error(f"Legacy user template {template_id} not found")
             except Exception as e:
-                self.logger.error(f"Error loading user template {template_id}: {e}")
+                self.logger.error(f"Error loading legacy user template {template_id}: {e}")
 
-        # If not a user template or user template failed, load from file
+        # If not a user template or user template failed, load built-in template from file
         if template is None:
-            template_path = Path(__file__).parent.parent / "templates" / template_filename
+            builtin_path = Path(__file__).parent.parent / "templates" / template_filename
 
             try:
-                with open(template_path, "r", encoding="utf-8") as f:
+                with open(builtin_path, "r", encoding="utf-8") as f:
                     template = f.read()
+                self.logger.info(f"Using built-in template: {template_filename}")
             except FileNotFoundError:
-                self.logger.error(f"AutoYaST template not found at {template_path}")
+                self.logger.error(f"AutoYaST template not found at {builtin_path}")
                 # Try to fall back to basic template
                 fallback_path = Path(__file__).parent.parent / "templates" / "autoyast-basic.xml"
                 try:

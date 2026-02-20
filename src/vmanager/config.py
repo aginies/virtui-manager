@@ -141,3 +141,31 @@ def get_user_autoyast_template(template_id):
     """Gets a specific user-defined AutoYaST template."""
     templates = get_user_autoyast_templates()
     return templates.get(template_id)
+
+
+def get_user_templates_dir():
+    """
+    Get the user templates directory path.
+
+    Returns:
+        Path: Path to ~/.config/virtui-manager/templates/
+    """
+    templates_dir = Path.home() / ".config" / AppInfo.name / "templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    return templates_dir
+
+
+def get_user_templates_dir_for_os(os_name: str):
+    """
+    Get the user templates directory for a specific OS/distribution.
+
+    Args:
+        os_name: Name of the OS/distribution (e.g., "openSUSE", "Windows", "Ubuntu")
+
+    Returns:
+        Path: Path to ~/.config/virtui-manager/templates/<os_name>/
+    """
+    base_dir = get_user_templates_dir()
+    os_dir = base_dir / os_name
+    os_dir.mkdir(parents=True, exist_ok=True)
+    return os_dir
