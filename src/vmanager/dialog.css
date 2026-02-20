@@ -90,6 +90,7 @@ HowToSSHModal > #howto-ssh-dialog {
 InstallVMModal > #install-dialog Select,
 InstallVMModal > #vm-type Select,
 InstallVMModal > #distro Select,
+InstallVMModal > #automation-template-select Select,
 WebConsoleConfigDialog > #webconsole-config-dialog Select,
 CustomMigrationModal Select {
   width: 75%;
@@ -118,8 +119,8 @@ CustomMigrationModal Select {
 }
 /* === SPECIFIC HEIGHT === */
 InstallVMModal > #install-dialog {
-  width: 88;
-  height: 45;
+  width: 85%;
+  height: auto;
 }
 InstallVMModal Label {
     margin-top: 0;
@@ -134,10 +135,6 @@ InstallVMModal .label-row,
 InstallVMModal .input-row {
     height: 3;
     margin-bottom: 0;
-}
-InstallVMModal #vm-type-info-btn {
-    height: 3;
-    margin: 0 1;
 }
 SelectDiskModal > #select-disk-dialog,
 SelectSnapshotDialog > #dialog {
@@ -186,6 +183,7 @@ WebConsoleConfigDialog > #webconsole-config-dialog, {
 SelectOneServerModal > #select-one-server-container, {
   height: 10
 }
+#automation-collapsible,
 #expert-mode-collapsible {
   height: auto;
   border: none;
@@ -290,15 +288,17 @@ PasswordModal Button {
 }
 InstallVMModal #browse-iso-btn,
 AttachVolumeModal #browse-vol-btn,
+InstallVMModal #vm-type-info-btn,
+InstallVMModal #manage-templates-btn,
 AddDiskModal #browse-disk-btn, {
   height: 3;
   width: 25%;
   padding: 0 0;
+  margin: 0 0;
   background: $primary;
 }
 InstallVMModal #browse-iso-btn,
-InstallVMModal #browse-autoinstall-btn,
-InstallVMModal #vm-type-info-btn, {
+InstallVMModal #browse-autoinstall-btn, {
   height: 1;
   width: 25%;
 }
@@ -316,10 +316,11 @@ AddInputDeviceModal Select {
 }
 InstallVMModal #custom-iso-path,
 InstallVMModal #autoinstall-path,
+InstallVMModal #automation-template-select,
 AddPoolModal #dir-target-path-input,
 AttachVolumeModal #vol-path-input,
 AddDiskModal #disk-path-input {
-  width: 75%;
+  width: 70%;
 }
 SelectSnapshotDialog.snapshot-select-dialog > #dialog {
   width: 90;
@@ -610,3 +611,147 @@ CapabilitiesTreeModal #dialog-title {
   margin-bottom: 1;
   text-style: bold;
 }
+
+/* === Template Management Modal === */
+TemplateManagementModal > #template-management-container {
+  width: 85;
+  height: 80%;
+  border: round $primary;
+  background: $surface;
+  padding: 1;
+  align: center middle;
+}
+
+TemplateManagementModal .title {
+  width: 100%;
+  text-align: center;
+  text-style: bold;
+  margin-bottom: 1;
+  color: $accent;
+}
+
+TemplateManagementModal .label {
+  width: 100%;
+  margin-top: 1;
+  margin-bottom: 0;
+  text-style: bold;
+}
+
+TemplateManagementModal #template-table {
+  height: 1fr;
+  min-height: 15;
+  border: round $primary;
+  margin-top: 1;
+  margin-bottom: 1;
+}
+
+TemplateManagementModal .buttons {
+  width: 100%;
+  height: auto;
+  align: center middle;
+  margin-top: 1;
+}
+
+TemplateManagementModal Button {
+  min-width: 8;
+  max-width: 10;
+  margin: 0 0;
+}
+
+/* === Template Name Modal === */
+TemplateNameModal > #template-name-container {
+  width: 60;
+  height: auto;
+  border: round $primary;
+  background: $surface;
+  padding: 2;
+  align: center middle;
+}
+
+TemplateNameModal .title {
+  width: 100%;
+  text-align: center;
+  text-style: bold;
+  margin-bottom: 1;
+  color: $accent;
+}
+
+TemplateNameModal .label {
+  width: 100%;
+  margin-top: 1;
+  margin-bottom: 0;
+  text-style: bold;
+}
+
+TemplateNameModal Input {
+  width: 100%;
+  margin-bottom: 1;
+}
+
+TemplateNameModal Select {
+  width: 100%;
+  margin-bottom: 1;
+}
+
+TemplateNameModal .buttons {
+  width: 100%;
+  height: auto;
+  align: center middle;
+  margin-top: 1;
+}
+
+TemplateNameModal Button {
+  width: 40%;
+  margin: 0 1;
+}
+
+
+TemplateManagementModal Button {
+  min-width: 10;
+  max-width: 12;
+  margin: 0 0;
+}
+
+/* === Template View Modal === */
+TemplateViewModal > #template-view-container {
+  width: 85;
+  height: 85%;
+  border: round $primary;
+  background: $surface;
+  padding: 1;
+}
+
+TemplateViewModal .title {
+  width: 100%;
+  text-align: center;
+  text-style: bold;
+  margin-bottom: 1;
+  color: $accent;
+}
+
+TemplateViewModal #template-content-container {
+  height: 1fr;
+  border: round $surface;
+  margin-bottom: 1;
+  padding: 1;
+}
+
+TemplateViewModal #template-content {
+  width: 100%;
+  height: 100%;
+  background: $surface-darken-1;
+  color: $text;
+  padding: 1;
+}
+
+TemplateViewModal .buttons {
+  width: 100%;
+  height: auto;
+  align: center middle;
+}
+
+TemplateViewModal Button {
+  width: 50%;
+  margin: 1;
+}
+

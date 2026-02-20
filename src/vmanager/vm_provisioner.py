@@ -1036,47 +1036,96 @@ class VMProvisioner:
         xml += "</domain>"
         return xml
 
-    def _create_floppy_image(self, automation_file_path: str, output_dir: Path) -> str:
+    def _create_floppy_image(
+        self, automation_file_path: str, output_dir: Path, storage_pool_name: str
+    ) -> str:
         """
-        Create a floppy disk image containing the AutoYaST file.
+        Create a floppy disk image containing the AutoYaST file and upload to storage pool.
 
         Args:
             automation_file_path: Path to the autoyast.xml file
-            output_dir: Directory to create the floppy image in
+            output_dir: Directory to create the floppy image in (local temp)
+            storage_pool_name: Name of the storage pool to upload to
 
         Returns:
-            Path to the created floppy image
+            Path to the floppy image in the storage pool
         """
-        floppy_path = output_dir / "autoyast_floppy.img"
+        floppy_filename = "autoyast_floppy.img"
+        local_floppy_path = output_dir / floppy_filename
 
         try:
             # Create a 1.44MB floppy image using qemu-img
             subprocess.run(
-                ["qemu-img", "create", "-f", "raw", str(floppy_path), "1440K"],
+                ["qemu-img", "create", "-f", "raw", str(local_floppy_path), "1440K"],
                 check=True,
                 capture_output=True,
             )
 
             # Format as FAT12 filesystem
             subprocess.run(
-                ["mkfs.vfat", str(floppy_path)],
+                ["mkfs.vfat", str(local_floppy_path)],
                 check=True,
                 capture_output=True,
             )
 
             # Copy the autoyast.xml file to the floppy image using mcopy
             subprocess.run(
-                ["mcopy", "-i", str(floppy_path), automation_file_path, "::autoyast.xml"],
+                ["mcopy", "-i", str(local_floppy_path), automation_file_path, "::autoyast.xml"],
                 check=True,
                 capture_output=True,
             )
 
-            self.logger.info(f"Created floppy image with AutoYaST at {floppy_path}")
-            return str(floppy_path)
+            self.logger.info(f"Created local floppy image at {local_floppy_path}")
+
+            # Upload the floppy image to the storage pool
+            pool = self.conn.storagePoolLookupByName(storage_pool_name)
+
+            # Check if volume already exists and delete it
+            try:
+                existing_vol = pool.storageVolLookupByName(floppy_filename)
+                existing_vol.delete(0)
+                self.logger.info(f"Deleted existing floppy volume {floppy_filename}")
+            except libvirt.libvirtError:
+                pass  # Volume doesn't exist, that's fine
+
+            # Create volume in the pool
+            volume_xml = f"""
+            <volume>
+                <name>{floppy_filename}</name>
+                <capacity unit="bytes">{1440 * 1024}</capacity>
+                <target>
+                    <format type='raw'/>
+                </target>
+            </volume>
+            """
+            vol = pool.createXML(volume_xml, 0)
+
+            # Upload the local file to the volume
+            stream = self.conn.newStream(0)
+            vol.upload(stream, 0, 1440 * 1024, 0)
+
+            # Read and send the floppy data
+            with open(local_floppy_path, "rb") as f:
+                floppy_data = f.read()
+                stream.send(floppy_data)
+
+            stream.finish()
+
+            # Get the full path to the floppy in the pool
+            floppy_pool_path = vol.path()
+            self.logger.info(f"Uploaded floppy image to storage pool at {floppy_pool_path}")
+
+            # Clean up local file
+            local_floppy_path.unlink()
+
+            return floppy_pool_path
 
         except subprocess.CalledProcessError as e:
             self.logger.error(f"Failed to create floppy image: {e}")
             raise Exception(f"Failed to create floppy image for AutoYaST: {e}")
+        except libvirt.libvirtError as e:
+            self.logger.error(f"Failed to upload floppy to storage pool: {e}")
+            raise Exception(f"Failed to upload floppy to storage pool: {e}")
 
     def check_virt_install(self) -> bool:
         """Checks if virt-install is available on the system."""
@@ -1093,7 +1142,7 @@ class VMProvisioner:
         loader_path: str | None,
         nvram_path: str | None,
         print_xml: bool = False,
-        automation_file_path: str | None = None,
+        floppy_image_path: str | None = None,
     ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
@@ -1180,10 +1229,11 @@ class VMProvisioner:
 
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
 
-        # AutoYaST/Automation file injection
-        if automation_file_path:
-            cmd.extend(["--initrd-inject", automation_file_path])
-            cmd.extend(["--extra-args", "autoyast=device://fd0/autoyast.xml"])
+        # AutoYaST/Automation file injection via floppy disk
+        # Note: --initrd-inject only works with --location (network install), not --cdrom
+        # For CD-ROM installs, we must use a floppy disk containing the autoyast.xml
+        if floppy_image_path:
+            cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
 
         cmd.extend(["--noautoconsole"])
         cmd.extend(["--wait", "0"])
@@ -1382,37 +1432,19 @@ class VMProvisioner:
                     )
                     self.logger.info(f"Generated automation file: {automation_file_path}")
 
-                    # Open the generated file with EDITOR for user to review/modify
-                    report(StaticText.PROVISIONING_EDITING_AUTOMATION_FILE, 83)
-                    editor = os.environ.get("EDITOR", "vi")
-
+                    # Validate the generated XML
                     try:
-                        # Launch editor with proper TTY access
-                        # Open /dev/tty directly for stdin to ensure editor works properly
-                        with open("/dev/tty", "r") as tty_in, open("/dev/tty", "w") as tty_out:
-                            subprocess.run(
-                                [editor, str(automation_file_path)],
-                                stdin=tty_in,
-                                stdout=tty_out,
-                                stderr=tty_out,
-                                check=True,
-                            )
-
-                        # Validate the edited XML after user closes editor
                         with open(automation_file_path, "r", encoding="utf-8") as f:
-                            edited_content = f.read()
+                            xml_content = f.read()
+                        ET.fromstring(xml_content)
+                        self.logger.info("Automation file validation passed")
+                    except ET.ParseError as parse_error:
+                        self.logger.error(f"Invalid XML in automation file: {parse_error}")
+                        raise Exception(f"Invalid XML in automation file: {parse_error}")
+                    except Exception as e:
+                        self.logger.error(f"Error reading automation file: {e}")
+                        raise Exception(f"Error reading automation file: {e}")
 
-                        # Validate XML syntax
-                        try:
-                            ET.fromstring(edited_content)
-                            self.logger.info("Automation file validation passed")
-                        except ET.ParseError as parse_error:
-                            self.logger.error(f"Invalid XML in automation file: {parse_error}")
-                            raise Exception(f"Invalid XML in automation file: {parse_error}")
-
-                    except subprocess.CalledProcessError:
-                        self.logger.warning("Editor was cancelled, continuing without automation")
-                        automation_file_path = None
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
 
@@ -1421,13 +1453,16 @@ class VMProvisioner:
                 # Continue without automation rather than failing the entire process
                 automation_file_path = None
 
-        # Create floppy image for automation file if not using virt-install
-        # virt-install uses --initrd-inject, but direct XML needs a floppy device
+        # Create floppy image for automation file
+        # When using --cdrom (not --location), we need a floppy disk with autoyast.xml
+        # virt-install --initrd-inject only works with --location (network install)
         floppy_image_path = None
-        if automation_file_path and not (use_virt_install and self.check_virt_install()):
+        if automation_file_path:
             try:
                 temp_dir = Path(automation_file_path).parent
-                floppy_image_path = self._create_floppy_image(str(automation_file_path), temp_dir)
+                floppy_image_path = self._create_floppy_image(
+                    str(automation_file_path), temp_dir, storage_pool_name
+                )
             except Exception as e:
                 self.logger.error(f"Failed to create floppy image: {e}")
                 # Continue without automation
@@ -1492,9 +1527,7 @@ class VMProvisioner:
                     vcpu,
                     loader_path,
                     nvram_path,
-                    automation_file_path=str(automation_file_path)
-                    if automation_file_path
-                    else None,
+                    floppy_image_path=str(floppy_image_path) if floppy_image_path else None,
                 )
             except Exception as e:
                 logging.info(f"Can't install domain {vm_name}: {e}")
