@@ -62,6 +62,7 @@ from .utils import (
     extract_server_name_from_uri,
     generate_tooltip_markdown,
     remote_viewer_cmd,
+    is_remote_connection,
 )
 from .vm_actions import (
     clone_vm,
@@ -1692,9 +1693,8 @@ class VMCard(Static):
             )
             return
 
-        # is_remote = self.app.webconsole_manager.is_remote_connection(self.conn.getURI())
         uri = self._get_uri()
-        is_remote = self.app.webconsole_manager.is_remote_connection(uri)
+        is_remote = is_remote_connection(uri)
 
         if is_remote:
 
