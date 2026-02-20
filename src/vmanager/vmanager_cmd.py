@@ -1655,10 +1655,12 @@ class VManagerCMD(cmd.Cmd):
             for vm_name in vm_list:
                 try:
                     domain = conn.lookupByName(vm_name)
-                    delete_vm(domain, delete_storage_confirmed)
+                    delete_vm(
+                        domain, delete_storage_confirmed, delete_nvram=delete_storage_confirmed
+                    )
                     print(f"VM '{vm_name}' deleted successfully.")
                     if delete_storage_confirmed:
-                        print(f"Associated storage for '{vm_name}' also deleted.")
+                        print(f"Associated storage and NVRAM for '{vm_name}' also deleted.")
 
                     # Unselect the VM if it was selected
                     if (

@@ -2145,7 +2145,7 @@ class VMCard(Static):
                     delete_vm(
                         self.vm,
                         delete_storage=delete_storage,
-                        delete_nvram=True,
+                        delete_nvram=delete_storage,
                         log_callback=log_callback,
                     )
 
