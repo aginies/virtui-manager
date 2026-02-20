@@ -567,8 +567,12 @@ class EditDiskModal(BaseModal[dict | None]):
             ("scsi", "scsi"),
             ("ide", "ide"),
             ("usb", "usb"),
+            ("fdc", "fdc"),
         ]
-        device_options = [("disk", "disk"), ("cdrom", "cdrom"), ("lun", "lun")]
+        device_options = [("disk", "disk"),
+                          ("cdrom", "cdrom"),
+                          ("floppy", "floppy"),
+                          ("lun", "lun")]
 
         with Vertical(id="edit-disk-dialog"):
             yield Label(
