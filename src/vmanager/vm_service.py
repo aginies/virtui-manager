@@ -919,6 +919,65 @@ class VMService:
 
         return devices
 
+    def prefetch_vm_xml(self, domains: list, is_remote: bool = False) -> None:
+        """
+        Pre-fetch and cache XML for VMs in background.
+        For remote connections, only fetches running VMs.
+        For local connections, fetches all VMs.
+
+        Args:
+            domains: List of libvirt domain objects
+            is_remote: True if connection is remote
+        """
+        fetched_count = 0
+        skipped_count = 0
+        cached_count = 0
+
+        for domain in domains:
+            try:
+                # Get internal_id and VM name for better logging
+                internal_id = self._get_internal_id(domain)
+                vm_name = domain.name() if hasattr(domain, "name") else "unknown"
+
+                # Skip if XML is already cached and fresh
+                with self._cache_lock:
+                    vm_cache = self._vm_data_cache.get(internal_id, {})
+                    xml_cached = vm_cache.get("xml")
+                    xml_ts = vm_cache.get("xml_ts", 0)
+                    is_fresh = xml_cached and (time.time() - xml_ts < self._xml_cache_ttl)
+
+                if is_fresh:
+                    logging.debug(f"XML prefetch: {vm_name} already cached (fresh)")
+                    cached_count += 1
+                    continue
+
+                # For remote, only fetch XML for running VMs
+                if is_remote:
+                    state_tuple = self._get_domain_state(domain, internal_id)
+                    if not state_tuple or state_tuple[0] != libvirt.VIR_DOMAIN_RUNNING:
+                        logging.debug(f"XML prefetch: {vm_name} skipped (not running)")
+                        skipped_count += 1
+                        continue
+
+                # Fetch XML (handles caching internally)
+                xml = self._get_domain_xml(domain, internal_id)
+
+                if xml:
+                    logging.debug(f"XML prefetch: {vm_name} fetched successfully")
+                    fetched_count += 1
+
+            except Exception as e:
+                logging.debug(
+                    f"XML prefetch skipped for {vm_name if 'vm_name' in locals() else 'domain'}: {e}"
+                )
+                skipped_count += 1
+
+        logging.info(
+            f"XML prefetch complete: {fetched_count} fetched, "
+            f"{cached_count} already cached, {skipped_count} skipped "
+            f"(remote={'yes' if is_remote else 'no'})"
+        )
+
     def get_cached_vm_info(self, domain: libvirt.virDomain) -> tuple | None:
         """Gets domain info ONLY from cache, returning None if not present or expired."""
         uuid = self._get_internal_id(domain)
