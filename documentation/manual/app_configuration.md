@@ -15,6 +15,8 @@ VirtUI Manager uses a YAML configuration file for customization:
 
 While most settings can be managed via the UI, VirtUI Manager stores its configuration in these human-readable files. If the user-specific file does not exist, VirtUI Manager will create it with default values upon the first launch or when you save settings from the UI.
 
+A complete sample configuration file is available at [config-sample.yaml](config-sample.yaml) showing all available options with detailed comments.
+
 ### Example Configuration
 
 ```yaml
@@ -66,6 +68,103 @@ servers:
 *   **`servers`**: A list of Libvirt connections. Each entry requires a `name` (for display), a `uri` (the Libvirt connection string), and an optional `autoconnect` boolean.
 *   **`ISO_DOWNLOAD_PATH`**: The directory where downloaded ISO images are stored.
 *   **`custom_ISO_repo`**: A list of remote or local repositories. Each entry needs a `name` and a `uri` (HTTP/HTTPS URL or local path).
+
+## Custom ISO Repositories
+
+VirtUI Manager supports adding custom ISO repositories for VM provisioning. These repositories appear in the distribution dropdown during VM creation, allowing you to use ISOs from various sources beyond the built-in OpenSUSE distributions.
+
+### Repository Types Supported
+
+*   **HTTP/HTTPS URLs**: Remote directory listings are automatically scraped for .iso files
+*   **Local Absolute Paths**: Direct paths to directories containing ISO files  
+*   **file:// URLs**: File protocol URLs to local directories
+
+### Configuration Format
+
+Add custom repositories to your `config.yaml` file using this YAML format:
+
+```yaml
+custom_ISO_repo:
+  - name: Slackware 15
+    uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
+  - name: Qubes R4 3.0
+    uri: https://mirrors.edge.kernel.org/qubes/iso/
+  - name: Windows
+    uri: /mnt/install/ISO/win/
+  - name: Local ISOs
+    uri: file:///home/user/Downloads/isos/
+  - name: Ubuntu Releases
+    uri: https://releases.ubuntu.com/
+  - name: Debian ISOs
+    uri: https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/
+```
+
+### Repository Features
+
+*   **Architecture Filtering**: Automatically filters ISOs by host architecture (x86_64, aarch64)
+*   **Parallel Processing**: Fetches ISO details concurrently for better performance
+*   **Date Extraction**: Gets Last-Modified dates from HTTP headers for remote repositories
+*   **SSL Compatibility**: Handles mirrors with certificate issues gracefully
+*   **Error Recovery**: Graceful fallbacks for network or parsing errors
+
+### Usage Examples
+
+**Linux Distributions:**
+```yaml
+# Slackware Linux
+- name: Slackware 15
+  uri: https://mirrors.slackware.com/slackware/slackware-iso/slackware64-15.0-iso/
+
+# Alpine Linux
+- name: Alpine 3.23
+  uri: https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/
+
+# Ubuntu
+- name: Ubuntu Releases  
+  uri: https://releases.ubuntu.com/
+```
+
+**Specialized Systems:**
+```yaml
+# Qubes OS Security-focused OS
+- name: Qubes R4
+  uri: https://mirrors.edge.kernel.org/qubes/iso/
+
+# Tails Privacy OS
+- name: Tails
+  uri: https://mirrors.edge.kernel.org/tails/stable/
+```
+
+**Local Repositories:**
+```yaml
+# Local mounted drive
+- name: Windows
+  uri: /mnt/install/ISO/win/
+
+# Network mounted share
+- name: Enterprise ISOs
+  uri: /mnt/nfs/iso-library/
+
+# User downloads directory
+- name: Downloaded ISOs
+  uri: file:///home/user/Downloads/isos/
+```
+
+### How It Works
+
+1. **Repository Detection**: VirtUI Manager automatically detects whether a URI is HTTP-based or local
+2. **Content Scanning**: For HTTP repositories, it scrapes directory listings; for local paths, it scans the filesystem
+3. **ISO Discovery**: Finds all .iso files and extracts metadata like file size and modification date
+4. **Architecture Filtering**: Filters ISOs based on your system architecture when possible
+5. **UI Integration**: Custom repositories appear alongside built-in distributions in the VM creation dialog
+
+### Tips
+
+*   Use descriptive names to easily identify repositories in the UI
+*   For large remote repositories, the initial scan may take a few seconds
+*   Local paths should be absolute paths (starting with `/`) or use the `file://` protocol
+*   Network-mounted directories work just like local paths
+*   Repository contents are cached temporarily to improve performance
 
 ## Performance
 

@@ -8,7 +8,6 @@ import os
 import signal
 import socket
 import subprocess
-import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import partial
@@ -23,7 +22,7 @@ from .constants import AppInfo, ErrorMessages, SuccessMessages
 from .events import VmCardUpdateRequest
 from .libvirt_utils import get_internal_id
 from .modals.vmcard_dialog import WebConsoleDialog
-from .utils import generate_webconsole_keys_if_needed
+from .utils import generate_webconsole_keys_if_needed, is_remote_connection
 from .vm_queries import get_vm_graphics_info
 
 
@@ -91,38 +90,28 @@ wp.websockify_init()
                 with open(self.SESSION_FILE, "w", encoding="utf-8") as f:
                     json.dump(sessions, f, indent=4)
 
-    @staticmethod
-    def is_remote_connection(uri: str) -> bool:
-        """Determines if the connection URI is for a remote qemu+ssh host."""
-        if not uri:
-            return False
-        parsed_uri = urlparse(uri)
-        return (
-            parsed_uri.hostname not in (None, "localhost", "127.0.0.1")
-            and parsed_uri.scheme == "qemu+ssh"
-        )
-
     def is_running(self, uuid: str) -> bool:
         """Check if a web console process is running for a given VM UUID using stored session."""
-        sessions = self.load_sessions()
-        if uuid not in sessions:
-            return False
+        with self._lock:
+            sessions = self.load_sessions()
+            if uuid not in sessions:
+                return False
 
-        session = sessions[uuid]
-        pid = session.get("pid")
-        if not pid:
-            self.remove_session(uuid)
-            return False
+            session = sessions[uuid]
+            pid = session.get("pid")
+            if not pid:
+                self.remove_session(uuid)
+                return False
 
-        # Check if process exists (for local process ID)
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            # Process is dead
-            self.remove_session(uuid)
-            return False
+            # Check if process exists (for local process ID)
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                # Process is dead
+                self.remove_session(uuid)
+                return False
 
-        return True
+            return True
 
     def start_console(self, vm, conn):
         """Starts a web console for a given VM."""
@@ -170,7 +159,7 @@ wp.websockify_init()
                 )
                 return
 
-            is_remote_ssh = WebConsoleManager.is_remote_connection(conn.getURI())
+            is_remote_ssh = is_remote_connection(conn.getURI())
 
             if is_remote_ssh and self.config.get("REMOTE_WEBCONSOLE", False):
                 self._launch_remote_websockify(uuid, vm_name, conn, int(vnc_port), graphics_info)
@@ -339,7 +328,7 @@ wp.websockify_init()
         remote_websockify_cmd_list = [
             "python3",
             "-c",
-            f'"{self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size)}"',
+            self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size),
             "--run-once",
             "--verbose",
             str(web_port),
@@ -495,31 +484,39 @@ wp.websockify_init()
                 pass
             return
 
-        # Check if the remote process is still alive after a short delay
-        time.sleep(1)
-        try:
-            check_alive_cmd = ["ssh", remote_user_host, f"kill -0 {remote_pid}"]
-            result = subprocess.run(check_alive_cmd, check=False, capture_output=True, timeout=5)
-            if result.returncode != 0:
-                # Process is not alive
-                logging.error(
-                    f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch."
+        # Schedule delayed verification check (don't block main thread)
+        def verify_remote_process():
+            """Verify that the remote websockify process is still running after launch."""
+            try:
+                check_alive_cmd = ["ssh", remote_user_host, f"kill -0 {remote_pid}"]
+                if ssh_port != 22:
+                    check_alive_cmd.insert(1, "-p")
+                    check_alive_cmd.insert(2, str(ssh_port))
+                result = subprocess.run(
+                    check_alive_cmd, check=False, capture_output=True, timeout=5
                 )
-                self.app.call_from_thread(
-                    self.app.show_error_message,
-                    ErrorMessages.REMOTE_WEBCONSOLE_CRASHED_TEMPLATE.format(vm_name=vm_name),
+                if result.returncode != 0:
+                    # Process is not alive
+                    logging.error(
+                        f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch."
+                    )
+                    self.app.call_from_thread(
+                        self.app.show_error_message,
+                        ErrorMessages.REMOTE_WEBCONSOLE_CRASHED_TEMPLATE.format(vm_name=vm_name),
+                    )
+                    # Clean up the local ssh process
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+            except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+                logging.warning(
+                    f"Failed to check remote process status for {remote_pid} on {remote_user_host}: {e}"
                 )
-                # Clean up the local ssh process
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-                return
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            logging.warning(
-                f"Failed to check remote process status for {remote_pid} on {remote_user_host}: {e}"
-            )
-            # Can't verify, so we assume it's running and let it fail later if it's not.
+                # Can't verify, so we assume it's running and let it fail later if it's not.
+
+        # Schedule verification for 1 second later (non-blocking)
+        self.app.set_timer(1.0, verify_remote_process)
 
         # Find a free LOCAL port for the SSH tunnel
         local_tunnel_port = self._get_next_available_port(None)
@@ -614,7 +611,7 @@ wp.websockify_init()
         self, uuid: str, conn, vm_name: str, vnc_port: int, graphics_info: dict
     ) -> tuple[str | None, int | None, dict]:
         """Sets up an SSH tunnel for remote connections if needed."""
-        is_remote_ssh = WebConsoleManager.is_remote_connection(conn.getURI())
+        is_remote_ssh = is_remote_connection(conn.getURI())
 
         vnc_target_host = graphics_info.get("listen", "127.0.0.1")
         if vnc_target_host in ["0.0.0.0", "::"]:
@@ -629,6 +626,7 @@ wp.websockify_init()
         parsed_uri = urlparse(conn.getURI())
         user = parsed_uri.username
         host = parsed_uri.hostname
+        ssh_port = parsed_uri.port or 22  # Extract SSH port from URI
         remote_user_host = f"{user}@{host}" if user else host
 
         raw_uuid = uuid.split("@")[0]
@@ -649,10 +647,16 @@ wp.websockify_init()
             control_socket,
             "-f",
             "-N",
-            "-L",
-            f"{tunnel_port}:{vnc_target_host}:{vnc_port}",
-            remote_user_host,
         ]
+        if ssh_port != 22:
+            ssh_cmd.extend(["-p", str(ssh_port)])
+        ssh_cmd.extend(
+            [
+                "-L",
+                f"{tunnel_port}:{vnc_target_host}:{vnc_port}",
+                remote_user_host,
+            ]
+        )
 
         try:
             # Detach SSH tunnel process
@@ -665,7 +669,11 @@ wp.websockify_init()
                 stderr=subprocess.DEVNULL,
             )
             logging.info(f"SSH tunnel created for VM {vm_name} via {control_socket}")
-            return "127.0.0.1", tunnel_port, {"control_socket": control_socket}
+            return (
+                "127.0.0.1",
+                tunnel_port,
+                {"control_socket": control_socket, "ssh_port": ssh_port},
+            )
         except FileNotFoundError:
             self.app.call_from_thread(
                 self.app.show_error_message, ErrorMessages.SSH_COMMAND_NOT_FOUND
@@ -738,7 +746,9 @@ wp.websockify_init()
                 close_fds=True,
             )
 
-            url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify"
+            quality = self.config.get("VNC_QUALITY", 0)
+            compression = self.config.get("VNC_COMPRESSION", 9)
+            url = f"{url_scheme}://localhost:{web_port}/vnc.html?path=websockify&quality={quality}&compression={compression}"
 
             # Save session
             session_data = {

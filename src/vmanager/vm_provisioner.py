@@ -11,6 +11,7 @@ import ssl
 import subprocess
 import tempfile
 import urllib.request
+import urllib.error
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -22,41 +23,145 @@ from typing import Any, Callable, Dict, List, Optional
 import libvirt
 
 from .config import load_config
-from .constants import AppInfo
+from .constants import AppInfo, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
+from .provisioning.provider_registry import ProviderRegistry
+from .provisioning.os_provider import OSType
+from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
 from .storage_manager import create_volume
 
 
 class VMType(Enum):
-    SECURE = "Secure VM"
-    COMPUTATION = "Computation"
-    DESKTOP = "Desktop (Linux)"
-    WDESKTOP = "Windows"
-    WLDESKTOP = "Windows Legacy"
-    SERVER = "Server"
-
-
-class OpenSUSEDistro(Enum):
-    LEAP = "Leap"
-    TUMBLEWEED = "Tumbleweed"
-    SLOWROLL = "Slowroll"
-    STABLE = "Stable (Leap)"
-    CURRENT = "Current (Tumbleweed)"
-    CUSTOM = "Custom ISO"
+    SECURE = StaticText.VM_TYPE_SECURE
+    COMPUTATION = StaticText.VM_TYPE_COMPUTATION
+    DESKTOP = StaticText.VM_TYPE_DESKTOP
+    WDESKTOP = StaticText.VM_TYPE_WDESKTOP
+    WLDESKTOP = StaticText.VM_TYPE_WLDESKTOP
+    SERVER = StaticText.VM_TYPE_SERVER
 
 
 class VMProvisioner:
     def __init__(self, conn: libvirt.virConnect):
         self.conn = conn
         self.host_arch = get_host_architecture(conn)
-        self.distro_base_urls = {
-            OpenSUSEDistro.LEAP: "https://download.opensuse.org/distribution/leap/",
-            OpenSUSEDistro.TUMBLEWEED: "https://download.opensuse.org/tumbleweed/iso/",
-            OpenSUSEDistro.SLOWROLL: "https://download.opensuse.org/slowroll/iso/",
-            OpenSUSEDistro.STABLE: "https://download.opensuse.org/distribution/openSUSE-stable/offline/",
-            OpenSUSEDistro.CURRENT: "https://download.opensuse.org/distribution/openSUSE-current/installer/iso/",
+        self.logger = logging.getLogger(__name__)
+
+        # Initialize provider registry and register OS providers
+        self.provider_registry = ProviderRegistry()
+        self._register_providers()
+
+    def _register_providers(self):
+        """Register available OS providers."""
+        try:
+            opensuse_provider = OpenSUSEProvider()
+            self.provider_registry.register_provider(opensuse_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register OpenSUSE provider: {e}")
+
+    def get_provider(self, os_type_str: str):
+        """Get provider by OS type string."""
+        # Convert string to OSType enum
+        os_type_map = {
+            "linux": OSType.LINUX,
+            "opensuse": OSType.LINUX,
+            "windows": OSType.WINDOWS,
         }
+
+        os_type = os_type_map.get(os_type_str.lower())
+        if os_type:
+            return self.provider_registry.get_provider(os_type)
+
+        self.logger.warning(f"Unknown OS type: {os_type_str}")
+        return None
+
+    def get_iso_sources(self, os_type: str, version_id: str) -> List[str]:
+        """
+        Get ISO download sources for a specific OS type and version.
+        Delegates to the appropriate provider.
+        """
+        provider = self.get_provider(os_type)
+        if not provider:
+            logging.warning(f"No provider available for OS type: {os_type}")
+            return []
+
+        # Find the version object for this provider
+        for version in provider.get_supported_versions():
+            if version.version_id == version_id:
+                return provider.get_iso_sources(version)
+
+        logging.warning(f"Version {version_id} not found for OS type {os_type}")
+        return []
+
+    def get_cached_isos_for_provider(self, os_type: str) -> List[Dict[str, Any]]:
+        """
+        Get cached ISOs for a specific provider.
+        Delegates to the appropriate provider if it supports caching.
+        """
+        provider = self.get_provider(os_type)
+        if provider and hasattr(provider, "get_cached_isos"):
+            return provider.get_cached_isos()
+
+        logging.info(f"Provider for {os_type} does not support cached ISOs, returning empty list")
+        return []
+
+    def get_iso_list(self, distro) -> List[Dict[str, Any]]:
+        """
+        Get list of ISOs for a distribution or custom repository.
+
+        Args:
+            distro: Either an OpenSUSEDistro enum or a custom repository URL string
+
+        Returns:
+            List of ISO dictionaries with 'name', 'url', and 'date' keys
+        """
+        # Handle OpenSUSE distributions - delegate to provider
+        if isinstance(distro, OpenSUSEDistro):
+            provider = self.get_provider("linux")
+            if provider and hasattr(provider, "get_iso_list"):
+                return provider.get_iso_list(distro)
+            else:
+                logging.warning("OpenSUSE provider not available or doesn't support get_iso_list")
+                return []
+
+        # Handle custom repository URLs (strings)
+        elif isinstance(distro, str):
+            return self.get_iso_list_from_url(distro)
+
+        else:
+            logging.warning(f"Unknown distribution type: {type(distro)}")
+            return []
+
+    def get_iso_list_from_url(self, url: str) -> List[Dict[str, Any]]:
+        """
+        Get list of ISOs from a custom repository URL.
+        Supports both HTTP URLs and local paths.
+
+        Args:
+            url: Repository URL (http/https) or local path (file:// or absolute path)
+
+        Returns:
+            List of ISO dictionaries with 'name', 'url', and 'date' keys
+        """
+        if url.startswith(("http://", "https://")):
+            return self._get_remote_iso_list(url)
+        else:
+            return self._get_local_iso_list(url)
+
+    def get_iso_list_from_custom_repo(
+        self, url: str, os_type: str = "linux"
+    ) -> List[Dict[str, Any]]:
+        """
+        Get list of ISOs from a custom repository URL.
+        Delegates to the appropriate provider.
+        """
+        provider = self.get_provider(os_type)
+        if provider and hasattr(provider, "get_iso_list_from_url"):
+            return provider.get_iso_list_from_url(url)
+
+        # Fallback: basic URL handling for providers that don't support it
+        self.logger.warning(f"Provider for {os_type} doesn't support custom repositories")
+        return []
 
     def get_custom_repos(self) -> List[Dict[str, str]]:
         """
@@ -64,29 +169,6 @@ class VMProvisioner:
         """
         config = load_config()
         return config.get("custom_ISO_repo", [])
-
-    def get_iso_details(self, url: str) -> Dict[str, Any]:
-        """
-        Fetches details (Last-Modified) for a given ISO URL.
-        """
-        name = url.split("/")[-1]
-        try:
-            context = ssl._create_unverified_context()
-            req = urllib.request.Request(url, method="HEAD")
-            with urllib.request.urlopen(req, context=context, timeout=5) as response:
-                last_modified = response.getheader("Last-Modified")
-                date_str = ""
-                if last_modified:
-                    try:
-                        dt = parsedate_to_datetime(last_modified)
-                        date_str = dt.strftime("%Y-%m-%d %H:%M")
-                    except:
-                        date_str = last_modified
-
-                return {"name": name, "url": url, "date": date_str}
-        except Exception as e:
-            logging.warning(f"Failed to get details for {url}: {e}")
-            return {"name": name, "url": url, "date": ""}
 
     def get_cached_isos(self) -> List[Dict[str, Any]]:
         """
@@ -146,107 +228,101 @@ class VMProvisioner:
 
         return results
 
-    def get_iso_list(self, distro: OpenSUSEDistro | str) -> List[Dict[str, Any]]:
+    def _get_remote_iso_list(self, url: str) -> List[Dict[str, Any]]:
         """
-        Retrieves a list of available ISOs with details for the specified distribution or custom repo URL.
+        Lists ISO files from a remote HTTP/HTTPS directory.
         """
-        if distro == OpenSUSEDistro.CUSTOM:
-            return []
-
-        base_url = ""
-        if isinstance(distro, OpenSUSEDistro):
-            base_url = self.distro_base_urls.get(distro)
-        elif isinstance(distro, str):
-            base_url = distro
-
-        if not base_url:
-            return []
-
-        # Check for local directory or file URI
-        if base_url.startswith("/") or base_url.startswith("file://") or os.path.isdir(base_url):
-            return self._get_local_iso_list(base_url)
-
-        logging.info(f"Fetching ISO list from {base_url} for arch {self.host_arch}")
-
-        # Create unverified context to avoid SSL errors with some mirrors
-        context = ssl._create_unverified_context()
-        iso_urls = []
+        results = []
 
         try:
-            # Helper to fetch and find ISOs in a specific URL
-            def fetch_isos_from_url(url):
-                try:
-                    with urllib.request.urlopen(url, context=context, timeout=10) as response:
-                        html = response.read().decode("utf-8")
+            # Create unverified SSL context to handle mirrors with cert issues
+            context = ssl._create_unverified_context()
 
-                    pattern = r'href="([^"]+\.iso)"'  # Relaxed to find any ISO
-                    links = re.findall(pattern, html)
+            with urllib.request.urlopen(url, context=context) as response:
+                html_content = response.read().decode("utf-8")
 
-                    valid_links = []
-                    for link in links:
-                        # Basic filtering: ends with .iso
-                        if not link.endswith(".iso"):
-                            continue
+                # Extract ISO links from HTML directory listing
+                iso_pattern = re.compile(r'href="([^"]*\.iso)"', re.IGNORECASE)
+                iso_matches = iso_pattern.findall(html_content)
 
-                        link_lower = link.lower()
-                        is_arch_specific = any(
-                            a in link_lower for a in ["x86_64", "amd64", "aarch64", "arm64"]
-                        )
-
-                        if is_arch_specific:
-                            # Map host arch to common names
-                            # self.host_arch is likely x86_64
-                            target_arch = self.host_arch
-                            if target_arch == "x86_64":
-                                if "x86_64" in link_lower or "amd64" in link_lower:
-                                    pass
-                                else:
-                                    continue  # specific to another arch
-                            elif target_arch == "aarch64":
-                                if "aarch64" in link_lower or "arm64" in link_lower:
-                                    pass
-                                else:
-                                    continue
-
-                        full_url = os.path.join(url, link) if not link.startswith("http") else link
-                        valid_links.append(full_url)
-
-                    return valid_links
-                except Exception as e:
-                    logging.warning(f"Error fetching ISOs from {url}: {e}")
+                if not iso_matches:
+                    logging.info(f"No ISO files found in directory listing at {url}")
                     return []
 
-            if isinstance(distro, OpenSUSEDistro) and distro == OpenSUSEDistro.LEAP:
-                # Use hardcoded versions
-                versions15 = ["15.5", "15.6"]
-                versions16 = ["16.0", "16.1"]
-                for ver in versions15 + versions16:
-                    if versions15:
-                        ver_iso_url = f"{base_url}{ver}/iso/"
-                        iso_urls.extend(fetch_isos_from_url(ver_iso_url))
-                    if versions16:
-                        ver_iso_url = f"{base_url}{ver}/offline/"
-                        iso_urls.extend(fetch_isos_from_url(ver_iso_url))
+                # Filter architecture if possible and remove duplicates
+                unique_isos = list(set(iso_matches))
 
+                # Get details for each ISO with parallel requests
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    iso_details = list(
+                        executor.map(
+                            lambda iso_name: self._get_iso_details(url, iso_name), unique_isos
+                        )
+                    )
+
+                # Filter out None results and add to results
+                for detail in iso_details:
+                    if detail:
+                        results.append(detail)
+
+                # Sort by name (newest first, typically)
+                results.sort(key=lambda x: x["name"], reverse=True)
+
+        except urllib.error.HTTPError as e:
+            logging.error(f"HTTP error accessing {url}: {e.code} - {e.reason}")
+        except urllib.error.URLError as e:
+            logging.error(f"URL error accessing {url}: {e.reason}")
+        except Exception as e:
+            logging.error(f"Error fetching remote ISO list from {url}: {e}")
+
+        return results
+
+    def _get_iso_details(self, base_url: str, iso_name: str) -> Dict[str, Any] | None:
+        """
+        Get details for a specific ISO file from a remote server.
+
+        Args:
+            base_url: Base URL of the repository
+            iso_name: Name of the ISO file
+
+        Returns:
+            Dictionary with ISO details or None if failed
+        """
+        try:
+            # Clean the ISO name by removing ./ prefix if present
+            clean_iso_name = iso_name.lstrip("./")
+
+            # Construct full URL for the ISO
+            if base_url.endswith("/"):
+                iso_url = base_url + clean_iso_name
             else:
-                # Direct ISO directories
-                iso_urls.extend(fetch_isos_from_url(base_url))
+                iso_url = base_url + "/" + clean_iso_name
 
-            # Deduplicate URLs
-            unique_urls = sorted(list(set(iso_urls)), reverse=True)
+            # Make HEAD request to get Last-Modified header
+            context = ssl._create_unverified_context()
+            req = urllib.request.Request(iso_url, method="HEAD")
 
-            # Fetch details in parallel
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                results = list(executor.map(self.get_iso_details, unique_urls))
+            with urllib.request.urlopen(req, context=context) as response:
+                # Get Last-Modified header
+                last_modified = response.getheader("Last-Modified")
+                date_str = "Unknown"
 
-            # Sort by name descending (or date?) - keeping name sort for consistency
-            results.sort(key=lambda x: x["name"], reverse=True)
+                if last_modified:
+                    try:
+                        # Parse the date and format it
+                        dt = parsedate_to_datetime(last_modified)
+                        date_str = dt.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        date_str = last_modified
 
-            return results
+                return {"name": clean_iso_name, "url": iso_url, "date": date_str}
 
         except Exception as e:
-            logging.error(f"Failed to fetch ISO list: {e}")
-            return []
+            logging.warning(f"Failed to get details for {iso_name}: {e}")
+            # Clean the ISO name and return basic info even if we can't get details
+            clean_iso_name = iso_name.lstrip("./")
+            iso_url = f"{base_url.rstrip('/')}/{clean_iso_name}"
+            return {"name": clean_iso_name, "url": iso_url, "date": "Unknown"}
 
     def download_iso(
         self, url: str, dest_path: str, progress_callback: Optional[Callable[[int], None]] = None
@@ -783,6 +859,7 @@ class VMProvisioner:
         loader_path: str | None = None,
         nvram_path: str | None = None,
         boot_uefi: bool = True,
+        automation_file_path: str | None = None,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
@@ -881,6 +958,17 @@ class VMProvisioner:
     </disk>
 """
 
+        # Floppy disk for AutoYaST automation file
+        if automation_file_path:
+            xml += f"""
+    <disk type='file' device='floppy'>
+      <driver name='qemu' type='raw'/>
+      <source file='{automation_file_path}'/>
+      <target dev='fda' bus='fdc'/>
+      <readonly/>
+    </disk>
+"""
+
         # Interface
         xml += f"""
     <interface type='network'>
@@ -948,6 +1036,97 @@ class VMProvisioner:
         xml += "</domain>"
         return xml
 
+    def _create_floppy_image(
+        self, automation_file_path: str, output_dir: Path, storage_pool_name: str
+    ) -> str:
+        """
+        Create a floppy disk image containing the AutoYaST file and upload to storage pool.
+
+        Args:
+            automation_file_path: Path to the autoyast.xml file
+            output_dir: Directory to create the floppy image in (local temp)
+            storage_pool_name: Name of the storage pool to upload to
+
+        Returns:
+            Path to the floppy image in the storage pool
+        """
+        floppy_filename = "autoyast_floppy.img"
+        local_floppy_path = output_dir / floppy_filename
+
+        try:
+            # Create a 1.44MB floppy image using qemu-img
+            subprocess.run(
+                ["qemu-img", "create", "-f", "raw", str(local_floppy_path), "1440K"],
+                check=True,
+                capture_output=True,
+            )
+
+            # Format as FAT12 filesystem
+            subprocess.run(
+                ["mkfs.vfat", str(local_floppy_path)],
+                check=True,
+                capture_output=True,
+            )
+
+            # Copy the autoyast.xml file to the floppy image using mcopy
+            subprocess.run(
+                ["mcopy", "-i", str(local_floppy_path), automation_file_path, "::autoyast.xml"],
+                check=True,
+                capture_output=True,
+            )
+
+            self.logger.info(f"Created local floppy image at {local_floppy_path}")
+
+            # Upload the floppy image to the storage pool
+            pool = self.conn.storagePoolLookupByName(storage_pool_name)
+
+            # Check if volume already exists and delete it
+            try:
+                existing_vol = pool.storageVolLookupByName(floppy_filename)
+                existing_vol.delete(0)
+                self.logger.info(f"Deleted existing floppy volume {floppy_filename}")
+            except libvirt.libvirtError:
+                pass  # Volume doesn't exist, that's fine
+
+            # Create volume in the pool
+            volume_xml = f"""
+            <volume>
+                <name>{floppy_filename}</name>
+                <capacity unit="bytes">{1440 * 1024}</capacity>
+                <target>
+                    <format type='raw'/>
+                </target>
+            </volume>
+            """
+            vol = pool.createXML(volume_xml, 0)
+
+            # Upload the local file to the volume
+            stream = self.conn.newStream(0)
+            vol.upload(stream, 0, 1440 * 1024, 0)
+
+            # Read and send the floppy data
+            with open(local_floppy_path, "rb") as f:
+                floppy_data = f.read()
+                stream.send(floppy_data)
+
+            stream.finish()
+
+            # Get the full path to the floppy in the pool
+            floppy_pool_path = vol.path()
+            self.logger.info(f"Uploaded floppy image to storage pool at {floppy_pool_path}")
+
+            # Clean up local file
+            local_floppy_path.unlink()
+
+            return floppy_pool_path
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to create floppy image: {e}")
+            raise Exception(f"Failed to create floppy image for AutoYaST: {e}")
+        except libvirt.libvirtError as e:
+            self.logger.error(f"Failed to upload floppy to storage pool: {e}")
+            raise Exception(f"Failed to upload floppy to storage pool: {e}")
+
     def check_virt_install(self) -> bool:
         """Checks if virt-install is available on the system."""
         return shutil.which("virt-install") is not None
@@ -963,6 +1142,7 @@ class VMProvisioner:
         loader_path: str | None,
         nvram_path: str | None,
         print_xml: bool = False,
+        floppy_image_path: str | None = None,
     ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
@@ -1049,6 +1229,12 @@ class VMProvisioner:
 
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
 
+        # AutoYaST/Automation file injection via floppy disk
+        # Note: --initrd-inject only works with --location (network install), not --cdrom
+        # For CD-ROM installs, we must use a floppy disk containing the autoyast.xml
+        if floppy_image_path:
+            cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
+
         cmd.extend(["--noautoconsole"])
         cmd.extend(["--wait", "0"])
 
@@ -1085,6 +1271,7 @@ class VMProvisioner:
         configure_before_install: bool = False,
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
+        automation_config: Optional[Dict[str, Any]] = None,
     ) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -1108,7 +1295,7 @@ class VMProvisioner:
             if progress_callback:
                 progress_callback(stage, percent)
 
-        report("Checking Environment", 0)
+        report(StaticText.PROVISIONING_CHECKING_ENVIRONMENT, 0)
 
         # Prepare Storage Pool for Disk
         pool = self.conn.storagePoolLookupByName(storage_pool_name)
@@ -1140,7 +1327,12 @@ class VMProvisioner:
             # Check if iso_url already points to an existing libvirt storage volume
             existing_iso_volume_path = self._find_iso_volume_by_path(current_iso_url)
             if existing_iso_volume_path:
-                report(f"Using existing ISO volume: {existing_iso_volume_path}", 55)
+                report(
+                    StaticText.PROVISIONING_USING_EXISTING_ISO_VOLUME.format(
+                        path=existing_iso_volume_path
+                    ),
+                    55,
+                )
                 return existing_iso_volume_path
             else:  # original behavior, downloads/copies to cache and then uploads to storage pool
                 iso_name = current_iso_url.split("/")[-1]
@@ -1155,18 +1347,21 @@ class VMProvisioner:
                         local_iso_path_for_upload = current_iso_url[7:]
                     else:
                         local_iso_path_for_upload = current_iso_url
-                    report("Using local ISO image", 50)
+                    report(StaticText.PROVISIONING_USING_LOCAL_ISO_IMAGE, 50)
                     return local_iso_path_for_upload
                 else:
                     local_iso_path_for_upload = str(iso_cache_dir / iso_name)
 
                     def download_cb(percent):
-                        report(f"Downloading ISO: {percent}%", 10 + int(percent * 0.4))  # 10-50%
+                        report(
+                            StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(percent=percent),
+                            10 + int(percent * 0.4),
+                        )  # 10-50%
 
                     if not os.path.exists(local_iso_path_for_upload):
                         self.download_iso(current_iso_url, local_iso_path_for_upload, download_cb)
                     else:
-                        report("ISO found in cache, skipping download", 50)
+                        report(StaticText.PROVISIONING_ISO_FOUND_IN_CACHE, 50)
 
                 # Return the local cached path directly
                 return local_iso_path_for_upload
@@ -1182,13 +1377,13 @@ class VMProvisioner:
         is_virt_install_available = use_virt_install and self.check_virt_install()
 
         if boot_uefi and not is_virt_install_available:
-            report("Setting up UEFI Firmware", 75)
+            report(StaticText.PROVISIONING_SETTING_UP_UEFI_FIRMWARE, 75)
             # Only setup NVRAM if we are not using virt-install
             # virt-install --boot uefi will handle this automatically if we don't pass paths
             loader_path, nvram_path = self._setup_uefi_nvram(vm_name, storage_pool_name, vm_type)
 
         # Create Disk
-        report("Creating Storage", 78)  # Adjusted percentage
+        report(StaticText.PROVISIONING_CREATING_STORAGE, 78)  # Adjusted percentage
 
         preallocation = (
             "metadata"
@@ -1211,6 +1406,67 @@ class VMProvisioner:
             lazy_refcounts=lazy_refcounts,
             cluster_size=cluster_size,
         )
+
+        # Generate automation file if automation is enabled
+        automation_file_path = None
+        if automation_config:
+            try:
+                report(StaticText.PROVISIONING_GENERATING_AUTOMATION_CONFIG, 82)
+
+                # Get the OpenSUSE provider to generate automation file
+                provider = self.get_provider("opensuse")
+                if provider:
+                    # Create a temporary directory for automation file
+                    temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
+
+                    # Extract template name from automation config
+                    template_name = automation_config.get("template_name", "autoyast-basic.xml")
+
+                    # Generate automation file using the provider
+                    automation_file_path = provider.generate_automation_file(
+                        version=None,  # We don't have version info here, provider should handle this
+                        vm_name=vm_name,
+                        user_config=automation_config,
+                        output_path=temp_dir,
+                        template_name=template_name,
+                    )
+                    self.logger.info(f"Generated automation file: {automation_file_path}")
+
+                    # Validate the generated XML
+                    try:
+                        with open(automation_file_path, "r", encoding="utf-8") as f:
+                            xml_content = f.read()
+                        ET.fromstring(xml_content)
+                        self.logger.info("Automation file validation passed")
+                    except ET.ParseError as parse_error:
+                        self.logger.error(f"Invalid XML in automation file: {parse_error}")
+                        raise Exception(f"Invalid XML in automation file: {parse_error}")
+                    except Exception as e:
+                        self.logger.error(f"Error reading automation file: {e}")
+                        raise Exception(f"Error reading automation file: {e}")
+
+                else:
+                    self.logger.warning("OpenSUSE provider not available for automation")
+
+            except Exception as e:
+                self.logger.error(f"Failed to generate automation file: {e}")
+                # Continue without automation rather than failing the entire process
+                automation_file_path = None
+
+        # Create floppy image for automation file
+        # When using --cdrom (not --location), we need a floppy disk with autoyast.xml
+        # virt-install --initrd-inject only works with --location (network install)
+        floppy_image_path = None
+        if automation_file_path:
+            try:
+                temp_dir = Path(automation_file_path).parent
+                floppy_image_path = self._create_floppy_image(
+                    str(automation_file_path), temp_dir, storage_pool_name
+                )
+            except Exception as e:
+                self.logger.error(f"Failed to create floppy image: {e}")
+                # Continue without automation
+                floppy_image_path = None
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -1240,10 +1496,11 @@ class VMProvisioner:
                     loader_path=loader_path,
                     nvram_path=nvram_path,
                     boot_uefi=boot_uefi,
+                    automation_file_path=floppy_image_path,
                 )
 
             # Define the VM
-            report("Defining VM", 85)
+            report(StaticText.PROVISIONING_DEFINING_VM, 85)
             dom = self.conn.defineXML(xml_desc)
 
             # Show the configuration in a modal if callback is provided
@@ -1253,26 +1510,34 @@ class VMProvisioner:
                 # Fallback: just log the configuration
                 logging.info(f"VM configuration defined for {vm_name}")
 
-            report("Provisioning Complete (Configuration Mode)", 100)
+            report(StaticText.PROVISIONING_COMPLETE_CONFIG_MODE, 100)
             return dom
 
         # Continue with normal VM creation
         if is_virt_install_available:
-            report("Configuring VM (virt-install)", 80)
+            report(StaticText.PROVISIONING_CONFIGURING_VM_VIRT_INSTALL, 80)
             settings = self._get_vm_settings(vm_type, boot_uefi, disk_format)
             try:
                 self._run_virt_install(
-                    vm_name, settings, disk_path, iso_path, memory_mb, vcpu, loader_path, nvram_path
+                    vm_name,
+                    settings,
+                    disk_path,
+                    iso_path,
+                    memory_mb,
+                    vcpu,
+                    loader_path,
+                    nvram_path,
+                    floppy_image_path=str(floppy_image_path) if floppy_image_path else None,
                 )
             except Exception as e:
                 logging.info(f"Can't install domain {vm_name}: {e}")
 
-            report("Waiting for VM", 95)
+            report(StaticText.PROVISIONING_WAITING_FOR_VM, 95)
             # Fetch the domain object
             dom = self.conn.lookupByName(vm_name)
         else:
             # Generate XML
-            report("Configuring VM (XML)", 80)
+            report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 80)
             xml_desc = self.generate_xml(
                 vm_name,
                 vm_type,
@@ -1284,12 +1549,13 @@ class VMProvisioner:
                 loader_path=loader_path,
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
+                automation_file_path=floppy_image_path,
             )
 
             # Define and Start VM
-            report("Starting VM", 90)
+            report(StaticText.PROVISIONING_STARTING_VM, 90)
             dom = self.conn.defineXML(xml_desc)
             dom.create()
 
-        report("Provisioning Complete", 100)
+        report(StaticText.PROVISIONING_COMPLETE, 100)
         return dom

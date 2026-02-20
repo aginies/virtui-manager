@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import sys
 import os
+import time
 
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
@@ -480,6 +481,74 @@ class TestVMServiceIdentity(unittest.TestCase):
         internal_id = self.vm_service._get_internal_id(mock_domain, known_uri="qemu:///system")
 
         self.assertEqual(internal_id, "test-uuid@qemu:///system")
+
+    def test_prefetch_vm_xml_local(self):
+        """Test XML prefetch for local VMs (all should be fetched)."""
+        # Mock domains
+        mock_domain1 = MagicMock()
+        mock_domain1.UUIDString.return_value = "uuid-1"
+        mock_domain1.name.return_value = "vm-1"
+        mock_domain1.connect.return_value = MagicMock()
+        mock_domain1.connect().getURI.return_value = "qemu:///system"
+        mock_domain1.XMLDesc.return_value = "<domain><name>vm-1</name></domain>"
+
+        mock_domain2 = MagicMock()
+        mock_domain2.UUIDString.return_value = "uuid-2"
+        mock_domain2.name.return_value = "vm-2"
+        mock_domain2.connect.return_value = MagicMock()
+        mock_domain2.connect().getURI.return_value = "qemu:///system"
+        mock_domain2.XMLDesc.return_value = "<domain><name>vm-2</name></domain>"
+        mock_domain2.state.return_value = (5, 1)  # Shutoff state
+
+        domains = [mock_domain1, mock_domain2]
+
+        # Prefetch for local (is_remote=False)
+        self.vm_service.prefetch_vm_xml(domains, is_remote=False)
+
+        # Both domains should have XML cached (local fetches all)
+        uuid1 = self.vm_service._get_internal_id(mock_domain1)
+        uuid2 = self.vm_service._get_internal_id(mock_domain2)
+
+        self.assertIn(uuid1, self.vm_service._vm_data_cache)
+        self.assertIn(uuid2, self.vm_service._vm_data_cache)
+        self.assertIsNotNone(self.vm_service._vm_data_cache[uuid1].get("xml"))
+        self.assertIsNotNone(self.vm_service._vm_data_cache[uuid2].get("xml"))
+
+    @patch("libvirt.VIR_DOMAIN_RUNNING", 1)
+    def test_prefetch_vm_xml_remote(self):
+        """Test XML prefetch for remote VMs (only running should be fetched)."""
+        # Mock running domain
+        mock_running = MagicMock()
+        mock_running.UUIDString.return_value = "uuid-running"
+        mock_running.name.return_value = "vm-running"
+        mock_running.connect.return_value = MagicMock()
+        mock_running.connect().getURI.return_value = "qemu+ssh://remote/system"
+        mock_running.XMLDesc.return_value = "<domain><name>vm-running</name></domain>"
+        mock_running.state.return_value = (1, 1)  # Running
+
+        # Mock stopped domain
+        mock_stopped = MagicMock()
+        mock_stopped.UUIDString.return_value = "uuid-stopped"
+        mock_stopped.name.return_value = "vm-stopped"
+        mock_stopped.connect.return_value = MagicMock()
+        mock_stopped.connect().getURI.return_value = "qemu+ssh://remote/system"
+        mock_stopped.state.return_value = (5, 1)  # Shutoff
+
+        domains = [mock_running, mock_stopped]
+
+        # Prefetch for remote (is_remote=True)
+        self.vm_service.prefetch_vm_xml(domains, is_remote=True)
+
+        # Only running domain should have XML cached
+        uuid_running = self.vm_service._get_internal_id(mock_running)
+        uuid_stopped = self.vm_service._get_internal_id(mock_stopped)
+
+        self.assertIn(uuid_running, self.vm_service._vm_data_cache)
+        self.assertIsNotNone(self.vm_service._vm_data_cache[uuid_running].get("xml"))
+
+        # Stopped domain should either not be in cache or have no XML
+        if uuid_stopped in self.vm_service._vm_data_cache:
+            self.assertIsNone(self.vm_service._vm_data_cache[uuid_stopped].get("xml"))
 
 
 if __name__ == "__main__":

@@ -309,7 +309,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     ENABLE_DHCPV4 = _("Enable DHCPv4")
     VALIDATE_CHECKSUM = _("Validate Checksum")
     CONFIGURE_BEFORE_INSTALL = _("Configure before install")
-    INSTALL_OPENSUSE_VM = _("Install OpenSUSE VM on {uri}")
+    INSTALL_VM = _("Install VM on {uri}")
     VM_NAME = _("VM Name:")
     VM_TYPE = _("VM Type:")
     DISTRIBUTION = _("Distribution:")
@@ -339,7 +339,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     DISK_SIZE_GB_LABEL = _(" Disk Size(GB)")
     DISK_FORMAT_LABEL = _(" Disk Format")
     FIRMWARE_LABEL = _(" Firmware")
-    DELETE_STORAGE_VOLUMES = _("Delete storage volumes")
+    DELETE_STORAGE_VOLUMES = _("Delete storage volumes and NVRAM")
     QUIESCE_GUEST = _("Quiesce guest (requires agent)")
     SELECT_INTERFACE_AND_NETWORK = _("Select interface and new network")
     ENTER_BASE_NAME = _("Enter base name for new VM(s)")
@@ -632,6 +632,106 @@ Specify the NUMA nodes to use.
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
+
+    # Expert Mode and Automated Installation Tooltips
+    EXPERT_MODE_TOOLTIP = _(
+        "Configure VM hardware specifications. These settings work with Automated Installation to create and configure your VM."
+    )
+    MEMORY_GB_TOOLTIP = _(
+        "RAM allocated to the VM. More memory allows better performance but uses more host resources."
+    )
+    CPU_COUNT_TOOLTIP = _(
+        "Number of virtual CPUs. Match to your workload - more CPUs for multitasking, fewer for simple tasks."
+    )
+    DISK_SIZE_GB_TOOLTIP = _(
+        "Virtual disk size. This is the maximum storage space available to the VM's operating system."
+    )
+    DISK_FORMAT_TOOLTIP = _(
+        "Storage format. Qcow2 supports snapshots and compression, Raw offers better performance."
+    )
+    FIRMWARE_SECTION_TOOLTIP = _(
+        "Boot firmware type. UEFI is modern and secure, Legacy BIOS for older operating systems."
+    )
+    AUTOMATED_INSTALLATION_TOOLTIP = _(
+        "Automatically configure the operating system during installation using AutoYaST templates. Works with Expert Mode hardware settings."
+    )
+    AUTOMATION_TEMPLATE_TOOLTIP = _(
+        "Choose a pre-configured installation template. Templates define software packages, users, and system settings."
+    )
+    AUTOMATION_USER_CONFIG_TOOLTIP = _(
+        "Configure the initial user accounts and system hostname for automated installation."
+    )
+
+    # Automated Installation UI Labels
+    AUTOMATED_INSTALLATION_TITLE = _("Automated Installation")
+    ENABLE_AUTOMATED_INSTALLATION = _("Enable automated installation")
+    INSTALLATION_TEMPLATE_LABEL = _("Installation Template")
+    LOADING_TEMPLATES_OPTION = _("Loading templates...")
+    SELECT_TEMPLATE_PROMPT = _("Select a template...")
+    MANAGE_TEMPLATES_TITLE = _("Manage Templates")
+    MANAGE_TEMPLATES_BUTTON = _("Manage Templates")
+    TEMPLATE_LIST_HEADER = _("Available Templates")
+    TEMPLATE_NAME_COLUMN = _("Name")
+    TEMPLATE_TYPE_COLUMN = _("Type")
+    TEMPLATE_DESCRIPTION_COLUMN = _("Description")
+    NO_TEMPLATES_AVAILABLE = _("No templates available")
+    SELECT_TEMPLATE_TO_EDIT = _("Please select a template to edit")
+    SELECT_TEMPLATE_TO_VIEW = _("Please select a template to view")
+    SELECT_TEMPLATE_TO_DELETE = _("Please select a template to delete")
+    SELECT_TEMPLATE_TO_EXPORT = _("Please select a template to export")
+    SELECT_TEMPLATE_TO_IMPORT = _("Please select a template file to import")
+    CANNOT_DELETE_BUILTIN_TEMPLATE = _("Built-in templates cannot be deleted")
+    TEMPLATE_DELETED_SUCCESSFULLY = _("Template '{template_name}' deleted successfully")
+    TEMPLATE_EXPORTED_TO = _("Template exported to {path}")
+    TEMPLATE_IMPORTED_SUCCESSFULLY = _("Template '{template_name}' imported successfully")
+    VIEW_TEMPLATE_TITLE = _("View Template: {template_name}")
+    TEMPLATE_NAME_TITLE = _("Template Name")
+    TEMPLATE_NAME_LABEL = _("Template Name:")
+    TEMPLATE_NAME_PLACEHOLDER = _("Enter template name")
+    TEMPLATE_OS_LABEL = _("Operating System:")
+    TEMPLATE_DESCRIPTION_LABEL = _("Description (optional):")
+    TEMPLATE_DESCRIPTION_PLACEHOLDER = _("Enter template description")
+    IMPORT_BUTTON = _("Import")
+    TEMPLATE_NAME_REQUIRED = _("Template name is required")
+    TEMPLATE_STORAGE_LOCATION = _("User templates stored in: ~/.config/virtui-manager/templates/")
+    ROOT_PASSWORD_LABEL = _("Root Password")
+    ROOT_PASSWORD_PLACEHOLDER = _("root password")
+    USERNAME_LABEL = _("Username")
+    USERNAME_PLACEHOLDER = _("username")
+    USER_PASSWORD_LABEL = _("User Password")
+    USER_PASSWORD_PLACEHOLDER = _("user password")
+    HOSTNAME_LABEL = _("Hostname")
+    HOSTNAME_PLACEHOLDER = _("hostname")
+    LANGUAGE_LABEL = _("Language")
+    LANGUAGE_TOOLTIP = _("System language for the installation")
+    KEYBOARD_LABEL = _("Keyboard Layout")
+    KEYBOARD_TOOLTIP = _("Keyboard layout for the system")
+
+    # VM Provisioner Progress Messages
+    PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
+    PROVISIONING_USING_EXISTING_ISO_VOLUME = _("Using existing ISO volume: {path}")
+    PROVISIONING_USING_LOCAL_ISO_IMAGE = _("Using local ISO image")
+    PROVISIONING_DOWNLOADING_ISO_PERCENT = _("Downloading ISO: {percent}%")
+    PROVISIONING_ISO_FOUND_IN_CACHE = _("ISO found in cache, skipping download")
+    PROVISIONING_SETTING_UP_UEFI_FIRMWARE = _("Setting up UEFI Firmware")
+    PROVISIONING_CREATING_STORAGE = _("Creating Storage")
+    PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
+    PROVISIONING_EDITING_AUTOMATION_FILE = _("Opening automation file in editor")
+    PROVISIONING_DEFINING_VM = _("Defining VM")
+    PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
+    PROVISIONING_CONFIGURING_VM_VIRT_INSTALL = _("Configuring VM (virt-install)")
+    PROVISIONING_WAITING_FOR_VM = _("Waiting for VM")
+    PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
+    PROVISIONING_STARTING_VM = _("Starting VM")
+    PROVISIONING_COMPLETE = _("Provisioning Complete")
+
+    # VM Type constants
+    VM_TYPE_SECURE = _("Secure VM")
+    VM_TYPE_COMPUTATION = _("Computation")
+    VM_TYPE_DESKTOP = _("Desktop (Linux)")
+    VM_TYPE_WDESKTOP = _("Windows")
+    VM_TYPE_WLDESKTOP = _("Windows Legacy")
+    VM_TYPE_SERVER = _("Server")
 
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
@@ -1087,6 +1187,11 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ERROR_READING_LOG_FILE = _("Error reading log file: {error}")
     TERMINAL_HEIGHT_TOO_SMALL = _("Terminal height is too small ({height} lines). Please resize.")
     TERMINAL_WIDTH_TOO_SMALL = _("Terminal width is too small ({width} columns). Please resize.")
+    TMUX_REQUIRED_FOR_TEMPLATE_EDITING = _(
+        "Template editing requires running inside tmux. "
+        "Please start virtui-manager inside a tmux session."
+    )
+    EDITOR_CANCELLED_OR_FAILED = _("Editor was cancelled or failed")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
