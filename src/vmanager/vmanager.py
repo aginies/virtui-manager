@@ -83,6 +83,7 @@ from .utils import (
     check_websockify,
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
+    is_remote_connection,
     is_running_under_flatpak,
     setup_cache_monitoring,
     setup_logging,
@@ -1178,7 +1179,7 @@ class VMManagerTUI(App):
         """Show server preferences modal, prompting for a server if needed."""
 
         def launch_server_prefs(uri: str):
-            if WebConsoleManager.is_remote_connection(uri):
+            if is_remote_connection(uri):
                 loading = LoadingModal()
                 self.push_screen(loading)
 
@@ -1409,7 +1410,9 @@ class VMManagerTUI(App):
                 elif message.action == VmAction.DELETE:
                     self.bulk_operation_in_progress = True
                     self.vm_service.delete_vm(
-                        domain, delete_storage=message.delete_storage, delete_nvram=True
+                        domain,
+                        delete_storage=message.delete_storage,
+                        delete_nvram=message.delete_storage,
                     )
                     # self.vm_service.invalidate_vm_cache(message.internal_id)
                     if message.internal_id in self.selected_vm_uuids:
@@ -1732,6 +1735,54 @@ class VMManagerTUI(App):
             return
 
         self.handle_select_server_result([uri])
+
+    def _launch_xml_prefetch(self, domains: list, uris: list[str]) -> None:
+        """
+        Launch background worker to prefetch XML for VM tooltips.
+
+        Strategy:
+        - Local VMs: Fetch all
+        - Remote VMs: Fetch only running VMs
+
+        Args:
+            domains: List of (domain, conn) tuples
+            uris: List of URIs being queried
+        """
+
+        def xml_prefetch_worker():
+            try:
+                # Group domains by connection
+                domains_by_conn = {}
+                for domain, conn in domains:
+                    if conn not in domains_by_conn:
+                        domains_by_conn[conn] = []
+                    domains_by_conn[conn].append(domain)
+
+                # Prefetch for each connection
+                for conn, domain_list in domains_by_conn.items():
+                    try:
+                        uri = self.vm_service.get_uri_for_connection(conn)
+                        if not uri:
+                            continue
+
+                        # Use standard utility to determine if remote
+                        is_remote = is_remote_connection(uri)
+
+                        # Prefetch XML in background
+                        self.vm_service.prefetch_vm_xml(domain_list, is_remote=is_remote)
+
+                    except Exception as e:
+                        logging.debug(
+                            f"XML prefetch error for connection {uri if 'uri' in locals() else 'unknown'}: {e}"
+                        )
+
+                logging.debug("XML prefetch worker completed")
+
+            except Exception as e:
+                logging.error(f"XML prefetch worker failed: {e}")
+
+        # Run in background worker (non-blocking)
+        self.worker_manager.run(xml_prefetch_worker, name="xml_prefetch")
 
     def refresh_vm_list(
         self,
@@ -2065,6 +2116,10 @@ class VMManagerTUI(App):
                 self.update_pagination_controls(
                     total_filtered_vms, total_vms_unfiltered=len(domains_to_display)
                 )
+
+                # Launch background XML prefetch AFTER all VM cards are loaded
+                # This ensures prefetch doesn't interfere with card mounting/updating
+                self._launch_xml_prefetch(paginated_domains, uris_to_query)
 
             self.call_from_thread(update_ui_on_main_thread)
 
