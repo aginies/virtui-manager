@@ -175,7 +175,7 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Container for ISO selection from Storage Pools
             with Vertical(id="pool-iso-container"):
-                yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
+                yield Label(StaticText.SELECT_STORAGE_POOL)
                 yield Select(
                     active_pools,
                     prompt=StaticText.SELECT_POOL_PROMPT,
@@ -228,25 +228,23 @@ class InstallVMModal(BaseModal[str | None]):
                 id="automation-collapsible",
                 collapsed=True,
             ):
-                with Horizontal(id="auto-mode"):
-                    # Template selection - "None" means no automation
-                    with Vertical(id="automation-template-container"):
-                        yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
-                        with Horizontal(classes="template-management-buttons"):
-                            yield Select(
-                                [("None", None)],  # Default: no automation
-                                value=None,
-                                id="automation-template-select",
-                                allow_blank=False,
-                                tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
-                            )
-                            # Template management button
-                            # with Horizontal(classes="template-management-buttons"):
-                            yield Button(
-                                StaticText.MANAGE_TEMPLATES_BUTTON,
-                                id="manage-templates-btn",
-                                classes="small-button",
-                            )
+                # Template selection - "None" means no automation
+                with Vertical(id="automation-template-container"):
+                    yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
+                    with Horizontal(classes="template-management-buttons"):
+                        yield Select(
+                            [("None", None)],  # Default: no automation
+                            value=None,
+                            id="automation-template-select",
+                            allow_blank=False,
+                            tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
+                        )
+                        # Template management button
+                        yield Button(
+                            StaticText.MANAGE_TEMPLATES_BUTTON,
+                            id="manage-templates-btn",
+                            classes="small-button",
+                        )
 
                 # User configuration - only visible when a template is selected
                 with Vertical(id="automation-user-config-wrapper"):

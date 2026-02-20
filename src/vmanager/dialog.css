@@ -190,6 +190,17 @@ SelectOneServerModal > #select-one-server-container, {
   margin: 0 0;
   padding: 0 0;
 }
+#automation-user-config-wrapper,
+#repo-iso-container,
+#custom-iso-container,
+#pool-selection,
+#pool-iso-container,
+#automation-template-container {
+   height: 5;
+}
+#automation-user-config-wrapper, {
+   height: 9;
+}
 #file-tree {
    height: 90%;
 }
