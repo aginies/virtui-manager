@@ -1037,7 +1037,7 @@ class VMProvisioner:
         return xml
 
     def _create_floppy_image(
-        self, automation_file_path: str, output_dir: Path, storage_pool_name: str
+        self, automation_file_path: str, output_dir: Path, storage_pool_name: str, vm_name: str
     ) -> str:
         """
         Create a floppy disk image containing the AutoYaST file and upload to storage pool.
@@ -1046,11 +1046,12 @@ class VMProvisioner:
             automation_file_path: Path to the autoyast.xml file
             output_dir: Directory to create the floppy image in (local temp)
             storage_pool_name: Name of the storage pool to upload to
+            vm_name: Name of the VM (used to create unique floppy image)
 
         Returns:
             Path to the floppy image in the storage pool
         """
-        floppy_filename = "autoyast_floppy.img"
+        floppy_filename = f"autoyast_floppy_{vm_name}.img"
         local_floppy_path = output_dir / floppy_filename
 
         try:
@@ -1461,7 +1462,7 @@ class VMProvisioner:
             try:
                 temp_dir = Path(automation_file_path).parent
                 floppy_image_path = self._create_floppy_image(
-                    str(automation_file_path), temp_dir, storage_pool_name
+                    str(automation_file_path), temp_dir, storage_pool_name, vm_name
                 )
             except Exception as e:
                 self.logger.error(f"Failed to create floppy image: {e}")
