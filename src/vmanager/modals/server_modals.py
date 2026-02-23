@@ -202,7 +202,8 @@ class ServerManagementModal(BaseModal[str | None]):
                 if result:
                     name, uri, autoconnect = result
                     self.servers.append({"name": name, "uri": uri, "autoconnect": autoconnect})
-                    self.app.config["servers"] = self.servers
+                    # Explicitly convert to list to avoid reactive object issues during save
+                    self.app.config["servers"] = list(self.servers)
                     save_config(self.app.config)
                     self._reload_table()
 
@@ -216,7 +217,8 @@ class ServerManagementModal(BaseModal[str | None]):
                     self.servers[self.selected_row]["name"] = new_name
                     self.servers[self.selected_row]["uri"] = new_uri
                     self.servers[self.selected_row]["autoconnect"] = autoconnect
-                    self.app.config["servers"] = self.servers
+                    # Explicitly convert to list to avoid reactive object issues during save
+                    self.app.config["servers"] = list(self.servers)
                     save_config(self.app.config)
                     self._reload_table()
 
@@ -236,7 +238,8 @@ class ServerManagementModal(BaseModal[str | None]):
                 if confirmed:
                     try:
                         del self.servers[self.selected_row]
-                        self.app.config["servers"] = self.servers
+                        # Explicitly convert to list to avoid reactive object issues during save
+                        self.app.config["servers"] = list(self.servers)
                         save_config(self.app.config)
                         self._reload_table()
                         self.selected_row = None
