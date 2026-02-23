@@ -192,6 +192,12 @@ SelectOneServerModal > #select-one-server-container, {
   margin: 0 0;
   padding: 0 0;
 }
+#repo-iso-container,
+#custom-iso-container,
+#pool-selection,
+#pool-iso-container, {
+  height: 5;
+}
 #file-tree {
    height: 90%;
 }
