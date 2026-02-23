@@ -14,12 +14,14 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
+from ..provisioning.templates.autoyast_template_manager import AutoYaSTTemplateManager
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name
+from .template_modals import TemplateManagementModal
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
 from .vmdetails_modals import VMDetailModal
@@ -36,6 +38,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.uri = uri
         self.conn = self.vm_service.connect(uri)
         self.provisioner = VMProvisioner(self.conn)
+        self.template_manager = AutoYaSTTemplateManager(self.provisioner)
         self.iso_list = []
 
     def compose(self):
@@ -49,7 +52,7 @@ class InstallVMModal(BaseModal[str | None]):
         )
 
         with ScrollableContainer(id="install-dialog"):
-            yield Label(StaticText.INSTALL_OPENSUSE_VM.format(uri=self.uri), classes="title")
+            yield Label(StaticText.INSTALL_VM.format(uri=self.uri), classes="title")
             yield Label(StaticText.VM_NAME, classes="label")
             yield Input(placeholder="my-new-vm", id="vm-name")
 
@@ -134,8 +137,10 @@ class InstallVMModal(BaseModal[str | None]):
                     disabled=True,
                 )
 
-            yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-            yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+            with Vertical(id="pool-selection"):
+                yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
+                yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
@@ -160,6 +165,98 @@ class InstallVMModal(BaseModal[str | None]):
                             value=True,
                             tooltip=StaticText.LEGACY_BOOT_TOOLTIP,
                         )
+
+            # Automated Installation Configuration
+            with Collapsible(
+                title=StaticText.AUTOMATED_INSTALLATION_TITLE,
+                id="automation-collapsible",
+                collapsed=True,
+            ):
+                # Template selection - "None" means no automation
+                with Vertical(id="automation-template-container"):
+                    yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
+                    with Horizontal(classes="template-management-buttons"):
+                        yield Select(
+                            [("None", None)],  # Default: no automation
+                            value=None,
+                            id="automation-template-select",
+                            allow_blank=False,
+                            tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
+                        )
+                        # Template management button
+                        yield Button(
+                            StaticText.MANAGE_TEMPLATES_BUTTON,
+                            id="manage-templates-btn",
+                            classes="small-button",
+                        )
+                # User configuration - only visible when a template is selected
+                with Vertical(id="automation-user-config-wrapper"):
+                    with Horizontal(id="automation-user-config"):
+                        with Vertical(id="automation-user-left"):
+                            yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.ROOT_PASSWORD_PLACEHOLDER,
+                                id="automation-root-password",
+                                password=True,
+                                disabled=True,
+                            )
+                            yield Label(StaticText.USERNAME_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.USERNAME_PLACEHOLDER,
+                                id="automation-username",
+                                disabled=True,
+                            )
+                        with Vertical(id="automation-user-right"):
+                            yield Label(StaticText.HOSTNAME_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.HOSTNAME_PLACEHOLDER,
+                                id="automation-hostname",
+                                disabled=True,
+                            )
+                            yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
+                            yield Input(
+                                placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
+                                id="automation-user-password",
+                                password=True,
+                                disabled=True,
+                            )
+                        with Vertical():
+                            yield Label(StaticText.LANGUAGE_LABEL, classes="label")
+                            yield Select(
+                                [
+                                    ("English (US)", "en_US"),
+                                    ("German", "de_DE"),
+                                    ("French", "fr_FR"),
+                                    ("Spanish", "es_ES"),
+                                    ("Italian", "it_IT"),
+                                    ("Portuguese (Brazil)", "pt_BR"),
+                                    ("Russian", "ru_RU"),
+                                    ("Japanese", "ja_JP"),
+                                    ("Chinese (Simplified)", "zh_CN"),
+                                ],
+                                value="en_US",
+                                id="automation-language",
+                                disabled=True,
+                                tooltip=StaticText.LANGUAGE_TOOLTIP,
+                            )
+                            yield Label(StaticText.KEYBOARD_LABEL, classes="label")
+                            yield Select(
+                                [
+                                    ("US", "us"),
+                                    ("German", "de"),
+                                    ("French", "fr"),
+                                    ("Spanish", "es"),
+                                    ("Italian", "it"),
+                                    ("Portuguese", "pt"),
+                                    ("Russian", "ru"),
+                                    ("Japanese", "jp"),
+                                    ("UK", "uk"),
+                                ],
+                                value="us",
+                                id="automation-keyboard",
+                                disabled=True,
+                                tooltip=StaticText.KEYBOARD_TOOLTIP,
+                            )
 
             yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
@@ -259,6 +356,10 @@ class InstallVMModal(BaseModal[str | None]):
         else:  # Repo or Cached
             self.query_one("#repo-iso-container").styles.display = "block"
             self.fetch_isos(event.value)
+
+        # Populate templates based on the selected distribution
+        self._populate_templates_for_distribution(event.value)
+
         self._check_form_validity()
 
     @on(Checkbox.Changed, "#validate-checksum")
@@ -395,6 +496,69 @@ class InstallVMModal(BaseModal[str | None]):
         # Disable install while fetching
         self.query_one("#install-btn", Button).disabled = loading
 
+    def _populate_templates_for_distribution(self, distro: OpenSUSEDistro | str):
+        """
+        Populate the template select widget based on the selected distribution.
+
+        For OpenSUSE distributions, show AutoYaST templates (both openSUSE and SLES).
+        For other distributions, show all available templates.
+        """
+        # Get all templates
+        all_templates = self.template_manager.get_all_templates()
+
+        # Determine which templates to show
+        if isinstance(distro, OpenSUSEDistro):
+            # OpenSUSE distribution selected - show AutoYaST templates
+            # This includes both openSUSE and SLES templates since they use the same automation system
+            filtered_templates = []
+            for template in all_templates:
+                # For user templates, check if they're in openSUSE or SLES directories
+                if template["type"] == "user":
+                    # Extract OS from display name
+                    if (
+                        "(openSUSE)" in template["display_name"]
+                        or "(SLES)" in template["display_name"]
+                    ):
+                        filtered_templates.append(template)
+                else:
+                    # All built-in templates are AutoYaST-based, show them all
+                    filtered_templates.append(template)
+        elif isinstance(distro, str) and distro not in ["cached", "pool_volumes"]:
+            # Custom repo URL - could be openSUSE, SLE, or other
+            # Check URL to determine OS type
+            distro_lower = distro.lower()
+            if "opensuse" in distro_lower or "sle" in distro_lower or "suse" in distro_lower:
+                # SUSE-based distribution - show AutoYaST templates
+                filtered_templates = []
+                for template in all_templates:
+                    if template["type"] == "user":
+                        if (
+                            "(openSUSE)" in template["display_name"]
+                            or "(SLES)" in template["display_name"]
+                        ):
+                            filtered_templates.append(template)
+                    else:
+                        filtered_templates.append(template)
+            else:
+                # Other custom repo - show all templates
+                filtered_templates = all_templates
+        else:
+            # Cached ISOs or pool volumes - show all templates
+            filtered_templates = all_templates
+
+        # Build select options
+        template_options = [("None", None)]  # Default: no automation
+        for template in filtered_templates:
+            label = template["display_name"]
+            # Use template_id for user templates, filename for built-in
+            value = template.get("template_id") or template["filename"]
+            template_options.append((label, value))
+
+        # Update the select widget
+        template_select = self.query_one("#automation-template-select", Select)
+        template_select.set_options(template_options)
+        template_select.value = None  # Reset to "None"
+
     @on(Select.Changed, "#iso-select")
     def on_iso_selected(self, event: Select.Changed):
         self._check_form_validity()
@@ -443,6 +607,21 @@ class InstallVMModal(BaseModal[str | None]):
     def on_vm_type_info(self):
         """Show VM Type info modal."""
         self.app.push_screen(VMTypeInfoModal())
+
+    @on(Button.Pressed, "#manage-templates-btn")
+    def on_manage_templates(self):
+        """Open the template management modal."""
+
+        def on_template_modal_close(result: bool | None):
+            # When template management modal closes, refresh the template list
+            # in case templates were added, edited, or deleted
+            distro = self.query_one("#distro", Select).value
+            if distro:
+                self._populate_templates_for_distribution(distro)
+
+        self.app.push_screen(
+            TemplateManagementModal(self.template_manager), on_template_modal_close
+        )
 
     @on(Button.Pressed, "#install-btn")
     def on_install(self):
