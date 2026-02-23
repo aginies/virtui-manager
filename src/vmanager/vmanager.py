@@ -515,7 +515,7 @@ class VMManagerTUI(App):
 
     def reload_servers(self, new_servers):
         self.servers = new_servers
-        self.config["servers"] = new_servers
+        self.config["servers"] = list(new_servers)
         save_config(self.config)
 
     def on_mount(self) -> None:
