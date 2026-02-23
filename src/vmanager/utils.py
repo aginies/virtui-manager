@@ -406,6 +406,33 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
     return messages
 
 
+def is_remote_connection(uri: str) -> bool:
+    """
+    Determines if the connection URI is for a remote qemu+ssh host.
+
+    Args:
+        uri: The libvirt connection URI
+
+    Returns:
+        bool: True if the URI represents a remote connection, False otherwise
+
+    Examples:
+        >>> is_remote_connection("qemu:///system")
+        False
+        >>> is_remote_connection("qemu+ssh://user@remote.host/system")
+        True
+        >>> is_remote_connection("qemu+ssh://localhost/system")
+        False
+    """
+    if not uri:
+        return False
+    parsed_uri = urlparse(uri)
+    return (
+        parsed_uri.hostname not in (None, "localhost", "127.0.0.1")
+        and parsed_uri.scheme == "qemu+ssh"
+    )
+
+
 def check_r_viewer(configured_viewer: str = None) -> str:
     """
     Checks if r-viewer is installed.
@@ -508,7 +535,21 @@ def check_websockify() -> bool:
         return False
 
 
-def check_tmux() -> bool:
+def is_tmux_available() -> bool:
+    """
+    Checks if tmux command is available on the system.
+
+    Returns:
+        bool: True if tmux is installed, False otherwise
+    """
+    try:
+        return shutil.which("tmux") is not None
+    except (OSError, AttributeError) as e:
+        logging.error("Error checking tmux availability: %s", e)
+        return False
+
+
+def is_inside_tmux() -> bool:
     """
     Checks if running inside a tmux session and tmux command is available.
 
@@ -516,9 +557,9 @@ def check_tmux() -> bool:
         bool: True if inside tmux and tmux is installed, False otherwise
     """
     try:
-        return os.environ.get("TMUX") is not None and shutil.which("tmux") is not None
+        return os.environ.get("TMUX") is not None and is_tmux_available()
     except (OSError, AttributeError) as e:
-        logging.error("Error checking tmux: %s", e)
+        logging.error("Error checking tmux session: %s", e)
         return False
 
 

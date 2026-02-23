@@ -48,6 +48,7 @@ from .vm_actions import (
 from .vm_queries import get_vm_snapshots
 from .vm_service import VMService
 from .pipeline import PipelineExecutor, PipelineMode
+from .backup_manager import BackupManager, BackupType, BackupOptions, RetentionPolicy
 
 
 class CLILogger:
@@ -135,6 +136,9 @@ class VManagerCMD(cmd.Cmd):
         # Initialize pipeline executor
         self.pipeline_executor = PipelineExecutor(self.vm_service, self)
 
+        # Initialize backup manager
+        self.backup_manager = BackupManager()
+
         # Cache for performance optimization
         self._color_support = None  # Cache color support detection
         self._status_colors_cache = {}  # Cache colored status strings
@@ -174,6 +178,13 @@ class VManagerCMD(cmd.Cmd):
                 "view",
             ],
             "Snapshots": ["snapshot_list", "snapshot_create", "snapshot_delete", "snapshot_revert"],
+            "Backups": [
+                "backup_create",
+                "backup_list",
+                "backup_status",
+                "backup_restore",
+                "backup_cleanup",
+            ],
             "Networking": [
                 "list_networks",
                 "net_start",
@@ -695,7 +706,7 @@ class VManagerCMD(cmd.Cmd):
             self._set_title("Virtui Manager CLI")
 
     def do_show_selection(self, args):
-        """Show the full list of currently selected VMs (useful when prompt is truncated).
+        """Show the full list of currently selected VMs in a table format.
         Usage: show_selection"""
         if not self.selected_vms:
             print("No VMs are currently selected.")
@@ -703,13 +714,106 @@ class VManagerCMD(cmd.Cmd):
 
         total_count = sum(len(vms) for vms in self.selected_vms.values())
         print(f"Currently selected VMs ({total_count} total):")
+        print()
 
+        # Collect all VMs with their server info for table display
+        all_vms = []
         for server_name, vms in self.selected_vms.items():
-            colored_server = self._colorize(server_name, server_name)
-            print(f"  {colored_server}:")
             for vm in vms:
                 colored_vm = self._colorize(vm, server_name)
-                print(f"    - {colored_vm}")
+                colored_server = self._colorize(f"[{server_name}]", server_name)
+                all_vms.append(f"{colored_vm} {colored_server}")
+
+        if not all_vms:
+            return
+
+        # Display in 4-column table format
+        self._display_items_in_columns(all_vms, 4)
+
+    def _truncate_text(self, text, max_width, suffix="..."):
+        """Truncate text to fit within specified width, preserving readability."""
+        if not text:
+            return ""
+
+        # Handle ANSI color codes by calculating display width
+        display_width = self._get_display_width(text)
+
+        if display_width <= max_width:
+            return text
+
+        # For colored text, we need to be more careful about truncation
+        if "\033" in text:
+            # Simple approach: remove ANSI codes, truncate, then we'll lose colors
+            # A more sophisticated approach would preserve color codes
+            clean_text = self._ansi_escape_regex.sub("", text) if self._ansi_escape_regex else text
+            if len(clean_text) <= max_width - len(suffix):
+                return clean_text[: max_width - len(suffix)] + suffix
+            else:
+                return clean_text[: max_width - len(suffix)] + suffix
+        else:
+            # Simple text truncation
+            if len(text) <= max_width - len(suffix):
+                return text
+            else:
+                return text[: max_width - len(suffix)] + suffix
+
+    def _format_column(self, text, width, align="left"):
+        """Format text to fit exactly in a column of specified width."""
+        if not text:
+            text = ""
+
+        # Truncate if necessary
+        truncated_text = self._truncate_text(text, width)
+
+        # Calculate display width and padding
+        display_width = self._get_display_width(truncated_text)
+        padding_needed = width - display_width
+
+        if padding_needed < 0:
+            padding_needed = 0
+
+        if align == "left":
+            return truncated_text + " " * padding_needed
+        elif align == "right":
+            return " " * padding_needed + truncated_text
+        else:  # center
+            left_pad = padding_needed // 2
+            right_pad = padding_needed - left_pad
+            return " " * left_pad + truncated_text + " " * right_pad
+
+    def _display_items_in_columns(self, items, num_columns=4):
+        """Display a list of items in a table with the specified number of columns."""
+        if not items:
+            return
+
+        terminal_width = self._get_terminal_width()
+
+        # Calculate column width based on terminal size
+        # Reserve some space for padding between columns
+        padding = 2
+        total_padding = (num_columns - 1) * padding
+        available_width = terminal_width - total_padding
+        col_width = available_width // num_columns
+
+        # Make sure column width is reasonable
+        col_width = max(col_width, 20)  # Minimum 20 characters per column
+
+        # Group items into rows
+        rows = []
+        for i in range(0, len(items), num_columns):
+            row = items[i : i + num_columns]
+            rows.append(row)
+
+        # Print each row
+        for row in rows:
+            formatted_columns = []
+            for item in row:
+                # Use the new formatting method to ensure fixed width
+                formatted_column = self._format_column(item, col_width)
+                formatted_columns.append(formatted_column)
+
+            # Print the row
+            print(" " * padding + (" " * padding).join(formatted_columns))
 
     def _display_completion_matches(self, substitution, matches, longest_match_length):
         """Custom display hook for readline completion to show categories."""
@@ -1095,84 +1199,25 @@ class VManagerCMD(cmd.Cmd):
         else:
             return sorted([f for f in completions if f.startswith(text)])
 
-    def do_unselect_vm(self, args):
-        """Unselect one or more VMs. Can use patterns with 're:' prefix or use 'all' to unselect all.
-        Usage: unselect_vm <vm_name_1> <vm_name_2> ...
-               unselect_vm re:<pattern>
-               unselect_vm all"""
-        if not self.selected_vms:
-            print("No VMs are currently selected.")
-            return
+    def complete_vm_names_only(self, text, line, begidx, endidx):
+        """Auto-completion that returns only VM names (not full identifiers)."""
+        if not self.active_connections:
+            return []
 
-        arg_list = args.split()
-        if not arg_list:
-            print(
-                "Usage: unselect_vm <vm_name_1> <vm_name_2> ... or unselect_vm re:<pattern> or unselect_vm all"
-            )
-            return
+        completions = set()
+        for server_name, conn in self.active_connections.items():
+            try:
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    name = dom.name()
+                    completions.add(name)
+            except libvirt.libvirtError:
+                continue
 
-        if "all" in arg_list:
-            self.selected_vms = {}
-            print("All VMs have been unselected.")
-            self._update_prompt()
-            return
-
-        # Get a flat list of currently selected VM names
-        currently_selected_vms = {
-            vm_name for server_vms in self.selected_vms.values() for vm_name in server_vms
-        }
-
-        vms_to_unselect = set()
-        not_found = []
-
-        for arg in arg_list:
-            if arg.startswith("re:"):
-                pattern_str = arg[3:]
-                try:
-                    pattern = re.compile(pattern_str)
-                    # Find matches within the currently selected VMs
-                    matched_vms = {
-                        vm_name for vm_name in currently_selected_vms if pattern.match(vm_name)
-                    }
-                    if matched_vms:
-                        vms_to_unselect.update(matched_vms)
-                    else:
-                        not_found.append(arg)
-                except re.error as e:
-                    print(f"Error: Invalid regular expression '{pattern_str}': {e}")
-            else:
-                if arg in currently_selected_vms:
-                    vms_to_unselect.add(arg)
-                else:
-                    not_found.append(arg)
-
-        if not vms_to_unselect:
-            print("No matching VMs to unselect found in the current selection.")
-            if not_found:
-                print(f"The following VMs/patterns were not found: {', '.join(not_found)}")
-            return
-
-        # New dictionary for selected VMs
-        new_selected_vms = {}
-        for server_name, vm_list in self.selected_vms.items():
-            vms_to_keep = [vm for vm in vm_list if vm not in vms_to_unselect]
-            if vms_to_keep:
-                new_selected_vms[server_name] = vms_to_keep
-
-        self.selected_vms = new_selected_vms
-
-        print(f"Unselected VM(s): {', '.join(sorted(list(vms_to_unselect)))}")
-        if not_found:
-            print(f"Warning: The following were not found in the selection: {', '.join(not_found)}")
-
-        if self.selected_vms:
-            print("Remaining selected VMs:")
-            for server, vms in self.selected_vms.items():
-                print(f"  on {server}: {', '.join(vms)}")
+        if not text:
+            return sorted(list(completions))
         else:
-            print("No VMs are selected anymore.")
-
-        self._update_prompt()
+            return sorted([f for f in completions if f.startswith(text)])
 
     def complete_unselect_vm(self, text, line, begidx, endidx):
         """Auto-completion for unselect_vm from the list of selected VMs."""
@@ -1282,19 +1327,22 @@ class VManagerCMD(cmd.Cmd):
                     for net in networks:
                         network_name = net.get("network", "<unknown>")
                         model = net.get("model", "default")
-                        print(f"    - {network_name} (MAC: <redacted>, model: {model})")
+                        mac_address = net.get("mac", "<unknown>")
+                        print(f"    - {network_name} (MAC: {mac_address}, model: {model})")
 
                     # IP addresses if available
                     detail_net = info.get("detail_network", [])
                     if detail_net:
                         print("  IP Addresses:")
                         for iface in detail_net:
+                            interface_name = iface.get("interface", "<unknown>")
+                            mac_address = iface.get("mac", "<unknown>")
                             ipv4_list = iface.get("ipv4", [])
                             ipv6_list = iface.get("ipv6", [])
                             ipv4_count = len(ipv4_list)
                             ipv6_count = len(ipv6_list)
                             print(
-                                f"    - <redacted interface> (MAC: <redacted>): "
+                                f"    - {interface_name} (MAC: {mac_address}): "
                                 f"{ipv4_count} IPv4 address(es), {ipv6_count} IPv6 address(es)"
                             )
 
@@ -1607,10 +1655,12 @@ class VManagerCMD(cmd.Cmd):
             for vm_name in vm_list:
                 try:
                     domain = conn.lookupByName(vm_name)
-                    delete_vm(domain, delete_storage_confirmed)
+                    delete_vm(
+                        domain, delete_storage_confirmed, delete_nvram=delete_storage_confirmed
+                    )
                     print(f"VM '{vm_name}' deleted successfully.")
                     if delete_storage_confirmed:
-                        print(f"Associated storage for '{vm_name}' also deleted.")
+                        print(f"Associated storage and NVRAM for '{vm_name}' also deleted.")
 
                     # Unselect the VM if it was selected
                     if (
@@ -1857,6 +1907,571 @@ class VManagerCMD(cmd.Cmd):
         print("    !15             # Re-execute command #15 from history")
         print("  Note: 'history', '!' and 'quit' commands are not stored in history")
         print()
+
+    def _expand_backup_variables(self, backup_name: str) -> str:
+        """Expand variables like $(date) and $(time) in backup names."""
+        import datetime
+
+        if "$(date)" in backup_name:
+            date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = backup_name.replace("$(date)", date_str)
+
+        if "$(time)" in backup_name:
+            time_str = datetime.datetime.now().strftime("%H%M%S")
+            backup_name = backup_name.replace("$(time)", time_str)
+
+        return backup_name
+
+    def do_backup_create(self, args):
+        """Create a backup of one or more VMs.
+        Usage: backup_create <backup_name> [--type snapshot|overlay] [--compress] [--encrypt] [--verify] [--quiesce] [vm_name1] [vm_name2] ...
+
+        Options:
+          --type TYPE       Backup type: snapshot (default) or overlay
+          --compress        Compress the backup
+          --encrypt         Encrypt the backup
+          --verify          Verify backup integrity after creation
+          --quiesce         Use guest agent to quiesce the filesystem
+
+        Variable Expansion:
+          $(date)           Expands to current date/time (YYYYMMDD_HHMMSS)
+          $(time)           Expands to current time (HHMMSS)
+
+        Examples:
+          backup_create daily-$(date) --compress vm1 vm2
+          backup_create maintenance-$(date) --type overlay --verify
+
+        If no VM names are provided, it will backup the selected VMs.
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = shlex.split(args)
+        if not arg_list:
+            print(
+                "Usage: backup_create <backup_name> [--type snapshot|overlay] [--compress] [--encrypt] [--verify] [--quiesce] [vm_name1] [vm_name2] ..."
+            )
+            print("       backup_create daily-$(date) --type snapshot --compress vm1 vm2")
+            print("       backup_create maintenance-$(date) --verify --quiesce")
+            print("Variables: $(date) = YYYYMMDD_HHMMSS, $(time) = HHMMSS")
+            return
+
+        backup_name = arg_list[0]
+
+        # Expand variables in backup name
+        backup_name = self._expand_backup_variables(backup_name)
+        backup_type = BackupType.SNAPSHOT
+        compress = False
+        encrypt = False
+        verify = False
+        quiesce = False
+        vm_names = []
+
+        # Parse arguments
+        i = 1
+        while i < len(arg_list):
+            arg = arg_list[i]
+            if arg == "--type":
+                if i + 1 >= len(arg_list):
+                    print("Error: --type requires a value (snapshot or overlay)")
+                    return
+                i += 1
+                type_str = arg_list[i].lower()
+                if type_str == "snapshot":
+                    backup_type = BackupType.SNAPSHOT
+                elif type_str == "overlay":
+                    backup_type = BackupType.OVERLAY
+                else:
+                    print(f"Error: Invalid backup type '{type_str}'. Use 'snapshot' or 'overlay'.")
+                    return
+            elif arg == "--compress":
+                compress = True
+            elif arg == "--encrypt":
+                encrypt = True
+            elif arg == "--verify":
+                verify = True
+            elif arg == "--quiesce":
+                quiesce = True
+            elif not arg.startswith("--"):
+                vm_names.append(arg)
+            else:
+                print(f"Error: Unknown option '{arg}'")
+                return
+            i += 1
+
+        # Create backup options
+        options = BackupOptions(compress=compress, encrypt=encrypt, verify=verify, quiesce=quiesce)
+
+        # Determine VMs to backup
+        if vm_names:
+            vms_to_backup = self._get_vms_to_operate(" ".join(vm_names))
+        else:
+            vms_to_backup = self._get_vms_to_operate("")
+
+        if not vms_to_backup:
+            print("No VMs to backup.")
+            return
+
+        # Create backups
+        for server_name, vm_list in vms_to_backup.items():
+            print(f"\n--- Creating backups on {self._colorize(server_name, server_name)} ---")
+            conn = self.active_connections[server_name]
+
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    vm_backup_name = f"{backup_name}_{vm_name}_{server_name}"
+
+                    print(
+                        f"Creating {backup_type.value} backup '{vm_backup_name}' for VM '{vm_name}'..."
+                    )
+
+                    metadata = self.backup_manager.create_backup(
+                        domain, vm_backup_name, backup_type, options, server_name
+                    )
+
+                    print(f"Backup '{vm_backup_name}' created successfully.")
+                    if metadata.get("size_bytes"):
+                        size_mb = metadata["size_bytes"] / (1024 * 1024)
+                        print(f"  Size: {size_mb:.1f} MB")
+                    if metadata.get("duration_seconds"):
+                        print(f"  Duration: {metadata['duration_seconds']:.1f} seconds")
+                    if metadata.get("verification") and metadata["verification"].get("success"):
+                        print(f"  Verification: PASSED")
+
+                except libvirt.libvirtError as e:
+                    self._safe_print(f"Error creating backup for VM '{vm_name}': {e}")
+                except Exception as e:
+                    print(f"Error creating backup for VM '{vm_name}': {e}")
+
+    def complete_backup_create(self, text, line, begidx, endidx):
+        """Auto-completion for backup_create command."""
+        args = shlex.split(line[len("backup_create") :].strip())
+
+        # Options
+        options = ["--type", "--compress", "--encrypt", "--verify", "--quiesce"]
+
+        if text.startswith("--"):
+            return [opt for opt in options if opt.startswith(text)]
+        elif "--type" in line and not text:
+            return ["snapshot", "overlay"]
+        elif "--type" in line and args and args[-1] == "--type":
+            return ["snapshot", "overlay"]
+        else:
+            # VM name completion
+            return self.complete_vm_names_only(text, line, begidx, endidx)
+
+    def do_backup_list(self, args):
+        """List all backups or backups for a specific VM.
+        Usage: backup_list [vm_name]
+        """
+        vm_name = args.strip() if args else None
+
+        try:
+            backups = self.backup_manager.list_backups(vm_name)
+
+            if not backups:
+                if vm_name:
+                    print(f"No backups found for VM '{vm_name}'.")
+                else:
+                    print("No backups found.")
+                return
+
+            print(
+                f"{'Backup Name':<35} {'VM Name':<15} {'Server':<15} {'Type':<10} {'Status':<10} {'Created':<20}"
+            )
+            print(f"{'-' * 35} {'-' * 15} {'-' * 15} {'-' * 10} {'-' * 10} {'-' * 20}")
+
+            for backup in backups:
+                status = "SUCCESS" if not backup.get("error") else "FAILED"
+                created_at = backup.get("created_at", "Unknown")
+                if created_at != "Unknown":
+                    # Format datetime for display
+                    try:
+                        import datetime
+
+                        dt = datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                        created_at = dt.strftime("%Y-%m-%d %H:%M:%S")
+                    except:
+                        pass
+
+                # Get server name, with fallback for old backups without server info
+                server_name = backup.get("server_name", "Unknown")
+
+                # If server_name is not available, try to extract from backup name
+                if server_name == "Unknown" or not server_name:
+                    backup_name = backup.get("name", "")
+                    # Backup names are usually in format: backupname_vmname_servername
+                    parts = backup_name.split("_")
+                    if len(parts) >= 3:
+                        server_name = parts[-1]  # Last part should be server name
+                    else:
+                        server_name = "Unknown"
+
+                # Apply color coding if server is known and active
+                colored_server = server_name
+                if server_name in self.server_colors and server_name in self.active_connections:
+                    colored_server = self._colorize(server_name, server_name)
+
+                # Format each column with fixed widths
+                backup_name_col = self._format_column(backup.get("name", "Unknown"), 35)
+                vm_name_col = self._format_column(backup.get("vm_name", "Unknown"), 15)
+                server_col = self._format_column(colored_server, 15)
+                type_col = self._format_column(backup.get("type", "Unknown"), 10)
+                status_col = self._format_column(status, 10)
+                created_col = self._format_column(created_at, 20)
+
+                print(
+                    f"{backup_name_col} {vm_name_col} {server_col} {type_col} {status_col} {created_col}"
+                )
+
+        except Exception as e:
+            print(f"Error listing backups: {e}")
+
+    def complete_backup_list(self, text, line, begidx, endidx):
+        """Auto-completion for backup_list command."""
+        return self.complete_vm_names_only(text, line, begidx, endidx)
+
+    def do_backup_status(self, args):
+        """Show detailed status of a specific backup.
+        Usage: backup_status <backup_name>
+        """
+        if not args:
+            print("Usage: backup_status <backup_name>")
+            print("       backup_status daily_backup_vm1_server1")
+            print("       backup_status maintenance-20240216_143052")
+            return
+
+        backup_name = args.strip()
+
+        try:
+            status = self.backup_manager.get_backup_status(backup_name)
+
+            if not status:
+                print(f"Backup '{backup_name}' not found.")
+                return
+
+            print(f"Backup: {backup_name}")
+            print(f"VM Name: {status.get('vm_name', 'Unknown')}")
+            print(f"Type: {status.get('type', 'Unknown')}")
+            print(f"Created: {status.get('created_at', 'Unknown')}")
+            print(f"Completed: {status.get('completed_at', 'Unknown')}")
+
+            if status.get("duration_seconds"):
+                print(f"Duration: {status['duration_seconds']:.1f} seconds")
+
+            if status.get("size_bytes"):
+                size_mb = status["size_bytes"] / (1024 * 1024)
+                print(f"Size: {size_mb:.1f} MB")
+
+            if status.get("error"):
+                print(f"Error: {status['error']}")
+                print("Status: FAILED")
+            else:
+                print("Status: SUCCESS")
+
+            # Show options
+            options = status.get("options", {})
+            print(f"Compressed: {'Yes' if options.get('compress') else 'No'}")
+            print(f"Encrypted: {'Yes' if options.get('encrypt') else 'No'}")
+            print(f"Verified: {'Yes' if options.get('verify') else 'No'}")
+            print(f"Quiesced: {'Yes' if options.get('quiesce') else 'No'}")
+
+            # Show verification details
+            verification = status.get("verification")
+            if verification:
+                print(f"\nVerification:")
+                print(f"  Success: {'Yes' if verification.get('success') else 'No'}")
+                print(f"  Verified at: {verification.get('verified_at', 'Unknown')}")
+
+                checks = verification.get("checks", [])
+                if checks:
+                    print(f"  Checks performed: {len(checks)}")
+                    for check in checks:
+                        check_status = "✓" if check.get("success") else "✗"
+                        print(
+                            f"    {check_status} {check.get('type', 'Unknown')}: {check.get('description', 'No description')}"
+                        )
+
+        except Exception as e:
+            print(f"Error getting backup status: {e}")
+
+    def do_backup_cleanup(self, args):
+        """Clean up old backups according to retention policies.
+        Usage: backup_cleanup <vm_name> [--keep-count N] [--keep-days N] [--backup-type TYPE]
+
+        Options:
+          --keep-count N    Keep only the N most recent backups
+          --keep-days N     Keep backups from the last N days
+          --backup-type TYPE  Only clean up backups of this type (snapshot, overlay)
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = shlex.split(args)
+        if not arg_list:
+            print(
+                "Usage: backup_cleanup <vm_name> [--keep-count N] [--keep-days N] [--backup-type TYPE]"
+            )
+            print("       backup_cleanup vm1 --keep-count 5 --backup-type snapshot")
+            print("       backup_cleanup vm2 --keep-days 30")
+            print("       backup_cleanup vm3 --keep-count 3 --keep-days 7")
+            return
+
+        vm_name = arg_list[0]
+        keep_count = None
+        keep_days = None
+        backup_type = BackupType.SNAPSHOT
+
+        # Parse arguments
+        i = 1
+        while i < len(arg_list):
+            arg = arg_list[i]
+            if arg == "--keep-count":
+                if i + 1 >= len(arg_list):
+                    print("Error: --keep-count requires a number")
+                    return
+                i += 1
+                try:
+                    keep_count = int(arg_list[i])
+                except ValueError:
+                    print(f"Error: Invalid number for --keep-count: {arg_list[i]}")
+                    return
+            elif arg == "--keep-days":
+                if i + 1 >= len(arg_list):
+                    print("Error: --keep-days requires a number")
+                    return
+                i += 1
+                try:
+                    keep_days = int(arg_list[i])
+                except ValueError:
+                    print(f"Error: Invalid number for --keep-days: {arg_list[i]}")
+                    return
+            elif arg == "--backup-type":
+                if i + 1 >= len(arg_list):
+                    print("Error: --backup-type requires a value")
+                    return
+                i += 1
+                type_str = arg_list[i].lower()
+                if type_str == "snapshot":
+                    backup_type = BackupType.SNAPSHOT
+                elif type_str == "overlay":
+                    backup_type = BackupType.OVERLAY
+                else:
+                    print(f"Error: Invalid backup type '{type_str}'. Use 'snapshot' or 'overlay'.")
+                    return
+            else:
+                print(f"Error: Unknown option '{arg}'")
+                return
+            i += 1
+
+        if keep_count is None and keep_days is None:
+            print("Error: You must specify either --keep-count or --keep-days")
+            return
+
+        # Find the VM across servers
+        domain, server_name = self._find_domain(vm_name)
+        if not domain or not server_name:
+            return
+
+        try:
+            retention = RetentionPolicy(keep_count=keep_count, keep_days=keep_days)
+
+            conn = self.active_connections[server_name]
+
+            print(
+                f"Cleaning up old {backup_type.value} backups for VM '{vm_name}' on server '{server_name}'..."
+            )
+
+            cleaned_backups = self.backup_manager.cleanup_old_backups(
+                vm_name, server_name, retention, backup_type, conn
+            )
+
+            if cleaned_backups:
+                print(f"Cleaned up {len(cleaned_backups)} old backups:")
+                for backup_name in cleaned_backups:
+                    print(f"  - {backup_name}")
+            else:
+                print("No old backups to clean up.")
+
+        except Exception as e:
+            print(f"Error cleaning up backups for '{vm_name}': {e}")
+
+    def complete_backup_cleanup(self, text, line, begidx, endidx):
+        """Auto-completion for backup_cleanup command."""
+        args = shlex.split(line[len("backup_cleanup") :].strip())
+
+        # Options for backup_cleanup
+        options = ["--keep-count", "--keep-days", "--backup-type"]
+
+        if text.startswith("--"):
+            return [opt for opt in options if opt.startswith(text)]
+        elif "--backup-type" in line and not text:
+            return ["snapshot", "overlay"]
+        elif "--backup-type" in line and args and args[-1] == "--backup-type":
+            return ["snapshot", "overlay"]
+        else:
+            # VM name completion (first argument)
+            return self.complete_vm_names_only(text, line, begidx, endidx)
+
+    def complete_backup_status(self, text, line, begidx, endidx):
+        """Auto-completion for backup_status command."""
+        try:
+            backups = self.backup_manager.list_available_backups()
+            if not text:
+                return sorted(backups)
+            else:
+                return sorted([b for b in backups if b.startswith(text)])
+        except:
+            return []
+
+    def do_backup_restore(self, args):
+        """Restore a VM from a backup.
+        Usage: backup_restore <backup_name> [--no-verify] [--force]
+
+        Options:
+          --no-verify       Skip backup verification before restore
+          --force           Force restore without confirmation prompts
+
+        The backup will be restored to its original VM. Each backup contains
+        VM-specific state and configuration data.
+
+        Examples:
+          backup_restore daily-20240115_vm1_server1
+          backup_restore maintenance-backup --no-verify --force
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = shlex.split(args)
+        if not arg_list:
+            print("Usage: backup_restore <backup_name> [--no-verify] [--force]")
+            return
+
+        backup_name = arg_list[0]
+        verify_before_restore = True
+        force = False
+
+        # Parse arguments
+        i = 1
+        while i < len(arg_list):
+            arg = arg_list[i]
+            if arg == "--no-verify":
+                verify_before_restore = False
+            elif arg == "--force":
+                force = True
+            else:
+                print(f"Error: Unknown option '{arg}'")
+                return
+            i += 1
+
+        try:
+            # Get backup metadata to determine original VM and server
+            backup_metadata = self.backup_manager.get_backup_status(backup_name)
+            if not backup_metadata:
+                print(f"Error: Backup '{backup_name}' not found.")
+                return
+
+            vm_name = backup_metadata.get("vm_name")
+            backup_server_name = backup_metadata.get("server_name")
+            backup_type = backup_metadata.get("type")
+
+            if not vm_name:
+                print(f"Error: Cannot determine original VM name from backup '{backup_name}'.")
+                return
+
+            print(f"Restoring backup '{backup_name}' to original VM '{vm_name}'")
+
+            # Find target VM and server
+            domain, server_name = self._find_domain(vm_name)
+            if not domain:
+                return
+
+            # Show backup information
+            print(f"\nBackup Information:")
+            print(f"  Backup Name: {backup_name}")
+            print(f"  Original VM: {vm_name}")
+            print(f"  Backup Type: {backup_type}")
+            print(f"  Created: {backup_metadata.get('created_at', 'Unknown')}")
+            if backup_server_name:
+                print(f"  Original Server: {backup_server_name}")
+            print(f"  Target Server: {server_name}")
+
+            # Warning for overlay backups
+            if backup_type == "overlay":
+                print(
+                    f"\n⚠️  WARNING: Overlay backup restore is experimental and may not work correctly."
+                )
+                print("   Snapshot backups are recommended for reliable restoration.")
+
+            # Confirmation prompt (unless force is used)
+            if not force:
+                print(
+                    f"\n⚠️  WARNING: This will restore VM '{vm_name}' to the state from backup '{backup_name}'."
+                )
+                print("   Current VM state will be lost!")
+
+                try:
+                    response = input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    if response not in ["yes", "y"]:
+                        print("Restore cancelled.")
+                        return
+                except KeyboardInterrupt:
+                    print("\nRestore cancelled.")
+                    return
+
+            # Perform the restore
+            print(f"\nStarting restore of backup '{backup_name}'...")
+
+            if verify_before_restore:
+                print("Verifying backup integrity...")
+
+            restore_metadata = self.backup_manager.restore_backup(
+                domain, backup_name, verify_before_restore
+            )
+
+            print(f"✅ Backup '{backup_name}' restored successfully!")
+
+            # Show restore information
+            duration = restore_metadata.get("restore_duration_seconds", 0)
+            print(f"   Duration: {duration:.1f} seconds")
+            print(f"   Method: {restore_metadata.get('restore_method', 'unknown')}")
+
+            if restore_metadata.get("pre_restore_verification"):
+                verification = restore_metadata["pre_restore_verification"]
+                if verification.get("success"):
+                    print("   Pre-restore verification: PASSED")
+                else:
+                    print("   Pre-restore verification: FAILED (but restore continued)")
+
+        except Exception as e:
+            print(f"Error restoring backup '{backup_name}': {e}")
+
+    def complete_backup_restore(self, text, line, begidx, endidx):
+        """Auto-completion for backup_restore command."""
+        args = shlex.split(line[len("backup_restore") :].strip())
+
+        # Options
+        options = ["--no-verify", "--force"]
+
+        if text.startswith("--"):
+            return [opt for opt in options if opt.startswith(text)]
+        elif len(args) == 0 or (len(args) == 1 and not line.endswith(" ")):
+            # Complete backup names
+            try:
+                backups = self.backup_manager.list_available_backups()
+                if not text:
+                    return sorted(backups)
+                else:
+                    return sorted([b for b in backups if b.startswith(text)])
+            except:
+                return []
+        else:
+            # No other arguments needed
+            return []
 
     def _show_pipeline_help(self):
         """Show comprehensive pipeline help."""

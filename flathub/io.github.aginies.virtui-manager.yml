@@ -27,6 +27,7 @@ finish-args:
   - --socket=ssh-auth
   - --env=PATH=/app/bin:/usr/bin:/app/lib/extensions/bin
   - --env=PYTHONPATH=/app/lib/python3.12/site-packages
+  - --env=EDITOR=/app/bin/vim
   - --own-name=io.github.aginies.virtui-manager
   - --socket=pulseaudio
 
@@ -310,6 +311,20 @@ modules:
       - type: archive
         url: https://download.qemu.org/qemu-10.2.1.tar.xz
         sha256: a3717477d8e2c84d630bfffbc20f6cd3293eb45aa1e6dac6d0cc27689991c9e1
+
+  - name: vim
+    buildsystem: autotools
+    config-opts:
+      - --with-features=normal
+      - --disable-gui
+      - --disable-gtktest
+      - --disable-xim
+      - --disable-netbeans
+      - --enable-multibyte
+    sources:
+      - type: archive
+        url: https://github.com/vim/vim/archive/v9.1.0950.tar.gz
+        sha256: ff31083fdbdde49a1cd6e95ac751f194d75065d79c8d07d138a9c1afe3494b31
 
   - name: virtui-manager
     buildsystem: simple

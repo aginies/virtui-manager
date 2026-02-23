@@ -58,10 +58,11 @@ from .modals.vmcard_dialog import (
 from .modals.vmdetails_modals import VMDetailModal
 from .modals.xml_modals import XMLDisplayModal
 from .utils import (
-    check_tmux,
+    is_inside_tmux,
     extract_server_name_from_uri,
     generate_tooltip_markdown,
     remote_viewer_cmd,
+    is_remote_connection,
 )
 from .vm_actions import (
     clone_vm,
@@ -103,7 +104,7 @@ class VMCardActions(Static):
                     with Vertical():
                         yield Button(ButtonLabels.WEB_CONSOLE, id="web_console", variant="default")
                         yield Button(ButtonLabels.CONNECT, id="connect", variant="default")
-                        if os.environ.get("TMUX") and check_tmux():
+                        if is_inside_tmux():
                             yield Button(
                                 ButtonLabels.TEXT_CONSOLE, id="tmux_console", variant="default"
                             )
@@ -1692,9 +1693,8 @@ class VMCard(Static):
             )
             return
 
-        # is_remote = self.app.webconsole_manager.is_remote_connection(self.conn.getURI())
         uri = self._get_uri()
-        is_remote = self.app.webconsole_manager.is_remote_connection(uri)
+        is_remote = is_remote_connection(uri)
 
         if is_remote:
 
@@ -2145,7 +2145,7 @@ class VMCard(Static):
                     delete_vm(
                         self.vm,
                         delete_storage=delete_storage,
-                        delete_nvram=True,
+                        delete_nvram=delete_storage,
                         log_callback=log_callback,
                     )
 
