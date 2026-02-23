@@ -259,6 +259,12 @@ class InstallVMModal(BaseModal[str | None]):
                             )
 
             yield Checkbox(
+                "Use virt-install",
+                id="use-virt-install-checkbox",
+                value=True,
+                tooltip="Use virt-install command-line tool. Uncheck to use XML-based creation."
+            )
+            yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
                 id="configure-before-install-checkbox",
                 value=False,
@@ -286,6 +292,15 @@ class InstallVMModal(BaseModal[str | None]):
         storage_pool_select = self.query_one("#storage-pool-select", Select)
         if storage_pool_select.value:
             self.fetch_pool_isos(storage_pool_select.value)
+
+        # Hide virt-install checkbox if not available
+        use_virt_install_checkbox = self.query_one("#use-virt-install-checkbox", Checkbox)
+        if not self.provisioner.check_virt_install():
+            use_virt_install_checkbox.value = False
+            use_virt_install_checkbox.styles.display = "none"
+        else:
+            use_virt_install_checkbox.value = True
+            use_virt_install_checkbox.styles.display = "block"
 
     def _update_expert_defaults(self, vm_type):
         mem = 4
@@ -563,6 +578,26 @@ class InstallVMModal(BaseModal[str | None]):
     def on_iso_selected(self, event: Select.Changed):
         self._check_form_validity()
 
+    @on(Select.Changed, "#automation-template-select")
+    def on_template_selected(self, event: Select.Changed):
+        """Handle template selection - enable/disable user config fields."""
+        template_id = event.value
+
+        # Enable/disable user configuration fields based on template selection
+        should_enable = template_id and template_id != Select.BLANK
+
+        # Update all automation user config fields
+        try:
+            self.query_one("#automation-root-password", Input).disabled = not should_enable
+            self.query_one("#automation-hostname", Input).disabled = not should_enable
+            self.query_one("#automation-username", Input).disabled = not should_enable
+            self.query_one("#automation-user-password", Input).disabled = not should_enable
+            self.query_one("#automation-language", Select).disabled = not should_enable
+            self.query_one("#automation-keyboard", Select).disabled = not should_enable
+        except Exception as e:
+            # Widgets may not exist in all contexts
+            logging.warning(f"Could not update automation config fields: {e}")
+
     @on(Input.Changed, "#vm-name")
     def on_name_changed(self):
         self._check_form_validity()
@@ -668,6 +703,7 @@ class InstallVMModal(BaseModal[str | None]):
         vm_type = self.query_one("#vm-type", Select).value
         pool_name = self.query_one("#pool", Select).value
         distro = self.query_one("#distro", Select).value
+        use_virt_install = self.query_one("#use-virt-install-checkbox", Checkbox).value
         configure_before_install = self.query_one(
             "#configure-before-install-checkbox", Checkbox
         ).value
@@ -712,6 +748,16 @@ class InstallVMModal(BaseModal[str | None]):
         except ValueError:
             self.app.show_error_message(ErrorMessages.INVALID_EXPERT_SETTINGS)
             return
+
+        # Get automation template selection
+        automation_template_id = None
+        try:
+            template_select = self.query_one("#automation-template-select", Select)
+            if template_select.value and template_select.value != Select.BLANK:
+                automation_template_id = template_select.value
+        except Exception:
+            # Template selection widget may not exist or may not be visible
+            pass
 
         # Validate expert mode inputs
         if memory_gb < 1 or memory_gb > 8192:
@@ -763,7 +809,9 @@ class InstallVMModal(BaseModal[str | None]):
             disk_size,
             disk_format,
             boot_uefi,
+            use_virt_install,
             configure_before_install,
+            automation_template_id,
         )
 
     @work(exclusive=True, thread=True)
@@ -781,7 +829,9 @@ class InstallVMModal(BaseModal[str | None]):
         disk_size,
         disk_format,
         boot_uefi,
+        use_virt_install,
         configure_before_install,
+        automation_template_id,
     ):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
@@ -905,6 +955,31 @@ class InstallVMModal(BaseModal[str | None]):
 
                     self.app.call_from_thread(push_details)
 
+                # Build automation config if a template is selected
+                automation_config = None
+                if automation_template_id:
+                    # Get user configuration values
+                    try:
+                        root_password = self.query_one("#automation-root-password", Input).value
+                        hostname = self.query_one("#automation-hostname", Input).value
+                        username = self.query_one("#automation-username", Input).value
+                        user_password = self.query_one("#automation-user-password", Input).value
+                        language = self.query_one("#automation-language", Select).value
+                        keyboard = self.query_one("#automation-keyboard", Select).value
+
+                        automation_config = {
+                            "template_name": automation_template_id,
+                            "root_password": root_password,
+                            "hostname": hostname or name,  # Default to VM name if empty
+                            "username": username,
+                            "user_password": user_password,
+                            "language": language,
+                            "keyboard": keyboard,
+                        }
+                    except Exception as e:
+                        logging.warning(f"Could not retrieve automation config: {e}")
+                        automation_config = {"template_name": automation_template_id}
+
                 dom = self.provisioner.provision_vm(
                     vm_name=name,
                     vm_type=vm_type,
@@ -915,11 +990,13 @@ class InstallVMModal(BaseModal[str | None]):
                     disk_size_gb=disk_size,
                     disk_format=disk_format,
                     boot_uefi=boot_uefi,
+                    use_virt_install=use_virt_install,
                     configure_before_install=configure_before_install,
                     show_config_modal_callback=(
                         show_config_modal if configure_before_install else None
                     ),
                     progress_callback=progress_cb,
+                    automation_config=automation_config,
                 )
             finally:
                 self.app.call_from_thread(self.app.vm_service.resume_global_updates)
