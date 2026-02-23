@@ -138,7 +138,6 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     EDIT_INTERFACE = _("Edit Interface")
     ADD_INTERFACE = _("Add Interface")
     REMOVE_INTERFACE = _("Remove Interface")
-    DELETE_VIRTIOFS = _("Delete")
     VIRTIOFS_HELP = _("Help")
     APPLY_GRAPHICS_SETTINGS = _("Apply Graphics Settings")
     APPLY_TPM_SETTINGS = _("Apply TPM Settings")
@@ -309,7 +308,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     ENABLE_DHCPV4 = _("Enable DHCPv4")
     VALIDATE_CHECKSUM = _("Validate Checksum")
     CONFIGURE_BEFORE_INSTALL = _("Configure before install")
-    INSTALL_OPENSUSE_VM = _("Install OpenSUSE VM on {uri}")
+    INSTALL_VM = _("Install VM on {uri}")
     VM_NAME = _("VM Name:")
     VM_TYPE = _("VM Type:")
     DISTRIBUTION = _("Distribution:")
@@ -335,11 +334,10 @@ class StaticText:  # pylint: disable=too-few-public-methods
     UPLOADING_ISO = _("Uploading ISO...")
     UPLOADING_PROGRESS_TEMPLATE = _("Uploading: {progress}%")
     MEMORY_GB_LABEL = _(" Memory (GB)")
-    CPUS_LABEL = _(" CPUs")
     DISK_SIZE_GB_LABEL = _(" Disk Size(GB)")
     DISK_FORMAT_LABEL = _(" Disk Format")
     FIRMWARE_LABEL = _(" Firmware")
-    DELETE_STORAGE_VOLUMES = _("Delete storage volumes")
+    DELETE_STORAGE_VOLUMES = _("Delete storage volumes abd NVRAM")
     QUIESCE_GUEST = _("Quiesce guest (requires agent)")
     SELECT_INTERFACE_AND_NETWORK = _("Select interface and new network")
     ENTER_BASE_NAME = _("Enter base name for new VM(s)")
@@ -376,7 +374,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     PMSUSPENDED = _("Guest Suspended")
     BLOCKED = _("Blocked")
     STOPPED = _("Stopped")
-    MANUALLY_SELECTED = _("Manually Selected")
     CREATE_NEW_VM = _("Create New VM")
     START_VMS = _("Start VMs")
     STOP_VMS_GRACEFUL = _("Stop VMs (Graceful Shutdown)")
@@ -405,8 +402,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     MIGRATE_VMS_TITLE = _("[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
     EMPTY_LABEL = ""
     SERVER_PREFERENCES = _("Server Preferences")
-    SELECT_DIRECTORY = _("Select a Directory")
-    SELECT_FILE = _("Select a File")
     SELECT_DISK_TO_REMOVE = _("Select Disk to Remove")
     ADD_NEW_DISK = _("Add New Disk")
     ADD_NEW_STORAGE_POOL = _("Add New Storage Pool")
@@ -472,12 +467,9 @@ class StaticText:  # pylint: disable=too-few-public-methods
     HOST_RESOURCE_DASHBOARD = _("Host Resource Dashboard")
     HOST_DETAILS = _("Host Details")
     VM_ALLOCATION = _("VM Allocation")
-    CPU_USAGE = _("CPU Usage")
     MEMORY_USAGE = _("Memory Usage")
     ALLOCATED_VCPUS = _("Allocated VCPUs")
     ALLOCATED_MEMORY = _("Allocated Memory")
-    ACTIVE_ALLOCATION = _("Active Allocation")
-    TOTAL_ALLOCATION = _("Total Allocation")
     MODEL = _("Model:")
     TOPOLOGY = _("Topology:")
     WAITING_TO_START_COLLECTION = _("Waiting to start collection...")
@@ -527,7 +519,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     POOL_TYPE_NETFS_LABEL = _("netfs: Network Exported Directory")
     POOL_TYPE_PROMPT = _("Pool Type")
     DIR_TARGET_PATH_PLACEHOLDER = _("/var/lib/libvirt/images/>")
-    NETFS_HOST_PLACEHOLDER = _("nfs.example.com")
     EXISTING_VOLUME_NAME_PLACEHOLDER = _("Volume Name (e.g., existing_disk.qcow2)")
     DISK_IMAGE_PATH_PLACEHOLDER = _("Path to disk image")
     SELECT_A_SERVER = _("Select a server")
@@ -595,10 +586,6 @@ Specify the NUMA nodes to use.
     SHUTTING_DOWN = _("Shutting down...")
     APP_DESCRIPTION = _("A Textual application to manage VMs.")
     CLI_HELP = _("Run in command-line interpreter mode.")
-    VIRSH_CONSOLE_HELP = _(
-        "virsh -c <uri> console <vm_name>; echo '\\nConsole session ended. "
-        "Press Enter to close window.'; read"
-    )
     ENABLE_3D_ACCELERATION = _("3D Acceleration")
     AUTO_PORT = _("Auto Port")
     PORT_PLACEHOLDER = _("Port (e.g., 5900)")
@@ -606,14 +593,6 @@ Specify the NUMA nodes to use.
     PASSWORD_PLACEHOLDER = _("Password")
     BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
     SELECT_VM = _("Select VM")
-    UNCHECKED_MEANS_LEGACY_BOOT = _("Unchecked means legacy boot")
-    SHOW_VM_CONFIGURATION_BEFORE_STARTING = _("Show VM configuration before starting")
-    COPY_ALL_DISK_FILES_DURING_MIGRATION = _("Copy all disk files during migration")
-    PERFORM_UNSAFE_MIGRATION = _("Perform unsafe migration (may lose data)")
-    KEEP_VM_PERSISTENT_ON_DESTINATION = _("Keep VM persistent on destination")
-    COMPRESS_DATA_DURING_MIGRATION = _("Compress data during migration")
-    TUNNEL_MIGRATION_DATA_THROUGH_LIBVIRT = _("Tunnel migration data through libvirt da. ..")
-    USE_CUSTOM_MIGRATION_WORKFLOW = _("Use custom migration workflow")
 
     PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP = _(
         "Pause the guest filesystem to ensure a c. .."
@@ -632,6 +611,76 @@ Specify the NUMA nodes to use.
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
+
+    # Expert Mode and Automated Installation Tooltips
+    AUTOMATION_TEMPLATE_TOOLTIP = _(
+        "Choose a pre-configured installation template. Templates define software packages, users, and system settings."
+    )
+
+    # Automated Installation UI Labels
+    AUTOMATED_INSTALLATION_TITLE = _("Automated Installation")
+    INSTALLATION_TEMPLATE_LABEL = _("Installation Template")
+    MANAGE_TEMPLATES_TITLE = _("Manage Templates")
+    MANAGE_TEMPLATES_BUTTON = _("Manage Templates")
+    TEMPLATE_LIST_HEADER = _("Available Templates")
+    TEMPLATE_NAME_COLUMN = _("Name")
+    TEMPLATE_TYPE_COLUMN = _("Type")
+    TEMPLATE_DESCRIPTION_COLUMN = _("Description")
+    NO_TEMPLATES_AVAILABLE = _("No templates available")
+    SELECT_TEMPLATE_TO_EDIT = _("Please select a template to edit")
+    SELECT_TEMPLATE_TO_VIEW = _("Please select a template to view")
+    SELECT_TEMPLATE_TO_DELETE = _("Please select a template to delete")
+    SELECT_TEMPLATE_TO_EXPORT = _("Please select a template to export")
+    CANNOT_DELETE_BUILTIN_TEMPLATE = _("Built-in templates cannot be deleted")
+    TEMPLATE_DELETED_SUCCESSFULLY = _("Template '{template_name}' deleted successfully")
+    TEMPLATE_EXPORTED_TO = _("Template exported to {path}")
+    TEMPLATE_IMPORTED_SUCCESSFULLY = _("Template '{template_name}' imported successfully")
+    VIEW_TEMPLATE_TITLE = _("View Template: {template_name}")
+    TEMPLATE_NAME_TITLE = _("Template Name")
+    TEMPLATE_NAME_LABEL = _("Template Name:")
+    TEMPLATE_NAME_PLACEHOLDER = _("Enter template name")
+    TEMPLATE_OS_LABEL = _("Operating System:")
+    TEMPLATE_DESCRIPTION_LABEL = _("Description (optional):")
+    TEMPLATE_DESCRIPTION_PLACEHOLDER = _("Enter template description")
+    IMPORT_BUTTON = _("Import")
+    TEMPLATE_NAME_REQUIRED = _("Template name is required")
+    ROOT_PASSWORD_LABEL = _("Root Password")
+    ROOT_PASSWORD_PLACEHOLDER = _("root password")
+    USERNAME_LABEL = _("Username")
+    USERNAME_PLACEHOLDER = _("username")
+    USER_PASSWORD_LABEL = _("User Password")
+    USER_PASSWORD_PLACEHOLDER = _("user password")
+    HOSTNAME_LABEL = _("Hostname")
+    HOSTNAME_PLACEHOLDER = _("hostname")
+    LANGUAGE_LABEL = _("Language")
+    LANGUAGE_TOOLTIP = _("System language for the installation")
+    KEYBOARD_LABEL = _("Keyboard Layout")
+    KEYBOARD_TOOLTIP = _("Keyboard layout for the system")
+    # VM Provisioner Progress Messages
+    PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
+    PROVISIONING_USING_EXISTING_ISO_VOLUME = _("Using existing ISO volume: {path}")
+    PROVISIONING_USING_LOCAL_ISO_IMAGE = _("Using local ISO image")
+    PROVISIONING_DOWNLOADING_ISO_PERCENT = _("Downloading ISO: {percent}%")
+    PROVISIONING_ISO_FOUND_IN_CACHE = _("ISO found in cache, skipping download")
+    PROVISIONING_SETTING_UP_UEFI_FIRMWARE = _("Setting up UEFI Firmware")
+    PROVISIONING_CREATING_STORAGE = _("Creating Storage")
+    PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
+    PROVISIONING_DEFINING_VM = _("Defining VM")
+    PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
+    PROVISIONING_CONFIGURING_VM_VIRT_INSTALL = _("Configuring VM (virt-install)")
+    PROVISIONING_WAITING_FOR_VM = _("Waiting for VM")
+    PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
+    PROVISIONING_STARTING_VM = _("Starting VM")
+    PROVISIONING_COMPLETE = _("Provisioning Complete")
+
+    # VM Type constants
+    VM_TYPE_SECURE = _("Secure VM")
+    VM_TYPE_COMPUTATION = _("Computation")
+    VM_TYPE_DESKTOP = _("Desktop (Linux)")
+    VM_TYPE_WDESKTOP = _("Windows")
+    VM_TYPE_WLDESKTOP = _("Windows Legacy")
+    VM_TYPE_SERVER = _("Server")
+
 
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
@@ -761,13 +810,11 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     """Constants for error messages"""
 
     R_VIEWER_NOT_FOUND = _("Remote viewer command not found. Please ensure it is installed.")
-    CANNOT_OPEN_DISPLAY = _("Could not open display. Ensure you are in a graphical session.")
     HARD_STOP_WARNING = _("This is a hard stop, like unplugging the power cord.")
     MIGRATION_LOCALHOST_NOT_SUPPORTED = _(
         "Migration from localhost (qemu:///system) is not supported.\\n"
         "A full remote URI (e.g., qemu+ssh://user@host/system) is required."
     )
-    NO_DESTINATION_SERVERS = _("No destination servers available.")
     DIFFERENT_SOURCE_HOSTS = _("Cannot migrate VMs from different source hosts at the same time.")
     MIXED_VM_STATES = _("Cannot migrate running/paused and stopped VMs at the same time.")
     WEBSOCKIFY_NOT_FOUND = _("websockify is not installed. 'Web Console' button will be disabled.")
@@ -901,9 +948,6 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     SUBNET_OVERLAPS_TEMPLATE = _("Subnet {subnet} overlaps with an existing network.")
     ERROR_CREATING_NETWORK_TEMPLATE = _("Error creating network: {error}")
     ERROR_UPDATING_NETWORK_TEMPLATE = _("Error updating network: {error}")
-    NETWORK_NOT_FOUND_TEMPLATE_2 = _(
-        "Network '{network}' not found. Please select an available network."
-    )
     VM_NAME_ALREADY_EXISTS_TEMPLATE = _(
         "A VM with the name '{vm_name}' already exists. Please choose a different name."
     )
@@ -961,10 +1005,6 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ERROR_TOGGLE_POOL_AUTOSTART_TEMPLATE = _("Error toggling pool autostart state: {error}")
     INVALID_OR_NON_EXISTENT_PATH_TEMPLATE = _("Invalid or non-existent path: {path}")
     ERROR_REFRESHING_POOL_TEMPLATE = _("Error refreshing pool: {error}")
-    POOL_ALREADY_MANAGES_DIRECTORY_TEMPLATE = _(
-        "A pool named '{pool_name}' already manages this directory.\\n"
-        "Refreshed pool to include the new volume."
-    )
     NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE = _(
         "No storage pool exists for the directory:\n'{directory}'.\n\nCreate a new pool named '{pool_name}'?"
     )
@@ -983,11 +1023,9 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
         "\nThis network is currently in use by the following VMs:\n{vm_list}."
     )
     NOT_CONNECTED_TO_LIBVIRT = _("Not connected to libvirt.")
-    POOL_IS_NOT_ACTIVE = _("Pool is not active")
     DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE = _(
         "Are you sure you want to delete storage pool:\n' {pool_name}'\nThis will delete the pool definition but not the data on it."
     )
-    VOLUME_DELETED_SUCCESSFULLY_TEMPLATE = _("Volume '{volume_name}' deleted successfully.")
     VIRTIOFS_PATH_EMPTY = _("Source Path and Target Path cannot be empty.")
     SANITIZATION_ERROR_TEMPLATE = _("{error}")
     PLEASE_SELECT_INTERFACE_AND_NETWORK = _("Please select an interface and a network.")
@@ -1014,63 +1052,9 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ADD_CHANNEL_NO_TARGET_NAME = _("Selected channel has no target name.")
     ERROR_ADDING_CHANNEL_TEMPLATE = _("Error adding channel: {error}")
     ERROR_REMOVING_CHANNEL_TEMPLATE = _("Error removing channel: {error}")
-    VM_NOT_FOUND_FOR_DETAILS_TEMPLATE = _("VM '{vm_name}' not found for details.")
-    COULD_NOT_GET_VM_XML_TEMPLATE = _("Could not get XML for VM '{vm_name}': {error}")
-    CPU_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit CPU settings.")
-    MEMORY_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit memory settings.")
-    MACHINE_TYPE_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to change machine type.")
-    SHARED_MEMORY_MUST_BE_STOPPED_TO_EDIT = _(
-        "VM must be stopped to change shared memory settings."
-    )
-    FIRMWARE_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to change firmware settings.")
-    BOOT_ORDER_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit boot order.")
     DISK_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit disk settings.")
-    NETWORK_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit network settings.")
-    VIRTIOFS_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit VirtIO-FS settings.")
-    VIDEO_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit video settings.")
-    SOUND_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit sound settings.")
-    GRAPHICS_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit graphics settings.")
-    TPM_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit TPM settings.")
-    RNG_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit RNG settings.")
-    SERIAL_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit serial settings.")
-    WATCHDOG_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit watchdog settings.")
-    PCI_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit PCI settings.")
-    USB_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit USB settings.")
-    CONTROLLER_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit controller settings.")
-    CHANNEL_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit channel settings.")
-    INPUT_VM_MUST_BE_STOPPED_TO_EDIT = _("VM must be stopped to edit input settings.")
-    ERROR_TOGGLE_DISK_TEMPLATE = _("Error toggling disk state: {error}")
-    ERROR_REMOVING_DISK_TEMPLATE = _("Error removing disk: {error}")
-    ERROR_ADDING_DISK_TEMPLATE = _("Error adding disk: {error}")
-    ERROR_ATTACHING_DISK_TEMPLATE = _("Error attaching existing disk: {error}")
-    ERROR_EDITING_DISK_TEMPLATE = _("Error editing disk: {error}")
-    ERROR_SETTING_VM_VIDEO_MODEL_TEMPLATE = _("Error setting VM video model: {error}")
-    ERROR_SETTING_CPU_MODEL_TEMPLATE = _("Error setting CPU model: {error}")
-    ERROR_SETTING_UEFI_FILE_TEMPLATE = _("Error setting UEFI file: {error}")
-    ERROR_SETTING_SHARED_MEMORY_TEMPLATE = _("Error setting shared memory: {error}")
-    ERROR_SETTING_VM_GRAPHICS_TEMPLATE = _("Error setting VM graphics: {error}")
-    ERROR_SETTING_VM_SOUND_MODEL_TEMPLATE = _("Error setting VM sound model: {error}")
-    ERROR_SETTING_VM_RNG_TEMPLATE = _("Error setting VM RNG: {error}")
-    ERROR_SETTING_VM_TPM_TEMPLATE = _("Error setting VM TPM: {error}")
     ERROR_ATTACHING_USB_DEVICE_TEMPLATE = _("Error attaching USB device: {error}")
     ERROR_DETACHING_USB_DEVICE_TEMPLATE = _("Error detaching USB device: {error}")
-    ERROR_ADDING_SERIAL_CONSOLE_TEMPLATE = _("Error adding serial console: {error}")
-    ERROR_REMOVING_SERIAL_CONSOLE_TEMPLATE = _("Error removing serial console: {error}")
-    ERROR_ADDING_INPUT_DEVICE_TEMPLATE = _("Error adding input device: {error}")
-    ERROR_REMOVING_INPUT_DEVICE_TEMPLATE = _("Error removing input device: {error}")
-    ERROR_SETTING_VM_WATCHDOG_TEMPLATE = _("Error setting VM watchdog: {error}")
-    ERROR_REMOVING_VM_WATCHDOG_TEMPLATE = _("Error removing VM watchdog: {error}")
-    ERROR_ADDING_USB_DEVICE_TEMPLATE = _("Error adding USB device: {error}")
-    ERROR_REMOVING_USB_DEVICE_TEMPLATE = _("Error removing USB device: {error}")
-    ERROR_ADDING_SCSI_CONTROLLER_TEMPLATE = _("Error adding SCSI controller: {error}")
-    ERROR_REMOVING_SCSI_CONTROLLER_TEMPLATE = _("Error removing SCSI controller: {error}")
-    ERROR_MIGRATING_VM_MACHINE_TYPE_TEMPLATE = _("Error migrating VM machine type: {error}")
-    ERROR_SETTING_VM_NUMATUNE_TEMPLATE = _("Error setting VM NUMA tune: {error}")
-    ERROR_SETTING_VM_CPUTUNE_TEMPLATE = _("Error setting VM CPU tune: {error}")
-    ERROR_REMOVING_VIRTIOFS_TEMPLATE = _("Error removing VirtIO-FS: {error}")
-    ERROR_ADDING_VIRTIOFS_TEMPLATE = _("Error adding VirtIO-FS: {error}")
-    ERROR_CHECKING_FOR_SPICE_DEVICES_TEMPLATE = _("Error checking for other SPICE devices: {error}")
-    ERROR_REMOVING_SPICE_DEVICES_TEMPLATE = _("Error removing SPICE devices: {error}")
     SPICE_REMOVAL_CONFIRMATION_SINGLE = _(
         "This VM has other SPICE-related devices (e.g., channels, QXL video).\nDo you want to remove them for a clean switch to VNC?"
     )
@@ -1087,36 +1071,22 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ERROR_READING_LOG_FILE = _("Error reading log file: {error}")
     TERMINAL_HEIGHT_TOO_SMALL = _("Terminal height is too small ({height} lines). Please resize.")
     TERMINAL_WIDTH_TOO_SMALL = _("Terminal width is too small ({width} columns). Please resize.")
+    TMUX_REQUIRED_FOR_TEMPLATE_EDITING = _(
+        "Template editing requires running inside tmux. "
+        "Please start virtui-manager inside a tmux session."
+    )
+    EDITOR_CANCELLED_OR_FAILED = _("Editor was cancelled or failed")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
     """Constants for dialog messages"""
 
-    DELETE_VM_CONFIRMATION = _("Are you sure you want to delete '{name}'?")
     DELETE_SNAPSHOT_CONFIRMATION = _("Are you sure you want to delete snapshot '{name}'?")
-    DELETE_SNAPSHOTS_AND_RENAME = _(
-        "VM has {count} snapshot(s). To rename, they must be deleted.\nDelete snapshots and continue?"
-    )
     DELETE_VOLUME_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete volume '{vol_name}'?")
     EXPERIMENTAL = _(
         "Experimental Feature! Still contains bugs, fix in progress. You have been informed"
     )
     CONFIRM_REMOVE_CHANNEL_TEMPLATE = _("Are you sure you want to remove channel '{target_name}'?")
-    CONFIRM_REMOVE_INPUT_DEVICE_TEMPLATE = _(
-        "Are you sure you want to remove input device '{device_type}'?"
-    )
-    CONFIRM_REMOVE_SERIAL_CONSOLE_TEMPLATE = _(
-        "Are you sure you want to remove serial console '{port}'?"
-    )
-    CONFIRM_REMOVE_USB_DEVICE_TEMPLATE = _(
-        "Are you sure you want to remove USB device '{description}'?"
-    )
-    CONFIRM_REMOVE_SCSI_CONTROLLER_TEMPLATE = _(
-        "Are you sure you want to remove SCSI controller '{model}' at index '{index}'?"
-    )
-    CONFIRM_REMOVE_VIRTIOFS_TEMPLATE = _(
-        "Are you sure you want to remove VirtIO-FS mount '{target_path}'?"
-    )
     CONFIRM_DISCARD_CHANGES = _(
         "Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."
     )
@@ -1146,7 +1116,6 @@ class WarningMessages:  # pylint: disable=too-few-public-methods
     VMS_PER_PAGE_PERFORMANCE_WARNING = _(
         "Displaying [b]{vms_per_page}[/b] VMs per page. CPU usage may increase; 9 is recommended for optimal performance."
     )
-    VM_NOT_PAUSABLE = _("VM '{vm_name}' is not in a pausable state.")
     LIBVIRT_XML_NO_EFFECTIVE_CHANGE = _(
         "VM [b]{vm_name}[/b]: Libvirt accepted the XML but the configuration remains unchanged. Your changes may have been ignored or normalized away."
     )
@@ -1173,7 +1142,6 @@ class WarningMessages:  # pylint: disable=too-few-public-methods
 class SuccessMessages:  # pylint: disable=too-few-public-methods
     """Constants for success messages"""
 
-    REMOTE_VIEWER_SELECTED = _("The remove viewer {viewer} has been selected.")
     CONNECTED_TO_SERVER = _("Connected to [b]{uri}[/b]")
     STATS_LOGGING_DISABLED = _("Statistics logging and monitoring disabled.")
     STATS_LOGGING_ENABLED = _("Statistics logging and monitoring enabled (every 10s).")
@@ -1233,9 +1201,6 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     BASE_NAME_SANITIZED_TEMPLATE = _(
         "Base name sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
     )
-    SUFFIX_SANITIZED_TEMPLATE = _(
-        "Suffix sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
-    )
     INPUT_SANITIZED_TEMPLATE = _("Input sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]")
     BOOT_ORDER_SAVED_SUCCESSFULLY = _("Boot order saved successfully.")
     GRAPHICS_SETTINGS_APPLIED_SUCCESSFULLY = _("Graphics settings applied successfully")
@@ -1245,40 +1210,15 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     USB_DEVICE_DETACHED_TEMPLATE = _("Detached USB device: {description}")
     CHANNEL_ADDED_SUCCESSFULLY = _("Channel added successfully.")
     CHANNEL_REMOVED_SUCCESSFULLY_TEMPLATE = _("Channel '{target_name}' removed successfully.")
-    ADD_INPUT_DEVICE_SUCCESS = _("Input device '{device_type}' added successfully.")
-    REMOVE_INPUT_DEVICE_SUCCESS = _("Input device '{device_type}' removed successfully.")
-    SERIAL_CONSOLE_ADDED_SUCCESS = _("Serial console added successfully.")
-    SERIAL_CONSOLE_REMOVED_SUCCESS = _("Serial console removed successfully.")
-    WATCHDOG_APPLIED_SUCCESS = _("Watchdog settings applied successfully.")
-    WATCHDOG_REMOVED_SUCCESS = _("Watchdog removed successfully.")
-    USB_DEVICE_ATTACHED_SUCCESS = _("USB device '{description}' attached successfully.")
-    USB_DEVICE_REMOVED_SUCCESS = _("USB device '{description}' removed successfully.")
-    SCSI_CONTROLLER_ADDED_SUCCESS = _("SCSI controller added successfully.")
-    SCSI_CONTROLLER_REMOVED_SUCCESS = _("SCSI controller removed successfully.")
-    VIRTIOFS_ADDED_SUCCESS = _("VirtIO-FS mount added successfully.")
-    VIRTIOFS_REMOVED_SUCCESS = _("VirtIO-FS mount removed successfully.")
     SPICE_DEVICES_REMOVED_SUCCESS = _("Removed associated SPICE devices")
     VM_VIDEO_MODEL_SET_SUCCESS = _("Video model set to {new_model}")
     VM_3D_ACCELERATION_SET_SUCCESS = _("3D Acceleration {state}")
     VM_SOUND_MODEL_SET_SUCCESS = _("Sound model set to {new_model}")
     VM_SECURE_BOOT_SET_SUCCESS = _("Secure Boot {state}")
     VM_SHARED_MEMORY_SET_SUCCESS = _("Shared memory {state}")
-    VM_MACHINE_TYPE_SET_SUCCESS = _("Machine type set to {new_machine_type}")
-    VM_VCPU_SET_SUCCESS = _("VCPU set to {vcpu_count}")
-    VM_MEMORY_SET_SUCCESS = _("Memory set to {memory_mb} MB")
     VM_CPU_MODEL_SET_SUCCESS = _("CPU model set to {new_cpu_model}")
     VM_UEFI_FILE_SET_SUCCESS = _("UEFI file set to {uefi_file_name}")
-    VM_DISK_ENABLED_SUCCESS = _("Disk '{disk_path}' enabled successfully.")
-    VM_DISK_DISABLED_SUCCESS = _("Disk '{disk_path}' disabled successfully.")
-    VM_DISK_REMOVED_SUCCESS = _("Disk '{disk_path}' removed successfully.")
-    VM_DISK_ADDED_SUCCESS = _("Disk '{disk_path}' added successfully.")
-    VM_DISK_ATTACHED_SUCCESS = _("Existing disk '{disk_path}' attached successfully.")
-    VM_DISK_EDITED_SUCCESS = _("Disk '{disk_path}' updated successfully.")
-    VM_NETWORK_INTERFACE_ADDED_SUCCESS = _("Network interface added successfully.")
-    VM_NETWORK_INTERFACE_REMOVED_SUCCESS = _("Network interface removed successfully.")
     VM_NETWORK_INTERFACE_CHANGED_TEMPLATE = _("Interface {mac_address} switched to {new_network}")
-    VM_CPUTUNE_SET_SUCCESS = _("CPU pinning settings applied successfully.")
-    VM_NUMATUNE_SET_SUCCESS = _("NUMA tuning settings applied successfully.")
     STORAGE_POOL_UPDATED_SUCCESSFULLY_TEMPLATE = _(
         "Storage pool '{pool_name}' updated successfully."
     )
