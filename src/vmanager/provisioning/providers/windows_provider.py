@@ -18,6 +18,7 @@ import tempfile
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -27,27 +28,41 @@ from ..os_provider import AutomationConfig, DriverInfo, OSProvider, OSType, OSVe
 class WindowsProvider(OSProvider):
     """Provider for Windows operating systems."""
 
-    # Windows evaluation ISO URLs (these are official Microsoft eval versions)
+    # Windows evaluation ISO information
+    # NOTE: Microsoft does not provide stable direct download URLs for evaluation ISOs.
+    # Users must download ISOs manually from Microsoft Evaluation Center:
+    # - Windows 10/11: https://www.microsoft.com/en-us/evalcenter/
+    # - Windows Server: https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server
+    #
+    # For automated provisioning, users should:
+    # 1. Download the ISO manually from Microsoft
+    # 2. Use the "Custom" OS type in the provisioning UI
+    # 3. Select the ISO from local storage or cached ISOs
     EVAL_ISO_URLS = {
         "10": {
             "display_name": "Windows 10 Enterprise Evaluation",
-            "url": "https://software-download.microsoft.com/download/pr/19041.388.200601-1853.rs_release_windowsleaks_cliententerprise_vol_x64fre_en-us.iso",
-            "checksum": "6911e3c15b4d94c15c8f1929c8a4e7b7e83ad7f65d1b65e82a791a4a2b8f5b6a",
+            "url": None,  # Manual download required
+            "download_page": "https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise",
         },
         "11": {
             "display_name": "Windows 11 Enterprise Evaluation",
-            "url": "https://software-download.microsoft.com/download/pr/22000.194.210913-1444.co_release_cliententerprise_vol_x64fre_en-us.iso",
-            "checksum": "ef7312733a9f5d7d51cfa04ac497671995674ca5e1058d5164d6028f0938d668",
+            "url": None,  # Manual download required
+            "download_page": "https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise",
         },
         "2019": {
             "display_name": "Windows Server 2019 Evaluation",
-            "url": "https://software-download.microsoft.com/download/pr/17763.737.190906-2324.rs5_release_svc_refresh_server_eval_x64fre_en-us_1.iso",
-            "checksum": "549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee1",
+            "url": None,  # Manual download required
+            "download_page": "https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2019",
         },
         "2022": {
             "display_name": "Windows Server 2022 Evaluation",
-            "url": "https://software-download.microsoft.com/download/pr/20348.169.210806-2348.fe_release_svc_refresh_server_eval_x64fre_en-us.iso",
-            "checksum": "3e4fa6d8507b554856fc9ca6079cc402df11a8b79344871669a8ae07b9e7efd8",
+            "url": None,  # Manual download required
+            "download_page": "https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2022",
+        },
+        "2025": {
+            "display_name": "Windows Server 2025 Evaluation",
+            "url": None,  # Manual download required
+            "download_page": "https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server-2025",
         },
     }
 
@@ -186,6 +201,29 @@ class WindowsProvider(OSProvider):
                 required=True,
             )
         ]
+
+    def get_cached_isos(self) -> List[Dict[str, Any]]:
+        """Retrieve a list of ISOs already present in the local cache directory."""
+        if not self.iso_cache.exists():
+            return []
+
+        isos = []
+        try:
+            for f in self.iso_cache.glob("*.iso"):
+                # Use stats for date
+                mtime = f.stat().st_mtime
+                dt_str = datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M")
+                isos.append(
+                    {
+                        "name": f.name,
+                        "url": str(f.absolute()),  # Use absolute path for local detection
+                        "date": f"{dt_str} (Cached)",
+                    }
+                )
+        except Exception as e:
+            self.logger.error(f"Error reading cached Windows ISOs: {e}")
+
+        return isos
 
     def generate_automation_file(
         self,

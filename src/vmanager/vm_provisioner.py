@@ -62,9 +62,11 @@ class VMProvisioner:
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
         # Convert string to OSType enum
+        # Note: Both openSUSE and SLES use the same provider (AutoYaST)
         os_type_map = {
             "linux": OSType.LINUX,
             "opensuse": OSType.LINUX,
+            "sles": OSType.LINUX,  # SLES uses same AutoYaST provider as openSUSE
             "windows": OSType.WINDOWS,
         }
 
@@ -1036,6 +1038,215 @@ class VMProvisioner:
         xml += "</domain>"
         return xml
 
+    def _create_autoyast_iso(
+        self, automation_file_path: str, output_dir: Path, storage_pool_name: str, vm_name: str
+    ) -> str:
+        """
+        Create an ISO image containing the AutoYaST file and upload to storage pool.
+        ISO images are more reliably detected by installers than floppy disks.
+
+        Args:
+            automation_file_path: Path to the autoyast.xml file
+            output_dir: Directory to create the ISO image in (local temp)
+            storage_pool_name: Name of the storage pool to upload to
+            vm_name: Name of the VM (used to create unique ISO image)
+
+        Returns:
+            Path to the ISO image in the storage pool
+        """
+        iso_filename = f"autoyast_{vm_name}.iso"
+        local_iso_path = output_dir / iso_filename
+
+        try:
+            # Create a temporary directory for ISO content
+            iso_content_dir = output_dir / f"autoyast_iso_content_{vm_name}"
+            iso_content_dir.mkdir(exist_ok=True)
+
+            # Copy the autoyast.xml file with both names for compatibility
+            import shutil
+
+            shutil.copy(automation_file_path, iso_content_dir / "autoyast.xml")
+            shutil.copy(automation_file_path, iso_content_dir / "autoinst.xml")
+
+            # Create ISO using genisoimage or mkisofs
+            iso_cmd = None
+            if shutil.which("genisoimage"):
+                iso_cmd = ["genisoimage"]
+            elif shutil.which("mkisofs"):
+                iso_cmd = ["mkisofs"]
+            else:
+                raise Exception(
+                    "Neither genisoimage nor mkisofs found. Please install genisoimage."
+                )
+
+            iso_cmd.extend(
+                [
+                    "-o",
+                    str(local_iso_path),
+                    "-V",
+                    "AUTOINSTALL",  # Volume label that might be detected
+                    "-r",  # Rock Ridge extensions
+                    "-J",  # Joliet extensions
+                    str(iso_content_dir),
+                ]
+            )
+
+            subprocess.run(iso_cmd, check=True, capture_output=True)
+            self.logger.info(f"Created local AutoYaST ISO at {local_iso_path}")
+
+            # Clean up the temporary directory
+            shutil.rmtree(iso_content_dir)
+
+            # Upload the ISO to the storage pool
+            pool = self.conn.storagePoolLookupByName(storage_pool_name)
+
+            # Check if volume already exists - if so, reuse it
+            try:
+                existing_vol = pool.storageVolLookupByName(iso_filename)
+                existing_path = existing_vol.path()
+                self.logger.info(
+                    f"Reusing existing AutoYaST ISO volume {iso_filename} at {existing_path}"
+                )
+                # Clean up local temporary file
+                local_iso_path.unlink()
+                return existing_path
+            except libvirt.libvirtError:
+                pass  # Volume doesn't exist, create it
+
+            # Get ISO file size
+            iso_size = local_iso_path.stat().st_size
+
+            # Create volume in the pool
+            volume_xml = f"""
+            <volume>
+                <name>{iso_filename}</name>
+                <capacity unit="bytes">{iso_size}</capacity>
+                <target>
+                    <format type='raw'/>
+                </target>
+            </volume>
+            """
+            vol = pool.createXML(volume_xml, 0)
+
+            # Upload the local file to the volume
+            stream = self.conn.newStream(0)
+            vol.upload(stream, 0, iso_size, 0)
+
+            # Read and send the ISO data
+            with open(local_iso_path, "rb") as f:
+                iso_data = f.read()
+                stream.send(iso_data)
+
+            stream.finish()
+
+            # Get the full path to the ISO in the pool
+            iso_pool_path = vol.path()
+            self.logger.info(f"Uploaded AutoYaST ISO to storage pool at {iso_pool_path}")
+
+            # Clean up local file
+            local_iso_path.unlink()
+
+            return iso_pool_path
+
+        except subprocess.CalledProcessError as e:
+            self.logger.error(f"Failed to create AutoYaST ISO: {e}")
+            raise Exception(f"Failed to create AutoYaST ISO: {e}")
+        except libvirt.libvirtError as e:
+            self.logger.error(f"Failed to upload AutoYaST ISO to storage pool: {e}")
+            raise Exception(f"Failed to upload AutoYaST ISO to storage pool: {e}")
+
+    def _inject_qemu_kernel_args(self, domain_xml: str, kernel_args: str) -> str:
+        """
+        Injects QEMU kernel arguments into domain XML using qemu:commandline namespace.
+
+        This is used for AutoYaST to pass boot parameters that enable automatic unattended
+        installation. Since virt-install --install kernel_args does NOT work with --cdrom,
+        we use QEMU's -append argument to inject kernel parameters directly.
+
+        Args:
+            domain_xml: The original domain XML string from virt-install --print-xml
+            kernel_args: Kernel command line arguments to inject (e.g., "autoyast=cd:/autoinst.xml")
+
+        Returns:
+            Modified XML string with QEMU arguments injected
+
+        Raises:
+            Exception: If XML parsing or modification fails
+
+        Example output XML:
+            <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+              <name>my-vm</name>
+              ...
+              <qemu:commandline>
+                <qemu:arg value='-append'/>
+                <qemu:arg value='autoyast=cd:/autoinst.xml'/>
+              </qemu:commandline>
+            </domain>
+        """
+        try:
+            # Define QEMU namespace
+            QEMU_NS = "http://libvirt.org/schemas/domain/qemu/1.0"
+
+            # Register namespace to ensure proper serialization
+            ET.register_namespace("qemu", QEMU_NS)
+
+            self.logger.info("Parsing domain XML for kernel argument injection")
+            self.logger.debug(f"Original XML length: {len(domain_xml)} bytes")
+
+            # Parse the XML
+            root = ET.fromstring(domain_xml)
+
+            # Create qemu:commandline element at the end of domain
+            # This must be at the end of the domain definition
+            qemu_commandline = ET.SubElement(root, f"{{{QEMU_NS}}}commandline")
+
+            # Add -append argument
+            ET.SubElement(qemu_commandline, f"{{{QEMU_NS}}}arg", value="-append")
+
+            # Add the kernel arguments
+            ET.SubElement(qemu_commandline, f"{{{QEMU_NS}}}arg", value=kernel_args)
+
+            self.logger.info(f"Successfully injected kernel arguments: {kernel_args}")
+            self.logger.debug(f"QEMU commandline element created with 2 args")
+
+            # Serialize back to XML string
+            modified_xml = ET.tostring(root, encoding="unicode")
+            self.logger.debug(
+                f"Modified XML length: {len(modified_xml)} bytes (before namespace fix)"
+            )
+
+            # Add the QEMU namespace declaration to the root element
+            # ElementTree doesn't always serialize namespace declarations properly,
+            # so we add it manually to the opening <domain> tag
+            if "<domain" in modified_xml and "xmlns:qemu=" not in modified_xml:
+                # Find the position after the opening <domain tag (before the closing >)
+                domain_tag_end = modified_xml.find(">")
+                if domain_tag_end > 0:
+                    # Insert the namespace declaration before the closing >
+                    namespace_decl = f' xmlns:qemu="{QEMU_NS}"'
+                    modified_xml = (
+                        modified_xml[:domain_tag_end]
+                        + namespace_decl
+                        + modified_xml[domain_tag_end:]
+                    )
+                    self.logger.debug("Added QEMU namespace declaration to domain element")
+
+            self.logger.debug(f"Final XML length: {len(modified_xml)} bytes")
+
+            return modified_xml
+
+        except ET.ParseError as parse_error:
+            self.logger.error(f"XML parsing error: {parse_error}")
+            self.logger.error(
+                f"Failed to parse XML at position: {parse_error.position if hasattr(parse_error, 'position') else 'unknown'}"
+            )
+            raise Exception(f"Invalid XML from virt-install: {parse_error}") from parse_error
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error injecting QEMU kernel arguments: {e}")
+            self.logger.error(f"Error type: {type(e).__name__}")
+            raise Exception(f"Failed to inject kernel arguments: {e}") from e
+
     def _create_floppy_image(
         self, automation_file_path: str, output_dir: Path, storage_pool_name: str, vm_name: str
     ) -> str:
@@ -1070,8 +1281,15 @@ class VMProvisioner:
             )
 
             # Copy the autoyast.xml file to the floppy image using mcopy
+            # Create both autoyast.xml and autoinst.xml for maximum compatibility
+            # Different SUSE versions look for different filenames
             subprocess.run(
                 ["mcopy", "-i", str(local_floppy_path), automation_file_path, "::autoyast.xml"],
+                check=True,
+                capture_output=True,
+            )
+            subprocess.run(
+                ["mcopy", "-i", str(local_floppy_path), automation_file_path, "::autoinst.xml"],
                 check=True,
                 capture_output=True,
             )
@@ -1081,13 +1299,18 @@ class VMProvisioner:
             # Upload the floppy image to the storage pool
             pool = self.conn.storagePoolLookupByName(storage_pool_name)
 
-            # Check if volume already exists and delete it
+            # Check if volume already exists - if so, reuse it
             try:
                 existing_vol = pool.storageVolLookupByName(floppy_filename)
-                existing_vol.delete(0)
-                self.logger.info(f"Deleted existing floppy volume {floppy_filename}")
+                existing_path = existing_vol.path()
+                self.logger.info(
+                    f"Reusing existing floppy volume {floppy_filename} at {existing_path}"
+                )
+                # Clean up local temporary file
+                local_floppy_path.unlink()
+                return existing_path
             except libvirt.libvirtError:
-                pass  # Volume doesn't exist, that's fine
+                pass  # Volume doesn't exist, create it
 
             # Create volume in the pool
             volume_xml = f"""
@@ -1144,10 +1367,16 @@ class VMProvisioner:
         nvram_path: str | None,
         print_xml: bool = False,
         floppy_image_path: str | None = None,
+        autoyast_kernel_args: str | None = None,
     ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
         If print_xml is True, it returns the generated XML instead of creating the VM.
+
+        Args:
+            autoyast_kernel_args: Optional AutoYaST kernel arguments for two-phase creation.
+                                 If provided, will use --print-xml to generate XML, inject
+                                 QEMU commandline arguments, then define VM from modified XML.
         """
         cmd = ["virt-install"]
         cmd.extend(["--connect", self.conn.getURI()])
@@ -1164,8 +1393,15 @@ class VMProvisioner:
         disk_opt = f"path={disk_path},bus={settings['disk_bus']},format={settings['disk_format']},cache={settings['disk_cache']}"
         cmd.extend(["--disk", disk_opt])
 
-        # ISO
+        # ISO - Determine whether to use --location or --cdrom
+        # --location doesn't work over remote SSH connections with ISO files
+        uri = self.conn.getURI()
+        is_remote = uri and ("ssh" in uri or "tcp" in uri or "tls" in uri)
+
+        # Always use --cdrom for now (simpler and works for both local and remote)
+        # We'll use --install kernel_args to pass AutoYaST boot parameters
         cmd.extend(["--cdrom", iso_path])
+        logging.info(f"Using --cdrom for installation ISO: {iso_path}")
 
         # Network
         cmd.extend(["--network", f"default,model={settings['network_model']}"])
@@ -1230,11 +1466,132 @@ class VMProvisioner:
 
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
 
-        # AutoYaST/Automation file injection via floppy disk
-        # Note: --initrd-inject only works with --location (network install), not --cdrom
-        # For CD-ROM installs, we must use a floppy disk containing the autoyast.xml
+        # AutoYaST/Automation media injection with kernel boot parameters
+        # SOLUTION: Use two-phase VM creation with QEMU commandline namespace
+        #
+        # PROBLEM: virt-install --install kernel_args does NOT work with --cdrom, only with --location
+        # ERROR from virt-install: "Kernel arguments are only supported with location or kernel installs"
+        #
+        # SOLUTION IMPLEMENTED:
+        # When autoyast_kernel_args parameter is provided, we use a two-phase approach:
+        #   Phase 1: Generate domain XML with: virt-install --print-xml ...
+        #   Phase 2: Inject QEMU arguments using qemu:commandline namespace:
+        #            <qemu:arg value="-append"/>
+        #            <qemu:arg value="autoyast=cd:/autoinst.xml"/>
+        #   Phase 3: Define VM from modified XML: conn.defineXML(modified_xml)
+        #
+        # This allows us to pass kernel boot parameters even when using --cdrom for installation.
+        # The QEMU -append argument injects boot parameters directly, bypassing the virt-install limitation.
+        #
+        # Boot parameter format:
+        #   - For ISO media: autoyast=cd:/autoinst.xml
+        #   - For floppy media: autoyast=device://fd0/autoinst.xml
+        #
+        # Fallback behavior:
+        # If two-phase creation fails (e.g., QEMU namespace unsupported), the code falls back
+        # to direct virt-install without kernel arguments. The AutoYaST media is still attached,
+        # so the installer MAY auto-detect it. If not, user must manually add boot parameter.
+        #
+        # OpenSUSE installer auto-detection (secondary method):
+        # The installer searches for AutoYaST config files in this order:
+        #   1. Boot command line (autoyast=... parameter) - NOW POSSIBLE via QEMU commandline
+        #   2. Floppy drive - looks for autoinst.xml, autoyast.xml, or autoyast/autoinst.xml
+        #   3. CD/DVD - looks for autoinst.xml or autoyast.xml at root
+        #   4. USB devices - similar to CD/DVD
+        #
+        # Our ISO/floppy contains both autoinst.xml AND autoyast.xml at root for maximum compatibility.
+
         if floppy_image_path:
-            cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
+            # Determine if this is an ISO or floppy based on extension
+            is_iso = floppy_image_path.lower().endswith(".iso")
+
+            if is_iso:
+                # Attach as second CD-ROM
+                cmd.extend(["--disk", f"path={floppy_image_path},device=cdrom,readonly=on"])
+                logging.info(f"AutoYaST ISO attached as second CD-ROM: {floppy_image_path}")
+                logging.info(
+                    "ISO contains autoinst.xml and autoyast.xml at root with volume label 'AUTOINSTALL'"
+                )
+                logging.info("Installer should auto-detect AutoYaST config during boot")
+                logging.info(
+                    "If auto-detection fails, manually add boot parameter: autoyast=cd:/autoinst.xml"
+                )
+            else:
+                # Attach as floppy
+                cmd.extend(["--disk", f"path={floppy_image_path},device=floppy,readonly=on"])
+                logging.info(f"AutoYaST floppy attached: {floppy_image_path}")
+                logging.info("Floppy contains autoinst.xml and autoyast.xml at root")
+                logging.info("Installer should auto-detect AutoYaST config during boot")
+                logging.info(
+                    "If auto-detection fails, manually add boot parameter: autoyast=device://fd0/autoinst.xml"
+                )
+
+        # Determine if we need two-phase creation for AutoYaST with kernel arguments
+        use_two_phase = autoyast_kernel_args is not None and not print_xml
+
+        if use_two_phase:
+            # Two-Phase VM Creation for AutoYaST
+            # Phase 1: Generate XML with virt-install --print-xml
+            # Phase 2: Inject QEMU kernel arguments using qemu:commandline namespace
+            # Phase 3: Define VM from modified XML
+            logging.info("=" * 80)
+            logging.info("Using two-phase creation for AutoYaST with kernel arguments")
+            logging.info(f"Kernel arguments to inject: {autoyast_kernel_args}")
+            logging.info("=" * 80)
+
+            # Create command for XML generation (add --print-xml and completion flags)
+            cmd_for_xml = cmd + ["--print-xml", "--noautoconsole", "--wait", "0"]
+
+            try:
+                logging.info("Phase 1: Generating domain XML with virt-install --print-xml")
+                logging.info(f"Command: {' '.join(cmd_for_xml)}")
+                result = subprocess.run(cmd_for_xml, check=True, capture_output=True, text=True)
+                domain_xml = result.stdout
+
+                if not domain_xml or not domain_xml.strip():
+                    raise Exception("virt-install --print-xml returned empty XML")
+
+                logging.info(f"Generated XML successfully ({len(domain_xml)} bytes)")
+                if result.stderr:
+                    logging.debug(f"virt-install stderr: {result.stderr.strip()}")
+
+                # Phase 2: Inject QEMU kernel arguments
+                logging.info(f"Phase 2: Injecting QEMU kernel arguments: {autoyast_kernel_args}")
+                try:
+                    modified_xml = self._inject_qemu_kernel_args(domain_xml, autoyast_kernel_args)
+                    logging.info("Successfully injected kernel arguments into XML")
+
+                    # Phase 3: Define VM from modified XML
+                    logging.info("Phase 3: Defining VM from modified XML")
+                    dom = self.conn.defineXML(modified_xml)
+                    logging.info(
+                        f"VM '{vm_name}' defined successfully with AutoYaST kernel arguments"
+                    )
+                    logging.info(
+                        StaticText.AUTOYAST_TWO_PHASE_SUCCESS.format(
+                            kernel_args=autoyast_kernel_args
+                        )
+                    )
+                    logging.info("=" * 80)
+
+                    # Return None to indicate we've already defined the VM
+                    # The caller should look up the domain by name
+                    return None
+
+                except Exception as xml_error:
+                    logging.error("=" * 80)
+                    logging.error(f"FAILED to inject kernel arguments: {xml_error}")
+                    logging.error("Falling back to direct virt-install without kernel arguments")
+                    logging.error("User will need to manually add boot parameter at GRUB menu")
+                    logging.error("=" * 80)
+                    # Fall through to run virt-install directly without modifications
+
+            except subprocess.CalledProcessError as e:
+                logging.error("=" * 80)
+                logging.error(f"FAILED to generate XML with virt-install: {e.stderr}")
+                logging.error("Falling back to direct virt-install without kernel arguments")
+                logging.error("=" * 80)
+                # Fall through to run virt-install directly
 
         cmd.extend(["--noautoconsole"])
         cmd.extend(["--wait", "0"])
@@ -1256,6 +1613,102 @@ class VMProvisioner:
         except Exception as e:
             logging.error(f"An unexpected error occurred while running virt-install: {e}")
             raise
+
+    def provision_windows_vm(
+        self,
+        vm_name: str,
+        vm_type: VMType,
+        windows_version: str,
+        storage_pool_name: str,
+        iso_path: Optional[str] = None,
+        memory_mb: int = 4096,
+        vcpu: int = 2,
+        disk_size_gb: int = 40,
+        disk_format: str | None = None,
+        boot_uefi: bool = True,
+        configure_before_install: bool = False,
+        show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
+    ) -> libvirt.virDomain:
+        """
+        Provision a Windows VM using the Windows provider.
+
+        Args:
+            vm_name: Name of the VM to create.
+            vm_type: Type of the VM (e.g., Desktop, Server).
+            windows_version: Windows version ID (e.g., "10", "11", "2019", "2022").
+            storage_pool_name: Name of the storage pool where the disk will be created.
+            iso_path: Optional path to Windows ISO file (from cached ISOs). If not provided,
+                     will try to use download URL from provider (not recommended as Microsoft
+                     doesn't provide stable direct download URLs).
+            memory_mb: RAM in megabytes.
+            vcpu: Number of virtual CPUs.
+            disk_size_gb: Disk size in gigabytes (default 40GB for Windows).
+            disk_format: Disk format (e.g., qcow2).
+            boot_uefi: Whether to use UEFI boot (recommended for Windows 10+).
+            configure_before_install: If True, defines VM and shows details modal before starting.
+            show_config_modal_callback: Optional callback to show configuration modal.
+            progress_callback: Optional callback for progress updates.
+
+        Returns:
+            libvirt.virDomain: The provisioned domain object.
+        """
+        from .provisioning.providers.windows_provider import WindowsProvider
+
+        self.logger.info(f"Starting Windows VM provisioning: {vm_name}, version: {windows_version}")
+
+        # Determine ISO source
+        final_iso_url = None
+
+        if iso_path:
+            # User provided an ISO path (from cached ISOs)
+            self.logger.info(f"Using provided Windows ISO path: {iso_path}")
+            final_iso_url = iso_path
+        else:
+            # Try to get ISO from provider (will likely fail as Microsoft doesn't provide direct URLs)
+            windows_provider = WindowsProvider()
+            eval_iso_info = windows_provider.EVAL_ISO_URLS.get(windows_version)
+
+            if not eval_iso_info:
+                raise ValueError(
+                    f"Unsupported Windows version: {windows_version}. "
+                    f"Supported versions: {', '.join(windows_provider.EVAL_ISO_URLS.keys())}"
+                )
+
+            iso_url = eval_iso_info.get("url")
+
+            # Check if direct download URL is available
+            if not iso_url:
+                download_page = eval_iso_info.get(
+                    "download_page", "https://www.microsoft.com/en-us/evalcenter"
+                )
+                from .constants import ErrorMessages
+
+                error_msg = ErrorMessages.WINDOWS_MANUAL_DOWNLOAD_REQUIRED.format(
+                    version=windows_version, download_page=download_page
+                )
+                self.logger.error(error_msg)
+                raise ValueError(error_msg)
+
+            self.logger.info(f"Windows {windows_version} ISO URL: {iso_url}")
+            final_iso_url = iso_url
+
+        # Call the regular provision_vm method with the ISO URL
+        return self.provision_vm(
+            vm_name=vm_name,
+            vm_type=vm_type,
+            iso_url=final_iso_url,
+            storage_pool_name=storage_pool_name,
+            memory_mb=memory_mb,
+            vcpu=vcpu,
+            disk_size_gb=disk_size_gb,
+            disk_format=disk_format,
+            boot_uefi=boot_uefi,
+            configure_before_install=configure_before_install,
+            show_config_modal_callback=show_config_modal_callback,
+            progress_callback=progress_callback,
+            automation_config=None,  # TODO: Windows unattend.xml support
+        )
 
     def provision_vm(
         self,
@@ -1412,11 +1865,13 @@ class VMProvisioner:
         automation_file_path = None
         if automation_config:
             try:
+                logging.info(f"Automation config provided: {automation_config.keys()}")
                 report(StaticText.PROVISIONING_GENERATING_AUTOMATION_CONFIG, 82)
 
                 # Get the OpenSUSE provider to generate automation file
                 provider = self.get_provider("opensuse")
                 if provider:
+                    logging.info("OpenSUSE provider found for automation")
                     # Create a temporary directory for automation file
                     temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
 
@@ -1454,20 +1909,55 @@ class VMProvisioner:
                 # Continue without automation rather than failing the entire process
                 automation_file_path = None
 
-        # Create floppy image for automation file
-        # When using --cdrom (not --location), we need a floppy disk with autoyast.xml
-        # virt-install --initrd-inject only works with --location (network install)
-        floppy_image_path = None
+        # Create automation media (ISO or floppy) for AutoYaST
+        # For remote connections: use ISO (more reliably detected by installer)
+        # For local connections: use floppy with --location and --extra-args
+        autoyast_media_path = None
         if automation_file_path:
             try:
+                logging.info(f"Creating AutoYaST media for automation file: {automation_file_path}")
                 temp_dir = Path(automation_file_path).parent
-                floppy_image_path = self._create_floppy_image(
-                    str(automation_file_path), temp_dir, storage_pool_name, vm_name
-                )
+
+                # Check if this will be a remote connection
+                uri = self.conn.getURI()
+                is_remote_conn = uri and ("ssh" in uri or "tcp" in uri or "tls" in uri)
+                logging.info(f"Connection URI: {uri}, is_remote: {is_remote_conn}")
+
+                if is_remote_conn:
+                    # Remote: Create ISO for better detection
+                    logging.info("Creating AutoYaST ISO for remote connection")
+                    autoyast_media_path = self._create_autoyast_iso(
+                        str(automation_file_path), temp_dir, storage_pool_name, vm_name
+                    )
+                    logging.info(f"AutoYaST ISO created at: {autoyast_media_path}")
+                else:
+                    # Local: Create floppy (works with --location + --extra-args)
+                    logging.info("Creating AutoYaST floppy for local connection")
+                    autoyast_media_path = self._create_floppy_image(
+                        str(automation_file_path), temp_dir, storage_pool_name, vm_name
+                    )
+                    logging.info(f"AutoYaST floppy created at: {autoyast_media_path}")
             except Exception as e:
-                self.logger.error(f"Failed to create floppy image: {e}")
+                logging.error(f"Failed to create AutoYaST media: {e}")
                 # Continue without automation
-                floppy_image_path = None
+                autoyast_media_path = None
+        else:
+            if automation_config:
+                logging.warning("Automation config provided but no automation file was generated!")
+
+        # Prepare AutoYaST kernel arguments if automation media is available
+        autoyast_kernel_args = None
+        if autoyast_media_path:
+            # Determine the correct autoyast parameter based on media type
+            is_iso = autoyast_media_path.lower().endswith(".iso")
+            if is_iso:
+                autoyast_kernel_args = "autoyast=cd:/autoinst.xml"
+                logging.info("AutoYaST: Will use kernel argument for ISO media")
+            else:
+                autoyast_kernel_args = "autoyast=device://fd0/autoinst.xml"
+                logging.info("AutoYaST: Will use kernel argument for floppy media")
+
+            logging.info(f"Prepared AutoYaST kernel arguments: {autoyast_kernel_args}")
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -1484,7 +1974,21 @@ class VMProvisioner:
                     loader_path,
                     nvram_path,
                     print_xml=True,
+                    floppy_image_path=str(autoyast_media_path) if autoyast_media_path else None,
+                    autoyast_kernel_args=autoyast_kernel_args,
                 )
+
+                # If autoyast_kernel_args were provided and XML was generated, inject them
+                if autoyast_kernel_args and xml_desc:
+                    try:
+                        logging.info(
+                            "Configure mode: Injecting AutoYaST kernel arguments into preview XML"
+                        )
+                        xml_desc = self._inject_qemu_kernel_args(xml_desc, autoyast_kernel_args)
+                        logging.info("Configure mode: Successfully injected kernel arguments")
+                    except Exception as e:
+                        logging.warning(f"Configure mode: Failed to inject kernel args: {e}")
+                        logging.warning("Configure mode: Continuing with unmodified XML")
             else:
                 xml_desc = self.generate_xml(
                     vm_name,
@@ -1497,7 +2001,7 @@ class VMProvisioner:
                     loader_path=loader_path,
                     nvram_path=nvram_path,
                     boot_uefi=boot_uefi,
-                    automation_file_path=floppy_image_path,
+                    automation_file_path=autoyast_media_path,
                 )
 
             # Define the VM
@@ -1528,7 +2032,8 @@ class VMProvisioner:
                     vcpu,
                     loader_path,
                     nvram_path,
-                    floppy_image_path=str(floppy_image_path) if floppy_image_path else None,
+                    floppy_image_path=str(autoyast_media_path) if autoyast_media_path else None,
+                    autoyast_kernel_args=autoyast_kernel_args,
                 )
             except Exception as e:
                 logging.info(f"Can't install domain {vm_name}: {e}")
@@ -1550,7 +2055,7 @@ class VMProvisioner:
                 loader_path=loader_path,
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
-                automation_file_path=floppy_image_path,
+                automation_file_path=autoyast_media_path,
             )
 
             # Define and Start VM

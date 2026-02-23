@@ -89,6 +89,13 @@ class InstallVMModal(BaseModal[str | None]):
                                 id="windows-version",
                                 allow_blank=False,
                             )
+                            # Windows ISO selection
+                            yield Select(
+                                [],
+                                prompt=StaticText.SELECT_WINDOWS_ISO_PROMPT,
+                                id="windows-iso-select",
+                                disabled=True,
+                            )
                         # Container for OpenSUSE version selection
                         with Vertical(id="opensuse-version-container"):
                             # yield Label("OpenSUSE Version", classes="label")
@@ -366,8 +373,8 @@ class InstallVMModal(BaseModal[str | None]):
         # Use call_later to ensure all widgets are fully initialized
         self.call_later(self._load_initial_opensuse_isos)
 
-        # Load AutoYaST templates on mount
-        self.call_later(self._load_automation_templates)
+        # Load AutoYaST templates on mount (default OS type is "opensuse")
+        self.call_later(lambda: self._load_automation_templates("opensuse"))
 
     def _load_initial_opensuse_isos(self):
         """Load ISOs for the initial OpenSUSE version selection."""
@@ -398,10 +405,17 @@ class InstallVMModal(BaseModal[str | None]):
 
             logging.error(f"Traceback: {traceback.format_exc()}")
 
-    def _load_automation_templates(self):
-        """Load available AutoYaST templates from the OpenSUSE provider."""
+    def _load_automation_templates(self, os_type: str | None = None):
+        """Load available automation templates based on OS type.
+
+        Args:
+            os_type: The OS type ("opensuse", "windows", "custom", or None for all)
+                    - "opensuse": Show only OpenSUSE templates
+                    - "custom": Show all templates
+                    - None: Show all templates (default for backwards compatibility)
+        """
         try:
-            logging.info("Loading AutoYaST templates...")
+            logging.info(f"Loading automation templates for OS type: {os_type}")
 
             # Try to get the template select widget first - if it doesn't exist, skip loading
             try:
@@ -414,32 +428,45 @@ class InstallVMModal(BaseModal[str | None]):
             # Start with "None" option (no automation)
             template_options = [("None", None)]
 
-            # Get the OpenSUSE provider
-            provider = self.provisioner.get_provider("opensuse")
-            if provider:
-                logging.info("OpenSUSE provider found")
+            # Determine which providers to load templates from
+            providers_to_load = []
 
-                # Try to get available templates (using getattr to avoid type checking issues)
-                get_templates_method = getattr(provider, "get_available_templates", None)
-                if get_templates_method:
-                    logging.info("get_available_templates method found")
-                    templates = get_templates_method()
-                    logging.info(f"Found {len(templates)} templates")
+            if os_type == "opensuse":
+                # Only load OpenSUSE templates
+                providers_to_load = ["opensuse"]
+                logging.info("Loading OpenSUSE templates only")
+            elif os_type == "custom" or os_type is None:
+                # Load all available templates
+                providers_to_load = ["opensuse"]  # Add more providers here if needed
+                logging.info("Loading all available templates")
+            # For "windows" or other OS types, we keep the list empty for now
 
-                    # Convert to Select options format: (display_name, identifier)
-                    # Use template_id for user templates (full path), filename for built-in
-                    for template in templates:
-                        identifier = template.get("template_id", template["filename"])
-                        template_options.append((template["display_name"], identifier))
-                        logging.info(f"  - {template['display_name']}: {identifier}")
+            # Load templates from each provider
+            for provider_name in providers_to_load:
+                provider = self.provisioner.get_provider(provider_name)
+                if provider:
+                    logging.info(f"{provider_name.capitalize()} provider found")
 
+                    # Try to get available templates (using getattr to avoid type checking issues)
+                    get_templates_method = getattr(provider, "get_available_templates", None)
+                    if get_templates_method:
+                        logging.info("get_available_templates method found")
+                        templates = get_templates_method()
+                        logging.info(f"Found {len(templates)} templates from {provider_name}")
+
+                        # Convert to Select options format: (display_name, identifier)
+                        # Use template_id for user templates (full path), filename for built-in
+                        for template in templates:
+                            identifier = template.get("template_id", template["filename"])
+                            template_options.append((template["display_name"], identifier))
+                            logging.info(f"  - {template['display_name']}: {identifier}")
+
+                    else:
+                        logging.warning(
+                            f"{provider_name.capitalize()} provider doesn't support template scanning"
+                        )
                 else:
-                    logging.warning(
-                        "OpenSUSE provider doesn't support template scanning (no get_available_templates method)"
-                    )
-
-            else:
-                logging.warning("OpenSUSE provider not available")
+                    logging.warning(f"{provider_name.capitalize()} provider not available")
 
             # Always set options (at minimum, "None" will be available)
             logging.info(f"Setting template options with {len(template_options)} options...")
@@ -526,15 +553,12 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#distribution-label").styles.display = "none"
         self.query_one("#distro", Select).styles.display = "none"
 
-        # Show/hide automation collapsible - only for OpenSUSE
+        # Show automation collapsible for all OS types (templates are available for all)
         automation_collapsible = self.query_one("#automation-collapsible", Collapsible)
-        if os_type == "opensuse":
-            automation_collapsible.styles.display = "block"
-        else:
-            automation_collapsible.styles.display = "none"
-            # Reset automation template to "None" when switching away from OpenSUSE
-            self.query_one("#automation-template-select", Select).value = None
-            self.query_one("#automation-user-config-wrapper").styles.display = "none"
+        automation_collapsible.styles.display = "block"
+
+        # Reload templates based on the new OS type
+        self._load_automation_templates(os_type)
 
         if os_type == "windows":
             # Show Windows version selector
@@ -544,6 +568,8 @@ class InstallVMModal(BaseModal[str | None]):
             if vm_type.value in [VMType.DESKTOP]:
                 vm_type.value = VMType.WDESKTOP
             self._update_expert_defaults(vm_type.value)
+            # Fetch cached Windows ISOs
+            self.fetch_windows_isos()
         elif os_type == "opensuse":
             # Show OpenSUSE version selector
             self.query_one("#opensuse-version-container").styles.display = "block"
@@ -614,6 +640,8 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#windows-version")
     def on_windows_version_changed(self, event: Select.Changed):
         """Handle Windows version selection."""
+        # Fetch cached Windows ISOs when version changes
+        self.fetch_windows_isos()
         self._check_form_validity()
 
     @on(Select.Changed, "#distro")
@@ -839,6 +867,82 @@ class InstallVMModal(BaseModal[str | None]):
                 self._update_iso_status, StaticText.ERROR_FETCHING_ISOS, False
             )
 
+    @work(exclusive=False, thread=True)
+    def fetch_windows_isos(self):
+        """Fetch cached Windows ISOs from the Windows provider."""
+        from ..provisioning.providers.windows_provider import WindowsProvider
+        from pathlib import Path
+
+        logging.info("Fetching cached Windows ISOs")
+
+        try:
+            # Get Windows provider
+            windows_provider = WindowsProvider()
+            isos = windows_provider.get_cached_isos()
+
+            logging.info(f"Retrieved {len(isos)} cached Windows ISOs")
+
+            # Create Select options: (label, url)
+            iso_options = []
+            for i, iso in enumerate(isos):
+                try:
+                    name = iso.get("name", "Unknown")
+                    url = iso.get("url", "")
+                    date = iso.get("date", "")
+
+                    if not url:
+                        logging.warning(f"Skipping Windows ISO with empty URL: {iso}")
+                        continue
+
+                    label = f"{name} ({date})" if date else name
+                    iso_options.append((label, url))
+                    logging.info(f"Added Windows ISO option: {label} -> {url}")
+                except Exception as e:
+                    logging.error(f"Error processing Windows ISO {i}: {iso}, error: {e}")
+                    continue
+
+            logging.info(f"Created {len(iso_options)} Windows ISO options")
+
+            def update_select():
+                sel = self.query_one("#windows-iso-select", Select)
+                logging.info(f"Updating Windows ISO select with {len(iso_options)} options")
+
+                if iso_options:
+                    sel.set_options(iso_options)
+                    sel.disabled = False
+                    sel.value = iso_options[0][1]  # Select first by default
+                    logging.info(f"Set default Windows ISO to: {iso_options[0][1]}")
+                else:
+                    # No cached ISOs found - show helpful message
+                    sel.clear()
+                    sel.disabled = True
+                    logging.warning("No cached Windows ISOs found")
+
+                    # Show informative error message
+                    cache_path = Path.home() / ".cache" / "virtui-manager" / "windows" / "isos"
+                    self.app.show_error_message(
+                        ErrorMessages.NO_CACHED_WINDOWS_ISOS.format(cache_path=cache_path)
+                    )
+
+                self._check_form_validity()  # Re-check validity after options change
+
+            self.app.call_from_thread(update_select)
+
+        except Exception as e:
+            logging.error(f"Error fetching Windows ISOs: {e}")
+            import traceback
+
+            logging.error(f"Traceback: {traceback.format_exc()}")
+
+            def show_error():
+                self.app.show_error_message(f"Failed to fetch Windows ISOs: {e}")
+                sel = self.query_one("#windows-iso-select", Select)
+                sel.clear()
+                sel.disabled = True
+                self._check_form_validity()
+
+            self.app.call_from_thread(show_error)
+
     def _update_iso_status(self, message, loading):
         lbl = self.query_one("#status-label", Label)
         if message:
@@ -961,8 +1065,9 @@ class InstallVMModal(BaseModal[str | None]):
 
             if success:
                 self.notify(f"Template '{template_name}' {action} successfully!")
-                # Reload templates immediately
-                self._load_automation_templates()
+                # Reload templates immediately with current OS type
+                current_os_type = self.query_one("#os-type", Select).value
+                self._load_automation_templates(current_os_type)
                 # Do comprehensive validation in background
                 self._validate_template_async(edited_content, template_name)
             else:
@@ -1039,8 +1144,9 @@ class InstallVMModal(BaseModal[str | None]):
             def on_dismiss(result: bool | None):
                 """Handle modal dismissal - reload templates if needed."""
                 if result:
-                    # Reload templates in the select widget
-                    self._load_automation_templates()
+                    # Reload templates in the select widget with current OS type
+                    current_os_type = self.query_one("#os-type", Select).value
+                    self._load_automation_templates(current_os_type)
 
             self.app.push_screen(TemplateManagementModal(template_manager), on_dismiss)
 
@@ -1071,9 +1177,11 @@ class InstallVMModal(BaseModal[str | None]):
         valid_config = False
 
         if os_type == "windows":
-            # For Windows, just need a version selected
+            # For Windows, need version selected and ISO selected
             windows_version = self.query_one("#windows-version", Select).value
-            valid_config = bool(windows_version and windows_version != Select.BLANK)
+            if windows_version and windows_version != Select.BLANK:
+                windows_iso = self.query_one("#windows-iso-select", Select).value
+                valid_config = windows_iso and windows_iso != Select.BLANK
         elif os_type == "opensuse":
             # For OpenSUSE, need version selected and ISO selected
             opensuse_version = self.query_one("#opensuse-version", Select).value
@@ -1198,6 +1306,12 @@ class InstallVMModal(BaseModal[str | None]):
             windows_version = self.query_one("#windows-version", Select).value
             if not windows_version or windows_version == Select.BLANK:
                 self.app.show_error_message("Please select a Windows version")
+                return
+
+            # Get selected Windows ISO from cached ISOs
+            iso_url = self.query_one("#windows-iso-select", Select).value
+            if not iso_url or iso_url == Select.BLANK:
+                self.app.show_error_message(ErrorMessages.NO_WINDOWS_ISO_SELECTED)
                 return
         elif os_type == "opensuse":
             # OpenSUSE configuration - get selected ISO from the opensuse version selection
@@ -1470,6 +1584,7 @@ class InstallVMModal(BaseModal[str | None]):
                         vm_name=name,
                         vm_type=vm_type,
                         windows_version=windows_version,
+                        iso_path=final_iso_url,  # Pass the selected ISO path
                         storage_pool_name=pool_name,
                         memory_mb=memory_mb,
                         vcpu=vcpu,

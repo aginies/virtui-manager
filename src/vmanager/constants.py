@@ -317,12 +317,14 @@ class StaticText:  # pylint: disable=too-few-public-methods
     FROM_STORAGE_POOL = _("From Storage Pool")
     ISO_IMAGE_REPO = _("ISO Image (Repo):")
     ISOS_DOWNLOAD_PATH = _("ISOs will be downloaded to: {iso_path}")
+    WINDOWS_ISO_CACHE_LOCATION = _("Place Windows ISOs in: {iso_path}")
     CUSTOM_ISO_LOCAL_PATH = _("Custom ISO (Local Path):")
     SELECT_STORAGE_POOL = _("Select Storage Pool:")
     SELECT_ISO_VOLUME = _("Select ISO Volume:")
     STORAGE_POOL = _("Storage Pool:")
     EXPERT_MODE = _("Expert Mode")
     SELECT_ISO_PROMPT = _("Select ISO...")
+    SELECT_WINDOWS_ISO_PROMPT = _("Select Windows ISO...")
     SHA256_CHECKSUM_OPTIONAL_PLACEHOLDER = _("SHA256 Checksum (Optional)")
     SELECT_POOL_PROMPT = _("Select Pool...")
     SELECT_ISO_VOLUME_PROMPT = _("Select ISO Volume...")
@@ -1027,6 +1029,37 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     COULD_NOT_GET_VM_DETAILS_TEMPLATE = _("Could not get details for {vm_name}")
     FAILED_TO_START_VM_OR_VIEWER_TEMPLATE = _("Failed to start VM or viewer: {error}")
     PROVISIONING_FAILED_TEMPLATE = _("Provisioning failed: {error}")
+    NO_CACHED_WINDOWS_ISOS = _(
+        "No cached Windows ISOs found.\n\n"
+        "Please download a Windows ISO manually from Microsoft Evaluation Center and place it in:\n"
+        "{cache_path}\n\n"
+        "Download links:\n"
+        "• Windows 10/11: https://www.microsoft.com/en-us/evalcenter/\n"
+        "• Windows Server: https://www.microsoft.com/en-us/evalcenter/evaluate-windows-server"
+    )
+    NO_WINDOWS_ISO_SELECTED = _("Please select a Windows ISO from the cached ISOs")
+    WINDOWS_MANUAL_DOWNLOAD_REQUIRED = _(
+        "Windows {version} does not support automatic ISO download.\n\n"
+        "Microsoft requires manual download from their Evaluation Center:\n"
+        "{download_page}\n\n"
+        "After downloading the ISO:\n"
+        "1. Use 'Custom' OS type instead of 'Windows'\n"
+        "2. Select your downloaded ISO from storage pools or cached ISOs\n"
+        "3. Provision the VM normally"
+    )
+    AUTOYAST_KERNEL_ARGS_INJECTION_FAILED = _(
+        "Failed to inject AutoYaST kernel arguments into domain XML.\n\n"
+        "The VM has been created without automatic installation parameters.\n"
+        "You will need to manually add the boot parameter at the GRUB menu:\n\n"
+        "For ISO: autoyast=cd:/autoinst.xml\n"
+        "For floppy: autoyast=device://fd0/autoinst.xml\n\n"
+        "Press 'e' at the boot menu to edit boot parameters."
+    )
+    AUTOYAST_TWO_PHASE_SUCCESS = _(
+        "VM created successfully with AutoYaST automation enabled.\n\n"
+        "Boot parameter injected: {kernel_args}\n\n"
+        "The installer should automatically use the AutoYaST configuration."
+    )
     FAILED_TO_FETCH_ISO_VOLUMES_TEMPLATE = _(
         "Failed to fetch ISO volumes from {pool_name}: {error}"
     )
