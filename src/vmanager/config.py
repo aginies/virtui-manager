@@ -3,6 +3,7 @@ Manage the configuration of the tool
 """
 
 import os
+import copy
 from pathlib import Path
 
 import yaml
@@ -31,6 +32,7 @@ DEFAULT_CONFIG = {
     "LOG_LEVEL": "INFO",
     "ISO_DOWNLOAD_PATH": str(Path.home() / ".cache" / AppInfo.name / "isos"),
     "user_autoyast_templates": {},
+    "AUTO_YAST_PORT": 8000,
 }
 
 
@@ -79,17 +81,17 @@ def load_config():
             user_config = yaml.safe_load(f) or {}
 
     # Start with default config and update with user's config
-    config = DEFAULT_CONFIG.copy()
+    config = copy.deepcopy(DEFAULT_CONFIG)
     if user_config:
         config.update(user_config)
         # If user sets a value to null in yaml, it becomes None. Revert to default.
         for key, value in config.items():
             if value is None and key in DEFAULT_CONFIG:
-                config[key] = DEFAULT_CONFIG[key]
+                config[key] = copy.deepcopy(DEFAULT_CONFIG[key])
 
     # Ensure 'servers' key exists and is a non-empty list
     if not isinstance(config.get("servers"), list) or not config.get("servers"):
-        config["servers"] = DEFAULT_CONFIG["servers"]
+        config["servers"] = copy.deepcopy(DEFAULT_CONFIG["servers"])
 
     return config
 
