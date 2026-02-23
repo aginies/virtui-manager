@@ -86,6 +86,7 @@ from .utils import (
     is_running_under_flatpak,
     setup_cache_monitoring,
     setup_logging,
+    is_remote_connection,
 )
 from .vm_queries import (
     get_status,
@@ -1176,7 +1177,7 @@ class VMManagerTUI(App):
         """Show server preferences modal, prompting for a server if needed."""
 
         def launch_server_prefs(uri: str):
-            if WebConsoleManager.is_remote_connection(uri):
+            if is_remote_connection(uri):
                 loading = LoadingModal()
                 self.push_screen(loading)
 
