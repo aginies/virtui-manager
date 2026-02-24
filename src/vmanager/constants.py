@@ -657,6 +657,14 @@ Specify the NUMA nodes to use.
     LANGUAGE_TOOLTIP = _("System language for the installation")
     KEYBOARD_LABEL = _("Keyboard Layout")
     KEYBOARD_TOOLTIP = _("Keyboard layout for the system")
+    USE_VIRT_INSTALL_TOOLTIP = _(
+        "Use virt-install command-line tool. Uncheck to use XML-based creation."
+    )
+    SERIAL_CONSOLE_TOOLTIP = _("Adds console=tty0 console=ttyS0,115200 to kernel args")
+    CPUS_LABEL = _("CPUs")
+    NONE_OPTION = _("None")
+    USE_VIRT_INSTALL_LABEL = _("Use virt-install")
+    REDIRECT_CONSOLE_SERIAL_LABEL = _("Redirect console to serial (ttyS0)")
     # VM Provisioner Progress Messages
     PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
     PROVISIONING_USING_EXISTING_ISO_VOLUME = _("Using existing ISO volume: {path}")
@@ -681,7 +689,6 @@ Specify the NUMA nodes to use.
     VM_TYPE_WDESKTOP = _("Windows")
     VM_TYPE_WLDESKTOP = _("Windows Legacy")
     VM_TYPE_SERVER = _("Server")
-
 
     # vmcard_dialog.py strings
     DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")

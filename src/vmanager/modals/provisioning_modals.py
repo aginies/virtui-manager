@@ -147,7 +147,7 @@ class InstallVMModal(BaseModal[str | None]):
                         yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
                         yield Input("4", id="memory-input", type="integer")
                     with Vertical(id="expert-cpu"):
-                        yield Label("CPUs", classes="label")
+                        yield Label(StaticText.CPUS_LABEL, classes="label")
                         yield Input("2", id="cpu-input", type="integer")
                     with Vertical(id="expert-disk-size"):
                         yield Label(StaticText.DISK_SIZE_GB_LABEL, classes="label")
@@ -155,7 +155,9 @@ class InstallVMModal(BaseModal[str | None]):
                     with Vertical(id="expert-disk-format"):
                         yield Label(StaticText.DISK_FORMAT_LABEL, classes="label")
                         yield Select(
-                            [("Qcow2", "qcow2"), ("Raw", "raw")], value="qcow2", id="disk-format"
+                            [("Qcow2", "qcow2"), ("Raw", "raw")],
+                            value="qcow2",
+                            id="disk-format",
                         )
                     with Vertical(id="expert-firmware"):
                         yield Label(StaticText.FIRMWARE_LABEL, classes="label")
@@ -177,7 +179,7 @@ class InstallVMModal(BaseModal[str | None]):
                     yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
                     with Horizontal(classes="template-management-buttons"):
                         yield Select(
-                            [("None", None)],  # Default: no automation
+                            [(StaticText.NONE_OPTION, None)],  # Default: no automation
                             value=None,
                             id="automation-template-select",
                             allow_blank=False,
@@ -189,7 +191,7 @@ class InstallVMModal(BaseModal[str | None]):
                             id="manage-templates-btn",
                             classes="small-button",
                         )
-               # User configuration - only visible when a template is selected
+                # User configuration - only visible when a template is selected
                 with Vertical(id="automation-user-config-wrapper"):
                     with Horizontal(id="automation-user-config"):
                         with Vertical(id="automation-user-left"):
@@ -261,19 +263,19 @@ class InstallVMModal(BaseModal[str | None]):
             with Vertical():
                 with Horizontal():
                     yield Checkbox(
-                        "Use virt-install",
+                        StaticText.USE_VIRT_INSTALL_LABEL,
                         id="use-virt-install-checkbox",
                         value=False,
-                        tooltip="Use virt-install command-line tool. Uncheck to use XML-based creation."
+                        tooltip=StaticText.USE_VIRT_INSTALL_TOOLTIP,
                     )
                     yield Checkbox(
-                        "Redirect console to serial (ttyS0)",
+                        StaticText.REDIRECT_CONSOLE_SERIAL_LABEL,
                         id="automation-serial-console",
                         value=False,
-                        tooltip="Adds console=tty0 console=ttyS0,115200 to kernel args",
-                        disabled=True
+                        tooltip=StaticText.SERIAL_CONSOLE_TOOLTIP,
+                        disabled=True,
                     )
- 
+
             yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
                 id="configure-before-install-checkbox",
@@ -1026,7 +1028,7 @@ class InstallVMModal(BaseModal[str | None]):
                             "user_password": user_password,
                             "language": language,
                             "keyboard": keyboard,
-                            "serial_console": serial_console, # Add serial console option
+                            "serial_console": serial_console,  # Add serial console option
                             "scc_email": scc_config.get("scc_email", ""),
                             "scc_reg_code": scc_config.get("scc_reg_code", ""),
                             "scc_product_arch": scc_config.get("scc_product_arch", ""),
