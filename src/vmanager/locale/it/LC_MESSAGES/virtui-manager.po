@@ -603,7 +603,7 @@ msgstr "Cruscotto Host"
 
 #: constants.py:255
 msgid "Templates"
-msgstr ""
+msgstr "Modelli"
 
 #: constants.py:261
 msgid "Manage"
@@ -1923,10 +1923,12 @@ msgid ""
 "Choose a pre-configured installation template. Templates define software "
 "packages, users, and system settings."
 msgstr ""
+"Scegli un modello di installazione preconfigurato. I modelli definiscono "
+"pacchetti software, utenti e impostazioni di sistema."
 
 #: constants.py:622
 msgid "Automated Installation"
-msgstr ""
+msgstr "Installazione automatizzata"
 
 #: constants.py:623
 #, fuzzy
@@ -1935,7 +1937,7 @@ msgstr "Installa"
 
 #: constants.py:624 constants.py:625
 msgid "Manage Templates"
-msgstr ""
+msgstr "Gestisci modelli"
 
 #: constants.py:626
 #, fuzzy
@@ -1979,7 +1981,7 @@ msgstr "Seleziona una rete."
 
 #: constants.py:635
 msgid "Built-in templates cannot be deleted"
-msgstr ""
+msgstr "I modelli integrati non possono essere eliminati"
 
 #: constants.py:636
 #, fuzzy, python-brace-format
@@ -1989,7 +1991,7 @@ msgstr "VM '{vm_name}' eliminata con successo."
 #: constants.py:637
 #, python-brace-format
 msgid "Template exported to {path}"
-msgstr ""
+msgstr "Modello esportato in {path}"
 
 #: constants.py:638
 #, fuzzy, python-brace-format
@@ -1999,7 +2001,7 @@ msgstr "Canale '{target_name}' rimosso con successo."
 #: constants.py:639
 #, python-brace-format
 msgid "View Template: {template_name}"
-msgstr ""
+msgstr "Visualizza modello: {template_name}"
 
 #: constants.py:640
 #, fuzzy
@@ -2018,7 +2020,7 @@ msgstr "Inserisci nome snapshot"
 
 #: constants.py:643
 msgid "Operating System:"
-msgstr ""
+msgstr "Sistema operativo:"
 
 #: constants.py:644
 #, fuzzy
@@ -2032,7 +2034,7 @@ msgstr "snapshot description"
 
 #: constants.py:646
 msgid "Import"
-msgstr ""
+msgstr "Importa"
 
 #: constants.py:647
 #, fuzzy
@@ -2081,7 +2083,7 @@ msgstr "host0"
 
 #: constants.py:656
 msgid "Language"
-msgstr ""
+msgstr "Lingua"
 
 #: constants.py:657
 #, fuzzy
@@ -2090,19 +2092,19 @@ msgstr "Seleziona server di destinazione:"
 
 #: constants.py:658
 msgid "Keyboard Layout"
-msgstr ""
+msgstr "Layout tastiera"
 
 #: constants.py:659
 msgid "Keyboard layout for the system"
-msgstr ""
+msgstr "Layout tastiera per il sistema"
 
 #: constants.py:661
 msgid "Use virt-install command-line tool. Uncheck to use XML-based creation."
-msgstr ""
+msgstr "Usa lo strumento da riga di comando virt-install. Deseleziona per usare la creazione basata su XML."
 
 #: constants.py:663
 msgid "Adds console=tty0 console=ttyS0,115200 to kernel args"
-msgstr ""
+msgstr "Aggiunge console=tty0 console=ttyS0,115200 agli argomenti del kernel"
 
 #: constants.py:664
 #, fuzzy
@@ -2111,28 +2113,28 @@ msgstr " CPU"
 
 #: constants.py:665
 msgid "None"
-msgstr ""
+msgstr "Nessuno"
 
 #: constants.py:666
 msgid "Use virt-install"
-msgstr ""
+msgstr "Usa virt-install"
 
 #: constants.py:667
 msgid "Redirect console to serial (ttyS0)"
-msgstr ""
+msgstr "Reindirizza console su seriale (ttyS0)"
 
 #: constants.py:669
 msgid "Checking Environment"
-msgstr ""
+msgstr "Controllo ambiente"
 
 #: constants.py:670
 #, python-brace-format
 msgid "Using existing ISO volume: {path}"
-msgstr ""
+msgstr "Uso volume ISO esistente: {path}"
 
 #: constants.py:671
 msgid "Using local ISO image"
-msgstr ""
+msgstr "Uso immagine ISO locale"
 
 #: constants.py:672
 #, fuzzy, python-brace-format
@@ -2141,11 +2143,11 @@ msgstr "Uploading: {progress}%"
 
 #: constants.py:673
 msgid "ISO found in cache, skipping download"
-msgstr ""
+msgstr "ISO trovata nella cache, download saltato"
 
 #: constants.py:674
 msgid "Setting up UEFI Firmware"
-msgstr ""
+msgstr "Configurazione firmware UEFI"
 
 #: constants.py:675
 #, fuzzy
@@ -2154,7 +2156,7 @@ msgstr "Crea Nuovo Volume Storage"
 
 #: constants.py:676
 msgid "Generating automation configuration"
-msgstr ""
+msgstr "Generazione configurazione automazione"
 
 #: constants.py:677
 #, fuzzy
@@ -2163,7 +2165,7 @@ msgstr "VM in esecuzione"
 
 #: constants.py:678
 msgid "Provisioning Complete (Configuration Mode)"
-msgstr ""
+msgstr "Provisioning completato (Modalità configurazione)"
 
 #: constants.py:679
 #, fuzzy
@@ -2172,11 +2174,11 @@ msgstr "Configura prima di installare"
 
 #: constants.py:680
 msgid "Waiting for VM"
-msgstr ""
+msgstr "In attesa della VM"
 
 #: constants.py:681
 msgid "Configuring VM (XML)"
-msgstr ""
+msgstr "Configurazione VM (XML)"
 
 #: constants.py:682
 #, fuzzy
@@ -2190,7 +2192,7 @@ msgstr "Provisioning fallito: {error}"
 
 #: constants.py:686
 msgid "Secure VM"
-msgstr ""
+msgstr "VM sicura"
 
 #: constants.py:687
 #, fuzzy
@@ -2199,15 +2201,15 @@ msgstr "Compatta"
 
 #: constants.py:688
 msgid "Desktop (Linux)"
-msgstr ""
+msgstr "Desktop (Linux)"
 
 #: constants.py:689
 msgid "Windows"
-msgstr ""
+msgstr "Windows"
 
 #: constants.py:690
 msgid "Windows Legacy"
-msgstr ""
+msgstr "Windows Legacy"
 
 #: constants.py:691
 #, fuzzy
@@ -3551,10 +3553,12 @@ msgid ""
 "Template editing requires running inside tmux. Please start virtui-manager "
 "inside a tmux session."
 msgstr ""
+"La modifica dei modelli richiede l'esecuzione in tmux. Avvia virtui-manager "
+"in una sessione tmux."
 
 #: constants.py:1086
 msgid "Editor was cancelled or failed"
-msgstr ""
+msgstr "L'editor è stato annullato o è fallito"
 
 #: constants.py:1092
 #, python-brace-format
