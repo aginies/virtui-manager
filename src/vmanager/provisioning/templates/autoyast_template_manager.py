@@ -814,7 +814,11 @@ class AutoYaSTTemplateManager:
             ),
             "autoyast-server": (
                 "Full Server",
-                "Server installation with web, database, and mail services",
+                "Server installation mode",
+            ),
+            "autoyast-server-sle": (
+                "SUSE Linux Entreprise Server (REG CODE)",
+                "SUSE Server Linux",
             ),
         }
 
