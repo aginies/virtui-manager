@@ -923,7 +923,11 @@ class VMProvisioner:
     <initrd>{initrd_path}</initrd>
 """
             if autoyast_url:
-                cmdline = f"autoyast={autoyast_url}"
+                if autoyast_url.endswith(".json"):
+                    cmdline = f"inst.auto={autoyast_url} inst.auto_insecure=1"
+                else:
+                    cmdline = f"autoyast={autoyast_url}"
+                
                 if serial_console:
                     cmdline += " console=tty0 console=ttyS0,115200"
                 xml += f"    <cmdline>{cmdline}</cmdline>\n"
@@ -1366,11 +1370,15 @@ class VMProvisioner:
         # AutoYaST/Automation file injection
         if autoyast_url:
             # HTTP-based AutoYaST (uses --extra-args with --location)
-            extra_args = f"autoyast={autoyast_url}"
+            if autoyast_url.endswith(".json"):
+                extra_args = f"inst.auto={autoyast_url} inst.auto_insecure=1"
+            else:
+                extra_args = f"autoyast={autoyast_url}"
+                
             if serial_console:
                 extra_args += " console=tty0 console=ttyS0,115200"
             cmd.extend(["--extra-args", extra_args])
-            logging.info(f"Using HTTP-based AutoYaST with --extra-args: {autoyast_url}")
+            logging.info(f"Using HTTP-based automation with --extra-args: {extra_args}")
         elif floppy_image_path:
             # Legacy floppy-based approach (fallback for non-autoyast_url installs)
             cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
@@ -1605,55 +1613,70 @@ class VMProvisioner:
                     )
                     self.logger.info(f"Generated automation file: {automation_file_path}")
 
-                    # Validate the generated XML
+                    # Validate the generated automation file (XML or JSON)
                     try:
                         with open(automation_file_path, "r", encoding="utf-8") as f:
-                            xml_content = f.read()
-                        ET.fromstring(xml_content)
-                        self.logger.info("Automation file validation passed")
+                            content = f.read()
+                        
+                        if str(automation_file_path).endswith(".json"):
+                            import json
+                            json.loads(content)
+                            self.logger.info("Automation JSON file validation passed")
+                        else:
+                            ET.fromstring(content)
+                            self.logger.info("Automation XML file validation passed")
+                            
                     except ET.ParseError as parse_error:
                         self.logger.error(f"Invalid XML in automation file: {parse_error}")
                         raise Exception(f"Invalid XML in automation file: {parse_error}")
+                    except ValueError as json_error:
+                        self.logger.error(f"Invalid JSON in automation file: {json_error}")
+                        raise Exception(f"Invalid JSON in automation file: {json_error}")
                     except Exception as e:
-                        self.logger.error(f"Error reading automation file: {e}")
-                        raise Exception(f"Error reading automation file: {e}")
+                        self.logger.error(f"Error reading/validating automation file: {e}")
+                        raise Exception(f"Error reading/validating automation file: {e}")
 
                     # Start HTTP server to serve the AutoYaST file (for local connections)
                     # OR create a floppy disk (for remote connections)
                     try:
-                        # Rename the file to a unique name (e.g. autoinst-<uuid>.xml)
+                        # Rename the file to a unique name
                         unique_id = uuid.uuid4().hex[:8]
-                        autoinst_filename = f"autoinst-{unique_id}.xml"
+                        is_agama = str(automation_file_path).endswith(".json")
+                        ext = ".json" if is_agama else ".xml"
+                        autoinst_filename = f"autoinst-{unique_id}{ext}"
                         autoinst_path = temp_dir / autoinst_filename
                         shutil.copy(automation_file_path, autoinst_path)
 
                         # Try to start HTTP server on configured port, fallback to random
                         autoyast_port = config.get("AUTO_YAST_PORT", 8000)
-                        try:
-                            http_server = AutoYaSTHTTPServer(temp_dir, port=autoyast_port)
+                        http_server = AutoYaSTHTTPServer(temp_dir, port=autoyast_port)
+                        port = http_server.start()
+                    except OSError as e:
+                        if e.errno == 98:  # Address already in use
+                            self.logger.warning(
+                                f"Configured AutoYaST port {autoyast_port} is in use. "
+                                "Falling back to a random port."
+                            )
+                            http_server = AutoYaSTHTTPServer(temp_dir, port=0)
                             port = http_server.start()
-                        except OSError as e:
-                            if e.errno == 98:  # Address already in use
-                                self.logger.warning(
-                                    f"Configured AutoYaST port {autoyast_port} is in use. "
-                                    "Falling back to a random port."
-                                )
-                                http_server = AutoYaSTHTTPServer(temp_dir, port=0)
-                                port = http_server.start()
-                            else:
-                                raise
+                        else:
+                            raise
 
-                        # Get host IP and build AutoYaST URL
-                        host_ip = self._get_host_ip_for_vms()
-                        autoyast_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-
-                        self.logger.info(f"AutoYaST file available at: {autoyast_url}")
                     except Exception as e:
                         self.logger.error(f"Failed to start HTTP server for AutoYast: {e}")
                         if http_server:
                             http_server.stop()
                         # Continue without automation
                         autoyast_url = None
+
+                    # Get host IP and build AutoYaST/Agama URL
+                    host_ip = self._get_host_ip_for_vms()
+                    autoyast_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+
+                    if is_agama:
+                        self.logger.info(f"Agama file available at: {autoyast_url}")
+                    else:
+                        self.logger.info(f"AutoYaST file available at: {autoyast_url}")
 
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
@@ -1847,13 +1870,20 @@ class VMProvisioner:
                 # 2. Now wait for it to stop (end of stage 1)
                 while True:
                     try:
-                        if not domain.isActive():
-                            logger.info(f"VM {name} stopped (Stage 1 complete). Restarting in 3 seconds...")
-                            time.sleep(3)
-                            domain.create()
-                            logger.info(f"VM {name} restarted for Stage 2.")
-                            
-                            # Installation assets cleanup
+                        state, reason = domain.state()
+                        if state == libvirt.VIR_DOMAIN_SHUTOFF:
+                            if reason == libvirt.VIR_DOMAIN_SHUTOFF_DESTROYED:
+                                logger.info(f"VM {name} was manually stopped by user. Disabling auto-restart.")
+                            else:
+                                logger.info(f"VM {name} stopped (Stage 1 complete, reason={reason}). Restarting in 3 seconds...")
+                                time.sleep(3)
+                                try:
+                                    domain.create()
+                                    logger.info(f"VM {name} restarted for Stage 2.")
+                                except Exception as e:
+                                    logger.error(f"Failed to restart VM {name} for Stage 2: {e}")
+
+                            # Installation assets cleanup (always cleanup when Stage 1 ends or user stops)
                             if boot_files_to_delete:
                                 logger.info(f"Deleting boot files for {name}: {boot_files_to_delete}")
                                 delete_boot_files(domain.connect(), boot_files_to_delete)
