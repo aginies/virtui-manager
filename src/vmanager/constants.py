@@ -252,6 +252,7 @@ class BindingDescriptions:  # pylint: disable=too-few-public-methods
     CACHE_STATS = _("Show cache Stats")
     QUIT = _("Quit")
     HOST_DASHBOARD = _("Host Dashboard")
+    TEMPLATES = _("Templates")
 
 
 class TabTitles:  # pylint: disable=too-few-public-methods
