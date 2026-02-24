@@ -1,5 +1,4 @@
 {
-  "version": "1.0.0",
   "hostname": {
     "static": "{hostname}",
     "transient": "{hostname}"
@@ -10,12 +9,11 @@
     "timezone": "{timezone}"
   },
    "root": {
-    "hashedPassword": null,
+    "hashedPassword": false,
     "password": "{root_password}"
   },
   "user": {
     "hashedPassword": false,
-    "autologin": false,
     "fullName": "{username}",
     "userName": "{username}",
     "password": "{user_password}"
@@ -29,55 +27,47 @@
     ]
   },
   "bootloader": {
-    "stopOnBootMenu": false,
     "timeout": 5,
     "extraKernelParams": "quiet splash=silent showopts"
   },
-  "storage": {
-    "config": [
+  "network": {
+    "connections": [
       {
-        "id": "drive1",
-        "device": "/dev/vda",
-        "initialize": true,
-        "platform": "efi"
-      },
-      {
-        "id": "efi_partition",
-        "type": "disk",
-        "reuse": false,
-        "device": "/dev/vda1",
-        "mountpoint": "/boot/efi",
-        "size_mib": 512,
-        "fs_type": "vfat",
-        "format": true
-      },
-      {
-        "id": "root_partition",
-        "type": "disk",
-        "reuse": false,
-        "device": "/dev/vda2",
-        "mountpoint": "/",
-        "size_mib": 0,
-        "fs_type": "btrfs",
-        "format": true
-      }
-    ],
-    "mode": "fstab"
-  },
-  "ntp": {
-    "enabled": true,
-    "servers": [
-      {
-        "address": "2.suse.pool.ntp.org",
-        "options": ["iburst"]
+        "id": "default",
+        "method4": "auto"
       }
     ]
   },
-  "sysconfig": {
-    "KEXEC_KDUMP_KERNEL": "no"
-  },
-  "services": {
-    "enabled": ["sshd", "qemu-guest-agent"],
-    "disabled": []
+  "storage": {
+    "boot": {
+      "configure": true,
+      "device": "vda"
+    },
+    "drives": [
+      {
+        "partitions": [
+          {
+            "filesystem": {
+              "type": "vfat",
+              "path": "/boot/efi"
+            },
+            "size": "512 MiB"
+          },
+          {
+            "filesystem": {
+              "type": "swap",
+              "path": "swap"
+            },
+            "size": "2 GiB"
+          },
+          {
+            "filesystem": {
+              "type": "btrfs",
+              "path": "/"
+            }
+          }
+        ]
+      }
+    ]
   }
 }
