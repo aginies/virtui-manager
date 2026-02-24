@@ -12,6 +12,55 @@
         </mode>
     </general>
     
+    <!-- SUSE SCC register -->
+    <suse_register>
+	<do_registration config:type="boolean">true</do_registration>
+	<email>{scc_email}</email>
+	<reg_code>{scc_reg_code}</reg_code>
+	<install_updates config:type="boolean">true</install_updates>
+
+	 <addons config:type="list">
+	   <addon>
+	    <name>sle-module-development-tools</name>
+	    <version>{scc_product_version}</version>
+	    <arch>{scc_product_arch}</arch>
+	   </addon>
+	   <addon>
+	    <name>sle-module-desktop-applications</name>
+	    <version>{scc_product_version}</version>
+	    <arch>{scc_product_arch}</arch>
+	   </addon>           
+	   <addon>
+            <name>sle-module-server-applications</name>
+            <version>{scc_product_version}</version>
+            <arch>{scc_product_arch}</arch>
+           </addon>
+	   <addon>
+            <name>sle-module-web-scripting</name>
+            <version>{scc_product_version}</version>
+	    <arch>{scc_product_arch}</arch>
+	   </addon>
+           <addon>
+            <name>PackageHub</name>
+            <version>{scc_product_version}</version>
+            <arch>{scc_product_arch}</arch>
+           </addon>
+           <addon>
+            <name>sle-module-containers</name>
+            <version>{scc_product_version}</version>
+            <arch>{scc_product_arch}</arch>
+           </addon>
+	    <!--
+	    sle-module-live-patching
+	    sle-module-python3
+	    sle-module-legacy
+	    sle-module-public-cloud
+	    sle-module-certifications
+	    sle-module-hpc
+	    -->
+	 </addons>
+    </suse_register>
+
     <!-- Language and Keyboard -->
     <language>
         <language>{language}</language>
@@ -70,11 +119,14 @@
     
     <!-- Software Selection - Server -->
     <software>
+	<products config:type="list">
+	    <product>SLES</product>
+	</products>
         <patterns config:type="list">
             <pattern>base</pattern>
             <pattern>enhanced_base</pattern>
             <pattern>yast2_basis</pattern>
-            <pattern>minimal_base</pattern>
+            <pattern>enhanced_base</pattern>
             <pattern>file_server</pattern>
         </patterns>
         <packages config:type="list">
@@ -85,12 +137,12 @@
             <package>nfs-utils</package>
             <package>firewalld</package>
             <package>rsync</package>
-            <package>git</package>
             <package>vim</package>
             <package>curl</package>
             <package>wget</package>
+	    <!-- From PackageHub !-->
             <package>htop</package>
-            <package>tree</package>
+            <package>mc</package>
             <package>tmux</package>
         </packages>
     </software>
