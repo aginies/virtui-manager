@@ -131,6 +131,7 @@
     
     <!-- Software Selection - Server -->
     <software>
+        <accept_missing_required config:type="boolean">true</accept_missing_required>
 	<products config:type="list">
 	    <product>SLES</product>
 	</products>

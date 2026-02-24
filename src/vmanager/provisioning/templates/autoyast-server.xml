@@ -75,6 +75,7 @@
     
     <!-- Software Selection - Server -->
     <software>
+        <accept_missing_required config:type="boolean">true</accept_missing_required>
         <patterns config:type="list">
             <pattern>base</pattern>
             <pattern>enhanced_base</pattern>

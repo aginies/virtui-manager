@@ -75,6 +75,7 @@
     
     <!-- Software Selection - Development -->
     <software>
+        <accept_missing_required config:type="boolean">true</accept_missing_required>
         <patterns config:type="list">
             <pattern>base</pattern>
             <pattern>enhanced_base</pattern>
@@ -83,7 +84,6 @@
             <pattern>gnome_basis</pattern>
             <pattern>devel_basis</pattern>
             <pattern>devel_C_C++</pattern>
-            <pattern>devel_python</pattern>
             <pattern>devel_web</pattern>
         </patterns>
         <packages config:type="list">
@@ -99,18 +99,16 @@
             <package>cmake</package>
             <package>python3</package>
             <package>python3-pip</package>
-            <package>nodejs</package>
-            <package>npm</package>
-            <package>docker</package>
-            <package>docker-compose</package>
-            <package>postgresql</package>
-            <package>mariadb</package>
+            <package>nodejs-default</package>
+            <package>npmi-default</package>
+            <package>podman</package>
+            <package>podaman-docker</package>
             <package>redis</package>
             <package>curl</package>
             <package>wget</package>
             <package>tree</package>
             <package>htop</package>
-            <package>firefox</package>
+            <package>MozillaFirefox</package>
         </packages>
     </software>
 
@@ -163,7 +161,7 @@
             <home>/home/{user_name}</home>
             <shell>/bin/bash</shell>
             <uid>1000</uid>
-            <groups>docker</groups>
+            <groups>wheels</groups>
         </user>
     </users>
     

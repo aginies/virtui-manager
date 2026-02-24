@@ -75,6 +75,7 @@
     
     <!-- Software Selection - Development -->
     <software>
+        <accept_missing_required config:type="boolean">true</accept_missing_required>
         <patterns config:type="list">
             <pattern>base</pattern>
             <pattern>enhanced_base</pattern>
@@ -91,7 +92,7 @@
             <package>wget</package>
             <package>tree</package>
             <package>htop</package>
-            <package>firefox</package>
+            <package>MozillaFirefox</package>
         </packages>
     </software>
 
@@ -144,7 +145,7 @@
             <home>/home/{user_name}</home>
             <shell>/bin/bash</shell>
             <uid>1000</uid>
-            <groups>docker</groups>
+	    <groups>wheels</groups>
         </user>
     </users>
     
