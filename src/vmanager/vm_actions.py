@@ -1370,6 +1370,40 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
     conn.defineXML(new_xml)
 
 
+def strip_installation_assets(domain: libvirt.virDomain):
+    """
+    Removes installation-only elements from the VM configuration.
+    Specifically removes <kernel>, <initrd>, <cmdline> from <os>
+    and any <disk device='floppy'>.
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+    invalidate_cache(get_internal_id(domain))
+
+    conn = domain.connect()
+    # Get inactive XML to modify the persistent configuration
+    xml_desc = domain.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE)
+    root = ET.fromstring(xml_desc)
+
+    # 1. Clean <os> section
+    os_elem = root.find("os")
+    if os_elem is not None:
+        for tag in ["kernel", "initrd", "cmdline"]:
+            elem = os_elem.find(tag)
+            if elem is not None:
+                os_elem.remove(elem)
+
+    # 2. Clean <devices> section (floppy)
+    devices = root.find("devices")
+    if devices is not None:
+        for disk in devices.findall("disk"):
+            if disk.get("device") == "floppy":
+                devices.remove(disk)
+
+    new_xml = ET.tostring(root, encoding="unicode")
+    conn.defineXML(new_xml)
+
+
 def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bool | None = None):
     """Sets the video model and 3D acceleration for a VM."""
     invalidate_cache(get_internal_id(domain))
@@ -2002,6 +2036,31 @@ def force_off_vm(domain: libvirt.virDomain):
     domain.destroy()
 
 
+def get_vm_boot_files(root: ET.Element) -> list[str]:
+    """Extracts paths for kernel, initrd, and floppy images from VM XML."""
+    files = []
+    os_elem = root.find("os")
+    if os_elem is not None:
+        kernel = os_elem.find("kernel")
+        if kernel is not None and kernel.text:
+            files.append(kernel.text)
+        initrd = os_elem.find("initrd")
+        if initrd is not None and initrd.text:
+            files.append(initrd.text)
+
+    # Check for floppy disks (used for AutoYaST)
+    devices = root.find("devices")
+    if devices is not None:
+        for disk in devices.findall("disk"):
+            if disk.get("device") == "floppy":
+                source = disk.find("source")
+                if source is not None:
+                    file_path = source.get("file")
+                    if file_path:
+                        files.append(file_path)
+    return files
+
+
 def delete_vm(
     domain: libvirt.virDomain,
     delete_storage: bool,
@@ -2059,6 +2118,7 @@ def delete_vm(
 
         root = None
         disks_to_delete = []
+        boot_files_to_delete = []
         xml_desc = None
 
         if domain_to_delete:
@@ -2069,6 +2129,7 @@ def delete_vm(
                     if delete_storage:
                         # Pass delete_conn to resolve volumes
                         disks_to_delete = get_vm_disks_info(delete_conn, root)
+                        boot_files_to_delete = get_vm_boot_files(root)
                 except libvirt.libvirtError as e:
                     log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
                     # If we can't get XML, we can't find disks to delete, but we should still try to undefine
@@ -2167,6 +2228,29 @@ def delete_vm(
                         log(f"  - [red]ERROR:[/] Error deleting volume for path {disk_path}: {e}")
                 except Exception as e:
                     log(f"  - [red]ERROR:[/] Unexpected error deleting storage {disk_path}: {e}")
+
+            # Delete boot files (kernel, initrd, floppy)
+            if boot_files_to_delete:
+                log(f"Deleting {len(boot_files_to_delete)} boot file(s)...")
+                for file_path in boot_files_to_delete:
+                    if not file_path:
+                        continue
+                    
+                    log(f"Attempting to delete boot file: {file_path}")
+                    try:
+                        vol, pool = _find_vol_by_path(delete_conn, file_path)
+                        if vol:
+                            vol.delete(0)
+                            log(f"  - Deleted: {file_path} from pool {pool.name()}")
+                        else:
+                            log(f"  - [yellow]Skipped:[/] Boot file '{file_path}' is not a managed libvirt volume.")
+                    except libvirt.libvirtError as e:
+                        if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
+                            log(f"  - [yellow]Skipped:[/] Volume for path '{file_path}' not found.")
+                        else:
+                            log(f"  - [red]ERROR:[/] Error deleting volume for path {file_path}: {e}")
+                    except Exception as e:
+                        log(f"  - [red]ERROR:[/] Unexpected error deleting boot file {file_path}: {e}")
 
     finally:
         if should_close_conn and delete_conn:
