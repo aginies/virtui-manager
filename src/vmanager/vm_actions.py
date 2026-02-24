@@ -2061,6 +2061,22 @@ def get_vm_boot_files(root: ET.Element) -> list[str]:
     return files
 
 
+def delete_boot_files(conn: libvirt.virConnect, files: list[str]):
+    """Deletes installation boot files (kernel, initrd, floppy) from storage pools."""
+    for file_path in files:
+        try:
+            vol, _ = _find_vol_by_path(conn, file_path)
+            if vol:
+                logging.info(f"Deleting installation boot file volume: {file_path}")
+                vol.delete(0)
+            elif os.path.exists(file_path):
+                # Fallback to direct file deletion if not in a pool (unlikely for virtui-manager)
+                logging.info(f"Deleting installation boot file directly: {file_path}")
+                os.remove(file_path)
+        except Exception as e:
+            logging.warning(f"Failed to delete installation boot file {file_path}: {e}")
+
+
 def delete_vm(
     domain: libvirt.virDomain,
     delete_storage: bool,
