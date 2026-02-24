@@ -529,6 +529,7 @@ class InstallVMModal(BaseModal[str | None]):
         Populate the template select widget based on the selected distribution.
 
         For OpenSUSE distributions, show AutoYaST templates (both openSUSE and SLES).
+        For specific Agama-supported distributions, show only JSON templates.
         For other distributions, show all available templates.
         """
         # Get all templates
@@ -536,21 +537,36 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Determine which templates to show
         if isinstance(distro, OpenSUSEDistro):
-            # OpenSUSE distribution selected - show AutoYaST templates
-            # This includes both openSUSE and SLES templates since they use the same automation system
+            # OpenSUSE distribution selected
+            # For specific Agama-supported distributions, only show JSON templates
+            agama_only_distros = [
+                OpenSUSEDistro.CURRENT,
+                OpenSUSEDistro.STABLE,
+                OpenSUSEDistro.TUMBLEWEED,
+                OpenSUSEDistro.SLOWROLL,
+            ]
+            only_json = distro in agama_only_distros
+
             filtered_templates = []
             for template in all_templates:
+                filename = template.get("filename", "")
+                is_json = filename.endswith(".json")
+
+                if only_json and not is_json:
+                    continue
+
+                # All built-in templates are AutoYaST or Agama based, show them all
+                if template["type"] == "built-in":
+                    filtered_templates.append(template)
                 # For user templates, check if they're in openSUSE or SLES directories
-                if template["type"] == "user":
+                elif template["type"] == "user":
                     # Extract OS from display name
                     if (
                         "(openSUSE)" in template["display_name"]
                         or "(SLES)" in template["display_name"]
+                        or "(Agama)" in template["display_name"]
                     ):
                         filtered_templates.append(template)
-                else:
-                    # All built-in templates are AutoYaST-based, show them all
-                    filtered_templates.append(template)
         elif isinstance(distro, str) and distro not in ["cached", "pool_volumes"]:
             # Custom repo URL - could be openSUSE, SLE, or other
             # Check URL to determine OS type
