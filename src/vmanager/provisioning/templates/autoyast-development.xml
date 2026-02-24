@@ -12,6 +12,11 @@
         </mode>
     </general>
     
+    <!-- Kdump disabled -->
+    <kdump>
+        <add_crash_kernel config:type="boolean">false</add_crash_kernel>
+    </kdump>
+
     <!-- Language and Keyboard -->
     <language>
         <language>{language}</language>

@@ -11,6 +11,11 @@
             <final_reboot config:type="boolean">true</final_reboot>
         </mode>
     </general>
+
+    <!-- Kdump disabled -->
+    <kdump>
+        <add_crash_kernel config:type="boolean">false</add_crash_kernel>
+    </kdump>
     
     <!-- Language and Keyboard -->
     <language>
