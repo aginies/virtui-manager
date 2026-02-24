@@ -40,6 +40,23 @@
     </interfaces>
   </networking>
 
+  <ntp-client t="map">
+      <ntp_policy>auto</ntp_policy>
+        <ntp_servers t="list">
+          <ntp_server t="map">
+            <address>2.suse.pool.ntp.org</address>
+            <iburst t="boolean">true</iburst>
+            <offline t="boolean">false</offline>
+           </ntp_server>
+        </ntp_servers>
+      <ntp_sync>manual</ntp_sync>
+  </ntp-client>
+
+  <ssh_import t="map">
+    <copy_config t="boolean">false</copy_config>
+    <import t="boolean">false</import>
+  </ssh_import>
+
   <host>
     <hosts config:type="list">
       <hosts_entry>

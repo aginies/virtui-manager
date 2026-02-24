@@ -76,23 +76,14 @@
             <pattern>yast2_basis</pattern>
             <pattern>minimal_base</pattern>
             <pattern>file_server</pattern>
-            <pattern>web_server</pattern>
-            <pattern>mail_server</pattern>
         </patterns>
         <packages config:type="list">
             <package>qemu-guest-agent</package>
             <package>spice-vdagent</package>
             <package>openssh</package>
-            <package>apache2</package>
-            <package>nginx</package>
-            <package>php</package>
-            <package>mariadb</package>
-            <package>postgresql</package>
-            <package>redis</package>
             <package>samba</package>
             <package>nfs-utils</package>
             <package>postfix</package>
-            <package>dovecot</package>
             <package>fail2ban</package>
             <package>firewalld</package>
             <package>rsync</package>
@@ -105,6 +96,12 @@
             <package>tmux</package>
         </packages>
     </software>
+
+    <!-- SSH import -->
+    <ssh_import t="map">
+      <copy_config t="boolean">false</copy_config>
+      <import t="boolean">false</import>
+    </ssh_import>
     
     <!-- Network Configuration -->
     <networking>
@@ -117,6 +114,19 @@
             </interface>
         </interfaces>
     </networking>
+
+    <!-- NTP -->
+    <ntp-client t="map">
+      <ntp_policy>auto</ntp_policy>
+        <ntp_servers t="list">
+          <ntp_server t="map">
+            <address>2.suse.pool.ntp.org</address>
+            <iburst t="boolean">true</iburst>
+            <offline t="boolean">false</offline>
+           </ntp_server>
+        </ntp_servers>
+      <ntp_sync>manual</ntp_sync>
+    </ntp-client>
     
     <!-- Users -->
     <users config:type="list">
@@ -142,27 +152,12 @@
     <!-- Services -->
     <services-manager>
         <default_target>multi-user</default_target>
-        <services config:type="list">
-            <service>
-                <service_name>sshd</service_name>
-                <service_status>enable</service_status>
-            </service>
-            <service>
-                <service_name>qemu-guest-agent</service_name>
-                <service_status>enable</service_status>
-            </service>
-            <service>
-                <service_name>apache2</service_name>
-                <service_status>enable</service_status>
-            </service>
-            <service>
-                <service_name>mariadb</service_name>
-                <service_status>enable</service_status>
-            </service>
-            <service>
-                <service_name>firewalld</service_name>
-                <service_status>enable</service_status>
-            </service>
+        <services config:type="map">
+            <enable t="list">
+                <service>sshd</service>
+                <service>qemu-guest-agent</service>
+                <service>firewalld</service>
+            </enable>
         </services>
     </services-manager>
     

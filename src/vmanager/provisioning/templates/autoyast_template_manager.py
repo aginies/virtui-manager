@@ -806,7 +806,7 @@ class AutoYaSTTemplateManager:
             "autoyast-minimal": ("Minimal System", "Minimal installation with only core packages"),
             "autoyast-desktop": (
                 "Desktop Environment",
-                "Full desktop environment with GNOME and applications",
+                "Full desktop environment with GNOME, applications, sshd and qemu-guest-agent",
             ),
             "autoyast-development": (
                 "Development Workstation",
