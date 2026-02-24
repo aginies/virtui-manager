@@ -1,0 +1,99 @@
+{
+  "version": "1.0.0",
+  "hostname": "{hostname}",
+  "locale": {
+    "language": "{language}",
+    "keyboard": {
+      "layout": "{keyboard}"
+    }
+  },
+  "users": [
+    {
+      "name": "root",
+      "password": {
+        "password": "root",
+        "hash": null
+      },
+      "sshAuthorizedKeys": []
+    },
+    {
+      "name": "{username}",
+      "password": {
+        "password": "{username}",
+        "hash": null
+      },
+      "uid": 1000,
+      "gid": 100,
+      "shell": "/bin/bash",
+      "home": "/home/{username}",
+      "sshAuthorizedKeys": []
+    }
+  ],
+  "storage": {
+    "config": [
+      {
+        "id": "drive1",
+        "device": "/dev/vda",
+        "initialize": true,
+        "platform": "efi"
+      },
+      {
+        "id": "efi_partition",
+        "type": "disk",
+        "reuse": false,
+        "device": "/dev/vda1",
+        "mountpoint": "/boot/efi",
+        "size_mib": 512,
+        "fs_type": "vfat",
+        "format": true
+      },
+      {
+        "id": "root_partition",
+        "type": "disk",
+        "reuse": false,
+        "device": "/dev/vda2",
+        "mountpoint": "/",
+        "size_mib": 0,
+        "fs_type": "btrfs",
+        "format": true
+      }
+    ],
+    "mode": "fstab"
+  },
+  "addons": [
+    {
+      "id": "ssh",
+      "version": "latest"
+    },
+    {
+      "id": "qemu-guest-agent",
+      "version": "latest"
+    }
+  ],
+  "patterns": [
+    "minimal_base"
+  ],
+  "packages": [
+    "qemu-guest-agent",
+    "openssh"
+  ],
+  "ntp": {
+    "enabled": true,
+    "servers": [
+      {
+        "address": "2.suse.pool.ntp.org",
+        "options": ["iburst"]
+      }
+    ]
+  },
+  "sshKeys": [],
+  "sysconfig": {
+    "KEXEC_KDUMP_KERNEL": "no",
+    "TIMEZONE": "{timezone}"
+  },
+  "services": {
+    "enabled": ["sshd", "qemu-guest-agent"],
+    "disabled": []
+  }
+}
+
