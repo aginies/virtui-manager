@@ -312,6 +312,16 @@ modules:
         url: https://download.qemu.org/qemu-10.2.1.tar.xz
         sha256: a3717477d8e2c84d630bfffbc20f6cd3293eb45aa1e6dac6d0cc27689991c9e1
 
+  - name: p7zip
+    buildsystem: simple
+    build-commands:
+      - make 7z
+      - make install DEST_HOME=/app DEST_BIN=/app/bin DEST_SHARE=/app/lib/p7zip DEST_MAN=/app/share/man
+    sources:
+      - type: archive
+        url: https://github.com/p7zip-project/p7zip/archive/v17.05.tar.gz
+        sha256: d2788f892571058c08d27095c22154579dfefb807ebe357d145ab2ddddefb1a6
+
   - name: vim
     buildsystem: autotools
     config-opts:
