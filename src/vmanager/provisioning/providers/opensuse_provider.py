@@ -224,7 +224,7 @@ class OpenSUSEProvider(OSProvider):
         """Scan and return available AutoYaST templates (built-in + user templates)."""
         # Use AutoYaSTTemplateManager to get all templates (built-in + user)
         try:
-            from ..autoyast_template_manager import AutoYaSTTemplateManager
+            from ..templates.autoyast_template_manager import AutoYaSTTemplateManager
 
             template_manager = AutoYaSTTemplateManager()
             return template_manager.get_all_templates()
@@ -236,45 +236,51 @@ class OpenSUSEProvider(OSProvider):
             templates = []
 
             try:
-                # Look for built-in autoyast-*.xml files
-                for template_file in templates_dir.glob("autoyast-*.xml"):
-                    template_name = template_file.stem
+                # Look for built-in autoyast-*.xml and agama-*.json files
+                patterns = ["autoyast-*.xml", "agama-*.json"]
+                for pattern in patterns:
+                    for template_file in templates_dir.glob(pattern):
+                        template_name = template_file.stem
 
-                    # Create display name from filename
-                    if template_name == "autoyast-basic":
-                        display_name = "Basic Server"
-                        description = "Basic server installation with essential packages"
-                    elif template_name == "autoyast-minimal":
-                        display_name = "Minimal System"
-                        description = "Minimal installation with only core packages"
-                    elif template_name == "autoyast-desktop":
-                        display_name = "Desktop Environment"
-                        description = "Full desktop environment with GNOME and applications"
-                    elif template_name == "autoyast-development":
-                        display_name = "Development Workstation"
-                        description = "Development environment with programming tools and IDE"
-                    elif template_name == "autoyast-server":
-                        display_name = "Full Server"
-                        description = "Server installation mode"
-                    elif template_name == "autoyast-server-sle":
-                        display_name = "SUSE Linux Entreprise Server"
-                        description = "SLES with SCC registration"
-                    else:
-                        # Custom template - use filename as display name
-                        display_name = (
-                            template_name.replace("autoyast-", "").replace("-", " ").title()
+                        # Create display name from filename
+                        if template_name == "autoyast-basic":
+                            display_name = "Basic Server"
+                            description = "Basic server installation with essential packages"
+                        elif template_name == "autoyast-minimal":
+                            display_name = "Minimal System"
+                            description = "Minimal installation with only core packages"
+                        elif template_name == "autoyast-desktop":
+                            display_name = "Desktop Environment"
+                            description = "Full desktop environment with GNOME and applications"
+                        elif template_name == "autoyast-development":
+                            display_name = "Development Workstation"
+                            description = "Development environment with programming tools and IDE"
+                        elif template_name == "autoyast-server":
+                            display_name = "Full Server"
+                            description = "Server installation mode"
+                        elif template_name == "autoyast-server-sle":
+                            display_name = "SUSE Linux Entreprise Server"
+                            description = "SLES with SCC registration"
+                        elif template_name == "agama-minimal":
+                            display_name = "Agama Minimal"
+                            description = "Agama-based minimal installation"
+                        else:
+                            # Custom template - use filename as display name
+                            prefix = "autoyast-" if template_name.startswith("autoyast-") else "agama-"
+                            display_name = (
+                                template_name.replace(prefix, "").replace("-", " ").title()
+                            )
+                            description = f"Custom template: {template_file.name}"
+
+                        templates.append(
+                            {
+                                "filename": template_file.name,
+                                "display_name": display_name,
+                                "description": description,
+                                "path": template_file,
+                                "type": "built-in",
+                            }
                         )
-                        description = f"Custom template: {template_file.name}"
-
-                    templates.append(
-                        {
-                            "filename": template_file.name,
-                            "display_name": display_name,
-                            "description": description,
-                            "path": template_file,
-                            "type": "built-in",
-                        }
-                    )
 
             except Exception as e:
                 self.logger.error(f"Error scanning AutoYaST templates: {e}")
@@ -456,6 +462,12 @@ class OpenSUSEProvider(OSProvider):
         # Override with user-provided values
         variables.update(user_config)
 
+        # Alias username to user_name for compatibility between Agama and AutoYaST
+        if "username" in user_config and "user_name" not in user_config:
+            variables["user_name"] = user_config["username"]
+        elif "user_name" in user_config and "username" not in user_config:
+            variables["username"] = user_config["user_name"]
+
         # Ensure hostname is VM name (cleaned)
         clean_vm_name = re.sub(r"[^a-zA-Z0-9-]", "", vm_name)[:63]  # hostname limit
         variables["hostname"] = clean_vm_name or "opensuse-vm"
@@ -463,19 +475,62 @@ class OpenSUSEProvider(OSProvider):
         # Use specified template or default to basic
         template_filename = template_name if template_name else "autoyast-basic.xml"
 
-        # Generate AutoYaST content
-        autoyast_content = self._generate_autoyast_xml(version, variables, template_filename)
+        # Generate content based on template extension
+        if template_filename.endswith(".json"):
+            content = self._generate_agama_json(version, variables, template_filename)
+            output_filename = "agama.json"
+        else:
+            content = self._generate_autoyast_xml(version, variables, template_filename)
+            output_filename = "autoyast.xml"
 
         # Write to output file
-        output_file = output_path / "autoyast.xml"
+        output_file = output_path / output_filename
         with open(output_file, "w", encoding="utf-8") as f:
-            f.write(autoyast_content)
+            f.write(content)
 
         version_name = version.display_name if version else "OpenSUSE"
         self.logger.info(
-            f"Generated autoyast.xml using template {template_filename} for {version_name} at {output_file}"
+            f"Generated {output_filename} using template {template_filename} for {version_name} at {output_file}"
         )
         return output_file
+
+    def _generate_agama_json(
+        self,
+        version: OSVersion,
+        variables: Dict[str, Any],
+        template_filename: str,
+    ) -> str:
+        """Generate Agama JSON content for automated OpenSUSE installation."""
+        template = None
+
+        # Check if template_filename is a full path (user template from file system)
+        template_path = Path(template_filename)
+        if template_path.is_absolute() and template_path.exists():
+            try:
+                with open(template_path, "r", encoding="utf-8") as f:
+                    template = f.read()
+                self.logger.info(f"Using user JSON template: {template_path.name}")
+            except Exception as e:
+                self.logger.error(f"Error reading user JSON template {template_path}: {e}")
+
+        # If not a user template, load built-in template from file
+        if template is None:
+            builtin_path = Path(__file__).parent.parent / "templates" / template_filename
+            try:
+                with open(builtin_path, "r", encoding="utf-8") as f:
+                    template = f.read()
+                self.logger.info(f"Using built-in JSON template: {template_filename}")
+            except Exception as e:
+                self.logger.error(f"Error reading built-in JSON template: {e}")
+                raise Exception(f"Failed to read JSON template: {e}")
+
+        # Use replace instead of format() to avoid conflicts with JSON curly braces
+        for key, value in variables.items():
+            if value is None:
+                value = ""
+            template = template.replace(f"{{{key}}}", str(value))
+            
+        return template
 
     def get_post_install_scripts(self, version: OSVersion) -> List[str]:
         """Return shell commands to run after OpenSUSE installation."""
@@ -684,7 +739,13 @@ class OpenSUSEProvider(OSProvider):
                 self.logger.error(f"Error reading AutoYaST template: {e}")
                 raise Exception(f"Failed to read AutoYaST template: {e}")
 
-        return template.format(**variables)
+        # Use replace instead of format() to avoid conflicts with potential curly braces
+        for key, value in variables.items():
+            if value is None:
+                value = ""
+            template = template.replace(f"{{{key}}}", str(value))
+
+        return template
 
     def get_cached_isos(self) -> List[Dict[str, Any]]:
         """Retrieve a list of ISOs already present in the local cache directory."""
