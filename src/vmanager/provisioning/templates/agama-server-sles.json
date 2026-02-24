@@ -1,0 +1,86 @@
+{
+  "hostname": {
+    "static": "{hostname}",
+    "transient": "{hostname}"
+  },
+  "localization": {
+    "language": "{language}",
+    "keyboard": "{keyboard}",
+    "timezone": "{timezone}"
+  },
+  "root": {
+    "hashedPassword": false,
+    "password": "{root_password}"
+  },
+  "user": {
+    "hashedPassword": false,
+    "fullName": "{username}",
+    "userName": "{username}",
+    "password": "{user_password}"
+  },
+  "product": {
+    "id": "SLES",
+    "registrationCode": "{scc_reg_code}",
+    "registrationEmail": "{scc_email}"
+  },
+  "software": {
+    "patterns": [
+      "base",
+      "enhanced_base",
+      "yast2_basis",
+      "file_server"
+    ],
+    "packages": [
+      "qemu-guest-agent",
+      "spice-vdagent",
+      "openssh",
+      "samba",
+      "nfs-client",
+      "firewalld",
+      "rsync",
+      "vim",
+      "curl",
+      "wget",
+      "htop",
+      "mc",
+      "tmux"
+    ]
+  },
+  "bootloader": {
+    "timeout": 5,
+    "extraKernelParams": "quiet splash=silent showopts"
+  },
+  "network": {
+    "connections": [
+      {
+        "id": "default",
+        "method4": "auto"
+      }
+    ]
+  },
+  "storage": {
+    "boot": {
+      "configure": true,
+      "device": "vda"
+    },
+    "drives": [
+      {
+        "partitions": [
+          {
+            "filesystem": {
+              "type": "vfat",
+              "path": "/boot/efi"
+            },
+            "size": "512 MiB"
+          },
+          {
+            "filesystem": {
+              "type": "btrfs",
+              "path": "/"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
