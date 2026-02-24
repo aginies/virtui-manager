@@ -64,6 +64,8 @@ from .modals.select_server_modals import SelectOneServerModal, SelectServerModal
 from .modals.selection_modals import PatternSelectModal
 from .modals.server_modals import ServerManagementModal
 from .modals.server_prefs_modals import ServerPrefModal
+from .modals.template_modals import TemplateManagementModal
+from .provisioning.templates.autoyast_template_manager import AutoYaSTTemplateManager
 from .modals.utils_modals import (
     ConfirmationDialog,
     LoadingModal,
@@ -245,6 +247,12 @@ class VMManagerTUI(App):
             key="h",
             action="host_capabilities",
             description=BindingDescriptions.HOST_CAPABILITIES,
+            show=False,
+        ),
+        Binding(
+            key="t",
+            action="template_management",
+            description=BindingDescriptions.TEMPLATES,
             show=False,
         ),
         Binding(
@@ -1286,6 +1294,11 @@ class VMManagerTUI(App):
         self._select_server_and_run(
             launch_caps_modal, StaticText.SELECT_SERVER_FOR_CAPS, ButtonLabels.VIEW
         )
+
+    def action_template_management(self) -> None:
+        """Open the template management modal."""
+        template_manager = AutoYaSTTemplateManager(provisioner=None)
+        self.push_screen(TemplateManagementModal(template_manager))
 
     def action_install_vm(self) -> None:
         """Launch the VM Installation Modal."""
