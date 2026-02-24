@@ -348,7 +348,11 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#cpu-input", Input).value = str(vcpu)
         self.query_one("#disk-size-input", Input).value = str(disk_size)
         self.query_one("#disk-format", Select).value = disk_format
-        self.query_one("#boot-uefi-checkbox", Checkbox).value = boot_uefi
+
+        # Only update UEFI if it's not locked by automation
+        uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
+        if not uefi_checkbox.disabled:
+            uefi_checkbox.value = boot_uefi
 
     @on(Select.Changed, "#vm-type")
     def on_vm_type_changed(self, event: Select.Changed):
@@ -604,6 +608,14 @@ class InstallVMModal(BaseModal[str | None]):
             self.query_one("#automation-language", Select).disabled = not should_enable
             self.query_one("#automation-keyboard", Select).disabled = not should_enable
             self.query_one("#automation-serial-console", Checkbox).disabled = not should_enable
+
+            # Enforce UEFI for automated installations
+            uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
+            if should_enable:
+                uefi_checkbox.value = True
+                uefi_checkbox.disabled = True
+            else:
+                uefi_checkbox.disabled = False
         except Exception as e:
             # Widgets may not exist in all contexts
             logging.warning(f"Could not update automation config fields: {e}")
