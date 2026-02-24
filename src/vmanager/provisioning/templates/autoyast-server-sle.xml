@@ -232,7 +232,7 @@
     <bootloader>
         <loader_type>grub2-efi</loader_type>
         <global>
-	    <append>quiet splash=silent splash=silent quiet showopts</append>
+	    <append>quiet splash=silent showopts</append>
 	    <hiddenmenu>false</hiddenmenu>
 	    <os_prober>false</os_prober>
             <timeout config:type="integer">5</timeout>

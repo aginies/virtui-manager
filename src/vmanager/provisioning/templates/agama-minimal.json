@@ -1,34 +1,38 @@
 {
   "version": "1.0.0",
-  "hostname": "{hostname}",
-  "locale": {
-    "language": "{language}",
-    "keyboard": {
-      "layout": "{keyboard}"
-    }
+  "hostname": {
+    "static": "{hostname}",
+    "transient": "{hostname}"
   },
-  "users": [
-    {
-      "name": "root",
-      "password": {
-        "password": "root",
-        "hash": null
-      },
-      "sshAuthorizedKeys": []
-    },
-    {
-      "name": "{username}",
-      "password": {
-        "password": "{username}",
-        "hash": null
-      },
-      "uid": 1000,
-      "gid": 100,
-      "shell": "/bin/bash",
-      "home": "/home/{username}",
-      "sshAuthorizedKeys": []
-    }
-  ],
+  "localization": {
+    "language": "{language}",
+    "keyboard": "{keyboard}",
+    "timezone": "{timezone}"
+  },
+   "root": {
+    "hashedPassword": null,
+    "password": "{root_password}"
+  },
+  "user": {
+    "hashedPassword": false,
+    "autologin": false,
+    "fullName": "{username}",
+    "userName": "{username}",
+    "password": "{user_password}"
+  },
+  "software": {
+    "patterns": [
+      "minimal_base"
+    ],
+    "packages": [
+      "qemu-guest-agent"
+    ]
+  },
+  "bootloader": {
+    "stopOnBootMenu": false,
+    "timeout": 5,
+    "extraKernelParams": "quiet splash=silent showopts"
+  },
   "storage": {
     "config": [
       {
@@ -60,23 +64,6 @@
     ],
     "mode": "fstab"
   },
-  "addons": [
-    {
-      "id": "ssh",
-      "version": "latest"
-    },
-    {
-      "id": "qemu-guest-agent",
-      "version": "latest"
-    }
-  ],
-  "patterns": [
-    "minimal_base"
-  ],
-  "packages": [
-    "qemu-guest-agent",
-    "openssh"
-  ],
   "ntp": {
     "enabled": true,
     "servers": [
@@ -86,14 +73,11 @@
       }
     ]
   },
-  "sshKeys": [],
   "sysconfig": {
-    "KEXEC_KDUMP_KERNEL": "no",
-    "TIMEZONE": "{timezone}"
+    "KEXEC_KDUMP_KERNEL": "no"
   },
   "services": {
     "enabled": ["sshd", "qemu-guest-agent"],
     "disabled": []
   }
 }
-

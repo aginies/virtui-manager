@@ -90,23 +90,25 @@ class AutoYaSTTemplateManager:
         templates = []
 
         try:
-            # Look for autoyast-*.xml files, excluding the skeleton
-            for template_file in self.TEMPLATES_DIR.glob("autoyast-*.xml"):
-                if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
-                    continue  # Skip skeleton template
+            # Look for autoyast-*.xml and agama-*.json files, excluding the skeleton
+            patterns = ["autoyast-*.xml", "agama-*.json"]
+            for pattern in patterns:
+                for template_file in self.TEMPLATES_DIR.glob(pattern):
+                    if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
+                        continue  # Skip skeleton template
 
-                template_name = template_file.stem
-                display_name, description = self._get_builtin_template_info(template_name)
+                    template_name = template_file.stem
+                    display_name, description = self._get_builtin_template_info(template_name)
 
-                templates.append(
-                    {
-                        "filename": template_file.name,
-                        "display_name": display_name,
-                        "description": description,
-                        "path": template_file,
-                        "type": "built-in",
-                    }
-                )
+                    templates.append(
+                        {
+                            "filename": template_file.name,
+                            "display_name": display_name,
+                            "description": description,
+                            "path": template_file,
+                            "type": "built-in",
+                        }
+                    )
 
         except Exception as e:
             self.logger.error(f"Error scanning built-in templates: {e}")
@@ -129,48 +131,50 @@ class AutoYaSTTemplateManager:
             # Scan file system for user templates
             base_dir = get_user_templates_dir()
 
-            # Recursively find all XML files in templates directory
-            for xml_file in base_dir.rglob("*.xml"):
-                try:
-                    # Get OS name from directory structure
-                    # e.g., templates/openSUSE/mytemplate.xml -> os_name = "openSUSE"
-                    relative_path = xml_file.relative_to(base_dir)
-                    os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
+            # Recursively find all XML and JSON files in templates directory
+            patterns = ["*.xml", "*.json"]
+            for pattern in patterns:
+                for template_file in base_dir.rglob(pattern):
+                    try:
+                        # Get OS name from directory structure
+                        # e.g., templates/openSUSE/mytemplate.xml -> os_name = "openSUSE"
+                        relative_path = template_file.relative_to(base_dir)
+                        os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
 
-                    # Read template content
-                    with open(xml_file, "r", encoding="utf-8") as f:
-                        content = f.read()
+                        # Read template content
+                        with open(template_file, "r", encoding="utf-8") as f:
+                            content = f.read()
 
-                    # Try to read metadata from companion .meta file
-                    meta_file = xml_file.with_suffix(".xml.meta")
-                    description = "User-defined template"
-                    if meta_file.exists():
-                        try:
-                            import json
+                        # Try to read metadata from companion .meta file
+                        meta_file = template_file.with_suffix(template_file.suffix + ".meta")
+                        description = "User-defined template"
+                        if meta_file.exists():
+                            try:
+                                import json
 
-                            with open(meta_file, "r", encoding="utf-8") as f:
-                                meta = json.load(f)
-                                description = meta.get("description", description)
-                        except Exception as e:
-                            self.logger.warning(f"Could not read metadata for {xml_file}: {e}")
+                                with open(meta_file, "r", encoding="utf-8") as f:
+                                    meta = json.load(f)
+                                    description = meta.get("description", description)
+                            except Exception as e:
+                                self.logger.warning(f"Could not read metadata for {template_file}: {e}")
 
-                    template_name = xml_file.stem  # Filename without extension
-                    display_name = f"{template_name} ({os_name})"
+                        template_name = template_file.stem  # Filename without extension
+                        display_name = f"{template_name} ({os_name})"
 
-                    templates.append(
-                        {
-                            "filename": xml_file.name,
-                            "display_name": display_name,
-                            "description": description,
-                            "path": xml_file,
-                            "content": content,
-                            "type": "user",
-                            "template_id": str(xml_file),  # Use full path as ID
-                            "os_name": os_name,
-                        }
-                    )
-                except Exception as e:
-                    self.logger.error(f"Error reading user template {xml_file}: {e}")
+                        templates.append(
+                            {
+                                "filename": template_file.name,
+                                "display_name": display_name,
+                                "description": description,
+                                "path": template_file,
+                                "content": content,
+                                "type": "user",
+                                "template_id": str(template_file),  # Use full path as ID
+                                "os_name": os_name,
+                            }
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Error reading user template {template_file}: {e}")
 
             # Backward compatibility: check legacy YAML config
             legacy_templates = get_user_autoyast_templates()
@@ -209,7 +213,7 @@ class AutoYaSTTemplateManager:
         """
         # If template_id is a file path, read it directly
         template_path = Path(template_id)
-        if template_path.exists() and template_path.suffix == ".xml":
+        if template_path.exists() and template_path.suffix in [".xml", ".json"]:
             try:
                 with open(template_path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -219,7 +223,7 @@ class AutoYaSTTemplateManager:
                 os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
 
                 # Read metadata
-                meta_file = template_path.with_suffix(".xml.meta")
+                meta_file = template_path.with_suffix(template_path.suffix + ".meta")
                 description = "User-defined template"
                 if meta_file.exists():
                     try:
@@ -329,12 +333,18 @@ class AutoYaSTTemplateManager:
 
                 # Get OS-specific directory
                 os_dir = get_user_templates_dir_for_os(os_name)
-                template_path = os_dir / f"{safe_name}.xml"
+                
+                # Determine extension based on content
+                extension = ".xml"
+                if content.strip().startswith("{") and content.strip().endswith("}"):
+                    extension = ".json"
+                
+                template_path = os_dir / f"{safe_name}{extension}"
 
                 # Handle name conflicts
                 counter = 1
                 while template_path.exists():
-                    template_path = os_dir / f"{safe_name}_{counter}.xml"
+                    template_path = os_dir / f"{safe_name}_{counter}{extension}"
                     counter += 1
 
             # Write template content
@@ -342,7 +352,7 @@ class AutoYaSTTemplateManager:
                 f.write(content)
 
             # Write metadata to companion .meta file
-            meta_file = template_path.with_suffix(".xml.meta")
+            meta_file = template_path.with_suffix(template_path.suffix + ".meta")
             import json
 
             meta_data = {
@@ -374,12 +384,12 @@ class AutoYaSTTemplateManager:
         try:
             # Check if it's a file path
             template_path = Path(template_id)
-            if template_path.exists() and template_path.suffix == ".xml":
-                # Delete XML file
+            if template_path.exists() and template_path.suffix in [".xml", ".json"]:
+                # Delete template file
                 template_path.unlink()
 
                 # Delete companion .meta file if exists
-                meta_file = template_path.with_suffix(".xml.meta")
+                meta_file = template_path.with_suffix(template_path.suffix + ".meta")
                 if meta_file.exists():
                     meta_file.unlink()
 
@@ -427,7 +437,9 @@ class AutoYaSTTemplateManager:
                 safe_name = (
                     template["display_name"].replace(" ", "_").replace("(", "").replace(")", "")
                 )
-                output_path = destination / f"{safe_name}.xml"
+                # Preserve extension if available in path, fallback to .xml
+                extension = template["path"].suffix if "path" in template and template["path"] else ".xml"
+                output_path = destination / f"{safe_name}{extension}"
             else:
                 output_path = destination
 
@@ -523,21 +535,36 @@ class AutoYaSTTemplateManager:
     # Validation
     # -------------------------------------------------------------------------
 
-    def validate_xml(self, content: str) -> tuple[bool, str | None]:
+    def validate_content(self, content: str) -> tuple[bool, str | None]:
         """
-        Perform quick XML validation.
+        Perform quick XML or JSON validation.
 
         Args:
-            content: XML content to validate
+            content: Content to validate
 
         Returns:
             Tuple of (is_valid: bool, error_message: str | None)
         """
-        try:
-            ET.fromstring(content)
-            return True, None
-        except ET.ParseError as e:
-            return False, str(e)
+        content_stripped = content.strip()
+        if content_stripped.startswith("{") and content_stripped.endswith("}"):
+            # Try JSON validation
+            import json
+            try:
+                json.loads(content)
+                return True, None
+            except Exception as e:
+                return False, str(e)
+        else:
+            # Try XML validation
+            try:
+                ET.fromstring(content)
+                return True, None
+            except ET.ParseError as e:
+                return False, str(e)
+
+    def validate_xml(self, content: str) -> tuple[bool, str | None]:
+        """Legacy wrapper for validate_content."""
+        return self.validate_content(content)
 
     def validate_template(self, content: str) -> dict:
         """
@@ -820,13 +847,17 @@ class AutoYaSTTemplateManager:
                 "SUSE Linux Entreprise Server (REG CODE)",
                 "SUSE Server Linux",
             ),
+            "agama-minimal": (
+                "Agama Minimal",
+                "Agama-based minimal installation",
+            ),
         }
 
         if template_name in info_map:
             return info_map[template_name]
 
         # Custom template - generate from filename
-        display_name = template_name.replace("autoyast-", "").replace("-", " ").title()
+        display_name = template_name.replace("autoyast-", "").replace("agama-", "").replace("-", " ").title()
         return display_name, f"Custom template: {template_name}"
 
     def _basic_template_checks(self, content: str) -> list[str]:
