@@ -208,6 +208,9 @@ class OpenSUSEProvider(OSProvider):
                 "language": "en_US",
                 "keyboard": "us",
                 "hostname": "opensuse-vm",
+                "scc_email": "",
+                "scc_reg_code": "",
+                "scc_product_arch": "",
             },
             supports_custom_user=True,
             supports_network_config=True,
@@ -252,7 +255,10 @@ class OpenSUSEProvider(OSProvider):
                         description = "Development environment with programming tools and IDE"
                     elif template_name == "autoyast-server":
                         display_name = "Full Server"
-                        description = "Server installation with web, database, and mail services"
+                        description = "Server installation mode"
+                    elif template_name == "autoyast-server-sle":
+                        display_name = "SUSE Linux Entreprise Server"
+                        description = "SLES with SCC registration"
                     else:
                         # Custom template - use filename as display name
                         display_name = (
@@ -727,14 +733,7 @@ class OpenSUSEProvider(OSProvider):
         if distro == OpenSUSEDistro.CUSTOM:
             return []
 
-        base_url = self.DISTRO_BASE_URLS.get(distro)
-        if not base_url:
-            # Use distro name safely - check if it's an enum first
-            distro_name = distro.value if hasattr(distro, "value") else str(distro)
-            self.logger.warning(f"No base URL configured for {distro_name}")
-            return []
-
-        return self.get_iso_list_from_url(base_url)
+        return self._get_iso_list_for_distro(distro)
 
     def get_iso_list_from_url(self, url: str) -> List[Dict[str, Any]]:
         """

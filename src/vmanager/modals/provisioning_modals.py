@@ -189,7 +189,7 @@ class InstallVMModal(BaseModal[str | None]):
                             id="manage-templates-btn",
                             classes="small-button",
                         )
-                # User configuration - only visible when a template is selected
+               # User configuration - only visible when a template is selected
                 with Vertical(id="automation-user-config-wrapper"):
                     with Horizontal(id="automation-user-config"):
                         with Vertical(id="automation-user-left"):
@@ -258,12 +258,22 @@ class InstallVMModal(BaseModal[str | None]):
                                 tooltip=StaticText.KEYBOARD_TOOLTIP,
                             )
 
-            yield Checkbox(
-                "Use virt-install",
-                id="use-virt-install-checkbox",
-                value=True,
-                tooltip="Use virt-install command-line tool. Uncheck to use XML-based creation."
-            )
+            with Vertical():
+                with Horizontal():
+                    yield Checkbox(
+                        "Use virt-install",
+                        id="use-virt-install-checkbox",
+                        value=False,
+                        tooltip="Use virt-install command-line tool. Uncheck to use XML-based creation."
+                    )
+                    yield Checkbox(
+                        "Redirect console to serial (ttyS0)",
+                        id="automation-serial-console",
+                        value=False,
+                        tooltip="Adds console=tty0 console=ttyS0,115200 to kernel args",
+                        disabled=True
+                    )
+ 
             yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
                 id="configure-before-install-checkbox",
@@ -299,7 +309,6 @@ class InstallVMModal(BaseModal[str | None]):
             use_virt_install_checkbox.value = False
             use_virt_install_checkbox.styles.display = "none"
         else:
-            use_virt_install_checkbox.value = True
             use_virt_install_checkbox.styles.display = "block"
 
     def _update_expert_defaults(self, vm_type):
@@ -594,12 +603,19 @@ class InstallVMModal(BaseModal[str | None]):
             self.query_one("#automation-user-password", Input).disabled = not should_enable
             self.query_one("#automation-language", Select).disabled = not should_enable
             self.query_one("#automation-keyboard", Select).disabled = not should_enable
+            self.query_one("#automation-serial-console", Checkbox).disabled = not should_enable
         except Exception as e:
             # Widgets may not exist in all contexts
             logging.warning(f"Could not update automation config fields: {e}")
 
     @on(Input.Changed, "#vm-name")
-    def on_name_changed(self):
+    def on_name_changed(self, event: Input.Changed):
+        # Synchronize with hostname in automated installation
+        try:
+            hostname_input = self.query_one("#automation-hostname", Input)
+            hostname_input.value = event.value
+        except Exception:
+            pass
         self._check_form_validity()
 
     def _check_form_validity(self):
@@ -704,6 +720,7 @@ class InstallVMModal(BaseModal[str | None]):
         pool_name = self.query_one("#pool", Select).value
         distro = self.query_one("#distro", Select).value
         use_virt_install = self.query_one("#use-virt-install-checkbox", Checkbox).value
+        serial_console = self.query_one("#automation-serial-console", Checkbox).value
         configure_before_install = self.query_one(
             "#configure-before-install-checkbox", Checkbox
         ).value
@@ -810,6 +827,7 @@ class InstallVMModal(BaseModal[str | None]):
             disk_format,
             boot_uefi,
             use_virt_install,
+            serial_console,
             configure_before_install,
             automation_template_id,
         )
@@ -830,6 +848,7 @@ class InstallVMModal(BaseModal[str | None]):
         disk_format,
         boot_uefi,
         use_virt_install,
+        serial_console,
         configure_before_install,
         automation_template_id,
     ):
@@ -967,6 +986,10 @@ class InstallVMModal(BaseModal[str | None]):
                         language = self.query_one("#automation-language", Select).value
                         keyboard = self.query_one("#automation-keyboard", Select).value
 
+                        # Add SCC info from user config if present
+                        config = load_config()
+                        scc_config = config.get("SUSE_SCC", {})
+
                         automation_config = {
                             "template_name": automation_template_id,
                             "root_password": root_password,
@@ -975,6 +998,10 @@ class InstallVMModal(BaseModal[str | None]):
                             "user_password": user_password,
                             "language": language,
                             "keyboard": keyboard,
+                            "serial_console": serial_console, # Add serial console option
+                            "scc_email": scc_config.get("scc_email", ""),
+                            "scc_reg_code": scc_config.get("scc_reg_code", ""),
+                            "scc_product_arch": scc_config.get("scc_product_arch", ""),
                         }
                     except Exception as e:
                         logging.warning(f"Could not retrieve automation config: {e}")
