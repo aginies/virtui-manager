@@ -27,6 +27,20 @@ REMOTE_VIEWER: null
 # ISO Management
 ISO_DOWNLOAD_PATH: /home/isos
 
+# Automated Installation Pre-fill
+AUTO_INSTALL_PRE_FILL:
+  root_password: "your_default_root_password"
+  username: "your_default_username"
+  user_password: "your_default_user_password"
+  keyboard: "us"
+  language: "English (US)"
+
+# SUSE Customer Center (SCC)
+SUSE_SCC:
+  scc_email: "your-email@company.com"
+  scc_reg_code: "your-scc-registration-code"
+  scc_product_arch: "x86_64"
+
 # Logging
 LOG_FILE_PATH: /home/aginies/.cache/virtui-manager/vm_manager.log
 LOG_LEVEL: INFO
@@ -68,6 +82,114 @@ servers:
 *   **`servers`**: A list of Libvirt connections. Each entry requires a `name` (for display), a `uri` (the Libvirt connection string), and an optional `autoconnect` boolean.
 *   **`ISO_DOWNLOAD_PATH`**: The directory where downloaded ISO images are stored.
 *   **`custom_ISO_repo`**: A list of remote or local repositories. Each entry needs a `name` and a `uri` (HTTP/HTTPS URL or local path).
+*   **`AUTO_INSTALL_PRE_FILL`**: Pre-configured values for automated installation fields that automatically populate when creating VMs with automation templates.
+*   **`SUSE_SCC`**: SUSE Customer Center registration credentials for automatic SCC registration during SUSE product installations.
+
+## Automated Installation Pre-fill
+
+VirtUI Manager supports pre-filling automation fields to streamline the VM creation process when using unattended installation templates. This configuration allows you to set default values that automatically populate the automation fields, saving time during VM provisioning.
+
+### Configuration
+
+Add the `AUTO_INSTALL_PRE_FILL` section to your `config.yaml` file:
+
+```yaml
+AUTO_INSTALL_PRE_FILL:
+  root_password: "your_secure_root_password"
+  username: "your_preferred_username"
+  user_password: "your_secure_user_password"
+  keyboard: "us"              # Keyboard layout (us, fr, de, etc.)
+  language: "English (US)"    # System language
+```
+
+### Available Fields
+
+*   **`root_password`**: Default password for the root/administrator account
+*   **`username`**: Default name for the primary user account  
+*   **`user_password`**: Default password for the primary user account
+*   **`keyboard`**: Default keyboard layout (e.g., "us", "fr", "de", "it")
+*   **`language`**: Default system language (e.g., "English (US)", "Français", "Deutsch")
+
+### How It Works
+
+1. **Template Selection**: When you select an automation template during VM creation, VirtUI Manager checks for `AUTO_INSTALL_PRE_FILL` configuration
+2. **Auto-Population**: If configured values exist, the corresponding fields are automatically filled with your preset values
+3. **Manual Override**: You can still modify any pre-filled values before creating the VM
+4. **Secure Storage**: Consider using secure values and restricting file permissions (`chmod 600`) for the config file if it contains passwords
+
+### Security Considerations
+
+*   **File Permissions**: Ensure your config file has appropriate permissions to protect sensitive information:
+    ```bash
+    chmod 600 ~/.config/virtui-manager/config.yaml
+    ```
+*   **Password Complexity**: Use strong passwords for default values
+*   **Environment-Specific**: Consider using different configurations for development vs. production environments
+*   **Version Control**: If storing config files in version control, use placeholders instead of real passwords
+
+## SUSE Customer Center (SCC) Configuration
+
+VirtUI Manager supports automatic SUSE Customer Center (SCC) registration during SUSE product installations. This feature allows you to configure your SCC credentials that will be automatically used when creating VMs with SUSE operating systems (SLES, etc.).
+
+### Configuration
+
+Add the `SUSE_SCC` section to your `config.yaml` file:
+
+```yaml
+SUSE_SCC:
+  scc_email: "your-email@company.com"           # Your SCC account email
+  scc_reg_code: "your-scc-registration-code"    # Your SCC registration code
+  scc_product_arch: "x86_64"                    # Target architecture
+```
+
+### Available Fields
+
+*   **`scc_email`**: Your SUSE Customer Center account email address
+*   **`scc_reg_code`**: Registration code from your SUSE Customer Center account
+*   **`scc_product_arch`**: Target product architecture for registration
+
+### Supported Architectures
+
+*   **`x86_64`**: Standard 64-bit Intel/AMD architecture (default)
+*   **`aarch64`**: ARM 64-bit architecture
+*   **`s390x`**: IBM System z architecture
+*   **`ppc64le`**: PowerPC 64-bit Little Endian
+
+### How It Works
+
+1. **Automatic Integration**: When creating VMs with SUSE distributions and automation templates, VirtUI Manager automatically includes your SCC credentials
+2. **Registration Process**: The automated installation will register the system with SUSE Customer Center during the installation process
+3. **Product Updates**: Registered systems gain access to official SUSE updates and support packages
+4. **Enterprise Support**: Essential for SLES and other commercial SUSE products
+
+### Security Considerations
+
+*   **Sensitive Data**: SCC registration codes are sensitive credentials that provide access to SUSE services
+*   **File Permissions**: Ensure your config file has restrictive permissions:
+    ```bash
+    chmod 600 ~/.config/virtui-manager/config.yaml
+    ```
+*   **Environment Separation**: Use different SCC credentials for development vs. production environments
+*   **Version Control**: Never commit real SCC credentials to version control systems
+
+### Configuration Management
+
+The SCC configuration can be managed through:
+
+1. **Manual Editing**: Directly edit the `config.yaml` file
+2. **Template Management UI**: Use the "Configure Auto-fill" button in the template management interface
+3. **Bulk Deployment**: Copy configuration files across multiple systems
+
+### Integration with Automated Installation
+
+When both `AUTO_INSTALL_PRE_FILL` and `SUSE_SCC` are configured, VirtUI Manager creates a complete automated installation experience for SUSE products:
+
+*   User accounts and passwords are pre-configured
+*   Keyboard and language settings are set
+*   SCC registration happens automatically
+*   Systems are ready for immediate use with updates enabled
+
+**Note**: SCC registration is only relevant for SUSE-based operating systems. The configuration is safely ignored when installing other Linux distributions.
 
 ## Custom ISO Repositories
 
