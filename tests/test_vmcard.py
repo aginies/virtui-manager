@@ -590,6 +590,11 @@ class TestVMCard(unittest.TestCase):
         self.mock_app.webconsole_manager.is_running.return_value = False
         self.mock_app.webconsole_manager.is_remote_connection.return_value = False
 
+        # Ensure start_console_async triggers the worker mock
+        def mock_start_async(vm, conn):
+            self.mock_app.worker_manager.run(None, name=f"start_console_{self.vm_card.internal_id}")
+        self.mock_app.webconsole_manager.start_console_async.side_effect = mock_start_async
+
         # Mock get_uri_for_connection to return a proper string
         self.mock_app.vm_service.get_uri_for_connection.return_value = "qemu:///system"
 
