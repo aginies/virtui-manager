@@ -1,7 +1,6 @@
 {
   "hostname": {
-    "static": "{hostname}",
-    "transient": "{hostname}"
+    "static": "{hostname}"
   },
   "localization": {
     "language": "{language}",
@@ -24,10 +23,9 @@
     "registrationEmail": "{scc_email}"
   },
   "software": {
-    "patterns": [
-      "enhanced_base",
-      "file_server"
-    ],
+    "patterns": {
+      "add": [ "enhanced_base" ]
+    },
     "packages": [
       "qemu-guest-agent",
       "spice-vdagent",
@@ -54,26 +52,11 @@
     ]
   },
   "storage": {
-    "boot": {
-      "configure": true,
-      "device": "vda"
-    },
     "drives": [
       {
+        "search": "/dev/vda",
         "partitions": [
-          {
-            "filesystem": {
-              "type": "vfat",
-              "path": "/boot/efi"
-            },
-            "size": "512 MiB"
-          },
-          {
-            "filesystem": {
-              "type": "btrfs",
-              "path": "/"
-            }
-          }
+          { "generate": "default" }
         ]
       }
     ]
