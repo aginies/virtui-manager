@@ -1044,7 +1044,7 @@ class VMProvisioner:
     <video>
       <model type='{settings["video"]}'/>
     </video>
-    <graphics type='vnc' port='-1' autoport='yes' listen='0.0.0.0'>
+    <graphics type='spice' port='-1' autoport='yes' listen='0.0.0.0'>
       <listen type='address' address='0.0.0.0'/>
     </graphics>
 """
