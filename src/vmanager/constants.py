@@ -656,10 +656,6 @@ Specify the NUMA nodes to use.
     SCC_REG_CODE_PLACEHOLDER = _("Registration code from SUSE Customer Center")
     SCC_PRODUCT_ARCH_LABEL = _("SCC Product Architecture:")
     # Shared language/locale constants to avoid duplication
-    FRENCH = _("French")
-    GERMAN = _("German")
-    SPANISH = _("Spanish")
-    ITALIAN = _("Italian")
 
     # Keyboard layout constants
     KEYBOARD_US_ENGLISH = _("US English")
@@ -670,19 +666,12 @@ Specify the NUMA nodes to use.
     KEYBOARD_UK_ENGLISH = _("UK English")
 
     # Language constants
-    LANGUAGE_ENGLISH_US = _("English (US)")
-    LANGUAGE_FRENCH = FRENCH
-    LANGUAGE_GERMAN = GERMAN
-    LANGUAGE_SPANISH = SPANISH
-    LANGUAGE_ITALIAN = ITALIAN
-    LANGUAGE_ENGLISH_UK = _("English (UK)")
     LANGUAGE_VALUE_ENGLISH_US = _("English (US)")
     LANGUAGE_VALUE_FRENCH = _("Français")
     LANGUAGE_VALUE_GERMAN = _("Deutsch")
     LANGUAGE_VALUE_SPANISH = _("Español")
     LANGUAGE_VALUE_ITALIAN = _("Italiano")
     LANGUAGE_VALUE_ENGLISH_UK = _("English (UK)")
-    VIEW_TEMPLATE_TITLE = _("View Template: {template_name}")
     TEMPLATE_NAME_TITLE = _("Template Name")
     TEMPLATE_NAME_LABEL = _("Template Name:")
     TEMPLATE_NAME_PLACEHOLDER = _("Enter template name")
