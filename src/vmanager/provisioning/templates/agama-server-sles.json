@@ -25,9 +25,7 @@
   },
   "software": {
     "patterns": [
-      "base",
       "enhanced_base",
-      "yast2_basis",
       "file_server"
     ],
     "packages": [
@@ -40,10 +38,7 @@
       "rsync",
       "vim",
       "curl",
-      "wget",
-      "htop",
-      "mc",
-      "tmux"
+      "wget"
     ]
   },
   "bootloader": {
