@@ -635,6 +635,53 @@ Specify the NUMA nodes to use.
     TEMPLATE_DELETED_SUCCESSFULLY = _("Template '{template_name}' deleted successfully")
     TEMPLATE_EXPORTED_TO = _("Template exported to {path}")
     TEMPLATE_IMPORTED_SUCCESSFULLY = _("Template '{template_name}' imported successfully")
+    CONFIGURE_AUTOMATION_PREFILL = _("Auto-fill")
+    CONFIGURE_AUTOMATION_AND_SCC_TITLE = _("Configure Automated Installation & SCC")
+    CONFIGURE_AUTOMATION_AND_SCC_SUBTITLE = _(
+        "Set default values for automation fields and SUSE Customer Center registration"
+    )
+    ROOT_PASSWORD_LABEL = _("Root Password:")
+    ROOT_PASSWORD_PLACEHOLDER = _("Default root password")
+    USERNAME_LABEL = _("Username:")
+    USERNAME_PLACEHOLDER = _("Default username")
+    USER_PASSWORD_LABEL = _("User Password:")
+    USER_PASSWORD_PLACEHOLDER = _("Default user password")
+    KEYBOARD_LAYOUT_LABEL = _("Keyboard Layout:")
+    LANGUAGE_LABEL = _("Language:")
+    SUSE_SCC_CONFIGURATION_HEADER = _("SUSE Customer Center (SCC) Configuration")
+    SUSE_SCC_CONFIGURATION_SUBTITLE = _("Optional: Configure SCC registration for SUSE products")
+    SCC_EMAIL_LABEL = _("SCC Email:")
+    SCC_EMAIL_PLACEHOLDER = _("your-email@example.com")
+    SCC_REG_CODE_LABEL = _("SCC Registration Code:")
+    SCC_REG_CODE_PLACEHOLDER = _("Registration code from SUSE Customer Center")
+    SCC_PRODUCT_ARCH_LABEL = _("SCC Product Architecture:")
+    # Shared language/locale constants to avoid duplication
+    FRENCH = _("French")
+    GERMAN = _("German")
+    SPANISH = _("Spanish")
+    ITALIAN = _("Italian")
+
+    # Keyboard layout constants
+    KEYBOARD_US_ENGLISH = _("US English")
+    KEYBOARD_FRENCH = FRENCH
+    KEYBOARD_GERMAN = GERMAN
+    KEYBOARD_SPANISH = SPANISH
+    KEYBOARD_ITALIAN = ITALIAN
+    KEYBOARD_UK_ENGLISH = _("UK English")
+
+    # Language constants
+    LANGUAGE_ENGLISH_US = _("English (US)")
+    LANGUAGE_FRENCH = FRENCH
+    LANGUAGE_GERMAN = GERMAN
+    LANGUAGE_SPANISH = SPANISH
+    LANGUAGE_ITALIAN = ITALIAN
+    LANGUAGE_ENGLISH_UK = _("English (UK)")
+    LANGUAGE_VALUE_ENGLISH_US = _("English (US)")
+    LANGUAGE_VALUE_FRENCH = _("Français")
+    LANGUAGE_VALUE_GERMAN = _("Deutsch")
+    LANGUAGE_VALUE_SPANISH = _("Español")
+    LANGUAGE_VALUE_ITALIAN = _("Italiano")
+    LANGUAGE_VALUE_ENGLISH_UK = _("English (UK)")
     VIEW_TEMPLATE_TITLE = _("View Template: {template_name}")
     TEMPLATE_NAME_TITLE = _("Template Name")
     TEMPLATE_NAME_LABEL = _("Template Name:")
@@ -1083,6 +1130,9 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
         "Please start virtui-manager inside a tmux session."
     )
     EDITOR_CANCELLED_OR_FAILED = _("Editor was cancelled or failed")
+    FAILED_TO_SAVE_CONFIGURATION = _("Failed to save configuration")
+    ERROR_SAVING_AUTOFILL_CONFIGURATION = _("Error saving auto-fill configuration")
+    ERROR_OPENING_AUTOFILL_CONFIGURATION = _("Error opening auto-fill configuration")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
@@ -1244,6 +1294,7 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     BULK_ACTION_SUMMARY = _(
         "Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}"
     )
+    AUTOFILL_AND_SCC_CONFIGURATION_UPDATED = _("Auto-fill and SCC configuration updated")
 
 
 class ProgressMessages:  # pylint: disable=too-few-public-methods
