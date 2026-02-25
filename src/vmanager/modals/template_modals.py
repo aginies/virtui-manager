@@ -14,10 +14,11 @@ import logging
 from pathlib import Path
 
 from textual import on
-from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
-from textual.widgets import Button, DataTable, Input, Label, Select, Static
+from textual.containers import Container, Horizontal, ScrollableContainer
+from textual.widgets import Button, DataTable, Input, Label, Select
 
-from ..constants import ButtonLabels, ErrorMessages, StaticText
+from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
+from ..config import load_config, save_config
 from .base_modals import BaseModal
 from .utils_modals import FileSelectionModal
 
@@ -149,6 +150,12 @@ class TemplateManagementModal(BaseModal[bool]):
 
             # Template list table
             yield DataTable(id="template-table", cursor_type="row", zebra_stripes=True)
+
+            yield Button(
+                StaticText.CONFIGURE_AUTOMATION_PREFILL,
+                id="configure-prefill-btn",
+                variant="primary",
+            )
 
             # Action buttons
             with Horizontal(classes="buttons"):
@@ -490,6 +497,25 @@ class TemplateManagementModal(BaseModal[bool]):
             logging.error(f"Error importing template: {e}")
             self.notify("Error importing template", severity="error")
 
+    @on(Button.Pressed, "#configure-prefill-btn")
+    def configure_prefill(self, event: Button.Pressed):
+        """Configure AUTO_INSTALL_PRE_FILL and SUSE_SCC settings."""
+        try:
+
+            def on_config_closed(result: dict | None):
+                """Handle configuration modal closure."""
+                if result:
+                    self.notify(
+                        SuccessMessages.AUTOFILL_AND_SCC_CONFIGURATION_UPDATED,
+                        severity="information",
+                    )
+
+            self.app.push_screen(AutoFillConfigModal(), on_config_closed)
+
+        except Exception as e:
+            logging.error(f"Error opening auto-fill configuration: {e}")
+            self.notify(ErrorMessages.ERROR_OPENING_AUTOFILL_CONFIGURATION, severity="error")
+
     @on(Button.Pressed, "#close-template-mgmt-btn")
     def close_modal(self, event: Button.Pressed):
         """Close the modal."""
@@ -588,40 +614,209 @@ class TemplateManagementModal(BaseModal[bool]):
         )
 
 
-class TemplateViewModal(BaseModal[None]):
+class AutoFillConfigModal(BaseModal[dict | None]):
     """
-    Read-only modal for viewing template content.
+    Modal for configuring AUTO_INSTALL_PRE_FILL and SUSE_SCC settings.
+
+    Returns dict with updated configurations if saved, None if cancelled.
     """
 
-    def __init__(self, template_name: str, content: str):
-        """
-        Initialize the template view modal.
-
-        Args:
-            template_name: Name of the template being viewed
-            content: Template XML content
-        """
+    def __init__(self):
+        """Initialize the auto-fill configuration modal."""
         super().__init__()
-        self.template_name = template_name
-        self.content = content
+        # Load current configuration
+        self.config = load_config()
+        self.prefill_config = self.config.get("AUTO_INSTALL_PRE_FILL", {})
+        self.scc_config = self.config.get("SUSE_SCC", {})
 
     def compose(self):
         """Compose the modal UI."""
-        with ScrollableContainer(id="template-view-container"):
+        with ScrollableContainer(id="autofill-config-container"):
+            yield Label(StaticText.CONFIGURE_AUTOMATION_AND_SCC_TITLE, classes="title")
             yield Label(
-                StaticText.VIEW_TEMPLATE_TITLE.format(template_name=self.template_name),
-                classes="title",
+                StaticText.CONFIGURE_AUTOMATION_AND_SCC_SUBTITLE,
+                classes="subtitle",
             )
 
-            # Display content in a Static widget (read-only)
-            with Container(id="template-content-container"):
-                yield Static(self.content, id="template-content")
+            # Root Password
+            yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
+            yield Input(
+                value=self.prefill_config.get("root_password", ""),
+                placeholder=StaticText.ROOT_PASSWORD_PLACEHOLDER,
+                password=True,
+                id="root-password-input",
+            )
 
-            # Close button
+            # Username
+            yield Label(StaticText.USERNAME_LABEL, classes="label")
+            yield Input(
+                value=self.prefill_config.get("username", ""),
+                placeholder=StaticText.USERNAME_PLACEHOLDER,
+                id="username-input",
+            )
+
+            # User Password
+            yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
+            yield Input(
+                value=self.prefill_config.get("user_password", ""),
+                placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
+                password=True,
+                id="user-password-input",
+            )
+
+            # Keyboard Layout
+            yield Label(StaticText.KEYBOARD_LAYOUT_LABEL, classes="label")
+            keyboard_options = [
+                (StaticText.KEYBOARD_US_ENGLISH, "us"),
+                (StaticText.KEYBOARD_FRENCH, "fr"),
+                (StaticText.KEYBOARD_GERMAN, "de"),
+                (StaticText.KEYBOARD_SPANISH, "es"),
+                (StaticText.KEYBOARD_ITALIAN, "it"),
+                (StaticText.KEYBOARD_UK_ENGLISH, "uk"),
+            ]
+            current_keyboard = self.prefill_config.get("keyboard", "us")
+            yield Select(
+                options=keyboard_options,
+                value=current_keyboard,
+                id="keyboard-select",
+                allow_blank=False,
+            )
+
+            # Language
+            yield Label(StaticText.LANGUAGE_LABEL, classes="label")
+            language_options = [
+                (StaticText.LANGUAGE_VALUE_ENGLISH_US, StaticText.LANGUAGE_VALUE_ENGLISH_US),
+                (StaticText.LANGUAGE_VALUE_FRENCH, StaticText.LANGUAGE_VALUE_FRENCH),
+                (StaticText.LANGUAGE_VALUE_GERMAN, StaticText.LANGUAGE_VALUE_GERMAN),
+                (StaticText.LANGUAGE_VALUE_SPANISH, StaticText.LANGUAGE_VALUE_SPANISH),
+                (StaticText.LANGUAGE_VALUE_ITALIAN, StaticText.LANGUAGE_VALUE_ITALIAN),
+                (StaticText.LANGUAGE_VALUE_ENGLISH_UK, StaticText.LANGUAGE_VALUE_ENGLISH_UK),
+            ]
+            current_language = self.prefill_config.get("language", "English (US)")
+            yield Select(
+                options=language_options,
+                value=current_language,
+                id="language-select",
+                allow_blank=False,
+            )
+
+            # SUSE SCC Configuration Section
+            yield Label(StaticText.SUSE_SCC_CONFIGURATION_HEADER, classes="section-header")
+            yield Label(StaticText.SUSE_SCC_CONFIGURATION_SUBTITLE, classes="subtitle")
+
+            # SCC Email
+            yield Label(StaticText.SCC_EMAIL_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_email", ""),
+                placeholder=StaticText.SCC_EMAIL_PLACEHOLDER,
+                id="scc-email-input",
+            )
+
+            # SCC Registration Code
+            yield Label(StaticText.SCC_REG_CODE_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_reg_code", ""),
+                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                password=True,
+                id="scc-reg-code-input",
+            )
+
+            # SCC Product Architecture
+            yield Label(StaticText.SCC_PRODUCT_ARCH_LABEL, classes="label")
+            arch_options = [
+                ("x86_64", "x86_64"),
+                ("aarch64", "aarch64"),
+                ("s390x", "s390x"),
+                ("ppc64le", "ppc64le"),
+            ]
+            current_arch = self.scc_config.get("scc_product_arch", "x86_64")
+            yield Select(
+                options=arch_options,
+                value=current_arch,
+                id="scc-arch-select",
+                allow_blank=False,
+            )
+
+            # Action buttons
             with Horizontal(classes="buttons"):
-                yield Button(ButtonLabels.CLOSE, id="close-view-btn", variant="primary")
+                yield Button(ButtonLabels.SAVE, id="save-config-btn", variant="primary")
+                yield Button(ButtonLabels.CANCEL, id="cancel-config-btn")
 
-    @on(Button.Pressed, "#close-view-btn")
-    def close_modal(self, event: Button.Pressed):
-        """Close the view modal."""
+    def on_mount(self):
+        """Focus the root password input when mounted."""
+        self.query_one("#root-password-input", Input).focus()
+
+    @on(Button.Pressed, "#save-config-btn")
+    def save_configuration(self, event: Button.Pressed):
+        """Save the auto-fill configuration."""
+        try:
+            # Collect values from inputs
+            root_password = self.query_one("#root-password-input", Input).value
+            username = self.query_one("#username-input", Input).value
+            user_password = self.query_one("#user-password-input", Input).value
+            keyboard = self.query_one("#keyboard-select", Select).value
+            language = self.query_one("#language-select", Select).value
+
+            # Collect SUSE_SCC values
+            scc_email = self.query_one("#scc-email-input", Input).value
+            scc_reg_code = self.query_one("#scc-reg-code-input", Input).value
+            scc_arch = self.query_one("#scc-arch-select", Select).value
+
+            # Build the AUTO_INSTALL_PRE_FILL configuration
+            prefill_config = {}
+            if root_password.strip():
+                prefill_config["root_password"] = root_password.strip()
+            if username.strip():
+                prefill_config["username"] = username.strip()
+            if user_password.strip():
+                prefill_config["user_password"] = user_password.strip()
+            if keyboard and keyboard != Select.BLANK:
+                prefill_config["keyboard"] = keyboard
+            if language and language != Select.BLANK:
+                prefill_config["language"] = language
+
+            # Build the SUSE_SCC configuration
+            scc_config = {}
+            if scc_email.strip():
+                scc_config["scc_email"] = scc_email.strip()
+            if scc_reg_code.strip():
+                scc_config["scc_reg_code"] = scc_reg_code.strip()
+            if scc_arch and scc_arch != Select.BLANK:
+                scc_config["scc_product_arch"] = scc_arch
+
+            # Update the main configuration
+            updated_config = self.config.copy()
+
+            # Update AUTO_INSTALL_PRE_FILL section
+            if prefill_config:
+                updated_config["AUTO_INSTALL_PRE_FILL"] = prefill_config
+            else:
+                # Remove the section if all fields are empty
+                updated_config.pop("AUTO_INSTALL_PRE_FILL", None)
+
+            # Update SUSE_SCC section
+            if scc_config:
+                updated_config["SUSE_SCC"] = scc_config
+            else:
+                # Remove the section if all fields are empty
+                updated_config.pop("SUSE_SCC", None)
+
+            # Save the configuration
+            if save_config(updated_config):
+                # Return both configurations for feedback
+                result = {
+                    "AUTO_INSTALL_PRE_FILL": prefill_config,
+                    "SUSE_SCC": scc_config,
+                }
+                self.dismiss(result)
+            else:
+                self.notify(ErrorMessages.FAILED_TO_SAVE_CONFIGURATION, severity="error")
+
+        except Exception as e:
+            logging.error(f"Error saving auto-fill configuration: {e}")
+            self.notify(ErrorMessages.ERROR_SAVING_AUTOFILL_CONFIGURATION, severity="error")
+
+    @on(Button.Pressed, "#cancel-config-btn")
+    def cancel_configuration(self, event: Button.Pressed):
+        """Cancel configuration changes."""
         self.dismiss(None)
