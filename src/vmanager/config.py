@@ -33,6 +33,13 @@ DEFAULT_CONFIG = {
     "ISO_DOWNLOAD_PATH": str(Path.home() / ".cache" / AppInfo.name / "isos"),
     "user_autoyast_templates": {},
     "AUTO_YAST_PORT": 8000,
+    "AUTO_INSTALL_PRE_FILL": {
+        "root_password": "",
+        "username": "",
+        "user_password": "",
+        "keyboard": "",
+        "language": "",
+    },
 }
 
 
