@@ -1750,7 +1750,6 @@ class VMCard(Static):
         is_remote = is_remote_connection(uri)
 
         if is_remote:
-
             def handle_dialog_result(should_start: bool) -> None:
                 if should_start:
                     # Use async method - it already handles worker threading internally
