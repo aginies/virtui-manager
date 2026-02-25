@@ -9,6 +9,7 @@ import libvirt
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
+from textual.events import Key
 from textual.widgets import Button, DataTable, Label, Static, TabbedContent, TabPane, Tree
 from textual.worker import Worker
 
@@ -287,7 +288,7 @@ class ServerPrefModal(BaseModal[None]):
                         id="del-vol-btn",
                         variant="error",
                         classes="toggle-detail-button",
-                        tooltip=ButtonLabels.DELETE_THE_SELECTED_VOLUME,
+                        tooltip=ButtonLabels.DELETE_THE_SELECTED_VOLUME + " (d)",
                     ),
                 ),
                 Vertical(
@@ -820,6 +821,25 @@ class ServerPrefModal(BaseModal[None]):
             ),
             on_confirm,
         )
+
+    def on_key(self, event: Key) -> None:
+        """Handle keyboard shortcuts in the Storage tab."""
+        # Check if we're on the Storage tab
+        tabbed_content = self.query_one(TabbedContent)
+        if tabbed_content.active != "tab-storage":
+            return
+
+        # Handle 'd' key for delete volume
+        if event.key == "d":
+            tree: Tree[dict] = self.query_one("#storage-tree")
+            if not tree.cursor_node or not tree.cursor_node.data:
+                return
+
+            node_data = tree.cursor_node.data
+            if node_data.get("type") == "volume":
+                # Call the existing delete volume logic
+                self.on_delete_volume_button_pressed(event)
+                event.prevent_default()
 
     @on(Button.Pressed, "#move-vol-btn")
     def on_move_volume_button_pressed(self, event: Button.Pressed) -> None:
