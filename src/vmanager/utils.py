@@ -288,7 +288,8 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
 
     Args:
         config_dir (Path, optional): Directory to check/generate keys in.
-            Defaults to ~/.config/virtui-manager.
+            Defaults to ~/.config/virtui-manager for regular installs,
+            or /etc/virtui-manager/keys for Flatpak.
         remote_host (str, optional): SSH host string (user@host) for remote generation.
 
     Returns:
@@ -296,7 +297,11 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
     """
     messages = []
     if config_dir is None:
-        config_dir = Path.home() / ".config" / AppInfo.name
+        # In Flatpak, use system directory; otherwise use user config
+        if is_running_under_flatpak():
+            config_dir = Path("/etc") / AppInfo.name / "keys"
+        else:
+            config_dir = Path.home() / ".config" / AppInfo.name
 
     # If remote, we treat config_dir as a string path on the remote
     if remote_host:
@@ -305,13 +310,6 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
     else:
         key_path = config_dir / "key.pem"
         cert_path = config_dir / "cert.pem"
-
-    # Only proceed if required tools are available (local check only makes sense for local gen)
-    if not remote_host and not (check_websockify() and check_novnc_path()):
-        messages.append(
-            ("info", "WebConsole tools not available locally. Skipping key generation.")
-        )
-        return messages
 
     # Check existence
     exists = False
@@ -378,7 +376,16 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
                     timeout=30,
                 )
             else:
-                config_dir.mkdir(parents=True, exist_ok=True)
+                try:
+                    config_dir.mkdir(parents=True, exist_ok=True)
+                except PermissionError:
+                    error_msg = (
+                        f"Permission denied creating directory {config_dir}. "
+                        f"In Flatpak, ensure /etc/virtui-manager/keys is accessible."
+                    )
+                    messages.append(("error", error_msg))
+                    logging.error(error_msg)
+                    return messages
                 subprocess.run(gen_cmd, check=True, capture_output=True, text=True, timeout=30)
 
             messages.append(
