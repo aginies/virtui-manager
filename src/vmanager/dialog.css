@@ -184,6 +184,7 @@ AddChannelModal > #add-channel-container,
 WebConsoleConfigDialog > #webconsole-config-dialog, {
   height: 24;
 }
+#custom-iso-container,
 SelectOneServerModal > #select-one-server-container, {
   height: 10
 }
@@ -196,11 +197,12 @@ SelectOneServerModal > #select-one-server-container, {
 }
 #automation-user-config-wrapper,
 #repo-iso-container,
-#custom-iso-container,
 #pool-selection,
-#pool-iso-container,
 #automation-template-container {
    height: 5;
+}
+#pool-iso-container, {
+   height: 8;
 }
 #automation-user-config-wrapper, {
    height: 9;
