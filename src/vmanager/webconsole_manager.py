@@ -2,6 +2,7 @@
 Main Webconsole management functions
 """
 
+import base64
 import json
 import logging
 import os
@@ -407,6 +408,24 @@ wp.websockify_init()
         ]
         cert_status = ""
 
+        # Build the port finder script separately to avoid quoting issues
+        port_finder_script = f"""
+import socket
+for p in range({start_port}, {end_port} + 1):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', p))
+        s.close()
+        print(p)
+        break
+    except:
+        continue
+else:
+    print('no_port')
+"""
+        # Encode the script to avoid shell quoting issues
+        encoded_script = base64.b64encode(port_finder_script.encode()).decode()
+
         remote_config_check_cmd = (
             f"if [ -f {remote_cert_file} ] && [ -f {remote_key_file} ]; then echo 'user_cert'; "
             f"elif [ -f {system_cert_file} ] && [ -f {system_key_file} ]; then echo 'system_cert'; "
@@ -415,25 +434,21 @@ wp.websockify_init()
             "elif [ -d /usr/share/webapps/novnc ]; then echo '/usr/share/webapps/novnc'; "
             "else echo '/usr/share/novnc'; fi; "
             "python3 -c 'import websockify' 2>/dev/null && echo 'websockify_ok' || echo 'websockify_missing'; "
-            f"python3 -c 'import socket; "
-            f"range_start, range_end = {start_port}, {end_port}; "
-            "found = False; "
-            "for p in range(range_start, range_end + 1): "
-            "    try: "
-            "        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); "
-            '        s.bind(("", p)); s.close(); '
-            "        print(p); found = True; break; "
-            "    except: continue; "
-            'if not found: print("no_port")\' 2>/dev/null'
+            f"echo {encoded_script} | base64 -d | python3 2>/dev/null"
         )
 
         try:
+            ssh_check_cmd = ["ssh"]
+            if ssh_port != 22:
+                ssh_check_cmd.extend(["-p", str(ssh_port)])
+            ssh_check_cmd.extend([remote_user_host, remote_config_check_cmd])
+
             check_result = subprocess.run(
-                ["ssh", remote_user_host, remote_config_check_cmd],
+                ssh_check_cmd,
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=5,
+                timeout=10,
             )
             stdout_lines = check_result.stdout.strip().split("\n")
             if stdout_lines:
