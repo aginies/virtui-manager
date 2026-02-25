@@ -6,6 +6,35 @@ The available operations are organized into three tabs: **Manage**, **State mana
 
 ![VM Actions](images/actions.jpg)
 
+## Quick Actions Buttons
+
+For faster access to the most common VM operations, quick action buttons are displayed prominently on each VM card. These buttons provide one-click access to essential VM management functions without needing to expand the full Actions panel.
+
+The quick action buttons dynamically change based on the current VM state:
+
+*   **Start Button:** 
+    *   Appears when the VM is stopped
+    *   Single click to immediately start the VM
+    *   Provides the fastest way to boot a VM
+
+*   **Shutdown Button:**
+    *   Appears when the VM is running
+    *   Sends a graceful ACPI shutdown signal to the guest OS
+    *   Equivalent to the shutdown action in the Manage tab
+
+*   **Resume Button:**
+    *   Appears when the VM is paused
+    *   Immediately resumes VM execution
+    *   Restores the VM from its frozen state
+
+*   **Viewer Button:**
+    *   Appears when the VM is running
+    *   Launches the configured desktop remote viewer (e.g., `virt-viewer`)
+    *   Provides quick access to the VM's display for high-performance native connection
+    *   Equivalent to the "Connect" action in the Manage tab
+
+These quick action buttons eliminate the need to expand the Actions panel for routine power management tasks, making VM operations more efficient and user-friendly.
+
 ## Manage Tab
 
 This tab contains the most common power management and connectivity controls.
@@ -120,13 +149,13 @@ This tab contains administrative actions for the VM lifecycle.
 *   **Delete:**
     *   Permanently deletes the virtual machine. You will be prompted to choose whether to delete the associated storage (disk images) or keep them.
 
-*   **! Clone !:**
+*   **Clone:**
     *   Creates a duplicate of the VM.
     *   **Linked Clone:** Clones the definition but shares the disk image (saves space, fast).
     *   **Full Clone:** Copies the entire disk image (slower, fully independent).
     *   *Visible when the VM is Stopped.*
 
-*   **! Migration !:**
+*   **Migration:**
     *   Moves the VM to another server managed by VirtUI Manager.
     *   Requires SSH connectivity between hosts.
 
