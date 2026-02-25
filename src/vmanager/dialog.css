@@ -41,6 +41,7 @@ PatternSelectModal,
 VMTypeInfoModal,
 AddChannelModal,
 EditNumaTuneModal,
+AutoFillConfigModal,
 InfoModal,
 EditCpuTuneModal,
 HowToSSHModal {
@@ -77,6 +78,7 @@ EditNumaTuneModal > #edit-numatune-dialog,
 EditCpuTuneModal > #edit-cpu-tune-dialog,
 AddChannelModal > #add-channel-container,
 InfoModal > #info-modal-dialog,
+AutoFillConfigModal > #autofill-config-container,
 VMTypeInfoModal > #howto-vmtype-dialog,
 HowToSSHModal > #howto-ssh-dialog {
   width: 60;
@@ -118,6 +120,7 @@ CustomMigrationModal Select {
   width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
+AutoFillConfigModal > #autofill-config-container,
 InstallVMModal > #install-dialog {
   width: 85%;
   height: auto;
@@ -677,7 +680,7 @@ TemplateManagementModal Button {
 
 /* === Template Name Modal === */
 TemplateNameModal > #template-name-container {
-  width: 60;
+  width: 80;
   height: auto;
   border: round $primary;
   background: $surface;
