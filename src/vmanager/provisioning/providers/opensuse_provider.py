@@ -192,10 +192,6 @@ class OpenSUSEProvider(OSProvider):
 
         return base_settings
 
-    def supports_unattended_install(self, version: OSVersion) -> bool:
-        """OpenSUSE supports unattended installation via AutoYaST."""
-        return True
-
     def get_automation_config(self, version: OSVersion) -> Optional[AutomationConfig]:
         """Return automation configuration for OpenSUSE."""
         return AutomationConfig(
@@ -215,10 +211,6 @@ class OpenSUSEProvider(OSProvider):
             supports_custom_user=True,
             supports_network_config=True,
         )
-
-    def get_required_drivers(self, version: OSVersion) -> List[DriverInfo]:
-        """Return required drivers for OpenSUSE (typically none needed)."""
-        return []  # OpenSUSE has excellent hardware support out of the box
 
     def get_available_templates(self) -> List[Dict[str, Any]]:
         """Scan and return available AutoYaST templates (built-in + user templates)."""
@@ -531,43 +523,6 @@ class OpenSUSEProvider(OSProvider):
             template = template.replace(f"{{{key}}}", str(value))
             
         return template
-
-    def get_post_install_scripts(self, version: OSVersion) -> List[str]:
-        """Return shell commands to run after OpenSUSE installation."""
-        return [
-            # Update package database
-            "zypper refresh",
-            # Install essential packages
-            "zypper install -y qemu-guest-agent spice-vdagent",
-            # Enable guest agent
-            "systemctl enable qemu-guest-agent",
-            "systemctl start qemu-guest-agent",
-            # Configure SSH (if desired)
-            "systemctl enable sshd",
-        ]
-
-    def validate_iso(self, iso_path: Path, version: OSVersion) -> bool:
-        """Validate OpenSUSE ISO file."""
-        if not super().validate_iso(iso_path, version):
-            return False
-
-        # Check minimum file size (OpenSUSE ISOs are typically > 500MB)
-        if iso_path.stat().st_size < 500 * 1024 * 1024:
-            self.logger.warning(f"ISO file {iso_path} seems too small for OpenSUSE")
-            return False
-
-        return True
-
-    def get_vm_type_mapping(self) -> Dict[str, str]:
-        """Map VirtUI VM types to OpenSUSE-specific configurations."""
-        return {
-            "DESKTOP": "LINUX_DESKTOP",
-            "SERVER": "LINUX_SERVER",
-            "COMPUTATION": "COMPUTATION",
-            "SECURE": "SECURE",
-            "WDESKTOP": "LINUX_DESKTOP",  # Fallback Windows -> Linux
-            "WLDESKTOP": "LINUX_DESKTOP",
-        }
 
     def _get_iso_list_for_distro(self, distro: OpenSUSEDistro) -> List[Dict[str, Any]]:
         """Get ISO list for a specific OpenSUSE distribution."""
