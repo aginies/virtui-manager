@@ -306,12 +306,15 @@ class InstallVMModal(BaseModal[str | None]):
             self.fetch_pool_isos(storage_pool_select.value)
 
         # Hide virt-install checkbox if not available
+        # ALWAYS HIDE FOR NOW
         use_virt_install_checkbox = self.query_one("#use-virt-install-checkbox", Checkbox)
-        if not self.provisioner.check_virt_install():
-            use_virt_install_checkbox.value = False
-            use_virt_install_checkbox.styles.display = "none"
-        else:
-            use_virt_install_checkbox.styles.display = "block"
+        use_virt_install_checkbox.value = False
+        use_virt_install_checkbox.styles.display = "none"
+        # if not self.provisioner.check_virt_install():
+        #    use_virt_install_checkbox.value = False
+        #    use_virt_install_checkbox.styles.display = "none"
+        # else:
+        #    use_virt_install_checkbox.styles.display = "block"
 
     def _update_expert_defaults(self, vm_type):
         mem = 4
@@ -672,6 +675,14 @@ class InstallVMModal(BaseModal[str | None]):
                 uefi_checkbox.disabled = True
             else:
                 uefi_checkbox.disabled = False
+
+            # Disable "Configure before install" for automated installations
+            configure_checkbox = self.query_one("#configure-before-install-checkbox", Checkbox)
+            if should_enable:
+                configure_checkbox.disabled = True
+                configure_checkbox.value = False  # Uncheck it when disabled
+            else:
+                configure_checkbox.disabled = False
         except Exception as e:
             # Widgets may not exist in all contexts
             logging.warning(f"Could not update automation config fields: {e}")
