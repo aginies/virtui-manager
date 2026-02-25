@@ -139,7 +139,9 @@ class AutoYaSTTemplateManager:
                         # Get OS name from directory structure
                         # e.g., templates/openSUSE/mytemplate.xml -> os_name = "openSUSE"
                         relative_path = template_file.relative_to(base_dir)
-                        os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
+                        os_name = (
+                            relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
+                        )
 
                         # Read template content
                         with open(template_file, "r", encoding="utf-8") as f:
@@ -156,7 +158,9 @@ class AutoYaSTTemplateManager:
                                     meta = json.load(f)
                                     description = meta.get("description", description)
                             except Exception as e:
-                                self.logger.warning(f"Could not read metadata for {template_file}: {e}")
+                                self.logger.warning(
+                                    f"Could not read metadata for {template_file}: {e}"
+                                )
 
                         template_name = template_file.stem  # Filename without extension
                         display_name = f"{template_name} ({os_name})"
@@ -333,12 +337,12 @@ class AutoYaSTTemplateManager:
 
                 # Get OS-specific directory
                 os_dir = get_user_templates_dir_for_os(os_name)
-                
+
                 # Determine extension based on content
                 extension = ".xml"
                 if content.strip().startswith("{") and content.strip().endswith("}"):
                     extension = ".json"
-                
+
                 template_path = os_dir / f"{safe_name}{extension}"
 
                 # Handle name conflicts
@@ -438,7 +442,9 @@ class AutoYaSTTemplateManager:
                     template["display_name"].replace(" ", "_").replace("(", "").replace(")", "")
                 )
                 # Preserve extension if available in path, fallback to .xml
-                extension = template["path"].suffix if "path" in template and template["path"] else ".xml"
+                extension = (
+                    template["path"].suffix if "path" in template and template["path"] else ".xml"
+                )
                 output_path = destination / f"{safe_name}{extension}"
             else:
                 output_path = destination
@@ -549,6 +555,7 @@ class AutoYaSTTemplateManager:
         if content_stripped.startswith("{") and content_stripped.endswith("}"):
             # Try JSON validation
             import json
+
             try:
                 json.loads(content)
                 return True, None
@@ -826,30 +833,69 @@ class AutoYaSTTemplateManager:
     # Helper Methods
     # -------------------------------------------------------------------------
 
-    def _get_builtin_template_info(self, template_name: str) -> tuple[str, str]:
-        """Get display name and description for built-in templates."""
+    @staticmethod
+    def get_template_info_for_name(template_name: str) -> tuple[str, str]:
+        """
+        Get display name and description for a template by its name.
+        This is a centralized function used by both the template manager and providers.
+
+        Args:
+            template_name: Template stem name (e.g., 'autoyast-basic', 'agama-minimal')
+
+        Returns:
+            tuple[str, str]: (display_name, description)
+        """
+        # Centralized template info mapping
         info_map = {
-            "autoyast-basic": ("Basic Server", "Basic server installation with essential packages"),
-            "autoyast-minimal": ("Minimal System", "Minimal installation with only core packages"),
+            # AutoYaST templates
+            "autoyast-basic": (
+                "Basic Server (AutoYaST)",
+                "Basic server installation with essential packages",
+            ),
+            "autoyast-minimal": (
+                "Minimal System (AutoYaST)",
+                "Minimal installation with only core packages",
+            ),
             "autoyast-desktop": (
-                "Desktop Environment",
+                "Desktop Environment (AutoYaST)",
                 "Full desktop environment with GNOME, applications, sshd and qemu-guest-agent",
             ),
             "autoyast-development": (
-                "Development Workstation",
+                "Development Workstation (AutoYaST)",
                 "Development environment with programming tools and IDE",
             ),
             "autoyast-server": (
-                "Full Server",
+                "Full Server (AutoYaST)",
                 "Server installation mode",
             ),
             "autoyast-server-sle": (
-                "SUSE Linux Entreprise Server (REG CODE)",
-                "SUSE Server Linux",
+                "SUSE Linux Enterprise Server (AutoYaST)",
+                "SUSE Server Linux with SCC registration",
             ),
+            # Agama templates
             "agama-minimal": (
-                "Agama Minimal",
+                "Minimal System (Agama)",
                 "Agama-based minimal installation",
+            ),
+            "agama-basic": (
+                "Basic Server (Agama)",
+                "Agama-based basic server installation with essential packages",
+            ),
+            "agama-desktop": (
+                "Desktop Environment (Agama)",
+                "Agama-based full desktop environment with GNOME and applications",
+            ),
+            "agama-development": (
+                "Development Workstation (Agama)",
+                "Agama-based development environment with programming tools",
+            ),
+            "agama-server": (
+                "Full Server (Agama)",
+                "Agama-based server installation mode",
+            ),
+            "agama-server-sles": (
+                "SUSE Linux Enterprise Server (Agama)",
+                "Agama-based SLES installation with SCC registration",
             ),
         }
 
@@ -857,8 +903,22 @@ class AutoYaSTTemplateManager:
             return info_map[template_name]
 
         # Custom template - generate from filename
-        display_name = template_name.replace("autoyast-", "").replace("agama-", "").replace("-", " ").title()
-        return display_name, f"Custom template: {template_name}"
+        if template_name.startswith("agama-"):
+            display_name = (
+                template_name.replace("agama-", "").replace("-", " ").title() + " (Agama)"
+            )
+            description = f"Custom Agama template: {template_name}"
+        else:
+            display_name = (
+                template_name.replace("autoyast-", "").replace("-", " ").title() + " (AutoYaST)"
+            )
+            description = f"Custom AutoYaST template: {template_name}"
+
+        return display_name, description
+
+    def _get_builtin_template_info(self, template_name: str) -> tuple[str, str]:
+        """Get display name and description for built-in templates."""
+        return self.get_template_info_for_name(template_name)
 
     def _basic_template_checks(self, content: str) -> list[str]:
         """Perform basic template validation checks."""

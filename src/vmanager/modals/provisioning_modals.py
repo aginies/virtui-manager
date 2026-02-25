@@ -530,66 +530,96 @@ class InstallVMModal(BaseModal[str | None]):
         """
         Populate the template select widget based on the selected distribution.
 
-        For OpenSUSE distributions, show AutoYaST templates (both openSUSE and SLES).
-        For specific Agama-supported distributions, show only JSON templates.
-        For other distributions, show all available templates.
+        Template filtering rules:
+        - "Cached ISOs" → Show ALL templates (AutoYaST + Agama)
+        - "OpenSUSE Leap" → Show ONLY AutoYaST templates
+        - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
+        - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
+        - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
+        - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
+        - Custom repositories → Show ALL templates
         """
         # Get all templates
         all_templates = self.template_manager.get_all_templates()
 
-        # Determine which templates to show
+        # Determine which templates to show based on distribution
         if isinstance(distro, OpenSUSEDistro):
-            # OpenSUSE distribution selected
-            # For specific Agama-supported distributions, only show JSON templates
-            agama_only_distros = [
-                OpenSUSEDistro.CURRENT,
-                OpenSUSEDistro.STABLE,
-                OpenSUSEDistro.TUMBLEWEED,
-                OpenSUSEDistro.SLOWROLL,
-            ]
-            only_json = distro in agama_only_distros
+            if distro == OpenSUSEDistro.LEAP:
+                # OpenSUSE Leap → ONLY AutoYaST templates
+                show_autoyast = True
+                show_agama = False
+            elif distro in [OpenSUSEDistro.TUMBLEWEED, OpenSUSEDistro.SLOWROLL]:
+                # OpenSUSE Tumbleweed/Slowroll → BOTH AutoYaST + Agama templates
+                show_autoyast = True
+                show_agama = True
+            elif distro in [OpenSUSEDistro.STABLE, OpenSUSEDistro.CURRENT]:
+                # OpenSUSE Stable (Leap) / Current (Tumbleweed) → ONLY Agama templates
+                show_autoyast = False
+                show_agama = True
+            else:
+                # Other OpenSUSE distributions → show all (fallback)
+                show_autoyast = True
+                show_agama = True
 
             filtered_templates = []
             for template in all_templates:
                 filename = template.get("filename", "")
-                is_json = filename.endswith(".json")
+                is_agama = filename.endswith(".json") or "(Agama)" in template["display_name"]
+                is_autoyast = filename.endswith(".xml") or "(AutoYaST)" in template["display_name"]
 
-                if only_json and not is_json:
-                    continue
+                # Apply filtering based on distribution requirements
+                should_include = False
+                if show_autoyast and is_autoyast:
+                    should_include = True
+                elif show_agama and is_agama:
+                    should_include = True
 
-                # All built-in templates are AutoYaST or Agama based, show them all
-                if template["type"] == "built-in":
-                    filtered_templates.append(template)
-                # For user templates, check if they're in openSUSE or SLES directories
-                elif template["type"] == "user":
-                    # Extract OS from display name
-                    if (
-                        "(openSUSE)" in template["display_name"]
-                        or "(SLES)" in template["display_name"]
-                        or "(Agama)" in template["display_name"]
-                    ):
+                if should_include:
+                    # Include built-in templates that match the filter
+                    if template["type"] == "built-in":
                         filtered_templates.append(template)
-        elif isinstance(distro, str) and distro not in ["cached", "pool_volumes"]:
-            # Custom repo URL - could be openSUSE, SLE, or other
-            # Check URL to determine OS type
-            distro_lower = distro.lower()
-            if "opensuse" in distro_lower or "sle" in distro_lower or "suse" in distro_lower:
-                # SUSE-based distribution - show AutoYaST templates
-                filtered_templates = []
-                for template in all_templates:
-                    if template["type"] == "user":
+                    # For user templates, check if they're openSUSE/SLES related
+                    elif template["type"] == "user":
                         if (
                             "(openSUSE)" in template["display_name"]
                             or "(SLES)" in template["display_name"]
+                            or "(Agama)" in template["display_name"]
+                            or "(AutoYaST)" in template["display_name"]
                         ):
                             filtered_templates.append(template)
-                    else:
-                        filtered_templates.append(template)
-            else:
-                # Other custom repo - show all templates
+
+        elif isinstance(distro, str):
+            if distro in ["cached", "pool_volumes"]:
+                # Cached ISOs or pool volumes → Show ALL templates
                 filtered_templates = all_templates
+            else:
+                # Custom repository URL → Show ALL templates
+                # This allows flexibility for users who may be using custom repos
+                # with either AutoYaST or Agama support
+                filtered_templates = []
+                for template in all_templates:
+                    # Check URL to determine if it's SUSE-related
+                    distro_lower = distro.lower()
+                    if (
+                        "opensuse" in distro_lower
+                        or "sle" in distro_lower
+                        or "suse" in distro_lower
+                    ):
+                        # SUSE-based custom repo - include SUSE-related templates
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        elif template["type"] == "user":
+                            if (
+                                "(openSUSE)" in template["display_name"]
+                                or "(SLES)" in template["display_name"]
+                                or "(Agama)" in template["display_name"]
+                            ):
+                                filtered_templates.append(template)
+                    else:
+                        # Non-SUSE custom repo - show all templates for flexibility
+                        filtered_templates.append(template)
         else:
-            # Cached ISOs or pool volumes - show all templates
+            # Fallback - show all templates
             filtered_templates = all_templates
 
         # Build select options
@@ -627,6 +657,10 @@ class InstallVMModal(BaseModal[str | None]):
             self.query_one("#automation-keyboard", Select).disabled = not should_enable
             self.query_one("#automation-serial-console", Checkbox).disabled = not should_enable
 
+            # If automation is enabled, prefill fields from config
+            if should_enable:
+                self._prefill_automation_fields()
+
             # Enforce UEFI for automated installations
             uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
             if should_enable:
@@ -647,6 +681,62 @@ class InstallVMModal(BaseModal[str | None]):
         except Exception:
             pass
         self._check_form_validity()
+
+    def _prefill_automation_fields(self):
+        """Prefill automation fields from user configuration."""
+        try:
+            config = load_config()
+            prefill_config = config.get("AUTO_INSTALL_PRE_FILL", {})
+
+            # Prefill root password
+            root_password = prefill_config.get("root_password", "")
+            if root_password:
+                self.query_one("#automation-root-password", Input).value = root_password
+
+            # Prefill username
+            username = prefill_config.get("username", "")
+            if username:
+                self.query_one("#automation-username", Input).value = username
+
+            # Prefill user password
+            user_password = prefill_config.get("user_password", "")
+            if user_password:
+                self.query_one("#automation-user-password", Input).value = user_password
+
+            # Prefill keyboard layout
+            keyboard = prefill_config.get("keyboard", "")
+            if keyboard:
+                keyboard_select = self.query_one("#automation-keyboard", Select)
+                # Find matching keyboard option by value
+                for option_text, option_value in keyboard_select._options:
+                    if option_value == keyboard:
+                        keyboard_select.value = option_value
+                        break
+
+            # Prefill language
+            language = prefill_config.get("language", "")
+            if language:
+                language_select = self.query_one("#automation-language", Select)
+                # Find matching language option by display text or value
+                for option_text, option_value in language_select._options:
+                    if option_text == language or option_value == language:
+                        language_select.value = option_value
+                        break
+
+            # Prefill language
+            language = prefill_config.get("language", "")
+            if language:
+                language_select = self.query_one("#automation-language", Select)
+                # Find matching language option by display text or value
+                for option in language_select._options:
+                    if hasattr(option, "prompt") and hasattr(option, "value"):
+                        if option.prompt == language or option.value == language:
+                            language_select.value = option.value
+                            break
+
+        except Exception as e:
+            # Log but don't fail - prefilling is optional functionality
+            logging.warning(f"Could not prefill automation fields from config: {e}")
 
     def _check_form_validity(self):
         name = self.query_one("#vm-name", Input).value.strip()

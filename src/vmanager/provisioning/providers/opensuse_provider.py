@@ -234,35 +234,29 @@ class OpenSUSEProvider(OSProvider):
                     for template_file in templates_dir.glob(pattern):
                         template_name = template_file.stem
 
-                        # Create display name from filename
-                        if template_name == "autoyast-basic":
-                            display_name = "Basic Server"
-                            description = "Basic server installation with essential packages"
-                        elif template_name == "autoyast-minimal":
-                            display_name = "Minimal System"
-                            description = "Minimal installation with only core packages"
-                        elif template_name == "autoyast-desktop":
-                            display_name = "Desktop Environment"
-                            description = "Full desktop environment with GNOME and applications"
-                        elif template_name == "autoyast-development":
-                            display_name = "Development Workstation"
-                            description = "Development environment with programming tools and IDE"
-                        elif template_name == "autoyast-server":
-                            display_name = "Full Server"
-                            description = "Server installation mode"
-                        elif template_name == "autoyast-server-sle":
-                            display_name = "SUSE Linux Entreprise Server"
-                            description = "SLES with SCC registration"
-                        elif template_name == "agama-minimal":
-                            display_name = "Agama Minimal"
-                            description = "Agama-based minimal installation"
-                        else:
-                            # Custom template - use filename as display name
-                            prefix = "autoyast-" if template_name.startswith("autoyast-") else "agama-"
-                            display_name = (
-                                template_name.replace(prefix, "").replace("-", " ").title()
+                        # Create display name from filename using centralized template info
+                        try:
+                            from ..templates.autoyast_template_manager import (
+                                AutoYaSTTemplateManager,
                             )
-                            description = f"Custom template: {template_file.name}"
+
+                            display_name, description = (
+                                AutoYaSTTemplateManager.get_template_info_for_name(template_name)
+                            )
+                        except ImportError:
+                            # Fallback if import fails - use basic template name generation
+                            if template_name.startswith("agama-"):
+                                display_name = (
+                                    template_name.replace("agama-", "").replace("-", " ").title()
+                                    + " (Agama)"
+                                )
+                                description = f"Agama-based template: {template_file.name}"
+                            else:
+                                display_name = (
+                                    template_name.replace("autoyast-", "").replace("-", " ").title()
+                                    + " (AutoYaST)"
+                                )
+                                description = f"AutoYaST template: {template_file.name}"
 
                         templates.append(
                             {
@@ -279,11 +273,23 @@ class OpenSUSEProvider(OSProvider):
                 # Fall back to basic template if scanning fails
                 basic_template = templates_dir / "autoyast-basic.xml"
                 if basic_template.exists():
+                    # Use centralized template info for consistency
+                    try:
+                        from ..templates.autoyast_template_manager import AutoYaSTTemplateManager
+
+                        display_name, description = (
+                            AutoYaSTTemplateManager.get_template_info_for_name("autoyast-basic")
+                        )
+                        description += " (fallback)"
+                    except ImportError:
+                        display_name = "Basic Server (AutoYaST)"
+                        description = "Basic server installation (fallback)"
+
                     templates.append(
                         {
                             "filename": "autoyast-basic.xml",
-                            "display_name": "Basic Server",
-                            "description": "Basic server installation (fallback)",
+                            "display_name": display_name,
+                            "description": description,
                             "path": basic_template,
                             "type": "built-in",
                         }
@@ -521,7 +527,7 @@ class OpenSUSEProvider(OSProvider):
             if value is None:
                 value = ""
             template = template.replace(f"{{{key}}}", str(value))
-            
+
         return template
 
     def _get_iso_list_for_distro(self, distro: OpenSUSEDistro) -> List[Dict[str, Any]]:
@@ -845,6 +851,88 @@ class OpenSUSEProvider(OSProvider):
         except Exception as e:
             self.logger.error(f"Failed to fetch ISO list from {url}: {e}")
             return []
+
+    def get_filtered_templates_by_distribution(
+        self, distro, all_templates: Optional[List[Dict[str, Any]]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Filter templates based on distribution requirements.
+
+        Template filtering rules:
+        - "Cached ISOs" → Show ALL templates (AutoYaST + Agama)
+        - "OpenSUSE Leap" → Show ONLY AutoYaST templates
+        - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
+        - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
+        - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
+        - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
+        - Custom repositories → Show ALL templates
+
+        Args:
+            distro: Distribution type (OpenSUSEDistro enum or string)
+            all_templates: List of all available templates. If None, will fetch them.
+
+        Returns:
+            List of filtered templates
+        """
+        # Get all templates if not provided
+        if all_templates is None:
+            all_templates = self.get_available_templates()
+
+        try:
+            # Check if it's an OpenSUSEDistro enum by checking its value
+            if hasattr(distro, "__class__") and "OpenSUSEDistro" in str(type(distro)):
+                # Handle OpenSUSEDistro enum values
+                if distro == OpenSUSEDistro.LEAP:
+                    # OpenSUSE Leap → ONLY AutoYaST templates
+                    show_autoyast = True
+                    show_agama = False
+                elif distro in [OpenSUSEDistro.TUMBLEWEED, OpenSUSEDistro.SLOWROLL]:
+                    # OpenSUSE Tumbleweed/Slowroll → BOTH AutoYaST + Agama templates
+                    show_autoyast = True
+                    show_agama = True
+                elif distro in [OpenSUSEDistro.STABLE, OpenSUSEDistro.CURRENT]:
+                    # OpenSUSE Stable (Leap) / Current (Tumbleweed) → ONLY Agama templates
+                    show_autoyast = False
+                    show_agama = True
+                else:
+                    # Other OpenSUSE distributions → show all (fallback)
+                    show_autoyast = True
+                    show_agama = True
+
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    is_agama = filename.endswith(".json") or "(Agama)" in template["display_name"]
+                    is_autoyast = (
+                        filename.endswith(".xml") or "(AutoYaST)" in template["display_name"]
+                    )
+
+                    # Apply filtering based on distribution requirements
+                    should_include = False
+                    if show_autoyast and is_autoyast:
+                        should_include = True
+                    elif show_agama and is_agama:
+                        should_include = True
+
+                    if should_include:
+                        filtered_templates.append(template)
+
+                return filtered_templates
+
+            elif isinstance(distro, str):
+                if distro in ["cached", "pool_volumes"]:
+                    # Cached ISOs or pool volumes → Show ALL templates
+                    return all_templates
+                else:
+                    # Custom repository URL → Show ALL templates for flexibility
+                    return all_templates
+            else:
+                # Fallback - show all templates
+                return all_templates
+        except Exception as e:
+            self.logger.warning(f"Error filtering templates for distribution {distro}: {e}")
+            # Fallback - show all templates
+            return all_templates
 
     def get_custom_repos(self) -> List[Dict[str, str]]:
         """Get custom repository configuration from config."""
