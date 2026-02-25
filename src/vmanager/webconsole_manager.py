@@ -114,14 +114,49 @@ wp.websockify_init()
 
             return True
 
-    def start_console(self, vm, conn):
-        """Starts a web console for a given VM."""
+    def start_console_async(self, vm, conn):
+        """Public method to start web console asynchronously (non-blocking)."""
+        try:
+            uuid = get_internal_id(vm, conn)
+            worker_id = uuid.split("@")[0] if "@" in uuid else uuid
+            # Verify VM is accessible before scheduling
+            _ = vm.name()
+        except (libvirt.libvirtError, AssertionError) as e:
+            logging.error(f"Cannot start web console: VM object is invalid: {e}")
+            self.app.show_error_message(
+                ErrorMessages.FAILED_TO_START_WEBCONSOLE_TEMPLATE.format(
+                    error="VM no longer available"
+                )
+            )
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error validating VM for web console: {e}")
+            worker_id = "unknown"
+
+        self.app.worker_manager.run(
+            partial(self._start_console_worker, vm, conn), 
+            name=f"start_console_{worker_id}"
+        )
+
+    def _start_console_worker(self, vm, conn):
+        """Starts a web console for a given VM as a background task."""
         self.config = load_config()
-        logging.info(f"Web console requested for VM: {vm.name()}")
-        uuid = get_internal_id(vm, conn)
-        if "?" in uuid:
-            uuid = uuid.split("?")[0]
-        vm_name = vm.name()
+        
+        try:
+            uuid = get_internal_id(vm, conn)
+            if "?" in uuid:
+                uuid = uuid.split("?")[0]
+            vm_name = vm.name()
+            logging.info(f"Web console background worker started for VM: {vm_name}")
+        except (libvirt.libvirtError, AssertionError) as e:
+            logging.error(f"Failed to get VM info for web console worker: {e}")
+            self.app.call_from_thread(
+                self.app.show_error_message,
+                ErrorMessages.FAILED_TO_START_WEBCONSOLE_TEMPLATE.format(
+                    error="VM no longer available"
+                ),
+            )
+            return
 
         # Check for existing valid session
         if self.is_running(uuid):
