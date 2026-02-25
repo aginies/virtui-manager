@@ -253,7 +253,7 @@ class VMManagerTUI(App):
             key="t",
             action="template_management",
             description=BindingDescriptions.TEMPLATES,
-            show=False,
+            show=True,
         ),
         Binding(
             key="H",
