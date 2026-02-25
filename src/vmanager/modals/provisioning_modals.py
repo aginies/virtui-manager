@@ -77,7 +77,9 @@ class InstallVMModal(BaseModal[str | None]):
             # Add option to select from storage pool volumes
             distro_options.insert(-1, (StaticText.FROM_STORAGE_POOL, "pool_volumes"))
 
-            yield Select(distro_options, id="distro", allow_blank=True, prompt=StaticText.DISTRIBUTION)
+            yield Select(
+                distro_options, id="distro", allow_blank=True, prompt=StaticText.DISTRIBUTION
+            )
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
@@ -125,6 +127,7 @@ class InstallVMModal(BaseModal[str | None]):
                     prompt=StaticText.SELECT_POOL_PROMPT,
                     id="storage-pool-select",
                     allow_blank=False,
+                    value=active_pools[0][1] if active_pools else None,
                 )
                 yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
                 yield Select(
@@ -374,12 +377,13 @@ class InstallVMModal(BaseModal[str | None]):
             self.query_one("#pool-iso-container").styles.display = "block"
             # Trigger fetching volumes for the currently selected storage pool
             pool_select = self.query_one("#storage-pool-select", Select)
-            if pool_select.value:
+            if pool_select.value and pool_select.value != Select.BLANK:
                 self.fetch_pool_isos(pool_select.value)
             else:
-                self.query_one(
-                    "#iso-volume-select", Select
-                ).clear()  # No pool selected, clear volumes
+                # If no pool is selected, clear the ISO volume select and keep it disabled
+                iso_volume_select = self.query_one("#iso-volume-select", Select)
+                iso_volume_select.clear()
+                iso_volume_select.disabled = True
         else:  # Repo or Cached
             self.query_one("#repo-iso-container").styles.display = "block"
             self.fetch_isos(event.value)
@@ -404,10 +408,13 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#storage-pool-select")
     def on_storage_pool_selected(self, event: Select.Changed):
         """Handles when a storage pool is selected for ISO volumes."""
-        if event.value:
+        if event.value and event.value != Select.BLANK:
             self.fetch_pool_isos(event.value)
         else:
-            self.query_one("#iso-volume-select", Select).clear()  # No pool selected, clear volumes
+            # No pool selected, clear volumes and disable the volume select
+            iso_volume_select = self.query_one("#iso-volume-select", Select)
+            iso_volume_select.clear()
+            iso_volume_select.disabled = True
         self._check_form_validity()
 
     @on(Select.Changed, "#iso-volume-select")
