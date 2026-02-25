@@ -7,6 +7,11 @@ recursive-include src/vmanager/modals *.py
 # Application Documentation (help docs and how-to guides)
 recursive-include src/vmanager/appdocs *.md
 
+# Provisioning Templates (AutoYaST XML, Agama JSON, and documentation)
+recursive-include src/vmanager/provisioning/templates *.xml
+recursive-include src/vmanager/provisioning/templates *.json
+recursive-include src/vmanager/provisioning/templates *.md
+
 # Internationalization (translations for multiple languages)
 recursive-include src/vmanager/locale *.pot
 recursive-include src/vmanager/locale *.po
