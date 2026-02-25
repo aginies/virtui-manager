@@ -659,10 +659,10 @@ Specify the NUMA nodes to use.
 
     # Keyboard layout constants
     KEYBOARD_US_ENGLISH = _("US English")
-    KEYBOARD_FRENCH = FRENCH
-    KEYBOARD_GERMAN = GERMAN
-    KEYBOARD_SPANISH = SPANISH
-    KEYBOARD_ITALIAN = ITALIAN
+    KEYBOARD_FRENCH = _("French")
+    KEYBOARD_GERMAN = _("German")
+    KEYBOARD_SPANISH = _("Spanish")
+    KEYBOARD_ITALIAN = _("Italian")
     KEYBOARD_UK_ENGLISH = _("UK English")
 
     # Language constants

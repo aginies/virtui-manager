@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 1.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-02-25 12:12+0100\n"
+"POT-Creation-Date: 2026-02-25 12:28+0100\n"
 "PO-Revision-Date: 2026-01-29 12:34+0100\n"
 "Last-Translator: aginies <aginies@suse.com>\n"
 "Language-Team: French <traduc@traduc.org>\n"
@@ -2085,6 +2085,23 @@ msgstr "Architecture produit SCC :"
 #: constants.py:661
 msgid "US English"
 msgstr "Anglais américain"
+
+#: constants.py:662
+msgid "French"
+msgstr "Français"
+
+#: constants.py:663
+msgid "German"
+msgstr "Allemand"
+
+#: constants.py:664
+msgid "Spanish"
+msgstr "Espagnol"
+
+#: constants.py:665
+#, fuzzy
+msgid "Italian"
+msgstr "Italien"
 
 #: constants.py:666
 msgid "UK English"
