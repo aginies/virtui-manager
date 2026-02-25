@@ -228,7 +228,7 @@ def find_free_port(start: int, end: int) -> int:
         int: A free port number
 
     Raises:
-        IOError: If no free port is found in the range
+        OSError: If no free port is found in the range
         TypeError: If inputs are not integers
         ValueError: If start > end
     """
@@ -241,7 +241,8 @@ def find_free_port(start: int, end: int) -> int:
     for port in range(start, end + 1):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("", port))
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("0.0.0.0", port))
                 return port
         except OSError:
             continue
