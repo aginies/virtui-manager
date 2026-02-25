@@ -311,7 +311,7 @@ wp.websockify_init()
         remote_websockify_path = self.config.get("websockify_path", "/usr/bin/websockify")
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
-        # Assume remote config directory for certs
+        # Assume remote config directory for certs (use tilde for shell expansion)
         remote_config_dir = "~/.config/" + AppInfo.name
         remote_cert_file = f"{remote_config_dir}/cert.pem"
         remote_key_file = f"{remote_config_dir}/key.pem"
@@ -515,8 +515,15 @@ wp.websockify_init()
                 )
                 # Can't verify, so we assume it's running and let it fail later if it's not.
 
-        # Schedule verification for 1 second later (non-blocking)
-        self.app.set_timer(1.0, verify_remote_process)
+        # Schedule verification using call_from_thread to ensure proper threading
+        def schedule_verification():
+            import threading
+
+            timer = threading.Timer(1.0, verify_remote_process)
+            timer.daemon = True
+            timer.start()
+
+        self.app.call_from_thread(schedule_verification)
 
         # Find a free LOCAL port for the SSH tunnel
         local_tunnel_port = self._get_next_available_port(None)
