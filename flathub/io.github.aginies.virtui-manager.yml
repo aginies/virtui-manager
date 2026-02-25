@@ -12,6 +12,7 @@ finish-args:
   - --device=dri
   - --filesystem=host
   - --filesystem=/var/run/libvirt
+  - --filesystem=/etc/virtui-manager/keys:create
   - --env=LIBVIRT_DEFAULT_URI=qemu:///system
   - --talk-name=org.freedesktop.secrets
   - --device=all
