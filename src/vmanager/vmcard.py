@@ -276,7 +276,7 @@ class VMCard(Static):
                 logging.warning(f"Error getting webconsole status for {self.internal_id}: {e}")
 
         # Update status indicator text
-        new_indicator = " (WebC On)" if webc_is_running else ""
+        new_indicator = " 🌐" if webc_is_running else ""
         if self.webc_status_indicator != new_indicator:
             self.webc_status_indicator = new_indicator
 
@@ -1750,6 +1750,7 @@ class VMCard(Static):
         is_remote = is_remote_connection(uri)
 
         if is_remote:
+
             def handle_dialog_result(should_start: bool) -> None:
                 if should_start:
                     # Use async method - it already handles worker threading internally
