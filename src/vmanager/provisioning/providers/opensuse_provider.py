@@ -661,21 +661,6 @@ class OpenSUSEProvider(OSProvider):
             except Exception as e:
                 self.logger.error(f"Error reading user template {template_path}: {e}")
 
-        # Check if this is a legacy user template (prefixed with "user_")
-        elif template_filename.startswith("user_"):
-            template_id = template_filename.replace("user_", "")
-            try:
-                from ...config import get_user_autoyast_template
-
-                user_template = get_user_autoyast_template(template_id)
-                if user_template:
-                    template = user_template["content"]
-                    self.logger.info(f"Using legacy user template: {user_template['name']}")
-                else:
-                    self.logger.error(f"Legacy user template {template_id} not found")
-            except Exception as e:
-                self.logger.error(f"Error loading legacy user template {template_id}: {e}")
-
         # If not a user template or user template failed, load built-in template from file
         if template is None:
             builtin_path = Path(__file__).parent.parent / "templates" / template_filename

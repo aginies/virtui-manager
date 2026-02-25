@@ -31,7 +31,6 @@ DEFAULT_CONFIG = {
     "LOG_FILE_PATH": str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
     "LOG_LEVEL": "INFO",
     "ISO_DOWNLOAD_PATH": str(Path.home() / ".cache" / AppInfo.name / "isos"),
-    "user_autoyast_templates": {},
     "AUTO_YAST_PORT": 8000,
     "AUTO_INSTALL_PRE_FILL": {
         "root_password": "",
@@ -109,46 +108,6 @@ def save_config(config):
     os.makedirs(config_path.parent, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False)
-
-
-def get_user_autoyast_templates():
-    """Returns the user's custom AutoYaST templates."""
-    config = load_config()
-    return config.get("user_autoyast_templates", {})
-
-
-def save_user_autoyast_template(template_id, template_name, template_content, description=""):
-    """Saves a user-defined AutoYaST template to the configuration."""
-    config = load_config()
-
-    if "user_autoyast_templates" not in config:
-        config["user_autoyast_templates"] = {}
-
-    config["user_autoyast_templates"][template_id] = {
-        "name": template_name,
-        "description": description,
-        "content": template_content,
-        "created_at": str(os.path.getmtime(__file__)),  # Simple timestamp
-    }
-
-    save_config(config)
-
-
-def delete_user_autoyast_template(template_id):
-    """Deletes a user-defined AutoYaST template from the configuration."""
-    config = load_config()
-
-    if "user_autoyast_templates" in config and template_id in config["user_autoyast_templates"]:
-        del config["user_autoyast_templates"][template_id]
-        save_config(config)
-        return True
-    return False
-
-
-def get_user_autoyast_template(template_id):
-    """Gets a specific user-defined AutoYaST template."""
-    templates = get_user_autoyast_templates()
-    return templates.get(template_id)
 
 
 def get_user_templates_dir():

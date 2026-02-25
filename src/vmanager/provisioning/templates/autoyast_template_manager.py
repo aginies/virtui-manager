@@ -13,14 +13,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable
 
-from ...config import (
-    delete_user_autoyast_template,
-    get_user_autoyast_template,
-    get_user_autoyast_templates,
-    get_user_templates_dir,
-    get_user_templates_dir_for_os,
-    save_user_autoyast_template,
-)
+from ...config import get_user_templates_dir, get_user_templates_dir_for_os
 from ...constants import ErrorMessages
 from ...utils import is_inside_tmux
 
@@ -180,26 +173,6 @@ class AutoYaSTTemplateManager:
                     except Exception as e:
                         self.logger.error(f"Error reading user template {template_file}: {e}")
 
-            # Backward compatibility: check legacy YAML config
-            legacy_templates = get_user_autoyast_templates()
-            if legacy_templates:
-                self.logger.info(f"Found {len(legacy_templates)} legacy templates in YAML config")
-                for template_id, template_data in legacy_templates.items():
-                    templates.append(
-                        {
-                            "filename": f"user_{template_id}",
-                            "display_name": f"{template_data['name']} (Legacy)",
-                            "description": template_data.get(
-                                "description", "User-defined template"
-                            ),
-                            "content": template_data["content"],
-                            "type": "user",
-                            "template_id": template_id,
-                            "os_name": "openSUSE",  # Legacy templates are AutoYaST (openSUSE)
-                            "is_legacy": True,
-                        }
-                    )
-
         except Exception as e:
             self.logger.error(f"Error loading user templates: {e}")
 
@@ -252,20 +225,6 @@ class AutoYaSTTemplateManager:
             except Exception as e:
                 self.logger.error(f"Error reading template file {template_id}: {e}")
 
-        # Check legacy YAML config
-        user_template = get_user_autoyast_template(template_id)
-        if user_template:
-            return {
-                "filename": f"user_{template_id}",
-                "display_name": f"{user_template['name']} (Legacy)",
-                "description": user_template.get("description", ""),
-                "content": user_template["content"],
-                "type": "user",
-                "template_id": template_id,
-                "os_name": "openSUSE",
-                "is_legacy": True,
-            }
-
         # Check built-in templates
         for template in self.get_builtin_templates():
             if template["filename"] == template_id:
@@ -294,10 +253,8 @@ class AutoYaSTTemplateManager:
                 # Not in user templates directory
                 pass
 
-        # Check legacy YAML config
-        return (
-            template_id.startswith("user_") or get_user_autoyast_template(template_id) is not None
-        )
+        # Check legacy format (user_ prefix)
+        return template_id.startswith("user_")
 
     # -------------------------------------------------------------------------
     # Template CRUD Operations
@@ -400,14 +357,10 @@ class AutoYaSTTemplateManager:
                 self.logger.info(f"Deleted template {template_path}")
                 return True
 
-            # Legacy: try to delete from YAML config
-            actual_id = (
-                template_id.replace("user_", "") if template_id.startswith("user_") else template_id
-            )
-            result = delete_user_autoyast_template(actual_id)
-            if result:
-                self.logger.info(f"Deleted template {actual_id}")
-            return result
+            # Template not found
+            self.logger.warning(f"Template not found: {template_id}")
+            return False
+
         except Exception as e:
             self.logger.error(f"Error deleting template: {e}")
             return False
