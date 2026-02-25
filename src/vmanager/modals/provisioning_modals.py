@@ -53,10 +53,8 @@ class InstallVMModal(BaseModal[str | None]):
 
         with ScrollableContainer(id="install-dialog"):
             yield Label(StaticText.INSTALL_VM.format(uri=self.uri), classes="title")
-            yield Label(StaticText.VM_NAME, classes="label")
-            yield Input(placeholder="my-new-vm", id="vm-name")
+            yield Input(placeholder=StaticText.VM_NAME, id="vm-name")
 
-            yield Label(StaticText.VM_TYPE, classes="label")
             with Horizontal(classes="label-row"):
                 yield Select(
                     [(t.value, t) for t in VMType],
@@ -66,7 +64,6 @@ class InstallVMModal(BaseModal[str | None]):
                 )
                 yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            yield Label(StaticText.DISTRIBUTION, classes="label")
             distro_options = [(d.value, d) for d in OpenSUSEDistro]
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -80,7 +77,7 @@ class InstallVMModal(BaseModal[str | None]):
             # Add option to select from storage pool volumes
             distro_options.insert(-1, (StaticText.FROM_STORAGE_POOL, "pool_volumes"))
 
-            yield Select(distro_options, id="distro", allow_blank=True)
+            yield Select(distro_options, id="distro", allow_blank=True, prompt=StaticText.DISTRIBUTION)
 
             # Container for ISO selection (Repo)
             with Vertical(id="repo-iso-container"):
