@@ -866,6 +866,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#backup-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#information-discovery" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1317,6 +1328,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#backup-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backup Management
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#information-discovery" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1509,6 +1531,35 @@
 <li><strong><code>delete [--force-storage-delete]</code></strong>: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.</li>
 <li><strong><code>clone_vm &lt;source&gt;</code></strong>: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.</li>
 </ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="o">(</span>ryzen7<span class="o">)</span><span class="w"> </span>status<span class="w"> </span>161sles:0379866b-77e0-43c4-a6de-f1f9f33c79b9:ryzen7
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>---<span class="w"> </span>Status<span class="w"> </span>on<span class="w"> </span>ryzen7<span class="w"> </span>---
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>VM<span class="w"> </span>Name<span class="w">                        </span>Status<span class="w">          </span>vCPUs<span class="w">   </span>Memory<span class="w"> </span><span class="o">(</span>MiB<span class="o">)</span><span class="w">   </span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>------------------------------<span class="w"> </span>---------------<span class="w"> </span>-------<span class="w"> </span>---------------
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>161sles<span class="w">                                 </span>Running<span class="w">        </span><span class="m">6</span><span class="w">       </span><span class="m">4096</span><span class="w">           </span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="o">(</span>ryzen7<span class="o">)</span><span class="w"> </span>vm_info<span class="w"> </span>161sles:0379866b-77e0-43c4-a6de-f1f9f33c79b9:ryzen7
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>---<span class="w"> </span>VM<span class="w"> </span>Information<span class="w"> </span>on<span class="w"> </span>ryzen7<span class="w"> </span>---
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="o">[</span><span class="w"> </span>161sles<span class="w"> </span><span class="o">]</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">  </span>UUID:<span class="w">         </span>0379866b-77e0-43c4-a6de-f1f9f33c79b9
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span>Status:<span class="w">       </span>Running
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span>Description:<span class="w">  </span>No<span class="w"> </span>description<span class="w"> </span>available
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">  </span>CPU:<span class="w">          </span><span class="m">6</span><span class="w"> </span>cores<span class="w"> </span><span class="o">(</span>host-passthrough<span class="o">)</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">  </span>Memory:<span class="w">       </span><span class="m">4096</span><span class="w"> </span>MiB
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span>Machine<span class="w"> </span>Type:<span class="w"> </span>pc-q35-10.1
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">  </span>Firmware:<span class="w">     </span>UEFI<span class="w"> </span><span class="o">(</span>Secure<span class="w"> </span>Boot<span class="w"> </span>enabled<span class="o">)</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">  </span>Networks:
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">    </span>-<span class="w"> </span>default<span class="w"> </span><span class="o">(</span>MAC:<span class="w"> </span><span class="m">52</span>:54:00:e8:85:93,<span class="w"> </span>model:<span class="w"> </span>virtio<span class="o">)</span>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">  </span>IP<span class="w"> </span>Addresses:
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span>-<span class="w"> </span>vnet10<span class="w"> </span><span class="o">(</span>MAC:<span class="w"> </span><span class="m">52</span>:54:00:e8:85:93<span class="o">)</span>:<span class="w"> </span><span class="m">1</span><span class="w"> </span>IPv4<span class="w"> </span>address<span class="o">(</span>es<span class="o">)</span>,<span class="w"> </span><span class="m">0</span><span class="w"> </span>IPv6<span class="w"> </span>address<span class="o">(</span>es<span class="o">)</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">  </span>Disks:
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">    </span>-<span class="w"> </span>/home/VM_images/161sles.qcow2<span class="w"> </span><span class="o">(</span>virtio,<span class="w"> </span>enabled,<span class="w"> </span>disk<span class="o">)</span>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">    </span>-<span class="w"> </span>/home/VM_images/SLES-16.0-Online-x86_64-GM.install.iso<span class="w"> </span><span class="o">(</span>sata,<span class="w"> </span>enabled,<span class="w"> </span>cdrom<span class="o">)</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">  </span>Graphics:
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">    </span>-<span class="w"> </span>spice,<span class="w"> </span>port:<span class="w"> </span><span class="m">5900</span><span class="w"> </span><span class="o">(</span>autoport<span class="o">)</span>
+</code></pre></div>
 <h2 id="network-management">Network Management<a class="headerlink" href="#network-management" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>list_networks</code></strong>: Lists all virtual networks on connected servers, showing their state and mode.</li>
@@ -1518,6 +1569,24 @@
 <li><strong><code>net_info &lt;name&gt;</code></strong>: Shows detailed information (UUID, bridge, IP, DHCP range) for a network.</li>
 <li><strong><code>net_autostart &lt;name&gt; &lt;on|off&gt;</code></strong>: Enables or disables autostart for a network.</li>
 </ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="o">(</span>ryzen7,g.org<span class="o">)</span><span class="w"> </span>net_info<span class="w"> </span>default
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>---<span class="w"> </span>Network<span class="w"> </span><span class="s1">&#39;default&#39;</span><span class="w"> </span>on<span class="w"> </span>ryzen7<span class="w"> </span>---
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>UUID:<span class="w"> </span>3de11190-4f53-4640-862d-418372fe2b5f
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>Forward<span class="w"> </span>Mode:<span class="w"> </span>nat
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>Bridge:<span class="w"> </span>virbr0
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>IP:<span class="w"> </span><span class="m">192</span>.168.122.1<span class="w"> </span>/<span class="w"> </span><span class="m">255</span>.255.255.0
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>DHCP:<span class="w"> </span>Enabled
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>DHCP<span class="w"> </span>Range:<span class="w"> </span><span class="m">192</span>.168.122.128<span class="w"> </span>-<span class="w"> </span><span class="m">192</span>.168.122.254
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>---<span class="w"> </span>Network<span class="w"> </span><span class="s1">&#39;default&#39;</span><span class="w"> </span>on<span class="w"> </span>g.org<span class="w"> </span>---
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>UUID:<span class="w"> </span>dcc28a3d-40b7-4ee1-b811-9b5d2533ccea
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>Forward<span class="w"> </span>Mode:<span class="w"> </span>nat
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>Bridge:<span class="w"> </span>virbr0
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>IP:<span class="w"> </span><span class="m">192</span>.168.122.1<span class="w"> </span>/<span class="w"> </span><span class="m">255</span>.255.255.0
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>DHCP:<span class="w"> </span>Enabled
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a>DHCP<span class="w"> </span>Range:<span class="w"> </span><span class="m">192</span>.168.122.2<span class="w"> </span>-<span class="w"> </span><span class="m">192</span>.168.122.254
+</code></pre></div>
 <h2 id="snapshot-management">Snapshot Management<a class="headerlink" href="#snapshot-management" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>snapshot_list &lt;vm_name&gt;</code></strong>: Lists all snapshots for a specific VM.</li>
@@ -1525,6 +1594,34 @@
 <li><strong><code>snapshot_delete &lt;vm_name&gt; &lt;snapshot_name&gt;</code></strong>: Deletes a specific snapshot.</li>
 <li><strong><code>snapshot_revert &lt;vm_name&gt; &lt;snapshot_name&gt;</code></strong>: Reverts a VM to a previously saved snapshot state.</li>
 </ul>
+<h2 id="backup-management">Backup Management<a class="headerlink" href="#backup-management" title="Permanent link">&para;</a></h2>
+<p>VirtUI Manager provides a dedicated backup system that supports multiple strategies and advanced features like compression and encryption.</p>
+<ul>
+<li><strong><code>backup_create &lt;backup_name&gt; [options] [vm_names]</code></strong>: Creates a backup of the specified or selected VMs.<ul>
+<li><code>--type &lt;snapshot|overlay&gt;</code>: Choose between snapshot-based (default) or disk overlay backups.</li>
+<li><code>--compress</code>: Compress the backup files.</li>
+<li><code>--encrypt</code>: Encrypt the backup for security.</li>
+<li><code>--verify</code>: Verify integrity immediately after creation.</li>
+<li><code>--quiesce</code>: Use guest agent to freeze the filesystem for consistency.</li>
+<li><em>Example:</em> <code>backup_create daily-$(date) --compress --verify</code></li>
+</ul>
+</li>
+<li><strong><code>backup_list [vm_name]</code></strong>: Lists all available backups, optionally filtering by VM.</li>
+<li><strong><code>backup_status &lt;backup_name&gt;</code></strong>: Shows detailed metadata for a specific backup (size, duration, checksums).</li>
+<li><strong><code>backup_restore &lt;backup_name&gt; [options]</code></strong>: Restores a VM from a backup.<ul>
+<li><code>--no-verify</code>: Skip integrity checks before restoration.</li>
+<li><code>--force</code>: Bypass confirmation prompts.</li>
+</ul>
+</li>
+<li><strong><code>backup_cleanup [--older-than &lt;days&gt;] [--type &lt;type&gt;]</code></strong>: Removes old backups according to retention policies.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="o">(</span>ryzen7,g.org<span class="o">)</span><span class="w"> </span>backup_list
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>Backup<span class="w"> </span>Name<span class="w">                         </span>VM<span class="w"> </span>Name<span class="w">         </span>Server<span class="w">          </span>Type<span class="w">       </span>Status<span class="w">     </span>Created<span class="w">             </span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>-----------------------------------<span class="w"> </span>---------------<span class="w"> </span>---------------<span class="w"> </span>----------<span class="w"> </span>----------<span class="w"> </span>--------------------
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>maintenance-20260218_213036_sle1...<span class="w"> </span>sle16_PRUSA<span class="w">     </span>localhost<span class="w">       </span>snapshot<span class="w">   </span>SUCCESS<span class="w">    </span><span class="m">2026</span>-02-18<span class="w"> </span><span class="m">21</span>:30:36<span class="w"> </span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>maintenance-20260218_201335_sle1...<span class="w"> </span>sle16_PRUSA<span class="w">     </span>ryzen7<span class="w">          </span>snapshot<span class="w">   </span>SUCCESS<span class="w">    </span><span class="m">2026</span>-02-18<span class="w"> </span><span class="m">20</span>:13:35<span class="w"> </span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>backup_test_sle16_PRUSA_ryzen7<span class="w">      </span>sle16_PRUSA<span class="w">     </span>ryzen7<span class="w">          </span>snapshot<span class="w">   </span>SUCCESS<span class="w">    </span><span class="m">2026</span>-02-18<span class="w"> </span><span class="m">20</span>:04:18<span class="w"> </span>
+</code></pre></div>
 <h2 id="information-discovery">Information &amp; Discovery<a class="headerlink" href="#information-discovery" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>list_vms</code></strong>: Lists all VMs on all connected servers with their current status.</li>
@@ -1532,6 +1629,22 @@
 <li><strong><code>list_unused_volumes [pool_name]</code></strong>: Finds orphaned disk images that are not attached to any VM.</li>
 <li><strong><code>host_info [server]</code></strong>: Displays host resource information (CPU models, topology, total/free memory).</li>
 </ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="o">(</span>ryzen7,g.org<span class="o">)</span><span class="w"> </span>list_pool
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>---<span class="w"> </span>Storage<span class="w"> </span>Pools<span class="w"> </span>on<span class="w"> </span>ryzen7<span class="w"> </span>---
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>Pool<span class="w"> </span>Name<span class="w">                      </span>Status<span class="w">          </span>Capacity<span class="w"> </span><span class="o">(</span>GiB<span class="o">)</span><span class="w">  </span>Allocation<span class="w"> </span><span class="o">(</span>GiB<span class="o">)</span><span class="w"> </span>Usage<span class="w"> </span>%<span class="w">   </span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>------------------------------<span class="w"> </span>---------------<span class="w"> </span>---------------<span class="w"> </span>---------------<span class="w"> </span>----------
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>VM_images<span class="w">                      </span>active<span class="w">          </span><span class="m">870</span><span class="w">             </span><span class="m">829</span><span class="w">             </span><span class="m">95</span>.29%<span class="w">    </span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>nvram<span class="w">                          </span>active<span class="w">          </span><span class="m">58</span><span class="w">              </span><span class="m">44</span><span class="w">              </span><span class="m">75</span>.86%<span class="w">    </span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>win<span class="w">                            </span>inactive<span class="w">        </span><span class="m">0</span><span class="w">               </span><span class="m">0</span><span class="w">               </span><span class="m">0</span>.00%<span class="w">     </span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>NFStmp<span class="w">                         </span>inactive<span class="w">        </span><span class="m">0</span><span class="w">               </span><span class="m">0</span><span class="w">               </span><span class="m">0</span>.00%<span class="w">     </span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>ISO<span class="w">                            </span>active<span class="w">          </span><span class="m">870</span><span class="w">             </span><span class="m">829</span><span class="w">             </span><span class="m">95</span>.29%<span class="w">    </span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>default<span class="w">                        </span>active<span class="w">          </span><span class="m">58</span><span class="w">              </span><span class="m">44</span><span class="w">              </span><span class="m">75</span>.86%<span class="w">    </span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>---<span class="w"> </span>Storage<span class="w"> </span>Pools<span class="w"> </span>on<span class="w"> </span>g.org<span class="w"> </span>---
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a>Pool<span class="w"> </span>Name<span class="w">                      </span>Status<span class="w">          </span>Capacity<span class="w"> </span><span class="o">(</span>GiB<span class="o">)</span><span class="w">  </span>Allocation<span class="w"> </span><span class="o">(</span>GiB<span class="o">)</span><span class="w"> </span>Usage<span class="w"> </span>%<span class="w">   </span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a>------------------------------<span class="w"> </span>---------------<span class="w"> </span>---------------<span class="w"> </span>---------------<span class="w"> </span>----------
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a>default<span class="w">                        </span>active<span class="w">          </span><span class="m">899</span><span class="w">             </span><span class="m">375</span><span class="w">             </span><span class="m">41</span>.71%<span class="w">    </span>
+</code></pre></div>
 <h2 id="advanced-tools">Advanced Tools<a class="headerlink" href="#advanced-tools" title="Permanent link">&para;</a></h2>
 <ul>
 <li><strong><code>virsh [server]</code></strong>: Launches an interactive <code>virsh</code> shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.</li>
@@ -1539,10 +1652,27 @@
 <li><strong><code>history [number|all|info]</code></strong>: Displays the command history. Use <code>history all</code> to see all history, <code>history &lt;number&gt;</code> for a specific number of recent commands, or <code>history info</code> for history file location.</li>
 <li><strong><code>!&lt;number&gt;</code></strong>: Re-executes a command from the history by its number (e.g., <code>!15</code> runs command #15).</li>
 </ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="o">(</span>ryzen7,g.org<span class="o">)</span><span class="w"> </span>virsh
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>Multiple<span class="w"> </span>active<span class="w"> </span>connections:
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="m">1</span>.<span class="w"> </span>ryzen7
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="m">2</span>.<span class="w"> </span>g.org
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>Select<span class="w"> </span>server<span class="w"> </span><span class="o">(</span>number<span class="o">)</span>:<span class="w"> </span><span class="m">2</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>Connecting<span class="w"> </span>to<span class="w"> </span>virsh<span class="w"> </span>on<span class="w"> </span>g.org<span class="w"> </span><span class="o">(</span>qemu+ssh:***@ginies.org:999/system?no_tty<span class="o">=</span><span class="m">1</span><span class="o">)</span>...
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>Type<span class="w"> </span><span class="s1">&#39;exit&#39;</span><span class="w"> </span>or<span class="w"> </span><span class="s1">&#39;quit&#39;</span><span class="w"> </span>to<span class="w"> </span><span class="k">return</span><span class="w"> </span>to<span class="w"> </span>virtui-manager.
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>Welcome<span class="w"> </span>to<span class="w"> </span>virsh,<span class="w"> </span>the<span class="w"> </span>virtualization<span class="w"> </span>interactive<span class="w"> </span>terminal.
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>Type:<span class="w">  </span><span class="s1">&#39;help&#39;</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="nb">help</span><span class="w"> </span>with<span class="w"> </span>commands
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">       </span><span class="s1">&#39;quit&#39;</span><span class="w"> </span>to<span class="w"> </span>quit
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a>virsh<span class="w"> </span><span class="c1"># net-list </span>
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w"> </span>Name<span class="w">      </span>State<span class="w">    </span>Autostart<span class="w">   </span>Persistent
+<a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a>--------------------------------------------
+<a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w"> </span>default<span class="w">   </span>active<span class="w">   </span>yes<span class="w">         </span>yes
+</code></pre></div>
 <h2 id="pipelines">Pipelines<a class="headerlink" href="#pipelines" title="Permanent link">&para;</a></h2>
 <p>The CLI supports command pipelines for chaining multiple operations together using the <code>|</code> operator.</p>
 <h3 id="pipeline-syntax">Pipeline Syntax<a class="headerlink" href="#pipeline-syntax" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pipeline<span class="w"> </span><span class="o">[</span>options<span class="o">]</span><span class="w"> </span>&lt;command1&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>&lt;command2&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>...
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>pipeline<span class="w"> </span><span class="o">[</span>options<span class="o">]</span><span class="w"> </span>&lt;command1&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>&lt;command2&gt;<span class="w"> </span><span class="p">|</span><span class="w"> </span>...
 </code></pre></div>
 <h3 id="pipeline-options">Pipeline Options<a class="headerlink" href="#pipeline-options" title="Permanent link">&para;</a></h3>
 <ul>
@@ -1562,42 +1692,42 @@
 <li><strong><code>$(time)</code></strong>: Expands to current time in <code>HHMMSS</code> format.</li>
 </ul>
 <h3 id="pipeline-examples">Pipeline Examples<a class="headerlink" href="#pipeline-examples" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Stop all web VMs, create a snapshot, then start them</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">select</span><span class="w"> </span>re:web.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>stop<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>backup-<span class="k">$(</span>date<span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>start
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="c1"># Preview what would happen without executing</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>pipeline<span class="w"> </span>--dry-run<span class="w"> </span><span class="k">select</span><span class="w"> </span>vm1<span class="w"> </span>vm2<span class="w"> </span><span class="p">|</span><span class="w"> </span>pause
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Interactive confirmation before critical operations</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>pipeline<span class="w"> </span>-i<span class="w"> </span><span class="k">select</span><span class="w"> </span>re:prod-.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>hibernate<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>maintenance-<span class="k">$(</span>date<span class="k">)</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Stop all web VMs, create a snapshot, then start them</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">select</span><span class="w"> </span>re:web.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>stop<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>backup-<span class="k">$(</span>date<span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>start
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Preview what would happen without executing</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>pipeline<span class="w"> </span>--dry-run<span class="w"> </span><span class="k">select</span><span class="w"> </span>vm1<span class="w"> </span>vm2<span class="w"> </span><span class="p">|</span><span class="w"> </span>pause
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Interactive confirmation before critical operations</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>pipeline<span class="w"> </span>-i<span class="w"> </span><span class="k">select</span><span class="w"> </span>re:prod-.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>hibernate<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>maintenance-<span class="k">$(</span>date<span class="k">)</span>
 </code></pre></div>
 <h2 id="usage-example">Usage Example<a class="headerlink" href="#usage-example" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Connect to infrastructure</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="o">(</span>VirtUI<span class="o">)</span>&gt;<span class="w"> </span>connect<span class="w"> </span>Localhost
-<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
-<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># Select all web servers using pattern</span>
-<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>select_vm<span class="w"> </span>re:web-.*
-<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;
-<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>
-<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="c1"># Check their detailed information</span>
-<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>vm_info
-<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>
-<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="c1"># Start them up</span>
-<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>start
-<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>VM<span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>VM<span class="w"> </span><span class="s1">&#39;web-02&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
-<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>
-<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="c1"># Open a graphical console</span>
-<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>view
-<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>Launching<span class="w"> </span>viewer<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>on<span class="w"> </span>Localhost...
-<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>
-<a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a><span class="c1"># Create a snapshot before maintenance</span>
-<a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>snapshot_create<span class="w"> </span>web-01<span class="w"> </span>pre-update<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Before security update&quot;</span>
-<a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>Snapshot<span class="w"> </span><span class="s1">&#39;pre-update&#39;</span><span class="w"> </span>created<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span>.
-<a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>
-<a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a><span class="c1"># Use pipelines for batch operations</span>
-<a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span><span class="k">select</span><span class="w"> </span>re:web-.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>stop<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>maintenance-<span class="k">$(</span>date<span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>start
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Connect to infrastructure</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="o">(</span>VirtUI<span class="o">)</span>&gt;<span class="w"> </span>connect<span class="w"> </span>Localhost
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="c1"># Select all web servers using pattern</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span>select_vm<span class="w"> </span>re:web-.*
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="c1"># Check their detailed information</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>vm_info
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="c1"># Start them up</span>
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>start
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a>VM<span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
+<a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a>VM<span class="w"> </span><span class="s1">&#39;web-02&#39;</span><span class="w"> </span>started<span class="w"> </span>successfully.
+<a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a>
+<a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="c1"># Open a graphical console</span>
+<a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>view
+<a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a>Launching<span class="w"> </span>viewer<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span><span class="w"> </span>on<span class="w"> </span>Localhost...
+<a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a>
+<a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="c1"># Create a snapshot before maintenance</span>
+<a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span><span class="o">[</span>web-01,web-02<span class="o">]</span><span class="w"> </span>&gt;<span class="w"> </span>snapshot_create<span class="w"> </span>web-01<span class="w"> </span>pre-update<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Before security update&quot;</span>
+<a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a>Snapshot<span class="w"> </span><span class="s1">&#39;pre-update&#39;</span><span class="w"> </span>created<span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="s1">&#39;web-01&#39;</span>.
+<a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a>
+<a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="c1"># Use pipelines for batch operations</span>
+<a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="o">(</span>Localhost<span class="o">)</span><span class="w"> </span>&gt;<span class="w"> </span><span class="k">select</span><span class="w"> </span>re:web-.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>stop<span class="w"> </span><span class="p">|</span><span class="w"> </span>snapshot<span class="w"> </span>create<span class="w"> </span>maintenance-<span class="k">$(</span>date<span class="k">)</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>start
 </code></pre></div>
 <h2 id="command-reference-summary">Command Reference Summary<a class="headerlink" href="#command-reference-summary" title="Permanent link">&para;</a></h2>
 <table>
@@ -1623,6 +1753,10 @@
 <tr>
 <td>Snapshots</td>
 <td><code>snapshot_list</code>, <code>snapshot_create</code>, <code>snapshot_delete</code>, <code>snapshot_revert</code></td>
+</tr>
+<tr>
+<td>Backups</td>
+<td><code>backup_create</code>, <code>backup_list</code>, <code>backup_status</code>, <code>backup_restore</code>, <code>backup_cleanup</code></td>
 </tr>
 <tr>
 <td>Networking</td>
