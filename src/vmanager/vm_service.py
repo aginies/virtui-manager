@@ -13,7 +13,7 @@ from typing import Callable
 import libvirt
 
 from .connection_manager import ConnectionManager
-from .constants import AppCacheTimeout, VmAction, VmStatus
+from .constants import AppCacheTimeout, StatusText, VmAction, VmStatus
 from .storage_manager import check_domain_volumes_in_use
 from .utils import extract_server_name_from_uri, natural_sort_key
 from .vm_actions import delete_vm, force_off_vm, hibernate_vm, pause_vm, start_vm, stop_vm
@@ -984,8 +984,24 @@ class VMService:
             try:
                 cpu_stats = domain.getCPUStats(True)
                 logging.debug(f"Raw CPU Stats for {uuid}: {cpu_stats}")
+            except libvirt.libvirtError as e:
+                # Handle "domain is not running" gracefully - this can happen during
+                # state transitions when VM shuts down between state check and stats fetch
+                if e.get_error_code() == libvirt.VIR_ERR_OPERATION_INVALID:
+                    logging.debug(f"VM {uuid} no longer running, returning stopped stats")
+                    return {
+                        "status": StatusText.STOPPED,
+                        "cpu_percent": 0.0,
+                        "mem_percent": 0.0,
+                        "disk_read_kbps": 0.0,
+                        "disk_write_kbps": 0.0,
+                        "net_rx_kbps": 0.0,
+                        "net_tx_kbps": 0.0,
+                    }
+                logging.debug(f"Error getting CPU stats for {uuid}: {e}")
+                cpu_stats = []
             except Exception as e:
-                logging.error(f"Error getting CPU stats for {uuid}: {e}")
+                logging.error(f"Unexpected error getting CPU stats for {uuid}: {e}")
                 cpu_stats = []
 
             if not cpu_stats:
