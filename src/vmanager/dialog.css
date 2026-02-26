@@ -634,7 +634,7 @@ CapabilitiesTreeModal #dialog-title {
 
 /* === Template Management Modal === */
 TemplateManagementModal > #template-management-container {
-  width: 85;
+  width: 90;
   height: 80%;
   border: round $primary;
   background: $surface;
