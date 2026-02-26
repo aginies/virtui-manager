@@ -14,6 +14,7 @@ Managing virtual machines in a terminal environment has never been easier or mor
 - **GUI-based solutions** are heavy with X dependencies, making them unsuitable for headless servers or low-bandwidth connections
 - **Command-line tools** lack the intuitive interface needed for complex VM management tasks
 - **Cockpit Machine** is feature incomplete, and needs a lot of depencies. It is not multi hypervisor oriented
+- **Complex Deployment** as there is nothing to manage easily auto-installation of Virtual Machine with registration process (note: only support openSUSE and SLES)
 
 ### Why VirtUI Manager is Different
 
@@ -28,6 +29,7 @@ VirtUI Manager solves these challenges with:
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 - **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
+- **Auto installtion**: Support auto installation for AutoYast and Agama, with registration for SLES product
 
 ## Documentation
 
@@ -49,6 +51,7 @@ VirtUI Manager solves these challenges with:
 - **libvirt** with Python bindings
 - **Python Dependencies**: textual, pyaml, libvirt-python, markdown-it-py
 - **Optional**: virt-viewer, novnc, websockify for enhanced functionality
+- **Tmux**: To edit file with pseudo terminal
 
 ### Note about Libvirt API
 
