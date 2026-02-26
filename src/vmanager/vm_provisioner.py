@@ -1259,6 +1259,87 @@ class VMProvisioner:
             shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract kernel/initrd from ISO: {stderr}") from e
 
+    def _extract_ubuntu_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+        """Extracts kernel and initrd from an Ubuntu ISO (casper/ directory)."""
+        if not shutil.which("7z"):
+            raise Exception(
+                "Ubuntu kernel extraction requires '7z' (p7zip-full). "
+                "Please install it or use the virt-install method."
+            )
+
+        tmp_dir = tempfile.mkdtemp(prefix="virtui_ubuntu_iso_extract_")
+
+        # Ubuntu kernel and initrd are in the casper/ directory
+        # Try both common naming patterns
+        kernel_candidates = ["casper/vmlinuz", "casper/vmlinuz.efi"]
+        initrd_candidates = ["casper/initrd", "casper/initrd.lz", "casper/initrd.gz"]
+
+        # First, let's extract the entire casper directory to see what's available
+        try:
+            self.logger.info(f"Extracting Ubuntu casper/ directory from {iso_path}...")
+            cmd = [
+                "7z",
+                "x",
+                iso_path,
+                "casper/",
+                f"-o{tmp_dir}",
+                "-y",  # Assume yes to all queries
+            ]
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+            # Find the actual kernel and initrd files
+            casper_dir = os.path.join(tmp_dir, "casper")
+            if not os.path.exists(casper_dir):
+                raise FileNotFoundError("casper/ directory not found in Ubuntu ISO")
+
+            # Find kernel file
+            kernel_path = None
+            for candidate in kernel_candidates:
+                full_path = os.path.join(tmp_dir, candidate)
+                if os.path.exists(full_path):
+                    kernel_path = full_path
+                    break
+
+            if not kernel_path:
+                # List available files for debugging
+                available_files = []
+                for file in os.listdir(casper_dir):
+                    if file.startswith("vmlinuz"):
+                        available_files.append(f"casper/{file}")
+                raise FileNotFoundError(
+                    f"Ubuntu kernel (vmlinuz*) not found in casper/. Available: {available_files}"
+                )
+
+            # Find initrd file
+            initrd_path = None
+            for candidate in initrd_candidates:
+                full_path = os.path.join(tmp_dir, candidate)
+                if os.path.exists(full_path):
+                    initrd_path = full_path
+                    break
+
+            if not initrd_path:
+                # List available files for debugging
+                available_files = []
+                for file in os.listdir(casper_dir):
+                    if file.startswith("initrd"):
+                        available_files.append(f"casper/{file}")
+                raise FileNotFoundError(
+                    f"Ubuntu initrd not found in casper/. Available: {available_files}"
+                )
+
+            self.logger.info(f"Ubuntu kernel and initrd extracted to {tmp_dir}")
+            self.logger.info(f"  Kernel: {kernel_path}")
+            self.logger.info(f"  Initrd: {initrd_path}")
+            return kernel_path, initrd_path
+
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
+            self.logger.error(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}")
+            # Clean up temp dir on failure
+            shutil.rmtree(tmp_dir)
+            raise Exception(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}") from e
+
     def _run_virt_install(
         self,
         vm_name: str,
@@ -1625,14 +1706,21 @@ class VMProvisioner:
             try:
                 report(StaticText.PROVISIONING_GENERATING_AUTOMATION_CONFIG, 82)
 
-                # Get the OpenSUSE provider to generate automation file
-                provider = self.get_provider("opensuse")
+                # Get the appropriate provider based on template type
+                template_name = automation_config.get("template_name", "autoyast-basic.xml")
+                is_ubuntu_template = any(
+                    keyword in template_name.lower()
+                    for keyword in ["ubuntu", "autoinstall", "preseed"]
+                )
+
+                if is_ubuntu_template:
+                    provider = self.get_provider("ubuntu")
+                else:
+                    provider = self.get_provider("opensuse")
+
                 if provider:
                     # Create a temporary directory for automation file
                     temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
-
-                    # Extract template name from automation config
-                    template_name = automation_config.get("template_name", "autoyast-basic.xml")
 
                     # Generate automation file using the provider
                     automation_file_path = provider.generate_automation_file(
@@ -1807,9 +1895,24 @@ class VMProvisioner:
                 try:
                     # Preferred method: kernel extraction for cmdline boot
                     local_iso_path = _determine_iso_path(iso_url)
-                    local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
-                        local_iso_path, self.host_arch
+
+                    # Determine if this is Ubuntu based on template name
+                    template_name = automation_config.get("template_name", "")
+                    is_ubuntu_template = any(
+                        keyword in template_name.lower()
+                        for keyword in ["ubuntu", "autoinstall", "preseed"]
                     )
+
+                    if is_ubuntu_template:
+                        # Use Ubuntu-specific kernel extraction (casper/ directory)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        )
+                    else:
+                        # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
+                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
+                            local_iso_path, self.host_arch
+                        )
 
                     report("Uploading kernel and initrd", 81)
                     kernel_path = self.upload_file(
