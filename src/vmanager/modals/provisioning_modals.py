@@ -18,6 +18,7 @@ from ..provisioning.templates.autoyast_template_manager import AutoYaSTTemplateM
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..provisioning.providers.ubuntu_provider import UbuntuDistro
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name
@@ -64,7 +65,17 @@ class InstallVMModal(BaseModal[str | None]):
                 )
                 yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            distro_options = [(d.value, d) for d in OpenSUSEDistro]
+            # Build distribution options - combine OpenSUSE and Ubuntu distributions
+            distro_options = []
+
+            # Add OpenSUSE distributions
+            for d in OpenSUSEDistro:
+                distro_options.append((f"openSUSE: {d.value}", d))
+
+            # Add Ubuntu distributions
+            for d in UbuntuDistro:
+                distro_options.append((f"Ubuntu: {d.value}", d))
+
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
             for repo in custom_repos:
@@ -372,7 +383,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#custom-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        if event.value == OpenSUSEDistro.CUSTOM:
+        if event.value == OpenSUSEDistro.CUSTOM or event.value == UbuntuDistro.CUSTOM:
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
             self.query_one("#repo-iso-container").styles.display = "none"
@@ -480,7 +491,7 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(lambda: setattr(iso_volume_select, "disabled", True))
 
     @work(exclusive=True, thread=True)
-    def fetch_isos(self, distro: OpenSUSEDistro | str):
+    def fetch_isos(self, distro: OpenSUSEDistro | UbuntuDistro | str):
         self.app.call_from_thread(self._update_iso_status, StaticText.FETCHING_ISO_LIST, True)
 
         try:
@@ -533,7 +544,7 @@ class InstallVMModal(BaseModal[str | None]):
         # Disable install while fetching
         self.query_one("#install-btn", Button).disabled = loading
 
-    def _populate_templates_for_distribution(self, distro: OpenSUSEDistro | str):
+    def _populate_templates_for_distribution(self, distro: OpenSUSEDistro | UbuntuDistro | str):
         """
         Populate the template select widget based on the selected distribution.
 
@@ -592,6 +603,36 @@ class InstallVMModal(BaseModal[str | None]):
                             or "(SLES)" in template["display_name"]
                             or "(Agama)" in template["display_name"]
                             or "(AutoYaST)" in template["display_name"]
+                        ):
+                            filtered_templates.append(template)
+
+        elif isinstance(distro, UbuntuDistro):
+            # Ubuntu distributions → Show Ubuntu-related templates
+            # For Ubuntu, we primarily support cloud-init/preseed templates
+            filtered_templates = []
+            for template in all_templates:
+                filename = template.get("filename", "")
+                display_name = template.get("display_name", "")
+
+                # Check for Ubuntu-specific template markers
+                is_ubuntu_template = (
+                    filename.endswith(".yaml")
+                    or filename.endswith(".cfg")
+                    or "(Ubuntu)" in display_name
+                    or "(Cloud-init)" in display_name
+                    or "(Preseed)" in display_name
+                )
+
+                if is_ubuntu_template:
+                    # Include built-in Ubuntu templates
+                    if template["type"] == "built-in":
+                        filtered_templates.append(template)
+                    # For user templates, check if they're Ubuntu-related
+                    elif template["type"] == "user":
+                        if (
+                            "(Ubuntu)" in display_name
+                            or "(Cloud-init)" in display_name
+                            or "(Preseed)" in display_name
                         ):
                             filtered_templates.append(template)
 
@@ -758,7 +799,7 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
 
         valid_iso = False
-        if distro == OpenSUSEDistro.CUSTOM:
+        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
@@ -870,7 +911,7 @@ class InstallVMModal(BaseModal[str | None]):
         checksum = None
         validate = False
 
-        if distro == OpenSUSEDistro.CUSTOM:
+        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM:
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:
