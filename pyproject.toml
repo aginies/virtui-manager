@@ -49,10 +49,6 @@ dev = [
     "mypy>=1.0.0",
 ]
 
-build = [
-    "nuitka>=2.0.0",
-]
-
 webconsole = [
     "websockify>=0.10.0",
 ]
