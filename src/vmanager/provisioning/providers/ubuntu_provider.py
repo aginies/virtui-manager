@@ -10,9 +10,22 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from enum import Enum
 
 import requests
-from ..provider_base import OSProvider, OSType
+from ..os_provider import OSProvider, OSType
+
+
+class UbuntuDistro(Enum):
+    """Ubuntu distribution types."""
+
+    UBUNTU_24_04_LTS = "24.04 LTS (Noble Numbat)"
+    UBUNTU_22_04_LTS = "22.04 LTS (Jammy Jellyfish)"
+    UBUNTU_20_04_LTS = "20.04 LTS (Focal Fossa)"
+    UBUNTU_24_10 = "24.10 (Oracular Oriole)"
+    UBUNTU_23_10 = "23.10 (Mantic Minotaur)"
+    UBUNTU_23_04 = "23.04 (Lunar Lobster)"
+    CUSTOM = "Custom ISO"
 
 
 class UbuntuProvider(OSProvider):
@@ -182,49 +195,130 @@ class UbuntuProvider(OSProvider):
             # Ubuntu releases URL pattern
             base_url = f"http://releases.ubuntu.com/{version_number}/"
 
-            # Common ISO types for Ubuntu
-            iso_variants = [
-                {
-                    "name": f"Ubuntu {version_number} Server (amd64)",
-                    "filename": f"ubuntu-{version_number}-live-server-amd64.iso",
-                    "arch": "amd64",
-                    "type": "server",
-                    "description": "Ubuntu Server Live installer",
-                },
-                {
-                    "name": f"Ubuntu {version_number} Desktop (amd64)",
-                    "filename": f"ubuntu-{version_number}-desktop-amd64.iso",
-                    "arch": "amd64",
-                    "type": "desktop",
-                    "description": "Ubuntu Desktop Live installer",
-                },
-            ]
+            # First, try to get the directory listing to find actual files
+            try:
+                response = requests.get(base_url, timeout=10)
+                if response.status_code == 200:
+                    # Parse HTML to find ISO files
+                    import re
 
-            for variant in iso_variants:
-                iso_url = base_url + variant["filename"]
+                    iso_files = re.findall(r'href="([^"]*\.iso)"', response.text)
 
-                # Check if ISO exists (simplified check)
-                try:
-                    response = requests.head(iso_url, timeout=5)
-                    if response.status_code == 200:
-                        size = response.headers.get("content-length", "Unknown")
-                        if size != "Unknown" and size.isdigit():
-                            size = f"{int(size) // (1024 * 1024)} MB"
+                    # Filter for common ISO types we want to show
+                    server_isos = [
+                        f for f in iso_files if "server" in f.lower() and f.endswith(".iso")
+                    ]
+                    desktop_isos = [
+                        f for f in iso_files if "desktop" in f.lower() and f.endswith(".iso")
+                    ]
+
+                    # Get the latest version of each type (usually the highest point release)
+                    iso_candidates = []
+
+                    if server_isos:
+                        # Sort by filename to get the latest point release
+                        server_isos.sort(reverse=True)
+                        iso_candidates.append(
+                            {
+                                "filename": server_isos[0],
+                                "type": "server",
+                                "name": f"Ubuntu {version_number} Server (amd64)",
+                            }
+                        )
+
+                    if desktop_isos:
+                        desktop_isos.sort(reverse=True)
+                        iso_candidates.append(
+                            {
+                                "filename": desktop_isos[0],
+                                "type": "desktop",
+                                "name": f"Ubuntu {version_number} Desktop (amd64)",
+                            }
+                        )
+
+                    # Now get detailed info for each file
+                    for candidate in iso_candidates:
+                        iso_url = base_url + candidate["filename"]
+                        date_str = ""
+                        size_str = "Unknown"
+
+                        try:
+                            # Get file metadata
+                            head_response = requests.head(iso_url, timeout=10)
+                            if head_response.status_code == 200:
+                                # Get file size
+                                content_length = head_response.headers.get("content-length")
+                                if content_length and content_length.isdigit():
+                                    size_mb = int(content_length) // (1024 * 1024)
+                                    size_str = f"{size_mb} MB"
+
+                                # Get last modified date
+                                last_modified = head_response.headers.get("last-modified")
+                                if last_modified:
+                                    try:
+                                        from email.utils import parsedate_to_datetime
+
+                                        dt = parsedate_to_datetime(last_modified)
+                                        # Format to match OpenSUSE format: "YYYY-MM-DD HH:MM"
+                                        date_str = dt.strftime("%Y-%m-%d %H:%M")
+                                    except Exception as e:
+                                        self.logger.debug(
+                                            f"Could not parse date from {last_modified}: {e}"
+                                        )
+
+                        except Exception as e:
+                            self.logger.debug(f"Could not fetch metadata for {iso_url}: {e}")
 
                         iso_list.append(
                             {
-                                "name": variant["name"],
+                                "name": candidate["name"],
                                 "url": iso_url,
-                                "size": size,
-                                "arch": variant["arch"],
-                                "type": variant["type"],
-                                "description": variant["description"],
+                                "size": size_str,
+                                "arch": "amd64",
+                                "type": candidate["type"],
+                                "description": f"Ubuntu {candidate['type'].title()} Live installer",
                                 "version": version_display,
+                                "date": date_str,
                             }
                         )
-                except:
-                    # ISO might not exist, skip silently
-                    pass
+
+                else:
+                    self.logger.warning(
+                        f"Could not fetch directory listing from {base_url}: {response.status_code}"
+                    )
+
+            except Exception as e:
+                self.logger.warning(f"Error fetching Ubuntu directory listing: {e}")
+
+            # Fallback: if we couldn't get real files, provide static entries
+            if not iso_list:
+                self.logger.info("Falling back to static Ubuntu ISO entries")
+                static_variants = [
+                    {
+                        "name": f"Ubuntu {version_number} Server (amd64)",
+                        "filename": f"ubuntu-{version_number}-live-server-amd64.iso",
+                        "type": "server",
+                    },
+                    {
+                        "name": f"Ubuntu {version_number} Desktop (amd64)",
+                        "filename": f"ubuntu-{version_number}-desktop-amd64.iso",
+                        "type": "desktop",
+                    },
+                ]
+
+                for variant in static_variants:
+                    iso_list.append(
+                        {
+                            "name": variant["name"],
+                            "url": base_url + variant["filename"],
+                            "size": "Unknown",
+                            "arch": "amd64",
+                            "type": variant["type"],
+                            "description": f"Ubuntu {variant['type'].title()} Live installer",
+                            "version": version_display,
+                            "date": "",
+                        }
+                    )
 
             return iso_list
 
