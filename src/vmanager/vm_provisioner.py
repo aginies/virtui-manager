@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import urllib.request
 import urllib.error
-import uuid # Added import
+import uuid  # Added import
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import libvirt
-from packaging.version import parse as parse_version # Added import
+from packaging.version import parse as parse_version  # Added import
 
 from .auto_http_server import AutoHTTPServer
 from .config import load_config
@@ -33,9 +33,10 @@ from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType
 from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
+from .provisioning.providers.ubuntu_provider import UbuntuProvider, UbuntuDistro
 from .storage_manager import create_volume
 from .vm_actions import strip_installation_assets, get_vm_boot_files, delete_boot_files
-from .utils import get_virt_install_version # Added import
+from .utils import get_virt_install_version  # Added import
 
 
 class VMType(Enum):
@@ -70,12 +71,19 @@ class VMProvisioner:
         except Exception as e:
             self.logger.warning(f"Failed to register OpenSUSE provider: {e}")
 
+        try:
+            ubuntu_provider = UbuntuProvider()
+            self.provider_registry.register_provider(ubuntu_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register Ubuntu provider: {e}")
+
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
         # Convert string to OSType enum
         os_type_map = {
             "linux": OSType.LINUX,
             "opensuse": OSType.LINUX,
+            "ubuntu": OSType.UBUNTU,
             "windows": OSType.WINDOWS,
         }
 
@@ -121,7 +129,7 @@ class VMProvisioner:
         Get list of ISOs for a distribution or custom repository.
 
         Args:
-            distro: Either an OpenSUSEDistro enum or a custom repository URL string
+            distro: Either an OpenSUSEDistro, UbuntuDistro enum or a custom repository URL string
 
         Returns:
             List of ISO dictionaries with 'name', 'url', and 'date' keys
@@ -133,6 +141,15 @@ class VMProvisioner:
                 return provider.get_iso_list(distro)
             else:
                 logging.warning("OpenSUSE provider not available or doesn't support get_iso_list")
+                return []
+
+        # Handle Ubuntu distributions - delegate to provider
+        elif isinstance(distro, UbuntuDistro):
+            provider = self.get_provider("ubuntu")
+            if provider and hasattr(provider, "get_iso_list"):
+                return provider.get_iso_list(distro.value)  # Pass the string value
+            else:
+                logging.warning("Ubuntu provider not available or doesn't support get_iso_list")
                 return []
 
         # Handle custom repository URLs (strings)
@@ -387,7 +404,12 @@ class VMProvisioner:
         Uploads a local ISO file to the specified storage pool.
         Returns the path of the uploaded volume on the server.
         """
-        return self.upload_file(local_path, storage_pool_name, volume_name=os.path.basename(local_path), progress_callback=progress_callback)
+        return self.upload_file(
+            local_path,
+            storage_pool_name,
+            volume_name=os.path.basename(local_path),
+            progress_callback=progress_callback,
+        )
 
     def upload_file(
         self,
@@ -499,7 +521,6 @@ class VMProvisioner:
                     )
                 except libvirt.libvirtError:
                     logging.warning("Could not restore original libvirt keepalive settings.")
-
 
     def validate_iso(self, local_path: str, expected_checksum: str = None) -> bool:
         """
@@ -886,10 +907,10 @@ class VMProvisioner:
         nvram_path: str | None = None,
         boot_uefi: bool = True,
         automation_file_path: str | None = None,
-                autoyast_url: str | None = None,
-                kernel_path: str | None = None,
-                initrd_path: str | None = None,
-                serial_console: bool = False,
+        autoyast_url: str | None = None,
+        kernel_path: str | None = None,
+        initrd_path: str | None = None,
+        serial_console: bool = False,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
@@ -927,7 +948,7 @@ class VMProvisioner:
                     cmdline = f"inst.auto={autoyast_url} inst.auto_insecure=1"
                 else:
                     cmdline = f"autoyast={autoyast_url}"
-                
+
                 if serial_console:
                     cmdline += " console=tty0 console=ttyS0,115200"
                 xml += f"    <cmdline>{cmdline}</cmdline>\n"
@@ -955,7 +976,7 @@ class VMProvisioner:
                 xml += """
   </os>
 """
-        else: # Standard BIOS
+        else:  # Standard BIOS
             xml += f"""
   <os>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
@@ -1160,13 +1181,14 @@ class VMProvisioner:
             # Create a blank 1.44MB floppy image
             subprocess.run(
                 ["dd", "if=/dev/zero", f"of={floppy_image_path}", "bs=1k", "count=1440"],
-                check=True, capture_output=True, text=True
+                check=True,
+                capture_output=True,
+                text=True,
             )
 
             # Format the image with a FAT filesystem
             subprocess.run(
-                ["mkfs.vfat", str(floppy_image_path)],
-                check=True, capture_output=True, text=True
+                ["mkfs.vfat", str(floppy_image_path)], check=True, capture_output=True, text=True
             )
 
             # mcopy needs the file to be in the current directory to use ::/ syntax easily
@@ -1177,16 +1199,18 @@ class VMProvisioner:
             # Use mcopy to copy the file into the root of the floppy image
             subprocess.run(
                 ["mcopy", "-i", str(floppy_image_path), str(temp_autoinst_path), "::/"],
-                check=True, capture_output=True, text=True
+                check=True,
+                capture_output=True,
+                text=True,
             )
 
-            os.remove(temp_autoinst_path) # Clean up temp copy
+            os.remove(temp_autoinst_path)  # Clean up temp copy
 
             self.logger.info(f"Successfully created Auto floppy image at {floppy_image_path}")
             return str(floppy_image_path)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            stderr = e.stderr if hasattr(e, 'stderr') and e.stderr else str(e)
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to create floppy image: {stderr}")
             raise Exception(f"Failed to create Auto floppy image: {stderr}") from e
 
@@ -1205,25 +1229,31 @@ class VMProvisioner:
         try:
             self.logger.info(f"Extracting kernel and initrd from {iso_path}...")
             cmd = [
-                "7z", "x", iso_path,
+                "7z",
+                "x",
+                iso_path,
                 kernel_path_in_iso,
                 initrd_path_in_iso,
                 f"-o{tmp_dir}",
-                "-y" # Assume yes to all queries
+                "-y",  # Assume yes to all queries
             ]
             subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             extracted_kernel_path = os.path.join(tmp_dir, "boot", arch, "loader", "linux")
             extracted_initrd_path = os.path.join(tmp_dir, "boot", arch, "loader", "initrd")
 
-            if not os.path.exists(extracted_kernel_path) or not os.path.exists(extracted_initrd_path):
-                raise FileNotFoundError("Kernel or initrd not found in the ISO at the expected path.")
+            if not os.path.exists(extracted_kernel_path) or not os.path.exists(
+                extracted_initrd_path
+            ):
+                raise FileNotFoundError(
+                    "Kernel or initrd not found in the ISO at the expected path."
+                )
 
             self.logger.info(f"Kernel and initrd extracted to {tmp_dir}")
             return extracted_kernel_path, extracted_initrd_path
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            stderr = e.stderr if hasattr(e, 'stderr') and e.stderr else str(e)
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
             shutil.rmtree(tmp_dir)
@@ -1272,8 +1302,9 @@ class VMProvisioner:
                 if parse_version(self.virt_install_version) >= parse_version("1.4.0"):
                     can_use_vol_location = True
             except Exception as e:
-                self.logger.warning(f"Error parsing virt-install version '{self.virt_install_version}': {e}")
-
+                self.logger.warning(
+                    f"Error parsing virt-install version '{self.virt_install_version}': {e}"
+                )
 
         # ISO
         if autoyast_url:
@@ -1374,7 +1405,7 @@ class VMProvisioner:
                 extra_args = f"inst.auto={autoyast_url} inst.auto_insecure=1"
             else:
                 extra_args = f"autoyast={autoyast_url}"
-                
+
             if serial_console:
                 extra_args += " console=tty0 console=ttyS0,115200"
             cmd.extend(["--extra-args", extra_args])
@@ -1617,15 +1648,16 @@ class VMProvisioner:
                     try:
                         with open(automation_file_path, "r", encoding="utf-8") as f:
                             content = f.read()
-                        
+
                         if str(automation_file_path).endswith(".json"):
                             import json
+
                             json.loads(content)
                             self.logger.info("Automation JSON file validation passed")
                         else:
                             ET.fromstring(content)
                             self.logger.info("Automation XML file validation passed")
-                            
+
                     except ET.ParseError as parse_error:
                         self.logger.error(f"Invalid XML in automation file: {parse_error}")
                         raise Exception(f"Invalid XML in automation file: {parse_error}")
@@ -1769,23 +1801,31 @@ class VMProvisioner:
         else:
             # For XML-based provisioning, we need to handle asset uploads to ensure permissions
             kernel_path, initrd_path = None, None
-            final_automation_path = None # This will be the path on the storage pool
+            final_automation_path = None  # This will be the path on the storage pool
 
             if automation_config:
                 try:
                     # Preferred method: kernel extraction for cmdline boot
                     local_iso_path = _determine_iso_path(iso_url)
-                    local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(local_iso_path, self.host_arch)
+                    local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
+                        local_iso_path, self.host_arch
+                    )
 
                     report("Uploading kernel and initrd", 81)
-                    kernel_path = self.upload_file(local_kernel_path, storage_pool_name, f"{vm_name}-kernel")
-                    initrd_path = self.upload_file(local_initrd_path, storage_pool_name, f"{vm_name}-initrd")
+                    kernel_path = self.upload_file(
+                        local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
+                    )
+                    initrd_path = self.upload_file(
+                        local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
+                    )
                     self.logger.info(f"Kernel/initrd uploaded to storage pool for XML install.")
 
                 except Exception as e:
-                    self.logger.error(f"Failed to use kernel extraction for Auto Install: {e}. "
-                                      "Falling back to floppy-based method.")
-                    kernel_path, initrd_path = None, None # Ensure fallback logic triggers
+                    self.logger.error(
+                        f"Failed to use kernel extraction for Auto Install: {e}. "
+                        "Falling back to floppy-based method."
+                    )
+                    kernel_path, initrd_path = None, None  # Ensure fallback logic triggers
 
             # Fallback to floppy method if kernel extraction fails or is not applicable
             if not kernel_path and automation_file_path:
@@ -1799,7 +1839,9 @@ class VMProvisioner:
                         floppy_image_path, storage_pool_name, volume_name=automation_vol_name
                     )
                 except Exception as e:
-                    self.logger.error(f"Could not create or upload floppy image for Auto Install: {e}")
+                    self.logger.error(
+                        f"Could not create or upload floppy image for Auto Install: {e}"
+                    )
                     # Re-raise the exception to stop provisioning a broken VM
                     raise e
 
@@ -1832,7 +1874,9 @@ class VMProvisioner:
             # configuration of installation assets (kernel/initrd/cmdline/floppy)
             # so that it's ready for the first boot from disk after installation completes.
             if kernel_path or final_automation_path:
-                self.logger.info(f"Cleaning installation assets from persistent configuration for {vm_name}.")
+                self.logger.info(
+                    f"Cleaning installation assets from persistent configuration for {vm_name}."
+                )
                 try:
                     # Capture boot files before stripping them from XML
                     root = ET.fromstring(dom.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE))
@@ -1852,9 +1896,13 @@ class VMProvisioner:
         # Since we set on_reboot='destroy', the VM stops after Stage 1.
         # This thread waits for it to stop and then restarts it to finish installation.
         if automation_config:
-            def restart_watcher(domain, name, logger, boot_files_to_delete, http_server_to_stop, temp_dir_to_clean):
+
+            def restart_watcher(
+                domain, name, logger, boot_files_to_delete, http_server_to_stop, temp_dir_to_clean
+            ):
                 import time
                 import shutil
+
                 logger.info(f"Starting restart watcher for {name}")
                 # 1. Wait for it to start running (it might be in 'defining' state)
                 timeout = 120
@@ -1866,16 +1914,20 @@ class VMProvisioner:
                         pass
                     time.sleep(1)
                     timeout -= 1
-                
+
                 # 2. Now wait for it to stop (end of stage 1)
                 while True:
                     try:
                         state, reason = domain.state()
                         if state == libvirt.VIR_DOMAIN_SHUTOFF:
                             if reason == libvirt.VIR_DOMAIN_SHUTOFF_DESTROYED:
-                                logger.info(f"VM {name} was manually stopped by user. Disabling auto-restart.")
+                                logger.info(
+                                    f"VM {name} was manually stopped by user. Disabling auto-restart."
+                                )
                             else:
-                                logger.info(f"VM {name} stopped (Stage 1 complete, reason={reason}). Restarting in 3 seconds...")
+                                logger.info(
+                                    f"VM {name} stopped (Stage 1 complete, reason={reason}). Restarting in 3 seconds..."
+                                )
                                 time.sleep(3)
                                 try:
                                     domain.create()
@@ -1885,9 +1937,11 @@ class VMProvisioner:
 
                             # Installation assets cleanup (always cleanup when Stage 1 ends or user stops)
                             if boot_files_to_delete:
-                                logger.info(f"Deleting boot files for {name}: {boot_files_to_delete}")
+                                logger.info(
+                                    f"Deleting boot files for {name}: {boot_files_to_delete}"
+                                )
                                 delete_boot_files(domain.connect(), boot_files_to_delete)
-                            
+
                             if http_server_to_stop:
                                 logger.info(f"Stopping HTTP server for {name}")
                                 http_server_to_stop.stop()
@@ -1895,7 +1949,7 @@ class VMProvisioner:
                             if temp_dir_to_clean and os.path.exists(temp_dir_to_clean):
                                 logger.info(f"Cleaning up temporary directory: {temp_dir_to_clean}")
                                 shutil.rmtree(temp_dir_to_clean, ignore_errors=True)
-                            
+
                             break
                     except Exception as e:
                         logger.error(f"Error in restart watcher for {name}: {e}")
@@ -1903,10 +1957,11 @@ class VMProvisioner:
                     time.sleep(5)
 
             import threading
+
             threading.Thread(
-                target=restart_watcher, 
-                args=(dom, vm_name, self.logger, boot_files, http_server, temp_dir), 
-                daemon=True
+                target=restart_watcher,
+                args=(dom, vm_name, self.logger, boot_files, http_server, temp_dir),
+                daemon=True,
             ).start()
 
         report(StaticText.PROVISIONING_COMPLETE, 100)
