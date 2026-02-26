@@ -1,5 +1,5 @@
 """
-Library for VM creation and provisioning, specifically focused on OpenSUSE.
+Library for VM creation and provisioning, supporting multiple Linux distributions.
 """
 
 import hashlib
@@ -907,7 +907,7 @@ class VMProvisioner:
         nvram_path: str | None = None,
         boot_uefi: bool = True,
         automation_file_path: str | None = None,
-        autoyast_url: str | None = None,
+        auto_url: str | None = None,
         kernel_path: str | None = None,
         initrd_path: str | None = None,
         serial_console: bool = False,
@@ -943,11 +943,21 @@ class VMProvisioner:
     <kernel>{kernel_path}</kernel>
     <initrd>{initrd_path}</initrd>
 """
-            if autoyast_url:
-                if autoyast_url.endswith(".json"):
-                    cmdline = f"inst.auto={autoyast_url} inst.auto_insecure=1"
+            if auto_url:
+                # Determine the appropriate kernel arguments based on file type and URL
+                if auto_url.endswith(".json"):
+                    # Agama (openSUSE) automation
+                    cmdline = f"inst.auto={auto_url} inst.auto_insecure=1"
+                elif auto_url.endswith("/") or "user-data" in auto_url:
+                    # Ubuntu autoinstall automation (cloud-init based)
+                    # URL should point to directory containing user-data and meta-data
+                    cmdline = f"autoinstall ds=nocloud-net;s={auto_url}"
+                elif auto_url.endswith(".cfg"):
+                    # Ubuntu preseed automation
+                    cmdline = f"auto=true preseed/url={auto_url}"
                 else:
-                    cmdline = f"autoyast={autoyast_url}"
+                    # OpenSUSE AutoYaST automation (XML format)
+                    cmdline = f"autoyast={auto_url}"
 
                 if serial_console:
                     cmdline += " console=tty0 console=ttyS0,115200"
@@ -1353,7 +1363,7 @@ class VMProvisioner:
         nvram_path: str | None,
         print_xml: bool = False,
         floppy_image_path: str | None = None,
-        autoyast_url: str | None = None,
+        auto_url: str | None = None,
         is_remote_connection: bool = False,
         serial_console: bool = False,
     ) -> str | None:
@@ -1388,7 +1398,7 @@ class VMProvisioner:
                 )
 
         # ISO
-        if autoyast_url:
+        if auto_url:
             if is_remote_connection:
                 if not can_use_vol_location:
                     raise Exception(
@@ -1432,7 +1442,7 @@ class VMProvisioner:
 
         # Boot / Firmware
         boot_opts = []
-        if autoyast_url:
+        if auto_url:
             boot_opts.append("hd,cdrom,menu=on")
         else:
             boot_opts.append("cdrom,hd,menu=on")
@@ -1480,19 +1490,19 @@ class VMProvisioner:
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
 
         # AutoYaST/Automation file injection
-        if autoyast_url:
+        if auto_url:
             # HTTP-based AutoYaST (uses --extra-args with --location)
-            if autoyast_url.endswith(".json"):
-                extra_args = f"inst.auto={autoyast_url} inst.auto_insecure=1"
+            if auto_url.endswith(".json"):
+                extra_args = f"inst.auto={auto_url} inst.auto_insecure=1"
             else:
-                extra_args = f"autoyast={autoyast_url}"
+                extra_args = f"autoyast={auto_url}"
 
             if serial_console:
                 extra_args += " console=tty0 console=ttyS0,115200"
             cmd.extend(["--extra-args", extra_args])
             logging.info(f"Using HTTP-based automation with --extra-args: {extra_args}")
         elif floppy_image_path:
-            # Legacy floppy-based approach (fallback for non-autoyast_url installs)
+            # Legacy floppy-based approach (fallback for non-auto_url installs)
             cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
             logging.info(f"Using floppy-based Auto: {floppy_image_path}")
 
@@ -1695,7 +1705,7 @@ class VMProvisioner:
         )
 
         # Generate automation file and set up HTTP server if automation is enabled
-        autoyast_url = None
+        auto_url = None
         http_server = None
         automation_file_path = None
         serial_console = False
@@ -1756,16 +1766,27 @@ class VMProvisioner:
                         self.logger.error(f"Error reading/validating automation file: {e}")
                         raise Exception(f"Error reading/validating automation file: {e}")
 
-                    # Start HTTP server to serve the AutoYaST file (for local connections)
-                    # OR create a floppy disk (for remote connections)
+                    # Start HTTP server to serve the automation file(s)
                     try:
-                        # Rename the file to a unique name
-                        unique_id = uuid.uuid4().hex[:8]
-                        is_agama = str(automation_file_path).endswith(".json")
-                        ext = ".json" if is_agama else ".xml"
-                        autoinst_filename = f"autoinst-{unique_id}{ext}"
-                        autoinst_path = temp_dir / autoinst_filename
-                        shutil.copy(automation_file_path, autoinst_path)
+                        # Check if this is Ubuntu autoinstall (has user-data and meta-data files)
+                        user_data_path = temp_dir / "user-data"
+                        meta_data_path = temp_dir / "meta-data"
+                        is_ubuntu_autoinstall = user_data_path.exists() and meta_data_path.exists()
+
+                        if is_ubuntu_autoinstall:
+                            # Ubuntu autoinstall: serve directory containing user-data and meta-data
+                            self.logger.info(
+                                "Detected Ubuntu autoinstall files (user-data + meta-data)"
+                            )
+                            autoinst_filename = ""  # Point to directory root for cloud-init
+                        else:
+                            # OpenSUSE/Agama: rename the single file with unique name
+                            unique_id = uuid.uuid4().hex[:8]
+                            is_agama = str(automation_file_path).endswith(".json")
+                            ext = ".json" if is_agama else ".xml"
+                            autoinst_filename = f"autoinst-{unique_id}{ext}"
+                            autoinst_path = temp_dir / autoinst_filename
+                            shutil.copy(automation_file_path, autoinst_path)
 
                         # Try to start HTTP server on configured port, fallback to random
                         auto_install_port = config.get("AUTO_INSTALL_PORT", 8000)
@@ -1787,16 +1808,23 @@ class VMProvisioner:
                         if http_server:
                             http_server.stop()
                         # Continue without automation
-                        autoyast_url = None
+                        auto_url = None
 
                     # Get host IP and build Auto Install URL
                     host_ip = self._get_host_ip_for_vms()
-                    autoyast_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-
-                    if is_agama:
-                        self.logger.info(f"Agama file available at: {autoyast_url}")
+                    if is_ubuntu_autoinstall:
+                        # For Ubuntu autoinstall, point to directory root (ends with /)
+                        auto_url = f"http://{host_ip}:{port}/"
+                        self.logger.info(f"Ubuntu autoinstall files available at: {auto_url}")
+                        self.logger.info(f"  user-data: {auto_url}user-data")
+                        self.logger.info(f"  meta-data: {auto_url}meta-data")
                     else:
-                        self.logger.info(f"Auto Installl file available at: {autoyast_url}")
+                        # For OpenSUSE/Agama, point to specific file
+                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                        if is_agama:
+                            self.logger.info(f"Agama file available at: {auto_url}")
+                        else:
+                            self.logger.info(f"Auto Install file available at: {auto_url}")
 
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
@@ -1805,7 +1833,7 @@ class VMProvisioner:
                 self.logger.error(f"Failed to generate automation file: {e}")
                 # Continue without automation rather than failing the entire process
                 automation_file_path = None
-                autoyast_url = None
+                auto_url = None
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -1823,7 +1851,7 @@ class VMProvisioner:
                     loader_path,
                     nvram_path,
                     print_xml=True,
-                    autoyast_url=autoyast_url,
+                    auto_url=auto_url,
                     is_remote_connection=is_remote,
                     serial_console=serial_console,
                 )
@@ -1842,6 +1870,7 @@ class VMProvisioner:
                     automation_file_path=str(automation_file_path)
                     if automation_file_path
                     else None,
+                    auto_url=auto_url,
                     serial_console=serial_console,
                 )
 
@@ -1878,7 +1907,7 @@ class VMProvisioner:
                 vcpu,
                 loader_path,
                 nvram_path,
-                autoyast_url=autoyast_url,
+                auto_url=auto_url,
                 is_remote_connection=is_remote,
                 serial_console=serial_console,
             )
@@ -1962,7 +1991,7 @@ class VMProvisioner:
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
                 automation_file_path=final_automation_path,
-                autoyast_url=autoyast_url if kernel_path else None,
+                auto_url=auto_url if kernel_path else None,
                 kernel_path=kernel_path,
                 initrd_path=initrd_path,
                 serial_console=serial_console,
@@ -1993,7 +2022,7 @@ class VMProvisioner:
         # and will be stopped when the VMProvisioner object is garbage collected
         # or when explicitly stopped by the caller
         if http_server:
-            self.logger.info(f"HTTP server still running at {autoyast_url} for installation")
+            self.logger.info(f"HTTP server still running at {auto_url} for installation")
 
         # Auto-restart watcher for AutoYaST (Stage 1 -> Stage 2)
         # Since we set on_reboot='destroy', the VM stops after Stage 1.
