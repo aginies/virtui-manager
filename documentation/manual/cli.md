@@ -61,6 +61,37 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
 *   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
 
+```bash
+(ryzen7) status 161sles:0379866b-77e0-43c4-a6de-f1f9f33c79b9:ryzen7
+
+--- Status on ryzen7 ---
+VM Name                        Status          vCPUs   Memory (MiB)   
+------------------------------ --------------- ------- ---------------
+161sles                                 Running        6       4096           
+
+(ryzen7) vm_info 161sles:0379866b-77e0-43c4-a6de-f1f9f33c79b9:ryzen7
+
+--- VM Information on ryzen7 ---
+
+[ 161sles ]
+  UUID:         0379866b-77e0-43c4-a6de-f1f9f33c79b9
+  Status:       Running
+  Description:  No description available
+  CPU:          6 cores (host-passthrough)
+  Memory:       4096 MiB
+  Machine Type: pc-q35-10.1
+  Firmware:     UEFI (Secure Boot enabled)
+  Networks:
+    - default (MAC: 52:54:00:e8:85:93, model: virtio)
+  IP Addresses:
+    - vnet10 (MAC: 52:54:00:e8:85:93): 1 IPv4 address(es), 0 IPv6 address(es)
+  Disks:
+    - /home/VM_images/161sles.qcow2 (virtio, enabled, disk)
+    - /home/VM_images/SLES-16.0-Online-x86_64-GM.install.iso (sata, enabled, cdrom)
+  Graphics:
+    - spice, port: 5900 (autoport)
+```
+
 ## Network Management
 
 *   **`list_networks`**: Lists all virtual networks on connected servers, showing their state and mode.
@@ -70,12 +101,59 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`net_info <name>`**: Shows detailed information (UUID, bridge, IP, DHCP range) for a network.
 *   **`net_autostart <name> <on|off>`**: Enables or disables autostart for a network.
 
+```bash
+(ryzen7,g.org) net_info default
+
+--- Network 'default' on ryzen7 ---
+UUID: 3de11190-4f53-4640-862d-418372fe2b5f
+Forward Mode: nat
+Bridge: virbr0
+IP: 192.168.122.1 / 255.255.255.0
+DHCP: Enabled
+DHCP Range: 192.168.122.128 - 192.168.122.254
+
+--- Network 'default' on g.org ---
+UUID: dcc28a3d-40b7-4ee1-b811-9b5d2533ccea
+Forward Mode: nat
+Bridge: virbr0
+IP: 192.168.122.1 / 255.255.255.0
+DHCP: Enabled
+DHCP Range: 192.168.122.2 - 192.168.122.254
+```
+
 ## Snapshot Management
 
 *   **`snapshot_list <vm_name>`**: Lists all snapshots for a specific VM.
 *   **`snapshot_create <vm_name> <snapshot_name> [--description "desc"]`**: Creates a new snapshot with an optional description.
 *   **`snapshot_delete <vm_name> <snapshot_name>`**: Deletes a specific snapshot.
 *   **`snapshot_revert <vm_name> <snapshot_name>`**: Reverts a VM to a previously saved snapshot state.
+
+## Backup Management
+
+VirtUI Manager provides a dedicated backup system that supports multiple strategies and advanced features like compression and encryption.
+
+*   **`backup_create <backup_name> [options] [vm_names]`**: Creates a backup of the specified or selected VMs.
+    *   `--type <snapshot|overlay>`: Choose between snapshot-based (default) or disk overlay backups.
+    *   `--compress`: Compress the backup files.
+    *   `--encrypt`: Encrypt the backup for security.
+    *   `--verify`: Verify integrity immediately after creation.
+    *   `--quiesce`: Use guest agent to freeze the filesystem for consistency.
+    *   *Example:* `backup_create daily-$(date) --compress --verify`
+*   **`backup_list [vm_name]`**: Lists all available backups, optionally filtering by VM.
+*   **`backup_status <backup_name>`**: Shows detailed metadata for a specific backup (size, duration, checksums).
+*   **`backup_restore <backup_name> [options]`**: Restores a VM from a backup.
+    *   `--no-verify`: Skip integrity checks before restoration.
+    *   `--force`: Bypass confirmation prompts.
+*   **`backup_cleanup [--older-than <days>] [--type <type>]`**: Removes old backups according to retention policies.
+
+```bash
+(ryzen7,g.org) backup_list
+Backup Name                         VM Name         Server          Type       Status     Created             
+----------------------------------- --------------- --------------- ---------- ---------- --------------------
+maintenance-20260218_213036_sle1... sle16_PRUSA     localhost       snapshot   SUCCESS    2026-02-18 21:30:36 
+maintenance-20260218_201335_sle1... sle16_PRUSA     ryzen7          snapshot   SUCCESS    2026-02-18 20:13:35 
+backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   SUCCESS    2026-02-18 20:04:18 
+```
 
 ## Information & Discovery
 
@@ -84,12 +162,49 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
 *   **`host_info [server]`**: Displays host resource information (CPU models, topology, total/free memory).
 
+```bash
+(ryzen7,g.org) list_pool
+--- Storage Pools on ryzen7 ---
+Pool Name                      Status          Capacity (GiB)  Allocation (GiB) Usage %   
+------------------------------ --------------- --------------- --------------- ----------
+VM_images                      active          870             829             95.29%    
+nvram                          active          58              44              75.86%    
+win                            inactive        0               0               0.00%     
+NFStmp                         inactive        0               0               0.00%     
+ISO                            active          870             829             95.29%    
+default                        active          58              44              75.86%    
+
+--- Storage Pools on g.org ---
+Pool Name                      Status          Capacity (GiB)  Allocation (GiB) Usage %   
+------------------------------ --------------- --------------- --------------- ----------
+default                        active          899             375             41.71%    
+```
+
 ## Advanced Tools
 
 *   **`virsh [server]`**: Launches an interactive `virsh` shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.
 *   **`bash [command]`**: Executes a local shell command or starts an interactive bash shell.
 *   **`history [number|all|info]`**: Displays the command history. Use `history all` to see all history, `history <number>` for a specific number of recent commands, or `history info` for history file location.
 *   **`!<number>`**: Re-executes a command from the history by its number (e.g., `!15` runs command #15).
+
+```bash
+(ryzen7,g.org) virsh
+Multiple active connections:
+  1. ryzen7
+  2. g.org
+Select server (number): 2
+Connecting to virsh on g.org (qemu+ssh:***@ginies.org:999/system?no_tty=1)...
+Type 'exit' or 'quit' to return to virtui-manager.
+Welcome to virsh, the virtualization interactive terminal.
+
+Type:  'help' for help with commands
+       'quit' to quit
+
+virsh # net-list 
+ Name      State    Autostart   Persistent
+--------------------------------------------
+ default   active   yes         yes
+```
 
 ## Pipelines
 
@@ -170,6 +285,7 @@ Snapshot 'pre-update' created for 'web-01'.
 | VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `show_selection` |
 | VM Operations | `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `view` |
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
+| Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `net_autostart` |
 | Storage | `list_pool`, `list_unused_volumes` |
 | Pipelines | `pipeline` (with `|` chaining) |
