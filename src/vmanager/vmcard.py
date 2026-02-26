@@ -888,14 +888,22 @@ class VMCard(Static):
         uuid = ctx["uuid"]
         vm = ctx["vm"]
 
+        # Check if card is still attached to app - if not, abort early
+        try:
+            app = self.app
+        except Exception as e:
+            if e.__class__.__name__ == "NoActiveAppError":
+                return
+            raise
+
         # Skip if VM action is in progress (suppressed) to avoid race conditions
         # where we try to get stats while VM is shutting down
-        if uuid in self.app.vm_service._suppressed_uuids:
+        if uuid in app.vm_service._suppressed_uuids:
             return
 
         try:
             # logging.debug(f"Starting update_stats worker for {self.name} (ID: {uuid})")
-            stats = self.app.vm_service.get_vm_runtime_stats(vm)
+            stats = app.vm_service.get_vm_runtime_stats(vm)
             # logging.debug(f"Stats received for {self.name}: {stats}")
 
             # Prepare result dictionary
@@ -911,7 +919,7 @@ class VMCard(Static):
             }
 
             # Update info from cache if XML has been fetched (e.g. via Configure)
-            vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+            vm_cache = app.vm_service._vm_data_cache.get(uuid, {})
             xml_content = vm_cache.get("xml")
 
             # Parse XML for static details if not yet checked
@@ -937,19 +945,24 @@ class VMCard(Static):
 
             # If stats are missing (VM likely undefined or issue), return early
             if not stats:
-                self.app.call_from_thread(self._apply_stats_update, result)
+                app.call_from_thread(self._apply_stats_update, result)
                 return
 
             # Fetch IPs if running
             if stats.get("status") == StatusText.RUNNING:
                 result["ips"] = get_vm_network_ip(vm)
 
-            self.app.call_from_thread(self._apply_stats_update, result)
+            app.call_from_thread(self._apply_stats_update, result)
 
         except libvirt.libvirtError as e:
             error_code = e.get_error_code()
             result = {"uuid": uuid, "error": e, "error_code": error_code}
-            self.app.call_from_thread(self._handle_stats_error, result)
+            try:
+                app.call_from_thread(self._handle_stats_error, result)
+            except Exception as call_err:
+                if call_err.__class__.__name__ == "NoActiveAppError":
+                    return
+                raise
         except Exception as e:
             if e.__class__.__name__ == "NoActiveAppError":
                 return
@@ -965,6 +978,10 @@ class VMCard(Static):
                 if self.timer:
                     self.timer.stop()
             self.app.refresh_vm_list()
+        elif error_code == libvirt.VIR_ERR_OPERATION_INVALID:
+            # Domain is not running - stop background activities silently
+            # This happens during VM shutdown transitions
+            self.stop_background_activities()
         elif error_code in [
             libvirt.VIR_ERR_SYSTEM_ERROR,
             libvirt.VIR_ERR_RPC,
