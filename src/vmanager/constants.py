@@ -651,7 +651,6 @@ Specify the NUMA nodes to use.
     SUSE_SCC_CONFIGURATION_HEADER = _("SUSE Customer Center (SCC) Configuration")
     SUSE_SCC_CONFIGURATION_SUBTITLE = _("Optional: Configure SCC registration for SUSE products")
     SCC_EMAIL_LABEL = _("SCC Email:")
-    SCC_EMAIL_PLACEHOLDER = _("your-email@example.com")
     SCC_REG_CODE_LABEL = _("SCC Registration Code:")
     SCC_WE_REG_CODE_LABEL = _("SCC Workstation Extension Registration Code:")
     SCC_HPC_REG_CODE_LABEL = _("SCC HPC Registration Code:")
