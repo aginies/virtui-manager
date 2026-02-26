@@ -117,18 +117,40 @@ class UbuntuProvider(OSProvider):
     def generate_automation_file(
         self, template_name: str, config: Dict[str, Any], output_dir: Path
     ) -> Optional[Path]:
-        """Generate Ubuntu automation file (cloud-init or preseed)."""
+        """Generate Ubuntu automation file (autoinstall or preseed)."""
         try:
             self.logger.info(f"Generating Ubuntu automation file with template: {template_name}")
 
-            # Determine if this is autoinstall or preseed
-            if template_name.endswith(".yaml") or "autoinstall" in template_name.lower():
+            # Determine if this is autoinstall or preseed based on filename patterns
+            is_autoinstall = (
+                template_name.startswith("autoinstall")
+                and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
+                or "autoinstall" in template_name.lower()
+                and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
+            )
+
+            is_preseed = (
+                template_name.startswith("preseed")
+                and template_name.endswith(".cfg")
+                or "preseed" in template_name.lower()
+                and template_name.endswith(".cfg")
+            )
+
+            if is_autoinstall:
                 return self._generate_autoinstall_file(template_name, config, output_dir)
-            elif template_name.endswith(".cfg") or "preseed" in template_name.lower():
+            elif is_preseed:
                 return self._generate_preseed_file(template_name, config, output_dir)
             else:
-                self.logger.error(f"Unknown Ubuntu template type: {template_name}")
-                return None
+                # Fallback: try to determine from file extension
+                if template_name.endswith((".yaml", ".yml")):
+                    self.logger.info(f"Treating {template_name} as autoinstall YAML file")
+                    return self._generate_autoinstall_file(template_name, config, output_dir)
+                elif template_name.endswith(".cfg"):
+                    self.logger.info(f"Treating {template_name} as preseed config file")
+                    return self._generate_preseed_file(template_name, config, output_dir)
+                else:
+                    self.logger.error(f"Unknown Ubuntu template type: {template_name}")
+                    return None
 
         except Exception as e:
             self.logger.error(f"Error generating Ubuntu automation file: {e}")
@@ -137,7 +159,12 @@ class UbuntuProvider(OSProvider):
     def validate_template_content(self, content: str, template_name: str) -> bool:
         """Validate Ubuntu template content."""
         try:
-            if template_name.endswith(".yaml") or "autoinstall" in template_name.lower():
+            # Check for Ubuntu autoinstall YAML files (autoinstall*.yaml)
+            if (
+                (template_name.startswith("autoinstall") and template_name.endswith(".yaml"))
+                or "autoinstall" in template_name.lower()
+                and template_name.endswith(".yaml")
+            ):
                 # Validate cloud-init autoinstall YAML
                 import yaml
 
@@ -149,14 +176,17 @@ class UbuntuProvider(OSProvider):
 
                 # Should have autoinstall section for Ubuntu autoinstall
                 if "autoinstall" not in data:
-                    self.logger.warning(
-                        "Cloud-init autoinstall template missing 'autoinstall' section"
-                    )
+                    self.logger.warning("Ubuntu autoinstall template missing 'autoinstall' section")
                     return False
 
                 return True
 
-            elif template_name.endswith(".cfg") or "preseed" in template_name.lower():
+            # Check for Ubuntu preseed files (preseed*.cfg)
+            elif (
+                (template_name.startswith("preseed") and template_name.endswith(".cfg"))
+                or "preseed" in template_name.lower()
+                and template_name.endswith(".cfg")
+            ):
                 # Validate preseed content
                 if not content.strip():
                     return False
@@ -170,6 +200,21 @@ class UbuntuProvider(OSProvider):
                 ]
 
                 return len(valid_lines) > 0
+
+            # Generic YAML check for other Ubuntu automation files
+            elif template_name.endswith(".yaml") or template_name.endswith(".yml"):
+                try:
+                    import yaml
+
+                    yaml.safe_load(content)
+                    return True
+                except yaml.YAMLError:
+                    return False
+
+            # Generic config file check
+            elif template_name.endswith(".cfg"):
+                # Basic check for non-empty config files
+                return bool(content.strip())
 
             return False
 
