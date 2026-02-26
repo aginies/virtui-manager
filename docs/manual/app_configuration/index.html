@@ -1809,6 +1809,7 @@
 </ul>
 <h2 id="automated-installation-pre-fill">Automated Installation Pre-fill<a class="headerlink" href="#automated-installation-pre-fill" title="Permanent link">&para;</a></h2>
 <p>VirtUI Manager supports pre-filling automation fields to streamline the VM creation process when using unattended installation templates. This configuration allows you to set default values that automatically populate the automation fields, saving time during VM provisioning.</p>
+<p><img alt="Auto-Fill Configuration" src="../images/autofill.png" /></p>
 <h3 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h3>
 <p>Add the <code>AUTO_INSTALL_PRE_FILL</code> section to your <code>config.yaml</code> file:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">AUTO_INSTALL_PRE_FILL</span><span class="p">:</span>
@@ -1828,11 +1829,13 @@
 </ul>
 <h3 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
 <ol>
-<li><strong>Template Selection</strong>: When you select an automation template during VM creation, VirtUI Manager checks for <code>AUTO_INSTALL_PRE_FILL</code> configuration</li>
+<li><strong>Template Management</strong>: Press <strong><code>t</code></strong> to access the Template Management modal and click the <strong>"Auto-Fill"</strong> button to configure pre-fill values</li>
+<li><strong>Template Selection</strong>: When you select an automation template during VM creation, VirtUI Manager checks for <code>AUTO_INSTALL_PRE_FILL</code> configuration  </li>
 <li><strong>Auto-Population</strong>: If configured values exist, the corresponding fields are automatically filled with your preset values</li>
 <li><strong>Manual Override</strong>: You can still modify any pre-filled values before creating the VM</li>
 <li><strong>Secure Storage</strong>: Consider using secure values and restricting file permissions (<code>chmod 600</code>) for the config file if it contains passwords</li>
 </ol>
+<p><img alt="Template Management" src="../images/template.png" /></p>
 <h3 id="security-considerations">Security Considerations<a class="headerlink" href="#security-considerations" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>File Permissions</strong>: Ensure your config file has appropriate permissions to protect sensitive information:
@@ -1849,12 +1852,22 @@
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">SUSE_SCC</span><span class="p">:</span>
 <a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">scc_email</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-email@company.com&quot;</span><span class="w">           </span><span class="c1"># Your SCC account email</span>
 <a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">scc_reg_code</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-scc-registration-code&quot;</span><span class="w">    </span><span class="c1"># Your SCC registration code</span>
-<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">scc_product_arch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;x86_64&quot;</span><span class="w">                    </span><span class="c1"># Target architecture</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">scc_ha_reg_code</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-scc-ha-registration-code&quot;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">scc_hpc_reg_code</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-scc-hpc-registration-code&quot;</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">scc_ltss_reg_code</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-scc-ltss-registration-code&quot;</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">scc_lpatching_reg_code</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-scc-live-patching-registration-code&quot;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">scc_we_reg_code</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-scc-registration-code&quot;</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">scc_product_arch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;x86_64&quot;</span><span class="w">                    </span><span class="c1"># Target architecture</span>
 </code></pre></div>
 <h3 id="available-fields_1">Available Fields<a class="headerlink" href="#available-fields_1" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong><code>scc_email</code></strong>: Your SUSE Customer Center account email address</li>
+<li><strong><code>scc_email</code></strong>: Your SUSE Customer Center account email address  </li>
 <li><strong><code>scc_reg_code</code></strong>: Registration code from your SUSE Customer Center account</li>
+<li><strong><code>scc_ha_reg_code</code></strong>: Registration code for HA</li>
+<li><strong><code>scc_hpc_reg_code</code></strong>: Registration code for HPC</li>
+<li><strong><code>scc_we_reg_code</code></strong>: Registration code for Workstation Extensionrom</li>
+<li><strong><code>scc_ltss_reg_code</code></strong>: Registration code for LTSS</li>
+<li><strong><code>scc_lpatching_reg_code</code></strong>: Registration code for Live Patching</li>
 <li><strong><code>scc_product_arch</code></strong>: Target product architecture for registration</li>
 </ul>
 <h3 id="supported-architectures">Supported Architectures<a class="headerlink" href="#supported-architectures" title="Permanent link">&para;</a></h3>
@@ -1883,8 +1896,8 @@
 <h3 id="configuration-management">Configuration Management<a class="headerlink" href="#configuration-management" title="Permanent link">&para;</a></h3>
 <p>The SCC configuration can be managed through:</p>
 <ol>
+<li><strong>Template Management UI</strong>: Press <strong><code>t</code></strong> to access Template Management modal and click <strong>"Auto-Fill"</strong> button to configure SCC registration codes</li>
 <li><strong>Manual Editing</strong>: Directly edit the <code>config.yaml</code> file</li>
-<li><strong>Template Management UI</strong>: Use the "Configure Auto-fill" button in the template management interface</li>
 <li><strong>Bulk Deployment</strong>: Copy configuration files across multiple systems</li>
 </ol>
 <h3 id="integration-with-automated-installation">Integration with Automated Installation<a class="headerlink" href="#integration-with-automated-installation" title="Permanent link">&para;</a></h3>

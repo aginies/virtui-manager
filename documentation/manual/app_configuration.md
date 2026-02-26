@@ -89,6 +89,8 @@ servers:
 
 VirtUI Manager supports pre-filling automation fields to streamline the VM creation process when using unattended installation templates. This configuration allows you to set default values that automatically populate the automation fields, saving time during VM provisioning.
 
+![Auto-Fill Configuration](images/autofill.png)
+
 ### Configuration
 
 Add the `AUTO_INSTALL_PRE_FILL` section to your `config.yaml` file:
@@ -112,10 +114,13 @@ AUTO_INSTALL_PRE_FILL:
 
 ### How It Works
 
-1. **Template Selection**: When you select an automation template during VM creation, VirtUI Manager checks for `AUTO_INSTALL_PRE_FILL` configuration
-2. **Auto-Population**: If configured values exist, the corresponding fields are automatically filled with your preset values
-3. **Manual Override**: You can still modify any pre-filled values before creating the VM
-4. **Secure Storage**: Consider using secure values and restricting file permissions (`chmod 600`) for the config file if it contains passwords
+1. **Template Management**: Press **`t`** to access the Template Management modal and click the **"Auto-Fill"** button to configure pre-fill values
+2. **Template Selection**: When you select an automation template during VM creation, VirtUI Manager checks for `AUTO_INSTALL_PRE_FILL` configuration  
+3. **Auto-Population**: If configured values exist, the corresponding fields are automatically filled with your preset values
+4. **Manual Override**: You can still modify any pre-filled values before creating the VM
+5. **Secure Storage**: Consider using secure values and restricting file permissions (`chmod 600`) for the config file if it contains passwords
+
+![Template Management](images/template.png)
 
 ### Security Considerations
 
@@ -139,13 +144,23 @@ Add the `SUSE_SCC` section to your `config.yaml` file:
 SUSE_SCC:
   scc_email: "your-email@company.com"           # Your SCC account email
   scc_reg_code: "your-scc-registration-code"    # Your SCC registration code
+  scc_ha_reg_code: "your-scc-ha-registration-code"
+  scc_hpc_reg_code: "your-scc-hpc-registration-code"
+  scc_ltss_reg_code: "your-scc-ltss-registration-code"
+  scc_lpatching_reg_code: "your-scc-live-patching-registration-code"
+  scc_we_reg_code: "your-scc-registration-code"
   scc_product_arch: "x86_64"                    # Target architecture
 ```
 
 ### Available Fields
 
-*   **`scc_email`**: Your SUSE Customer Center account email address
+*   **`scc_email`**: Your SUSE Customer Center account email address  
 *   **`scc_reg_code`**: Registration code from your SUSE Customer Center account
+*   **`scc_ha_reg_code`**: Registration code for HA
+*   **`scc_hpc_reg_code`**: Registration code for HPC
+*   **`scc_we_reg_code`**: Registration code for Workstation Extensionrom
+*   **`scc_ltss_reg_code`**: Registration code for LTSS
+*   **`scc_lpatching_reg_code`**: Registration code for Live Patching
 *   **`scc_product_arch`**: Target product architecture for registration
 
 ### Supported Architectures
@@ -176,9 +191,8 @@ SUSE_SCC:
 
 The SCC configuration can be managed through:
 
-1. **Manual Editing**: Directly edit the `config.yaml` file
-2. **Template Management UI**: Use the "Configure Auto-fill" button in the template management interface
-3. **Bulk Deployment**: Copy configuration files across multiple systems
+1. **Template Management UI**: Press **`t`** to access Template Management modal and click **"Auto-Fill"** button to configure SCC registration codes
+2. **Manual Editing**: Directly edit the `config.yaml` file
 
 ### Integration with Automated Installation
 

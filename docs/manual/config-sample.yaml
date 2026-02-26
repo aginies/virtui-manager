@@ -1,6 +1,7 @@
 # VirtUI Manager Configuration File
 # 
 # Copy this file to ~/.config/virtui-manager/config.yaml and customize as needed.
+# This sample shows how to configure custom ISO repositories.
 
 # Custom ISO repositories for VM provisioning
 # These repositories will appear in the distribution dropdown during VM creation
@@ -50,20 +51,12 @@ AUTO_INSTALL_PRE_FILL:
   keyboard: "us"              # Keyboard layout (us, fr, de, it, etc.)
   language: "English (US)"    # System language
 
-AUTO_INSTALL_PORT: 8000
-CACHE_TTL: 300
-
 # SUSE Customer Center (SCC) Configuration
 # Configure SCC registration for automated SUSE product installations
 # Configure via Template Management UI (press 't' and click 'Auto-Fill' button)
 SUSE_SCC:
   scc_email: "your-email@company.com"           # Your SCC account email
-  scc_reg_code: "your-scc-registration-code"    # Your SCC registration code
-  scc_ha_reg_code: "your-scc-ha-registration-code"
-  scc_hpc_reg_code: "your-scc-hpc-registration-code"
-  scc_ltss_reg_code: "your-scc-ltss-registration-code"
-  scc_lpatching_reg_code: "your-scc-live-patching-registration-code"
-  scc_we_reg_code: "your-scc-registration-code"
+  scc_reg_code: "your-scc-registration-code"    # Your SCC registration code (supports new SCC REG code format)
   scc_product_arch: "x86_64"                    # Target architecture (x86_64, aarch64, s390x, ppc64le)
 
 # Log configuration
@@ -71,9 +64,9 @@ LOG_FILE_PATH: ~/.cache/virtui-manager/vm_manager.log
 LOG_LEVEL: INFO
 
 # VNC/Console settings
-REMOTE_VIEWER: virtui-remote-viewer
-REMOTE_WEBCONSOLE: true
-VNC_QUALITY: 1
+REMOTE_VIEWER: /usr/bin/remote-viewer
+REMOTE_WEBCONSOLE: false
+VNC_QUALITY: 0
 VNC_COMPRESSION: 9
 
 # Network and hardware model options
