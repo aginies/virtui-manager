@@ -14,7 +14,7 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
-from ..provisioning.templates.autoyast_template_manager import AutoYaSTTemplateManager
+from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
@@ -549,12 +549,13 @@ class InstallVMModal(BaseModal[str | None]):
         Populate the template select widget based on the selected distribution.
 
         Template filtering rules:
-        - "Cached ISOs" → Show ALL templates (AutoYaST + Agama)
+        - "Cached ISOs" → Show ALL templates (AutoYaST + Agama + Ubuntu)
         - "OpenSUSE Leap" → Show ONLY AutoYaST templates
         - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
         - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
         - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
         - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
+        - "Ubuntu distributions" → Show ONLY Ubuntu templates (autoinstall*.yaml, preseed*.cfg)
         - Custom repositories → Show ALL templates
         """
         # Get all templates
@@ -607,23 +608,42 @@ class InstallVMModal(BaseModal[str | None]):
                             filtered_templates.append(template)
 
         elif isinstance(distro, UbuntuDistro):
-            # Ubuntu distributions → Show Ubuntu-related templates
-            # For Ubuntu, we primarily support cloud-init/preseed templates
+            # Ubuntu distributions → Show Ubuntu automation templates
+            # Ubuntu uses autoinstall*.yaml and preseed*.cfg files
             filtered_templates = []
             for template in all_templates:
                 filename = template.get("filename", "")
                 display_name = template.get("display_name", "")
 
-                # Check for Ubuntu-specific template markers
-                is_ubuntu_template = (
-                    filename.endswith(".yaml")
-                    or filename.endswith(".cfg")
-                    or "(Ubuntu)" in display_name
-                    or "(Cloud-init)" in display_name
-                    or "(Preseed)" in display_name
+                # Check for Ubuntu-specific automation file patterns
+                is_ubuntu_autoinstall = (
+                    filename.startswith("autoinstall")
+                    and filename.endswith(".yaml")
+                    or filename.startswith("autoinstall")
+                    and filename.endswith(".yml")
+                    or "autoinstall" in filename.lower()
+                    and (filename.endswith(".yaml") or filename.endswith(".yml"))
                 )
 
-                if is_ubuntu_template:
+                is_ubuntu_preseed = (
+                    filename.startswith("preseed")
+                    and filename.endswith(".cfg")
+                    or "preseed" in filename.lower()
+                    and filename.endswith(".cfg")
+                )
+
+                # Also check display names for Ubuntu markers
+                is_ubuntu_template = (
+                    "(Ubuntu)" in display_name
+                    or "(Autoinstall)" in display_name
+                    or "(Preseed)" in display_name
+                    or "(Cloud-init)" in display_name
+                )
+
+                # Include if it matches Ubuntu automation patterns or is explicitly marked as Ubuntu
+                should_include = is_ubuntu_autoinstall or is_ubuntu_preseed or is_ubuntu_template
+
+                if should_include:
                     # Include built-in Ubuntu templates
                     if template["type"] == "built-in":
                         filtered_templates.append(template)
@@ -631,8 +651,11 @@ class InstallVMModal(BaseModal[str | None]):
                     elif template["type"] == "user":
                         if (
                             "(Ubuntu)" in display_name
-                            or "(Cloud-init)" in display_name
+                            or "(Autoinstall)" in display_name
                             or "(Preseed)" in display_name
+                            or "(Cloud-init)" in display_name
+                            or is_ubuntu_autoinstall
+                            or is_ubuntu_preseed
                         ):
                             filtered_templates.append(template)
 
