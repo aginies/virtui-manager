@@ -57,14 +57,36 @@
             <name>sle-module-containers</name>
             <arch>{scc_product_arch}</arch>
            </addon>
+           <addon>
+            <name>sle-module-ltss</name>
+	    <arch>{scc_product_arch}</arch>
+	    <reg_code>{scc_ltss_reg_code}</reg_code>
+           </addon>
+           <addon>
+            <name>sle-module-hpc</name>
+	    <arch>{scc_product_arch}</arch>
+	    <reg_code>{scc_hpc_reg_code}</reg_code>
+           </addon>
+           <addon>
+            <name>sle-module-ha</name>
+	    <arch>{scc_product_arch}</arch>
+	    <reg_code>{scc_ha_reg_code}</reg_code>
+           </addon>
+           <addon>
+            <name>sle-module-we</name>
+	    <arch>{scc_product_arch}</arch>
+	    <reg_code>{scc_we_reg_code}</reg_code>
+           </addon>
+            <name>sle-module-live-patching</name>
+	    <arch>{scc_product_arch}</arch>
+	    <reg_code>{scc_lpatching_reg_code}</reg_code>
+           </addon>
 	 </addons>
 	    <!--
-	    sle-module-live-patching
 	    sle-module-python3
 	    sle-module-legacy
 	    sle-module-public-cloud
 	    sle-module-certifications
-	    sle-module-hpc
 	    -->
     </suse_register>
 

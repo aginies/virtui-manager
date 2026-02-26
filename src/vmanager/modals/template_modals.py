@@ -721,6 +721,51 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                 id="scc-reg-code-input",
             )
 
+            # SCC WE Registration Code
+            yield Label(StaticText.SCC_WE_REG_CODE_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_we_reg_code", ""),
+                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                password=True,
+                id="scc-we-reg-code-input",
+            )
+
+            # SCC HPC Registration Code
+            yield Label(StaticText.SCC_HPC_REG_CODE_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_hpc_reg_code", ""),
+                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                password=True,
+                id="scc-hpc-reg-code-input",
+            )
+
+            # SCC HA Registration Code
+            yield Label(StaticText.SCC_HA_REG_CODE_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_ha_reg_code", ""),
+                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                password=True,
+                id="scc-ha-reg-code-input",
+            )
+
+            # SCC Live Patching Registration Code
+            yield Label(StaticText.SCC_LPATCHING_REG_CODE_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_lpatching_reg_code", ""),
+                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                password=True,
+                id="scc-lpatching-reg-code-input",
+            )
+
+            # SCC LTSS Registration Code
+            yield Label(StaticText.SCC_LTSS_REG_CODE_LABEL, classes="label")
+            yield Input(
+                value=self.scc_config.get("scc_ltss_reg_code", ""),
+                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                password=True,
+                id="scc-ltss-reg-code-input",
+            )
+
             # SCC Product Architecture
             yield Label(StaticText.SCC_PRODUCT_ARCH_LABEL, classes="label")
             arch_options = [
@@ -760,6 +805,11 @@ class AutoFillConfigModal(BaseModal[dict | None]):
             # Collect SUSE_SCC values
             scc_email = self.query_one("#scc-email-input", Input).value
             scc_reg_code = self.query_one("#scc-reg-code-input", Input).value
+            scc_we_reg_code = self.query_one("#scc-we-reg-code-input", Input).value
+            scc_hpc_reg_code = self.query_one("#scc-hpc-reg-code-input", Input).value
+            scc_ha_reg_code = self.query_one("#scc-ha-reg-code-input", Input).value
+            scc_ltss_reg_code = self.query_one("#scc-ltss-reg-code-input", Input).value
+            scc_lpatching_reg_code = self.query_one("#scc-lpatching-reg-code-input", Input).value
             scc_arch = self.query_one("#scc-arch-select", Select).value
 
             # Build the AUTO_INSTALL_PRE_FILL configuration
@@ -781,6 +831,17 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                 scc_config["scc_email"] = scc_email.strip()
             if scc_reg_code.strip():
                 scc_config["scc_reg_code"] = scc_reg_code.strip()
+            if scc_we_reg_code.strip():
+                scc_config["scc_we_reg_code"] = scc_we_reg_code.strip()
+            if scc_ha_reg_code.strip():
+                scc_config["scc_ha_reg_code"] = scc_ha_reg_code.strip()
+            if scc_hpc_reg_code.strip():
+                scc_config["scc_hpc_reg_code"] = scc_hpc_reg_code.strip()
+            if scc_ltss_reg_code.strip():
+                scc_config["scc_ltss_reg_code"] = scc_ltss_reg_code.strip()
+            if scc_lpatching_reg_code.strip():
+                scc_config["scc_lpatching_reg_code"] = scc_lpatching_reg_code.strip()
+
             if scc_arch and scc_arch != Select.BLANK:
                 scc_config["scc_product_arch"] = scc_arch
 

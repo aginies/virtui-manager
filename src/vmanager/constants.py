@@ -653,6 +653,11 @@ Specify the NUMA nodes to use.
     SCC_EMAIL_LABEL = _("SCC Email:")
     SCC_EMAIL_PLACEHOLDER = _("your-email@example.com")
     SCC_REG_CODE_LABEL = _("SCC Registration Code:")
+    SCC_WE_REG_CODE_LABEL = _("SCC Workstation Extension Registration Code:")
+    SCC_HPC_REG_CODE_LABEL = _("SCC HPC Registration Code:")
+    SCC_HA_REG_CODE_LABEL = _("SCC HA Registration Code:")
+    SCC_LTSS_REG_CODE_LABEL = _("SCC LTSS Registration Code:")
+    SCC_LPATCHING_REG_CODE_LABEL = _("SCC Live Patching Registration Code:")
     SCC_REG_CODE_PLACEHOLDER = _("Registration code from SUSE Customer Center")
     SCC_PRODUCT_ARCH_LABEL = _("SCC Product Architecture:")
     # Shared language/locale constants to avoid duplication

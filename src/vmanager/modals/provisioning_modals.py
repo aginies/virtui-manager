@@ -1136,6 +1136,11 @@ class InstallVMModal(BaseModal[str | None]):
                             "serial_console": serial_console,  # Add serial console option
                             "scc_email": scc_config.get("scc_email", ""),
                             "scc_reg_code": scc_config.get("scc_reg_code", ""),
+                            "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
+                            "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
+                            "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
+                            "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
+                            "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
                             "scc_product_arch": scc_config.get("scc_product_arch", ""),
                         }
                     except Exception as e:
