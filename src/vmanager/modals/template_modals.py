@@ -708,7 +708,7 @@ class AutoFillConfigModal(BaseModal[dict | None]):
             yield Label(StaticText.SCC_EMAIL_LABEL, classes="label")
             yield Input(
                 value=self.scc_config.get("scc_email", ""),
-                placeholder=StaticText.SCC_EMAIL_PLACEHOLDER,
+                placeholder="your-email@example.com",
                 id="scc-email-input",
             )
 
