@@ -1,0 +1,84 @@
+#cloud-config
+autoinstall:
+  version: 1
+  
+  # Basic server installation with minimal packages
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  
+  # Network configuration - use DHCP
+  network:
+    network:
+      version: 2
+      ethernets:
+        {network_interface}:
+          dhcp4: true
+          dhcp6: false
+  
+  # User setup
+  identity:
+    hostname: {hostname}
+    username: {username}
+    password: $6$rounds=4096$salted$hash.generated.password
+    # Note: In real deployment, use proper password hashing
+  
+  # SSH configuration
+  ssh:
+    install-server: true
+    allow-pw: true
+  
+  # Storage configuration - use entire disk
+  storage:
+    layout:
+      name: direct
+      match:
+        path: {disk_device}
+    config:
+      - type: disk
+        id: disk0
+        match:
+          path: {disk_device}
+        wipe: superblock
+        grub_device: true
+      - type: partition
+        id: partition0
+        device: disk0
+        size: 1G
+        flag: boot
+      - type: partition  
+        id: partition1
+        device: disk0
+        size: -1
+      - type: format
+        id: format0
+        volume: partition0
+        fstype: ext4
+      - type: format
+        id: format1
+        volume: partition1
+        fstype: ext4
+      - type: mount
+        id: mount0
+        device: format0
+        path: /boot
+      - type: mount
+        id: mount1
+        device: format1
+        path: /
+  
+  # Package selection
+  packages:
+    - openssh-server
+    - curl
+    - wget
+    - vim
+    - htop
+  
+  # Post-installation commands
+  late-commands:
+    - 'echo "Installation completed successfully" > /target/var/log/autoinstall.log'
+    - 'systemctl enable ssh'
+  
+  # Automatic reboot after installation
+  shutdown: reboot

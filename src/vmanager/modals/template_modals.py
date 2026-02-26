@@ -35,7 +35,7 @@ class TemplateNameModal(BaseModal[dict | None]):
     SUPPORTED_OS = [
         ("openSUSE", "openSUSE"),
         ("SLES", "SUSE Linux Enterprise Server"),
-        # ("Ubuntu", "Ubuntu"),
+        ("Ubuntu", "Ubuntu"),
         # ("Debian", "Debian"),
         # ("Fedora", "Fedora"),
         # ("RHEL", "Red Hat Enterprise Linux"),

@@ -1,7 +1,7 @@
 """
-AutoYaST Template Manager
-Handles all AutoYaST template operations including CRUD, validation, and external editing.
-Specific to openSUSE/SUSE Linux Enterprise automated installations.
+Automation Template Manager
+Handles all automation template operations including CRUD, validation, and external editing.
+Supports multiple automation systems: AutoYaST (openSUSE/SLES), Agama, Ubuntu Autoinstall, and Ubuntu Preseed.
 """
 
 import logging
@@ -20,13 +20,14 @@ from ...utils import is_inside_tmux
 
 class AutoYaSTTemplateManager:
     """
-    Service layer for AutoYaST template management.
+    Service layer for automation template management.
 
     Handles all template operations including:
     - CRUD operations for user templates
-    - Template validation (quick XML and comprehensive)
+    - Template validation (XML, JSON, YAML, preseed formats)
     - External editor launching via tmux
     - Template discovery (built-in and user templates)
+    - Support for multiple automation systems: AutoYaST, Agama, Ubuntu Autoinstall, Ubuntu Preseed
     """
 
     SKELETON_TEMPLATE_FILENAME = "autoyast-skeleton.xml"
@@ -83,9 +84,14 @@ class AutoYaSTTemplateManager:
         templates = []
 
         try:
-            # Look for autoyast-*.xml and agama-*.json files, excluding the skeleton
-            patterns = ["autoyast-*.xml", "agama-*.json"]
-            for pattern in patterns:
+            # Look for OpenSUSE templates (autoyast-*.xml and agama-*.json files), excluding the skeleton
+            opensuse_patterns = ["autoyast-*.xml", "agama-*.json"]
+
+            # Also look for Ubuntu templates (autoinstall-*.yaml and preseed-*.cfg files)
+            ubuntu_patterns = ["autoinstall-*.yaml", "autoinstall-*.yml", "preseed-*.cfg"]
+
+            all_patterns = opensuse_patterns + ubuntu_patterns
+            for pattern in all_patterns:
                 for template_file in self.TEMPLATES_DIR.glob(pattern):
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
                         continue  # Skip skeleton template
@@ -124,8 +130,9 @@ class AutoYaSTTemplateManager:
             # Scan file system for user templates
             base_dir = get_user_templates_dir()
 
-            # Recursively find all XML and JSON files in templates directory
-            patterns = ["*.xml", "*.json"]
+            # Recursively find all template files in templates directory
+            # Support OpenSUSE (XML, JSON) and Ubuntu (YAML, CFG) templates
+            patterns = ["*.xml", "*.json", "*.yaml", "*.yml", "*.cfg"]
             for pattern in patterns:
                 for template_file in base_dir.rglob(pattern):
                     try:
@@ -190,7 +197,13 @@ class AutoYaSTTemplateManager:
         """
         # If template_id is a file path, read it directly
         template_path = Path(template_id)
-        if template_path.exists() and template_path.suffix in [".xml", ".json"]:
+        if template_path.exists() and template_path.suffix in [
+            ".xml",
+            ".json",
+            ".yaml",
+            ".yml",
+            ".cfg",
+        ]:
             try:
                 with open(template_path, "r", encoding="utf-8") as f:
                     content = f.read()
@@ -295,10 +308,24 @@ class AutoYaSTTemplateManager:
                 # Get OS-specific directory
                 os_dir = get_user_templates_dir_for_os(os_name)
 
-                # Determine extension based on content
+                # Determine extension based on content and OS type
                 extension = ".xml"
-                if content.strip().startswith("{") and content.strip().endswith("}"):
-                    extension = ".json"
+                content_stripped = content.strip()
+
+                # Detect format based on content
+                if content_stripped.startswith("{") and content_stripped.endswith("}"):
+                    extension = ".json"  # JSON format (e.g., Agama)
+                elif content_stripped.startswith("#") or "debconf" in content_stripped.lower():
+                    extension = ".cfg"  # Preseed format
+                elif (
+                    content_stripped.startswith("#cloud-config")
+                    or "autoinstall:" in content_stripped
+                ):
+                    extension = ".yaml"  # Cloud-init/Autoinstall format
+                elif os_name.lower() == "ubuntu" and (
+                    "version:" in content_stripped or "locale:" in content_stripped
+                ):
+                    extension = ".yaml"  # Likely Ubuntu autoinstall
 
                 template_path = os_dir / f"{safe_name}{extension}"
 
@@ -345,7 +372,13 @@ class AutoYaSTTemplateManager:
         try:
             # Check if it's a file path
             template_path = Path(template_id)
-            if template_path.exists() and template_path.suffix in [".xml", ".json"]:
+            if template_path.exists() and template_path.suffix in [
+                ".xml",
+                ".json",
+                ".yaml",
+                ".yml",
+                ".cfg",
+            ]:
                 # Delete template file
                 template_path.unlink()
 
@@ -496,7 +529,7 @@ class AutoYaSTTemplateManager:
 
     def validate_content(self, content: str) -> tuple[bool, str | None]:
         """
-        Perform quick XML or JSON validation.
+        Perform quick validation based on content format.
 
         Args:
             content: Content to validate
@@ -505,8 +538,9 @@ class AutoYaSTTemplateManager:
             Tuple of (is_valid: bool, error_message: str | None)
         """
         content_stripped = content.strip()
+
+        # JSON validation (Agama templates)
         if content_stripped.startswith("{") and content_stripped.endswith("}"):
-            # Try JSON validation
             import json
 
             try:
@@ -514,8 +548,30 @@ class AutoYaSTTemplateManager:
                 return True, None
             except Exception as e:
                 return False, str(e)
+
+        # YAML validation (Ubuntu Autoinstall templates)
+        elif (
+            content_stripped.startswith("#cloud-config")
+            or "autoinstall:" in content_stripped
+            or "version:" in content_stripped
+        ):
+            try:
+                import yaml
+
+                yaml.safe_load(content)
+                return True, None
+            except Exception as e:
+                return False, f"Invalid YAML: {str(e)}"
+
+        # Preseed validation (Ubuntu preseed templates)
+        elif content_stripped.startswith("#") or "debconf" in content_stripped.lower():
+            # Basic preseed validation - check for common directives
+            if not any(directive in content for directive in ["d-i ", "tasksel ", "pkgsel "]):
+                return False, "Content does not appear to be a valid preseed file"
+            return True, None
+
+        # XML validation (AutoYaST templates)
         else:
-            # Try XML validation
             try:
                 ET.fromstring(content)
                 return True, None
@@ -619,9 +675,19 @@ class AutoYaSTTemplateManager:
             return False
 
         try:
-            # Create temporary file
+            # Create temporary file with appropriate extension
+            content_stripped = content.strip()
+            if content_stripped.startswith("{") and content_stripped.endswith("}"):
+                file_suffix = ".json"
+            elif content_stripped.startswith("#cloud-config") or "autoinstall:" in content_stripped:
+                file_suffix = ".yaml"
+            elif content_stripped.startswith("#") or "debconf" in content_stripped.lower():
+                file_suffix = ".cfg"
+            else:
+                file_suffix = ".xml"
+
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".xml", delete=False, encoding="utf-8"
+                mode="w", suffix=file_suffix, delete=False, encoding="utf-8"
             ) as tmp_file:
                 tmp_file.write(content)
                 tmp_file_path = tmp_file.name
@@ -703,9 +769,19 @@ class AutoYaSTTemplateManager:
             return False
 
         try:
-            # Create temporary file
+            # Create temporary file with appropriate extension
+            content_stripped = content.strip()
+            if content_stripped.startswith("{") and content_stripped.endswith("}"):
+                file_suffix = ".json"
+            elif content_stripped.startswith("#cloud-config") or "autoinstall:" in content_stripped:
+                file_suffix = ".yaml"
+            elif content_stripped.startswith("#") or "debconf" in content_stripped.lower():
+                file_suffix = ".cfg"
+            else:
+                file_suffix = ".xml"
+
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".xml", delete=False, encoding="utf-8"
+                mode="w", suffix=file_suffix, delete=False, encoding="utf-8"
             ) as tmp_file:
                 tmp_file.write(content)
                 tmp_file_path = tmp_file.name
@@ -793,7 +869,7 @@ class AutoYaSTTemplateManager:
         This is a centralized function used by both the template manager and providers.
 
         Args:
-            template_name: Template stem name (e.g., 'autoyast-basic', 'agama-minimal')
+            template_name: Template stem name (e.g., 'autoyast-basic', 'agama-minimal', 'autoinstall-basic')
 
         Returns:
             tuple[str, str]: (display_name, description)
@@ -850,6 +926,32 @@ class AutoYaSTTemplateManager:
                 "SUSE Linux Enterprise Server (Agama)",
                 "Agama-based SLES installation with SCC registration",
             ),
+            # Ubuntu Autoinstall templates
+            "autoinstall-basic": (
+                "Basic Server (Autoinstall)",
+                "Basic Ubuntu server installation with essential packages",
+            ),
+            "autoinstall-minimal": (
+                "Minimal System (Autoinstall)",
+                "Minimal Ubuntu installation with only core packages",
+            ),
+            "autoinstall-desktop": (
+                "Desktop Environment (Autoinstall)",
+                "Full Ubuntu desktop environment with GNOME and applications",
+            ),
+            # Ubuntu Preseed templates
+            "preseed-basic": (
+                "Basic Server (Preseed)",
+                "Basic Ubuntu server installation using preseed configuration",
+            ),
+            "preseed-minimal": (
+                "Minimal System (Preseed)",
+                "Minimal Ubuntu installation using preseed configuration",
+            ),
+            "preseed-desktop": (
+                "Desktop Environment (Preseed)",
+                "Full Ubuntu desktop environment using preseed configuration",
+            ),
         }
 
         if template_name in info_map:
@@ -861,6 +963,17 @@ class AutoYaSTTemplateManager:
                 template_name.replace("agama-", "").replace("-", " ").title() + " (Agama)"
             )
             description = f"Custom Agama template: {template_name}"
+        elif template_name.startswith("autoinstall-"):
+            display_name = (
+                template_name.replace("autoinstall-", "").replace("-", " ").title()
+                + " (Autoinstall)"
+            )
+            description = f"Custom Ubuntu autoinstall template: {template_name}"
+        elif template_name.startswith("preseed-"):
+            display_name = (
+                template_name.replace("preseed-", "").replace("-", " ").title() + " (Preseed)"
+            )
+            description = f"Custom Ubuntu preseed template: {template_name}"
         else:
             display_name = (
                 template_name.replace("autoyast-", "").replace("-", " ").title() + " (AutoYaST)"

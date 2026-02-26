@@ -65,7 +65,7 @@ from .modals.selection_modals import PatternSelectModal
 from .modals.server_modals import ServerManagementModal
 from .modals.server_prefs_modals import ServerPrefModal
 from .modals.template_modals import TemplateManagementModal
-from .provisioning.templates.autoyast_template_manager import AutoYaSTTemplateManager
+from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .modals.utils_modals import (
     ConfirmationDialog,
     LoadingModal,

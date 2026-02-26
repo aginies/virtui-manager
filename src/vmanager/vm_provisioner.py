@@ -1,5 +1,5 @@
 """
-Library for VM creation and provisioning, specifically focused on OpenSUSE.
+Library for VM creation and provisioning, supporting multiple Linux distributions.
 """
 
 import hashlib
@@ -11,9 +11,10 @@ import socket
 import ssl
 import subprocess
 import tempfile
+import time
 import urllib.request
 import urllib.error
-import uuid # Added import
+import uuid  # Added import
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -23,7 +24,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import libvirt
-from packaging.version import parse as parse_version # Added import
+from packaging.version import parse as parse_version  # Added import
 
 from .auto_http_server import AutoHTTPServer
 from .config import load_config
@@ -33,9 +34,10 @@ from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType
 from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
+from .provisioning.providers.ubuntu_provider import UbuntuProvider, UbuntuDistro
 from .storage_manager import create_volume
 from .vm_actions import strip_installation_assets, get_vm_boot_files, delete_boot_files
-from .utils import get_virt_install_version # Added import
+from .utils import get_virt_install_version  # Added import
 
 
 class VMType(Enum):
@@ -70,12 +72,19 @@ class VMProvisioner:
         except Exception as e:
             self.logger.warning(f"Failed to register OpenSUSE provider: {e}")
 
+        try:
+            ubuntu_provider = UbuntuProvider()
+            self.provider_registry.register_provider(ubuntu_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register Ubuntu provider: {e}")
+
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
         # Convert string to OSType enum
         os_type_map = {
             "linux": OSType.LINUX,
             "opensuse": OSType.LINUX,
+            "ubuntu": OSType.UBUNTU,
             "windows": OSType.WINDOWS,
         }
 
@@ -121,7 +130,7 @@ class VMProvisioner:
         Get list of ISOs for a distribution or custom repository.
 
         Args:
-            distro: Either an OpenSUSEDistro enum or a custom repository URL string
+            distro: Either an OpenSUSEDistro, UbuntuDistro enum or a custom repository URL string
 
         Returns:
             List of ISO dictionaries with 'name', 'url', and 'date' keys
@@ -133,6 +142,15 @@ class VMProvisioner:
                 return provider.get_iso_list(distro)
             else:
                 logging.warning("OpenSUSE provider not available or doesn't support get_iso_list")
+                return []
+
+        # Handle Ubuntu distributions - delegate to provider
+        elif isinstance(distro, UbuntuDistro):
+            provider = self.get_provider("ubuntu")
+            if provider and hasattr(provider, "get_iso_list"):
+                return provider.get_iso_list(distro.value)  # Pass the string value
+            else:
+                logging.warning("Ubuntu provider not available or doesn't support get_iso_list")
                 return []
 
         # Handle custom repository URLs (strings)
@@ -335,16 +353,36 @@ class VMProvisioner:
             iso_url = f"{base_url.rstrip('/')}/{clean_iso_name}"
             return {"name": clean_iso_name, "url": iso_url, "date": "Unknown"}
 
+    def _format_download_speed(self, bytes_per_second: float) -> str:
+        """Format download speed in human-readable format."""
+        if bytes_per_second < 1024:
+            return f"{bytes_per_second:.1f} B"
+        elif bytes_per_second < 1024 * 1024:
+            return f"{bytes_per_second / 1024:.1f} KB"
+        elif bytes_per_second < 1024 * 1024 * 1024:
+            return f"{bytes_per_second / (1024 * 1024):.1f} MB"
+        else:
+            return f"{bytes_per_second / (1024 * 1024 * 1024):.1f} GB"
+
     def download_iso(
-        self, url: str, dest_path: str, progress_callback: Optional[Callable[[int], None]] = None
+        self,
+        url: str,
+        dest_path: str,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
     ):
         """
         Downloads the ISO from the given URL to the destination path.
+        Shows download progress with network speed.
+
+        Args:
+            url: URL to download from
+            dest_path: Local path to save the file
+            progress_callback: Optional callback that receives (message, percent)
         """
         if os.path.exists(dest_path):
             logging.info(f"ISO already exists at {dest_path}, skipping download.")
             if progress_callback:
-                progress_callback(100)
+                progress_callback("ISO already exists", 100)
             return
 
         logging.info(f"Downloading ISO from {url} to {dest_path}")
@@ -360,16 +398,57 @@ class VMProvisioner:
                 downloaded_size = 0
                 chunk_size = 1024 * 1024  # 1MB chunks
 
+                # Initialize speed calculation variables
+                start_time = time.time()
+                last_update_time = start_time
+                last_downloaded_size = 0
+                speed_update_interval = 1.0  # Update speed every second
+
                 while True:
+                    chunk_start_time = time.time()
                     chunk = response.read(chunk_size)
                     if not chunk:
                         break
                     out_file.write(chunk)
                     downloaded_size += len(chunk)
 
+                    current_time = time.time()
+
+                    # Update progress with speed calculation
                     if progress_callback and total_size > 0:
                         percent = int((downloaded_size / total_size) * 100)
-                        progress_callback(percent)
+
+                        # Calculate speed every second or on final chunk
+                        time_since_last_update = current_time - last_update_time
+                        if (
+                            time_since_last_update >= speed_update_interval
+                            or downloaded_size == total_size
+                        ):
+                            # Calculate current speed
+                            bytes_downloaded_since_last = downloaded_size - last_downloaded_size
+                            if time_since_last_update > 0:
+                                current_speed = bytes_downloaded_since_last / time_since_last_update
+                            else:
+                                current_speed = 0
+
+                            # Format speed for display
+                            speed_str = self._format_download_speed(current_speed)
+
+                            # Create progress message with speed
+                            message = StaticText.PROVISIONING_DOWNLOADING_ISO_SPEED.format(
+                                percent=percent, speed=speed_str
+                            )
+                            progress_callback(message, percent)
+
+                            # Update tracking variables
+                            last_update_time = current_time
+                            last_downloaded_size = downloaded_size
+                        else:
+                            # Use the basic message for frequent updates
+                            message = StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(
+                                percent=percent
+                            )
+                            progress_callback(message, percent)
 
         except Exception as e:
             logging.error(f"Failed to download ISO: {e}")
@@ -387,7 +466,12 @@ class VMProvisioner:
         Uploads a local ISO file to the specified storage pool.
         Returns the path of the uploaded volume on the server.
         """
-        return self.upload_file(local_path, storage_pool_name, volume_name=os.path.basename(local_path), progress_callback=progress_callback)
+        return self.upload_file(
+            local_path,
+            storage_pool_name,
+            volume_name=os.path.basename(local_path),
+            progress_callback=progress_callback,
+        )
 
     def upload_file(
         self,
@@ -499,7 +583,6 @@ class VMProvisioner:
                     )
                 except libvirt.libvirtError:
                     logging.warning("Could not restore original libvirt keepalive settings.")
-
 
     def validate_iso(self, local_path: str, expected_checksum: str = None) -> bool:
         """
@@ -886,10 +969,10 @@ class VMProvisioner:
         nvram_path: str | None = None,
         boot_uefi: bool = True,
         automation_file_path: str | None = None,
-                autoyast_url: str | None = None,
-                kernel_path: str | None = None,
-                initrd_path: str | None = None,
-                serial_console: bool = False,
+        auto_url: str | None = None,
+        kernel_path: str | None = None,
+        initrd_path: str | None = None,
+        serial_console: bool = False,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
@@ -922,12 +1005,22 @@ class VMProvisioner:
     <kernel>{kernel_path}</kernel>
     <initrd>{initrd_path}</initrd>
 """
-            if autoyast_url:
-                if autoyast_url.endswith(".json"):
-                    cmdline = f"inst.auto={autoyast_url} inst.auto_insecure=1"
+            if auto_url:
+                # Determine the appropriate kernel arguments based on file type and URL
+                if auto_url.endswith(".json"):
+                    # Agama (openSUSE) automation
+                    cmdline = f"inst.auto={auto_url} inst.auto_insecure=1"
+                elif auto_url.endswith("/") or "user-data" in auto_url:
+                    # Ubuntu autoinstall automation (cloud-init based)
+                    # URL should point to directory containing user-data and meta-data
+                    cmdline = f"autoinstall ds=nocloud-net;s={auto_url}"
+                elif auto_url.endswith(".cfg"):
+                    # Ubuntu preseed automation
+                    cmdline = f"auto=true preseed/url={auto_url}"
                 else:
-                    cmdline = f"autoyast={autoyast_url}"
-                
+                    # OpenSUSE AutoYaST automation (XML format)
+                    cmdline = f"autoyast={auto_url}"
+
                 if serial_console:
                     cmdline += " console=tty0 console=ttyS0,115200"
                 xml += f"    <cmdline>{cmdline}</cmdline>\n"
@@ -955,7 +1048,7 @@ class VMProvisioner:
                 xml += """
   </os>
 """
-        else: # Standard BIOS
+        else:  # Standard BIOS
             xml += f"""
   <os>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
@@ -1160,13 +1253,14 @@ class VMProvisioner:
             # Create a blank 1.44MB floppy image
             subprocess.run(
                 ["dd", "if=/dev/zero", f"of={floppy_image_path}", "bs=1k", "count=1440"],
-                check=True, capture_output=True, text=True
+                check=True,
+                capture_output=True,
+                text=True,
             )
 
             # Format the image with a FAT filesystem
             subprocess.run(
-                ["mkfs.vfat", str(floppy_image_path)],
-                check=True, capture_output=True, text=True
+                ["mkfs.vfat", str(floppy_image_path)], check=True, capture_output=True, text=True
             )
 
             # mcopy needs the file to be in the current directory to use ::/ syntax easily
@@ -1177,16 +1271,18 @@ class VMProvisioner:
             # Use mcopy to copy the file into the root of the floppy image
             subprocess.run(
                 ["mcopy", "-i", str(floppy_image_path), str(temp_autoinst_path), "::/"],
-                check=True, capture_output=True, text=True
+                check=True,
+                capture_output=True,
+                text=True,
             )
 
-            os.remove(temp_autoinst_path) # Clean up temp copy
+            os.remove(temp_autoinst_path)  # Clean up temp copy
 
             self.logger.info(f"Successfully created Auto floppy image at {floppy_image_path}")
             return str(floppy_image_path)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            stderr = e.stderr if hasattr(e, 'stderr') and e.stderr else str(e)
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to create floppy image: {stderr}")
             raise Exception(f"Failed to create Auto floppy image: {stderr}") from e
 
@@ -1205,29 +1301,116 @@ class VMProvisioner:
         try:
             self.logger.info(f"Extracting kernel and initrd from {iso_path}...")
             cmd = [
-                "7z", "x", iso_path,
+                "7z",
+                "x",
+                iso_path,
                 kernel_path_in_iso,
                 initrd_path_in_iso,
                 f"-o{tmp_dir}",
-                "-y" # Assume yes to all queries
+                "-y",  # Assume yes to all queries
             ]
             subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             extracted_kernel_path = os.path.join(tmp_dir, "boot", arch, "loader", "linux")
             extracted_initrd_path = os.path.join(tmp_dir, "boot", arch, "loader", "initrd")
 
-            if not os.path.exists(extracted_kernel_path) or not os.path.exists(extracted_initrd_path):
-                raise FileNotFoundError("Kernel or initrd not found in the ISO at the expected path.")
+            if not os.path.exists(extracted_kernel_path) or not os.path.exists(
+                extracted_initrd_path
+            ):
+                raise FileNotFoundError(
+                    "Kernel or initrd not found in the ISO at the expected path."
+                )
 
             self.logger.info(f"Kernel and initrd extracted to {tmp_dir}")
             return extracted_kernel_path, extracted_initrd_path
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            stderr = e.stderr if hasattr(e, 'stderr') and e.stderr else str(e)
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
             shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract kernel/initrd from ISO: {stderr}") from e
+
+    def _extract_ubuntu_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+        """Extracts kernel and initrd from an Ubuntu ISO (casper/ directory)."""
+        if not shutil.which("7z"):
+            raise Exception(
+                "Ubuntu kernel extraction requires '7z' (p7zip-full). "
+                "Please install it or use the virt-install method."
+            )
+
+        tmp_dir = tempfile.mkdtemp(prefix="virtui_ubuntu_iso_extract_")
+
+        # Ubuntu kernel and initrd are in the casper/ directory
+        # Try both common naming patterns
+        kernel_candidates = ["casper/vmlinuz", "casper/vmlinuz.efi"]
+        initrd_candidates = ["casper/initrd", "casper/initrd.lz", "casper/initrd.gz"]
+
+        # First, let's extract the entire casper directory to see what's available
+        try:
+            self.logger.info(f"Extracting Ubuntu casper/ directory from {iso_path}...")
+            cmd = [
+                "7z",
+                "x",
+                iso_path,
+                "casper/",
+                f"-o{tmp_dir}",
+                "-y",  # Assume yes to all queries
+            ]
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+            # Find the actual kernel and initrd files
+            casper_dir = os.path.join(tmp_dir, "casper")
+            if not os.path.exists(casper_dir):
+                raise FileNotFoundError("casper/ directory not found in Ubuntu ISO")
+
+            # Find kernel file
+            kernel_path = None
+            for candidate in kernel_candidates:
+                full_path = os.path.join(tmp_dir, candidate)
+                if os.path.exists(full_path):
+                    kernel_path = full_path
+                    break
+
+            if not kernel_path:
+                # List available files for debugging
+                available_files = []
+                for file in os.listdir(casper_dir):
+                    if file.startswith("vmlinuz"):
+                        available_files.append(f"casper/{file}")
+                raise FileNotFoundError(
+                    f"Ubuntu kernel (vmlinuz*) not found in casper/. Available: {available_files}"
+                )
+
+            # Find initrd file
+            initrd_path = None
+            for candidate in initrd_candidates:
+                full_path = os.path.join(tmp_dir, candidate)
+                if os.path.exists(full_path):
+                    initrd_path = full_path
+                    break
+
+            if not initrd_path:
+                # List available files for debugging
+                available_files = []
+                for file in os.listdir(casper_dir):
+                    if file.startswith("initrd"):
+                        available_files.append(f"casper/{file}")
+                raise FileNotFoundError(
+                    f"Ubuntu initrd not found in casper/. Available: {available_files}"
+                )
+
+            self.logger.info(f"Ubuntu kernel and initrd extracted to {tmp_dir}")
+            self.logger.info(f"  Kernel: {kernel_path}")
+            self.logger.info(f"  Initrd: {initrd_path}")
+            return kernel_path, initrd_path
+
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
+            self.logger.error(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}")
+            # Clean up temp dir on failure
+            shutil.rmtree(tmp_dir)
+            raise Exception(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}") from e
 
     def _run_virt_install(
         self,
@@ -1242,7 +1425,7 @@ class VMProvisioner:
         nvram_path: str | None,
         print_xml: bool = False,
         floppy_image_path: str | None = None,
-        autoyast_url: str | None = None,
+        auto_url: str | None = None,
         is_remote_connection: bool = False,
         serial_console: bool = False,
     ) -> str | None:
@@ -1272,11 +1455,12 @@ class VMProvisioner:
                 if parse_version(self.virt_install_version) >= parse_version("1.4.0"):
                     can_use_vol_location = True
             except Exception as e:
-                self.logger.warning(f"Error parsing virt-install version '{self.virt_install_version}': {e}")
-
+                self.logger.warning(
+                    f"Error parsing virt-install version '{self.virt_install_version}': {e}"
+                )
 
         # ISO
-        if autoyast_url:
+        if auto_url:
             if is_remote_connection:
                 if not can_use_vol_location:
                     raise Exception(
@@ -1320,7 +1504,7 @@ class VMProvisioner:
 
         # Boot / Firmware
         boot_opts = []
-        if autoyast_url:
+        if auto_url:
             boot_opts.append("hd,cdrom,menu=on")
         else:
             boot_opts.append("cdrom,hd,menu=on")
@@ -1368,19 +1552,19 @@ class VMProvisioner:
         # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
 
         # AutoYaST/Automation file injection
-        if autoyast_url:
+        if auto_url:
             # HTTP-based AutoYaST (uses --extra-args with --location)
-            if autoyast_url.endswith(".json"):
-                extra_args = f"inst.auto={autoyast_url} inst.auto_insecure=1"
+            if auto_url.endswith(".json"):
+                extra_args = f"inst.auto={auto_url} inst.auto_insecure=1"
             else:
-                extra_args = f"autoyast={autoyast_url}"
-                
+                extra_args = f"autoyast={auto_url}"
+
             if serial_console:
                 extra_args += " console=tty0 console=ttyS0,115200"
             cmd.extend(["--extra-args", extra_args])
             logging.info(f"Using HTTP-based automation with --extra-args: {extra_args}")
         elif floppy_image_path:
-            # Legacy floppy-based approach (fallback for non-autoyast_url installs)
+            # Legacy floppy-based approach (fallback for non-auto_url installs)
             cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
             logging.info(f"Using floppy-based Auto: {floppy_image_path}")
 
@@ -1501,9 +1685,9 @@ class VMProvisioner:
                 else:
                     local_iso_path_for_upload = str(iso_cache_dir / iso_name)
 
-                    def download_cb(percent):
+                    def download_cb(message, percent):
                         report(
-                            StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(percent=percent),
+                            message,
                             10 + int(percent * 0.4),
                         )  # 10-50%
 
@@ -1583,7 +1767,7 @@ class VMProvisioner:
         )
 
         # Generate automation file and set up HTTP server if automation is enabled
-        autoyast_url = None
+        auto_url = None
         http_server = None
         automation_file_path = None
         serial_console = False
@@ -1594,14 +1778,21 @@ class VMProvisioner:
             try:
                 report(StaticText.PROVISIONING_GENERATING_AUTOMATION_CONFIG, 82)
 
-                # Get the OpenSUSE provider to generate automation file
-                provider = self.get_provider("opensuse")
+                # Get the appropriate provider based on template type
+                template_name = automation_config.get("template_name", "autoyast-basic.xml")
+                is_ubuntu_template = any(
+                    keyword in template_name.lower()
+                    for keyword in ["ubuntu", "autoinstall", "preseed"]
+                )
+
+                if is_ubuntu_template:
+                    provider = self.get_provider("ubuntu")
+                else:
+                    provider = self.get_provider("opensuse")
+
                 if provider:
                     # Create a temporary directory for automation file
                     temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
-
-                    # Extract template name from automation config
-                    template_name = automation_config.get("template_name", "autoyast-basic.xml")
 
                     # Generate automation file using the provider
                     automation_file_path = provider.generate_automation_file(
@@ -1617,15 +1808,16 @@ class VMProvisioner:
                     try:
                         with open(automation_file_path, "r", encoding="utf-8") as f:
                             content = f.read()
-                        
+
                         if str(automation_file_path).endswith(".json"):
                             import json
+
                             json.loads(content)
                             self.logger.info("Automation JSON file validation passed")
                         else:
                             ET.fromstring(content)
                             self.logger.info("Automation XML file validation passed")
-                            
+
                     except ET.ParseError as parse_error:
                         self.logger.error(f"Invalid XML in automation file: {parse_error}")
                         raise Exception(f"Invalid XML in automation file: {parse_error}")
@@ -1636,16 +1828,27 @@ class VMProvisioner:
                         self.logger.error(f"Error reading/validating automation file: {e}")
                         raise Exception(f"Error reading/validating automation file: {e}")
 
-                    # Start HTTP server to serve the AutoYaST file (for local connections)
-                    # OR create a floppy disk (for remote connections)
+                    # Start HTTP server to serve the automation file(s)
                     try:
-                        # Rename the file to a unique name
-                        unique_id = uuid.uuid4().hex[:8]
-                        is_agama = str(automation_file_path).endswith(".json")
-                        ext = ".json" if is_agama else ".xml"
-                        autoinst_filename = f"autoinst-{unique_id}{ext}"
-                        autoinst_path = temp_dir / autoinst_filename
-                        shutil.copy(automation_file_path, autoinst_path)
+                        # Check if this is Ubuntu autoinstall (has user-data and meta-data files)
+                        user_data_path = temp_dir / "user-data"
+                        meta_data_path = temp_dir / "meta-data"
+                        is_ubuntu_autoinstall = user_data_path.exists() and meta_data_path.exists()
+
+                        if is_ubuntu_autoinstall:
+                            # Ubuntu autoinstall: serve directory containing user-data and meta-data
+                            self.logger.info(
+                                "Detected Ubuntu autoinstall files (user-data + meta-data)"
+                            )
+                            autoinst_filename = ""  # Point to directory root for cloud-init
+                        else:
+                            # OpenSUSE/Agama: rename the single file with unique name
+                            unique_id = uuid.uuid4().hex[:8]
+                            is_agama = str(automation_file_path).endswith(".json")
+                            ext = ".json" if is_agama else ".xml"
+                            autoinst_filename = f"autoinst-{unique_id}{ext}"
+                            autoinst_path = temp_dir / autoinst_filename
+                            shutil.copy(automation_file_path, autoinst_path)
 
                         # Try to start HTTP server on configured port, fallback to random
                         auto_install_port = config.get("AUTO_INSTALL_PORT", 8000)
@@ -1667,16 +1870,23 @@ class VMProvisioner:
                         if http_server:
                             http_server.stop()
                         # Continue without automation
-                        autoyast_url = None
+                        auto_url = None
 
                     # Get host IP and build Auto Install URL
                     host_ip = self._get_host_ip_for_vms()
-                    autoyast_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-
-                    if is_agama:
-                        self.logger.info(f"Agama file available at: {autoyast_url}")
+                    if is_ubuntu_autoinstall:
+                        # For Ubuntu autoinstall, point to directory root (ends with /)
+                        auto_url = f"http://{host_ip}:{port}/"
+                        self.logger.info(f"Ubuntu autoinstall files available at: {auto_url}")
+                        self.logger.info(f"  user-data: {auto_url}user-data")
+                        self.logger.info(f"  meta-data: {auto_url}meta-data")
                     else:
-                        self.logger.info(f"Auto Installl file available at: {autoyast_url}")
+                        # For OpenSUSE/Agama, point to specific file
+                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                        if is_agama:
+                            self.logger.info(f"Agama file available at: {auto_url}")
+                        else:
+                            self.logger.info(f"Auto Install file available at: {auto_url}")
 
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
@@ -1685,7 +1895,7 @@ class VMProvisioner:
                 self.logger.error(f"Failed to generate automation file: {e}")
                 # Continue without automation rather than failing the entire process
                 automation_file_path = None
-                autoyast_url = None
+                auto_url = None
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -1703,7 +1913,7 @@ class VMProvisioner:
                     loader_path,
                     nvram_path,
                     print_xml=True,
-                    autoyast_url=autoyast_url,
+                    auto_url=auto_url,
                     is_remote_connection=is_remote,
                     serial_console=serial_console,
                 )
@@ -1722,6 +1932,7 @@ class VMProvisioner:
                     automation_file_path=str(automation_file_path)
                     if automation_file_path
                     else None,
+                    auto_url=auto_url,
                     serial_console=serial_console,
                 )
 
@@ -1758,7 +1969,7 @@ class VMProvisioner:
                 vcpu,
                 loader_path,
                 nvram_path,
-                autoyast_url=autoyast_url,
+                auto_url=auto_url,
                 is_remote_connection=is_remote,
                 serial_console=serial_console,
             )
@@ -1769,23 +1980,46 @@ class VMProvisioner:
         else:
             # For XML-based provisioning, we need to handle asset uploads to ensure permissions
             kernel_path, initrd_path = None, None
-            final_automation_path = None # This will be the path on the storage pool
+            final_automation_path = None  # This will be the path on the storage pool
 
             if automation_config:
                 try:
                     # Preferred method: kernel extraction for cmdline boot
                     local_iso_path = _determine_iso_path(iso_url)
-                    local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(local_iso_path, self.host_arch)
+
+                    # Determine if this is Ubuntu based on template name
+                    template_name = automation_config.get("template_name", "")
+                    is_ubuntu_template = any(
+                        keyword in template_name.lower()
+                        for keyword in ["ubuntu", "autoinstall", "preseed"]
+                    )
+
+                    if is_ubuntu_template:
+                        # Use Ubuntu-specific kernel extraction (casper/ directory)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        )
+                    else:
+                        # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
+                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
+                            local_iso_path, self.host_arch
+                        )
 
                     report("Uploading kernel and initrd", 81)
-                    kernel_path = self.upload_file(local_kernel_path, storage_pool_name, f"{vm_name}-kernel")
-                    initrd_path = self.upload_file(local_initrd_path, storage_pool_name, f"{vm_name}-initrd")
+                    kernel_path = self.upload_file(
+                        local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
+                    )
+                    initrd_path = self.upload_file(
+                        local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
+                    )
                     self.logger.info(f"Kernel/initrd uploaded to storage pool for XML install.")
 
                 except Exception as e:
-                    self.logger.error(f"Failed to use kernel extraction for Auto Install: {e}. "
-                                      "Falling back to floppy-based method.")
-                    kernel_path, initrd_path = None, None # Ensure fallback logic triggers
+                    self.logger.error(
+                        f"Failed to use kernel extraction for Auto Install: {e}. "
+                        "Falling back to floppy-based method."
+                    )
+                    kernel_path, initrd_path = None, None  # Ensure fallback logic triggers
 
             # Fallback to floppy method if kernel extraction fails or is not applicable
             if not kernel_path and automation_file_path:
@@ -1799,7 +2033,9 @@ class VMProvisioner:
                         floppy_image_path, storage_pool_name, volume_name=automation_vol_name
                     )
                 except Exception as e:
-                    self.logger.error(f"Could not create or upload floppy image for Auto Install: {e}")
+                    self.logger.error(
+                        f"Could not create or upload floppy image for Auto Install: {e}"
+                    )
                     # Re-raise the exception to stop provisioning a broken VM
                     raise e
 
@@ -1817,7 +2053,7 @@ class VMProvisioner:
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
                 automation_file_path=final_automation_path,
-                autoyast_url=autoyast_url if kernel_path else None,
+                auto_url=auto_url if kernel_path else None,
                 kernel_path=kernel_path,
                 initrd_path=initrd_path,
                 serial_console=serial_console,
@@ -1832,7 +2068,9 @@ class VMProvisioner:
             # configuration of installation assets (kernel/initrd/cmdline/floppy)
             # so that it's ready for the first boot from disk after installation completes.
             if kernel_path or final_automation_path:
-                self.logger.info(f"Cleaning installation assets from persistent configuration for {vm_name}.")
+                self.logger.info(
+                    f"Cleaning installation assets from persistent configuration for {vm_name}."
+                )
                 try:
                     # Capture boot files before stripping them from XML
                     root = ET.fromstring(dom.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE))
@@ -1846,15 +2084,19 @@ class VMProvisioner:
         # and will be stopped when the VMProvisioner object is garbage collected
         # or when explicitly stopped by the caller
         if http_server:
-            self.logger.info(f"HTTP server still running at {autoyast_url} for installation")
+            self.logger.info(f"HTTP server still running at {auto_url} for installation")
 
         # Auto-restart watcher for AutoYaST (Stage 1 -> Stage 2)
         # Since we set on_reboot='destroy', the VM stops after Stage 1.
         # This thread waits for it to stop and then restarts it to finish installation.
         if automation_config:
-            def restart_watcher(domain, name, logger, boot_files_to_delete, http_server_to_stop, temp_dir_to_clean):
+
+            def restart_watcher(
+                domain, name, logger, boot_files_to_delete, http_server_to_stop, temp_dir_to_clean
+            ):
                 import time
                 import shutil
+
                 logger.info(f"Starting restart watcher for {name}")
                 # 1. Wait for it to start running (it might be in 'defining' state)
                 timeout = 120
@@ -1866,16 +2108,20 @@ class VMProvisioner:
                         pass
                     time.sleep(1)
                     timeout -= 1
-                
+
                 # 2. Now wait for it to stop (end of stage 1)
                 while True:
                     try:
                         state, reason = domain.state()
                         if state == libvirt.VIR_DOMAIN_SHUTOFF:
                             if reason == libvirt.VIR_DOMAIN_SHUTOFF_DESTROYED:
-                                logger.info(f"VM {name} was manually stopped by user. Disabling auto-restart.")
+                                logger.info(
+                                    f"VM {name} was manually stopped by user. Disabling auto-restart."
+                                )
                             else:
-                                logger.info(f"VM {name} stopped (Stage 1 complete, reason={reason}). Restarting in 3 seconds...")
+                                logger.info(
+                                    f"VM {name} stopped (Stage 1 complete, reason={reason}). Restarting in 3 seconds..."
+                                )
                                 time.sleep(3)
                                 try:
                                     domain.create()
@@ -1885,9 +2131,11 @@ class VMProvisioner:
 
                             # Installation assets cleanup (always cleanup when Stage 1 ends or user stops)
                             if boot_files_to_delete:
-                                logger.info(f"Deleting boot files for {name}: {boot_files_to_delete}")
+                                logger.info(
+                                    f"Deleting boot files for {name}: {boot_files_to_delete}"
+                                )
                                 delete_boot_files(domain.connect(), boot_files_to_delete)
-                            
+
                             if http_server_to_stop:
                                 logger.info(f"Stopping HTTP server for {name}")
                                 http_server_to_stop.stop()
@@ -1895,7 +2143,7 @@ class VMProvisioner:
                             if temp_dir_to_clean and os.path.exists(temp_dir_to_clean):
                                 logger.info(f"Cleaning up temporary directory: {temp_dir_to_clean}")
                                 shutil.rmtree(temp_dir_to_clean, ignore_errors=True)
-                            
+
                             break
                     except Exception as e:
                         logger.error(f"Error in restart watcher for {name}: {e}")
@@ -1903,10 +2151,11 @@ class VMProvisioner:
                     time.sleep(5)
 
             import threading
+
             threading.Thread(
-                target=restart_watcher, 
-                args=(dom, vm_name, self.logger, boot_files, http_server, temp_dir), 
-                daemon=True
+                target=restart_watcher,
+                args=(dom, vm_name, self.logger, boot_files, http_server, temp_dir),
+                daemon=True,
             ).start()
 
         report(StaticText.PROVISIONING_COMPLETE, 100)

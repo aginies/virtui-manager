@@ -216,7 +216,7 @@ class OpenSUSEProvider(OSProvider):
         """Scan and return available AutoYaST templates (built-in + user templates)."""
         # Use AutoYaSTTemplateManager to get all templates (built-in + user)
         try:
-            from ..templates.autoyast_template_manager import AutoYaSTTemplateManager
+            from ..templates.auto_template_manager import AutoYaSTTemplateManager
 
             template_manager = AutoYaSTTemplateManager()
             return template_manager.get_all_templates()
@@ -236,7 +236,7 @@ class OpenSUSEProvider(OSProvider):
 
                         # Create display name from filename using centralized template info
                         try:
-                            from ..templates.autoyast_template_manager import (
+                            from ..templates.auto_template_manager import (
                                 AutoYaSTTemplateManager,
                             )
 
@@ -275,7 +275,7 @@ class OpenSUSEProvider(OSProvider):
                 if basic_template.exists():
                     # Use centralized template info for consistency
                     try:
-                        from ..templates.autoyast_template_manager import AutoYaSTTemplateManager
+                        from ..templates.auto_template_manager import AutoYaSTTemplateManager
 
                         display_name, description = (
                             AutoYaSTTemplateManager.get_template_info_for_name("autoyast-basic")
