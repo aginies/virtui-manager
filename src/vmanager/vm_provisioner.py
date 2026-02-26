@@ -25,7 +25,7 @@ from typing import Any, Callable, Dict, List, Optional
 import libvirt
 from packaging.version import parse as parse_version # Added import
 
-from .autoyast_http_server import AutoYaSTHTTPServer
+from .auto_http_server import AutoHTTPServer
 from .config import load_config
 from .constants import AppInfo, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
@@ -1182,19 +1182,19 @@ class VMProvisioner:
 
             os.remove(temp_autoinst_path) # Clean up temp copy
 
-            self.logger.info(f"Successfully created AutoYaST floppy image at {floppy_image_path}")
+            self.logger.info(f"Successfully created Auto floppy image at {floppy_image_path}")
             return str(floppy_image_path)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             stderr = e.stderr if hasattr(e, 'stderr') and e.stderr else str(e)
             self.logger.error(f"Failed to create floppy image: {stderr}")
-            raise Exception(f"Failed to create AutoYaST floppy image: {stderr}") from e
+            raise Exception(f"Failed to create Auto floppy image: {stderr}") from e
 
     def _extract_iso_kernel_initrd(self, iso_path: str, arch: str) -> tuple[str, str]:
         """Extracts kernel and initrd from an openSUSE/SLES ISO."""
         if not shutil.which("7z"):
             raise Exception(
-                "XML-based AutoYaST with kernel arguments requires '7z' (p7zip-full). "
+                "XML-based Auto with kernel arguments requires '7z' (p7zip-full). "
                 "Please install it or use the virt-install method."
             )
 
@@ -1280,20 +1280,20 @@ class VMProvisioner:
             if is_remote_connection:
                 if not can_use_vol_location:
                     raise Exception(
-                        "Remote AutoYaST with virt-install requires virt-install >= 1.4.0 "
+                        "Remote Auto with virt-install requires virt-install >= 1.4.0 "
                         "for --location vol=... syntax. Please upgrade virt-install on the client "
                         "or disable 'Use virt-install' in the provisioning dialog."
                     )
-                # For remote AutoYaST, use vol=pool/volname for --location
+                # For remote Auto, use vol=pool/volname for --location
                 iso_vol_name = os.path.basename(iso_path)
                 location_arg = f"vol={storage_pool_name}/{iso_vol_name}"
                 cmd.extend(["--location", location_arg])
                 logging.info(f"Using remote ISO location for virt-install: {location_arg}")
             else:
-                # For local AutoYaST, use --location with the local path
+                # For local Auto, use --location with the local path
                 cmd.extend(["--location", iso_path])
         else:
-            # For non-AutoYaST, use --cdrom
+            # For non-Auto, use --cdrom
             cmd.extend(["--cdrom", iso_path])
 
         # Network
@@ -1382,7 +1382,7 @@ class VMProvisioner:
         elif floppy_image_path:
             # Legacy floppy-based approach (fallback for non-autoyast_url installs)
             cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
-            logging.info(f"Using floppy-based AutoYaST: {floppy_image_path}")
+            logging.info(f"Using floppy-based Auto: {floppy_image_path}")
 
         cmd.extend(["--noautoconsole"])
 
@@ -1648,35 +1648,35 @@ class VMProvisioner:
                         shutil.copy(automation_file_path, autoinst_path)
 
                         # Try to start HTTP server on configured port, fallback to random
-                        autoyast_port = config.get("AUTO_YAST_PORT", 8000)
-                        http_server = AutoYaSTHTTPServer(temp_dir, port=autoyast_port)
+                        auto_install_port = config.get("AUTO_INSTALL_PORT", 8000)
+                        http_server = AutoHTTPServer(temp_dir, port=auto_install_port)
                         port = http_server.start()
                     except OSError as e:
                         if e.errno == 98:  # Address already in use
                             self.logger.warning(
-                                f"Configured AutoYaST port {autoyast_port} is in use. "
+                                f"Configured Auto Install port {auto_install_port} is in use. "
                                 "Falling back to a random port."
                             )
-                            http_server = AutoYaSTHTTPServer(temp_dir, port=0)
+                            http_server = AutoHTTPServer(temp_dir, port=0)
                             port = http_server.start()
                         else:
                             raise
 
                     except Exception as e:
-                        self.logger.error(f"Failed to start HTTP server for AutoYast: {e}")
+                        self.logger.error(f"Failed to start HTTP server for Auto Install: {e}")
                         if http_server:
                             http_server.stop()
                         # Continue without automation
                         autoyast_url = None
 
-                    # Get host IP and build AutoYaST/Agama URL
+                    # Get host IP and build Auto Install URL
                     host_ip = self._get_host_ip_for_vms()
                     autoyast_url = f"http://{host_ip}:{port}/{autoinst_filename}"
 
                     if is_agama:
                         self.logger.info(f"Agama file available at: {autoyast_url}")
                     else:
-                        self.logger.info(f"AutoYaST file available at: {autoyast_url}")
+                        self.logger.info(f"Auto Installl file available at: {autoyast_url}")
 
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
@@ -1783,7 +1783,7 @@ class VMProvisioner:
                     self.logger.info(f"Kernel/initrd uploaded to storage pool for XML install.")
 
                 except Exception as e:
-                    self.logger.error(f"Failed to use kernel extraction for AutoYaST: {e}. "
+                    self.logger.error(f"Failed to use kernel extraction for Auto Install: {e}. "
                                       "Falling back to floppy-based method.")
                     kernel_path, initrd_path = None, None # Ensure fallback logic triggers
 
@@ -1799,7 +1799,7 @@ class VMProvisioner:
                         floppy_image_path, storage_pool_name, volume_name=automation_vol_name
                     )
                 except Exception as e:
-                    self.logger.error(f"Could not create or upload floppy image for AutoYaST: {e}")
+                    self.logger.error(f"Could not create or upload floppy image for Auto Install: {e}")
                     # Re-raise the exception to stop provisioning a broken VM
                     raise e
 

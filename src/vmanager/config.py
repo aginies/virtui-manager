@@ -31,7 +31,7 @@ DEFAULT_CONFIG = {
     "LOG_FILE_PATH": str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
     "LOG_LEVEL": "INFO",
     "ISO_DOWNLOAD_PATH": str(Path.home() / ".cache" / AppInfo.name / "isos"),
-    "AUTO_YAST_PORT": 8000,
+    "AUTO_INSTALL_PORT": 8000,
     "AUTO_INSTALL_PRE_FILL": {
         "root_password": "",
         "username": "",

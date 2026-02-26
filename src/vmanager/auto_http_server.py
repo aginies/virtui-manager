@@ -1,7 +1,7 @@
 """
-AutoYaST HTTP Server
+Auto HTTP Server
 
-Simple HTTP server for serving AutoYaST configuration files during VM installation.
+Simple HTTP server for serving Auto configuration files during VM installation.
 The server runs in a background thread and automatically stops after the VM installation completes.
 """
 
@@ -20,7 +20,7 @@ _ACTIVE_SERVERS = []
 def _cleanup_servers():
     """Stop all active servers on application exit."""
     if _ACTIVE_SERVERS:
-        logging.getLogger(__name__).info(f"Cleaning up {len(_ACTIVE_SERVERS)} active AutoYaST servers...")
+        logging.getLogger(__name__).info(f"Cleaning up {len(_ACTIVE_SERVERS)} active Auto servers...")
         # Create a copy of the list to iterate over, as stop() modifies the original list
         for server in _ACTIVE_SERVERS[:]:
             try:
@@ -32,16 +32,16 @@ def _cleanup_servers():
 atexit.register(_cleanup_servers)
 
 
-class AutoYaSTHTTPServer:
+class AutoHTTPServer:
     """
-    HTTP server for serving AutoYaST configuration files.
+    HTTP server for serving Auto configuration files.
 
     The server serves files from a specified directory and runs in a background thread.
     """
 
     def __init__(self, serve_dir: Path, port: int = 0):
         """
-        Initialize the AutoYaST HTTP server.
+        Initialize the Auto HTTP server.
 
         Args:
             serve_dir: Directory containing files to serve
@@ -99,7 +99,7 @@ class AutoYaSTHTTPServer:
 
             # Start server in background thread
             self.thread = threading.Thread(
-                target=self.server.serve_forever, daemon=True, name="AutoYaSTHTTPServer"
+                target=self.server.serve_forever, daemon=True, name="AutoHTTPServer"
             )
             self.thread.start()
 
@@ -108,13 +108,13 @@ class AutoYaSTHTTPServer:
                 _ACTIVE_SERVERS.append(self)
 
             self.logger.info(
-                f"AutoYaST HTTP server started on port {self.actual_port}, serving {self.serve_dir}"
+                f"Auto HTTP server started on port {self.actual_port}, serving {self.serve_dir}"
             )
 
             return self.actual_port
 
         except Exception as e:
-            self.logger.error(f"Failed to start AutoYaST HTTP server: {e}")
+            self.logger.error(f"Failed to start Auto HTTP server: {e}")
             raise
 
     def stop(self):
@@ -124,7 +124,7 @@ class AutoYaSTHTTPServer:
             _ACTIVE_SERVERS.remove(self)
 
         if self.server:
-            self.logger.info(f"Stopping AutoYaST HTTP server on port {self.actual_port}")
+            self.logger.info(f"Stopping Auto HTTP server on port {self.actual_port}")
             self.server.shutdown()
             self.server.server_close()
             self.server = None
