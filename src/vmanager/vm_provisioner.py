@@ -11,6 +11,7 @@ import socket
 import ssl
 import subprocess
 import tempfile
+import time
 import urllib.request
 import urllib.error
 import uuid  # Added import
@@ -352,16 +353,36 @@ class VMProvisioner:
             iso_url = f"{base_url.rstrip('/')}/{clean_iso_name}"
             return {"name": clean_iso_name, "url": iso_url, "date": "Unknown"}
 
+    def _format_download_speed(self, bytes_per_second: float) -> str:
+        """Format download speed in human-readable format."""
+        if bytes_per_second < 1024:
+            return f"{bytes_per_second:.1f} B"
+        elif bytes_per_second < 1024 * 1024:
+            return f"{bytes_per_second / 1024:.1f} KB"
+        elif bytes_per_second < 1024 * 1024 * 1024:
+            return f"{bytes_per_second / (1024 * 1024):.1f} MB"
+        else:
+            return f"{bytes_per_second / (1024 * 1024 * 1024):.1f} GB"
+
     def download_iso(
-        self, url: str, dest_path: str, progress_callback: Optional[Callable[[int], None]] = None
+        self,
+        url: str,
+        dest_path: str,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
     ):
         """
         Downloads the ISO from the given URL to the destination path.
+        Shows download progress with network speed.
+
+        Args:
+            url: URL to download from
+            dest_path: Local path to save the file
+            progress_callback: Optional callback that receives (message, percent)
         """
         if os.path.exists(dest_path):
             logging.info(f"ISO already exists at {dest_path}, skipping download.")
             if progress_callback:
-                progress_callback(100)
+                progress_callback("ISO already exists", 100)
             return
 
         logging.info(f"Downloading ISO from {url} to {dest_path}")
@@ -377,16 +398,57 @@ class VMProvisioner:
                 downloaded_size = 0
                 chunk_size = 1024 * 1024  # 1MB chunks
 
+                # Initialize speed calculation variables
+                start_time = time.time()
+                last_update_time = start_time
+                last_downloaded_size = 0
+                speed_update_interval = 1.0  # Update speed every second
+
                 while True:
+                    chunk_start_time = time.time()
                     chunk = response.read(chunk_size)
                     if not chunk:
                         break
                     out_file.write(chunk)
                     downloaded_size += len(chunk)
 
+                    current_time = time.time()
+
+                    # Update progress with speed calculation
                     if progress_callback and total_size > 0:
                         percent = int((downloaded_size / total_size) * 100)
-                        progress_callback(percent)
+
+                        # Calculate speed every second or on final chunk
+                        time_since_last_update = current_time - last_update_time
+                        if (
+                            time_since_last_update >= speed_update_interval
+                            or downloaded_size == total_size
+                        ):
+                            # Calculate current speed
+                            bytes_downloaded_since_last = downloaded_size - last_downloaded_size
+                            if time_since_last_update > 0:
+                                current_speed = bytes_downloaded_since_last / time_since_last_update
+                            else:
+                                current_speed = 0
+
+                            # Format speed for display
+                            speed_str = self._format_download_speed(current_speed)
+
+                            # Create progress message with speed
+                            message = StaticText.PROVISIONING_DOWNLOADING_ISO_SPEED.format(
+                                percent=percent, speed=speed_str
+                            )
+                            progress_callback(message, percent)
+
+                            # Update tracking variables
+                            last_update_time = current_time
+                            last_downloaded_size = downloaded_size
+                        else:
+                            # Use the basic message for frequent updates
+                            message = StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(
+                                percent=percent
+                            )
+                            progress_callback(message, percent)
 
         except Exception as e:
             logging.error(f"Failed to download ISO: {e}")
@@ -1623,9 +1685,9 @@ class VMProvisioner:
                 else:
                     local_iso_path_for_upload = str(iso_cache_dir / iso_name)
 
-                    def download_cb(percent):
+                    def download_cb(message, percent):
                         report(
-                            StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(percent=percent),
+                            message,
                             10 + int(percent * 0.4),
                         )  # 10-50%
 
