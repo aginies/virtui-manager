@@ -719,6 +719,12 @@ class VMCard(Static):
             return
         if not self.ui:
             return
+
+        # Stop background activities when VM stops to prevent race conditions
+        # where stats worker tries to fetch stats from a stopped domain
+        if new_value == StatusText.STOPPED:
+            self.stop_background_activities()
+
         self._update_status_styling()
         self.watch_stats_view_mode(
             self.stats_view_mode, self.stats_view_mode
@@ -881,6 +887,11 @@ class VMCard(Static):
         """Worker function to fetch stats and details. Executed in a thread."""
         uuid = ctx["uuid"]
         vm = ctx["vm"]
+
+        # Skip if VM action is in progress (suppressed) to avoid race conditions
+        # where we try to get stats while VM is shutting down
+        if uuid in self.app.vm_service._suppressed_uuids:
+            return
 
         try:
             # logging.debug(f"Starting update_stats worker for {self.name} (ID: {uuid})")
@@ -1528,6 +1539,7 @@ class VMCard(Static):
         """Handles the shutdown button press."""
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
+            self.stop_background_activities()
             self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
 
     def _handle_hibernate_button(self) -> None:
