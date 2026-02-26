@@ -2,9 +2,11 @@
 Main Webconsole management functions
 """
 
+import base64
 import json
 import logging
 import os
+import shlex
 import signal
 import socket
 import subprocess
@@ -22,7 +24,12 @@ from .constants import AppInfo, ErrorMessages, SuccessMessages
 from .events import VmCardUpdateRequest
 from .libvirt_utils import get_internal_id
 from .modals.vmcard_dialog import WebConsoleDialog
-from .utils import generate_webconsole_keys_if_needed, is_remote_connection
+from .utils import (
+    find_free_port,
+    generate_webconsole_keys_if_needed,
+    is_remote_connection,
+    is_running_under_flatpak,
+)
 from .vm_queries import get_vm_graphics_info
 
 
@@ -57,6 +64,7 @@ wp.websockify_init()
         self.config = load_config()
         self._lock = RLock()
         self._ensure_session_file()
+        self._ensure_webconsole_keys()
 
     def _ensure_session_file(self):
         if not self.SESSION_FILE.parent.exists():
@@ -64,6 +72,35 @@ wp.websockify_init()
         if not self.SESSION_FILE.exists():
             with open(self.SESSION_FILE, "w", encoding="utf-8") as f:
                 json.dump({}, f)
+
+    def _ensure_webconsole_keys(self):
+        """Ensure SSL keys directory exists and keys are generated (especially for Flatpak)."""
+        # Determine the correct directory based on environment
+        if is_running_under_flatpak():
+            config_dir = Path("/etc") / AppInfo.name / "keys"
+        else:
+            config_dir = Path.home() / ".config" / AppInfo.name
+
+        # Create directory if it doesn't exist
+        try:
+            config_dir.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Webconsole keys directory ensured: {config_dir}")
+        except Exception as e:
+            logging.error(f"Failed to create webconsole keys directory {config_dir}: {e}")
+            return
+
+        # Generate keys if they don't exist
+        cert_file = config_dir / "cert.pem"
+        key_file = config_dir / "key.pem"
+
+        if not (cert_file.exists() and key_file.exists()):
+            logging.info(f"Generating webconsole SSL keys in {config_dir}...")
+            gen_msgs = generate_webconsole_keys_if_needed(config_dir=config_dir)
+            for level, msg in gen_msgs:
+                if level == "error":
+                    logging.error(f"Key generation error: {msg}")
+                else:
+                    logging.info(f"Key generation: {msg}")
 
     def load_sessions(self):
         with self._lock:
@@ -113,14 +150,48 @@ wp.websockify_init()
 
             return True
 
-    def start_console(self, vm, conn):
-        """Starts a web console for a given VM."""
+    def start_console_async(self, vm, conn):
+        """Public method to start web console asynchronously (non-blocking)."""
+        try:
+            uuid = get_internal_id(vm, conn)
+            worker_id = uuid.split("@")[0] if "@" in uuid else uuid
+            # Verify VM is accessible before scheduling
+            _ = vm.name()
+        except (libvirt.libvirtError, AssertionError) as e:
+            logging.error(f"Cannot start web console: VM object is invalid: {e}")
+            self.app.show_error_message(
+                ErrorMessages.FAILED_TO_START_WEBCONSOLE_TEMPLATE.format(
+                    error="VM no longer available"
+                )
+            )
+            return
+        except Exception as e:
+            logging.error(f"Unexpected error validating VM for web console: {e}")
+            worker_id = "unknown"
+
+        self.app.worker_manager.run(
+            partial(self._start_console_worker, vm, conn), name=f"start_console_{worker_id}"
+        )
+
+    def _start_console_worker(self, vm, conn):
+        """Starts a web console for a given VM as a background task."""
         self.config = load_config()
-        logging.info(f"Web console requested for VM: {vm.name()}")
-        uuid = get_internal_id(vm, conn)
-        if "?" in uuid:
-            uuid = uuid.split("?")[0]
-        vm_name = vm.name()
+
+        try:
+            uuid = get_internal_id(vm, conn)
+            if "?" in uuid:
+                uuid = uuid.split("?")[0]
+            vm_name = vm.name()
+            logging.info(f"Web console background worker started for VM: {vm_name}")
+        except (libvirt.libvirtError, AssertionError) as e:
+            logging.error(f"Failed to get VM info for web console worker: {e}")
+            self.app.call_from_thread(
+                self.app.show_error_message,
+                ErrorMessages.FAILED_TO_START_WEBCONSOLE_TEMPLATE.format(
+                    error="VM no longer available"
+                ),
+            )
+            return
 
         # Check for existing valid session
         if self.is_running(uuid):
@@ -263,14 +334,11 @@ wp.websockify_init()
                 continue
 
             if remote_host:
-                # Remote: We can't easily check OS availability without an extra SSH call per port.
+                # Real availability check happens on the remote host in _launch_remote_websockify.
                 return port
             else:
-                # Local: Check OS availability
                 try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.bind(("", port))
-                        return port
+                    return find_free_port(port, port)
                 except OSError:
                     continue
 
@@ -311,7 +379,7 @@ wp.websockify_init()
         remote_websockify_path = self.config.get("websockify_path", "/usr/bin/websockify")
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
-        # Assume remote config directory for certs
+        # Assume remote config directory for certs (use tilde for shell expansion)
         remote_config_dir = "~/.config/" + AppInfo.name
         remote_cert_file = f"{remote_config_dir}/cert.pem"
         remote_key_file = f"{remote_config_dir}/key.pem"
@@ -322,7 +390,9 @@ wp.websockify_init()
         system_key_file = f"{system_cert_dir}/key.pem"
         url_scheme = "http"
 
-        remote_novnc_path = self.config.get("novnc_path")  # Use config as Default
+        remote_novnc_path = self.config.get("novnc_path", "/usr/share/novnc")
+        start_port = int(self.app.WC_PORT_RANGE_START)
+        end_port = int(self.app.WC_PORT_RANGE_END)
 
         # Initialize variable to avoid UnboundLocalError
         remote_websockify_cmd_list = [
@@ -338,26 +408,52 @@ wp.websockify_init()
         ]
         cert_status = ""
 
+        # Build the port finder script separately to avoid quoting issues
+        port_finder_script = f"""
+import socket
+for p in range({start_port}, {end_port} + 1):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', p))
+        s.close()
+        print(p)
+        break
+    except:
+        continue
+else:
+    print('no_port')
+"""
+        # Encode the script to avoid shell quoting issues
+        encoded_script = base64.b64encode(port_finder_script.encode()).decode()
+
         remote_config_check_cmd = (
             f"if [ -f {remote_cert_file} ] && [ -f {remote_key_file} ]; then echo 'user_cert'; "
             f"elif [ -f {system_cert_file} ] && [ -f {system_key_file} ]; then echo 'system_cert'; "
             "else echo 'no_cert'; fi; "
             "if [ -d /usr/share/novnc ]; then echo '/usr/share/novnc'; "
             "elif [ -d /usr/share/webapps/novnc ]; then echo '/usr/share/webapps/novnc'; "
-            "else echo '/usr/share/novnc'; fi"
+            "else echo '/usr/share/novnc'; fi; "
+            "python3 -c 'import websockify' 2>/dev/null && echo 'websockify_ok' || echo 'websockify_missing'; "
+            f"echo {encoded_script} | base64 -d | python3 2>/dev/null"
         )
 
         try:
+            ssh_check_cmd = ["ssh"]
+            if ssh_port != 22:
+                ssh_check_cmd.extend(["-p", str(ssh_port)])
+            ssh_check_cmd.extend([remote_user_host, remote_config_check_cmd])
+
             check_result = subprocess.run(
-                ["ssh", remote_user_host, remote_config_check_cmd],
+                ssh_check_cmd,
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=5,
+                timeout=10,
             )
             stdout_lines = check_result.stdout.strip().split("\n")
             if stdout_lines:
                 cert_status = stdout_lines[0]
+
                 if "user_cert" in cert_status:
                     url_scheme = "https"
                     self.app.call_from_thread(
@@ -404,6 +500,30 @@ wp.websockify_init()
                             self.app.show_error_message, ErrorMessages.REMOTE_KEY_GENERATION_FAILED
                         )
 
+                if len(stdout_lines) > 2:
+                    if "websockify_missing" in stdout_lines[2]:
+                        self.app.call_from_thread(
+                            self.app.show_error_message,
+                            "Error: 'websockify' python module is not installed on the remote host.",
+                        )
+                        return
+
+                if len(stdout_lines) > 3:
+                    remote_port_found = stdout_lines[3].strip()
+                    if remote_port_found == "no_port":
+                        self.app.call_from_thread(
+                            self.app.show_error_message, ErrorMessages.NO_FREE_WEBCONSOLE_PORT
+                        )
+                        return
+                    try:
+                        web_port = int(remote_port_found)
+                        logging.info(f"Found free port on remote host: {web_port}")
+                        # Update the port in the command list
+                        # It's after --verbose which is at index 4
+                        remote_websockify_cmd_list[5] = str(web_port)
+                    except (ValueError, IndexError):
+                        logging.warning(f"Failed to parse remote port: {remote_port_found}")
+
                 if len(stdout_lines) > 1:
                     remote_novnc_path = stdout_lines[1]
                     # Update the novnc path in the command list
@@ -423,17 +543,24 @@ wp.websockify_init()
                 self.app.show_success_message, SuccessMessages.NO_REMOTE_CERT_CHECK_INSECURE
             )
 
-        # Build SSH command with custom port if needed
         ssh_base_args = ["ssh"]
         if ssh_port != 22:
             ssh_base_args.extend(["-p", str(ssh_port)])
         ssh_base_args.append(remote_user_host)
 
-        remote_websockify_cmd_str = " ".join(remote_websockify_cmd_list)
+        remote_websockify_cmd_str = " ".join(
+            (
+                f"~/{shlex.quote(str(arg)[2:])}"
+                if str(arg).startswith("~/")
+                else shlex.quote(str(arg))
+            )
+            for arg in remote_websockify_cmd_list
+        )
 
-        # Wrap command to capture PID and redirect stderr to stdout
-        # "exec" replaces the shell, so $$ is the shell's PID which becomes websockify's PID
-        remote_cmd = f"echo $$; exec {remote_websockify_cmd_str} 2>&1"
+        # Wrap command to capture PID and redirect stderr/stdout to a log file on the remote
+        # This prevents SIGPIPE when the local SSH process closes the pipe.
+        remote_log = f"/tmp/vmanager-websockify-{web_port}.log"
+        remote_cmd = f"echo $$; exec {remote_websockify_cmd_str} > {remote_log} 2>&1"
 
         ssh_command_list = ssh_base_args[:-1] + [remote_user_host, remote_cmd]
 
@@ -500,6 +627,25 @@ wp.websockify_init()
                     logging.error(
                         f"Remote websockify process {remote_pid} on {remote_user_host} crashed after launch."
                     )
+
+                    # Try to get the last lines of the remote log
+                    try:
+                        log_cmd = [
+                            "ssh",
+                            remote_user_host,
+                            f"tail -n 20 /tmp/vmanager-websockify-{web_port}.log",
+                        ]
+                        if ssh_port != 22:
+                            log_cmd.insert(1, "-p")
+                            log_cmd.insert(2, str(ssh_port))
+                        log_result = subprocess.run(
+                            log_cmd, capture_output=True, text=True, timeout=5
+                        )
+                        if log_result.stdout:
+                            logging.error(f"Remote log output:\n{log_result.stdout}")
+                    except Exception:
+                        pass
+
                     self.app.call_from_thread(
                         self.app.show_error_message,
                         ErrorMessages.REMOTE_WEBCONSOLE_CRASHED_TEMPLATE.format(vm_name=vm_name),
@@ -515,8 +661,15 @@ wp.websockify_init()
                 )
                 # Can't verify, so we assume it's running and let it fail later if it's not.
 
-        # Schedule verification for 1 second later (non-blocking)
-        self.app.set_timer(1.0, verify_remote_process)
+        # Schedule verification using call_from_thread to ensure proper threading
+        def schedule_verification():
+            import threading
+
+            timer = threading.Timer(1.0, verify_remote_process)
+            timer.daemon = True
+            timer.start()
+
+        self.app.call_from_thread(schedule_verification)
 
         # Find a free LOCAL port for the SSH tunnel
         local_tunnel_port = self._get_next_available_port(None)
@@ -722,7 +875,12 @@ wp.websockify_init()
             novnc_path,
         ]
 
-        config_dir = Path.home() / ".config" / AppInfo.name
+        # Determine SSL certificate location based on environment
+        if is_running_under_flatpak():
+            config_dir = Path("/etc") / AppInfo.name / "keys"
+        else:
+            config_dir = Path.home() / ".config" / AppInfo.name
+
         cert_file = config_dir / "cert.pem"
         key_file = config_dir / "key.pem"
         url_scheme = "http"

@@ -46,16 +46,23 @@ Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd**, **virtui-
 ## Flatpak installation
 
 Flatpak doesn't accept anymore **console** application. Even this one is providing a **Terminal GTK** wrapper this app is not really a candidate for flathub.
-As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on [github](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml). Download the flaptpak file, and install it on your system, for Version 1.6.1:
+As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on [github](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml). Download the flaptpak file, and install it on your system, for Version 2.0.0:
 
 ```bash
-wget https://github.com/aginies/virtui-manager/releases/download/1.6.1/virtui-manager.flatpak
+wget https://github.com/aginies/virtui-manager/releases/download/2.0.0/virtui-manager.flatpak
 flatpak install virtui-manager.flatpak
 ```
 
 To run it, use **flatpak run** or search for the **VirtUI Manager** app.
 ```bash
 flatpak run io.github.aginies.virtui-manager
+```
+
+### Flatpak local rebuild and install
+
+Go to `flathub` directory and jsut do:
+```bash
+make build && make install
 ```
 
 ## Nix Package
@@ -198,5 +205,5 @@ python3 virtui_dev.py
 To install dependencies manually from official repositories (this is done automatically when installing the package):
 
 ```bash
-sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py
+sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py 7z tmux
 ```

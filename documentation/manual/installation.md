@@ -1,6 +1,6 @@
 # VM Installation
 
-VirtUI Manager provides a streamlined wizard for provisioning new virtual machines, with a focus on ease of use for OpenSUSE distributions while supporting custom ISOs.
+VirtUI Manager provides a streamlined wizard for provisioning new virtual machines, with a focus on ease of use for OpenSUSE distributions while supporting custom ISOs. The interface supports multiple languages including English, French, German, and Italian.
 
 To start the installation wizard, press **`i`** on your keyboard while in the main window.
 
@@ -35,7 +35,10 @@ The wizard guides you through the necessary steps to configure your new VM.
 *   **ISO Image (Repo / Volume):**
     *   Depending on the selected Distribution, pick the specific image from the dropdown. 
     *   If a remote distribution is selected, the ISO will be downloaded automatically to the displayed **ISO Download Path**.
-    *   If **From Storage Pool** is selected, you will first select the storage pool, then the specific volume (ISO) within it.
+    *   If **From Storage Pool** is selected, you will:
+        1. First select the storage pool from the dropdown
+        2. Then select the specific ISO volume from within that storage pool
+        3. The ISO volume selection will automatically populate once a storage pool is chosen
 
 ### Custom ISO Repositories
 
@@ -74,6 +77,30 @@ Click the "Expert Mode" header to reveal advanced hardware settings. These defau
 ### Storage
 
 *   **Storage Pool:** Select the libvirt storage pool where the VM's disk image will be created. Defaults to `default`.
+
+### Automated Installation
+
+VirtUI Manager supports unattended installations using predefined templates for supported distributions. This feature automatically configures the operating system during installation, eliminating the need for manual interaction.
+
+*   **Template Selection:** Choose from available automation templates for your selected distribution:
+    *   **None:** (Default) Manual installation - you will interact with the installer normally.
+    *   **Distribution-specific templates:** Pre-configured templates that automate the installation process.
+
+*   **Automated Installation Fields:** When a template is selected, the following fields become available:
+    *   **Root Password:** Password for the root/administrator account.
+    *   **Username:** Name for the primary user account.
+    *   **User Password:** Password for the primary user account.
+    *   **Keyboard Layout:** Keyboard configuration (e.g., "fr" for French, "us" for US English).
+    *   **Language:** System language setting (e.g., "English (US)", "Français").
+
+*   **Auto-fill Configuration:** You can pre-configure default values for automation fields in your configuration file. When a template is selected, these values will automatically populate the corresponding fields, speeding up the VM creation process. For detailed configuration instructions, see the [Automated Installation Pre-fill](app_configuration.md#automated-installation-pre-fill) section in the App Configuration documentation.
+
+**Important Notes:**
+- When automated installation is enabled, certain options are automatically configured:
+  - **UEFI firmware is enforced** (required for automated installations)
+  - **"Configure before install" is disabled** (since the template handles configuration)
+- The VM will boot directly into the unattended installation process
+- Installation progress can be monitored through the remote viewer console
 
 ## Starting the Installation
 

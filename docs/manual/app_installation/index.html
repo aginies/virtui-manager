@@ -494,6 +494,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Flatpak installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flatpak-local-rebuild-and-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak local rebuild and install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1360,6 +1377,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Flatpak installation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flatpak-local-rebuild-and-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak local rebuild and install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1590,56 +1624,60 @@
 <p>Now <strong>virtui-manager</strong>, <strong>virtui-manager-cmd</strong>, <strong>virtui-remote-cmd</strong>, <strong>virtui-gui</strong> will be available from Command line.</p>
 <h2 id="flatpak-installation">Flatpak installation<a class="headerlink" href="#flatpak-installation" title="Permanent link">&para;</a></h2>
 <p>Flatpak doesn't accept anymore <strong>console</strong> application. Even this one is providing a <strong>Terminal GTK</strong> wrapper this app is not really a candidate for flathub.
-As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on <a href="https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml">github</a>. Download the flaptpak file, and install it on your system, for Version 1.6.1:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>wget<span class="w"> </span>https://github.com/aginies/virtui-manager/releases/download/1.6.1/virtui-manager.flatpak
+As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on <a href="https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml">github</a>. Download the flaptpak file, and install it on your system, for Version 2.0.0:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>wget<span class="w"> </span>https://github.com/aginies/virtui-manager/releases/download/2.0.0/virtui-manager.flatpak
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>flatpak<span class="w"> </span>install<span class="w"> </span>virtui-manager.flatpak
 </code></pre></div>
 <p>To run it, use <strong>flatpak run</strong> or search for the <strong>VirtUI Manager</strong> app.
 <div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>flatpak<span class="w"> </span>run<span class="w"> </span>io.github.aginies.virtui-manager
 </code></pre></div></p>
+<h3 id="flatpak-local-rebuild-and-install">Flatpak local rebuild and install<a class="headerlink" href="#flatpak-local-rebuild-and-install" title="Permanent link">&para;</a></h3>
+<p>Go to <code>flathub</code> directory and jsut do:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install
+</code></pre></div></p>
 <h2 id="nix-package">Nix Package<a class="headerlink" href="#nix-package" title="Permanent link">&para;</a></h2>
 <p>This project includes comprehensive Nix package definitions for easy installation and development. The Nix files are located in the <code>nix/</code> directory.</p>
 <h3 id="prerequisites_1">Prerequisites<a class="headerlink" href="#prerequisites_1" title="Permanent link">&para;</a></h3>
 <p>Ensure you have Nix installed with flakes enabled. Add the following to your Nix configuration (<code>~/.config/nix/nix.conf</code> or <code>/etc/nix/nix.conf</code>):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>experimental-features = nix-command flakes
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>experimental-features = nix-command flakes
 </code></pre></div>
 <h3 id="quick-install-flake">Quick Install (Flake)<a class="headerlink" href="#quick-install-flake" title="Permanent link">&para;</a></h3>
 <p>Run VirtUI Manager directly without installing:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>nix<span class="w"> </span>run<span class="w"> </span>github:aginies/virtui-manager
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>nix<span class="w"> </span>run<span class="w"> </span>github:aginies/virtui-manager
 </code></pre></div>
 <p>Or install it to your profile:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>nix<span class="w"> </span>profile<span class="w"> </span>install<span class="w"> </span>github:aginies/virtui-manager
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>nix<span class="w"> </span>profile<span class="w"> </span>install<span class="w"> </span>github:aginies/virtui-manager
 </code></pre></div>
 <h3 id="building-locally">Building Locally<a class="headerlink" href="#building-locally" title="Permanent link">&para;</a></h3>
 <p>Clone the repository and build:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/aginies/virtui-manager.git
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># Build the package</span>
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>nix<span class="w"> </span>build
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a>
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Run directly</span>
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>nix<span class="w"> </span>run
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/aginies/virtui-manager.git
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Build the package</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>nix<span class="w"> </span>build
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="c1"># Run directly</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>nix<span class="w"> </span>run
 </code></pre></div>
 <h3 id="traditional-nix-without-flakes">Traditional Nix (without flakes)<a class="headerlink" href="#traditional-nix-without-flakes" title="Permanent link">&para;</a></h3>
 <p>If you prefer not to use flakes:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="c1"># Build</span>
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>nix-build<span class="w"> </span>default.nix
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="c1"># Run the result</span>
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>./result/bin/virtui-manager
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># Build</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>nix-build<span class="w"> </span>default.nix
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="c1"># Run the result</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>./result/bin/virtui-manager
 </code></pre></div>
 <h3 id="development-shell">Development Shell<a class="headerlink" href="#development-shell" title="Permanent link">&para;</a></h3>
 <p>Enter a fully configured development environment with all dependencies, testing tools (pytest, pytest-cov, pytest-asyncio), and code quality tools (black, ruff, mypy):</p>
 <p><strong>Using flakes:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>nix<span class="w"> </span>develop
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>nix<span class="w"> </span>develop
 </code></pre></div></p>
 <p><strong>Without flakes:</strong>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>nix-shell<span class="w"> </span>shell.nix
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager/nix
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>nix-shell<span class="w"> </span>shell.nix
 </code></pre></div></p>
 <p>Once in the development shell, you'll have access to:</p>
 <table>
@@ -1674,20 +1712,20 @@ As some user prefer container enviroment, github as been setup to build a flatpa
 </table>
 <h3 id="nixos-configuration">NixOS Configuration<a class="headerlink" href="#nixos-configuration" title="Permanent link">&para;</a></h3>
 <p>To add VirtUI Manager to your NixOS configuration:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># In your flake.nix inputs</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>inputs<span class="o">.</span>virtui-manager<span class="o">.</span><span class="ss">url</span> <span class="o">=</span> <span class="s2">&quot;github:aginies/virtui-manager&quot;</span><span class="p">;</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># In your configuration</span>
-<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>environment<span class="o">.</span><span class="ss">systemPackages</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a>  inputs<span class="o">.</span>virtui-manager<span class="o">.</span>packages<span class="o">.</span><span class="si">${</span>pkgs<span class="o">.</span>system<span class="si">}</span><span class="o">.</span>default
-<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="p">];</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># In your flake.nix inputs</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>inputs<span class="o">.</span>virtui-manager<span class="o">.</span><span class="ss">url</span> <span class="o">=</span> <span class="s2">&quot;github:aginies/virtui-manager&quot;</span><span class="p">;</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># In your configuration</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>environment<span class="o">.</span><span class="ss">systemPackages</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a>  inputs<span class="o">.</span>virtui-manager<span class="o">.</span>packages<span class="o">.</span><span class="si">${</span>pkgs<span class="o">.</span>system<span class="si">}</span><span class="o">.</span>default
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="p">];</span>
 </code></pre></div>
 <h3 id="home-manager">Home Manager<a class="headerlink" href="#home-manager" title="Permanent link">&para;</a></h3>
 <p>For Home Manager users:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># In your home.nix or flake</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>home<span class="o">.</span><span class="ss">packages</span> <span class="o">=</span> <span class="p">[</span>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>  inputs<span class="o">.</span>virtui-manager<span class="o">.</span>packages<span class="o">.</span><span class="si">${</span>pkgs<span class="o">.</span>system<span class="si">}</span><span class="o">.</span>default
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="p">];</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># In your home.nix or flake</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>home<span class="o">.</span><span class="ss">packages</span> <span class="o">=</span> <span class="p">[</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>  inputs<span class="o">.</span>virtui-manager<span class="o">.</span>packages<span class="o">.</span><span class="si">${</span>pkgs<span class="o">.</span>system<span class="si">}</span><span class="o">.</span>default
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="p">];</span>
 </code></pre></div>
 <h3 id="package-details">Package Details<a class="headerlink" href="#package-details" title="Permanent link">&para;</a></h3>
 <p>The Nix package includes:</p>
@@ -1701,16 +1739,16 @@ As some user prefer container enviroment, github as been setup to build a flatpa
 <h3 id="devel-version-clone-the-repository">Devel version: Clone the Repository<a class="headerlink" href="#devel-version-clone-the-repository" title="Permanent link">&para;</a></h3>
 <p>This is possible to test latest version from github</p>
 <h4 id="get-the-latest-source-code-from-github">Get the latest source code from GitHub:<a class="headerlink" href="#get-the-latest-source-code-from-github" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/aginies/virtui-manager.git
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/aginies/virtui-manager.git
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nb">cd</span><span class="w"> </span>virtui-manager
 </code></pre></div>
 <h4 id="launch-the-devel-version">Launch the devel version<a class="headerlink" href="#launch-the-devel-version" title="Permanent link">&para;</a></h4>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nb">cd</span><span class="w"> </span>src/vmanager
-<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>python3<span class="w"> </span>virtui_dev.py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nb">cd</span><span class="w"> </span>src/vmanager
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>python3<span class="w"> </span>virtui_dev.py
 </code></pre></div>
 <h3 id="opensuse-sle-zypper">openSUSE / SLE (Zypper)<a class="headerlink" href="#opensuse-sle-zypper" title="Permanent link">&para;</a></h3>
 <p>To install dependencies manually from official repositories (this is done automatically when installing the package):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py<span class="w"> </span>7z<span class="w"> </span>tmux
 </code></pre></div>
 
 

@@ -8,14 +8,16 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONSTANTS_FILE = os.path.join(BASE_DIR, "../src/vmanager/constants.py")
 SEARCH_DIR = os.path.join(BASE_DIR, "../src")
 
-dont_check_files = ["remote_viewer.py",
-                    "vmanager_cmd.py",
-                    "gui_wrapper.py",
-                    "i18n.py",
-                    "virtui_dev.py",
-                    "wrapper.py",
-                    "remote_viewer_gtk4.py",
-                   ]
+dont_check_files = [
+    "remote_viewer.py",
+    "vmanager_cmd.py",
+    "gui_wrapper.py",
+    "i18n.py",
+    "virtui_dev.py",
+    "wrapper.py",
+    "remote_viewer_gtk4.py",
+]
+
 
 def get_class_constants(filename):
     """
@@ -25,7 +27,7 @@ def get_class_constants(filename):
         print(f"Error: Constants file '{filename}' not found.")
         sys.exit(1)
 
-    with open(filename, encoding='utf-8') as f:
+    with open(filename, encoding="utf-8") as f:
         try:
             tree = ast.parse(f.read())
         except SyntaxError as e:
@@ -47,13 +49,14 @@ def get_class_constants(filename):
 
     return class_constants
 
+
 # New AST visitor for checking tooltip assignments
 class TooltipVisitor(ast.NodeVisitor):
     def __init__(self, filename, class_constants):
         self.filename = filename
         self.errors = []
-        self.class_constants = class_constants # {ClassName: {set_of_vars}}
-        self._parents = [] # To keep track of parent nodes
+        self.class_constants = class_constants  # {ClassName: {set_of_vars}}
+        self._parents = []  # To keep track of parent nodes
 
     def visit(self, node):
         self._parents.append(node)
@@ -61,13 +64,16 @@ class TooltipVisitor(ast.NodeVisitor):
         self._parents.pop()
 
     def _is_translation_func(self, node):
-        return isinstance(node, ast.Name) and node.id == '_'
+        return isinstance(node, ast.Name) and node.id == "_"
 
     def _check_tooltip_value(self, node_value, line_no):
         # 1. Check if the value is a call to _()
-        if isinstance(node_value, ast.Call) and \
-           isinstance(node_value.func, ast.Name) and node_value.func.id == '_':
-            return # Valid: _("some text")
+        if (
+            isinstance(node_value, ast.Call)
+            and isinstance(node_value.func, ast.Name)
+            and node_value.func.id == "_"
+        ):
+            return  # Valid: _("some text")
 
         # 2. Check if the value is an attribute access to a constant (e.g., StaticText.TOOLTIP_MESSAGE)
         if isinstance(node_value, ast.Attribute):
@@ -75,14 +81,17 @@ class TooltipVisitor(ast.NodeVisitor):
             constant_name = node_value.attr
 
             if class_name and constant_name:
-                if class_name in self.class_constants and constant_name in self.class_constants[class_name]:
-                    return # Valid: ClassName.CONSTANT
-        
+                if (
+                    class_name in self.class_constants
+                    and constant_name in self.class_constants[class_name]
+                ):
+                    return  # Valid: ClassName.CONSTANT
+
         # 3. If it's a plain string, it's an error
         if isinstance(node_value, ast.Constant) and isinstance(node_value.value, str):
             self.errors.append((line_no, node_value.value))
             return
-        
+
         # 4. If it's an f-string (JoinedStr), it's also an error if not wrapped in _()
         if isinstance(node_value, ast.JoinedStr):
             # Extract content from f-string for reporting
@@ -98,7 +107,7 @@ class TooltipVisitor(ast.NodeVisitor):
                         # For f-string like f"hello {name}", we just get "hello "
                         # The variable part isn't a hardcoded string we can translate
                         pass
-            
+
             if fstring_content_parts:
                 self.errors.append((line_no, "".join(fstring_content_parts).strip()))
             else:
@@ -118,6 +127,7 @@ class TooltipVisitor(ast.NodeVisitor):
             if node.targets[0].attr == "tooltip":
                 self._check_tooltip_value(node.value, node.lineno)
         self.generic_visit(node)
+
 
 def check_tooltips(search_dir, class_constants):
     print(f"Checking for untranslated tooltips in {search_dir}...")
@@ -140,7 +150,7 @@ def check_tooltips(search_dir, class_constants):
                 continue
 
             try:
-                with open(file_path, encoding='utf-8', errors='ignore') as f:
+                with open(file_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
 
                 tree = ast.parse(content)
@@ -150,8 +160,10 @@ def check_tooltips(search_dir, class_constants):
                 if visitor.errors:
                     error_found = True
                     for lineno, text in visitor.errors:
-                        display_text = (text[:40] + '...') if len(text) > 40 else text
-                        print(f"Error: Untranslated tooltip in '{file_path}:{lineno}': \"{display_text}\"")
+                        display_text = (text[:40] + "...") if len(text) > 40 else text
+                        print(
+                            f"Error: Untranslated tooltip in '{file_path}:{lineno}': \"{display_text}\""
+                        )
 
             except SyntaxError as e:
                 print(f"Error parsing {file_path}: {e}")
@@ -160,15 +172,13 @@ def check_tooltips(search_dir, class_constants):
 
     return error_found
 
+
 def check_usages(search_dir, class_constants):
     error_found = False
 
     # Pre-compile regexes for each class
     # Matches ClassName.Attribute where Attribute is alphanumeric + underscore
-    patterns = {
-        cls: re.compile(rf"\b{cls}\.([a-zA-Z0-9_]+)")
-        for cls in class_constants
-    }
+    patterns = {cls: re.compile(rf"\b{cls}\.([a-zA-Z0-9_]+)") for cls in class_constants}
 
     print(f"Checking usage of constants in {search_dir}...")
 
@@ -189,7 +199,7 @@ def check_usages(search_dir, class_constants):
                 continue
 
             try:
-                with open(file_path, encoding='utf-8', errors='ignore') as f:
+                with open(file_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
             except OSError as e:
                 print(f"Warning: Could not read file {file_path}: {e}")
@@ -202,10 +212,13 @@ def check_usages(search_dir, class_constants):
                 for usage in matches:
                     if usage not in valid_vars:
                         # Report error
-                        print(f"Error: File '{file_path}' uses '{cls}.{usage}' which is NOT defined in {CONSTANTS_FILE}")
+                        print(
+                            f"Error: File '{file_path}' uses '{cls}.{usage}' which is NOT defined in {CONSTANTS_FILE}"
+                        )
                         error_found = True
 
     return error_found
+
 
 class I18NVisitor(ast.NodeVisitor):
     def __init__(self, filename):
@@ -232,11 +245,11 @@ class I18NVisitor(ast.NodeVisitor):
         # Heuristic for f-strings: concatenate text parts
         text_content = ""
         for value in node.values:
-             if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                 text_content += " " + value.value
-             # Keep ast.Str for very old python versions if running there, though unlikely
-             elif sys.version_info < (3, 8) and isinstance(value, ast.Str):
-                 text_content += " " + value.s
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                text_content += " " + value.value
+            # Keep ast.Str for very old python versions if running there, though unlikely
+            elif sys.version_info < (3, 8) and isinstance(value, ast.Str):
+                text_content += " " + value.s
 
         if text_content:
             self._check_string(node, text_content)
@@ -244,7 +257,7 @@ class I18NVisitor(ast.NodeVisitor):
 
     def _check_string(self, node, text_content):
         # Heuristic: Must have letters and spaces to be considered "text"
-        if not (re.search(r'[a-zA-Z]', text_content) and re.search(r'\s', text_content)):
+        if not (re.search(r"[a-zA-Z]", text_content) and re.search(r"\s", text_content)):
             return
 
         # Look up the tree to see if we are in a translation or logging call
@@ -265,34 +278,49 @@ class I18NVisitor(ast.NodeVisitor):
 
         # Ignore docstrings
         if isinstance(parent, ast.Expr):
-             grandparent = self._parents[-3] if len(self._parents) >= 3 else None
-             if isinstance(grandparent, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                 if node == parent.value:
-                     return
+            grandparent = self._parents[-3] if len(self._parents) >= 3 else None
+            if isinstance(
+                grandparent, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            ):
+                if node == parent.value:
+                    return
 
         # If we are a constant inside a JoinedStr, we already check the JoinedStr itself
         if isinstance(node, ast.Constant) and isinstance(parent, ast.JoinedStr):
             return
         # Backward compatibility for very old python if needed
-        if sys.version_info < (3, 8) and isinstance(node, ast.Str) and isinstance(parent, ast.JoinedStr):
+        if (
+            sys.version_info < (3, 8)
+            and isinstance(node, ast.Str)
+            and isinstance(parent, ast.JoinedStr)
+        ):
             return
 
         self.errors.append((node.lineno, text_content))
 
     def _is_translation_func(self, node):
-        if isinstance(node, ast.Name) and node.id == '_':
+        if isinstance(node, ast.Name) and node.id == "_":
             return True
         return False
 
     def _is_logging_func(self, node):
         # logging.info(...) -> Attribute
         if isinstance(node, ast.Attribute):
-            if isinstance(node.value, ast.Name) and node.value.id == 'logging':
-                if node.attr in ('debug', 'info', 'warning', 'warn', 'error', 'critical', 'exception'):
+            if isinstance(node.value, ast.Name) and node.value.id == "logging":
+                if node.attr in (
+                    "debug",
+                    "info",
+                    "warning",
+                    "warn",
+                    "error",
+                    "critical",
+                    "exception",
+                ):
                     return True
         # also handle cases like self.log_message or logger.info if possible
         # but let's stick to the requested ones for now.
         return False
+
 
 def check_i18n(search_dir):
     print(f"Checking for untranslated strings in {search_dir}...")
@@ -311,7 +339,7 @@ def check_i18n(search_dir):
             # Skip tests/ or checks/ if they are in search_dir (SEARCH_DIR is src, so fine)
 
             try:
-                with open(file_path, encoding='utf-8') as f:
+                with open(file_path, encoding="utf-8") as f:
                     content = f.read()
 
                 tree = ast.parse(content)
@@ -322,8 +350,10 @@ def check_i18n(search_dir):
                     error_found = True
                     for lineno, text in visitor.errors:
                         # Limit text length for display
-                        display_text = (text[:40] + '...') if len(text) > 40 else text
-                        print(f"Warning: Untranslated text in '{file_path}:{lineno}': \"{display_text}\"")
+                        display_text = (text[:40] + "...") if len(text) > 40 else text
+                        print(
+                            f"Warning: Untranslated text in '{file_path}:{lineno}': \"{display_text}\""
+                        )
 
             except SyntaxError as e:
                 print(f"Error parsing {file_path}: {e}")
@@ -332,12 +362,72 @@ def check_i18n(search_dir):
 
     return error_found
 
+
+def check_unused_constants(search_dir, class_constants):
+    """Check for constants defined in constants.py but never used in the codebase."""
+    print(f"Checking for unused constants in {search_dir}...")
+
+    # Track all constant usages
+    used_constants = {cls: set() for cls in class_constants}
+
+    # Pre-compile regex patterns for each class
+    patterns = {cls: re.compile(rf"\b{cls}\.([a-zA-Z0-9_]+)") for cls in class_constants}
+
+    abs_constants_file = os.path.abspath(CONSTANTS_FILE)
+
+    # Scan all Python files to find which constants are used
+    for root, _, files in os.walk(search_dir):
+        for file in files:
+            if not file.endswith(".py"):
+                continue
+
+            file_path = os.path.join(root, file)
+
+            # Skip the constants file itself
+            if os.path.abspath(file_path) == abs_constants_file:
+                continue
+
+            if file in dont_check_files:
+                continue
+
+            try:
+                with open(file_path, encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+            except OSError as e:
+                print(f"Warning: Could not read file {file_path}: {e}")
+                continue
+
+            # Find all constant usages in this file
+            for cls, pattern in patterns.items():
+                matches = pattern.findall(content)
+                used_constants[cls].update(matches)
+
+    # Find unused constants
+    error_found = False
+    unused_count = 0
+
+    for cls, defined_vars in class_constants.items():
+        unused_vars = defined_vars - used_constants[cls]
+
+        if unused_vars:
+            error_found = True
+            for var in sorted(unused_vars):
+                print(f"Warning: Constant '{cls}.{var}' is defined but never used in the codebase")
+                unused_count += 1
+
+    if unused_count > 0:
+        print(f"\nTotal unused constants: {unused_count}")
+
+    return error_found
+
+
 def main():
     class_constants = get_class_constants(CONSTANTS_FILE)
 
     constants_error = check_usages(SEARCH_DIR, class_constants)
-    #i18n_error = check_i18n(SEARCH_DIR)
+    # i18n_error = check_i18n(SEARCH_DIR)
     tooltip_error = check_tooltips(SEARCH_DIR, class_constants)
+    unused_error = check_unused_constants(SEARCH_DIR, class_constants)
 
     print(f"Excluded: {dont_check_files}")
     if constants_error:
@@ -346,12 +436,17 @@ def main():
     elif tooltip_error:
         print("Failure: found untranslated tooltips.")
         sys.exit(1)
-    #elif i18n_error:
+    # elif i18n_error:
     #    print("Failure: found, but its WIP (missing translation).")
     #    sys.exit(0)
     else:
+        if unused_error:
+            print(
+                "Warning: Found unused constants (consider removing them to reduce translation work)."
+            )
         print("Success: All checks passed.")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

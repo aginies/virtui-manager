@@ -209,6 +209,8 @@ class VMCard(Static):
         self._boot_device_checked = False
         self._timer_lock = threading.Lock()
         self._last_click_time = 0
+        # Track timers for actions state updates to cancel them on page changes
+        self._actions_update_timers = []
 
     def _get_uri(self) -> str:
         """Helper to get the URI for the current connection."""
@@ -274,7 +276,7 @@ class VMCard(Static):
                 logging.warning(f"Error getting webconsole status for {self.internal_id}: {e}")
 
         # Update status indicator text
-        new_indicator = " (WebC On)" if webc_is_running else ""
+        new_indicator = " 🌐" if webc_is_running else ""
         if self.webc_status_indicator != new_indicator:
             self.webc_status_indicator = new_indicator
 
@@ -626,6 +628,15 @@ class VMCard(Static):
             self.app.worker_manager.cancel(f"actions_state_{old_value}")
             self.app.worker_manager.cancel(f"refresh_snapshot_tab_{old_value}")
 
+            # Cancel any pending timers for actions state updates
+            for timer in self._actions_update_timers:
+                try:
+                    if timer:
+                        timer.stop()
+                except Exception:
+                    pass  # Timer may already be stopped or completed
+            self._actions_update_timers.clear()
+
         if old_value != new_value:
             # Reset heavy state UI elements
             self.update_snapshot_tab_title(-1)
@@ -708,6 +719,12 @@ class VMCard(Static):
             return
         if not self.ui:
             return
+
+        # Stop background activities when VM stops to prevent race conditions
+        # where stats worker tries to fetch stats from a stopped domain
+        if new_value == StatusText.STOPPED:
+            self.stop_background_activities()
+
         self._update_status_styling()
         self.watch_stats_view_mode(
             self.stats_view_mode, self.stats_view_mode
@@ -776,6 +793,15 @@ class VMCard(Static):
             if self.timer:
                 self.timer.stop()
             self.timer = None
+
+        # Cancel actions update timers
+        for timer in self._actions_update_timers:
+            try:
+                if timer:
+                    timer.stop()
+            except Exception:
+                pass  # Timer may already be stopped or completed
+        self._actions_update_timers.clear()
 
         # Cancel any running workers
         if self.internal_id:
@@ -862,9 +888,22 @@ class VMCard(Static):
         uuid = ctx["uuid"]
         vm = ctx["vm"]
 
+        # Check if card is still attached to app - if not, abort early
+        try:
+            app = self.app
+        except Exception as e:
+            if e.__class__.__name__ == "NoActiveAppError":
+                return
+            raise
+
+        # Skip if VM action is in progress (suppressed) to avoid race conditions
+        # where we try to get stats while VM is shutting down
+        if uuid in app.vm_service._suppressed_uuids:
+            return
+
         try:
             # logging.debug(f"Starting update_stats worker for {self.name} (ID: {uuid})")
-            stats = self.app.vm_service.get_vm_runtime_stats(vm)
+            stats = app.vm_service.get_vm_runtime_stats(vm)
             # logging.debug(f"Stats received for {self.name}: {stats}")
 
             # Prepare result dictionary
@@ -880,7 +919,7 @@ class VMCard(Static):
             }
 
             # Update info from cache if XML has been fetched (e.g. via Configure)
-            vm_cache = self.app.vm_service._vm_data_cache.get(uuid, {})
+            vm_cache = app.vm_service._vm_data_cache.get(uuid, {})
             xml_content = vm_cache.get("xml")
 
             # Parse XML for static details if not yet checked
@@ -906,19 +945,24 @@ class VMCard(Static):
 
             # If stats are missing (VM likely undefined or issue), return early
             if not stats:
-                self.app.call_from_thread(self._apply_stats_update, result)
+                app.call_from_thread(self._apply_stats_update, result)
                 return
 
             # Fetch IPs if running
             if stats.get("status") == StatusText.RUNNING:
                 result["ips"] = get_vm_network_ip(vm)
 
-            self.app.call_from_thread(self._apply_stats_update, result)
+            app.call_from_thread(self._apply_stats_update, result)
 
         except libvirt.libvirtError as e:
             error_code = e.get_error_code()
             result = {"uuid": uuid, "error": e, "error_code": error_code}
-            self.app.call_from_thread(self._handle_stats_error, result)
+            try:
+                app.call_from_thread(self._handle_stats_error, result)
+            except Exception as call_err:
+                if call_err.__class__.__name__ == "NoActiveAppError":
+                    return
+                raise
         except Exception as e:
             if e.__class__.__name__ == "NoActiveAppError":
                 return
@@ -934,6 +978,10 @@ class VMCard(Static):
                 if self.timer:
                     self.timer.stop()
             self.app.refresh_vm_list()
+        elif error_code == libvirt.VIR_ERR_OPERATION_INVALID:
+            # Domain is not running - stop background activities silently
+            # This happens during VM shutdown transitions
+            self.stop_background_activities()
         elif error_code in [
             libvirt.VIR_ERR_SYSTEM_ERROR,
             libvirt.VIR_ERR_RPC,
@@ -1024,16 +1072,29 @@ class VMCard(Static):
         self._update_fast_buttons()
         self._update_webc_status()
 
+        # Only fetch heavy data if actions are actually visible and mounted
+        # This prevents blocking libvirt calls during rapid page changes
         if self.query("#rename-button"):
             # Check if collapsible is expanded before fetching heavy data
             collapsible = self.ui.get("collapsible")
-            if collapsible and not collapsible.collapsed:
-                self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
-                self.app.worker_manager.run(
-                    self._fetch_actions_state_worker,
-                    name=f"actions_state_{self.internal_id}",
-                    exclusive=True,
-                )
+            if collapsible and not collapsible.collapsed and self.is_mounted:
+                # Cancel any existing timers to avoid duplicate fetches
+                for timer in self._actions_update_timers:
+                    try:
+                        if timer:
+                            timer.stop()
+                    except Exception:
+                        pass  # Timer may already be stopped or completed
+                self._actions_update_timers.clear()
+
+                # Cancel any existing worker to avoid duplicate fetches
+                self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+
+                # Use short delay (50ms) to debounce rapid updates while allowing quick response
+                # Timers will be cancelled if the card is reused for another VM (page switch)
+                timer1 = self.app.set_timer(0.05, lambda: self._refresh_snapshot_tab_if_visible())
+                timer2 = self.app.set_timer(0.05, lambda: self._schedule_actions_state_worker())
+                self._actions_update_timers.extend([timer1, timer2])
 
     def _update_fast_buttons(self):
         """Updates buttons that rely on cached/fast state."""
@@ -1084,6 +1145,26 @@ class VMCard(Static):
             else:
                 xml_button.label = ButtonLabels.VIEW_XML
             xml_button.display = not is_loading
+
+    def _refresh_snapshot_tab_if_visible(self):
+        """Only refresh snapshot tab if card is still mounted and collapsible is expanded."""
+        if not self.is_mounted:
+            return
+        collapsible = self.ui.get("collapsible")
+        if collapsible and not collapsible.collapsed:
+            self._refresh_snapshot_tab_async()
+
+    def _schedule_actions_state_worker(self):
+        """Only schedule actions state worker if card is still mounted and collapsible is expanded."""
+        if not self.is_mounted:
+            return
+        collapsible = self.ui.get("collapsible")
+        if collapsible and not collapsible.collapsed:
+            self.app.worker_manager.run(
+                self._fetch_actions_state_worker,
+                name=f"actions_state_{self.internal_id}",
+                exclusive=True,
+            )
 
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
@@ -1475,6 +1556,7 @@ class VMCard(Static):
         """Handles the shutdown button press."""
         logging.info(f"Attempting to gracefully shutdown VM: {self.name}")
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
+            self.stop_background_activities()
             self.post_message(VmActionRequest(self.internal_id, VmAction.STOP))
 
     def _handle_hibernate_button(self) -> None:
@@ -1678,12 +1760,12 @@ class VMCard(Static):
 
     def _handle_web_console_button(self) -> None:
         """Handles the web console button press by opening a config dialog."""
-        worker = partial(self.app.webconsole_manager.start_console, self.vm, self.conn)
 
         try:
             uuid = self.internal_id
             if self.app.webconsole_manager.is_running(uuid):
-                self.app.worker_manager.run(worker, name=f"show_console_{self.vm.name()}")
+                # Use async method - it already handles worker threading internally
+                self.app.webconsole_manager.start_console_async(self.vm, self.conn)
                 return
         except Exception as e:
             self.app.show_error_message(
@@ -1700,11 +1782,13 @@ class VMCard(Static):
 
             def handle_dialog_result(should_start: bool) -> None:
                 if should_start:
-                    self.app.worker_manager.run(worker, name=f"start_console_{self.vm.name()}")
+                    # Use async method - it already handles worker threading internally
+                    self.app.webconsole_manager.start_console_async(self.vm, self.conn)
 
             self.app.push_screen(WebConsoleConfigDialog(is_remote=is_remote), handle_dialog_result)
         else:
-            self.app.worker_manager.run(worker, name=f"start_console_{self.vm.name()}")
+            # Use async method - it already handles worker threading internally
+            self.app.webconsole_manager.start_console_async(self.vm, self.conn)
 
     def _handle_tmux_console_button(self) -> None:
         """Handles the text console button press by opening a new tmux window."""

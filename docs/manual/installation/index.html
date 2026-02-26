@@ -782,6 +782,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#automated-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automated Installation
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1218,6 +1229,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#automated-installation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Automated Installation
+      
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1255,7 +1277,7 @@
 
 
 <h1 id="vm-installation">VM Installation<a class="headerlink" href="#vm-installation" title="Permanent link">&para;</a></h1>
-<p>VirtUI Manager provides a streamlined wizard for provisioning new virtual machines, with a focus on ease of use for OpenSUSE distributions while supporting custom ISOs.</p>
+<p>VirtUI Manager provides a streamlined wizard for provisioning new virtual machines, with a focus on ease of use for OpenSUSE distributions while supporting custom ISOs. The interface supports multiple languages including English, French, German, and Italian.</p>
 <p>To start the installation wizard, press <strong><code>i</code></strong> on your keyboard while in the main window.</p>
 <p><img alt="VM Installation Wizard" src="../images/install.jpg" /></p>
 <h2 id="the-installation-wizard">The Installation Wizard<a class="headerlink" href="#the-installation-wizard" title="Permanent link">&para;</a></h2>
@@ -1296,7 +1318,12 @@
 <ul>
 <li>Depending on the selected Distribution, pick the specific image from the dropdown. </li>
 <li>If a remote distribution is selected, the ISO will be downloaded automatically to the displayed <strong>ISO Download Path</strong>.</li>
-<li>If <strong>From Storage Pool</strong> is selected, you will first select the storage pool, then the specific volume (ISO) within it.</li>
+<li>If <strong>From Storage Pool</strong> is selected, you will:<ol>
+<li>First select the storage pool from the dropdown</li>
+<li>Then select the specific ISO volume from within that storage pool</li>
+<li>The ISO volume selection will automatically populate once a storage pool is chosen</li>
+</ol>
+</li>
 </ul>
 </li>
 </ul>
@@ -1334,6 +1361,36 @@
 <ul>
 <li><strong>Storage Pool:</strong> Select the libvirt storage pool where the VM's disk image will be created. Defaults to <code>default</code>.</li>
 </ul>
+<h3 id="automated-installation">Automated Installation<a class="headerlink" href="#automated-installation" title="Permanent link">&para;</a></h3>
+<p>VirtUI Manager supports unattended installations using predefined templates for supported distributions. This feature automatically configures the operating system during installation, eliminating the need for manual interaction.</p>
+<ul>
+<li>
+<p><strong>Template Selection:</strong> Choose from available automation templates for your selected distribution:</p>
+<ul>
+<li><strong>None:</strong> (Default) Manual installation - you will interact with the installer normally.</li>
+<li><strong>Distribution-specific templates:</strong> Pre-configured templates that automate the installation process.</li>
+</ul>
+</li>
+<li>
+<p><strong>Automated Installation Fields:</strong> When a template is selected, the following fields become available:</p>
+<ul>
+<li><strong>Root Password:</strong> Password for the root/administrator account.</li>
+<li><strong>Username:</strong> Name for the primary user account.</li>
+<li><strong>User Password:</strong> Password for the primary user account.</li>
+<li><strong>Keyboard Layout:</strong> Keyboard configuration (e.g., "fr" for French, "us" for US English).</li>
+<li><strong>Language:</strong> System language setting (e.g., "English (US)", "Français").</li>
+</ul>
+</li>
+<li>
+<p><strong>Auto-fill Configuration:</strong> You can pre-configure default values for automation fields in your configuration file. When a template is selected, these values will automatically populate the corresponding fields, speeding up the VM creation process. For detailed configuration instructions, see the <a href="../app_configuration/#automated-installation-pre-fill">Automated Installation Pre-fill</a> section in the App Configuration documentation.</p>
+</li>
+</ul>
+<p><strong>Important Notes:</strong>
+- When automated installation is enabled, certain options are automatically configured:
+  - <strong>UEFI firmware is enforced</strong> (required for automated installations)
+  - <strong>"Configure before install" is disabled</strong> (since the template handles configuration)
+- The VM will boot directly into the unattended installation process
+- Installation progress can be monitored through the remote viewer console</p>
 <h2 id="starting-the-installation">Starting the Installation<a class="headerlink" href="#starting-the-installation" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Review your settings.</li>

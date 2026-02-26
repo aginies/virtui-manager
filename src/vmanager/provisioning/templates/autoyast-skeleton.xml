@@ -1,0 +1,77 @@
+<?xml version="1.0"?>
+<!DOCTYPE profile>
+<profile xmlns="http://www.suse.com/1.0/yast2ns" 
+         xmlns:config="http://www.suse.com/1.0/configns">
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+    </mode>
+  </general>
+
+  <!-- Kdump disabled -->
+  <kdump>
+      <add_crash_kernel config:type="boolean">false</add_crash_kernel>
+  </kdump>
+
+  <software>
+    <accept_missing_required config:type="boolean">true</accept_missing_required>
+    <packages config:type="list">
+      <package>openssh</package>
+    </packages>
+    <patterns config:type="list">
+      <pattern>base</pattern>
+    </patterns>
+  </software>
+
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <user_password>{root_password}</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+    </user>
+    <user>
+      <username>{user_name}</username>
+      <user_password>{user_password}</user_password>
+      <encrypted config:type="boolean">false</encrypted>
+    </user>
+  </users>
+
+  <networking>
+    <interfaces config:type="list">
+      <interface>
+        <bootproto>dhcp</bootproto>
+        <device>eth0</device>
+        <startmode>auto</startmode>
+      </interface>
+    </interfaces>
+  </networking>
+
+  <ntp-client t="map">
+      <ntp_policy>auto</ntp_policy>
+        <ntp_servers t="list">
+          <ntp_server t="map">
+            <address>2.suse.pool.ntp.org</address>
+            <iburst t="boolean">true</iburst>
+            <offline t="boolean">false</offline>
+           </ntp_server>
+        </ntp_servers>
+      <ntp_sync>manual</ntp_sync>
+  </ntp-client>
+
+  <ssh_import t="map">
+    <copy_config t="boolean">false</copy_config>
+    <import t="boolean">false</import>
+  </ssh_import>
+
+  <host>
+    <hosts config:type="list">
+      <hosts_entry>
+        <host_address>127.0.0.1</host_address>
+        <names config:type="list">
+          <name>localhost</name>
+          <name>{hostname}</name>
+        </names>
+      </hosts_entry>
+    </hosts>
+  </host>
+</profile>

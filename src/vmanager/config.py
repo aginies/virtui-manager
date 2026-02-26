@@ -3,6 +3,7 @@ Manage the configuration of the tool
 """
 
 import os
+import copy
 from pathlib import Path
 
 import yaml
@@ -30,6 +31,14 @@ DEFAULT_CONFIG = {
     "LOG_FILE_PATH": str(Path.home() / ".cache" / AppInfo.name / "vm_manager.log"),
     "LOG_LEVEL": "INFO",
     "ISO_DOWNLOAD_PATH": str(Path.home() / ".cache" / AppInfo.name / "isos"),
+    "AUTO_INSTALL_PORT": 8000,
+    "AUTO_INSTALL_PRE_FILL": {
+        "root_password": "",
+        "username": "",
+        "user_password": "",
+        "keyboard": "",
+        "language": "",
+    },
 }
 
 
@@ -78,17 +87,17 @@ def load_config():
             user_config = yaml.safe_load(f) or {}
 
     # Start with default config and update with user's config
-    config = DEFAULT_CONFIG.copy()
+    config = copy.deepcopy(DEFAULT_CONFIG)
     if user_config:
         config.update(user_config)
         # If user sets a value to null in yaml, it becomes None. Revert to default.
         for key, value in config.items():
             if value is None and key in DEFAULT_CONFIG:
-                config[key] = DEFAULT_CONFIG[key]
+                config[key] = copy.deepcopy(DEFAULT_CONFIG[key])
 
     # Ensure 'servers' key exists and is a non-empty list
     if not isinstance(config.get("servers"), list) or not config.get("servers"):
-        config["servers"] = DEFAULT_CONFIG["servers"]
+        config["servers"] = copy.deepcopy(DEFAULT_CONFIG["servers"])
 
     return config
 
@@ -99,3 +108,31 @@ def save_config(config):
     os.makedirs(config_path.parent, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False)
+
+
+def get_user_templates_dir():
+    """
+    Get the user templates directory path.
+
+    Returns:
+        Path: Path to ~/.config/virtui-manager/templates/
+    """
+    templates_dir = Path.home() / ".config" / AppInfo.name / "templates"
+    templates_dir.mkdir(parents=True, exist_ok=True)
+    return templates_dir
+
+
+def get_user_templates_dir_for_os(os_name: str):
+    """
+    Get the user templates directory for a specific OS/distribution.
+
+    Args:
+        os_name: Name of the OS/distribution (e.g., "openSUSE", "Windows", "Ubuntu")
+
+    Returns:
+        Path: Path to ~/.config/virtui-manager/templates/<os_name>/
+    """
+    base_dir = get_user_templates_dir()
+    os_dir = base_dir / os_name
+    os_dir.mkdir(parents=True, exist_ok=True)
+    return os_dir

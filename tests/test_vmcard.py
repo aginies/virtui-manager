@@ -100,7 +100,7 @@ class TestVMCard(unittest.TestCase):
             self.vm_card.internal_id = "uuid-123"
             self.vm_card._update_webc_status()
 
-        self.assertEqual(self.vm_card.webc_status_indicator, " (WebC On)")
+        self.assertEqual(self.vm_card.webc_status_indicator, " 🌐")
         self.assertEqual(mock_button.variant, "success")
         self.assertEqual(mock_button.label, "Show Console")
 
@@ -589,6 +589,12 @@ class TestVMCard(unittest.TestCase):
         # Mock webconsole_manager
         self.mock_app.webconsole_manager.is_running.return_value = False
         self.mock_app.webconsole_manager.is_remote_connection.return_value = False
+
+        # Ensure start_console_async triggers the worker mock
+        def mock_start_async(vm, conn):
+            self.mock_app.worker_manager.run(None, name=f"start_console_{self.vm_card.internal_id}")
+
+        self.mock_app.webconsole_manager.start_console_async.side_effect = mock_start_async
 
         # Mock get_uri_for_connection to return a proper string
         self.mock_app.vm_service.get_uri_for_connection.return_value = "qemu:///system"
@@ -1498,7 +1504,7 @@ class TestVMCard(unittest.TestCase):
         ), patch.object(VMCard, "_perform_tooltip_update"):
             self.vm_card.internal_id = "uuid-123"
             self.vm_card.vm = MagicMock()
-            self.vm_card.webc_status_indicator = " (WebC On)"
+            self.vm_card.webc_status_indicator = " 🌐"
 
         self.mock_app.webconsole_manager.is_running.return_value = False
 
@@ -1524,9 +1530,9 @@ class TestVMCard(unittest.TestCase):
 
         with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
             mock_mounted.return_value = True
-            VMCard.watch_webc_status_indicator(self.vm_card, "", " (WebC On)")
+            VMCard.watch_webc_status_indicator(self.vm_card, "", " 🌐")
 
-        mock_status_widget.update.assert_called_with(f"{StatusText.RUNNING} (WebC On)")
+        mock_status_widget.update.assert_called_with(f"{StatusText.RUNNING} 🌐")
 
     # ========================================================================
     # DISPATCH ACTION TESTS

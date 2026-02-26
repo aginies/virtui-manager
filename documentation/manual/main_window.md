@@ -47,6 +47,15 @@ Press **`i`** to launch the **VM Installation Wizard**.
 *   **Guided Setup:** Select target server, ISO image (local or remote), and allocate resources (CPU, RAM, Disk).
 *   **Defaults:** Uses the defaults defined in *Server Prefs* to speed up deployment.
 
+### Template Management (`t`)
+
+Press **`t`** to open the **Template Management** interface.
+
+*   **View Templates:** Browse all available automation templates (built-in and user-defined).
+*   **Create & Edit:** Create new templates or modify existing ones using your system's default editor.
+*   **Import & Export:** Import templates from files or export templates for sharing.
+*   **Configure Auto-fill:** Set up automatic pre-filling of installation fields and SUSE Customer Center (SCC) registration.
+
 ### [Bulk CMD](bulk_ops.md) (`b`)
 
 The "Bulk Command" mode puts the power of fleet management at your fingertips.
@@ -69,6 +78,7 @@ The "Bulk Command" mode puts the power of fleet management at your fingertips.
 | **`l`** | Servers List |
 | **`f`** | Filter View |
 | **`i`** | Install New Virtual Machine |
+| **`t`** | Template Management |
 | **`k`** | Toggle Compact View |
 | **`b`** | Bulk Command Mode |
 | **`p`** | Pattern Select |
