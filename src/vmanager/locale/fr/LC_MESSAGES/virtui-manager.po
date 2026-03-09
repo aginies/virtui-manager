@@ -2016,7 +2016,7 @@ msgstr ""
 
 #: constants.py:643
 #, fuzzy
-msgid "Root Password:"
+msgid "Root Password"
 msgstr "Mot de passe"
 
 #: constants.py:644
@@ -2026,17 +2026,17 @@ msgstr "Mot de passe"
 
 #: constants.py:645
 #, fuzzy
-msgid "Username:"
-msgstr "Renommer"
+msgid "Username"
+msgstr "Utilisateur"
 
 #: constants.py:646
 #, fuzzy
 msgid "Default username"
-msgstr "Renommer"
+msgstr "iUtilisateur par défaut"
 
 #: constants.py:647
 #, fuzzy
-msgid "User Password:"
+msgid "User Password"
 msgstr "Mot de passe"
 
 #: constants.py:648
@@ -2046,12 +2046,12 @@ msgstr "Mot de passe"
 
 #: constants.py:649
 #, fuzzy
-msgid "Keyboard Layout:"
+msgid "Keyboard Layout"
 msgstr "Disposition du clavier"
 
 #: constants.py:650
 #, fuzzy
-msgid "Language:"
+msgid "Language"
 msgstr "Langue"
 
 #: constants.py:651
@@ -2063,45 +2063,45 @@ msgid "Optional: Configure SCC registration for SUSE products"
 msgstr "Optionnel : Configurer l'enregistrement SCC pour les produits SUSE"
 
 #: constants.py:653
-msgid "SCC Email:"
-msgstr "E-mail SCC :"
+msgid "SCC Email"
+msgstr "E-mail SCC"
 
 #: constants.py:654
-msgid "SCC Registration Code:"
-msgstr "Code d'enregistrement SCC :"
+msgid "SCC Registration Code"
+msgstr "Code d'enregistrement SCC"
 
 #: constants.py:655
 #, fuzzy
-msgid "SCC Workstation Extension Registration Code:"
-msgstr "Code d'enregistrement SCC :"
+msgid "SCC Workstation Extension Registration Code"
+msgstr "Code d'enregistrement SCC"
 
 #: constants.py:656
 #, fuzzy
-msgid "SCC HPC Registration Code:"
-msgstr "Code d'enregistrement SCC :"
+msgid "SCC HPC Registration Code"
+msgstr "Code d'enregistrement SCC"
 
 #: constants.py:657
 #, fuzzy
-msgid "SCC HA Registration Code:"
-msgstr "Code d'enregistrement SCC :"
+msgid "SCC HA Registration Code"
+msgstr "Code d'enregistrement SCC"
 
 #: constants.py:658
 #, fuzzy
-msgid "SCC LTSS Registration Code:"
-msgstr "Code d'enregistrement SCC :"
+msgid "SCC LTSS Registration Code"
+msgstr "Code d'enregistrement SCC"
 
 #: constants.py:659
 #, fuzzy
-msgid "SCC Live Patching Registration Code:"
-msgstr "Code d'enregistrement SCC :"
+msgid "SCC Live Patching Registration Code"
+msgstr "Code d'enregistrement SCC"
 
 #: constants.py:660
 msgid "Registration code from SUSE Customer Center"
 msgstr "Code d'enregistrement du SUSE Customer Center"
 
 #: constants.py:661
-msgid "SCC Product Architecture:"
-msgstr "Architecture produit SCC :"
+msgid "SCC Product Architecture"
+msgstr "Architecture produit SCC"
 
 #: constants.py:665
 msgid "US English"
@@ -2155,12 +2155,12 @@ msgstr "Anglais (Royaume-Uni)"
 #: constants.py:679
 #, fuzzy
 msgid "Template Name"
-msgstr "Nom de la cible :"
+msgstr "Nom de la cible"
 
 #: constants.py:680
 #, fuzzy
-msgid "Template Name:"
-msgstr "Nom de la cible :"
+msgid "Template Name"
+msgstr "Nom de la cible"
 
 #: constants.py:681
 #, fuzzy
@@ -2168,8 +2168,8 @@ msgid "Enter template name"
 msgstr "Entrer le nom de l'instantané"
 
 #: constants.py:682
-msgid "Operating System:"
-msgstr "Système d'exploitation :"
+msgid "Operating System"
+msgstr "Système d'exploitation"
 
 #: constants.py:683
 #, fuzzy

@@ -2029,7 +2029,7 @@ msgstr ""
 
 #: constants.py:643
 #, fuzzy
-msgid "Root Password:"
+msgid "Root Password"
 msgstr "Passwort"
 
 #: constants.py:644
@@ -2039,7 +2039,7 @@ msgstr "Passwort"
 
 #: constants.py:645
 #, fuzzy
-msgid "Username:"
+msgid "Username"
 msgstr "Umbenennen"
 
 #: constants.py:646
@@ -2049,7 +2049,7 @@ msgstr "Umbenennen"
 
 #: constants.py:647
 #, fuzzy
-msgid "User Password:"
+msgid "User Password"
 msgstr "Passwort"
 
 #: constants.py:648
@@ -2059,7 +2059,7 @@ msgstr "Passwort"
 
 #: constants.py:649
 #, fuzzy
-msgid "Keyboard Layout:"
+msgid "Keyboard Layout"
 msgstr "Tastaturbelegung"
 
 #: constants.py:650
@@ -2080,41 +2080,41 @@ msgid "SCC Email:"
 msgstr "SCC E-Mail:"
 
 #: constants.py:654
-msgid "SCC Registration Code:"
-msgstr "SCC-Registrierungscode:"
+msgid "SCC Registration Code"
+msgstr "SCC-Registrierungscode"
 
 #: constants.py:655
 #, fuzzy
-msgid "SCC Workstation Extension Registration Code:"
-msgstr "SCC-Registrierungscode:"
+msgid "SCC Workstation Extension Registration Code"
+msgstr "SCC-Registrierungscode"
 
 #: constants.py:656
 #, fuzzy
-msgid "SCC HPC Registration Code:"
-msgstr "SCC-Registrierungscode:"
+msgid "SCC HPC Registration Code"
+msgstr "SCC-Registrierungscode"
 
 #: constants.py:657
 #, fuzzy
-msgid "SCC HA Registration Code:"
-msgstr "SCC-Registrierungscode:"
+msgid "SCC HA Registration Code"
+msgstr "SCC-Registrierungscode"
 
 #: constants.py:658
 #, fuzzy
-msgid "SCC LTSS Registration Code:"
-msgstr "SCC-Registrierungscode:"
+msgid "SCC LTSS Registration Code"
+msgstr "SCC-Registrierungscode"
 
 #: constants.py:659
 #, fuzzy
-msgid "SCC Live Patching Registration Code:"
-msgstr "SCC-Registrierungscode:"
+msgid "SCC Live Patching Registration Code"
+msgstr "SCC-Registrierungscode"
 
 #: constants.py:660
 msgid "Registration code from SUSE Customer Center"
 msgstr "Registrierungscode vom SUSE Customer Center"
 
 #: constants.py:661
-msgid "SCC Product Architecture:"
-msgstr "SCC-Produktarchitektur:"
+msgid "SCC Product Architecture"
+msgstr "SCC-Produktarchitektur"
 
 #: constants.py:665
 msgid "US English"
@@ -2168,12 +2168,12 @@ msgstr "Englisch (UK)"
 #: constants.py:679
 #, fuzzy
 msgid "Template Name"
-msgstr "Zielname:"
+msgstr "Zielname"
 
 #: constants.py:680
 #, fuzzy
-msgid "Template Name:"
-msgstr "Zielname:"
+msgid "Template Name"
+msgstr "Zielname"
 
 #: constants.py:681
 #, fuzzy
@@ -2181,8 +2181,8 @@ msgid "Enter template name"
 msgstr "Schnappschuss-Namen eingeben"
 
 #: constants.py:682
-msgid "Operating System:"
-msgstr "Betriebssystem:"
+msgid "Operating System"
+msgstr "Betriebssystem"
 
 #: constants.py:683
 #, fuzzy
