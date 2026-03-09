@@ -27,12 +27,12 @@
     <user>
       <username>root</username>
       <user_password>{root_password}</user_password>
-      <encrypted config:type="boolean">false</encrypted>
+      <encrypted config:type="boolean">true</encrypted>
     </user>
     <user>
       <username>{user_name}</username>
       <user_password>{user_password}</user_password>
-      <encrypted config:type="boolean">false</encrypted>
+      <encrypted config:type="boolean">true</encrypted>
     </user>
   </users>
 

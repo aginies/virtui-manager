@@ -72,8 +72,6 @@ class ConfigModal(BaseModal[None]):
                 )
 
                 # Remote Viewer Settings
-                yield Label(StaticText.REMOTE_VIEWER)
-
                 viewers = []
                 if shutil.which("virtui-remote-viewer"):
                     viewers.append(("virtui-remote-viewer", "virtui-remote-viewer"))
@@ -150,9 +148,10 @@ class ConfigModal(BaseModal[None]):
                             tooltip=StaticText.VNC_COMPRESSION_TOOLTIP,
                         )
 
-                with Horizontal():
-                    yield Button(ButtonLabels.SAVE, variant="primary", id="save-config-btn")
-                    yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
+        with Vertical():
+            with Horizontal():
+                yield Button(ButtonLabels.SAVE, variant="primary", id="save-config-btn")
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     @on(Button.Pressed)
     def on_button_pressed(self, event: Button.Pressed) -> None:

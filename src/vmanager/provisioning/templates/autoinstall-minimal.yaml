@@ -1,0 +1,46 @@
+#cloud-config
+autoinstall:
+  version: 1
+  
+  # Minimal server installation
+  locale: {locale}
+  keyboard:
+    layout: {keyboard}
+  
+  # Network configuration - use DHCP
+  network:
+    network:
+      version: 2
+      ethernets:
+        {network_interface}:
+          dhcp4: true
+  
+  # User setup
+  identity:
+    hostname: {hostname}
+    username: {username}
+    password: "{password}"
+  
+  # SSH - minimal setup
+  ssh:
+    install-server: true
+    allow-pw: true
+  
+  # Storage - simple single partition
+  storage:
+    layout:
+      name: direct
+      match:
+        path: {disk_device}
+  
+  # Minimal packages only
+  packages:
+    - openssh-server
+  
+  # Skip most optional components
+  snaps:
+    - name: core20
+      channel: stable
+  
+  # Quick reboot
+  shutdown: reboot

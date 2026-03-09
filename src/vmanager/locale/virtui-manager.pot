@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 2.0.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-02-26 11:02+0100\n"
+"POT-Creation-Date: 2026-03-09 15:28+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -940,7 +940,7 @@ msgstr ""
 msgid "Enter snapshot name"
 msgstr ""
 
-#: constants.py:351
+#: constants.py:351 constants.py:683
 msgid "Description (optional)"
 msgstr ""
 
@@ -985,7 +985,7 @@ msgid "Enter new memory size (MB)"
 msgstr ""
 
 #: constants.py:362
-msgid "Select Machine Type:"
+msgid "Select Machine Type"
 msgstr ""
 
 #: constants.py:363
@@ -1303,7 +1303,7 @@ msgid "Performance"
 msgstr ""
 
 #: constants.py:449
-msgid "Stats Interval (seconds):"
+msgid "Stats Interval (seconds)"
 msgstr ""
 
 #: constants.py:450
@@ -1898,8 +1898,8 @@ msgid ""
 "registration"
 msgstr ""
 
-#: constants.py:643
-msgid "Root Password:"
+#: constants.py:643 constants.py:687
+msgid "Root Password"
 msgstr ""
 
 #: constants.py:644
@@ -1914,20 +1914,20 @@ msgstr ""
 msgid "Default username"
 msgstr ""
 
-#: constants.py:647
-msgid "User Password:"
+#: constants.py:647 constants.py:691
+msgid "User Password"
 msgstr ""
 
 #: constants.py:648
 msgid "Default user password"
 msgstr ""
 
-#: constants.py:649
-msgid "Keyboard Layout:"
+#: constants.py:649 constants.py:697
+msgid "Keyboard Layout"
 msgstr ""
 
-#: constants.py:650
-msgid "Language:"
+#: constants.py:650 constants.py:695
+msgid "Language"
 msgstr ""
 
 #: constants.py:651
@@ -1939,31 +1939,31 @@ msgid "Optional: Configure SCC registration for SUSE products"
 msgstr ""
 
 #: constants.py:653
-msgid "SCC Email:"
+msgid "SCC Email"
 msgstr ""
 
 #: constants.py:654
-msgid "SCC Registration Code:"
+msgid "SCC Registration Code"
 msgstr ""
 
 #: constants.py:655
-msgid "SCC Workstation Extension Registration Code:"
+msgid "SCC Workstation Extension Registration Code"
 msgstr ""
 
 #: constants.py:656
-msgid "SCC HPC Registration Code:"
+msgid "SCC HPC Registration Code"
 msgstr ""
 
 #: constants.py:657
-msgid "SCC HA Registration Code:"
+msgid "SCC HA Registration Code"
 msgstr ""
 
 #: constants.py:658
-msgid "SCC LTSS Registration Code:"
+msgid "SCC LTSS Registration Code"
 msgstr ""
 
 #: constants.py:659
-msgid "SCC Live Patching Registration Code:"
+msgid "SCC Live Patching Registration Code"
 msgstr ""
 
 #: constants.py:660
@@ -1971,7 +1971,7 @@ msgid "Registration code from SUSE Customer Center"
 msgstr ""
 
 #: constants.py:661
-msgid "SCC Product Architecture:"
+msgid "SCC Product Architecture"
 msgstr ""
 
 #: constants.py:665
@@ -2022,12 +2022,8 @@ msgstr ""
 msgid "English (UK)"
 msgstr ""
 
-#: constants.py:679
+#: constants.py:679 constants.py:680
 msgid "Template Name"
-msgstr ""
-
-#: constants.py:680
-msgid "Template Name:"
 msgstr ""
 
 #: constants.py:681
@@ -2035,11 +2031,7 @@ msgid "Enter template name"
 msgstr ""
 
 #: constants.py:682
-msgid "Operating System:"
-msgstr ""
-
-#: constants.py:683
-msgid "Description (optional):"
+msgid "Operating System"
 msgstr ""
 
 #: constants.py:684
@@ -2054,10 +2046,6 @@ msgstr ""
 msgid "Template name is required"
 msgstr ""
 
-#: constants.py:687
-msgid "Root Password"
-msgstr ""
-
 #: constants.py:688
 msgid "root password"
 msgstr ""
@@ -2068,10 +2056,6 @@ msgstr ""
 
 #: constants.py:690
 msgid "username"
-msgstr ""
-
-#: constants.py:691
-msgid "User Password"
 msgstr ""
 
 #: constants.py:692
@@ -2086,16 +2070,8 @@ msgstr ""
 msgid "hostname"
 msgstr ""
 
-#: constants.py:695
-msgid "Language"
-msgstr ""
-
 #: constants.py:696
 msgid "System language for the installation"
-msgstr ""
-
-#: constants.py:697
-msgid "Keyboard Layout"
 msgstr ""
 
 #: constants.py:698
@@ -2141,7 +2117,7 @@ msgstr ""
 
 #: constants.py:711
 #, python-brace-format
-msgid "Downloading ISO: {percent}%"
+msgid "Downloading ISO: {percent}% ({speed}/s)"
 msgstr ""
 
 #: constants.py:712

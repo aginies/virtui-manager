@@ -122,7 +122,7 @@ CustomMigrationModal Select {
 /* === SPECIFIC HEIGHT === */
 AutoFillConfigModal > #autofill-config-container,
 InstallVMModal > #install-dialog {
-  width: 85%;
+  width: 90%;
   height: auto;
 }
 InstallVMModal Label {
@@ -221,7 +221,7 @@ HowToVirtIOFSModal #howto-virtiofs-dialog,
 HowToNetworkModal #howto-network-dialog,
 InfoModal #info-modal-dialog,
 HowToSSHModal #howto-ssh-dialog {
-    width: 80;
+    width: 85;
     height: 95%;
 }
 
@@ -497,6 +497,7 @@ FilterModal Checkbox {
 #stats-interval-input,
 #add-pool-btn #cancel-pool-btn,
 #attach-btn, #cancel-btn,
+#save-config-btn, #cancel-config-btn,
 #port-range-label {
   width: 25%;
   height: 1;
@@ -634,7 +635,7 @@ CapabilitiesTreeModal #dialog-title {
 
 /* === Template Management Modal === */
 TemplateManagementModal > #template-management-container {
-  width: 85;
+  width: 90;
   height: 80%;
   border: round $primary;
   background: $surface;

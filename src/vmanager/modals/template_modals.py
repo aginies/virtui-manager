@@ -14,8 +14,8 @@ import logging
 from pathlib import Path
 
 from textual import on
-from textual.containers import Container, Horizontal, ScrollableContainer
-from textual.widgets import Button, DataTable, Input, Label, Select
+from textual.containers import Container, Horizontal, ScrollableContainer, Vertical
+from textual.widgets import Button, Collapsible, DataTable, Input, Label, Select
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..config import load_config, save_config
@@ -35,7 +35,7 @@ class TemplateNameModal(BaseModal[dict | None]):
     SUPPORTED_OS = [
         ("openSUSE", "openSUSE"),
         ("SLES", "SUSE Linux Enterprise Server"),
-        # ("Ubuntu", "Ubuntu"),
+        ("Ubuntu", "Ubuntu"),
         # ("Debian", "Debian"),
         # ("Fedora", "Fedora"),
         # ("RHEL", "Red Hat Enterprise Linux"),
@@ -637,7 +637,7 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                 StaticText.CONFIGURE_AUTOMATION_AND_SCC_SUBTITLE,
                 classes="subtitle",
             )
-
+            yield Label("")
             # Root Password
             yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
             yield Input(
@@ -663,126 +663,131 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                 password=True,
                 id="user-password-input",
             )
+            with Horizontal():
+                # Keyboard Layout
+                with Vertical():
+                    yield Label(StaticText.KEYBOARD_LAYOUT_LABEL, classes="label")
+                    keyboard_options = [
+                        (StaticText.KEYBOARD_US_ENGLISH, "us"),
+                        (StaticText.KEYBOARD_FRENCH, "fr"),
+                        (StaticText.KEYBOARD_GERMAN, "de"),
+                        (StaticText.KEYBOARD_SPANISH, "es"),
+                        (StaticText.KEYBOARD_ITALIAN, "it"),
+                        (StaticText.KEYBOARD_UK_ENGLISH, "uk"),
+                    ]
+                    current_keyboard = self.prefill_config.get("keyboard", "us")
+                    yield Select(
+                        options=keyboard_options,
+                        value=current_keyboard,
+                        id="keyboard-select",
+                        allow_blank=False,
+                    )
 
-            # Keyboard Layout
-            yield Label(StaticText.KEYBOARD_LAYOUT_LABEL, classes="label")
-            keyboard_options = [
-                (StaticText.KEYBOARD_US_ENGLISH, "us"),
-                (StaticText.KEYBOARD_FRENCH, "fr"),
-                (StaticText.KEYBOARD_GERMAN, "de"),
-                (StaticText.KEYBOARD_SPANISH, "es"),
-                (StaticText.KEYBOARD_ITALIAN, "it"),
-                (StaticText.KEYBOARD_UK_ENGLISH, "uk"),
-            ]
-            current_keyboard = self.prefill_config.get("keyboard", "us")
-            yield Select(
-                options=keyboard_options,
-                value=current_keyboard,
-                id="keyboard-select",
-                allow_blank=False,
-            )
+                # Language
+                with Vertical():
+                    yield Label(StaticText.LANGUAGE_LABEL, classes="label")
+                    language_options = [
+                        (StaticText.LANGUAGE_VALUE_ENGLISH_US, StaticText.LANGUAGE_VALUE_ENGLISH_US),
+                        (StaticText.LANGUAGE_VALUE_FRENCH, StaticText.LANGUAGE_VALUE_FRENCH),
+                        (StaticText.LANGUAGE_VALUE_GERMAN, StaticText.LANGUAGE_VALUE_GERMAN),
+                        (StaticText.LANGUAGE_VALUE_SPANISH, StaticText.LANGUAGE_VALUE_SPANISH),
+                        (StaticText.LANGUAGE_VALUE_ITALIAN, StaticText.LANGUAGE_VALUE_ITALIAN),
+                        (StaticText.LANGUAGE_VALUE_ENGLISH_UK, StaticText.LANGUAGE_VALUE_ENGLISH_UK),
+                    ]
+                    current_language = self.prefill_config.get("language", "English (US)")
+                    yield Select(
+                        options=language_options,
+                        value=current_language,
+                        id="language-select",
+                        allow_blank=False,
+                    )
 
-            # Language
-            yield Label(StaticText.LANGUAGE_LABEL, classes="label")
-            language_options = [
-                (StaticText.LANGUAGE_VALUE_ENGLISH_US, StaticText.LANGUAGE_VALUE_ENGLISH_US),
-                (StaticText.LANGUAGE_VALUE_FRENCH, StaticText.LANGUAGE_VALUE_FRENCH),
-                (StaticText.LANGUAGE_VALUE_GERMAN, StaticText.LANGUAGE_VALUE_GERMAN),
-                (StaticText.LANGUAGE_VALUE_SPANISH, StaticText.LANGUAGE_VALUE_SPANISH),
-                (StaticText.LANGUAGE_VALUE_ITALIAN, StaticText.LANGUAGE_VALUE_ITALIAN),
-                (StaticText.LANGUAGE_VALUE_ENGLISH_UK, StaticText.LANGUAGE_VALUE_ENGLISH_UK),
-            ]
-            current_language = self.prefill_config.get("language", "English (US)")
-            yield Select(
-                options=language_options,
-                value=current_language,
-                id="language-select",
-                allow_blank=False,
-            )
+            # SUSE SCC Configuration Section - wrapped in Collapsible
+            with Collapsible(
+                title=StaticText.SUSE_SCC_CONFIGURATION_HEADER, collapsed=True, id="scc-collapsible"
+            ):
+                yield Label(StaticText.SUSE_SCC_CONFIGURATION_SUBTITLE, classes="subtitle")
 
-            # SUSE SCC Configuration Section
-            yield Label(StaticText.SUSE_SCC_CONFIGURATION_HEADER, classes="section-header")
-            yield Label(StaticText.SUSE_SCC_CONFIGURATION_SUBTITLE, classes="subtitle")
+                # SCC Email
+                yield Label(StaticText.SCC_EMAIL_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_email", ""),
+                    placeholder="your-email@example.com",
+                    id="scc-email-input",
+                )
 
-            # SCC Email
-            yield Label(StaticText.SCC_EMAIL_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_email", ""),
-                placeholder="your-email@example.com",
-                id="scc-email-input",
-            )
+                # SCC Registration Code
+                yield Label(StaticText.SCC_REG_CODE_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_reg_code", ""),
+                    placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                    password=True,
+                    id="scc-reg-code-input",
+                )
 
-            # SCC Registration Code
-            yield Label(StaticText.SCC_REG_CODE_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_reg_code", ""),
-                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
-                password=True,
-                id="scc-reg-code-input",
-            )
+                # SCC WE Registration Code
+                yield Label(StaticText.SCC_WE_REG_CODE_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_we_reg_code", ""),
+                    placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                    password=True,
+                    id="scc-we-reg-code-input",
+                )
 
-            # SCC WE Registration Code
-            yield Label(StaticText.SCC_WE_REG_CODE_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_we_reg_code", ""),
-                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
-                password=True,
-                id="scc-we-reg-code-input",
-            )
+                # SCC HPC Registration Code
+                yield Label(StaticText.SCC_HPC_REG_CODE_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_hpc_reg_code", ""),
+                    placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                    password=True,
+                    id="scc-hpc-reg-code-input",
+                )
 
-            # SCC HPC Registration Code
-            yield Label(StaticText.SCC_HPC_REG_CODE_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_hpc_reg_code", ""),
-                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
-                password=True,
-                id="scc-hpc-reg-code-input",
-            )
+                # SCC HA Registration Code
+                yield Label(StaticText.SCC_HA_REG_CODE_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_ha_reg_code", ""),
+                    placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                    password=True,
+                    id="scc-ha-reg-code-input",
+                )
 
-            # SCC HA Registration Code
-            yield Label(StaticText.SCC_HA_REG_CODE_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_ha_reg_code", ""),
-                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
-                password=True,
-                id="scc-ha-reg-code-input",
-            )
+                # SCC Live Patching Registration Code
+                yield Label(StaticText.SCC_LPATCHING_REG_CODE_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_lpatching_reg_code", ""),
+                    placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                    password=True,
+                    id="scc-lpatching-reg-code-input",
+                )
 
-            # SCC Live Patching Registration Code
-            yield Label(StaticText.SCC_LPATCHING_REG_CODE_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_lpatching_reg_code", ""),
-                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
-                password=True,
-                id="scc-lpatching-reg-code-input",
-            )
+                # SCC LTSS Registration Code
+                yield Label(StaticText.SCC_LTSS_REG_CODE_LABEL, classes="label")
+                yield Input(
+                    value=self.scc_config.get("scc_ltss_reg_code", ""),
+                    placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
+                    password=True,
+                    id="scc-ltss-reg-code-input",
+                )
 
-            # SCC LTSS Registration Code
-            yield Label(StaticText.SCC_LTSS_REG_CODE_LABEL, classes="label")
-            yield Input(
-                value=self.scc_config.get("scc_ltss_reg_code", ""),
-                placeholder=StaticText.SCC_REG_CODE_PLACEHOLDER,
-                password=True,
-                id="scc-ltss-reg-code-input",
-            )
-
-            # SCC Product Architecture
-            yield Label(StaticText.SCC_PRODUCT_ARCH_LABEL, classes="label")
-            arch_options = [
-                ("x86_64", "x86_64"),
-                ("aarch64", "aarch64"),
-                ("s390x", "s390x"),
-                ("ppc64le", "ppc64le"),
-            ]
-            current_arch = self.scc_config.get("scc_product_arch", "x86_64")
-            yield Select(
-                options=arch_options,
-                value=current_arch,
-                id="scc-arch-select",
-                allow_blank=False,
-            )
+                # SCC Product Architecture
+                yield Label(StaticText.SCC_PRODUCT_ARCH_LABEL, classes="label")
+                arch_options = [
+                    ("x86_64", "x86_64"),
+                    ("aarch64", "aarch64"),
+                    ("s390x", "s390x"),
+                    ("ppc64le", "ppc64le"),
+                ]
+                current_arch = self.scc_config.get("scc_product_arch", "x86_64")
+                yield Select(
+                    options=arch_options,
+                    value=current_arch,
+                    id="scc-arch-select",
+                    allow_blank=False,
+                )
 
             # Action buttons
+        with Vertical():
             with Horizontal(classes="buttons"):
                 yield Button(ButtonLabels.SAVE, id="save-config-btn", variant="primary")
                 yield Button(ButtonLabels.CANCEL, id="cancel-config-btn")

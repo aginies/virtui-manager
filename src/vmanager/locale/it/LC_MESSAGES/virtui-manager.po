@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: VirtUI Manager 1.2.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-02-26 11:02+0100\n"
+"POT-Creation-Date: 2026-03-09 15:28+0100\n"
 "PO-Revision-Date: 2026-01-29 17:38+0100\n"
 "Last-Translator: aginies <aginies@suse.com>\n"
 "Language-Team: Italian <tp@lists.linux.it>\n"
@@ -954,7 +954,7 @@ msgstr "Ora attuale: {now}"
 msgid "Enter snapshot name"
 msgstr "Inserisci nome snapshot"
 
-#: constants.py:351
+#: constants.py:351 constants.py:683
 msgid "Description (optional)"
 msgstr "Descrizione (opzionale)"
 
@@ -999,7 +999,8 @@ msgid "Enter new memory size (MB)"
 msgstr "Inserisci nuova dimensione memoria (MB)"
 
 #: constants.py:362
-msgid "Select Machine Type:"
+#, fuzzy
+msgid "Select Machine Type"
 msgstr "Seleziona Tipo Macchina:"
 
 #: constants.py:363
@@ -1321,7 +1322,8 @@ msgid "Performance"
 msgstr "Prestazioni"
 
 #: constants.py:449
-msgid "Stats Interval (seconds):"
+#, fuzzy
+msgid "Stats Interval (seconds)"
 msgstr "Intervallo Statistiche (secondi):"
 
 #: constants.py:450
@@ -2012,9 +2014,9 @@ msgstr ""
 "Imposta valori predefiniti per i campi di automazione e la registrazione "
 "SUSE Customer Center"
 
-#: constants.py:643
+#: constants.py:643 constants.py:687
 #, fuzzy
-msgid "Root Password:"
+msgid "Root Password"
 msgstr "Password"
 
 #: constants.py:644
@@ -2032,9 +2034,9 @@ msgstr "Rinomina"
 msgid "Default username"
 msgstr "Rinomina"
 
-#: constants.py:647
+#: constants.py:647 constants.py:691
 #, fuzzy
-msgid "User Password:"
+msgid "User Password"
 msgstr "Password"
 
 #: constants.py:648
@@ -2042,14 +2044,12 @@ msgstr "Password"
 msgid "Default user password"
 msgstr "Password"
 
-#: constants.py:649
-#, fuzzy
-msgid "Keyboard Layout:"
+#: constants.py:649 constants.py:697
+msgid "Keyboard Layout"
 msgstr "Layout tastiera"
 
-#: constants.py:650
-#, fuzzy
-msgid "Language:"
+#: constants.py:650 constants.py:695
+msgid "Language"
 msgstr "Lingua"
 
 #: constants.py:651
@@ -2061,45 +2061,45 @@ msgid "Optional: Configure SCC registration for SUSE products"
 msgstr "Opzionale: Configura la registrazione SCC per i prodotti SUSE"
 
 #: constants.py:653
-msgid "SCC Email:"
-msgstr "Email SCC:"
+msgid "SCC Email"
+msgstr "Email SCC"
 
 #: constants.py:654
-msgid "SCC Registration Code:"
-msgstr "Codice di registrazione SCC:"
+msgid "SCC Registration Code"
+msgstr "Codice di registrazione SCC"
 
 #: constants.py:655
 #, fuzzy
-msgid "SCC Workstation Extension Registration Code:"
-msgstr "Codice di registrazione SCC:"
+msgid "SCC Workstation Extension Registration Code"
+msgstr "Codice di registrazione SCC"
 
 #: constants.py:656
 #, fuzzy
-msgid "SCC HPC Registration Code:"
-msgstr "Codice di registrazione SCC:"
+msgid "SCC HPC Registration Code"
+msgstr "Codice di registrazione SCC"
 
 #: constants.py:657
 #, fuzzy
-msgid "SCC HA Registration Code:"
-msgstr "Codice di registrazione SCC:"
+msgid "SCC HA Registration Code"
+msgstr "Codice di registrazione SCC"
 
 #: constants.py:658
 #, fuzzy
-msgid "SCC LTSS Registration Code:"
-msgstr "Codice di registrazione SCC:"
+msgid "SCC LTSS Registration Code"
+msgstr "Codice di registrazione SCC"
 
 #: constants.py:659
 #, fuzzy
-msgid "SCC Live Patching Registration Code:"
-msgstr "Codice di registrazione SCC:"
+msgid "SCC Live Patching Registration Code"
+msgstr "Codice di registrazione SCC"
 
 #: constants.py:660
 msgid "Registration code from SUSE Customer Center"
 msgstr "Codice di registrazione dal SUSE Customer Center"
 
 #: constants.py:661
-msgid "SCC Product Architecture:"
-msgstr "Architettura prodotto SCC:"
+msgid "SCC Product Architecture"
+msgstr "Architettura prodotto SCC"
 
 #: constants.py:665
 msgid "US English"
@@ -2150,15 +2150,10 @@ msgstr "Italiano"
 msgid "English (UK)"
 msgstr "Inglese (Regno Unito)"
 
-#: constants.py:679
+#: constants.py:679 constants.py:680
 #, fuzzy
 msgid "Template Name"
-msgstr "Nome Target:"
-
-#: constants.py:680
-#, fuzzy
-msgid "Template Name:"
-msgstr "Nome Target:"
+msgstr "Nome Target"
 
 #: constants.py:681
 #, fuzzy
@@ -2166,13 +2161,8 @@ msgid "Enter template name"
 msgstr "Inserisci nome snapshot"
 
 #: constants.py:682
-msgid "Operating System:"
-msgstr "Sistema operativo:"
-
-#: constants.py:683
-#, fuzzy
-msgid "Description (optional):"
-msgstr "Descrizione (opzionale)"
+msgid "Operating System"
+msgstr "Sistema operativo"
 
 #: constants.py:684
 #, fuzzy
@@ -2187,11 +2177,6 @@ msgstr "Importa"
 #, fuzzy
 msgid "Template name is required"
 msgstr "Il nome del pool è richiesto."
-
-#: constants.py:687
-#, fuzzy
-msgid "Root Password"
-msgstr "Password"
 
 #: constants.py:688
 #, fuzzy
@@ -2208,11 +2193,6 @@ msgstr "Rinomina"
 msgid "username"
 msgstr "Rinomina"
 
-#: constants.py:691
-#, fuzzy
-msgid "User Password"
-msgstr "Password"
-
 #: constants.py:692
 #, fuzzy
 msgid "user password"
@@ -2228,18 +2208,10 @@ msgstr "Hostname Sorgente"
 msgid "hostname"
 msgstr "host0"
 
-#: constants.py:695
-msgid "Language"
-msgstr "Lingua"
-
 #: constants.py:696
 #, fuzzy
 msgid "System language for the installation"
 msgstr "Seleziona server di destinazione:"
-
-#: constants.py:697
-msgid "Keyboard Layout"
-msgstr "Layout tastiera"
 
 #: constants.py:698
 msgid "Keyboard layout for the system"
@@ -2287,7 +2259,7 @@ msgstr "Uso immagine ISO locale"
 
 #: constants.py:711
 #, fuzzy, python-brace-format
-msgid "Downloading ISO: {percent}%"
+msgid "Downloading ISO: {percent}% ({speed}/s)"
 msgstr "Uploading: {progress}%"
 
 #: constants.py:712
@@ -4279,6 +4251,14 @@ msgstr "Caricamento dati VM da server remoti..."
 #, python-brace-format
 msgid "Committing changes for {name}..."
 msgstr "Esecuzione commit delle modifiche per {name}..."
+
+#, fuzzy
+#~ msgid "Description (optional):"
+#~ msgstr "Descrizione (opzionale)"
+
+#, fuzzy, python-brace-format
+#~ msgid "Downloading ISO: {percent}%"
+#~ msgstr "Uploading: {progress}%"
 
 #~ msgid "your-email@example.com"
 #~ msgstr "tua-email@esempio.com"

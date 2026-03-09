@@ -5,6 +5,12 @@ This module defines the base interface that all OS providers must implement,
 along with common data structures for OS types and versions.
 """
 
+import base64
+import hashlib
+import os
+import secrets
+import subprocess
+import string
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -57,13 +63,83 @@ class AutomationConfig:
     supports_network_config: bool = True
 
 
+def hash_password(plaintext_password: str) -> str:
+    """
+    Hash a plaintext password using SHA-512 crypt format.
+
+    This is suitable for use in AutoYaST, Agama, Ubuntu autoinstall, and other
+    Linux automation systems. Uses system tools (openssl, mkpasswd) or the
+    crypt module (if available) before falling back to a Python implementation.
+
+    Args:
+        plaintext_password: The password to hash
+
+    Returns:
+        SHA-512 hashed password string in crypt format ($6$salt$hash)
+    """
+    # Try using crypt module (deprecated in Python 3.11, removed in 3.13)
+    try:
+        import crypt
+        return crypt.crypt(plaintext_password, crypt.mksalt(crypt.METHOD_SHA512))
+    except (ImportError, AttributeError):
+        pass
+
+    # Try using openssl (ubiquitous on Linux)
+    try:
+        result = subprocess.run(
+            ["openssl", "passwd", "-6", "-stdin"],
+            input=plaintext_password,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Try using mkpasswd (available on Debian/Ubuntu/openSUSE whois package)
+    try:
+        # Use -s (stdin) to avoid passing password in process arguments
+        result = subprocess.run(
+            ["mkpasswd", "-m", "sha-512", "-s"],
+            input=plaintext_password,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Final fallback: Python implementation using a strong KDF (PBKDF2)
+    # Note: This does not produce a glibc $6$ hash, but provides a modern
+    # password hash format when system tools are unavailable.
+    salt_bytes = secrets.token_bytes(16)
+    iterations = 200_000
+
+    # Derive a key using PBKDF2-HMAC-SHA256
+    dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        plaintext_password.encode("utf-8"),
+        salt_bytes,
+        iterations,
+    )
+
+    salt_b64 = base64.b64encode(salt_bytes).decode("ascii").rstrip("=")
+    hash_b64 = base64.b64encode(dk).decode("ascii").rstrip("=")
+    # Format: $pbkdf2-sha256$<iterations>$<salt_b64>$<hash_b64>
+    return f"$pbkdf2-sha256${iterations}${salt_b64}${hash_b64}"
+
+
 class OSProvider(ABC):
     """Abstract base class for OS-specific provisioning providers."""
 
     @abstractmethod
     def generate_automation_file(
         self,
-        version: OSVersion,
+        version: Optional[OSVersion],
         vm_name: str,
         user_config: Dict[str, Any],
         output_path: Path,

@@ -56,9 +56,63 @@ function update_po() {
     while read -r po_file; do
         if [ -z "$po_file" ]; then continue; fi
         echo "Updating $po_file..."
+        
+        # First, remove duplicates from the existing .po file
+        echo "  Removing duplicates from $po_file..."
+        msguniq --use-first "$po_file" -o "$po_file.tmp"
+        if [ $? -eq 0 ]; then
+            mv "$po_file.tmp" "$po_file"
+        else
+            echo "  Warning: msguniq failed, continuing anyway..."
+            rm -f "$po_file.tmp"
+        fi
+        
+        # Then merge with the new POT file
         msgmerge --update --backup=none "$po_file" "$POT_FILE"
+        
+        # Remove duplicates again after merge (in case msgmerge introduced any)
+        echo "  Final duplicate removal..."
+        msguniq --use-first "$po_file" -o "$po_file.tmp"
+        if [ $? -eq 0 ]; then
+            mv "$po_file.tmp" "$po_file"
+        else
+            echo "  Warning: final msguniq failed"
+            rm -f "$po_file.tmp"
+        fi
+        
         found_po=true
     done < <(find "$LOCALES_DIR" -name "$DOMAIN.po")
+    
+    if [ "$found_po" = false ]; then
+        echo "No .po files found to update."
+    else
+        echo "All .po files updated and duplicates removed."
+    fi
+}
+
+function clean_duplicates() {
+    echo "--- Cleaning duplicates from PO files ---"
+    local found_po=false
+    while read -r po_file; do
+        if [ -z "$po_file" ]; then continue; fi
+        echo "Removing duplicates from $po_file..."
+        msguniq --use-first "$po_file" -o "$po_file.tmp"
+        if [ $? -eq 0 ]; then
+            mv "$po_file.tmp" "$po_file"
+            echo "  ✓ Duplicates removed"
+        else
+            echo "  ✗ Error: msguniq failed"
+            rm -f "$po_file.tmp"
+            exit 1
+        fi
+        found_po=true
+    done < <(find "$LOCALES_DIR" -name "$DOMAIN.po")
+    
+    if [ "$found_po" = false ]; then
+        echo "No .po files found."
+    else
+        echo "All duplicates removed successfully."
+    fi
 }
 
 function show_create() {
@@ -84,14 +138,15 @@ function compile_mo() {
 }
 
 function show_help() {
-    echo "Usage: $0 {gen-pot|update-po|compile-mo|all}"
+    echo "Usage: $0 {gen-pot|update-po|clean-duplicates|compile-mo|show|all}"
     echo ""
     echo "Commands:"
-    echo "  gen-pot     Generate the template ($DOMAIN.pot) from constants.py"
-    echo "  update-po   Update existing .po files from the .pot template"
-    echo "  compile-mo  Compile .po files into .mo binary files"
-    echo "  show        Show how to create a new language"
-    echo "  all         Run all steps in order"
+    echo "  gen-pot           Generate the template ($DOMAIN.pot) from constants.py"
+    echo "  update-po         Update existing .po files from the .pot template (includes duplicate removal)"
+    echo "  clean-duplicates  Remove duplicate entries from .po files without updating"
+    echo "  compile-mo        Compile .po files into .mo binary files"
+    echo "  show              Show how to create a new language"
+    echo "  all               Run all steps in order (gen-pot, update-po, compile-mo)"
 }
 
 # Check command line arguments
@@ -101,6 +156,9 @@ case "$1" in
         ;;
     update-po)
         update_po
+        ;;
+    clean-duplicates)
+        clean_duplicates
         ;;
     compile-mo)
         compile_mo

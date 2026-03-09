@@ -22,7 +22,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..os_provider import AutomationConfig, DriverInfo, OSProvider, OSType, OSVersion
+from ..os_provider import AutomationConfig, DriverInfo, OSProvider, OSType, OSVersion, hash_password
 
 
 class OpenSUSEDistro(Enum):
@@ -216,7 +216,7 @@ class OpenSUSEProvider(OSProvider):
         """Scan and return available AutoYaST templates (built-in + user templates)."""
         # Use AutoYaSTTemplateManager to get all templates (built-in + user)
         try:
-            from ..templates.autoyast_template_manager import AutoYaSTTemplateManager
+            from ..templates.auto_template_manager import AutoYaSTTemplateManager
 
             template_manager = AutoYaSTTemplateManager()
             return template_manager.get_all_templates()
@@ -236,7 +236,7 @@ class OpenSUSEProvider(OSProvider):
 
                         # Create display name from filename using centralized template info
                         try:
-                            from ..templates.autoyast_template_manager import (
+                            from ..templates.auto_template_manager import (
                                 AutoYaSTTemplateManager,
                             )
 
@@ -275,7 +275,7 @@ class OpenSUSEProvider(OSProvider):
                 if basic_template.exists():
                     # Use centralized template info for consistency
                     try:
-                        from ..templates.autoyast_template_manager import AutoYaSTTemplateManager
+                        from ..templates.auto_template_manager import AutoYaSTTemplateManager
 
                         display_name, description = (
                             AutoYaSTTemplateManager.get_template_info_for_name("autoyast-basic")
@@ -442,7 +442,7 @@ class OpenSUSEProvider(OSProvider):
 
     def generate_automation_file(
         self,
-        version: OSVersion,
+        version: Optional[OSVersion],
         vm_name: str,
         user_config: Dict[str, Any],
         output_path: Path,
@@ -459,6 +459,12 @@ class OpenSUSEProvider(OSProvider):
 
         # Override with user-provided values
         variables.update(user_config)
+
+        # Hash passwords for security before substitution
+        if "root_password" in variables and variables["root_password"]:
+            variables["root_password"] = hash_password(variables["root_password"])
+        if "user_password" in variables and variables["user_password"]:
+            variables["user_password"] = hash_password(variables["user_password"])
 
         # Alias username to user_name for compatibility between Agama and AutoYaST
         if "username" in user_config and "user_name" not in user_config:

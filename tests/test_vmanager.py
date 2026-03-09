@@ -750,6 +750,19 @@ class TestVMManagerFilter(unittest.TestCase):
 
         self.app.push_screen.assert_called_once()
 
+    def test_action_filter_view_shows_error_when_no_servers_connected(self):
+        """Test that action_filter_view shows error when not connected to any server."""
+        self.app.active_uris = []
+        self.app.show_error_message = MagicMock()
+        self.app.push_screen = MagicMock()
+
+        self.app.action_filter_view()
+
+        # Should show error message
+        self.app.show_error_message.assert_called_once()
+        # Should not open the filter modal
+        self.app.push_screen.assert_not_called()
+
     def test_action_filter_running_sets_sort_by(self):
         """Test that action_filter_running sets sort_by to RUNNING."""
         from vmanager.constants import VmStatus

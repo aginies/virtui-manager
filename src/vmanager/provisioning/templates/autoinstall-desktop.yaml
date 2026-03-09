@@ -1,0 +1,71 @@
+#cloud-config
+autoinstall:
+  version: 1
+  
+  # Desktop installation with development tools
+  locale: {locale}
+  keyboard:
+    layout: {keyboard}
+  
+  # Network configuration
+  network:
+    network:
+      version: 2
+      ethernets:
+        {network_interface}:
+          dhcp4: true
+          dhcp6: false
+  
+  # User setup
+  identity:
+    hostname: {hostname}
+    username: {username}
+    password: "{password}"
+  
+  # SSH configuration
+  ssh:
+    install-server: true
+    allow-pw: true
+  
+  # Storage configuration
+  storage:
+    layout:
+      name: lvm
+      match:
+        path: {disk_device}
+      sizing-policy: scaled
+  
+  # Desktop packages and development tools
+  packages:
+    - ubuntu-desktop-minimal
+    - openssh-server
+    - curl
+    - wget
+    - git
+    - vim
+    - code
+    - firefox
+    - htop
+    - tree
+    - build-essential
+    - python3-pip
+    - nodejs
+    - npm
+  
+  # Snaps for additional desktop applications
+  snaps:
+    - name: core
+      channel: stable
+    - name: snap-store
+      channel: stable
+    - name: firefox
+      channel: stable
+  
+  # Post-installation setup
+  late-commands:
+    - 'echo "Desktop installation completed" > /target/var/log/autoinstall.log'
+    - 'systemctl enable ssh'
+    - 'systemctl set-default graphical.target'
+  
+  # Reboot after installation
+  shutdown: reboot
