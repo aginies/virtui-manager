@@ -1013,7 +1013,7 @@ class VMProvisioner:
                 elif auto_url.endswith("/") or "user-data" in auto_url:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
-                    cmdline = f"autoinstall ds=nocloud-net;s={auto_url}"
+                    cmdline = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
                 elif auto_url.endswith(".cfg"):
                     # Ubuntu preseed automation
                     cmdline = f"auto=true preseed/url={auto_url}"
@@ -1804,19 +1804,41 @@ class VMProvisioner:
                     )
                     self.logger.info(f"Generated automation file: {automation_file_path}")
 
-                    # Validate the generated automation file (XML or JSON)
+                    # Validate the generated automation file (XML, JSON, YAML, or CFG)
                     try:
                         with open(automation_file_path, "r", encoding="utf-8") as f:
                             content = f.read()
 
-                        if str(automation_file_path).endswith(".json"):
+                        file_path_str = str(automation_file_path)
+                        if file_path_str.endswith(".json"):
                             import json
 
                             json.loads(content)
                             self.logger.info("Automation JSON file validation passed")
-                        else:
+                        elif (
+                            file_path_str.endswith((".yaml", ".yml"))
+                            or "user-data" in file_path_str
+                        ):
+                            # Ubuntu autoinstall uses YAML format
+                            import yaml
+
+                            yaml.safe_load(content)
+                            self.logger.info("Automation YAML file validation passed")
+                        elif file_path_str.endswith(".cfg"):
+                            # Ubuntu preseed uses CFG format (no validation, just check non-empty)
+                            if not content.strip():
+                                raise ValueError("Preseed file is empty")
+                            self.logger.info("Automation CFG file validation passed")
+                        elif file_path_str.endswith(".xml"):
+                            # OpenSUSE AutoYaST uses XML format
                             ET.fromstring(content)
                             self.logger.info("Automation XML file validation passed")
+                        else:
+                            # Unknown format, log warning but don't fail
+                            self.logger.warning(
+                                f"Unknown automation file format: {automation_file_path}"
+                            )
+                            self.logger.info("Skipping validation for unknown file format")
 
                     except ET.ParseError as parse_error:
                         self.logger.error(f"Invalid XML in automation file: {parse_error}")
@@ -1835,12 +1857,23 @@ class VMProvisioner:
                         meta_data_path = temp_dir / "meta-data"
                         is_ubuntu_autoinstall = user_data_path.exists() and meta_data_path.exists()
 
+                        # Check if this is Ubuntu preseed (has preseed.cfg file)
+                        preseed_path = temp_dir / "preseed.cfg"
+                        is_ubuntu_preseed = preseed_path.exists()
+
                         if is_ubuntu_autoinstall:
                             # Ubuntu autoinstall: serve directory containing user-data and meta-data
                             self.logger.info(
                                 "Detected Ubuntu autoinstall files (user-data + meta-data)"
                             )
                             autoinst_filename = ""  # Point to directory root for cloud-init
+                        elif is_ubuntu_preseed:
+                            # Ubuntu preseed: serve the preseed.cfg file
+                            self.logger.info("Detected Ubuntu preseed file (preseed.cfg)")
+                            unique_id = uuid.uuid4().hex[:8]
+                            autoinst_filename = f"preseed-{unique_id}.cfg"
+                            autoinst_path = temp_dir / autoinst_filename
+                            shutil.copy(preseed_path, autoinst_path)
                         else:
                             # OpenSUSE/Agama: rename the single file with unique name
                             unique_id = uuid.uuid4().hex[:8]
@@ -1880,13 +1913,17 @@ class VMProvisioner:
                         self.logger.info(f"Ubuntu autoinstall files available at: {auto_url}")
                         self.logger.info(f"  user-data: {auto_url}user-data")
                         self.logger.info(f"  meta-data: {auto_url}meta-data")
+                    elif is_ubuntu_preseed:
+                        # For Ubuntu preseed, point to the .cfg file
+                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                        self.logger.info(f"Ubuntu preseed file available at: {auto_url}")
                     else:
                         # For OpenSUSE/Agama, point to specific file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
                         if is_agama:
                             self.logger.info(f"Agama file available at: {auto_url}")
                         else:
-                            self.logger.info(f"Auto Install file available at: {auto_url}")
+                            self.logger.info(f"AutoYaST file available at: {auto_url}")
 
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
@@ -2012,7 +2049,7 @@ class VMProvisioner:
                     initrd_path = self.upload_file(
                         local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
                     )
-                    self.logger.info(f"Kernel/initrd uploaded to storage pool for XML install.")
+                    self.logger.info(f"Kernel/initrd uploaded to storage pool for Auto install.")
 
                 except Exception as e:
                     self.logger.error(
