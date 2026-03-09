@@ -221,7 +221,7 @@ HowToVirtIOFSModal #howto-virtiofs-dialog,
 HowToNetworkModal #howto-network-dialog,
 InfoModal #info-modal-dialog,
 HowToSSHModal #howto-ssh-dialog {
-    width: 80;
+    width: 85;
     height: 95%;
 }
 
