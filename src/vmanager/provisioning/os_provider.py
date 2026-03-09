@@ -63,7 +63,7 @@ class OSProvider(ABC):
     @abstractmethod
     def generate_automation_file(
         self,
-        version: OSVersion,
+        version: Optional[OSVersion],
         vm_name: str,
         user_config: Dict[str, Any],
         output_path: Path,
