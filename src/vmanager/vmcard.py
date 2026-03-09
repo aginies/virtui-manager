@@ -623,10 +623,16 @@ class VMCard(Static):
     def watch_internal_id(self, old_value: str, new_value: str) -> None:
         """Called when internal_id changes (card reuse)."""
         if old_value and old_value != new_value:
-            # Cancel old stats worker if running
+            # Cancel ALL workers associated with the old VM to prevent stale operations
             self.app.worker_manager.cancel(f"update_stats_{old_value}")
             self.app.worker_manager.cancel(f"actions_state_{old_value}")
             self.app.worker_manager.cancel(f"refresh_snapshot_tab_{old_value}")
+            self.app.worker_manager.cancel(f"snapshot_take_{old_value}")
+            self.app.worker_manager.cancel(f"snapshot_delete_fetch_{old_value}")
+            self.app.worker_manager.cancel(f"save_{old_value}")
+            self.app.worker_manager.cancel(f"delete_{old_value}")
+            self.app.worker_manager.cancel(f"xml_tooltip_{old_value}")
+            self.app.worker_manager.cancel(f"get_details_{old_value}")
 
             # Cancel any pending timers for actions state updates
             for timer in self._actions_update_timers:
@@ -639,7 +645,9 @@ class VMCard(Static):
 
         if old_value != new_value:
             # Reset heavy state UI elements
-            self.update_snapshot_tab_title(-1)
+            # Don't set "Updating Data..." - let it show default title until data is fetched
+            # This prevents stuck "Updating Data..." when collapsible is collapsed during navigation
+            self.update_snapshot_tab_title(0)  # Show default "State Management" title
             self.update_button_layout()
             self.update_stats()
             self._perform_tooltip_update()
@@ -771,11 +779,20 @@ class VMCard(Static):
             if self.timer:
                 self.timer.stop()
                 self.timer = None
-        # Cancel Workers
-        if self.vm:
+
+        # Cancel ALL workers when card is unmounted
+        if self.internal_id:
             try:
                 uuid = self.internal_id
                 self.app.worker_manager.cancel(f"update_stats_{uuid}")
+                self.app.worker_manager.cancel(f"actions_state_{uuid}")
+                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{uuid}")
+                self.app.worker_manager.cancel(f"snapshot_take_{uuid}")
+                self.app.worker_manager.cancel(f"snapshot_delete_fetch_{uuid}")
+                self.app.worker_manager.cancel(f"save_{uuid}")
+                self.app.worker_manager.cancel(f"delete_{uuid}")
+                self.app.worker_manager.cancel(f"xml_tooltip_{uuid}")
+                self.app.worker_manager.cancel(f"get_details_{uuid}")
             except Exception:
                 pass
 
@@ -803,11 +820,18 @@ class VMCard(Static):
                 pass  # Timer may already be stopped or completed
         self._actions_update_timers.clear()
 
-        # Cancel any running workers
+        # Cancel ALL running workers for this VM before card reuse
         if self.internal_id:
             try:
                 self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
                 self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{self.internal_id}")
+                self.app.worker_manager.cancel(f"snapshot_take_{self.internal_id}")
+                self.app.worker_manager.cancel(f"snapshot_delete_fetch_{self.internal_id}")
+                self.app.worker_manager.cancel(f"save_{self.internal_id}")
+                self.app.worker_manager.cancel(f"delete_{self.internal_id}")
+                self.app.worker_manager.cancel(f"xml_tooltip_{self.internal_id}")
+                self.app.worker_manager.cancel(f"get_details_{self.internal_id}")
             except Exception:
                 pass
 
@@ -1090,10 +1114,11 @@ class VMCard(Static):
                 # Cancel any existing worker to avoid duplicate fetches
                 self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
 
-                # Use short delay (50ms) to debounce rapid updates while allowing quick response
+                # Use 200ms delay to debounce rapid updates during page navigation
+                # This reduces worker thread spam when navigating between pages
                 # Timers will be cancelled if the card is reused for another VM (page switch)
-                timer1 = self.app.set_timer(0.05, lambda: self._refresh_snapshot_tab_if_visible())
-                timer2 = self.app.set_timer(0.05, lambda: self._schedule_actions_state_worker())
+                timer1 = self.app.set_timer(0.2, lambda: self._refresh_snapshot_tab_if_visible())
+                timer2 = self.app.set_timer(0.2, lambda: self._schedule_actions_state_worker())
                 self._actions_update_timers.extend([timer1, timer2])
 
     def _update_fast_buttons(self):
@@ -1169,6 +1194,14 @@ class VMCard(Static):
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
+            # Check if card is still mounted and collapsible is still expanded
+            # This prevents workers from running after card reuse during page navigation
+            if not self.is_mounted:
+                return
+            collapsible = self.ui.get("collapsible")
+            if not collapsible or collapsible.collapsed:
+                return
+
             if self.vm is None:
                 return
 
@@ -2112,6 +2145,14 @@ class VMCard(Static):
 
         def fetch_and_update():
             try:
+                # Check if card is still mounted and collapsible is still expanded
+                # This prevents workers from running after card reuse during page navigation
+                if not self.is_mounted:
+                    return
+                collapsible = self.ui.get("collapsible")
+                if not collapsible or collapsible.collapsed:
+                    return
+
                 if not self.vm:
                     return
 
