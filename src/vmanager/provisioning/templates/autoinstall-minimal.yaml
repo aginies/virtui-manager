@@ -3,9 +3,9 @@ autoinstall:
   version: 1
   
   # Minimal server installation
-  locale: en_US.UTF-8
+  locale: {locale}
   keyboard:
-    layout: us
+    layout: {keyboard}
   
   # Network configuration - use DHCP
   network:
@@ -19,7 +19,7 @@ autoinstall:
   identity:
     hostname: {hostname}
     username: {username}
-    password: $6$rounds=4096$salted$hash.generated.password
+    password: "{password}"
   
   # SSH - minimal setup
   ssh:
