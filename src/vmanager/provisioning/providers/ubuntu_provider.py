@@ -14,7 +14,7 @@ from enum import Enum
 
 import requests
 import yaml
-from ..os_provider import OSProvider, OSType, OSVersion
+from ..os_provider import OSProvider, OSType, OSVersion, hash_password
 
 
 class UbuntuDistro(Enum):
@@ -480,6 +480,16 @@ class UbuntuProvider(OSProvider):
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
+        # Get plaintext passwords
+        plaintext_user_password = config.get(
+            "password", config.get("user_password", config.get("user_pw", "password"))
+        )
+        plaintext_root_password = config.get("root_password", config.get("root_pw", "password"))
+
+        # Hash passwords for security
+        hashed_user_password = hash_password(plaintext_user_password)
+        hashed_root_password = hash_password(plaintext_root_password)
+
         # Get substitution values with defaults
         # Support both Ubuntu-style and OpenSUSE-style key names for compatibility
         substitutions = {
@@ -487,12 +497,10 @@ class UbuntuProvider(OSProvider):
             "hostname": config.get("hostname", config.get("vm_name", "ubuntu-vm")),
             # Support both 'username' and 'user_name' for compatibility
             "username": config.get("username", config.get("user_name", "user")),
-            # Support both 'password', 'user_password', and 'user_pw' for compatibility
-            "password": config.get(
-                "password", config.get("user_password", config.get("user_pw", "password"))
-            ),
-            # Support both 'root_password' and 'root_pw' for compatibility
-            "root_password": config.get("root_password", config.get("root_pw", "password")),
+            # Use hashed passwords for autoinstall (cloud-init)
+            # Escape single quotes in password hash (shouldn't have any, but just in case)
+            "password": hashed_user_password.replace("'", "''"),
+            "root_password": hashed_root_password.replace("'", "''"),
             "timezone": config.get("timezone", "UTC"),
             # Support both 'locale' and 'language' for compatibility
             "locale": config.get("locale", config.get("language", "en_US.UTF-8")),

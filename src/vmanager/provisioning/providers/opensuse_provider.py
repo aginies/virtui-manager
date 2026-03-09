@@ -22,7 +22,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..os_provider import AutomationConfig, DriverInfo, OSProvider, OSType, OSVersion
+from ..os_provider import AutomationConfig, DriverInfo, OSProvider, OSType, OSVersion, hash_password
 
 
 class OpenSUSEDistro(Enum):
@@ -459,6 +459,12 @@ class OpenSUSEProvider(OSProvider):
 
         # Override with user-provided values
         variables.update(user_config)
+
+        # Hash passwords for security before substitution
+        if "root_password" in variables and variables["root_password"]:
+            variables["root_password"] = hash_password(variables["root_password"])
+        if "user_password" in variables and variables["user_password"]:
+            variables["user_password"] = hash_password(variables["user_password"])
 
         # Alias username to user_name for compatibility between Agama and AutoYaST
         if "username" in user_config and "user_name" not in user_config:
