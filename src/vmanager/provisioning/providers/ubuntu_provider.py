@@ -13,7 +13,8 @@ from typing import Any, Dict, List, Optional
 from enum import Enum
 
 import requests
-from ..os_provider import OSProvider, OSType
+import yaml
+from ..os_provider import OSProvider, OSType, OSVersion
 
 
 class UbuntuDistro(Enum):
@@ -115,46 +116,65 @@ class UbuntuProvider(OSProvider):
             return []
 
     def generate_automation_file(
-        self, template_name: str, config: Dict[str, Any], output_dir: Path
-    ) -> Optional[Path]:
+        self,
+        version: Optional[OSVersion],
+        vm_name: str,
+        user_config: Dict[str, Any],
+        output_path: Path,
+        template_name: str | None = None,
+    ) -> Path:
         """Generate Ubuntu automation file (autoinstall or preseed)."""
-        try:
-            self.logger.info(f"Generating Ubuntu automation file with template: {template_name}")
+        # Use default template if not provided
+        if not template_name:
+            template_name = "autoinstall-basic.yaml"
 
-            # Determine if this is autoinstall or preseed based on filename patterns
-            is_autoinstall = (
-                template_name.startswith("autoinstall")
-                and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
-                or "autoinstall" in template_name.lower()
-                and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
-            )
+        self.logger.info(f"Generating Ubuntu automation file with template: {template_name}")
 
-            is_preseed = (
-                template_name.startswith("preseed")
-                and template_name.endswith(".cfg")
-                or "preseed" in template_name.lower()
-                and template_name.endswith(".cfg")
-            )
+        # Merge vm_name into config for variable substitution
+        config = user_config.copy()
+        config["vm_name"] = vm_name
 
-            if is_autoinstall:
-                return self._generate_autoinstall_file(template_name, config, output_dir)
-            elif is_preseed:
-                return self._generate_preseed_file(template_name, config, output_dir)
+        # Use output_path as output_dir for compatibility
+        output_dir = output_path
+
+        # Determine if this is autoinstall or preseed based on filename patterns
+        is_autoinstall = (
+            template_name.startswith("autoinstall")
+            and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
+            or "autoinstall" in template_name.lower()
+            and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
+        )
+
+        is_preseed = (
+            template_name.startswith("preseed")
+            and template_name.endswith(".cfg")
+            or "preseed" in template_name.lower()
+            and template_name.endswith(".cfg")
+        )
+
+        result = None
+        if is_autoinstall:
+            result = self._generate_autoinstall_file(template_name, config, output_dir)
+        elif is_preseed:
+            result = self._generate_preseed_file(template_name, config, output_dir)
+        else:
+            # Fallback: try to determine from file extension
+            if template_name.endswith((".yaml", ".yml")):
+                self.logger.info(f"Treating {template_name} as autoinstall YAML file")
+                result = self._generate_autoinstall_file(template_name, config, output_dir)
+            elif template_name.endswith(".cfg"):
+                self.logger.info(f"Treating {template_name} as preseed config file")
+                result = self._generate_preseed_file(template_name, config, output_dir)
             else:
-                # Fallback: try to determine from file extension
-                if template_name.endswith((".yaml", ".yml")):
-                    self.logger.info(f"Treating {template_name} as autoinstall YAML file")
-                    return self._generate_autoinstall_file(template_name, config, output_dir)
-                elif template_name.endswith(".cfg"):
-                    self.logger.info(f"Treating {template_name} as preseed config file")
-                    return self._generate_preseed_file(template_name, config, output_dir)
-                else:
-                    self.logger.error(f"Unknown Ubuntu template type: {template_name}")
-                    return None
+                self.logger.error(f"Unknown Ubuntu template type: {template_name}")
+                raise Exception(f"Unknown Ubuntu template type: {template_name}")
 
-        except Exception as e:
-            self.logger.error(f"Error generating Ubuntu automation file: {e}")
-            return None
+        if result is None:
+            raise Exception(
+                f"Failed to generate Ubuntu automation file with template: {template_name}"
+            )
+
+        return result
 
     def validate_template_content(self, content: str, template_name: str) -> bool:
         """Validate Ubuntu template content."""
@@ -166,8 +186,6 @@ class UbuntuProvider(OSProvider):
                 and template_name.endswith(".yaml")
             ):
                 # Validate cloud-init autoinstall YAML
-                import yaml
-
                 data = yaml.safe_load(content)
 
                 # Check for required autoinstall structure
@@ -204,8 +222,6 @@ class UbuntuProvider(OSProvider):
             # Generic YAML check for other Ubuntu automation files
             elif template_name.endswith(".yaml") or template_name.endswith(".yml"):
                 try:
-                    import yaml
-
                     yaml.safe_load(content)
                     return True
                 except yaml.YAMLError:
@@ -373,93 +389,80 @@ class UbuntuProvider(OSProvider):
 
     def _generate_autoinstall_file(
         self, template_name: str, config: Dict[str, Any], output_dir: Path
-    ) -> Optional[Path]:
+    ) -> Path:
         """Generate Ubuntu cloud-init autoinstall file."""
-        try:
-            # Load the autoinstall template
-            template_path = self._find_template_file(template_name)
-            if not template_path or not template_path.exists():
-                self.logger.error(f"Ubuntu autoinstall template not found: {template_name}")
-                return None
+        # Load the autoinstall template
+        template_path = self._find_template_file(template_name)
+        if not template_path or not template_path.exists():
+            raise Exception(f"Ubuntu autoinstall template not found: {template_name}")
 
+        # Read template content
+        with open(template_path, "r", encoding="utf-8") as f:
+            template_content = f.read()
+
+        # Generate autoinstall YAML with variable substitution
+        autoinstall_content = self._generate_autoinstall_yaml(template_content, config)
+
+        # Write the autoinstall file
+        output_file = output_dir / "user-data"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(autoinstall_content)
+
+        # Also create meta-data file (required for cloud-init)
+        meta_data_file = output_dir / "meta-data"
+        with open(meta_data_file, "w", encoding="utf-8") as f:
+            f.write(f"instance-id: {config.get('vm_name', 'ubuntu-vm')}\n")
+            f.write(
+                f"local-hostname: {config.get('hostname', config.get('vm_name', 'ubuntu-vm'))}\n"
+            )
+
+        self.logger.info(f"Generated Ubuntu autoinstall files: {output_file}, {meta_data_file}")
+        return output_file
+
+    def _generate_preseed_file(
+        self, template_name: str, config: Dict[str, Any], output_dir: Path
+    ) -> Path:
+        """Generate Ubuntu preseed file."""
+        # Load the preseed template
+        template_path = self._find_template_file(template_name)
+        if not template_path or not template_path.exists():
+            # Generate basic preseed if template not found
+            self.logger.warning(
+                f"Ubuntu preseed template not found: {template_name}, using basic preseed"
+            )
+            preseed_content = self._generate_basic_preseed(config)
+        else:
             # Read template content
             with open(template_path, "r", encoding="utf-8") as f:
                 template_content = f.read()
 
-            # Generate autoinstall YAML with variable substitution
-            autoinstall_content = self._generate_autoinstall_yaml(template_content, config)
+            # Generate preseed with variable substitution
+            preseed_content = self._substitute_variables(template_content, config)
 
-            # Write the autoinstall file
-            output_file = output_dir / "user-data"
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(autoinstall_content)
+        # Write the preseed file
+        output_file = output_dir / "preseed.cfg"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(preseed_content)
 
-            # Also create meta-data file (required for cloud-init)
-            meta_data_file = output_dir / "meta-data"
-            with open(meta_data_file, "w", encoding="utf-8") as f:
-                f.write(f"instance-id: {config.get('vm_name', 'ubuntu-vm')}\n")
-                f.write(
-                    f"local-hostname: {config.get('hostname', config.get('vm_name', 'ubuntu-vm'))}\n"
-                )
-
-            self.logger.info(f"Generated Ubuntu autoinstall files: {output_file}, {meta_data_file}")
-            return output_file
-
-        except Exception as e:
-            self.logger.error(f"Error generating Ubuntu autoinstall file: {e}")
-            return None
-
-    def _generate_preseed_file(
-        self, template_name: str, config: Dict[str, Any], output_dir: Path
-    ) -> Optional[Path]:
-        """Generate Ubuntu preseed file."""
-        try:
-            # Load the preseed template
-            template_path = self._find_template_file(template_name)
-            if not template_path or not template_path.exists():
-                # Generate basic preseed if template not found
-                self.logger.warning(
-                    f"Ubuntu preseed template not found: {template_name}, using basic preseed"
-                )
-                preseed_content = self._generate_basic_preseed(config)
-            else:
-                # Read template content
-                with open(template_path, "r", encoding="utf-8") as f:
-                    template_content = f.read()
-
-                # Generate preseed with variable substitution
-                preseed_content = self._substitute_variables(template_content, config)
-
-            # Write the preseed file
-            output_file = output_dir / "preseed.cfg"
-            with open(output_file, "w", encoding="utf-8") as f:
-                f.write(preseed_content)
-
-            self.logger.info(f"Generated Ubuntu preseed file: {output_file}")
-            return output_file
-
-        except Exception as e:
-            self.logger.error(f"Error generating Ubuntu preseed file: {e}")
-            return None
+        self.logger.info(f"Generated Ubuntu preseed file: {output_file}")
+        return output_file
 
     def _generate_autoinstall_yaml(self, template_content: str, config: Dict[str, Any]) -> str:
         """Generate autoinstall YAML with variable substitution."""
-        import yaml
+        # First, do string substitution on the template content
+        # This must be done BEFORE YAML parsing because curly braces like {network_interface}
+        # would be interpreted as YAML set literals
+        substituted_content = self._substitute_variables(template_content, config)
 
         try:
-            # Parse template as YAML
-            template_data = yaml.safe_load(template_content)
-
-            # Substitute variables in the template data
-            substituted_data = self._substitute_variables_recursive(template_data, config)
-
-            # Convert back to YAML
-            return yaml.dump(substituted_data, default_flow_style=False, sort_keys=False)
-
+            # Parse the substituted content as YAML to validate it
+            yaml.safe_load(substituted_content)
+            # If parsing succeeds, return the substituted content
+            return substituted_content
         except Exception as e:
-            self.logger.error(f"Error processing autoinstall YAML: {e}")
-            # Fallback to simple string substitution
-            return self._substitute_variables(template_content, config)
+            self.logger.error(f"Error validating autoinstall YAML after substitution: {e}")
+            # Return it anyway - the installer might be more lenient
+            return substituted_content
 
     def _substitute_variables_recursive(self, data: Any, config: Dict[str, Any]) -> Any:
         """Recursively substitute variables in data structure."""
@@ -478,13 +481,21 @@ class UbuntuProvider(OSProvider):
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
         # Get substitution values with defaults
+        # Support both Ubuntu-style and OpenSUSE-style key names for compatibility
         substitutions = {
             "vm_name": config.get("vm_name", "ubuntu-vm"),
             "hostname": config.get("hostname", config.get("vm_name", "ubuntu-vm")),
-            "username": config.get("username", "user"),
-            "password": config.get("password", "password"),
+            # Support both 'username' and 'user_name' for compatibility
+            "username": config.get("username", config.get("user_name", "user")),
+            # Support both 'password', 'user_password', and 'user_pw' for compatibility
+            "password": config.get(
+                "password", config.get("user_password", config.get("user_pw", "password"))
+            ),
+            # Support both 'root_password' and 'root_pw' for compatibility
+            "root_password": config.get("root_password", config.get("root_pw", "password")),
             "timezone": config.get("timezone", "UTC"),
-            "locale": config.get("locale", "en_US.UTF-8"),
+            # Support both 'locale' and 'language' for compatibility
+            "locale": config.get("locale", config.get("language", "en_US.UTF-8")),
             "keyboard": config.get("keyboard", "us"),
             "disk_device": config.get("disk_device", "/dev/vda"),
             "network_interface": config.get("network_interface", "enp1s0"),
@@ -503,16 +514,21 @@ class UbuntuProvider(OSProvider):
 
     def _generate_basic_preseed(self, config: Dict[str, Any]) -> str:
         """Generate basic preseed configuration."""
-        username = config.get("username", "user")
-        password = config.get("password", "password")
+        # Support both key name styles for compatibility
+        username = config.get("username", config.get("user_name", "user"))
+        password = config.get(
+            "password", config.get("user_password", config.get("user_pw", "password"))
+        )
         hostname = config.get("hostname", config.get("vm_name", "ubuntu-vm"))
+        locale = config.get("locale", config.get("language", "en_US.UTF-8"))
+        keyboard = config.get("keyboard", "us")
 
         return f"""# Basic Ubuntu Preseed Configuration
 # Generated by VirtUI Manager
 
 # Locale and keyboard
-d-i debian-installer/locale string en_US.UTF-8
-d-i keyboard-configuration/xkb-keymap select us
+d-i debian-installer/locale string {locale}
+d-i keyboard-configuration/xkb-keymap select {keyboard}
 
 # Network configuration
 d-i netcfg/choose_interface select auto
