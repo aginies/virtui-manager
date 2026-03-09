@@ -532,6 +532,10 @@ class TestVMCard(unittest.TestCase):
             self.vm_card.internal_id = "uuid-123"
             self.vm_card.vm = MagicMock()
             self.vm_card.status = StatusText.STOPPED
+            # Ensure collapsible is expanded to pass early exit checks
+            mock_collapsible = MagicMock()
+            mock_collapsible.collapsed = False
+            self.vm_card.ui = {"collapsible": mock_collapsible}
 
         # Mock domain state
         self.mock_app.vm_service._get_domain_state = MagicMock(return_value=(1, 5, "stopped"))
@@ -541,7 +545,10 @@ class TestVMCard(unittest.TestCase):
         # Mock snapshot operations
         self.vm_card.vm.snapshotNum = MagicMock(return_value=0)
 
-        with patch("vmanager.vmcard.has_overlays", return_value=False):
+        # Patch is_mounted property to return True so worker passes early exit check
+        with patch("vmanager.vmcard.has_overlays", return_value=False), patch.object(
+            type(self.vm_card), "is_mounted", new_callable=lambda: property(lambda self: True)
+        ):
             # Execute worker
             self.vm_card._fetch_actions_state_worker()
 
@@ -681,10 +688,21 @@ class TestVMCard(unittest.TestCase):
         if self.vm_card.timer:
             self.vm_card.timer.stop.assert_called_once()
 
-        # Verify worker was cancelled
-        self.mock_app.worker_manager.cancel.assert_called_with(
-            f"update_stats_{self.vm_card.internal_id}"
-        )
+        # Verify all 9 workers were cancelled to prevent stale updates
+        expected_worker_cancellations = [
+            f"update_stats_{self.vm_card.internal_id}",
+            f"actions_state_{self.vm_card.internal_id}",
+            f"refresh_snapshot_tab_{self.vm_card.internal_id}",
+            f"snapshot_take_{self.vm_card.internal_id}",
+            f"snapshot_delete_fetch_{self.vm_card.internal_id}",
+            f"save_{self.vm_card.internal_id}",
+            f"delete_{self.vm_card.internal_id}",
+            f"xml_tooltip_{self.vm_card.internal_id}",
+            f"get_details_{self.vm_card.internal_id}",
+        ]
+
+        for worker_name in expected_worker_cancellations:
+            self.mock_app.worker_manager.cancel.assert_any_call(worker_name)
 
     # ========================================================================
     # REACTIVE PROPERTY WATCHER TESTS
