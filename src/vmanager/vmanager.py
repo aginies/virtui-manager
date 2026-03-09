@@ -1034,6 +1034,10 @@ class VMManagerTUI(App):
     @on(Button.Pressed, "#filter_button")
     def action_filter_view(self) -> None:
         """Filter the VM list."""
+        if not self.active_uris:
+            self.show_error_message(ErrorMessages.NOT_CONNECTED_TO_ANY_SERVER)
+            return
+
         available_servers = []
         for uri in self.active_uris:
             name = uri
