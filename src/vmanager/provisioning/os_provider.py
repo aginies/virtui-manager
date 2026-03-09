@@ -113,20 +113,24 @@ def hash_password(plaintext_password: str) -> str:
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
-    # Final fallback: Python implementation using hashlib
-    # Note: This is a simplified version and may not be 100% compatible
-    # with the glibc crypt implementation, but is better than nothing.
-    salt_chars = string.ascii_letters + string.digits + "./"
-    salt = "".join(secrets.choice(salt_chars) for _ in range(16))
+    # Final fallback: Python implementation using a strong KDF (PBKDF2)
+    # Note: This does not produce a glibc $6$ hash, but provides a modern
+    # password hash format when system tools are unavailable.
+    salt_bytes = secrets.token_bytes(16)
+    iterations = 200_000
 
-    # SHA-512 based password hash (simplified)
-    combined = f"{salt}{plaintext_password}".encode("utf-8")
-    hashed = hashlib.sha512(combined).digest()
-    for _ in range(5000):  # Standard minimum rounds for SHA-512
-        hashed = hashlib.sha512(hashed + combined).digest()
+    # Derive a key using PBKDF2-HMAC-SHA256
+    dk = hashlib.pbkdf2_hmac(
+        "sha256",
+        plaintext_password.encode("utf-8"),
+        salt_bytes,
+        iterations,
+    )
 
-    hash_b64 = base64.b64encode(hashed, altchars=b"./").decode("ascii").rstrip("=")
-    return f"$6${salt}${hash_b64}"
+    salt_b64 = base64.b64encode(salt_bytes).decode("ascii").rstrip("=")
+    hash_b64 = base64.b64encode(dk).decode("ascii").rstrip("=")
+    # Format: $pbkdf2-sha256$<iterations>$<salt_b64>$<hash_b64>
+    return f"$pbkdf2-sha256${iterations}${salt_b64}${hash_b64}"
 
 
 class OSProvider(ABC):
