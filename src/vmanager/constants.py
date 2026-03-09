@@ -708,7 +708,6 @@ Specify the NUMA nodes to use.
     PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
     PROVISIONING_USING_EXISTING_ISO_VOLUME = _("Using existing ISO volume: {path}")
     PROVISIONING_USING_LOCAL_ISO_IMAGE = _("Using local ISO image")
-    PROVISIONING_DOWNLOADING_ISO_PERCENT = _("Downloading ISO: {percent}%")
     PROVISIONING_DOWNLOADING_ISO_SPEED = _("Downloading ISO: {percent}% ({speed}/s)")
     PROVISIONING_ISO_FOUND_IN_CACHE = _("ISO found in cache, skipping download")
     PROVISIONING_SETTING_UP_UEFI_FIRMWARE = _("Setting up UEFI Firmware")
