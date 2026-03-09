@@ -403,6 +403,7 @@ class VMProvisioner:
                 last_update_time = start_time
                 last_downloaded_size = 0
                 speed_update_interval = 1.0  # Update speed every second
+                speed_str = "0 B"  # Initialize speed display
 
                 while True:
                     chunk_start_time = time.time()
@@ -431,24 +432,18 @@ class VMProvisioner:
                             else:
                                 current_speed = 0
 
-                            # Format speed for display
+                            # Format speed for display and store it
                             speed_str = self._format_download_speed(current_speed)
-
-                            # Create progress message with speed
-                            message = StaticText.PROVISIONING_DOWNLOADING_ISO_SPEED.format(
-                                percent=percent, speed=speed_str
-                            )
-                            progress_callback(message, percent)
 
                             # Update tracking variables
                             last_update_time = current_time
                             last_downloaded_size = downloaded_size
-                        else:
-                            # Use the basic message for frequent updates
-                            message = StaticText.PROVISIONING_DOWNLOADING_ISO_PERCENT.format(
-                                percent=percent
-                            )
-                            progress_callback(message, percent)
+
+                        # Always show speed (using last calculated value)
+                        message = StaticText.PROVISIONING_DOWNLOADING_ISO_SPEED.format(
+                            percent=percent, speed=speed_str
+                        )
+                        progress_callback(message, percent)
 
         except Exception as e:
             logging.error(f"Failed to download ISO: {e}")
@@ -1009,7 +1004,8 @@ class VMProvisioner:
                 # Determine the appropriate kernel arguments based on file type and URL
                 if auto_url.endswith(".json"):
                     # Agama (openSUSE) automation
-                    cmdline = f"inst.auto={auto_url} inst.auto_insecure=1"
+                    # Multiple flags to disable SSL verification and allow insecure HTTP
+                    cmdline = f"inst.auto={auto_url} inst.insecure=1 ssl_verify=no"
                 elif auto_url.endswith("/") or "user-data" in auto_url:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
@@ -1019,7 +1015,8 @@ class VMProvisioner:
                     cmdline = f"auto=true preseed/url={auto_url}"
                 else:
                     # OpenSUSE AutoYaST automation (XML format)
-                    cmdline = f"autoyast={auto_url}"
+                    # Add netsetup=dhcp to ensure network is configured
+                    cmdline = f"autoyast={auto_url} netsetup=dhcp"
 
                 if serial_console:
                     cmdline += " console=tty0 console=ttyS0,115200"
@@ -1553,11 +1550,21 @@ class VMProvisioner:
 
         # AutoYaST/Automation file injection
         if auto_url:
-            # HTTP-based AutoYaST (uses --extra-args with --location)
+            # HTTP-based automation (uses --extra-args with --location)
             if auto_url.endswith(".json"):
-                extra_args = f"inst.auto={auto_url} inst.auto_insecure=1"
+                # Agama (openSUSE) automation
+                # Multiple flags to disable SSL verification and allow insecure HTTP
+                extra_args = f"inst.auto={auto_url} inst.insecure=1 ssl_verify=no"
+            elif auto_url.endswith("/") or "user-data" in auto_url:
+                # Ubuntu autoinstall automation (cloud-init based)
+                extra_args = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
+            elif auto_url.endswith(".cfg"):
+                # Ubuntu preseed automation
+                extra_args = f"auto=true preseed/url={auto_url}"
             else:
-                extra_args = f"autoyast={auto_url}"
+                # OpenSUSE AutoYaST automation (XML format)
+                # Add netsetup=dhcp to ensure network is configured
+                extra_args = f"autoyast={auto_url} netsetup=dhcp"
 
             if serial_console:
                 extra_args += " console=tty0 console=ttyS0,115200"
