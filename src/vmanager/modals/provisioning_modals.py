@@ -555,7 +555,7 @@ class InstallVMModal(BaseModal[str | None]):
         - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
         - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
         - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
-        - "Ubuntu distributions" → Show ONLY Ubuntu templates (autoinstall*.yaml, preseed*.cfg)
+        - "Ubuntu distributions" → Show ONLY Ubuntu autoinstall templates (cloud-init, NOT preseed)
         - Custom repositories → Show ALL templates
         """
         # Get all templates
@@ -608,14 +608,14 @@ class InstallVMModal(BaseModal[str | None]):
                             filtered_templates.append(template)
 
         elif isinstance(distro, UbuntuDistro):
-            # Ubuntu distributions → Show Ubuntu automation templates
-            # Ubuntu uses autoinstall*.yaml and preseed*.cfg files
+            # Ubuntu distributions → Show ONLY Ubuntu autoinstall (cloud-init) templates
+            # Preseed templates are excluded (reserved for future Debian support)
             filtered_templates = []
             for template in all_templates:
                 filename = template.get("filename", "")
                 display_name = template.get("display_name", "")
 
-                # Check for Ubuntu-specific automation file patterns
+                # Check for Ubuntu-specific autoinstall file patterns
                 is_ubuntu_autoinstall = (
                     filename.startswith("autoinstall")
                     and filename.endswith(".yaml")
@@ -625,38 +625,39 @@ class InstallVMModal(BaseModal[str | None]):
                     and (filename.endswith(".yaml") or filename.endswith(".yml"))
                 )
 
-                is_ubuntu_preseed = (
+                # Preseed templates are excluded for Ubuntu (will be used for Debian later)
+                is_preseed = (
                     filename.startswith("preseed")
                     and filename.endswith(".cfg")
                     or "preseed" in filename.lower()
                     and filename.endswith(".cfg")
+                    or "(Preseed)" in display_name
                 )
 
-                # Also check display names for Ubuntu markers
-                is_ubuntu_template = (
+                # Also check display names for Ubuntu autoinstall markers
+                is_ubuntu_autoinstall_template = (
                     "(Ubuntu)" in display_name
                     or "(Autoinstall)" in display_name
-                    or "(Preseed)" in display_name
                     or "(Cloud-init)" in display_name
                 )
 
-                # Include if it matches Ubuntu automation patterns or is explicitly marked as Ubuntu
-                should_include = is_ubuntu_autoinstall or is_ubuntu_preseed or is_ubuntu_template
+                # Include only autoinstall templates, exclude preseed
+                should_include = (
+                    is_ubuntu_autoinstall or is_ubuntu_autoinstall_template
+                ) and not is_preseed
 
                 if should_include:
-                    # Include built-in Ubuntu templates
+                    # Include built-in Ubuntu autoinstall templates
                     if template["type"] == "built-in":
                         filtered_templates.append(template)
-                    # For user templates, check if they're Ubuntu-related
+                    # For user templates, check if they're Ubuntu autoinstall-related
                     elif template["type"] == "user":
                         if (
                             "(Ubuntu)" in display_name
                             or "(Autoinstall)" in display_name
-                            or "(Preseed)" in display_name
                             or "(Cloud-init)" in display_name
                             or is_ubuntu_autoinstall
-                            or is_ubuntu_preseed
-                        ):
+                        ) and not is_preseed:
                             filtered_templates.append(template)
 
         elif isinstance(distro, str):
