@@ -8,6 +8,7 @@ along with common data structures for OS types and versions.
 import base64
 import hashlib
 import os
+import secrets
 import subprocess
 import string
 from abc import ABC, abstractmethod
@@ -67,8 +68,8 @@ def hash_password(plaintext_password: str) -> str:
     Hash a plaintext password using SHA-512 crypt format.
 
     This is suitable for use in AutoYaST, Agama, Ubuntu autoinstall, and other
-    Linux automation systems. Uses mkpasswd if available, otherwise falls back
-    to a Python implementation compatible with Python 3.6+.
+    Linux automation systems. Uses system tools (openssl, mkpasswd) or the
+    crypt module (if available) before falling back to a Python implementation.
 
     Args:
         plaintext_password: The password to hash
@@ -76,10 +77,18 @@ def hash_password(plaintext_password: str) -> str:
     Returns:
         SHA-512 hashed password string in crypt format ($6$salt$hash)
     """
-    # Try using mkpasswd (preferred method, available on most Linux systems)
+    # Try using crypt module (deprecated in Python 3.11, removed in 3.13)
+    try:
+        import crypt
+        return crypt.crypt(plaintext_password, crypt.mksalt(crypt.METHOD_SHA512))
+    except (ImportError, AttributeError):
+        pass
+
+    # Try using openssl (ubiquitous on Linux)
     try:
         result = subprocess.run(
-            ["mkpasswd", "-m", "sha-512", plaintext_password],
+            ["openssl", "passwd", "-6", "-stdin"],
+            input=plaintext_password,
             capture_output=True,
             text=True,
             timeout=5,
@@ -87,19 +96,33 @@ def hash_password(plaintext_password: str) -> str:
         if result.returncode == 0:
             return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass  # Fall back to Python implementation
+        pass
 
-    # Fallback: Python implementation using hashlib
+    # Try using mkpasswd (available on Debian/Ubuntu/openSUSE whois package)
+    try:
+        # Use -s (stdin) to avoid passing password in process arguments
+        result = subprocess.run(
+            ["mkpasswd", "-m", "sha-512", "-s"],
+            input=plaintext_password,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+
+    # Final fallback: Python implementation using hashlib
+    # Note: This is a simplified version and may not be 100% compatible
+    # with the glibc crypt implementation, but is better than nothing.
     salt_chars = string.ascii_letters + string.digits + "./"
-    salt = "".join(
-        os.urandom(1)[0] % len(salt_chars) and salt_chars[os.urandom(1)[0] % len(salt_chars)]
-        for _ in range(16)
-    )
+    salt = "".join(secrets.choice(salt_chars) for _ in range(16))
 
-    # Simplified SHA-512 based password hash
+    # SHA-512 based password hash (simplified)
     combined = f"{salt}{plaintext_password}".encode("utf-8")
     hashed = hashlib.sha512(combined).digest()
-    for _ in range(5000):  # Standard rounds for SHA-512
+    for _ in range(5000):  # Standard minimum rounds for SHA-512
         hashed = hashlib.sha512(hashed + combined).digest()
 
     hash_b64 = base64.b64encode(hashed, altchars=b"./").decode("ascii").rstrip("=")
