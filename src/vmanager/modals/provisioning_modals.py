@@ -19,6 +19,7 @@ from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..provisioning.providers.debian_provider import DebianDistro
+from ..provisioning.providers.fedora_provider import FedoraDistro
 from ..provisioning.providers.ubuntu_provider import UbuntuDistro
 from ..vm_service import VMService
 from .base_modals import BaseModal
@@ -80,6 +81,10 @@ class InstallVMModal(BaseModal[str | None]):
             # Add Debian distributions
             for d in DebianDistro:
                 distro_options.append((f"Debian: {d.value}", d))
+
+            # Add Fedora distributions
+            for d in FedoraDistro:
+                distro_options.append((f"Fedora: {d.value}", d))
 
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -384,11 +389,11 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
 
         # Hide all ISO source containers first
-        self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#custom-iso-container").styles.display = "none"
+        self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        if event.value == OpenSUSEDistro.CUSTOM or event.value == UbuntuDistro.CUSTOM or event.value == DebianDistro.CUSTOM:
+        if event.value in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM]:
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
             self.query_one("#repo-iso-container").styles.display = "none"
@@ -715,6 +720,44 @@ class InstallVMModal(BaseModal[str | None]):
                         ):
                             filtered_templates.append(template)
 
+        elif isinstance(distro, FedoraDistro):
+            # Fedora distributions → Show ONLY Fedora templates (Kickstart)
+            filtered_templates = []
+            for template in all_templates:
+                filename = template.get("filename", "")
+                display_name = template.get("display_name", "")
+
+                # Check for Fedora-specific template patterns
+                is_fedora_ks = (
+                    filename.startswith("kickstart")
+                    and filename.endswith(".cfg")
+                    or "kickstart" in filename.lower()
+                    and filename.endswith(".cfg")
+                    or filename.endswith(".ks")
+                )
+
+                # Also check display names for Fedora markers
+                is_fedora_template = (
+                    "(Fedora)" in display_name
+                    or "(Kickstart)" in display_name
+                )
+
+                # Include Fedora kickstart templates
+                should_include = is_fedora_ks or is_fedora_template
+
+                if should_include:
+                    # Include built-in Fedora templates
+                    if template["type"] == "built-in":
+                        filtered_templates.append(template)
+                    # For user templates, check if they're Fedora-related
+                    elif template["type"] == "user":
+                        if (
+                            "(Fedora)" in display_name
+                            or "(Kickstart)" in display_name
+                            or is_fedora_ks
+                        ):
+                            filtered_templates.append(template)
+
         elif isinstance(distro, str):
             if distro in ["cached", "pool_volumes"]:
                 # Cached ISOs or pool volumes → Show ALL templates
@@ -878,7 +921,7 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
 
         valid_iso = False
-        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM or distro == DebianDistro.CUSTOM:
+        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM]:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
@@ -990,7 +1033,7 @@ class InstallVMModal(BaseModal[str | None]):
         checksum = None
         validate = False
 
-        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM or distro == DebianDistro.CUSTOM:
+        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM]:
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:

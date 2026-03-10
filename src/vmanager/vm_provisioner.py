@@ -34,6 +34,7 @@ from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType
 from .provisioning.providers.debian_provider import DebianProvider, DebianDistro
+from .provisioning.providers.fedora_provider import FedoraProvider, FedoraDistro
 from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
 from .provisioning.providers.ubuntu_provider import UbuntuProvider, UbuntuDistro
 from .storage_manager import create_volume
@@ -89,6 +90,12 @@ class VMProvisioner:
         except Exception as e:
             self.logger.warning(f"Failed to register Debian provider: {e}")
 
+        try:
+            fedora_provider = FedoraProvider()
+            self.provider_registry.register_provider(fedora_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register Fedora provider: {e}")
+
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
         # Convert string to OSType enum
@@ -97,6 +104,7 @@ class VMProvisioner:
             "opensuse": OSType.LINUX,
             "ubuntu": OSType.UBUNTU,
             "debian": OSType.DEBIAN,
+            "fedora": OSType.FEDORA,
             "windows": OSType.WINDOWS,
         }
 
@@ -172,6 +180,15 @@ class VMProvisioner:
                 return provider.get_iso_list(distro.value)  # Pass the string value
             else:
                 logging.warning("Debian provider not available or doesn't support get_iso_list")
+                return []
+
+        # Handle Fedora distributions - delegate to provider
+        elif isinstance(distro, FedoraDistro):
+            provider = self.get_provider("fedora")
+            if provider and hasattr(provider, "get_iso_list"):
+                return provider.get_iso_list(distro.value)  # Pass the string value
+            else:
+                logging.warning("Fedora provider not available or doesn't support get_iso_list")
                 return []
 
         # Handle custom repository URLs (strings)
@@ -1031,6 +1048,9 @@ class VMProvisioner:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
                     cmdline = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
+                elif "ks-" in auto_url and auto_url.endswith(".cfg"):
+                    # Fedora kickstart automation
+                    cmdline = f"inst.ks={auto_url}"
                 elif auto_url.endswith(".cfg"):
                     # Ubuntu preseed automation
                     cmdline = f"auto=true preseed/url={auto_url}"
@@ -1510,6 +1530,53 @@ class VMProvisioner:
             shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}") from e
 
+    def _extract_fedora_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+        """Extracts kernel and initrd from a Fedora ISO (images/pxeboot/ directory)."""
+        if not shutil.which("7z"):
+            raise Exception(
+                "Fedora kernel extraction requires '7z' (p7zip-full). "
+                "Please install it or use the virt-install method."
+            )
+
+        tmp_dir = tempfile.mkdtemp(prefix="virtui_fedora_iso_extract_")
+
+        # Fedora kernel and initrd are in the images/pxeboot/ directory
+        kernel_path_in_iso = "images/pxeboot/vmlinuz"
+        initrd_path_in_iso = "images/pxeboot/initrd.img"
+
+        try:
+            self.logger.info(f"Extracting Fedora kernel and initrd from {iso_path}...")
+            cmd = [
+                "7z",
+                "x",
+                iso_path,
+                kernel_path_in_iso,
+                initrd_path_in_iso,
+                f"-o{tmp_dir}",
+                "-y",
+            ]
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+            extracted_kernel_path = os.path.join(tmp_dir, "images", "pxeboot", "vmlinuz")
+            extracted_initrd_path = os.path.join(tmp_dir, "images", "pxeboot", "initrd.img")
+
+            if not os.path.exists(extracted_kernel_path) or not os.path.exists(
+                extracted_initrd_path
+            ):
+                raise FileNotFoundError(
+                    "Fedora kernel or initrd not found in the ISO at the expected path."
+                )
+
+            self.logger.info(f"Fedora kernel and initrd extracted to {tmp_dir}")
+            return extracted_kernel_path, extracted_initrd_path
+
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
+            self.logger.error(f"Failed to extract Fedora kernel/initrd from ISO: {stderr}")
+            # Clean up temp dir on failure
+            shutil.rmtree(tmp_dir)
+            raise Exception(f"Failed to extract Fedora kernel/initrd from ISO: {stderr}") from e
+
     def _run_virt_install(
         self,
         vm_name: str,
@@ -1659,6 +1726,9 @@ class VMProvisioner:
             elif auto_url.endswith("/") or "user-data" in auto_url:
                 # Ubuntu autoinstall automation (cloud-init based)
                 extra_args = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
+            elif "ks-" in auto_url and auto_url.endswith(".cfg"):
+                # Fedora kickstart automation
+                extra_args = f"inst.ks={auto_url}"
             elif auto_url.endswith(".cfg"):
                 # Ubuntu preseed automation
                 extra_args = f"auto=true preseed/url={auto_url}"
@@ -1898,11 +1968,17 @@ class VMProvisioner:
                     keyword in template_name.lower()
                     for keyword in ["debian", "preseed", "cloud-init"]
                 ) and not is_ubuntu_template
+                is_fedora_template = any(
+                    keyword in template_name.lower()
+                    for keyword in ["fedora", "kickstart", "ks.cfg"]
+                )
 
                 if is_ubuntu_template:
                     provider = self.get_provider("ubuntu")
                 elif is_debian_template:
                     provider = self.get_provider("debian")
+                elif is_fedora_template:
+                    provider = self.get_provider("fedora")
                 else:
                     provider = self.get_provider("opensuse")
 
@@ -1940,6 +2016,11 @@ class VMProvisioner:
 
                             yaml.safe_load(content)
                             self.logger.info("Automation YAML file validation passed")
+                        elif "ks-" in file_path_str and file_path_str.endswith(".cfg") or file_path_str.endswith(".ks"):
+                            # Fedora Kickstart (no comprehensive validation, just check keywords)
+                            if not any(kw in content for kw in ["%packages", "rootpw"]):
+                                self.logger.warning("Kickstart file might be missing required keywords")
+                            self.logger.info("Automation Kickstart file basic validation passed")
                         elif file_path_str.endswith(".cfg"):
                             # Ubuntu preseed uses CFG format (no validation, just check non-empty)
                             if not content.strip():
@@ -1977,6 +2058,11 @@ class VMProvisioner:
                         preseed_path = temp_dir / "preseed.cfg"
                         is_ubuntu_preseed = preseed_path.exists()
 
+                        # Check if this is Fedora kickstart (has ks.cfg file)
+                        ks_path = temp_dir / "ks.cfg"
+                        is_fedora_ks = ks_path.exists()
+
+                        is_agama = False
                         if is_ubuntu_autoinstall:
                             # Ubuntu autoinstall: serve directory containing user-data and meta-data
                             self.logger.info(
@@ -1990,6 +2076,13 @@ class VMProvisioner:
                             autoinst_filename = f"preseed-{unique_id}.cfg"
                             autoinst_path = temp_dir / autoinst_filename
                             shutil.copy(preseed_path, autoinst_path)
+                        elif is_fedora_ks:
+                            # Fedora kickstart: serve the ks.cfg file
+                            self.logger.info("Detected Fedora kickstart file (ks.cfg)")
+                            unique_id = uuid.uuid4().hex[:8]
+                            autoinst_filename = f"ks-{unique_id}.cfg"
+                            autoinst_path = temp_dir / autoinst_filename
+                            shutil.copy(ks_path, autoinst_path)
                         else:
                             # OpenSUSE/Agama: rename the single file with unique name
                             unique_id = uuid.uuid4().hex[:8]
@@ -2039,6 +2132,10 @@ class VMProvisioner:
                         # For Ubuntu preseed, point to the .cfg file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
                         self.logger.info(f"Ubuntu preseed file available at: {auto_url}")
+                    elif is_fedora_ks:
+                        # For Fedora kickstart, point to the .cfg file
+                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                        self.logger.info(f"Fedora kickstart file available at: {auto_url}")
                     else:
                         # For OpenSUSE/Agama, point to specific file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
@@ -2159,6 +2256,10 @@ class VMProvisioner:
                         keyword in template_name.lower()
                         for keyword in ["debian", "preseed", "cloud-init"]
                     ) and not is_ubuntu_template
+                    is_fedora_template = any(
+                        keyword in template_name.lower()
+                        for keyword in ["fedora", "kickstart", "ks.cfg"]
+                    )
 
                     if is_ubuntu_template:
                         # Use Ubuntu-specific kernel extraction (casper/ directory)
@@ -2169,6 +2270,11 @@ class VMProvisioner:
                         # Use Debian-specific kernel extraction (install.amd/ directory)
                         local_kernel_path, local_initrd_path = (
                             self._extract_debian_iso_kernel_initrd(local_iso_path)
+                        )
+                    elif is_fedora_template:
+                        # Use Fedora-specific kernel extraction (images/pxeboot/ directory)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_fedora_iso_kernel_initrd(local_iso_path)
                         )
                     else:
                         # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
