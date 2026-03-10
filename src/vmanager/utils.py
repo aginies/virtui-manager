@@ -508,13 +508,20 @@ def check_firewalld(remote_host: str = None) -> bool:
     try:
         if remote_host:
             result = subprocess.run(
-                ["ssh", remote_host, "which firewalld-cmd"],
+                ["ssh", remote_host, "which firewall-cmd"],
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
-            return result.returncode == 0
-        return shutil.which("firewalld-cmd") is not None or shutil.which("firewalld") is not None
+            installed = result.returncode == 0
+        else:
+            installed = (
+                shutil.which("firewall-cmd") is not None or shutil.which("firewalld") is not None
+            )
+
+        if not installed:
+            logging.info(f"Firewall-cmd not found on {remote_host or 'local'}.")
+        return installed
     except (OSError, AttributeError, subprocess.SubprocessError) as e:
         logging.error("Error checking firewalld: %s", e)
         return False
@@ -616,8 +623,11 @@ def check_is_firewalld_running(remote_host: str = None) -> Union[str, bool]:
                 check=False,
                 timeout=10,
             )
-        return result.stdout.strip()
+        status = result.stdout.strip()
+        logging.info(f"Firewalld status on {remote_host or 'local'}: {status}")
+        return status
     except subprocess.TimeoutExpired:
+        logging.warning(f"Timeout checking firewalld status on {remote_host or 'local'}")
         return False
     except Exception as e:
         logging.error("Error checking firewalld status: %s", e)
@@ -641,17 +651,60 @@ def run_command(
     """
     if remote_host:
         ssh_cmd = ["ssh", remote_host, " ".join(cmd)]
+        logging.debug(f"Running remote command: {' '.join(ssh_cmd)}")
         return subprocess.run(
             ssh_cmd, capture_output=True, text=True, check=check, timeout=timeout
         )
+    logging.debug(f"Running local command: {' '.join(cmd)}")
     return subprocess.run(cmd, capture_output=True, text=True, check=check, timeout=timeout)
+
+
+def get_firewalld_zones(remote_host: str = None) -> List[str]:
+    """
+    Gets the list of available firewalld zones.
+
+    Args:
+        remote_host: Optional SSH host (user@host)
+
+    Returns:
+        List[str]: List of zone names
+    """
+    try:
+        result = run_command(["firewall-cmd", "--get-zones"], remote_host=remote_host)
+        zones = result.stdout.strip().split()
+        logging.info(f"Available firewalld zones on {remote_host or 'local'}: {zones}")
+        return zones
+    except Exception as e:
+        logging.error(f"Failed to get firewalld zones: {e}")
+        return []
+
+
+def get_firewalld_default_zone(remote_host: str = None) -> Optional[str]:
+    """
+    Gets the default firewalld zone.
+
+    Args:
+        remote_host: Optional SSH host (user@host)
+
+    Returns:
+        str: Default zone name or None if error
+    """
+    try:
+        result = run_command(["firewall-cmd", "--get-default-zone"], remote_host=remote_host)
+        zone = result.stdout.strip()
+        logging.info(f"Default firewalld zone on {remote_host or 'local'}: {zone}")
+        return zone
+    except Exception as e:
+        logging.error(f"Failed to get default firewalld zone: {e}")
+        return None
 
 
 def manage_firewalld_port(
     port: int, protocol: str = "tcp", action: str = "add", remote_host: str = None
 ) -> bool:
     """
-    Adds or removes a port in firewalld.
+    Adds or removes a port in firewalld, preferring 'libvirt' zone if it exists,
+    otherwise falling back to the default zone.
 
     Args:
         port: Port number
@@ -662,18 +715,41 @@ def manage_firewalld_port(
     Returns:
         bool: True if successful, False otherwise
     """
-    if check_is_firewalld_running(remote_host) != "active":
+    status = check_is_firewalld_running(remote_host)
+    if status != "active":
+        logging.info(
+            f"Firewalld is not active on {remote_host or 'local'} (status: {status}). Skipping port management."
+        )
         return False
 
-    #cmd = ["firewall-cmd", f"--{action}-port={port}/{protocol}", "--runtime-to-permanent"]
-    cmd = ["firewall-cmd", f"--{action}-port={port}/{protocol}"]
+    zones = get_firewalld_zones(remote_host)
+    if "libvirt" in zones:
+        zone = "libvirt"
+        logging.info(f"Found 'libvirt' zone on {remote_host or 'local'}. Using it.")
+    else:
+        zone = get_firewalld_default_zone(remote_host)
+        if not zone:
+            logging.warning(
+                f"Could not determine default firewalld zone on {remote_host or 'local'}. Falling back to default."
+            )
+            zone = None
+
+    if zone:
+        zone_arg = [f"--zone={zone}"]
+    else:
+        zone_arg = []
+
+    cmd = ["firewall-cmd"] + zone_arg + [f"--{action}-port={port}/{protocol}"]
 
     try:
+        logging.info(f"Executing firewalld command on {remote_host or 'local'}: {' '.join(cmd)}")
         run_command(cmd, remote_host=remote_host)
-        logging.info(f"Firewalld: {action} port {port}/{protocol} on {remote_host or 'local'}")
+        logging.info(
+            f"Successfully {action}ed firewalld port {port}/{protocol} on {remote_host or 'local'} (zone: {zone or 'default'})"
+        )
         return True
     except Exception as e:
-        logging.error(f"Failed to {action} firewalld port {port}: {e}")
+        logging.error(f"Failed to {action} firewalld port {port} on {remote_host or 'local'}: {e}")
         return False
 
 
