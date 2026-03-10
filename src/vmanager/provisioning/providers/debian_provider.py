@@ -489,16 +489,28 @@ class DebianProvider(OSProvider):
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
-        # Get plaintext passwords (Preseed requires plaintext, not hashed)
+        from ..os_provider import hash_password
+
+        # Get passwords and hash them for security (Preseed supports crypted passwords)
         # Strip whitespace that may come from config files with newlines
-        plaintext_user_password = config.get(
-            "password", config.get("user_password", config.get("user_pw", "password"))
+        user_password = config.get(
+            "password", config.get("user_password", config.get("user_pw", ""))
         ).strip()
-        plaintext_root_password = config.get(
-            "root_password", config.get("root_pw", "password")
+        root_password = config.get(
+            "root_password", config.get("root_pw", "")
         ).strip()
 
-        logging.info("Debian preseed uses plaintext passwords (installer handles hashing)")
+        # Default to a safe fallback if no password provided (though UI should prevent this)
+        if not user_password:
+            user_password = "password"  # Emergency fallback if somehow empty
+        if not root_password:
+            root_password = user_password
+
+        # Hash passwords for security
+        hashed_user_password = hash_password(user_password)
+        hashed_root_password = hash_password(root_password)
+
+        logging.info("Debian automation uses hashed passwords for improved security")
 
         # Get substitution values with defaults
         substitutions = {
@@ -506,9 +518,12 @@ class DebianProvider(OSProvider):
             "hostname": config.get("hostname", config.get("vm_name", "debian-vm")),
             # Support both 'username' and 'user_name' for compatibility
             "username": config.get("username", config.get("user_name", "user")),
-            # Use plaintext passwords (preseed handles hashing internally)
-            "password": plaintext_user_password.replace("'", "''"),
-            "root_password": plaintext_root_password.replace("'", "''"),
+            # Use hashed passwords (templates should use -crypted keys)
+            "password": hashed_user_password,
+            "root_password": hashed_root_password,
+            # For backward compatibility or templates that explicitly need plaintext
+            "plaintext_password": user_password.replace("'", "''"),
+            "plaintext_root_password": root_password.replace("'", "''"),
             "timezone": config.get("timezone", "UTC"),
             # Support both 'locale' and 'language' for compatibility
             "locale": config.get("locale", config.get("language", "en_US.UTF-8")),
