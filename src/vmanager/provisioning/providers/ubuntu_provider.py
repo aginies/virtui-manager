@@ -14,7 +14,7 @@ from enum import Enum
 
 import requests
 import yaml
-from ..os_provider import OSProvider, OSType, OSVersion, hash_password
+from ..os_provider import OSProvider, OSType, OSVersion
 
 
 class UbuntuDistro(Enum):
@@ -480,15 +480,23 @@ class UbuntuProvider(OSProvider):
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
-        # Get plaintext passwords
-        plaintext_user_password = config.get(
-            "password", config.get("user_password", config.get("user_pw", "password"))
-        )
-        plaintext_root_password = config.get("root_password", config.get("root_pw", "password"))
+        from ..os_provider import hash_password
 
-        # Hash passwords for security
-        hashed_user_password = hash_password(plaintext_user_password)
-        hashed_root_password = hash_password(plaintext_root_password)
+        # Get passwords and hash them for autoinstall (identity section requires hashed passwords)
+        # Strip whitespace that may come from config files with newlines
+        user_password = config.get(
+            "password", config.get("user_password", config.get("user_pw", "password"))
+        ).strip()
+        root_password = config.get(
+            "root_password", config.get("root_pw", "password")
+        ).strip()
+
+        # Check if we are generating for autoinstall (YAML) or preseed (CFG)
+        # Autoinstall ALWAYS requires hashed passwords in identity
+        hashed_user_password = hash_password(user_password)
+        hashed_root_password = hash_password(root_password)
+
+        logging.info("Ubuntu autoinstall uses hashed passwords in identity section")
 
         # Get substitution values with defaults
         # Support both Ubuntu-style and OpenSUSE-style key names for compatibility
@@ -497,10 +505,12 @@ class UbuntuProvider(OSProvider):
             "hostname": config.get("hostname", config.get("vm_name", "ubuntu-vm")),
             # Support both 'username' and 'user_name' for compatibility
             "username": config.get("username", config.get("user_name", "user")),
-            # Use hashed passwords for autoinstall (cloud-init)
-            # Escape single quotes in password hash (shouldn't have any, but just in case)
-            "password": hashed_user_password.replace("'", "''"),
-            "root_password": hashed_root_password.replace("'", "''"),
+            # Use hashed passwords for autoinstall
+            "password": hashed_user_password,
+            "root_password": hashed_root_password,
+            # For backward compatibility or templates that still use plaintext
+            "plaintext_password": user_password.replace("'", "''"),
+            "plaintext_root_password": root_password.replace("'", "''"),
             "timezone": config.get("timezone", "UTC"),
             # Support both 'locale' and 'language' for compatibility
             "locale": config.get("locale", config.get("language", "en_US.UTF-8")),
@@ -524,9 +534,10 @@ class UbuntuProvider(OSProvider):
         """Generate basic preseed configuration."""
         # Support both key name styles for compatibility
         username = config.get("username", config.get("user_name", "user"))
+        # Strip whitespace from password (can come from config files with newlines)
         password = config.get(
             "password", config.get("user_password", config.get("user_pw", "password"))
-        )
+        ).strip()
         hostname = config.get("hostname", config.get("vm_name", "ubuntu-vm"))
         locale = config.get("locale", config.get("language", "en_US.UTF-8"))
         keyboard = config.get("keyboard", "us")
@@ -536,7 +547,10 @@ class UbuntuProvider(OSProvider):
 
 # Locale and keyboard
 d-i debian-installer/locale string {locale}
-d-i keyboard-configuration/xkb-keymap select {keyboard}
+d-i keyboard-configuration/xkb-model select pc105
+d-i keyboard-configuration/xkb-layout select {keyboard}
+d-i keyboard-configuration/xkb-variant select
+d-i keyboard-configuration/xkb-options select
 
 # Network configuration
 d-i netcfg/choose_interface select auto
