@@ -102,7 +102,6 @@ class Firmware:
         return f"<Firmware(executable='{self.executable}', archs={self.architectures})>"
 
 
-@log_function_call
 def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = True):
     """
     Retrieves available UEFI firmware configurations from the hypervisor via libvirt.
@@ -323,7 +322,6 @@ def get_host_sev_capabilities(conn):
     return sev_caps
 
 
-@log_function_call
 def select_best_firmware(
     firmwares: list,
     architecture: str = "x86_64",
