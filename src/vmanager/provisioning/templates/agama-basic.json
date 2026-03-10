@@ -9,11 +9,11 @@
     "timezone": "{timezone}"
   },
    "root": {
-    "hashedPassword": false,
+    "hashedPassword": true,
     "password": "{root_password}"
   },
   "user": {
-    "hashedPassword": false,
+    "hashedPassword": true,
     "fullName": "{username}",
     "userName": "{username}",
     "password": "{user_password}"
