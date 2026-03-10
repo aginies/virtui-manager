@@ -1349,6 +1349,86 @@ class VMProvisioner:
             shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract kernel/initrd from ISO: {stderr}") from e
 
+    def _extract_debian_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+        """Extracts kernel and initrd from a Debian ISO (install.amd/ directory)."""
+        if not shutil.which("7z"):
+            raise Exception(
+                "Debian kernel extraction requires '7z' (p7zip-full). "
+                "Please install it or use the virt-install method."
+            )
+
+        tmp_dir = tempfile.mkdtemp(prefix="virtui_debian_iso_extract_")
+
+        # Debian kernel and initrd are in the install.amd/ directory
+        kernel_candidates = ["install.amd/vmlinuz", "install.amd/linux"]
+        initrd_candidates = ["install.amd/initrd.gz", "install.amd/initrd"]
+
+        # Extract the entire install.amd directory
+        try:
+            self.logger.info(f"Extracting Debian install.amd/ directory from {iso_path}...")
+            cmd = [
+                "7z",
+                "x",
+                iso_path,
+                "install.amd/",
+                f"-o{tmp_dir}",
+                "-y",  # Assume yes to all queries
+            ]
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+            # Find the actual kernel and initrd files
+            install_dir = os.path.join(tmp_dir, "install.amd")
+            if not os.path.exists(install_dir):
+                raise FileNotFoundError("install.amd/ directory not found in Debian ISO")
+
+            # Find kernel file
+            kernel_path = None
+            for candidate in kernel_candidates:
+                full_path = os.path.join(tmp_dir, candidate)
+                if os.path.exists(full_path):
+                    kernel_path = full_path
+                    break
+
+            if not kernel_path:
+                # List available files for debugging
+                available_files = []
+                for file in os.listdir(install_dir):
+                    if "vmlinuz" in file or "linux" in file:
+                        available_files.append(f"install.amd/{file}")
+                raise FileNotFoundError(
+                    f"Debian kernel (vmlinuz/linux) not found in install.amd/. Available: {available_files}"
+                )
+
+            # Find initrd file
+            initrd_path = None
+            for candidate in initrd_candidates:
+                full_path = os.path.join(tmp_dir, candidate)
+                if os.path.exists(full_path):
+                    initrd_path = full_path
+                    break
+
+            if not initrd_path:
+                # List available files for debugging
+                available_files = []
+                for file in os.listdir(install_dir):
+                    if "initrd" in file:
+                        available_files.append(f"install.amd/{file}")
+                raise FileNotFoundError(
+                    f"Debian initrd not found in install.amd/. Available: {available_files}"
+                )
+
+            self.logger.info(f"Debian kernel and initrd extracted to {tmp_dir}")
+            self.logger.info(f"  Kernel: {kernel_path}")
+            self.logger.info(f"  Initrd: {initrd_path}")
+            return kernel_path, initrd_path
+
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
+            self.logger.error(f"Failed to extract Debian kernel/initrd from ISO: {stderr}")
+            # Clean up temp dir on failure
+            shutil.rmtree(tmp_dir)
+            raise Exception(f"Failed to extract Debian kernel/initrd from ISO: {stderr}") from e
+
     def _extract_ubuntu_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
         """Extracts kernel and initrd from an Ubuntu ISO (casper/ directory)."""
         if not shutil.which("7z"):
@@ -2080,11 +2160,15 @@ class VMProvisioner:
                         for keyword in ["debian", "preseed", "cloud-init"]
                     ) and not is_ubuntu_template
 
-                    if is_ubuntu_template or is_debian_template:
-                        # Use Ubuntu/Debian-specific kernel extraction (casper/ directory)
-                        # Both Ubuntu and Debian use similar ISO structure
+                    if is_ubuntu_template:
+                        # Use Ubuntu-specific kernel extraction (casper/ directory)
                         local_kernel_path, local_initrd_path = (
                             self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        )
+                    elif is_debian_template:
+                        # Use Debian-specific kernel extraction (install.amd/ directory)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_debian_iso_kernel_initrd(local_iso_path)
                         )
                     else:
                         # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
@@ -2108,23 +2192,43 @@ class VMProvisioner:
                     )
                     kernel_path, initrd_path = None, None  # Ensure fallback logic triggers
 
-            # Fallback to floppy method if kernel extraction fails or is not applicable
+            # Fallback to floppy method if kernel extraction fails - ONLY for OpenSUSE
+            # Debian and Ubuntu should use HTTP-based automation with kernel boot
             if not kernel_path and automation_file_path:
-                try:
-                    floppy_image_path = self._create_autoyast_floppy_image(
-                        automation_file_path, Path(os.path.dirname(automation_file_path))
-                    )
-                    report("Uploading automation floppy image", 82)
-                    automation_vol_name = f"{vm_name}-autoyast.img"
-                    final_automation_path = self.upload_file(
-                        floppy_image_path, storage_pool_name, volume_name=automation_vol_name
-                    )
-                except Exception as e:
+                # Check if this is an OpenSUSE template (not Debian or Ubuntu)
+                template_name = automation_config.get("template_name", "")
+                is_opensuse_template = not any(
+                    keyword in template_name.lower()
+                    for keyword in ["ubuntu", "debian", "autoinstall", "preseed", "cloud-init"]
+                )
+
+                if is_opensuse_template:
+                    # Only create floppy for OpenSUSE/AutoYaST
+                    try:
+                        floppy_image_path = self._create_autoyast_floppy_image(
+                            automation_file_path, Path(os.path.dirname(automation_file_path))
+                        )
+                        report("Uploading automation floppy image", 82)
+                        automation_vol_name = f"{vm_name}-autoyast.img"
+                        final_automation_path = self.upload_file(
+                            floppy_image_path, storage_pool_name, volume_name=automation_vol_name
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            f"Could not create or upload floppy image for Auto Install: {e}"
+                        )
+                        # Re-raise the exception to stop provisioning a broken VM
+                        raise e
+                else:
+                    # For Debian/Ubuntu without kernel extraction, kernel boot is required
                     self.logger.error(
-                        f"Could not create or upload floppy image for Auto Install: {e}"
+                        "Debian/Ubuntu automated installation requires kernel extraction. "
+                        "Floppy-based installation is not supported for Debian/Ubuntu."
                     )
-                    # Re-raise the exception to stop provisioning a broken VM
-                    raise e
+                    raise Exception(
+                        "Failed to extract kernel/initrd for Debian/Ubuntu installation. "
+                        "Please ensure 7z (p7zip-full) is installed."
+                    )
 
             # Generate XML
             report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 85)
