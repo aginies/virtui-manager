@@ -1696,6 +1696,7 @@ class VMManagerTUI(App):
                 action_type,
                 delete_storage_flag,
                 dummy_progress_callback,  # Pass the dummy callback
+                delete_nvram_flag=delete_storage_flag,  # Always delete NVRAM if storage is deleted in bulk
             )
 
             summary = SuccessMessages.BULK_ACTION_SUMMARY.format(

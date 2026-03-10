@@ -1247,6 +1247,7 @@ class VMService:
         action_type: str,
         delete_storage_flag: bool,
         progress_callback: callable,
+        delete_nvram_flag: bool = False,
     ):
         """Performs a bulk action on a list of VMs, reporting progress via a callback."""
 
@@ -1320,6 +1321,7 @@ class VMService:
                         self.delete_vm(
                             domain,
                             delete_storage=delete_storage_flag,
+                            delete_nvram=delete_nvram_flag,
                             log_callback=delete_log_callback,
                             invalidate_cache=False,
                             conn=target_conn,
