@@ -521,9 +521,6 @@ class DebianProvider(OSProvider):
             # Use hashed passwords (templates should use -crypted keys)
             "password": hashed_user_password,
             "root_password": hashed_root_password,
-            # For backward compatibility or templates that explicitly need plaintext
-            "plaintext_password": user_password.replace("'", "''"),
-            "plaintext_root_password": root_password.replace("'", "''"),
             "timezone": config.get("timezone", "UTC"),
             # Support both 'locale' and 'language' for compatibility
             "locale": config.get("locale", config.get("language", "en_US.UTF-8")),
