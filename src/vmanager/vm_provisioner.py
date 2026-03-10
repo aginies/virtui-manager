@@ -33,11 +33,16 @@ from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType
+from .provisioning.providers.debian_provider import DebianProvider, DebianDistro
 from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
 from .provisioning.providers.ubuntu_provider import UbuntuProvider, UbuntuDistro
 from .storage_manager import create_volume
 from .vm_actions import strip_installation_assets, get_vm_boot_files, delete_boot_files
-from .utils import get_virt_install_version  # Added import
+from .utils import (
+    get_ssh_host_from_uri,
+    get_virt_install_version,
+    manage_firewalld_port,
+)
 
 
 class VMType(Enum):
@@ -78,6 +83,12 @@ class VMProvisioner:
         except Exception as e:
             self.logger.warning(f"Failed to register Ubuntu provider: {e}")
 
+        try:
+            debian_provider = DebianProvider()
+            self.provider_registry.register_provider(debian_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register Debian provider: {e}")
+
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
         # Convert string to OSType enum
@@ -85,6 +96,7 @@ class VMProvisioner:
             "linux": OSType.LINUX,
             "opensuse": OSType.LINUX,
             "ubuntu": OSType.UBUNTU,
+            "debian": OSType.DEBIAN,
             "windows": OSType.WINDOWS,
         }
 
@@ -130,7 +142,7 @@ class VMProvisioner:
         Get list of ISOs for a distribution or custom repository.
 
         Args:
-            distro: Either an OpenSUSEDistro, UbuntuDistro enum or a custom repository URL string
+            distro: Either an OpenSUSEDistro, UbuntuDistro, DebianDistro enum or a custom repository URL string
 
         Returns:
             List of ISO dictionaries with 'name', 'url', and 'date' keys
@@ -151,6 +163,15 @@ class VMProvisioner:
                 return provider.get_iso_list(distro.value)  # Pass the string value
             else:
                 logging.warning("Ubuntu provider not available or doesn't support get_iso_list")
+                return []
+
+        # Handle Debian distributions - delegate to provider
+        elif isinstance(distro, DebianDistro):
+            provider = self.get_provider("debian")
+            if provider and hasattr(provider, "get_iso_list"):
+                return provider.get_iso_list(distro.value)  # Pass the string value
+            else:
+                logging.warning("Debian provider not available or doesn't support get_iso_list")
                 return []
 
         # Handle custom repository URLs (strings)
@@ -1110,7 +1131,7 @@ class VMProvisioner:
     </disk>
 """
 
-        # Floppy disk for AutoYaST automation file (fallback for non-kernel boot)
+        # Floppy disk for automation file (fallback for non-kernel boot)
         if automation_file_path and not kernel_path:
             xml += f"""
     <disk type='file' device='floppy'>
@@ -1715,6 +1736,7 @@ class VMProvisioner:
         # 3. Connection is remote (not local qemu)
         uri = self.conn.getURI()
         is_remote = uri and not ("qemu:///system" in uri or "qemu:///session" in uri)
+        ssh_host = get_ssh_host_from_uri(uri) if is_remote else None
 
         needs_iso_upload = False
         if automation_config:
@@ -1723,7 +1745,7 @@ class VMProvisioner:
             if is_remote and is_local_path:
                 needs_iso_upload = True
                 logging.info(
-                    f"AutoYaST with remote connection and local ISO - uploading to storage pool"
+                    f"Auto Install with remote connection and local ISO - uploading to storage pool"
                 )
 
         # Upload ISO if needed
@@ -1776,6 +1798,7 @@ class VMProvisioner:
         # Generate automation file and set up HTTP server if automation is enabled
         auto_url = None
         http_server = None
+        port = None
         automation_file_path = None
         serial_console = False
         temp_dir = None
@@ -1789,11 +1812,17 @@ class VMProvisioner:
                 template_name = automation_config.get("template_name", "autoyast-basic.xml")
                 is_ubuntu_template = any(
                     keyword in template_name.lower()
-                    for keyword in ["ubuntu", "autoinstall", "preseed"]
+                    for keyword in ["ubuntu", "autoinstall"]
                 )
+                is_debian_template = any(
+                    keyword in template_name.lower()
+                    for keyword in ["debian", "preseed", "cloud-init"]
+                ) and not is_ubuntu_template
 
                 if is_ubuntu_template:
                     provider = self.get_provider("ubuntu")
+                elif is_debian_template:
+                    provider = self.get_provider("debian")
                 else:
                     provider = self.get_provider("opensuse")
 
@@ -1894,6 +1923,9 @@ class VMProvisioner:
                         auto_install_port = config.get("AUTO_INSTALL_PORT", 8000)
                         http_server = AutoHTTPServer(temp_dir, port=auto_install_port)
                         port = http_server.start()
+                        # Open firewalld port if running
+                        self.logger.info(f"Opening firewalld port {port} for auto install.")
+                        manage_firewalld_port(port, remote_host=ssh_host)
                     except OSError as e:
                         if e.errno == 98:  # Address already in use
                             self.logger.warning(
@@ -1902,6 +1934,9 @@ class VMProvisioner:
                             )
                             http_server = AutoHTTPServer(temp_dir, port=0)
                             port = http_server.start()
+                            # Open firewalld port if running
+                            self.logger.info(f"Opening firewalld port {port} for auto install.")
+                            manage_firewalld_port(port, remote_host=ssh_host)
                         else:
                             raise
 
@@ -1995,6 +2030,9 @@ class VMProvisioner:
             if http_server:
                 http_server.stop()
                 self.logger.info("HTTP server stopped")
+                if port:
+                    self.logger.info(f"Removing firewalld port {port} for auto install.")
+                    manage_firewalld_port(port, action="remove", remote_host=ssh_host)
 
             report(StaticText.PROVISIONING_COMPLETE_CONFIG_MODE, 100)
             return dom
@@ -2031,15 +2069,20 @@ class VMProvisioner:
                     # Preferred method: kernel extraction for cmdline boot
                     local_iso_path = _determine_iso_path(iso_url)
 
-                    # Determine if this is Ubuntu based on template name
+                    # Determine if this is Ubuntu or Debian based on template name
                     template_name = automation_config.get("template_name", "")
                     is_ubuntu_template = any(
                         keyword in template_name.lower()
-                        for keyword in ["ubuntu", "autoinstall", "preseed"]
+                        for keyword in ["ubuntu", "autoinstall"]
                     )
+                    is_debian_template = any(
+                        keyword in template_name.lower()
+                        for keyword in ["debian", "preseed", "cloud-init"]
+                    ) and not is_ubuntu_template
 
-                    if is_ubuntu_template:
-                        # Use Ubuntu-specific kernel extraction (casper/ directory)
+                    if is_ubuntu_template or is_debian_template:
+                        # Use Ubuntu/Debian-specific kernel extraction (casper/ directory)
+                        # Both Ubuntu and Debian use similar ISO structure
                         local_kernel_path, local_initrd_path = (
                             self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
                         )
@@ -2136,7 +2179,14 @@ class VMProvisioner:
         if automation_config:
 
             def restart_watcher(
-                domain, name, logger, boot_files_to_delete, http_server_to_stop, temp_dir_to_clean
+                domain,
+                name,
+                logger,
+                boot_files_to_delete,
+                http_server_to_stop,
+                temp_dir_to_clean,
+                port_to_close=None,
+                ssh_host_to_manage=None,
             ):
                 import time
                 import shutil
@@ -2183,6 +2233,11 @@ class VMProvisioner:
                             if http_server_to_stop:
                                 logger.info(f"Stopping HTTP server for {name}")
                                 http_server_to_stop.stop()
+                                if port_to_close:
+                                    logger.info(f"Removing firewalld port {port_to_close} for auto install.")
+                                    manage_firewalld_port(
+                                        port_to_close, action="remove", remote_host=ssh_host_to_manage
+                                    )
 
                             if temp_dir_to_clean and os.path.exists(temp_dir_to_clean):
                                 logger.info(f"Cleaning up temporary directory: {temp_dir_to_clean}")
@@ -2198,7 +2253,16 @@ class VMProvisioner:
 
             threading.Thread(
                 target=restart_watcher,
-                args=(dom, vm_name, self.logger, boot_files, http_server, temp_dir),
+                args=(
+                    dom,
+                    vm_name,
+                    self.logger,
+                    boot_files,
+                    http_server,
+                    temp_dir,
+                    port if http_server else None,
+                    ssh_host,
+                ),
                 daemon=True,
             ).start()
 
