@@ -29,7 +29,7 @@ VirtUI Manager solves these challenges with:
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 - **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
-- **Auto installtion**: Support auto installation for AutoYast and Agama, with registration for SLES product
+- **Auto installtion**: Support auto installation for Debian, Ubuntu, OpenSUSE and SLES (with SCC registration)
 
 ## Documentation
 
