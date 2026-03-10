@@ -85,6 +85,7 @@ vmanager = [
     "locale/*/LC_MESSAGES/*.po",
     "provisioning/templates/*.xml",
     "provisioning/templates/*.cfg",
+    "provisioning/templates/*.ks",
     "provisioning/templates/*.yaml",
     "provisioning/templates/*.md",
     "provisioning/templates/*.json"
