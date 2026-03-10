@@ -1,0 +1,291 @@
+"""Fedora OS Provider for VirtUI Manager.
+
+This module provides Fedora-specific functionality for VM provisioning,
+including ISO management and Kickstart automation file generation.
+"""
+
+import logging
+import os
+import re
+import ssl
+import urllib.request
+from datetime import datetime
+from email.utils import parsedate_to_datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from ..os_provider import OSProvider, OSType, OSVersion, hash_password
+
+
+class FedoraDistro(Enum):
+    """Fedora distribution types."""
+
+    FEDORA_43 = "43"
+    FEDORA_42 = "42"
+    FEDORA_41 = "41"
+    CUSTOM = "Custom ISO"
+
+
+class FedoraProvider(OSProvider):
+    """Provider for Fedora distributions."""
+
+    # Fedora distribution base URLs
+    BASE_URL = "https://download.fedoraproject.org/pub/fedora/linux/releases/"
+
+    def __init__(self, host_arch: str = "x86_64"):
+        super().__init__()
+        self.logger = logging.getLogger(__name__)
+        self.host_arch = host_arch
+
+    @property
+    def os_type(self) -> OSType:
+        """Return the OS type for Fedora."""
+        return OSType.FEDORA
+
+    def get_supported_versions(self) -> List[OSVersion]:
+        """Get list of supported Fedora versions."""
+        versions = []
+        # Support latest 3 major versions
+        for ver in ["43", "42", "41"]:
+            versions.append(
+                OSVersion(
+                    os_type=OSType.FEDORA,
+                    version_id=ver,
+                    display_name=f"Fedora {ver}",
+                    architecture=self.host_arch,
+                )
+            )
+        return versions
+
+    def get_iso_sources(self, version: OSVersion) -> List[str]:
+        """Get ISO download sources for a Fedora version."""
+        # Fedora has a specific structure for ISOs
+        # https://download.fedoraproject.org/pub/fedora/linux/releases/41/Workstation/x86_64/iso/
+        # https://download.fedoraproject.org/pub/fedora/linux/releases/41/Server/x86_64/iso/
+        # https://download.fedoraproject.org/pub/fedora/linux/releases/41/Spins/x86_64/iso/
+        
+        sources = []
+        for variant in ["Server", "Workstation", "Spins"]:
+            sources.append(f"{self.BASE_URL}{version.version_id}/{variant}/{version.architecture}/iso/")
+        return sources
+
+    def get_iso_list(self, version: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get list of available Fedora ISOs for multiple variants."""
+        if version is None:
+            version = "43"
+        
+        # Handle if full display name is passed
+        if " " in version:
+            version = version.split(" ")[-1]
+
+        all_isos = []
+        # Fetch from major variants
+        for variant in ["Server", "Workstation", "Spins"]:
+            url = f"{self.BASE_URL}{version}/{variant}/{self.host_arch}/iso/"
+            all_isos.extend(self.get_iso_list_from_url(url, variant=variant))
+            
+        return all_isos
+
+    def get_iso_list_from_url(self, url: str, variant: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get ISO list from a specific URL."""
+        variant_prefix = f"[{variant}] " if variant else ""
+        self.logger.info(f"Fetching Fedora {variant if variant else ''} ISO list from {url}")
+        
+        iso_list = []
+        try:
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(url, context=context, timeout=10) as response:
+                content = response.read().decode("utf-8")
+                
+            # Parse HTML to find ISO files
+            links = re.findall(r'href="([^"]*\.iso)"', content)
+            
+            for link in links:
+                # Clean the link
+                clean_link = link.lstrip("./")
+                # Skip netinst for workstation if server netinst is preferred, 
+                # but usually we want to show what's available.
+                
+                full_url = url + clean_link if not link.startswith("http") else link
+                
+                # Fetch metadata
+                date_str = ""
+                size_str = "Unknown"
+                try:
+                    req = urllib.request.Request(full_url, method="HEAD")
+                    with urllib.request.urlopen(req, context=context, timeout=5) as head_res:
+                        # Size
+                        content_length = head_res.getheader("Content-Length")
+                        if content_length:
+                            size_mb = int(content_length) // (1024 * 1024)
+                            size_str = f"{size_mb} MB"
+                        
+                        # Date
+                        last_modified = head_res.getheader("Last-Modified")
+                        if last_modified:
+                            dt = parsedate_to_datetime(last_modified)
+                            date_str = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception as e:
+                    self.logger.debug(f"Could not fetch metadata for {full_url}: {e}")
+
+                iso_list.append({
+                    "name": f"{variant_prefix}{clean_link}",
+                    "url": full_url,
+                    "size": size_str,
+                    "date": date_str,
+                    "arch": self.host_arch
+                })
+                
+            # Sort by name descending
+            iso_list.sort(key=lambda x: x["name"], reverse=True)
+            return iso_list
+
+        except Exception as e:
+            self.logger.error(f"Error fetching Fedora ISO list from {url}: {e}")
+            return []
+
+    def generate_automation_file(
+        self,
+        version: Optional[OSVersion],
+        vm_name: str,
+        user_config: Dict[str, Any],
+        output_path: Path,
+        template_name: str | None = None,
+    ) -> Path:
+        """Generate Fedora Kickstart file."""
+        # Use default template if not provided
+        if not template_name:
+            template_name = "kickstart-basic.cfg"
+
+        self.logger.info(f"Generating Fedora Kickstart file with template: {template_name}")
+
+        # Merge defaults and user config
+        config = user_config.copy()
+        config["vm_name"] = vm_name
+        
+        # Ensure default values are present
+        defaults = {
+            "username": "user",
+            "password": "password",
+            "root_password": "password",
+            "timezone": "UTC",
+            "locale": "en_US.UTF-8",
+            "keyboard": "us",
+            "network_interface": "link",
+        }
+        for key, value in defaults.items():
+            if key not in config:
+                config[key] = value
+
+        # Hash passwords
+        config["password"] = hash_password(config["password"])
+        config["root_password"] = hash_password(config["root_password"])
+
+        # Load template
+        template_path = self._find_template_file(template_name)
+        if not template_path or not template_path.exists():
+            # Fallback to basic Kickstart if template not found
+            self.logger.warning(f"Fedora template not found: {template_name}, using basic Kickstart")
+            ks_content = self._generate_basic_kickstart(config)
+        else:
+            with open(template_path, "r", encoding="utf-8") as f:
+                template_content = f.read()
+            
+            # Substitute variables
+            ks_content = self._substitute_variables(template_content, config)
+
+        # Write to file
+        output_file = output_path / "ks.cfg"
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
+            f.write(ks_content)
+
+        return output_file
+
+    def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
+        """Substitute variables in template content."""
+        result = content
+        for key, value in config.items():
+            placeholder = f"{{{key}}}"
+            result = result.replace(placeholder, str(value))
+            # Also support ${key} format
+            placeholder = f"${{{key}}}"
+            result = result.replace(placeholder, str(value))
+        return result
+
+    def _find_template_file(self, template_name: str) -> Optional[Path]:
+        """Find template file in templates directory."""
+        current_dir = Path(__file__).parent
+        templates_dir = current_dir.parent / "templates"
+
+        # Try exact match first
+        template_path = templates_dir / template_name
+        if template_path.exists():
+            return template_path
+
+        # Try without extension and add common extensions
+        base_name = Path(template_name).stem
+        for ext in [".cfg", ".ks"]:
+            template_path = templates_dir / f"{base_name}{ext}"
+            if template_path.exists():
+                return template_path
+
+        return None
+
+    def _generate_basic_kickstart(self, config: Dict[str, Any]) -> str:
+        """Generate a basic Fedora Kickstart file."""
+        return f"""# Fedora Kickstart configuration
+# Generated by VirtUI Manager
+
+# Use text mode install
+text
+
+# Language and keyboard
+lang {config['locale']}
+keyboard {config['keyboard']}
+
+# Timezone
+timezone {config['timezone']} --isUtc
+
+# Root password
+rootpw --iscrypted {config['root_password']}
+
+# User setup
+user --name={config['username']} --password={config['password']} --iscrypted --groups=wheel
+
+# Network configuration
+network --bootproto=dhcp --device={config['network_interface']} --activate --hostname={config['vm_name']}
+
+# Partitioning
+ignoredisk --only-use=vda
+clearpart --all --initlabel
+autopart
+
+# Bootloader
+bootloader --location=mbr
+
+# Repository
+url --mirrorlist=https://mirrors.fedoraproject.org/mirrorlist?repo=fedora-$releasever&arch=$basearch
+
+# Packages
+%packages
+@core
+openssh-server
+qemu-guest-agent
+%end
+
+# Services
+services --enabled=sshd,qemu-guest-agent
+
+# Reboot after installation
+reboot
+"""
+
+    def validate_template_content(self, content: str, template_name: str) -> bool:
+        """Validate Fedora Kickstart template content."""
+        # Simple validation: should have some common Kickstart directives
+        required_keywords = ["%packages", "%end", "rootpw"]
+        for kw in required_keywords:
+            if kw not in content:
+                return False
+        return True
