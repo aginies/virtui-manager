@@ -18,6 +18,7 @@ from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManag
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..provisioning.providers.debian_provider import DebianDistro
 from ..provisioning.providers.ubuntu_provider import UbuntuDistro
 from ..vm_service import VMService
 from .base_modals import BaseModal
@@ -65,7 +66,7 @@ class InstallVMModal(BaseModal[str | None]):
                 )
                 yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            # Build distribution options - combine OpenSUSE and Ubuntu distributions
+            # Build distribution options - combine OpenSUSE, Ubuntu, and Debian distributions
             distro_options = []
 
             # Add OpenSUSE distributions
@@ -75,6 +76,10 @@ class InstallVMModal(BaseModal[str | None]):
             # Add Ubuntu distributions
             for d in UbuntuDistro:
                 distro_options.append((f"Ubuntu: {d.value}", d))
+
+            # Add Debian distributions
+            for d in DebianDistro:
+                distro_options.append((f"Debian: {d.value}", d))
 
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -383,7 +388,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#custom-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        if event.value == OpenSUSEDistro.CUSTOM or event.value == UbuntuDistro.CUSTOM:
+        if event.value == OpenSUSEDistro.CUSTOM or event.value == UbuntuDistro.CUSTOM or event.value == DebianDistro.CUSTOM:
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
             self.query_one("#repo-iso-container").styles.display = "none"
@@ -491,7 +496,7 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(lambda: setattr(iso_volume_select, "disabled", True))
 
     @work(exclusive=True, thread=True)
-    def fetch_isos(self, distro: OpenSUSEDistro | UbuntuDistro | str):
+    def fetch_isos(self, distro: OpenSUSEDistro | UbuntuDistro | DebianDistro | str):
         self.app.call_from_thread(self._update_iso_status, StaticText.FETCHING_ISO_LIST, True)
 
         try:
@@ -544,18 +549,19 @@ class InstallVMModal(BaseModal[str | None]):
         # Disable install while fetching
         self.query_one("#install-btn", Button).disabled = loading
 
-    def _populate_templates_for_distribution(self, distro: OpenSUSEDistro | UbuntuDistro | str):
+    def _populate_templates_for_distribution(self, distro: OpenSUSEDistro | UbuntuDistro | DebianDistro | str):
         """
         Populate the template select widget based on the selected distribution.
 
         Template filtering rules:
-        - "Cached ISOs" → Show ALL templates (AutoYaST + Agama + Ubuntu)
+        - "Cached ISOs" → Show ALL templates (AutoYaST + Agama + Ubuntu + Debian)
         - "OpenSUSE Leap" → Show ONLY AutoYaST templates
         - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
         - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
         - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
         - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
         - "Ubuntu distributions" → Show ONLY Ubuntu autoinstall templates (cloud-init, NOT preseed)
+        - "Debian distributions" → Show ONLY Debian templates (preseed + cloud-init)
         - Custom repositories → Show ALL templates
         """
         # Get all templates
@@ -658,6 +664,55 @@ class InstallVMModal(BaseModal[str | None]):
                             or "(Cloud-init)" in display_name
                             or is_ubuntu_autoinstall
                         ) and not is_preseed:
+                            filtered_templates.append(template)
+
+        elif isinstance(distro, DebianDistro):
+            # Debian distributions → Show ONLY Debian templates (preseed + cloud-init)
+            filtered_templates = []
+            for template in all_templates:
+                filename = template.get("filename", "")
+                display_name = template.get("display_name", "")
+
+                # Check for Debian-specific template patterns
+                is_debian_preseed = (
+                    filename.startswith("preseed")
+                    and filename.endswith(".cfg")
+                    or "preseed" in filename.lower()
+                    and filename.endswith(".cfg")
+                )
+
+                is_debian_cloud_init = (
+                    filename.startswith("cloud-init")
+                    and (filename.endswith(".yaml") or filename.endswith(".yml"))
+                    or "cloud-init" in filename.lower()
+                    and (filename.endswith(".yaml") or filename.endswith(".yml"))
+                )
+
+                # Also check display names for Debian markers
+                is_debian_template = (
+                    "(Debian)" in display_name
+                    or "(Preseed)" in display_name
+                    or "(Cloud-init)" in display_name
+                )
+
+                # Include Debian preseed and cloud-init templates
+                should_include = (
+                    is_debian_preseed or is_debian_cloud_init or is_debian_template
+                )
+
+                if should_include:
+                    # Include built-in Debian templates
+                    if template["type"] == "built-in":
+                        filtered_templates.append(template)
+                    # For user templates, check if they're Debian-related
+                    elif template["type"] == "user":
+                        if (
+                            "(Debian)" in display_name
+                            or "(Preseed)" in display_name
+                            or "(Cloud-init)" in display_name
+                            or is_debian_preseed
+                            or is_debian_cloud_init
+                        ):
                             filtered_templates.append(template)
 
         elif isinstance(distro, str):
@@ -823,7 +878,7 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
 
         valid_iso = False
-        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM:
+        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM or distro == DebianDistro.CUSTOM:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
@@ -935,7 +990,7 @@ class InstallVMModal(BaseModal[str | None]):
         checksum = None
         validate = False
 
-        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM:
+        if distro == OpenSUSEDistro.CUSTOM or distro == UbuntuDistro.CUSTOM or distro == DebianDistro.CUSTOM:
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:

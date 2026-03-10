@@ -461,10 +461,11 @@ class OpenSUSEProvider(OSProvider):
         variables.update(user_config)
 
         # Hash passwords for security before substitution
+        # Strip whitespace from passwords (can come from config files with newlines)
         if "root_password" in variables and variables["root_password"]:
-            variables["root_password"] = hash_password(variables["root_password"])
+            variables["root_password"] = hash_password(variables["root_password"].strip())
         if "user_password" in variables and variables["user_password"]:
-            variables["user_password"] = hash_password(variables["user_password"])
+            variables["user_password"] = hash_password(variables["user_password"].strip())
 
         # Alias username to user_name for compatibility between Agama and AutoYaST
         if "username" in user_config and "user_name" not in user_config:
@@ -487,9 +488,9 @@ class OpenSUSEProvider(OSProvider):
             content = self._generate_autoyast_xml(version, variables, template_filename)
             output_filename = "autoyast.xml"
 
-        # Write to output file
+        # Write to output file with restrictive permissions
         output_file = output_path / output_filename
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(content)
 
         version_name = version.display_name if version else "OpenSUSE"

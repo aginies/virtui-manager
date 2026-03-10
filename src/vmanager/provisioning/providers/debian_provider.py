@@ -1,6 +1,6 @@
-"""Ubuntu OS Provider for VirtUI Manager.
+"""Debian OS Provider for VirtUI Manager.
 
-This module provides Ubuntu-specific functionality for VM provisioning,
+This module provides Debian-specific functionality for VM provisioning,
 including ISO management, template handling, and automation file generation.
 """
 
@@ -17,20 +17,19 @@ import yaml
 from ..os_provider import OSProvider, OSType, OSVersion
 
 
-class UbuntuDistro(Enum):
-    """Ubuntu distribution types."""
+class DebianDistro(Enum):
+    """Debian distribution types."""
 
-    UBUNTU_24_04_LTS = "24.04 LTS (Noble Numbat)"
-    UBUNTU_22_04_LTS = "22.04 LTS (Jammy Jellyfish)"
-    UBUNTU_20_04_LTS = "20.04 LTS (Focal Fossa)"
-    UBUNTU_24_10 = "24.10 (Oracular Oriole)"
-    UBUNTU_23_10 = "23.10 (Mantic Minotaur)"
-    UBUNTU_23_04 = "23.04 (Lunar Lobster)"
+    DEBIAN_12_BOOKWORM = "12 (Bookworm)"
+    DEBIAN_11_BULLSEYE = "11 (Bullseye)"
+    DEBIAN_10_BUSTER = "10 (Buster)"
+    DEBIAN_TESTING = "Testing"
+    DEBIAN_UNSTABLE = "Unstable (Sid)"
     CUSTOM = "Custom ISO"
 
 
-class UbuntuProvider(OSProvider):
-    """Provider for Ubuntu distributions."""
+class DebianProvider(OSProvider):
+    """Provider for Debian distributions."""
 
     def __init__(self):
         super().__init__()
@@ -38,40 +37,39 @@ class UbuntuProvider(OSProvider):
 
     @property
     def os_type(self) -> OSType:
-        """Return the OS type for Ubuntu."""
-        return OSType.UBUNTU
+        """Return the OS type for Debian."""
+        return OSType.DEBIAN
 
     def get_supported_versions(self) -> List[str]:
-        """Get list of supported Ubuntu versions."""
+        """Get list of supported Debian versions."""
         return [
-            "24.04 LTS (Noble Numbat)",
-            "22.04 LTS (Jammy Jellyfish)",
-            "20.04 LTS (Focal Fossa)",
-            "24.10 (Oracular Oriole)",
-            "23.10 (Mantic Minotaur)",
-            "23.04 (Lunar Lobster)",
+            "12 (Bookworm)",
+            "11 (Bullseye)",
+            "10 (Buster)",
+            "Testing",
+            "Unstable (Sid)",
         ]
 
     def get_iso_sources(self) -> Dict[str, str]:
-        """Get ISO download sources for Ubuntu."""
+        """Get ISO download sources for Debian."""
         return {
-            "Ubuntu Official": "http://releases.ubuntu.com/",
-            "Ubuntu Cloud Images": "https://cloud-images.ubuntu.com/",
-            "Ubuntu Daily Builds": "http://cdimage.ubuntu.com/daily-live/current/",
+            "Debian Official": "https://cdimage.debian.org/debian-cd/current/",
+            "Debian Live": "https://cdimage.debian.org/debian-cd/current-live/",
+            "Debian Testing": "https://cdimage.debian.org/cdimage/weekly-builds/",
         }
 
     def get_cached_isos(self) -> Dict[str, List[Dict[str, Any]]]:
-        """Get cached Ubuntu ISO information."""
+        """Get cached Debian ISO information."""
         # In a real implementation, this would return cached data
         # For now, return empty dict to force fresh fetching
         return {}
 
     def get_iso_list(self, version: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get list of available Ubuntu ISOs for a specific version."""
+        """Get list of available Debian ISOs for a specific version."""
         try:
             if version is None:
-                # Default to latest LTS
-                version = "24.04 LTS (Noble Numbat)"
+                # Default to latest stable
+                version = "12 (Bookworm)"
 
             # Extract version number from the display name
             version_number = self._extract_version_number(version)
@@ -83,7 +81,7 @@ class UbuntuProvider(OSProvider):
             return self._get_iso_list_for_version(version_number, version)
 
         except Exception as e:
-            self.logger.error(f"Error fetching Ubuntu ISO list: {e}")
+            self.logger.error(f"Error fetching Debian ISO list: {e}")
             return []
 
     def get_iso_list_from_url(self, url: str) -> List[Dict[str, Any]]:
@@ -97,11 +95,11 @@ class UbuntuProvider(OSProvider):
             iso_list = []
             content = response.text.lower()
 
-            if "ubuntu" in content and (".iso" in content):
+            if "debian" in content and (".iso" in content):
                 # Basic parsing - in a real implementation, you'd use BeautifulSoup
                 iso_list.append(
                     {
-                        "name": "Ubuntu Server ISO",
+                        "name": "Debian Server ISO",
                         "url": url,
                         "size": "Unknown",
                         "arch": "amd64",
@@ -123,12 +121,12 @@ class UbuntuProvider(OSProvider):
         output_path: Path,
         template_name: str | None = None,
     ) -> Path:
-        """Generate Ubuntu automation file (autoinstall or preseed)."""
+        """Generate Debian automation file (preseed or cloud-init)."""
         # Use default template if not provided
         if not template_name:
-            template_name = "autoinstall-basic.yaml"
+            template_name = "preseed-basic.cfg"
 
-        self.logger.info(f"Generating Ubuntu automation file with template: {template_name}")
+        self.logger.info(f"Generating Debian automation file with template: {template_name}")
 
         # Merge vm_name into config for variable substitution
         config = user_config.copy()
@@ -137,11 +135,11 @@ class UbuntuProvider(OSProvider):
         # Use output_path as output_dir for compatibility
         output_dir = output_path
 
-        # Determine if this is autoinstall or preseed based on filename patterns
-        is_autoinstall = (
-            template_name.startswith("autoinstall")
+        # Determine if this is cloud-init or preseed based on filename patterns
+        is_cloud_init = (
+            template_name.startswith("cloud-init")
             and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
-            or "autoinstall" in template_name.lower()
+            or "cloud-init" in template_name.lower()
             and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
         )
 
@@ -153,53 +151,49 @@ class UbuntuProvider(OSProvider):
         )
 
         result = None
-        if is_autoinstall:
-            result = self._generate_autoinstall_file(template_name, config, output_dir)
+        if is_cloud_init:
+            result = self._generate_cloud_init_file(template_name, config, output_dir)
         elif is_preseed:
             result = self._generate_preseed_file(template_name, config, output_dir)
         else:
             # Fallback: try to determine from file extension
             if template_name.endswith((".yaml", ".yml")):
-                self.logger.info(f"Treating {template_name} as autoinstall YAML file")
-                result = self._generate_autoinstall_file(template_name, config, output_dir)
+                self.logger.info(f"Treating {template_name} as cloud-init YAML file")
+                result = self._generate_cloud_init_file(template_name, config, output_dir)
             elif template_name.endswith(".cfg"):
                 self.logger.info(f"Treating {template_name} as preseed config file")
                 result = self._generate_preseed_file(template_name, config, output_dir)
             else:
-                self.logger.error(f"Unknown Ubuntu template type: {template_name}")
-                raise Exception(f"Unknown Ubuntu template type: {template_name}")
+                self.logger.error(f"Unknown Debian template type: {template_name}")
+                raise Exception(f"Unknown Debian template type: {template_name}")
 
         if result is None:
             raise Exception(
-                f"Failed to generate Ubuntu automation file with template: {template_name}"
+                f"Failed to generate Debian automation file with template: {template_name}"
             )
 
         return result
 
     def validate_template_content(self, content: str, template_name: str) -> bool:
-        """Validate Ubuntu template content."""
+        """Validate Debian template content."""
         try:
-            # Check for Ubuntu autoinstall YAML files (autoinstall*.yaml)
+            # Check for Debian cloud-init YAML files
             if (
-                (template_name.startswith("autoinstall") and template_name.endswith(".yaml"))
-                or "autoinstall" in template_name.lower()
+                (template_name.startswith("cloud-init") and template_name.endswith(".yaml"))
+                or "cloud-init" in template_name.lower()
                 and template_name.endswith(".yaml")
             ):
-                # Validate cloud-init autoinstall YAML
+                # Validate cloud-init YAML
                 data = yaml.safe_load(content)
 
-                # Check for required autoinstall structure
+                # Check for required cloud-init structure
                 if not isinstance(data, dict):
                     return False
 
-                # Should have autoinstall section for Ubuntu autoinstall
-                if "autoinstall" not in data:
-                    self.logger.warning("Ubuntu autoinstall template missing 'autoinstall' section")
-                    return False
-
+                # Should have cloud-init sections
                 return True
 
-            # Check for Ubuntu preseed files (preseed*.cfg)
+            # Check for Debian preseed files (preseed*.cfg)
             elif (
                 (template_name.startswith("preseed") and template_name.endswith(".cfg"))
                 or "preseed" in template_name.lower()
@@ -219,7 +213,7 @@ class UbuntuProvider(OSProvider):
 
                 return len(valid_lines) > 0
 
-            # Generic YAML check for other Ubuntu automation files
+            # Generic YAML check for other Debian automation files
             elif template_name.endswith(".yaml") or template_name.endswith(".yml"):
                 try:
                     yaml.safe_load(content)
@@ -235,26 +229,44 @@ class UbuntuProvider(OSProvider):
             return False
 
         except Exception as e:
-            self.logger.error(f"Error validating Ubuntu template content: {e}")
+            self.logger.error(f"Error validating Debian template content: {e}")
             return False
 
     def _extract_version_number(self, version_display: str) -> Optional[str]:
         """Extract version number from display string."""
         import re
 
-        # Extract version number like "24.04", "22.04", etc.
-        match = re.search(r"(\d+\.\d+)", version_display)
+        # Handle special cases for Testing and Unstable
+        version_lower = version_display.lower()
+        if "testing" in version_lower:
+            return "testing"
+        elif "unstable" in version_lower or "sid" in version_lower:
+            return "unstable"
+
+        # Extract version number like "12", "11", "10", etc.
+        match = re.search(r"(\d+)", version_display)
         return match.group(1) if match else None
 
     def _get_iso_list_for_version(
         self, version_number: str, version_display: str
     ) -> List[Dict[str, Any]]:
-        """Get ISO list for specific Ubuntu version."""
+        """Get ISO list for specific Debian version."""
         iso_list = []
 
         try:
-            # Ubuntu releases URL pattern
-            base_url = f"http://releases.ubuntu.com/{version_number}/"
+            # Debian releases URL pattern
+            if version_number in ["12", "11", "10"]:
+                # Stable releases
+                base_url = "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
+            elif version_number == "testing":
+                # Testing builds
+                base_url = "https://cdimage.debian.org/cdimage/weekly-builds/amd64/iso-cd/"
+            elif version_number == "unstable":
+                # Unstable/Sid builds (use testing weekly builds as unstable doesn't have separate ISOs)
+                base_url = "https://cdimage.debian.org/cdimage/weekly-builds/amd64/iso-cd/"
+            else:
+                # Fallback to current
+                base_url = "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
 
             # First, try to get the directory listing to find actual files
             try:
@@ -266,34 +278,36 @@ class UbuntuProvider(OSProvider):
                     iso_files = re.findall(r'href="([^"]*\.iso)"', response.text)
 
                     # Filter for common ISO types we want to show
-                    server_isos = [
-                        f for f in iso_files if "server" in f.lower() and f.endswith(".iso")
+                    netinst_isos = [
+                        f for f in iso_files if "netinst" in f.lower() and f.endswith(".iso")
                     ]
-                    desktop_isos = [
-                        f for f in iso_files if "desktop" in f.lower() and f.endswith(".iso")
+                    dvd_isos = [
+                        f
+                        for f in iso_files
+                        if ("dvd" in f.lower() or "cd" in f.lower()) and f.endswith(".iso")
                     ]
 
-                    # Get the latest version of each type (usually the highest point release)
+                    # Get the latest version of each type
                     iso_candidates = []
 
-                    if server_isos:
-                        # Sort by filename to get the latest point release
-                        server_isos.sort(reverse=True)
+                    if netinst_isos:
+                        # Sort by filename to get the latest
+                        netinst_isos.sort(reverse=True)
                         iso_candidates.append(
                             {
-                                "filename": server_isos[0],
-                                "type": "server",
-                                "name": f"Ubuntu {version_number} Server (amd64)",
+                                "filename": netinst_isos[0],
+                                "type": "netinst",
+                                "name": f"Debian {version_number} NetInstall (amd64)",
                             }
                         )
 
-                    if desktop_isos:
-                        desktop_isos.sort(reverse=True)
+                    if dvd_isos:
+                        dvd_isos.sort(reverse=True)
                         iso_candidates.append(
                             {
-                                "filename": desktop_isos[0],
-                                "type": "desktop",
-                                "name": f"Ubuntu {version_number} Desktop (amd64)",
+                                "filename": dvd_isos[0],
+                                "type": "dvd",
+                                "name": f"Debian {version_number} DVD (amd64)",
                             }
                         )
 
@@ -320,7 +334,6 @@ class UbuntuProvider(OSProvider):
                                         from email.utils import parsedate_to_datetime
 
                                         dt = parsedate_to_datetime(last_modified)
-                                        # Format to match OpenSUSE format: "YYYY-MM-DD HH:MM"
                                         date_str = dt.strftime("%Y-%m-%d %H:%M")
                                     except Exception as e:
                                         self.logger.debug(
@@ -337,7 +350,7 @@ class UbuntuProvider(OSProvider):
                                 "size": size_str,
                                 "arch": "amd64",
                                 "type": candidate["type"],
-                                "description": f"Ubuntu {candidate['type'].title()} Live installer",
+                                "description": f"Debian {candidate['type'].upper()} installer",
                                 "version": version_display,
                                 "date": date_str,
                             }
@@ -349,21 +362,33 @@ class UbuntuProvider(OSProvider):
                     )
 
             except Exception as e:
-                self.logger.warning(f"Error fetching Ubuntu directory listing: {e}")
+                self.logger.warning(f"Error fetching Debian directory listing: {e}")
 
             # Fallback: if we couldn't get real files, provide static entries
             if not iso_list:
-                self.logger.info("Falling back to static Ubuntu ISO entries")
+                self.logger.info("Falling back to static Debian ISO entries")
+
+                # Determine naming for static variants
+                if version_number == "testing":
+                    display_version = "Testing"
+                    filename_prefix = "debian-testing"
+                elif version_number == "unstable":
+                    display_version = "Unstable"
+                    filename_prefix = "debian-testing"  # Unstable uses testing builds
+                else:
+                    display_version = version_number
+                    filename_prefix = f"debian-{version_number}"
+
                 static_variants = [
                     {
-                        "name": f"Ubuntu {version_number} Server (amd64)",
-                        "filename": f"ubuntu-{version_number}-live-server-amd64.iso",
-                        "type": "server",
+                        "name": f"Debian {display_version} NetInstall (amd64)",
+                        "filename": f"{filename_prefix}-amd64-netinst.iso",
+                        "type": "netinst",
                     },
                     {
-                        "name": f"Ubuntu {version_number} Desktop (amd64)",
-                        "filename": f"ubuntu-{version_number}-desktop-amd64.iso",
-                        "type": "desktop",
+                        "name": f"Debian {display_version} DVD-1 (amd64)",
+                        "filename": f"{filename_prefix}-amd64-DVD-1.iso",
+                        "type": "dvd",
                     },
                 ]
 
@@ -375,7 +400,7 @@ class UbuntuProvider(OSProvider):
                             "size": "Unknown",
                             "arch": "amd64",
                             "type": variant["type"],
-                            "description": f"Ubuntu {variant['type'].title()} Live installer",
+                            "description": f"Debian {variant['type'].upper()} installer",
                             "version": version_display,
                             "date": "",
                         }
@@ -384,51 +409,51 @@ class UbuntuProvider(OSProvider):
             return iso_list
 
         except Exception as e:
-            self.logger.error(f"Error getting ISO list for Ubuntu {version_number}: {e}")
+            self.logger.error(f"Error getting ISO list for Debian {version_number}: {e}")
             return []
 
-    def _generate_autoinstall_file(
+    def _generate_cloud_init_file(
         self, template_name: str, config: Dict[str, Any], output_dir: Path
     ) -> Path:
-        """Generate Ubuntu cloud-init autoinstall file."""
-        # Load the autoinstall template
+        """Generate Debian cloud-init file."""
+        # Load the cloud-init template
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
-            raise Exception(f"Ubuntu autoinstall template not found: {template_name}")
+            raise Exception(f"Debian cloud-init template not found: {template_name}")
 
         # Read template content
         with open(template_path, "r", encoding="utf-8") as f:
             template_content = f.read()
 
-        # Generate autoinstall YAML with variable substitution
-        autoinstall_content = self._generate_autoinstall_yaml(template_content, config)
+        # Generate cloud-init YAML with variable substitution
+        cloud_init_content = self._generate_cloud_init_yaml(template_content, config)
 
-        # Write the autoinstall file with restrictive permissions
+        # Write the cloud-init file with restrictive permissions
         output_file = output_dir / "user-data"
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
-            f.write(autoinstall_content)
+            f.write(cloud_init_content)
 
         # Also create meta-data file (required for cloud-init)
         meta_data_file = output_dir / "meta-data"
         with open(os.open(meta_data_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
-            f.write(f"instance-id: {config.get('vm_name', 'ubuntu-vm')}\n")
+            f.write(f"instance-id: {config.get('vm_name', 'debian-vm')}\n")
             f.write(
-                f"local-hostname: {config.get('hostname', config.get('vm_name', 'ubuntu-vm'))}\n"
+                f"local-hostname: {config.get('hostname', config.get('vm_name', 'debian-vm'))}\n"
             )
 
-        self.logger.info(f"Generated Ubuntu autoinstall files: {output_file}, {meta_data_file}")
+        self.logger.info(f"Generated Debian cloud-init files: {output_file}, {meta_data_file}")
         return output_file
 
     def _generate_preseed_file(
         self, template_name: str, config: Dict[str, Any], output_dir: Path
     ) -> Path:
-        """Generate Ubuntu preseed file."""
+        """Generate Debian preseed file."""
         # Load the preseed template
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
             # Generate basic preseed if template not found
             self.logger.warning(
-                f"Ubuntu preseed template not found: {template_name}, using basic preseed"
+                f"Debian preseed template not found: {template_name}, using basic preseed"
             )
             preseed_content = self._generate_basic_preseed(config)
         else:
@@ -444,14 +469,12 @@ class UbuntuProvider(OSProvider):
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(preseed_content)
 
-        self.logger.info(f"Generated Ubuntu preseed file: {output_file}")
+        self.logger.info(f"Generated Debian preseed file: {output_file}")
         return output_file
 
-    def _generate_autoinstall_yaml(self, template_content: str, config: Dict[str, Any]) -> str:
-        """Generate autoinstall YAML with variable substitution."""
+    def _generate_cloud_init_yaml(self, template_content: str, config: Dict[str, Any]) -> str:
+        """Generate cloud-init YAML with variable substitution."""
         # First, do string substitution on the template content
-        # This must be done BEFORE YAML parsing because curly braces like {network_interface}
-        # would be interpreted as YAML set literals
         substituted_content = self._substitute_variables(template_content, config)
 
         try:
@@ -460,29 +483,15 @@ class UbuntuProvider(OSProvider):
             # If parsing succeeds, return the substituted content
             return substituted_content
         except Exception as e:
-            self.logger.error(f"Error validating autoinstall YAML after substitution: {e}")
+            self.logger.error(f"Error validating cloud-init YAML after substitution: {e}")
             # Return it anyway - the installer might be more lenient
             return substituted_content
-
-    def _substitute_variables_recursive(self, data: Any, config: Dict[str, Any]) -> Any:
-        """Recursively substitute variables in data structure."""
-        if isinstance(data, dict):
-            return {
-                key: self._substitute_variables_recursive(value, config)
-                for key, value in data.items()
-            }
-        elif isinstance(data, list):
-            return [self._substitute_variables_recursive(item, config) for item in data]
-        elif isinstance(data, str):
-            return self._substitute_variables(data, config)
-        else:
-            return data
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
         from ..os_provider import hash_password
 
-        # Get passwords and hash them for autoinstall (identity section requires hashed passwords)
+        # Get passwords and hash them for security (Preseed supports crypted passwords)
         # Strip whitespace that may come from config files with newlines
         user_password = config.get(
             "password", config.get("user_password", config.get("user_pw", ""))
@@ -491,27 +500,25 @@ class UbuntuProvider(OSProvider):
             "root_password", config.get("root_pw", "")
         ).strip()
 
-        # Default to safe fallbacks if empty
+        # Default to a safe fallback if no password provided (though UI should prevent this)
         if not user_password:
-            user_password = "password"  # Emergency fallback
+            user_password = "password"  # Emergency fallback if somehow empty
         if not root_password:
             root_password = user_password
 
-        # Check if we are generating for autoinstall (YAML) or preseed (CFG)
-        # Autoinstall ALWAYS requires hashed passwords in identity
+        # Hash passwords for security
         hashed_user_password = hash_password(user_password)
         hashed_root_password = hash_password(root_password)
 
-        logging.info("Ubuntu autoinstall uses hashed passwords in identity section")
+        logging.info("Debian automation uses hashed passwords for improved security")
 
         # Get substitution values with defaults
-        # Support both Ubuntu-style and OpenSUSE-style key names for compatibility
         substitutions = {
-            "vm_name": config.get("vm_name", "ubuntu-vm"),
-            "hostname": config.get("hostname", config.get("vm_name", "ubuntu-vm")),
+            "vm_name": config.get("vm_name", "debian-vm"),
+            "hostname": config.get("hostname", config.get("vm_name", "debian-vm")),
             # Support both 'username' and 'user_name' for compatibility
             "username": config.get("username", config.get("user_name", "user")),
-            # Use hashed passwords for autoinstall (replaces plaintext for improved security)
+            # Use hashed passwords (templates should use -crypted keys)
             "password": hashed_user_password,
             "root_password": hashed_root_password,
             "timezone": config.get("timezone", "UTC"),
@@ -535,21 +542,17 @@ class UbuntuProvider(OSProvider):
 
     def _generate_basic_preseed(self, config: Dict[str, Any]) -> str:
         """Generate basic preseed configuration."""
-        from ..os_provider import hash_password
-
         # Support both key name styles for compatibility
         username = config.get("username", config.get("user_name", "user"))
-        # Strip whitespace from password
+        # Strip whitespace from password (can come from config files with newlines)
         password = config.get(
-            "password", config.get("user_password", config.get("user_pw", "linux"))
+            "password", config.get("user_password", config.get("user_pw", "password"))
         ).strip()
-        hostname = config.get("hostname", config.get("vm_name", "ubuntu-vm"))
+        hostname = config.get("hostname", config.get("vm_name", "debian-vm"))
         locale = config.get("locale", config.get("language", "en_US.UTF-8"))
         keyboard = config.get("keyboard", "us")
 
-        hashed_password = hash_password(password)
-
-        return f"""# Basic Ubuntu Preseed Configuration
+        return f"""# Basic Debian Preseed Configuration
 # Generated by VirtUI Manager
 
 # Locale and keyboard
@@ -564,10 +567,17 @@ d-i netcfg/choose_interface select auto
 d-i netcfg/get_hostname string {hostname}
 d-i netcfg/get_domain string localdomain
 
+# Mirror settings
+d-i mirror/country string manual
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
+d-i mirror/http/proxy string
+
 # User setup
 d-i passwd/user-fullname string {username}
 d-i passwd/username string {username}
-d-i passwd/user-password-crypted password {hashed_password}
+d-i passwd/user-password password {password}
+d-i passwd/user-password-again password {password}
 d-i user-setup/allow-password-weak boolean true
 
 # Disk partitioning
@@ -577,11 +587,12 @@ d-i partman/confirm boolean true
 d-i partman/confirm_nooverwrite boolean true
 
 # Package selection
-tasksel tasksel/first multiselect ubuntu-server
+tasksel tasksel/first multiselect standard, ssh-server
 d-i pkgsel/include string openssh-server
 
 # Boot loader
 d-i grub-installer/only_debian boolean true
+d-i grub-installer/bootdev string default
 
 # Finish installation
 d-i finish-install/reboot_in_progress note
