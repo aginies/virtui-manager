@@ -10,7 +10,7 @@ import socket
 import subprocess
 from functools import lru_cache, wraps
 from pathlib import Path
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from .constants import AppInfo
@@ -492,9 +492,12 @@ def remote_viewer_cmd(uri: str, domain_name: str, viewer_cmd: str = None) -> lis
     return command
 
 
-def check_firewalld() -> bool:
+def check_firewalld(remote_host: str = None) -> bool:
     """
     Checks if firewalld is installed.
+
+    Args:
+        remote_host (str, optional): SSH host string (user@host) for remote check.
 
     Returns:
         bool: True if firewalld is installed, False otherwise
@@ -503,8 +506,16 @@ def check_firewalld() -> bool:
         Exception: For unexpected errors during check
     """
     try:
-        return shutil.which("firewalld") is not None
-    except (OSError, AttributeError) as e:
+        if remote_host:
+            result = subprocess.run(
+                ["ssh", remote_host, "which firewalld-cmd"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            return result.returncode == 0
+        return shutil.which("firewalld-cmd") is not None or shutil.which("firewalld") is not None
+    except (OSError, AttributeError, subprocess.SubprocessError) as e:
         logging.error("Error checking firewalld: %s", e)
         return False
 
@@ -571,9 +582,12 @@ def is_inside_tmux() -> bool:
         return False
 
 
-def check_is_firewalld_running() -> Union[str, bool]:
+def check_is_firewalld_running(remote_host: str = None) -> Union[str, bool]:
     """
     Check if firewalld is running.
+
+    Args:
+        remote_host (str, optional): SSH host string (user@host) for remote check.
 
     Returns:
         str or bool: 'active' if running, 'inactive' if stopped, False if not installed or error
@@ -581,25 +595,99 @@ def check_is_firewalld_running() -> Union[str, bool]:
     Raises:
         Exception: For unexpected errors during check
     """
-    if not check_firewalld():
+    if not check_firewalld(remote_host):
         return False
 
     try:
-        result = subprocess.run(
-            ["systemctl", "is-active", "firewalld"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=10,
-        )
+        cmd = ["systemctl", "is-active", "firewalld"]
+        if remote_host:
+            result = subprocess.run(
+                ["ssh", remote_host, " ".join(cmd)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+        else:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
         return result.stdout.strip()
     except subprocess.TimeoutExpired:
-        return False
-    except subprocess.CalledProcessError:
         return False
     except Exception as e:
         logging.error("Error checking firewalld status: %s", e)
         return False
+
+
+def run_command(
+    cmd: List[str], remote_host: str = None, check: bool = True, timeout: int = 30
+) -> subprocess.CompletedProcess:
+    """
+    Runs a command locally or remotely via SSH.
+
+    Args:
+        cmd: List of command arguments
+        remote_host: Optional SSH host (user@host)
+        check: If True, raises CalledProcessError if command fails
+        timeout: Timeout in seconds
+
+    Returns:
+        subprocess.CompletedProcess
+    """
+    if remote_host:
+        ssh_cmd = ["ssh", remote_host, " ".join(cmd)]
+        return subprocess.run(
+            ssh_cmd, capture_output=True, text=True, check=check, timeout=timeout
+        )
+    return subprocess.run(cmd, capture_output=True, text=True, check=check, timeout=timeout)
+
+
+def manage_firewalld_port(
+    port: int, protocol: str = "tcp", action: str = "add", remote_host: str = None
+) -> bool:
+    """
+    Adds or removes a port in firewalld.
+
+    Args:
+        port: Port number
+        protocol: Protocol (tcp/udp)
+        action: 'add' or 'remove'
+        remote_host: Optional SSH host (user@host)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    if check_is_firewalld_running(remote_host) != "active":
+        return False
+
+    #cmd = ["firewall-cmd", f"--{action}-port={port}/{protocol}", "--runtime-to-permanent"]
+    cmd = ["firewall-cmd", f"--{action}-port={port}/{protocol}"]
+
+    try:
+        run_command(cmd, remote_host=remote_host)
+        logging.info(f"Firewalld: {action} port {port}/{protocol} on {remote_host or 'local'}")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to {action} firewalld port {port}: {e}")
+        return False
+
+
+def get_ssh_host_from_uri(uri: str) -> Optional[str]:
+    """
+    Extracts the SSH host (user@host) from a libvirt URI.
+    """
+    if not uri or not uri.startswith("qemu+ssh://"):
+        return None
+    try:
+        parsed_uri = urlparse(uri)
+        return parsed_uri.netloc
+    except Exception:
+        return None
 
 
 @lru_cache(maxsize=16)
