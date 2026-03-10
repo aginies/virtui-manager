@@ -21,7 +21,6 @@ class AboutModal(BaseModal[None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="about-modal"):
-            yield Label("About", id="title")
             text_area = TextArea()
             text_area.load_text(self._get_license_text())
             text_area.read_only = True

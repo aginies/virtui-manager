@@ -34,6 +34,7 @@ CustomMigrationModal,
 HowToOverlayModal,
 HowToVirtIOFSModal,
 HowToDiskModal,
+AboutModal,
 WebConsoleConfigDialog,
 LoadingModal,
 InstallVMModal,
@@ -67,7 +68,6 @@ AddInputDeviceModal > #add-input-container,
 PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
-ConfigModal > #config-dialog,
 InstallVMModal > #install-dialog,
 HowToOverlayModal > #howto-overlay-dialog,
 HowToNetworkModal > #howto-network-dialog,
@@ -87,6 +87,11 @@ HowToSSHModal > #howto-ssh-dialog {
   align: center middle;
   border: round $primary;
   height: auto;
+}
+ConfigModal > #config-dialog, {
+  border: round $primary;
+  align: center middle;
+  width: 75;
 }
 
 InstallVMModal > #install-dialog Select,
