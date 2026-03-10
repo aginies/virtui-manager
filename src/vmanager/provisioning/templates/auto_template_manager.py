@@ -90,7 +90,10 @@ class AutoYaSTTemplateManager:
             # Also look for Ubuntu templates (autoinstall-*.yaml and preseed-*.cfg files)
             ubuntu_patterns = ["autoinstall-*.yaml", "autoinstall-*.yml", "preseed-*.cfg"]
 
-            all_patterns = opensuse_patterns + ubuntu_patterns
+            # Also look for Fedora templates (kickstart-*.cfg and *.ks files)
+            fedora_patterns = ["kickstart-*.cfg", "*.ks"]
+
+            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns
             for pattern in all_patterns:
                 for template_file in self.TEMPLATES_DIR.glob(pattern):
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
@@ -952,6 +955,27 @@ class AutoYaSTTemplateManager:
                 "Desktop Environment (Preseed)",
                 "Full Ubuntu desktop environment using preseed configuration",
             ),
+            # Fedora templates
+            "kickstart-basic": (
+                "Basic Server (Kickstart)",
+                "Basic Fedora server installation with essential packages",
+            ),
+            "kickstart-desktop": (
+                "Desktop Workstation (Kickstart)",
+                "Fedora Workstation with GNOME desktop environment",
+            ),
+            "kickstart-server": (
+                "Full Server (Kickstart)",
+                "Fedora Server product environment",
+            ),
+            "kickstart-development": (
+                "Development Workstation (Kickstart)",
+                "Fedora Workstation with development tools and libraries",
+            ),
+            "kickstart-minimal": (
+                "Minimal System (Kickstart)",
+                "Minimal Fedora installation with only core packages",
+            ),
         }
 
         if template_name in info_map:
@@ -974,6 +998,11 @@ class AutoYaSTTemplateManager:
                 template_name.replace("preseed-", "").replace("-", " ").title() + " (Preseed)"
             )
             description = f"Custom Ubuntu preseed template: {template_name}"
+        elif template_name.startswith("kickstart-"):
+            display_name = (
+                template_name.replace("kickstart-", "").replace("-", " ").title() + " (Kickstart)"
+            )
+            description = f"Custom Fedora kickstart template: {template_name}"
         else:
             display_name = (
                 template_name.replace("autoyast-", "").replace("-", " ").title() + " (AutoYaST)"
