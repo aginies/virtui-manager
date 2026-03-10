@@ -485,11 +485,17 @@ class UbuntuProvider(OSProvider):
         # Get passwords and hash them for autoinstall (identity section requires hashed passwords)
         # Strip whitespace that may come from config files with newlines
         user_password = config.get(
-            "password", config.get("user_password", config.get("user_pw", "password"))
+            "password", config.get("user_password", config.get("user_pw", ""))
         ).strip()
         root_password = config.get(
-            "root_password", config.get("root_pw", "password")
+            "root_password", config.get("root_pw", "")
         ).strip()
+
+        # Default to safe fallbacks if empty
+        if not user_password:
+            user_password = "password"  # Emergency fallback
+        if not root_password:
+            root_password = user_password
 
         # Check if we are generating for autoinstall (YAML) or preseed (CFG)
         # Autoinstall ALWAYS requires hashed passwords in identity
@@ -534,10 +540,10 @@ class UbuntuProvider(OSProvider):
         """Generate basic preseed configuration."""
         # Support both key name styles for compatibility
         username = config.get("username", config.get("user_name", "user"))
-        # Strip whitespace from password (can come from config files with newlines)
+        # Strip whitespace from password
         password = config.get(
-            "password", config.get("user_password", config.get("user_pw", "password"))
-        ).strip()
+            "password", config.get("user_password", config.get("user_pw", ""))
+        ).strip() or "password"
         hostname = config.get("hostname", config.get("vm_name", "ubuntu-vm"))
         locale = config.get("locale", config.get("language", "en_US.UTF-8"))
         keyboard = config.get("keyboard", "us")
