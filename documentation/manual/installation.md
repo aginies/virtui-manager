@@ -29,6 +29,7 @@ The wizard guides you through the necessary steps to configure your new VM.
     *   Choose the operating system source.
     *   **Cached ISOs:** Select from ISO images already downloaded to your local cache. The path to the cache is displayed below the selection.
     *   **OpenSUSE Variants:** Select a specific OpenSUSE distribution (e.g., Leap, Tumbleweed, Slowroll) to automatically fetch the latest ISO.
+    *   **Ubuntu Variants:** Select a specific Ubuntu distribution to automatically fetch the latest ISO.
     *   **From Storage Pool:** Select an ISO image directly from an existing libvirt storage pool.
     *   **Custom:** Use a local ISO file from your file system.
 
