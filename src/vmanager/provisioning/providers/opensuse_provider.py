@@ -488,9 +488,9 @@ class OpenSUSEProvider(OSProvider):
             content = self._generate_autoyast_xml(version, variables, template_filename)
             output_filename = "autoyast.xml"
 
-        # Write to output file
+        # Write to output file with restrictive permissions
         output_file = output_path / output_filename
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(content)
 
         version_name = version.display_name if version else "OpenSUSE"

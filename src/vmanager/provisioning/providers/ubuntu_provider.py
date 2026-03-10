@@ -403,14 +403,14 @@ class UbuntuProvider(OSProvider):
         # Generate autoinstall YAML with variable substitution
         autoinstall_content = self._generate_autoinstall_yaml(template_content, config)
 
-        # Write the autoinstall file
+        # Write the autoinstall file with restrictive permissions
         output_file = output_dir / "user-data"
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(autoinstall_content)
 
         # Also create meta-data file (required for cloud-init)
         meta_data_file = output_dir / "meta-data"
-        with open(meta_data_file, "w", encoding="utf-8") as f:
+        with open(os.open(meta_data_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(f"instance-id: {config.get('vm_name', 'ubuntu-vm')}\n")
             f.write(
                 f"local-hostname: {config.get('hostname', config.get('vm_name', 'ubuntu-vm'))}\n"
@@ -439,9 +439,9 @@ class UbuntuProvider(OSProvider):
             # Generate preseed with variable substitution
             preseed_content = self._substitute_variables(template_content, config)
 
-        # Write the preseed file
+        # Write the preseed file with restrictive permissions
         output_file = output_dir / "preseed.cfg"
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(preseed_content)
 
         self.logger.info(f"Generated Ubuntu preseed file: {output_file}")

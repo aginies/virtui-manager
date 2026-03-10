@@ -428,14 +428,14 @@ class DebianProvider(OSProvider):
         # Generate cloud-init YAML with variable substitution
         cloud_init_content = self._generate_cloud_init_yaml(template_content, config)
 
-        # Write the cloud-init file
+        # Write the cloud-init file with restrictive permissions
         output_file = output_dir / "user-data"
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(cloud_init_content)
 
         # Also create meta-data file (required for cloud-init)
         meta_data_file = output_dir / "meta-data"
-        with open(meta_data_file, "w", encoding="utf-8") as f:
+        with open(os.open(meta_data_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(f"instance-id: {config.get('vm_name', 'debian-vm')}\n")
             f.write(
                 f"local-hostname: {config.get('hostname', config.get('vm_name', 'debian-vm'))}\n"
@@ -464,9 +464,9 @@ class DebianProvider(OSProvider):
             # Generate preseed with variable substitution
             preseed_content = self._substitute_variables(template_content, config)
 
-        # Write the preseed file
+        # Write the preseed file with restrictive permissions
         output_file = output_dir / "preseed.cfg"
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(preseed_content)
 
         self.logger.info(f"Generated Debian preseed file: {output_file}")
