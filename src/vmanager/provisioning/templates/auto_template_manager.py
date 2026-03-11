@@ -93,7 +93,10 @@ class AutoYaSTTemplateManager:
             # Also look for Fedora templates (kickstart-*.cfg and *.ks files)
             fedora_patterns = ["kickstart-*.cfg", "*.ks"]
 
-            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns
+            # Also look for Arch Linux templates (archinstall-*.json files)
+            arch_patterns = ["archinstall-*.json"]
+
+            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns + arch_patterns
             for pattern in all_patterns:
                 for template_file in self.TEMPLATES_DIR.glob(pattern):
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
@@ -976,6 +979,11 @@ class AutoYaSTTemplateManager:
                 "Minimal System (Kickstart)",
                 "Minimal Fedora installation with only core packages",
             ),
+            # Arch Linux templates
+            "archinstall-basic": (
+                "Basic System (Archinstall)",
+                "Basic Arch Linux installation using archinstall JSON configuration",
+            ),
         }
 
         if template_name in info_map:
@@ -1003,6 +1011,11 @@ class AutoYaSTTemplateManager:
                 template_name.replace("kickstart-", "").replace("-", " ").title() + " (Kickstart)"
             )
             description = f"Custom Fedora kickstart template: {template_name}"
+        elif template_name.startswith("archinstall-"):
+            display_name = (
+                template_name.replace("archinstall-", "").replace("-", " ").title() + " (Archinstall)"
+            )
+            description = f"Custom Arch Linux archinstall template: {template_name}"
         else:
             display_name = (
                 template_name.replace("autoyast-", "").replace("-", " ").title() + " (AutoYaST)"
