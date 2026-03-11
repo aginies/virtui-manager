@@ -188,25 +188,15 @@ class ArchLinuxProvider(OSProvider):
         # (plaintext passwords don't start with $6$)
         substitutions = config.copy()
         
-        # Ensure user_password and password are synchronized for template compatibility
-        if "user_password" in substitutions and "password" not in substitutions:
-            substitutions["password"] = substitutions["user_password"]
-        elif "password" in substitutions and "user_password" not in substitutions:
-            substitutions["user_password"] = substitutions["password"]
-
         if "user_password" in substitutions:
             pwd = str(substitutions["user_password"]).strip()
             if not pwd.startswith("$6$"):
                 substitutions["user_password"] = hash_password(pwd)
-                # Re-sync if we hashed it
-                substitutions["password"] = substitutions["user_password"]
 
         if "password" in substitutions:
             pwd = str(substitutions["password"]).strip()
             if not pwd.startswith("$6$"):
                 substitutions["password"] = hash_password(pwd)
-                # Re-sync
-                substitutions["user_password"] = substitutions["password"]
                 
         if "root_password" in substitutions:
             rpwd = str(substitutions["root_password"]).strip()
@@ -246,7 +236,7 @@ class ArchLinuxProvider(OSProvider):
         import json
         
         # Hash passwords for security
-        user_pwd = config.get("user_password", config.get("password", ""))
+        user_pwd = config.get("user_password", "")
         hashed_password = hash_password(str(user_pwd).strip())
         hashed_root_password = hash_password(str(config.get("root_password", "")).strip())
         
