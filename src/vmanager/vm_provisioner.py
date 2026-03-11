@@ -12,9 +12,12 @@ import ssl
 import subprocess
 import tempfile
 import time
+import tarfile
+import threading
+import json
 import urllib.request
 import urllib.error
-import uuid  # Added import
+import uuid
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -22,9 +25,11 @@ from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
+import yaml
+import netifaces
 
 import libvirt
-from packaging.version import parse as parse_version  # Added import
+from packaging.version import parse as parse_version
 
 from .auto_http_server import AutoHTTPServer
 from .config import load_config
@@ -223,7 +228,9 @@ class VMProvisioner:
             if provider and hasattr(provider, "get_iso_list"):
                 return provider.get_iso_list(distro.value)  # Pass the string value
             else:
-                logging.warning("Alpine Linux provider not available or doesn't support get_iso_list")
+                logging.warning(
+                    "Alpine Linux provider not available or doesn't support get_iso_list"
+                )
                 return []
 
         # Handle custom repository URLs (strings)
@@ -687,7 +694,12 @@ class VMProvisioner:
         }
 
     def _setup_uefi_nvram(
-        self, vm_name: str, target_pool_name: str, vm_type: VMType, support_snapshots: bool = True, os_type: OSType = OSType.LINUX
+        self,
+        vm_name: str,
+        target_pool_name: str,
+        vm_type: VMType,
+        support_snapshots: bool = True,
+        os_type: OSType = OSType.LINUX,
     ) -> tuple[str, str]:
         """
         Sets up UEFI NVRAM on the server side by:
@@ -711,7 +723,9 @@ class VMProvisioner:
 
         # Disable Secure Boot by default for Arch Linux, Debian and Alpine to prevent installation failures
         if os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
-            self.logger.info(f"Disabling Secure Boot for {os_type.name} to ensure successful installation.")
+            self.logger.info(
+                f"Disabling Secure Boot for {os_type.name} to ensure successful installation."
+            )
             secure_boot = False
 
         candidate_fw = select_best_firmware(
@@ -911,7 +925,12 @@ class VMProvisioner:
         return None
 
     def _get_vm_settings(
-        self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None, os_type: OSType = OSType.LINUX, graphics_type: str = "spice"
+        self,
+        vm_type: VMType,
+        boot_uefi: bool,
+        disk_format: str | None = None,
+        os_type: OSType = OSType.LINUX,
+        graphics_type: str = "spice",
     ) -> Dict[str, Any]:
         """
         Returns a dictionary of VM settings based on type and options.
@@ -963,7 +982,9 @@ class VMProvisioner:
                 }
             )
             if is_arch_debian_or_alpine:
-                self.logger.info(f"Disabling Secure Boot components (TPM/SEV/Secure Boot) for {os_type.name} even in SECURE mode to ensure successful installation.")
+                self.logger.info(
+                    f"Disabling Secure Boot components (TPM/SEV/Secure Boot) for {os_type.name} even in SECURE mode to ensure successful installation."
+                )
         elif vm_type == VMType.COMPUTATION:
             settings.update(
                 {
@@ -1037,6 +1058,10 @@ class VMProvisioner:
         if disk_format:
             settings["disk_format"] = disk_format
 
+        # Alpine Linux (especially virt ISO) only supports virtio-net
+        if os_type == OSType.ALPINE:
+            settings["network_model"] = "virtio"
+
         return settings
 
     def generate_xml(
@@ -1058,11 +1083,14 @@ class VMProvisioner:
         serial_console: bool = False,
         os_type: OSType = OSType.LINUX,
         graphics_type: str = "spice",
+        os_version: str | None = None,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
-        settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type)
+        settings = self._get_vm_settings(
+            vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
+        )
 
         # Boot order: if kernel_path is provided, we are doing a direct kernel boot for install
         hd_boot, cd_boot = 1, 2
@@ -1104,10 +1132,29 @@ class VMProvisioner:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
                     cmdline = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
+                elif ".apkovl.tar.gz" in auto_url:
+                    # Alpine Linux apkovl automation (contains trigger script)
+                    ver = os_version if os_version else "v3.23"
+                    if not ver.startswith("v"):
+                        ver = f"v{ver}"
+                    cmdline = (
+                        f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
+                        f"apkovl={auto_url} "
+                        f"ip=dhcp "
+                    )
                 elif "alpine-answers-" in auto_url and auto_url.endswith(".txt"):
                     # Alpine Linux answers automation
-                    # Note: standard Alpine ISO doesn't support this via kernel cmdline out of the box
-                    cmdline = f"alpine-answers={auto_url}"
+                    # Use version-specific repo if available
+                    ver = os_version if os_version else "v3.23"
+                    if not ver.startswith("v"):
+                        ver = f"v{ver}"
+                    # Use 'answerfile' and ensure networking is up with 'ip=dhcp'
+                    cmdline = (
+                        f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
+                        f"answerfile={auto_url} "
+                        f"ip=dhcp "
+                        f"setup_alpine_noninteractive=1 "
+                    )
                 elif "ks-" in auto_url and auto_url.endswith(".cfg"):
                     # Fedora kickstart automation
                     cmdline = f"inst.ks={auto_url}"
@@ -1310,8 +1357,6 @@ class VMProvisioner:
             if "qemu:///system" in uri or "qemu:///session" in uri:
                 # Try to get virbr0 IP address
                 try:
-                    import netifaces
-
                     if "virbr0" in netifaces.interfaces():
                         addrs = netifaces.ifaddresses("virbr0")
                         if netifaces.AF_INET in addrs:
@@ -1689,9 +1734,7 @@ class VMProvisioner:
             self.logger.error(f"Failed to extract Arch Linux kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
             shutil.rmtree(tmp_dir)
-            raise Exception(
-                f"Failed to extract Arch Linux kernel/initrd from ISO: {stderr}"
-            ) from e
+            raise Exception(f"Failed to extract Arch Linux kernel/initrd from ISO: {stderr}") from e
 
     def _extract_alpine_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
         """Extracts kernel and initrd from an Alpine Linux ISO (boot/ directory)."""
@@ -1760,6 +1803,7 @@ class VMProvisioner:
         os_type: OSType = OSType.LINUX,
         kernel_path: str | None = None,
         initrd_path: str | None = None,
+        os_version: str | None = None,
     ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
@@ -1806,13 +1850,13 @@ class VMProvisioner:
                 location_arg = f"vol={storage_pool_name}/{iso_vol_name}"
                 cmd.extend(["--location", location_arg])
                 logging.info(f"Using remote ISO location for virt-install: {location_arg}")
-                
+
                 # Explicitly add the ISO as a CD-ROM device so it's visible to the installer
                 cmd.extend(["--disk", f"vol={storage_pool_name}/{iso_vol_name},device=cdrom"])
             else:
                 # For local Auto or manual kernel boot, use --location with the local path
                 cmd.extend(["--location", iso_path])
-                
+
                 # Explicitly add the ISO as a CD-ROM device
                 cmd.extend(["--disk", f"path={iso_path},device=cdrom"])
 
@@ -1893,13 +1937,14 @@ class VMProvisioner:
                 pm_opts.append("suspend_to_disk=on")
             cmd.extend(["--pm", ",".join(pm_opts)])
 
-        # Memory Backing - not directly supported by virt-install CLI, needs custom XML for --mem-path
-
         # Automation file injection
         extra_args = ""
         if auto_url:
             # HTTP-based automation (uses --extra-args with --location)
-            if auto_url.endswith(".json"):
+            if "archinstall-" in auto_url and auto_url.endswith(".json"):
+                # Arch Linux archinstall automation
+                extra_args = f"archinstall.config={auto_url} archisodevice=/dev/sr0"
+            elif auto_url.endswith(".json"):
                 # Agama (openSUSE) automation
                 # Multiple flags to disable SSL verification and allow insecure HTTP
                 extra_args = f"inst.auto={auto_url} inst.insecure=1 ssl_verify=no"
@@ -1909,9 +1954,30 @@ class VMProvisioner:
             elif "ks-" in auto_url and auto_url.endswith(".cfg"):
                 # Fedora kickstart automation
                 extra_args = f"inst.ks={auto_url}"
-            elif "archinstall-" in auto_url and auto_url.endswith(".json"):
-                # Arch Linux archinstall automation
-                extra_args = f"archinstall.config={auto_url} archisodevice=/dev/sr0"
+            elif ".apkovl.tar.gz" in auto_url:
+                # Alpine Linux apkovl automation (contains trigger script)
+                ver = os_version if os_version else "v3.23"
+                if not ver.startswith("v"):
+                    ver = f"v{ver}"
+                extra_args = (
+                    f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
+                    f"apkovl={auto_url} "
+                    f"ip=dhcp "
+                )
+            elif "alpine-answers-" in auto_url and auto_url.endswith(".txt"):
+                # Alpine Linux answers automation
+                # Use version-specific repo if available
+                ver = os_version if os_version else "v3.23"
+                if not ver.startswith("v"):
+                    ver = f"v{ver}"
+                # Use 'answerfile' and ensure networking is up with 'ip=dhcp'
+                extra_args = (
+                    f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
+                    f"answerfile={auto_url} "
+                    f"ip=dhcp "
+                    f"setup_alpine_noninteractive=1 "
+                )
+
             elif auto_url.endswith(".cfg"):
                 # Ubuntu preseed automation
                 extra_args = f"auto=true preseed/url={auto_url}"
@@ -1996,6 +2062,7 @@ class VMProvisioner:
 
         # Determine OS Type from iso_url or automation_config
         os_type = OSType.LINUX
+        os_version = None
         if automation_config:
             template_name = automation_config.get("template_name", "").lower()
             if any(k in template_name for k in ["ubuntu", "autoinstall"]):
@@ -2006,6 +2073,8 @@ class VMProvisioner:
                 os_type = OSType.FEDORA
             elif any(k in template_name for k in ["arch", "archinstall"]):
                 os_type = OSType.ARCHLINUX
+            elif any(k in template_name for k in ["alpine"]):
+                os_type = OSType.ALPINE
 
         # If not determined by automation, try to guess from ISO URL
         if os_type == OSType.LINUX:
@@ -2020,6 +2089,17 @@ class VMProvisioner:
                 os_type = OSType.ARCHLINUX
             elif "alpine" in iso_url_lower:
                 os_type = OSType.ALPINE
+
+        # Try to extract version for Alpine if possible
+        if os_type == OSType.ALPINE:
+            match = re.search(r"v(\d+\.\d+)", iso_url)
+            if match:
+                os_version = match.group(1)
+            else:
+                # Try to find it in the filename if not in path
+                match = re.search(r"alpine-(?:virt|standard|extended)-(\d+\.\d+)", iso_url)
+                if match:
+                    os_version = match.group(1)
 
         # Determine if we should use direct kernel boot (manual UEFI for Arch/Debian/Alpine or automation)
         use_direct_kernel_boot = bool(automation_config) or (
@@ -2139,7 +2219,9 @@ class VMProvisioner:
             report(StaticText.PROVISIONING_SETTING_UP_UEFI_FIRMWARE, 75)
             # Only setup NVRAM if we are not using virt-install
             # virt-install --boot uefi will handle this automatically if we don't pass paths
-            loader_path, nvram_path = self._setup_uefi_nvram(vm_name, storage_pool_name, vm_type, os_type=os_type)
+            loader_path, nvram_path = self._setup_uefi_nvram(
+                vm_name, storage_pool_name, vm_type, os_type=os_type
+            )
 
         # Create Disk
         report(StaticText.PROVISIONING_CREATING_STORAGE, 78)  # Adjusted percentage
@@ -2182,25 +2264,23 @@ class VMProvisioner:
                 # Get the appropriate provider based on template type
                 template_name = automation_config.get("template_name", "autoyast-basic.xml")
                 is_ubuntu_template = any(
-                    keyword in template_name.lower()
-                    for keyword in ["ubuntu", "autoinstall"]
+                    keyword in template_name.lower() for keyword in ["ubuntu", "autoinstall"]
                 )
-                is_debian_template = any(
-                    keyword in template_name.lower()
-                    for keyword in ["debian", "preseed", "cloud-init"]
-                ) and not is_ubuntu_template
+                is_debian_template = (
+                    any(
+                        keyword in template_name.lower()
+                        for keyword in ["debian", "preseed", "cloud-init"]
+                    )
+                    and not is_ubuntu_template
+                )
                 is_fedora_template = any(
                     keyword in template_name.lower()
                     for keyword in ["fedora", "kickstart", "ks.cfg"]
                 )
                 is_arch_template = any(
-                    keyword in template_name.lower()
-                    for keyword in ["arch", "archinstall"]
+                    keyword in template_name.lower() for keyword in ["arch", "archinstall"]
                 )
-                is_alpine_template = any(
-                    keyword in template_name.lower()
-                    for keyword in ["alpine"]
-                )
+                is_alpine_template = any(keyword in template_name.lower() for keyword in ["alpine"])
 
                 if is_ubuntu_template:
                     provider = self.get_provider("ubuntu")
@@ -2221,7 +2301,7 @@ class VMProvisioner:
 
                     # Generate automation file using the provider
                     automation_file_path = provider.generate_automation_file(
-                        version=None,  # We don't have version info here, provider should handle this
+                        version=None,  # We don't have version info here
                         vm_name=vm_name,
                         user_config=automation_config,
                         output_path=temp_dir,
@@ -2231,13 +2311,20 @@ class VMProvisioner:
 
                     # Validate the generated automation file (XML, JSON, YAML, or CFG)
                     try:
-                        with open(automation_file_path, "r", encoding="utf-8") as f:
-                            content = f.read()
-
                         file_path_str = str(automation_file_path)
-                        if file_path_str.endswith(".json"):
-                            import json
 
+                        # Special case: binary tarballs (Alpine apkovl)
+                        if file_path_str.endswith(".tar.gz"):
+                            if tarfile.is_tarfile(file_path_str):
+                                self.logger.info("Automation tarball validation passed")
+                            else:
+                                raise ValueError("Invalid automation tarball file")
+                            content = "" # No text content to validate
+                        else:
+                            with open(automation_file_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+
+                        if file_path_str.endswith(".json"):
                             json.loads(content)
                             self.logger.info("Automation JSON file validation passed")
                         elif (
@@ -2245,14 +2332,18 @@ class VMProvisioner:
                             or "user-data" in file_path_str
                         ):
                             # Ubuntu autoinstall uses YAML format
-                            import yaml
-
                             yaml.safe_load(content)
                             self.logger.info("Automation YAML file validation passed")
-                        elif "ks-" in file_path_str and file_path_str.endswith(".cfg") or file_path_str.endswith(".ks"):
+                        elif (
+                            "ks-" in file_path_str
+                            and file_path_str.endswith(".cfg")
+                            or file_path_str.endswith(".ks")
+                        ):
                             # Fedora Kickstart (no comprehensive validation, just check keywords)
                             if not any(kw in content for kw in ["%packages", "rootpw"]):
-                                self.logger.warning("Kickstart file might be missing required keywords")
+                                self.logger.warning(
+                                    "Kickstart file might be missing required keywords"
+                                )
                             self.logger.info("Automation Kickstart file basic validation passed")
                         elif file_path_str.endswith(".cfg"):
                             # Ubuntu preseed uses CFG format (no validation, just check non-empty)
@@ -2266,8 +2357,12 @@ class VMProvisioner:
                         elif file_path_str.endswith(".txt") and "alpine" in file_path_str.lower():
                             # Alpine answers file
                             if "HOSTNAMEOPTS" not in content:
-                                self.logger.warning("Alpine answers file might be missing required keywords")
-                            self.logger.info("Automation Alpine answers file basic validation passed")
+                                self.logger.warning(
+                                    "Alpine answers file might be missing required keywords"
+                                )
+                            self.logger.info(
+                                "Automation Alpine answers file basic validation passed"
+                            )
                         else:
                             # Unknown format, log warning but don't fail
                             self.logger.warning(
@@ -2304,9 +2399,10 @@ class VMProvisioner:
                         arch_path = temp_dir / "archinstall.json"
                         is_arch_json = arch_path.exists()
 
-                        # Check if this is Alpine Linux (has answers.txt file)
+                        # Check if this is Alpine Linux (has answers.txt or alpine.apkovl.tar.gz file)
                         alpine_path = temp_dir / "answers.txt"
-                        is_alpine_answers = alpine_path.exists()
+                        alpine_apkovl_path = temp_dir / "alpine.apkovl.tar.gz"
+                        is_alpine_answers = alpine_path.exists() or alpine_apkovl_path.exists()
 
                         is_agama = False
                         if is_ubuntu_autoinstall:
@@ -2331,11 +2427,20 @@ class VMProvisioner:
                             shutil.copy(ks_path, autoinst_path)
                         elif is_arch_json:
                             # Arch Linux: serve the archinstall.json file
-                            self.logger.info("Detected Arch Linux archinstall file (archinstall.json)")
+                            self.logger.info(
+                                "Detected Arch Linux archinstall file (archinstall.json)"
+                            )
                             unique_id = uuid.uuid4().hex[:8]
                             autoinst_filename = f"archinstall-{unique_id}.json"
                             autoinst_path = temp_dir / autoinst_filename
                             shutil.copy(arch_path, autoinst_path)
+                        elif alpine_apkovl_path.exists():
+                            # Alpine Linux: serve the apkovl tarball (preferred for trigger script)
+                            self.logger.info("Detected Alpine Linux apkovl file (alpine.apkovl.tar.gz)")
+                            unique_id = uuid.uuid4().hex[:8]
+                            autoinst_filename = f"alpine-{unique_id}.apkovl.tar.gz"
+                            autoinst_path = temp_dir / autoinst_filename
+                            shutil.copy(alpine_apkovl_path, autoinst_path)
                         elif is_alpine_answers:
                             # Alpine Linux: serve the answers.txt file
                             self.logger.info("Detected Alpine Linux answers file (answers.txt)")
@@ -2429,27 +2534,47 @@ class VMProvisioner:
                 try:
                     local_iso_path = _determine_iso_path(iso_url)
                     if os_type == OSType.ARCHLINUX:
-                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
+                            local_iso_path
+                        )
                     elif os_type == OSType.DEBIAN:
-                        local_kernel_path, local_initrd_path = self._extract_debian_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_debian_iso_kernel_initrd(local_iso_path)
+                        )
                     elif os_type == OSType.UBUNTU:
-                        local_kernel_path, local_initrd_path = self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        )
                     elif os_type == OSType.FEDORA:
-                        local_kernel_path, local_initrd_path = self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                        )
                     elif os_type == OSType.ALPINE:
-                        local_kernel_path, local_initrd_path = self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                        )
                     else:
-                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(local_iso_path, self.host_arch)
+                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
+                            local_iso_path, self.host_arch
+                        )
 
                     report("Uploading kernel and initrd", 81)
-                    kernel_path = self.upload_file(local_kernel_path, storage_pool_name, f"{vm_name}-kernel")
-                    initrd_path = self.upload_file(local_initrd_path, storage_pool_name, f"{vm_name}-initrd")
+                    kernel_path = self.upload_file(
+                        local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
+                    )
+                    initrd_path = self.upload_file(
+                        local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
+                    )
                 except Exception as e:
-                    self.logger.warning(f"Failed to extract/upload kernel/initrd for direct boot: {e}")
+                    self.logger.warning(
+                        f"Failed to extract/upload kernel/initrd for direct boot: {e}"
+                    )
 
             # Generate the XML configuration that would be used
             if is_virt_install_available:
-                settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type)
+                settings = self._get_vm_settings(
+                    vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
+                )
                 xml_desc = self._run_virt_install(
                     vm_name,
                     settings,
@@ -2467,6 +2592,7 @@ class VMProvisioner:
                     os_type=os_type,
                     kernel_path=kernel_path,
                     initrd_path=initrd_path,
+                    os_version=os_version,
                 )
             else:
                 xml_desc = self.generate_xml(
@@ -2489,6 +2615,7 @@ class VMProvisioner:
                     serial_console=serial_console,
                     os_type=os_type,
                     graphics_type=graphics_type,
+                    os_version=os_version,
                 )
 
             # Define the VM
@@ -2523,25 +2650,45 @@ class VMProvisioner:
                 try:
                     local_iso_path = _determine_iso_path(iso_url)
                     if os_type == OSType.ARCHLINUX:
-                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
+                            local_iso_path
+                        )
                     elif os_type == OSType.DEBIAN:
-                        local_kernel_path, local_initrd_path = self._extract_debian_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_debian_iso_kernel_initrd(local_iso_path)
+                        )
                     elif os_type == OSType.UBUNTU:
-                        local_kernel_path, local_initrd_path = self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        )
                     elif os_type == OSType.FEDORA:
-                        local_kernel_path, local_initrd_path = self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                        )
                     elif os_type == OSType.ALPINE:
-                        local_kernel_path, local_initrd_path = self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                        )
                     else:
-                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(local_iso_path, self.host_arch)
+                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
+                            local_iso_path, self.host_arch
+                        )
 
                     report("Uploading kernel and initrd", 81)
-                    kernel_path = self.upload_file(local_kernel_path, storage_pool_name, f"{vm_name}-kernel")
-                    initrd_path = self.upload_file(local_initrd_path, storage_pool_name, f"{vm_name}-initrd")
+                    kernel_path = self.upload_file(
+                        local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
+                    )
+                    initrd_path = self.upload_file(
+                        local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
+                    )
                 except Exception as e:
-                    self.logger.warning(f"Failed to extract/upload kernel/initrd for direct boot: {e}")
+                    self.logger.warning(
+                        f"Failed to extract/upload kernel/initrd for direct boot: {e}"
+                    )
 
-            settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type)
+            settings = self._get_vm_settings(
+                vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
+            )
             self._run_virt_install(
                 vm_name,
                 settings,
@@ -2558,6 +2705,7 @@ class VMProvisioner:
                 os_type=os_type,
                 kernel_path=kernel_path,
                 initrd_path=initrd_path,
+                os_version=os_version,
             )
 
             report(StaticText.PROVISIONING_WAITING_FOR_VM, 95)
@@ -2590,8 +2738,8 @@ class VMProvisioner:
                         )
                     elif os_type == OSType.ARCHLINUX:
                         # Use Arch Linux-specific kernel extraction (arch/boot/x86_64/ directory)
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_arch_iso_kernel_initrd(local_iso_path)
+                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
+                            local_iso_path
                         )
                     elif os_type == OSType.ALPINE:
                         # Use Alpine Linux-specific kernel extraction (boot/ directory)
@@ -2620,14 +2768,21 @@ class VMProvisioner:
                     )
                     kernel_path, initrd_path = None, None  # Ensure fallback logic triggers
 
-            # Fallback to floppy method if kernel extraction fails - ONLY for OpenSUSE
-            # Debian and Ubuntu should use HTTP-based automation with kernel boot
+            # Fallback to floppy method if kernel extraction fails
+            # OpenSUSE and Alpine use floppy for automation delivery
             if not kernel_path and automation_file_path:
-                # Check if this is an OpenSUSE (not Debian, Ubuntu, Arch or Alpine)
-                is_opensuse = os_type not in [OSType.DEBIAN, OSType.UBUNTU, OSType.ARCHLINUX, OSType.ALPINE]
+                # Check if this is an OpenSUSE or Alpine (not Debian, Ubuntu, or Arch)
+                is_floppy_capable = os_type in [OSType.OPENSUSE, OSType.ALPINE]
+                is_other_distro = os_type not in [
+                    OSType.DEBIAN,
+                    OSType.UBUNTU,
+                    OSType.ARCHLINUX,
+                    OSType.ALPINE,
+                ]
+                is_opensuse = is_other_distro or os_type == OSType.OPENSUSE
 
-                if is_opensuse:
-                    # Only create floppy for OpenSUSE/AutoYaST
+                if is_opensuse and is_floppy_capable:
+                    # Create floppy for OpenSUSE/AutoYaST or Alpine/answers
                     try:
                         floppy_image_path = self._create_autoyast_floppy_image(
                             automation_file_path, Path(os.path.dirname(automation_file_path))
@@ -2674,6 +2829,7 @@ class VMProvisioner:
                 serial_console=serial_console,
                 os_type=os_type,
                 graphics_type=graphics_type,
+                os_version=os_version,
             )
 
             # Define and Start VM
@@ -2718,8 +2874,6 @@ class VMProvisioner:
                 port_to_close=None,
                 ssh_host_to_manage=None,
             ):
-                import time
-                import shutil
 
                 logger.info(f"Starting restart watcher for {name}")
                 # 1. Wait for it to start running (it might be in 'defining' state)
@@ -2764,9 +2918,13 @@ class VMProvisioner:
                                 logger.info(f"Stopping HTTP server for {name}")
                                 http_server_to_stop.stop()
                                 if port_to_close:
-                                    logger.info(f"Removing firewalld port {port_to_close} for auto install.")
+                                    logger.info(
+                                        f"Removing firewalld port {port_to_close} for auto install."
+                                    )
                                     manage_firewalld_port(
-                                        port_to_close, action="remove", remote_host=ssh_host_to_manage
+                                        port_to_close,
+                                        action="remove",
+                                        remote_host=ssh_host_to_manage,
                                     )
 
                             if temp_dir_to_clean and os.path.exists(temp_dir_to_clean):
@@ -2778,8 +2936,6 @@ class VMProvisioner:
                         logger.error(f"Error in restart watcher for {name}: {e}")
                         break
                     time.sleep(5)
-
-            import threading
 
             threading.Thread(
                 target=restart_watcher,
