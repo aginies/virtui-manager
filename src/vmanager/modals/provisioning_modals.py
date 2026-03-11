@@ -18,6 +18,7 @@ from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManag
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
 from ..provisioning.providers.debian_provider import DebianDistro
 from ..provisioning.providers.fedora_provider import FedoraDistro
 from ..provisioning.providers.ubuntu_provider import UbuntuDistro
@@ -85,6 +86,10 @@ class InstallVMModal(BaseModal[str | None]):
             # Add Fedora distributions
             for d in FedoraDistro:
                 distro_options.append((f"Fedora: {d.value}", d))
+
+            # Add Arch Linux distributions
+            for d in ArchLinuxDistro:
+                distro_options.append((f"Arch Linux: {d.value}", d))
 
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -319,7 +324,10 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"  # Hide new container
         # Ensure expert defaults are set correctly based on initial selection
-        self._update_expert_defaults(self.query_one("#vm-type", Select).value)
+        self._update_expert_defaults(
+            self.query_one("#vm-type", Select).value,
+            self.query_one("#distro", Select).value
+        )
 
         # Populate initial storage pool volumes if "From Storage Pool" is default
         storage_pool_select = self.query_one("#storage-pool-select", Select)
@@ -337,7 +345,7 @@ class InstallVMModal(BaseModal[str | None]):
         # else:
         #    use_virt_install_checkbox.styles.display = "block"
 
-    def _update_expert_defaults(self, vm_type):
+    def _update_expert_defaults(self, vm_type, distro=None):
         mem = 4
         vcpu = 2
         disk_size = 8
@@ -382,18 +390,19 @@ class InstallVMModal(BaseModal[str | None]):
 
     @on(Select.Changed, "#vm-type")
     def on_vm_type_changed(self, event: Select.Changed):
-        self._update_expert_defaults(event.value)
+        self._update_expert_defaults(event.value, self.query_one("#distro", Select).value)
 
     @on(Select.Changed, "#distro")
     def on_distro_changed(self, event: Select.Changed):
         self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
+        self._update_expert_defaults(self.query_one("#vm-type", Select).value, event.value)
 
         # Hide all ISO source containers first
         self.query_one("#custom-iso-container").styles.display = "none"
         self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        if event.value in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM]:
+        if event.value in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM, ArchLinuxDistro.CUSTOM]:
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
             self.query_one("#repo-iso-container").styles.display = "none"
@@ -758,6 +767,45 @@ class InstallVMModal(BaseModal[str | None]):
                         ):
                             filtered_templates.append(template)
 
+        elif isinstance(distro, ArchLinuxDistro):
+            # Arch Linux distributions → Show ONLY Arch Linux templates (archinstall)
+            filtered_templates = []
+            for template in all_templates:
+                filename = template.get("filename", "")
+                display_name = template.get("display_name", "")
+
+                # Check for Arch-specific template patterns
+                is_arch_json = (
+                    filename.startswith("archinstall")
+                    and filename.endswith(".json")
+                    or "archinstall" in filename.lower()
+                    and filename.endswith(".json")
+                )
+
+                # Also check display names for Arch markers
+                is_arch_template = (
+                    "(Arch Linux)" in display_name
+                    or "(Arch)" in display_name
+                    or "(archinstall)" in display_name
+                )
+
+                # Include Arch Linux archinstall templates
+                should_include = is_arch_json or is_arch_template
+
+                if should_include:
+                    # Include built-in Arch templates
+                    if template["type"] == "built-in":
+                        filtered_templates.append(template)
+                    # For user templates, check if they're Arch-related
+                    elif template["type"] == "user":
+                        if (
+                            "(Arch Linux)" in display_name
+                            or "(Arch)" in display_name
+                            or "(archinstall)" in display_name
+                            or is_arch_json
+                        ):
+                            filtered_templates.append(template)
+
         elif isinstance(distro, str):
             if distro in ["cached", "pool_volumes"]:
                 # Cached ISOs or pool volumes → Show ALL templates
@@ -921,7 +969,7 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
 
         valid_iso = False
-        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM]:
+        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM, ArchLinuxDistro.CUSTOM]:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
@@ -1033,7 +1081,7 @@ class InstallVMModal(BaseModal[str | None]):
         checksum = None
         validate = False
 
-        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM]:
+        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM, ArchLinuxDistro.CUSTOM]:
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:
