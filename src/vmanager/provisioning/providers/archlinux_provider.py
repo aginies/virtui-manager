@@ -236,7 +236,7 @@ class ArchLinuxProvider(OSProvider):
         import json
         
         # Hash passwords for security
-        user_pwd = config.get("user_password", config.get("password", ""))
+        user_pwd = config.get("user_password", "")
         hashed_password = hash_password(str(user_pwd).strip())
         hashed_root_password = hash_password(str(config.get("root_password", "")).strip())
         
