@@ -14,7 +14,7 @@ Managing virtual machines in a terminal environment has never been easier or mor
 - **GUI-based solutions** are heavy with X dependencies, making them unsuitable for headless servers or low-bandwidth connections
 - **Command-line tools** lack the intuitive interface needed for complex VM management tasks
 - **Cockpit Machine** is feature incomplete, and needs a lot of depencies. It is not multi hypervisor oriented
-- **Complex Deployment** as there is nothing to manage easily auto-installation of Virtual Machine with registration process (note: only support openSUSE and SLES)
+- **Complex Deployment** as there is nothing to manage easily auto-installation of Virtual Machine with registration process and auto installation
 
 ### Why VirtUI Manager is Different
 
@@ -23,13 +23,13 @@ VirtUI Manager solves these challenges with:
 - **Remote Management**: Efficient low-bandwidth control of remote libvirt servers
 - **Rich Feature Set**: Advanced VM management capabilities in a simple, intuitive interface
 - **Multi-server Support**: Manage VMs across multiple libvirt servers from a single interface
-- **Performance Optimized**: Built-in caching reduces libvirt calls and improves responsiveness
+- **Performance Optimized**: Built-in caching reduces libvirt calls and improves responsiveness (include a tracking resources call tool)
 - **Libvirt Event handler**: Only get update on event from libvirt
 - **Migration Support**: Live and offline VM migration capabilities and custom migration
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 - **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
-- **Auto installtion**: Support auto installation for Debian, Ubuntu, OpenSUSE and SLES (with SCC registration)
+- **Auto installtion**: Support auto installation for Debian, Ubuntu, Fedora, Archlinux (WIP), OpenSUSE and SLES (with SCC registration)
 
 ## Documentation
 
@@ -49,7 +49,7 @@ VirtUI Manager solves these challenges with:
 - **Remote Connection**: SSH access to libvirt server (ssh-agent recommended)
 - **Python 3.7+**
 - **libvirt** with Python bindings
-- **Python Dependencies**: textual, pyaml, libvirt-python, markdown-it-py
+- **Python Dependencies**: see requirements.txt file
 - **Optional**: virt-viewer, novnc, websockify for enhanced functionality
 - **Tmux**: To edit file with pseudo terminal
 
