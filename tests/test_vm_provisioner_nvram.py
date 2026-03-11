@@ -188,10 +188,10 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
     @patch("vmanager.vm_provisioner.os.remove")
     @patch("vmanager.vm_provisioner.os.path.exists")
     @patch("builtins.open", new_callable=mock_open, read_data=b"mock_nvram_content")
-    def test_setup_uefi_nvram_arch_disables_secure_boot(
+    def test_setup_uefi_nvram_alpine_disables_secure_boot(
         self, mock_file, mock_exists, mock_remove, mock_tempfile, mock_run, mock_select_fw, mock_get_uefi
     ):
-        """Test that Secure Boot is disabled for Arch Linux even if VMType.SECURE is used"""
+        """Test that Secure Boot is disabled for Alpine Linux even if VMType.SECURE is used"""
         self._setup_common_mocks(mock_get_uefi, mock_select_fw)
         mock_exists.return_value = True
 
@@ -207,14 +207,33 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
         mock_temp.name = "/tmp/temp_input.raw"
         mock_tempfile.return_value.__enter__.return_value = mock_temp
 
-        # Call with VMType.SECURE and OSType.ARCHLINUX
+        # Call with VMType.SECURE and OSType.ALPINE
         loader, nvram = self.provisioner._setup_uefi_nvram(
-            "testvm", "default", VMType.SECURE, os_type=OSType.ARCHLINUX
+            "testvm", "default", VMType.SECURE, os_type=OSType.ALPINE
         )
 
         # Assert select_best_firmware was called with secure_boot=False
         args, kwargs = mock_select_fw.call_args
-        self.assertFalse(kwargs['secure_boot'], "Secure Boot should be False for Arch Linux")
+        self.assertFalse(kwargs['secure_boot'], "Secure Boot should be False for Alpine Linux")
+
+    def test_generate_xml_alpine_uefi_no_secure_boot(self):
+        """Test that generated XML for Alpine Linux with UEFI has secure='no'"""
+        xml = self.provisioner.generate_xml(
+            vm_name="alpinevm",
+            vm_type=VMType.SECURE,  # Even with SECURE type
+            disk_path="/path/to/disk",
+            iso_path="/path/to/iso",
+            boot_uefi=True,
+            os_type=OSType.ALPINE
+        )
+        
+        # Check that it contains UEFI loader with secure='no'
+        self.assertIn("secure='no'", xml)
+        self.assertIn("<loader", xml)
+        self.assertIn("firmware='efi'", xml)
+        # Check that SEV/TPM are NOT present (since we disabled them for Alpine)
+        self.assertNotIn("<launchSecurity", xml)
+        self.assertNotIn("<tpm", xml)
 
     def test_generate_xml_arch_uefi_no_secure_boot(self):
         """Test that generated XML for Arch Linux with UEFI has secure='no'"""

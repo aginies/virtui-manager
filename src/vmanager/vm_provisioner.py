@@ -33,6 +33,7 @@ from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType
+from .provisioning.providers.alpine_provider import AlpineProvider, AlpineDistro
 from .provisioning.providers.archlinux_provider import ArchLinuxProvider, ArchLinuxDistro
 from .provisioning.providers.debian_provider import DebianProvider, DebianDistro
 from .provisioning.providers.fedora_provider import FedoraProvider, FedoraDistro
@@ -103,6 +104,12 @@ class VMProvisioner:
         except Exception as e:
             self.logger.warning(f"Failed to register Arch Linux provider: {e}")
 
+        try:
+            alpine_provider = AlpineProvider()
+            self.provider_registry.register_provider(alpine_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register Alpine Linux provider: {e}")
+
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
         # Convert string to OSType enum
@@ -114,6 +121,7 @@ class VMProvisioner:
             "fedora": OSType.FEDORA,
             "archlinux": OSType.ARCHLINUX,
             "arch": OSType.ARCHLINUX,
+            "alpine": OSType.ALPINE,
             "windows": OSType.WINDOWS,
         }
 
@@ -207,6 +215,15 @@ class VMProvisioner:
                 return provider.get_iso_list(distro.value)  # Pass the string value
             else:
                 logging.warning("Arch Linux provider not available or doesn't support get_iso_list")
+                return []
+
+        # Handle Alpine Linux distributions - delegate to provider
+        elif isinstance(distro, AlpineDistro):
+            provider = self.get_provider("alpine")
+            if provider and hasattr(provider, "get_iso_list"):
+                return provider.get_iso_list(distro.value)  # Pass the string value
+            else:
+                logging.warning("Alpine Linux provider not available or doesn't support get_iso_list")
                 return []
 
         # Handle custom repository URLs (strings)
@@ -692,8 +709,8 @@ class VMProvisioner:
         # Determine requirements based on vm_type
         secure_boot = vm_type == VMType.SECURE
 
-        # Disable Secure Boot by default for Arch Linux and Debian to prevent installation failures
-        if os_type in [OSType.ARCHLINUX, OSType.DEBIAN]:
+        # Disable Secure Boot by default for Arch Linux, Debian and Alpine to prevent installation failures
+        if os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
             self.logger.info(f"Disabling Secure Boot for {os_type.name} to ensure successful installation.")
             secure_boot = False
 
@@ -926,8 +943,8 @@ class VMProvisioner:
             "on_crash": "destroy",
         }
 
-        # Disable SEV/TPM/Secure Boot by default for Arch Linux and Debian
-        is_arch_or_debian = os_type in [OSType.ARCHLINUX, OSType.DEBIAN]
+        # Disable SEV/TPM/Secure Boot by default for Arch Linux, Debian and Alpine
+        is_arch_debian_or_alpine = os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]
 
         if vm_type == VMType.SECURE:
             settings.update(
@@ -935,9 +952,9 @@ class VMProvisioner:
                     "disk_cache": "writethrough",
                     "disk_format": "qcow2",
                     "video": "qxl",
-                    "tpm": True if not is_arch_or_debian else False,
-                    "sev": True if not is_arch_or_debian else False,
-                    "secure_boot": True if not is_arch_or_debian else False,
+                    "tpm": True if not is_arch_debian_or_alpine else False,
+                    "sev": True if not is_arch_debian_or_alpine else False,
+                    "secure_boot": True if not is_arch_debian_or_alpine else False,
                     "input_bus": "ps2",
                     "mem_backing": False,  # Explicitly off in table
                     "on_poweroff": "destroy",
@@ -945,7 +962,7 @@ class VMProvisioner:
                     "on_crash": "destroy",
                 }
             )
-            if is_arch_or_debian:
+            if is_arch_debian_or_alpine:
                 self.logger.info(f"Disabling Secure Boot components (TPM/SEV/Secure Boot) for {os_type.name} even in SECURE mode to ensure successful installation.")
         elif vm_type == VMType.COMPUTATION:
             settings.update(
@@ -1087,6 +1104,10 @@ class VMProvisioner:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
                     cmdline = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
+                elif "alpine-answers-" in auto_url and auto_url.endswith(".txt"):
+                    # Alpine Linux answers automation
+                    # Note: standard Alpine ISO doesn't support this via kernel cmdline out of the box
+                    cmdline = f"alpine-answers={auto_url}"
                 elif "ks-" in auto_url and auto_url.endswith(".cfg"):
                     # Fedora kickstart automation
                     cmdline = f"inst.ks={auto_url}"
@@ -1672,6 +1693,54 @@ class VMProvisioner:
                 f"Failed to extract Arch Linux kernel/initrd from ISO: {stderr}"
             ) from e
 
+    def _extract_alpine_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+        """Extracts kernel and initrd from an Alpine Linux ISO (boot/ directory)."""
+        if not shutil.which("7z"):
+            raise Exception(
+                "Alpine Linux kernel extraction requires '7z' (p7zip-full). "
+                "Please install it or use the virt-install method."
+            )
+
+        tmp_dir = tempfile.mkdtemp(prefix="virtui_alpine_iso_extract_")
+
+        # Alpine kernel and initrd are in the boot/ directory
+        # We try 'virt' first, then 'lts'
+        variants = [
+            ("boot/vmlinuz-virt", "boot/initramfs-virt"),
+            ("boot/vmlinuz-lts", "boot/initramfs-lts"),
+        ]
+
+        last_error = None
+        for kernel_in_iso, initrd_in_iso in variants:
+            try:
+                self.logger.info(f"Trying to extract Alpine {kernel_in_iso} from {iso_path}...")
+                cmd = [
+                    "7z",
+                    "x",
+                    iso_path,
+                    kernel_in_iso,
+                    initrd_in_iso,
+                    f"-o{tmp_dir}",
+                    "-y",
+                ]
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
+
+                extracted_kernel_path = os.path.join(tmp_dir, *kernel_in_iso.split("/"))
+                extracted_initrd_path = os.path.join(tmp_dir, *initrd_in_iso.split("/"))
+
+                if os.path.exists(extracted_kernel_path) and os.path.exists(extracted_initrd_path):
+                    self.logger.info(f"Alpine Linux kernel and initrd extracted to {tmp_dir}")
+                    return extracted_kernel_path, extracted_initrd_path
+            except subprocess.CalledProcessError as e:
+                last_error = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
+                continue
+
+        # Clean up temp dir on failure
+        shutil.rmtree(tmp_dir)
+        raise Exception(
+            f"Failed to extract Alpine Linux kernel/initrd from ISO. Last error: {last_error}"
+        )
+
     def _run_virt_install(
         self,
         vm_name: str,
@@ -1949,10 +2018,12 @@ class VMProvisioner:
                 os_type = OSType.FEDORA
             elif "archlinux" in iso_url_lower or "arch-linux" in iso_url_lower:
                 os_type = OSType.ARCHLINUX
+            elif "alpine" in iso_url_lower:
+                os_type = OSType.ALPINE
 
-        # Determine if we should use direct kernel boot (manual UEFI for Arch/Debian or automation)
+        # Determine if we should use direct kernel boot (manual UEFI for Arch/Debian/Alpine or automation)
         use_direct_kernel_boot = bool(automation_config) or (
-            boot_uefi and os_type in [OSType.ARCHLINUX, OSType.DEBIAN]
+            boot_uefi and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]
         )
 
         boot_files = []
@@ -2126,6 +2197,10 @@ class VMProvisioner:
                     keyword in template_name.lower()
                     for keyword in ["arch", "archinstall"]
                 )
+                is_alpine_template = any(
+                    keyword in template_name.lower()
+                    for keyword in ["alpine"]
+                )
 
                 if is_ubuntu_template:
                     provider = self.get_provider("ubuntu")
@@ -2135,6 +2210,8 @@ class VMProvisioner:
                     provider = self.get_provider("fedora")
                 elif is_arch_template:
                     provider = self.get_provider("archlinux")
+                elif is_alpine_template:
+                    provider = self.get_provider("alpine")
                 else:
                     provider = self.get_provider("opensuse")
 
@@ -2186,6 +2263,11 @@ class VMProvisioner:
                             # OpenSUSE AutoYaST uses XML format
                             ET.fromstring(content)
                             self.logger.info("Automation XML file validation passed")
+                        elif file_path_str.endswith(".txt") and "alpine" in file_path_str.lower():
+                            # Alpine answers file
+                            if "HOSTNAMEOPTS" not in content:
+                                self.logger.warning("Alpine answers file might be missing required keywords")
+                            self.logger.info("Automation Alpine answers file basic validation passed")
                         else:
                             # Unknown format, log warning but don't fail
                             self.logger.warning(
@@ -2222,6 +2304,10 @@ class VMProvisioner:
                         arch_path = temp_dir / "archinstall.json"
                         is_arch_json = arch_path.exists()
 
+                        # Check if this is Alpine Linux (has answers.txt file)
+                        alpine_path = temp_dir / "answers.txt"
+                        is_alpine_answers = alpine_path.exists()
+
                         is_agama = False
                         if is_ubuntu_autoinstall:
                             # Ubuntu autoinstall: serve directory containing user-data and meta-data
@@ -2250,6 +2336,13 @@ class VMProvisioner:
                             autoinst_filename = f"archinstall-{unique_id}.json"
                             autoinst_path = temp_dir / autoinst_filename
                             shutil.copy(arch_path, autoinst_path)
+                        elif is_alpine_answers:
+                            # Alpine Linux: serve the answers.txt file
+                            self.logger.info("Detected Alpine Linux answers file (answers.txt)")
+                            unique_id = uuid.uuid4().hex[:8]
+                            autoinst_filename = f"alpine-answers-{unique_id}.txt"
+                            autoinst_path = temp_dir / autoinst_filename
+                            shutil.copy(alpine_path, autoinst_path)
                         else:
                             # OpenSUSE/Agama: rename the single file with unique name
                             unique_id = uuid.uuid4().hex[:8]
@@ -2307,6 +2400,10 @@ class VMProvisioner:
                         # For Arch Linux archinstall, point to the .json file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
                         self.logger.info(f"Arch Linux archinstall file available at: {auto_url}")
+                    elif is_alpine_answers:
+                        # For Alpine Linux, point to the .txt file
+                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                        self.logger.info(f"Alpine Linux answers file available at: {auto_url}")
                     else:
                         # For OpenSUSE/Agama, point to specific file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
@@ -2339,6 +2436,8 @@ class VMProvisioner:
                         local_kernel_path, local_initrd_path = self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
                     elif os_type == OSType.FEDORA:
                         local_kernel_path, local_initrd_path = self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                    elif os_type == OSType.ALPINE:
+                        local_kernel_path, local_initrd_path = self._extract_alpine_iso_kernel_initrd(local_iso_path)
                     else:
                         local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(local_iso_path, self.host_arch)
 
@@ -2431,6 +2530,8 @@ class VMProvisioner:
                         local_kernel_path, local_initrd_path = self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
                     elif os_type == OSType.FEDORA:
                         local_kernel_path, local_initrd_path = self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                    elif os_type == OSType.ALPINE:
+                        local_kernel_path, local_initrd_path = self._extract_alpine_iso_kernel_initrd(local_iso_path)
                     else:
                         local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(local_iso_path, self.host_arch)
 
@@ -2492,6 +2593,11 @@ class VMProvisioner:
                         local_kernel_path, local_initrd_path = (
                             self._extract_arch_iso_kernel_initrd(local_iso_path)
                         )
+                    elif os_type == OSType.ALPINE:
+                        # Use Alpine Linux-specific kernel extraction (boot/ directory)
+                        local_kernel_path, local_initrd_path = (
+                            self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                        )
                     else:
                         # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
                         local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
@@ -2517,8 +2623,8 @@ class VMProvisioner:
             # Fallback to floppy method if kernel extraction fails - ONLY for OpenSUSE
             # Debian and Ubuntu should use HTTP-based automation with kernel boot
             if not kernel_path and automation_file_path:
-                # Check if this is an OpenSUSE (not Debian or Ubuntu)
-                is_opensuse = os_type not in [OSType.DEBIAN, OSType.UBUNTU, OSType.ARCHLINUX]
+                # Check if this is an OpenSUSE (not Debian, Ubuntu, Arch or Alpine)
+                is_opensuse = os_type not in [OSType.DEBIAN, OSType.UBUNTU, OSType.ARCHLINUX, OSType.ALPINE]
 
                 if is_opensuse:
                     # Only create floppy for OpenSUSE/AutoYaST
@@ -2538,7 +2644,7 @@ class VMProvisioner:
                         # Re-raise the exception to stop provisioning a broken VM
                         raise e
                 else:
-                    # For Debian/Ubuntu/Arch without kernel extraction, kernel boot is required
+                    # For Debian/Ubuntu/Arch/Alpine without kernel extraction, kernel boot is required
                     self.logger.error(
                         f"{os_type.name} direct boot requires kernel extraction. "
                         f"Floppy-based installation is not supported for {os_type.name}."

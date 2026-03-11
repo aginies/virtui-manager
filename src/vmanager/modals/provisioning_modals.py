@@ -18,6 +18,7 @@ from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManag
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..provisioning.providers.alpine_provider import AlpineDistro
 from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
 from ..provisioning.providers.debian_provider import DebianDistro
 from ..provisioning.providers.fedora_provider import FedoraDistro
@@ -90,6 +91,10 @@ class InstallVMModal(BaseModal[str | None]):
             # Add Arch Linux distributions
             for d in ArchLinuxDistro:
                 distro_options.append((f"Arch Linux: {d.value}", d))
+
+            # Add Alpine Linux distributions
+            for d in AlpineDistro:
+                distro_options.append((f"Alpine Linux: {d.value}", d))
 
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -814,6 +819,45 @@ class InstallVMModal(BaseModal[str | None]):
                             or "(Arch)" in display_name
                             or "(archinstall)" in display_name
                             or is_arch_json
+                        ):
+                            filtered_templates.append(template)
+
+        elif isinstance(distro, AlpineDistro):
+            # Alpine Linux distributions → Show ONLY Alpine templates
+            filtered_templates = []
+            for template in all_templates:
+                filename = template.get("filename", "")
+                display_name = template.get("display_name", "")
+
+                # Check for Alpine-specific template patterns
+                is_alpine_txt = (
+                    filename.startswith("alpine-answers")
+                    and filename.endswith(".txt")
+                    or "alpine-answers" in filename.lower()
+                    and filename.endswith(".txt")
+                )
+
+                # Also check display names for Alpine markers
+                is_alpine_template = (
+                    "(Alpine Linux)" in display_name
+                    or "(Alpine)" in display_name
+                    or "(alpine-answers)" in display_name.lower()
+                )
+
+                # Include Alpine templates
+                should_include = is_alpine_txt or is_alpine_template
+
+                if should_include:
+                    # Include built-in Alpine templates
+                    if template["type"] == "built-in":
+                        filtered_templates.append(template)
+                    # For user templates, check if they're Alpine-related
+                    elif template["type"] == "user":
+                        if (
+                            "(Alpine Linux)" in display_name
+                            or "(Alpine)" in display_name
+                            or "(alpine-answers)" in display_name.lower()
+                            or is_alpine_txt
                         ):
                             filtered_templates.append(template)
 
