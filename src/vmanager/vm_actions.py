@@ -2037,7 +2037,7 @@ def force_off_vm(domain: libvirt.virDomain):
 
 
 def get_vm_boot_files(root: ET.Element) -> list[str]:
-    """Extracts paths for kernel, initrd, and floppy images from VM XML."""
+    """Extracts paths for kernel, initrd, NVRAM and floppy images from VM XML."""
     files = []
     os_elem = root.find("os")
     if os_elem is not None:
@@ -2047,6 +2047,9 @@ def get_vm_boot_files(root: ET.Element) -> list[str]:
         initrd = os_elem.find("initrd")
         if initrd is not None and initrd.text:
             files.append(initrd.text)
+        nvram = os_elem.find("nvram")
+        if nvram is not None and nvram.text:
+            files.append(nvram.text)
 
     # Check for floppy disks (used for AutoYaST)
     devices = root.find("devices")
@@ -2145,7 +2148,8 @@ def delete_vm(
                     if delete_storage:
                         # Pass delete_conn to resolve volumes
                         disks_to_delete = get_vm_disks_info(delete_conn, root)
-                        boot_files_to_delete = get_vm_boot_files(root)
+                    
+                    boot_files_to_delete = get_vm_boot_files(root)
                 except libvirt.libvirtError as e:
                     log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
                     # If we can't get XML, we can't find disks to delete, but we should still try to undefine
@@ -2245,28 +2249,63 @@ def delete_vm(
                 except Exception as e:
                     log(f"  - [red]ERROR:[/] Unexpected error deleting storage {disk_path}: {e}")
 
-            # Delete boot files (kernel, initrd, floppy)
-            if boot_files_to_delete:
-                log(f"Deleting {len(boot_files_to_delete)} boot file(s)...")
+            # Delete boot files (kernel, initrd, floppy, NVRAM)
+            if boot_files_to_delete or delete_storage:
+                nvram_path = None
+                if root is not None:
+                    nvram_elem = root.find(".//os/nvram")
+                    if nvram_elem is not None:
+                        nvram_path = nvram_elem.text
+
+                log(f"Cleaning up boot and asset files...")
+                
+                # 1. Process files explicitly found in XML
                 for file_path in boot_files_to_delete:
                     if not file_path:
                         continue
                     
-                    log(f"Attempting to delete boot file: {file_path}")
+                    # Determine if we should delete this specific file
+                    is_nvram = (file_path == nvram_path)
+                    should_delete = delete_storage or (is_nvram and delete_nvram)
+                    
+                    if not should_delete:
+                        continue
+
+                    log(f"Attempting to delete asset: {file_path}")
                     try:
                         vol, pool = _find_vol_by_path(delete_conn, file_path)
                         if vol:
                             vol.delete(0)
                             log(f"  - Deleted: {file_path} from pool {pool.name()}")
                         else:
-                            log(f"  - [yellow]Skipped:[/] Boot file '{file_path}' is not a managed libvirt volume.")
+                            log(f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume.")
                     except libvirt.libvirtError as e:
                         if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
                             log(f"  - [yellow]Skipped:[/] Volume for path '{file_path}' not found.")
                         else:
                             log(f"  - [red]ERROR:[/] Error deleting volume for path {file_path}: {e}")
                     except Exception as e:
-                        log(f"  - [red]ERROR:[/] Unexpected error deleting boot file {file_path}: {e}")
+                        log(f"  - [red]ERROR:[/] Unexpected error deleting file {file_path}: {e}")
+
+                # 2. Heuristic: Search for orphaned kernel/initrd volumes (stripped from XML after install)
+                if delete_storage:
+                    orphaned_assets = [f"{vm_name}-kernel", f"{vm_name}-initrd"]
+                    for pool_name in delete_conn.listStoragePools():
+                        try:
+                            pool = delete_conn.storagePoolLookupByName(pool_name)
+                            if not pool.isActive():
+                                continue
+                            for asset_name in orphaned_assets:
+                                try:
+                                    vol = pool.storageVolLookupByName(asset_name)
+                                    log(f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting...")
+                                    vol.delete(0)
+                                    log(f"  - Deleted orphaned asset: {asset_name}")
+                                except libvirt.libvirtError as e:
+                                    if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
+                                        log(f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}")
+                        except libvirt.libvirtError:
+                            continue
 
     finally:
         if should_close_conn and delete_conn:
