@@ -103,6 +103,10 @@ CustomMigrationModal Select {
   width: 75%;
   border: none ;
 }
+InstallVMModal #expert-graphics,
+InstallVMModal #expert-disk-format, { 
+  width: 19%; 
+}
 #expert-cpu, {
   width: 12%;
 }
@@ -110,8 +114,8 @@ CustomMigrationModal Select {
 #expert-disk-size, {
   width: 18%;
 }
-#expert-firmware,
-#expert-disk-format, {
+
+#expert-firmware, {
   width: 26%;
 }
 
