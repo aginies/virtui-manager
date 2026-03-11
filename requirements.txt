@@ -4,3 +4,4 @@ pyyaml
 markdown-it-py
 websockify
 pytest-cov
+packaging

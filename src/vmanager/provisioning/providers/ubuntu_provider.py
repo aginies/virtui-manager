@@ -41,24 +41,34 @@ class UbuntuProvider(OSProvider):
         """Return the OS type for Ubuntu."""
         return OSType.UBUNTU
 
-    def get_supported_versions(self) -> List[str]:
+    def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Ubuntu versions."""
-        return [
-            "24.04 LTS (Noble Numbat)",
-            "22.04 LTS (Jammy Jellyfish)",
-            "20.04 LTS (Focal Fossa)",
-            "24.10 (Oracular Oriole)",
-            "23.10 (Mantic Minotaur)",
-            "23.04 (Lunar Lobster)",
+        versions = []
+        distributions = [
+            ("24.04", "24.04 LTS (Noble Numbat)"),
+            ("22.04", "22.04 LTS (Jammy Jellyfish)"),
+            ("20.04", "20.04 LTS (Focal Fossa)"),
+            ("24.10", "24.10 (Oracular Oriole)"),
+            ("23.10", "23.10 (Mantic Minotaur)"),
+            ("23.04", "23.04 (Lunar Lobster)"),
         ]
 
-    def get_iso_sources(self) -> Dict[str, str]:
-        """Get ISO download sources for Ubuntu."""
-        return {
-            "Ubuntu Official": "http://releases.ubuntu.com/",
-            "Ubuntu Cloud Images": "https://cloud-images.ubuntu.com/",
-            "Ubuntu Daily Builds": "http://cdimage.ubuntu.com/daily-live/current/",
-        }
+        for version_id, display_name in distributions:
+            versions.append(
+                OSVersion(
+                    os_type=OSType.UBUNTU,
+                    version_id=version_id,
+                    display_name=display_name,
+                    architecture="amd64",
+                )
+            )
+
+        return versions
+
+    def get_iso_sources(self, version: OSVersion) -> List[str]:
+        """Get ISO download sources for Ubuntu version."""
+        # Use primary release URL for all versions as they follow same structure
+        return [f"http://releases.ubuntu.com/{version.version_id}/"]
 
     def get_cached_isos(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get cached Ubuntu ISO information."""

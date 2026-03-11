@@ -40,23 +40,39 @@ class DebianProvider(OSProvider):
         """Return the OS type for Debian."""
         return OSType.DEBIAN
 
-    def get_supported_versions(self) -> List[str]:
+    def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Debian versions."""
-        return [
-            "12 (Bookworm)",
-            "11 (Bullseye)",
-            "10 (Buster)",
-            "Testing",
-            "Unstable (Sid)",
+        versions = []
+        distributions = [
+            ("12", "12 (Bookworm)"),
+            ("11", "11 (Bullseye)"),
+            ("10", "10 (Buster)"),
+            ("testing", "Testing"),
+            ("unstable", "Unstable (Sid)"),
         ]
 
-    def get_iso_sources(self) -> Dict[str, str]:
-        """Get ISO download sources for Debian."""
-        return {
-            "Debian Official": "https://cdimage.debian.org/debian-cd/current/",
-            "Debian Live": "https://cdimage.debian.org/debian-cd/current-live/",
-            "Debian Testing": "https://cdimage.debian.org/cdimage/weekly-builds/",
-        }
+        for version_id, display_name in distributions:
+            versions.append(
+                OSVersion(
+                    os_type=OSType.DEBIAN,
+                    version_id=version_id,
+                    display_name=display_name,
+                    architecture="amd64",
+                )
+            )
+
+        return versions
+
+    def get_iso_sources(self, version: OSVersion) -> List[str]:
+        """Get ISO download sources for Debian version."""
+        # Map version IDs to distribution URLs
+        if version.version_id == "testing":
+            return ["https://cdimage.debian.org/cdimage/weekly-builds/amd64/iso-cd/"]
+        elif version.version_id == "unstable":
+            return ["https://cdimage.debian.org/cdimage/weekly-builds/amd64/iso-cd/"]
+        else:
+            # Stable releases (12, 11, 10)
+            return ["https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"]
 
     def get_cached_isos(self) -> Dict[str, List[Dict[str, Any]]]:
         """Get cached Debian ISO information."""

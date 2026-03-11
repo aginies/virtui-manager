@@ -38,6 +38,8 @@ dependencies = [
     "textual>=0.40.0",
     "PyYAML>=5.4.0",
     "markdown-it-py>=3.0.0",
+    "packaging",
+    "requests",
 ]
 
 [project.optional-dependencies]
@@ -83,6 +85,7 @@ vmanager = [
     "locale/*/LC_MESSAGES/*.po",
     "provisioning/templates/*.xml",
     "provisioning/templates/*.cfg",
+    "provisioning/templates/*.ks",
     "provisioning/templates/*.yaml",
     "provisioning/templates/*.md",
     "provisioning/templates/*.json"

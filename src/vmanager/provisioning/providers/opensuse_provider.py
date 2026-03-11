@@ -545,15 +545,14 @@ class OpenSUSEProvider(OSProvider):
 
         self.logger.info(f"Fetching ISO list from {base_url} for arch {self.host_arch}")
 
-        # Create unverified context to avoid SSL errors with some mirrors
-        context = ssl._create_unverified_context()
         iso_urls = []
 
         try:
             # Helper to fetch and find ISOs in a specific URL
             def fetch_isos_from_url(url):
                 try:
-                    with urllib.request.urlopen(url, context=context, timeout=10) as response:
+                    # Use default secure context
+                    with urllib.request.urlopen(url, timeout=10) as response:
                         html = response.read().decode("utf-8")
 
                     pattern = r'href="([^"]+\.iso)"'
@@ -630,6 +629,7 @@ class OpenSUSEProvider(OSProvider):
         # Clean the name by removing ./ prefix if present (additional safety)
         name = name.lstrip("./")
         try:
+            # Create unverified context to avoid SSL errors with custom repositories/mirrors
             context = ssl._create_unverified_context()
             req = urllib.request.Request(url, method="HEAD")
             with urllib.request.urlopen(req, context=context, timeout=5) as response:
@@ -791,11 +791,11 @@ class OpenSUSEProvider(OSProvider):
         """Get ISO list from a remote URL by scraping directory listings."""
         self.logger.info(f"Fetching ISO list from {url} for arch {self.host_arch}")
 
-        # Create unverified context to avoid SSL errors with some mirrors
-        context = ssl._create_unverified_context()
         iso_urls = []
 
         try:
+            # Create unverified context to avoid SSL errors with custom repositories/mirrors
+            context = ssl._create_unverified_context()
             with urllib.request.urlopen(url, context=context, timeout=10) as response:
                 html = response.read().decode("utf-8")
 

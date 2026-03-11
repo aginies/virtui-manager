@@ -1,0 +1,46 @@
+{
+    "hostname": "{vm_name}",
+    "keyboard-layout": "{keyboard}",
+    "locale": "{locale}",
+    "timezone": "{timezone}",
+    "users": [
+        {
+            "username": "{username}",
+            "password": "{user_password}",
+            "sudo": true
+        }
+    ],
+    "root-password": "{root_password}",
+    "disk_layouts": [
+        {
+            "device": "/dev/vda",
+            "wipe": true,
+            "partitions": [
+                {
+                    "type": "primary",
+                    "start": "1MiB",
+                    "size": "100%",
+                    "boot": true,
+                    "mountpoint": "/",
+                    "filesystem": "ext4"
+                }
+            ]
+        }
+    ],
+    "bootloader": "grub-install",
+    "packages": [
+        "openssh",
+        "qemu-guest-agent",
+        "git",
+        "vim"
+    ],
+    "services": [
+        "sshd",
+        "qemu-guest-agent"
+    ],
+    "audio": null,
+    "nic": {
+        "type": "nm"
+    },
+    "ntp": true
+}
