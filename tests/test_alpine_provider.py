@@ -78,9 +78,8 @@ class TestAlpineProvider(unittest.TestCase):
         self.assertIn('USEROPTS="-a -u tester -g \'Alpine User\' testpassword"', content)
         self.assertIn('ROOTOPTS="rootpassword"', content)
 
-    @patch("os.open")
-    @patch("builtins.open", new_callable=unittest.mock.mock_open)
-    def test_generate_automation_file_default(self, mock_file, mock_os_open):
+    @patch("tarfile.open")
+    def test_generate_automation_file_default(self, mock_tar):
         """Test generating the automation file using the default template"""
         # Mock template finding to return None so it uses basic answers
         with patch.object(self.provider, "_find_template_file", return_value=None):
@@ -91,8 +90,7 @@ class TestAlpineProvider(unittest.TestCase):
                 None, "testvm", user_config, output_path
             )
             
-            self.assertEqual(result_path, output_path / "answers.txt")
-            mock_file.assert_called()
+            self.assertEqual(result_path, output_path / "alpine.apkovl.tar.gz")
 
 
 if __name__ == "__main__":
