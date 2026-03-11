@@ -894,7 +894,7 @@ class VMProvisioner:
         return None
 
     def _get_vm_settings(
-        self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None, os_type: OSType = OSType.LINUX
+        self, vm_type: VMType, boot_uefi: bool, disk_format: str | None = None, os_type: OSType = OSType.LINUX, graphics_type: str = "spice"
     ) -> Dict[str, Any]:
         """
         Returns a dictionary of VM settings based on type and options.
@@ -907,6 +907,7 @@ class VMProvisioner:
             # Guest
             "machine": "pc-q35-10.1" if boot_uefi else "pc-i440fx-10.1",
             "video": "virtio",
+            "graphics_type": graphics_type,
             "network_model": "e1000",
             "suspend_to_mem": "off",
             "suspend_to_disk": "off",
@@ -1039,11 +1040,12 @@ class VMProvisioner:
         initrd_path: str | None = None,
         serial_console: bool = False,
         os_type: OSType = OSType.LINUX,
+        graphics_type: str = "spice",
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
-        settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type)
+        settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type)
 
         # Boot order: if kernel_path is provided, we are doing a direct kernel boot for install
         hd_boot, cd_boot = 1, 2
@@ -1217,7 +1219,7 @@ class VMProvisioner:
     <video>
       <model type='{settings["video"]}'/>
     </video>
-    <graphics type='spice' port='-1' autoport='yes' listen='0.0.0.0'>
+    <graphics type='{settings["graphics_type"]}' port='-1' autoport='yes' listen='0.0.0.0'>
       <listen type='address' address='0.0.0.0'/>
     </graphics>
 """
@@ -1756,7 +1758,7 @@ class VMProvisioner:
         cmd.extend(["--network", f"default,model={settings['network_model']}"])
 
         # Graphics
-        cmd.extend(["--graphics", "vnc,port=-1,listen=0.0.0.0"])
+        cmd.extend(["--graphics", f"{settings['graphics_type']},port=-1,listen=0.0.0.0"])
 
         # Video
         cmd.extend(["--video", settings["video"]])
@@ -1892,6 +1894,7 @@ class VMProvisioner:
         vcpu: int = 2,
         disk_size_gb: int = 8,
         disk_format: str | None = None,
+        graphics_type: str = "spice",
         boot_uefi: bool = True,
         use_virt_install: bool = True,
         configure_before_install: bool = False,
@@ -1911,6 +1914,7 @@ class VMProvisioner:
             vcpu: Number of virtual CPUs.
             disk_size_gb: Disk size in gigabytes.
             disk_format: Disk format (e.g., qcow2).
+            graphics_type: Graphics type (e.g., spice, vnc).
             boot_uefi: Whether to use UEFI boot.
             use_virt_install: If True, uses virt-install CLI tool.
             configure_before_install: If True, defines VM and shows details modal before starting.
@@ -2346,7 +2350,7 @@ class VMProvisioner:
 
             # Generate the XML configuration that would be used
             if is_virt_install_available:
-                settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type)
+                settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type)
                 xml_desc = self._run_virt_install(
                     vm_name,
                     settings,
@@ -2385,6 +2389,7 @@ class VMProvisioner:
                     initrd_path=initrd_path,
                     serial_console=serial_console,
                     os_type=os_type,
+                    graphics_type=graphics_type,
                 )
 
             # Define the VM
@@ -2435,7 +2440,7 @@ class VMProvisioner:
                 except Exception as e:
                     self.logger.warning(f"Failed to extract/upload kernel/initrd for direct boot: {e}")
 
-            settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type)
+            settings = self._get_vm_settings(vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type)
             self._run_virt_install(
                 vm_name,
                 settings,
@@ -2562,6 +2567,7 @@ class VMProvisioner:
                 initrd_path=initrd_path,
                 serial_console=serial_console,
                 os_type=os_type,
+                graphics_type=graphics_type,
             )
 
             # Define and Start VM

@@ -171,10 +171,17 @@ class InstallVMModal(BaseModal[str | None]):
                 with Horizontal(id="expert-mode"):
                     with Vertical(id="expert-mem"):
                         yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
-                        yield Input("4", id="memory-input", type="integer")
+                        yield Input("4", id="memory-input", type="number")
                     with Vertical(id="expert-cpu"):
                         yield Label(StaticText.CPUS_LABEL, classes="label")
                         yield Input("2", id="cpu-input", type="integer")
+                    with Vertical(id="expert-graphics"):
+                        yield Label(StaticText.GRAPHICS_LABEL, classes="label")
+                        yield Select(
+                            [("Spice", "spice"), ("VNC", "vnc")],
+                            value="spice",
+                            id="graphics-type",
+                        )
                     with Vertical(id="expert-disk-size"):
                         yield Label(StaticText.DISK_SIZE_GB_LABEL, classes="label")
                         yield Input("8", id="disk-size-input", type="integer")
@@ -286,6 +293,15 @@ class InstallVMModal(BaseModal[str | None]):
                                 tooltip=StaticText.KEYBOARD_TOOLTIP,
                             )
 
+                # Serial console option for automated installation
+                yield Checkbox(
+                    StaticText.REDIRECT_CONSOLE_SERIAL_LABEL,
+                    id="automation-serial-console",
+                    value=False,
+                    tooltip=StaticText.SERIAL_CONSOLE_TOOLTIP,
+                    disabled=True,
+                )
+
             with Vertical():
                 with Horizontal():
                     yield Checkbox(
@@ -293,13 +309,6 @@ class InstallVMModal(BaseModal[str | None]):
                         id="use-virt-install-checkbox",
                         value=False,
                         tooltip=StaticText.USE_VIRT_INSTALL_TOOLTIP,
-                    )
-                    yield Checkbox(
-                        StaticText.REDIRECT_CONSOLE_SERIAL_LABEL,
-                        id="automation-serial-console",
-                        value=False,
-                        tooltip=StaticText.SERIAL_CONSOLE_TOOLTIP,
-                        disabled=True,
                     )
 
             yield Checkbox(
@@ -325,8 +334,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#pool-iso-container").styles.display = "none"  # Hide new container
         # Ensure expert defaults are set correctly based on initial selection
         self._update_expert_defaults(
-            self.query_one("#vm-type", Select).value,
-            self.query_one("#distro", Select).value
+            self.query_one("#vm-type", Select).value, self.query_one("#distro", Select).value
         )
 
         # Populate initial storage pool volumes if "From Storage Pool" is default
@@ -402,7 +410,13 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        if event.value in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM, ArchLinuxDistro.CUSTOM]:
+        if event.value in [
+            OpenSUSEDistro.CUSTOM,
+            UbuntuDistro.CUSTOM,
+            DebianDistro.CUSTOM,
+            FedoraDistro.CUSTOM,
+            ArchLinuxDistro.CUSTOM,
+        ]:
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
             self.query_one("#repo-iso-container").styles.display = "none"
@@ -563,7 +577,9 @@ class InstallVMModal(BaseModal[str | None]):
         # Disable install while fetching
         self.query_one("#install-btn", Button).disabled = loading
 
-    def _populate_templates_for_distribution(self, distro: OpenSUSEDistro | UbuntuDistro | DebianDistro | str):
+    def _populate_templates_for_distribution(
+        self, distro: OpenSUSEDistro | UbuntuDistro | DebianDistro | str
+    ):
         """
         Populate the template select widget based on the selected distribution.
 
@@ -710,9 +726,7 @@ class InstallVMModal(BaseModal[str | None]):
                 )
 
                 # Include Debian preseed and cloud-init templates
-                should_include = (
-                    is_debian_preseed or is_debian_cloud_init or is_debian_template
-                )
+                should_include = is_debian_preseed or is_debian_cloud_init or is_debian_template
 
                 if should_include:
                     # Include built-in Debian templates
@@ -746,10 +760,7 @@ class InstallVMModal(BaseModal[str | None]):
                 )
 
                 # Also check display names for Fedora markers
-                is_fedora_template = (
-                    "(Fedora)" in display_name
-                    or "(Kickstart)" in display_name
-                )
+                is_fedora_template = "(Fedora)" in display_name or "(Kickstart)" in display_name
 
                 # Include Fedora kickstart templates
                 should_include = is_fedora_ks or is_fedora_template
@@ -969,7 +980,13 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
 
         valid_iso = False
-        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM, ArchLinuxDistro.CUSTOM]:
+        if distro in [
+            OpenSUSEDistro.CUSTOM,
+            UbuntuDistro.CUSTOM,
+            DebianDistro.CUSTOM,
+            FedoraDistro.CUSTOM,
+            ArchLinuxDistro.CUSTOM,
+        ]:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
@@ -1081,7 +1098,13 @@ class InstallVMModal(BaseModal[str | None]):
         checksum = None
         validate = False
 
-        if distro in [OpenSUSEDistro.CUSTOM, UbuntuDistro.CUSTOM, DebianDistro.CUSTOM, FedoraDistro.CUSTOM, ArchLinuxDistro.CUSTOM]:
+        if distro in [
+            OpenSUSEDistro.CUSTOM,
+            UbuntuDistro.CUSTOM,
+            DebianDistro.CUSTOM,
+            FedoraDistro.CUSTOM,
+            ArchLinuxDistro.CUSTOM,
+        ]:
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:
@@ -1107,6 +1130,7 @@ class InstallVMModal(BaseModal[str | None]):
             vcpu = int(self.query_one("#cpu-input", Input).value)
             disk_size = int(self.query_one("#disk-size-input", Input).value)
             disk_format = self.query_one("#disk-format", Select).value
+            graphics_type = self.query_one("#graphics-type", Select).value
             boot_uefi = self.query_one("#boot-uefi-checkbox", Checkbox).value
         except ValueError:
             self.app.show_error_message(ErrorMessages.INVALID_EXPERT_SETTINGS)
@@ -1171,6 +1195,7 @@ class InstallVMModal(BaseModal[str | None]):
             vcpu,
             disk_size,
             disk_format,
+            graphics_type,
             boot_uefi,
             use_virt_install,
             serial_console,
@@ -1192,6 +1217,7 @@ class InstallVMModal(BaseModal[str | None]):
         vcpu,
         disk_size,
         disk_format,
+        graphics_type,
         boot_uefi,
         use_virt_install,
         serial_console,
@@ -1367,6 +1393,7 @@ class InstallVMModal(BaseModal[str | None]):
                     vcpu=vcpu,
                     disk_size_gb=disk_size,
                     disk_format=disk_format,
+                    graphics_type=graphics_type,
                     boot_uefi=boot_uefi,
                     use_virt_install=use_virt_install,
                     configure_before_install=configure_before_install,
