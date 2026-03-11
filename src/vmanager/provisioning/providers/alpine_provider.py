@@ -138,7 +138,12 @@ class AlpineProvider(OSProvider):
         output_path: Path,
         template_name: str | None = None,
     ) -> Path:
-        """Generate Alpine Linux answers file."""
+        """Generate Alpine Linux apkovl tarball for automated installation."""
+        import shutil
+        import tarfile
+        import tempfile
+        from io import BytesIO
+
         # Use default template if not provided
         if not template_name:
             template_name = "alpine-answers-basic.txt"
@@ -165,29 +170,80 @@ class AlpineProvider(OSProvider):
             if key not in config:
                 config[key] = value
 
-        # Alpine setup-alpine uses plaintext passwords in the answers file
-        # which are then encrypted during the installation process.
-        # However, for security, we should check if they are already hashed.
-        # Actually, setup-alpine answers file expects plaintext if it's going to hash them,
-        # or it might support pre-hashed passwords depending on the script.
-        # Standard setup-alpine answer file uses plaintext for USEROPTS.
-
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
-            # Generate basic answers if template not found
             self.logger.warning(f"Alpine template not found: {template_name}, using basic answers")
-            automation_content = self._generate_basic_answers(config)
+            answers_content = self._generate_basic_answers(config)
         else:
             with open(template_path, "r", encoding="utf-8") as f:
                 template_content = f.read()
-            
-            # Substitute variables
-            automation_content = self._substitute_variables(template_content, config)
+            answers_content = self._substitute_variables(template_content, config)
 
-        # Write to file
-        output_file = output_path / "answers.txt"
-        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
-            f.write(automation_content)
+        # Create the apkovl tarball
+        # Standard Alpine search pattern for apkovl over HTTP is hostname.apkovl.tar.gz
+        # but we serve it with a unique name from VMProvisioner.
+        output_file = output_path / "alpine.apkovl.tar.gz"
+        
+        # We create the tarball in memory first then write to file
+        with tarfile.open(output_file, "w:gz") as tar:
+            answers_data = answers_content.encode("utf-8")
+            answers_info = tarfile.TarInfo(name="root/answers.txt")
+            answers_info.size = len(answers_data)
+            answers_info.mtime = int(datetime.now().timestamp())
+            tar.addfile(answers_info, BytesIO(answers_data))
+
+            trigger_script = f"""#!/bin/sh
+# Unattended Alpine Linux Installation
+# Triggered by VirtUI Manager
+
+# Ensure we don't run multiple times if rebooted into ISO
+if [ -f /tmp/alpine-install-started ]; then
+    exit 0
+fi
+touch /tmp/alpine-install-started
+
+# Send output to console so it's visible in the viewer
+exec > /dev/console 2>&1
+
+echo ""
+echo "####################################################"
+echo "# Starting unattended Alpine Linux installation... #"
+echo "####################################################"
+echo ""
+
+# Pre-set root password
+echo "root:{config.get('root_password', 'password')}" | chpasswd
+
+# Set environment variables that setup-alpine respects to skip prompts
+export ERASE_DISK=y
+export ROOT_PASSWORD="{config.get('root_password', 'password')}"
+
+# Give the system a moment to fully settle
+sleep 2
+
+# Run setup-alpine with the answers file. 
+# We use 'yes y' to catch any remaining "are you sure" prompts (like disk formatting)
+# while the root password should already be handled by the env var or chpasswd.
+yes y | setup-alpine -f /root/answers.txt
+
+echo ""
+#echo "Installation complete. Rebooting in 5 seconds..."
+#sleep 5
+#/sbin/reboot
+"""
+            script_data = trigger_script.encode("utf-8")
+            script_info = tarfile.TarInfo(name="etc/local.d/virtui-install.start")
+            script_info.size = len(script_data)
+            script_info.mtime = int(datetime.now().timestamp())
+            script_info.mode = 0o755  # Executable
+            tar.addfile(script_info, BytesIO(script_data))
+
+            # 3. Add a symlink to ensure 'local' service is enabled in default runlevel
+            # Standard Alpine ISO might not have it enabled in the live environment.
+            symlink_info = tarfile.TarInfo(name="etc/runlevels/default/local")
+            symlink_info.type = tarfile.SYMTYPE
+            symlink_info.linkname = "/etc/init.d/local"
+            tar.addfile(symlink_info)
 
         return output_file
 
@@ -257,6 +313,7 @@ class AlpineProvider(OSProvider):
             'LBUOPTS="none"',
             'APKCACHEOPTS="none"',
             f'ROOTOPTS="{root_password}"',
+            'ERASE_DISK="y"',
         ]
         return "\n".join(answers)
 
