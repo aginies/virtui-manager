@@ -460,12 +460,28 @@ class OpenSUSEProvider(OSProvider):
         # Override with user-provided values
         variables.update(user_config)
 
+        # Ensure user_password and password are synchronized for template compatibility
+        if "user_password" in variables and "password" not in variables:
+            variables["password"] = variables["user_password"]
+        elif "password" in variables and "user_password" not in variables:
+            variables["user_password"] = variables["password"]
+
         # Hash passwords for security before substitution
         # Strip whitespace from passwords (can come from config files with newlines)
         if "root_password" in variables and variables["root_password"]:
             variables["root_password"] = hash_password(variables["root_password"].strip())
+        
         if "user_password" in variables and variables["user_password"]:
+            # Check if it was already hashed (by password synchronization above)
+            # but hash_password is idempotent if already starts with $6$
             variables["user_password"] = hash_password(variables["user_password"].strip())
+            # Re-sync hashed value
+            variables["password"] = variables["user_password"]
+        
+        if "password" in variables and variables["password"]:
+            variables["password"] = hash_password(variables["password"].strip())
+            # Re-sync
+            variables["user_password"] = variables["password"]
 
         # Alias username to user_name for compatibility between Agama and AutoYaST
         if "username" in user_config and "user_name" not in user_config:
