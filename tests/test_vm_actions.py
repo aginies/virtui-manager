@@ -1046,8 +1046,8 @@ class TestVMActionsComplete(unittest.TestCase):
             call_args & self.libvirt.VIR_DOMAIN_UNDEFINE_NVRAM,
             "undefineFlags should include VIR_DOMAIN_UNDEFINE_NVRAM when delete_nvram=True",
         )
-        # delete_storage=False: no explicit volume deletions should occur
-        mock_find_vol.assert_not_called()
+        # delete_storage=False: only NVRAM asset cleanup should be attempted
+        mock_find_vol.assert_called_once_with(mock_conn, nvram_path)
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
