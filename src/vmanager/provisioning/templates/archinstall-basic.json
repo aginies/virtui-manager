@@ -6,7 +6,7 @@
     "users": [
         {
             "username": "{username}",
-            "password": "{password}",
+            "password": "{user_password}",
             "sudo": true
         }
     ],
