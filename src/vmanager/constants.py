@@ -336,6 +336,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     MEMORY_GB_LABEL = _(" Memory (GB)")
     DISK_SIZE_GB_LABEL = _(" Disk Size(GB)")
     DISK_FORMAT_LABEL = _(" Disk Format")
+    GRAPHICS_LABEL = _(" Graphics")
     FIRMWARE_LABEL = _(" Firmware")
     DELETE_STORAGE_VOLUMES = _("Delete storage volumes and NVRAM")
     QUIESCE_GUEST = _("Quiesce guest (requires agent)")

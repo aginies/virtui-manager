@@ -235,6 +235,19 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
         self.assertNotIn("<launchSecurity", xml)
         self.assertNotIn("<tpm", xml)
 
+    def test_generate_xml_vnc_graphics(self):
+        """Test that generated XML with VNC graphics has correct type"""
+        xml = self.provisioner.generate_xml(
+            vm_name="vncvm",
+            vm_type=VMType.DESKTOP,
+            disk_path="/path/to/disk",
+            iso_path="/path/to/iso",
+            graphics_type="vnc"
+        )
+        
+        self.assertIn("type='vnc'", xml)
+        self.assertNotIn("type='spice'", xml)
+
 
 if __name__ == "__main__":
     unittest.main()
