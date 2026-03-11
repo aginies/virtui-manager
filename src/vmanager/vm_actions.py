@@ -2266,7 +2266,8 @@ def delete_vm(
                     
                     # Determine if we should delete this specific file
                     is_nvram = (file_path == nvram_path)
-                    should_delete = delete_storage or (is_nvram and delete_nvram)
+                    # Non-NVRAM assets follow delete_storage; NVRAM follows delete_nvram
+                    should_delete = delete_nvram if is_nvram else delete_storage
                     
                     if not should_delete:
                         continue
