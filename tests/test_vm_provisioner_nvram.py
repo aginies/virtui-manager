@@ -12,6 +12,7 @@ import libvirt
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from vmanager.vm_provisioner import VMProvisioner, VMType
+from vmanager.provisioning.os_provider import OSType
 from vmanager.firmware_manager import Firmware
 
 
@@ -179,6 +180,60 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
         # Should return None, None to let libvirt auto-select
         self.assertIsNone(loader)
         self.assertIsNone(nvram)
+
+    @patch("vmanager.vm_provisioner.get_uefi_files")
+    @patch("vmanager.vm_provisioner.select_best_firmware")
+    @patch("vmanager.vm_provisioner.subprocess.run")
+    @patch("vmanager.vm_provisioner.tempfile.NamedTemporaryFile")
+    @patch("vmanager.vm_provisioner.os.remove")
+    @patch("vmanager.vm_provisioner.os.path.exists")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"mock_nvram_content")
+    def test_setup_uefi_nvram_arch_disables_secure_boot(
+        self, mock_file, mock_exists, mock_remove, mock_tempfile, mock_run, mock_select_fw, mock_get_uefi
+    ):
+        """Test that Secure Boot is disabled for Arch Linux even if VMType.SECURE is used"""
+        self._setup_common_mocks(mock_get_uefi, mock_select_fw)
+        mock_exists.return_value = True
+
+        fw = Firmware()
+        fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
+        fw.nvram_template = "/usr/share/OVMF/OVMF_VARS.fd"
+        fw.interfaces = ["pflash"]
+        mock_select_fw.return_value = fw
+
+        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.qcow2"
+        
+        mock_temp = MagicMock()
+        mock_temp.name = "/tmp/temp_input.raw"
+        mock_tempfile.return_value.__enter__.return_value = mock_temp
+
+        # Call with VMType.SECURE and OSType.ARCHLINUX
+        loader, nvram = self.provisioner._setup_uefi_nvram(
+            "testvm", "default", VMType.SECURE, os_type=OSType.ARCHLINUX
+        )
+
+        # Assert select_best_firmware was called with secure_boot=False
+        args, kwargs = mock_select_fw.call_args
+        self.assertFalse(kwargs['secure_boot'], "Secure Boot should be False for Arch Linux")
+
+    def test_generate_xml_arch_uefi_no_secure_boot(self):
+        """Test that generated XML for Arch Linux with UEFI has secure='no'"""
+        xml = self.provisioner.generate_xml(
+            vm_name="archvm",
+            vm_type=VMType.SECURE,  # Even with SECURE type
+            disk_path="/path/to/disk",
+            iso_path="/path/to/iso",
+            boot_uefi=True,
+            os_type=OSType.ARCHLINUX
+        )
+        
+        # Check that it contains UEFI loader with secure='no'
+        self.assertIn("secure='no'", xml)
+        self.assertIn("<loader", xml)
+        self.assertIn("firmware='efi'", xml)
+        # Check that SEV/TPM are NOT present (since we disabled them for Arch)
+        self.assertNotIn("<launchSecurity", xml)
+        self.assertNotIn("<tpm", xml)
 
 
 if __name__ == "__main__":
