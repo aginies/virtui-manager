@@ -61,6 +61,7 @@ class TestVMActionsComplete(unittest.TestCase):
         # Mock the libvirt libvirtError for proper exception handling
         import libvirt
 
+        self.libvirt = libvirt
         self.libvirt_error = libvirt.libvirtError
 
     def test_clone_vm(self):
@@ -899,10 +900,154 @@ class TestVMActionsComplete(unittest.TestCase):
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
-    def test_delete_vm(self, mock_invalidate_cache, mock_get_internal_id):
-        """Test delete_vm function"""
-        # Test that the function structure is correct and can be called
-        self.assertTrue(True)
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    @patch("vmanager.vm_actions.get_vm_disks_info")
+    def test_delete_vm(self, mock_get_disks, mock_find_vol, mock_invalidate_cache, mock_get_internal_id):
+        """Test delete_vm basic flow: VM is undefined and storage volumes are deleted."""
+        from vmanager.vm_actions import delete_vm
+
+        xml_content = """<domain>
+          <name>test-vm</name>
+          <uuid>test-uuid</uuid>
+          <os><type arch="x86_64">hvm</type></os>
+          <devices>
+            <disk type="file" device="disk">
+              <source file="/var/lib/libvirt/images/test-vm.qcow2"/>
+              <target dev="vda" bus="virtio"/>
+            </disk>
+          </devices>
+        </domain>"""
+
+        mock_domain_del = MagicMock()
+        mock_domain_del.XMLDesc.return_value = xml_content
+        mock_domain_del.isActive.return_value = False
+
+        mock_conn = MagicMock()
+        mock_conn.lookupByUUIDString.return_value = mock_domain_del
+        mock_conn.listStoragePools.return_value = []
+
+        mock_vol = MagicMock()
+        mock_pool = MagicMock()
+        mock_find_vol.return_value = (mock_vol, mock_pool)
+        mock_get_disks.return_value = [
+            {"path": "/var/lib/libvirt/images/test-vm.qcow2", "status": "enabled"}
+        ]
+        mock_get_internal_id.return_value = "test-id"
+
+        delete_vm(self.mock_domain, delete_storage=True, conn=mock_conn)
+
+        mock_domain_del.undefineFlags.assert_called_once()
+        mock_vol.delete.assert_called_once_with(0)
+
+    @patch("vmanager.vm_actions.get_internal_id")
+    @patch("vmanager.vm_actions.invalidate_cache")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    @patch("vmanager.vm_actions.get_vm_disks_info")
+    def test_delete_vm_orphaned_kernel_initrd(
+        self, mock_get_disks, mock_find_vol, mock_invalidate_cache, mock_get_internal_id
+    ):
+        """Test delete_vm cleans up orphaned kernel/initrd volumes when delete_storage=True."""
+        from vmanager.vm_actions import delete_vm
+
+        # XML with no kernel/initrd in <os> (stripped after install) but disk present
+        xml_content = """<domain>
+          <name>myvm</name>
+          <uuid>test-uuid</uuid>
+          <os><type arch="x86_64">hvm</type></os>
+          <devices>
+            <disk type="file" device="disk">
+              <source file="/var/lib/libvirt/images/myvm.qcow2"/>
+              <target dev="vda" bus="virtio"/>
+            </disk>
+          </devices>
+        </domain>"""
+
+        mock_domain_del = MagicMock()
+        mock_domain_del.XMLDesc.return_value = xml_content
+        mock_domain_del.isActive.return_value = False
+
+        mock_kernel_vol = MagicMock()
+        mock_initrd_vol = MagicMock()
+
+        def pool_vol_lookup(name):
+            if name == "myvm-kernel":
+                return mock_kernel_vol
+            if name == "myvm-initrd":
+                return mock_initrd_vol
+            err = self.libvirt_error("not found")
+            err._code = self.libvirt.VIR_ERR_NO_STORAGE_VOL
+            raise err
+
+        mock_pool = MagicMock()
+        mock_pool.isActive.return_value = True
+        mock_pool.storageVolLookupByName.side_effect = pool_vol_lookup
+
+        mock_conn = MagicMock()
+        mock_conn.lookupByUUIDString.return_value = mock_domain_del
+        mock_conn.listStoragePools.return_value = ["default"]
+        mock_conn.storagePoolLookupByName.return_value = mock_pool
+
+        # The disk volume lookup returns nothing (file not managed as libvirt vol)
+        mock_find_vol.return_value = (None, None)
+        mock_get_disks.return_value = []
+        mock_get_internal_id.return_value = "test-id"
+        self.mock_domain.name.return_value = "myvm"
+
+        delete_vm(self.mock_domain, delete_storage=True, conn=mock_conn)
+
+        mock_domain_del.undefineFlags.assert_called_once()
+        # Both orphaned volumes must have been deleted
+        mock_kernel_vol.delete.assert_called_once_with(0)
+        mock_initrd_vol.delete.assert_called_once_with(0)
+
+    @patch("vmanager.vm_actions.get_internal_id")
+    @patch("vmanager.vm_actions.invalidate_cache")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    @patch("vmanager.vm_actions.get_vm_disks_info")
+    def test_delete_vm_nvram_only(
+        self, mock_get_disks, mock_find_vol, mock_invalidate_cache, mock_get_internal_id
+    ):
+        """Test delete_vm with delete_nvram=True removes NVRAM but not disk volumes."""
+        from vmanager.vm_actions import delete_vm
+
+        nvram_path = "/var/lib/libvirt/qemu/nvram/test-vm_VARS.fd"
+        xml_content = f"""<domain>
+          <name>test-vm</name>
+          <uuid>test-uuid</uuid>
+          <os>
+            <type arch="x86_64">hvm</type>
+            <loader readonly="yes" type="pflash">/usr/share/qemu/ovmf-x86_64-code.bin</loader>
+            <nvram>{nvram_path}</nvram>
+          </os>
+          <devices>
+            <disk type="file" device="disk">
+              <source file="/var/lib/libvirt/images/test-vm.qcow2"/>
+              <target dev="vda" bus="virtio"/>
+            </disk>
+          </devices>
+        </domain>"""
+
+        mock_domain_del = MagicMock()
+        mock_domain_del.XMLDesc.return_value = xml_content
+        mock_domain_del.isActive.return_value = False
+
+        mock_get_disks.return_value = []
+        mock_get_internal_id.return_value = "test-id"
+
+        mock_conn = MagicMock()
+        mock_conn.lookupByUUIDString.return_value = mock_domain_del
+        mock_conn.listStoragePools.return_value = []
+
+        delete_vm(self.mock_domain, delete_storage=False, delete_nvram=True, conn=mock_conn)
+
+        # undefineFlags must include VIR_DOMAIN_UNDEFINE_NVRAM so libvirt removes the NVRAM file
+        call_args = mock_domain_del.undefineFlags.call_args[0][0]
+        self.assertTrue(
+            call_args & self.libvirt.VIR_DOMAIN_UNDEFINE_NVRAM,
+            "undefineFlags should include VIR_DOMAIN_UNDEFINE_NVRAM when delete_nvram=True",
+        )
+        # delete_storage=False: no explicit volume deletions should occur
+        mock_find_vol.assert_not_called()
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
