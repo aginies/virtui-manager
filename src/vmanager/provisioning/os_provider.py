@@ -28,6 +28,7 @@ class OSType(Enum):
     UBUNTU = "Ubuntu"
     DEBIAN = "Debian"
     FEDORA = "Fedora"
+    ARCHLINUX = "Arch Linux"
 
 
 @dataclass
