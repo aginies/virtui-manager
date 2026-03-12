@@ -1169,7 +1169,7 @@ class VMProvisioner:
                 elif auto_url.endswith(".cfg"):
                     if os_type in [OSType.UBUNTU, OSType.DEBIAN]:
                         # Ubuntu/Debian preseed automation
-                        cmdline = f"auto=true preseed/url={auto_url}"
+                        cmdline = f"auto=true preseed/url={auto_url} hostname={vm_name} domain=home.net"
                     else:
                         # Default to AutoYaST for other distros (e.g. SLES/openSUSE)
                         cmdline = f"autoyast={auto_url} netsetup=dhcp"
