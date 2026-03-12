@@ -58,12 +58,9 @@ def run_cli():
 
 
 def run_viewer():
-    from vmanager import remote_viewer
+    from vmanager.viewer import main
 
-    if hasattr(remote_viewer, "main"):
-        remote_viewer.main()
-    else:
-        print("Error: remote_viewer module has no 'main' function.")
+    main()
 
 
 def run_viewer_gtk4():
