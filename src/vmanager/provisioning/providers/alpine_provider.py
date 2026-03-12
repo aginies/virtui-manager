@@ -222,9 +222,8 @@ export ROOT_PASSWORD="{config.get('root_password', 'password')}"
 sleep 2
 
 # Run setup-alpine with the answers file. 
-# We use 'yes y' to catch any remaining "are you sure" prompts (like disk formatting)
-# while the root password should already be handled by the env var or chpasswd.
-yes y | setup-alpine -f /root/answers.txt
+#yes y | setup-alpine -f /root/answers.txt
+setup-alpine -f /root/answers.txt
 
 echo ""
 #echo "Installation complete. Rebooting in 5 seconds..."
