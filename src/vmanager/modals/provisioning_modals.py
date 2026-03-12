@@ -640,9 +640,9 @@ class InstallVMModal(BaseModal[str | None]):
                 show_autoyast = True
                 show_agama = False
             elif distro == OpenSUSEDistro.TUMBLEWEED:
-                # OpenSUSE Tumbleweed → BOTH AutoYaST + Agama templates
+                # OpenSUSE Tumbleweed → AutoYaST
                 show_autoyast = True
-                show_agama = True
+                show_agama = False
             elif distro == OpenSUSEDistro.STABLE:
                 # OpenSUSE Stable (Leap) → ONLY Agama templates
                 show_autoyast = False
