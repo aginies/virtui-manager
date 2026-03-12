@@ -37,7 +37,7 @@ from .constants import AppInfo, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture
 from .provisioning.provider_registry import ProviderRegistry
-from .provisioning.os_provider import OSType
+from .provisioning.os_provider import OSType, OSVersion
 from .provisioning.providers.alpine_provider import AlpineProvider, AlpineDistro
 from .provisioning.providers.archlinux_provider import ArchLinuxProvider, ArchLinuxDistro
 from .provisioning.providers.debian_provider import DebianProvider, DebianDistro
@@ -1124,6 +1124,9 @@ class VMProvisioner:
     <initrd>{initrd_path}</initrd>
 """
             cmdline = ""
+            logging.info(
+                f"generate_xml: kernel boot detected, auto_url='{auto_url}', os_type={os_type}"
+            )
             if auto_url:
                 # Determine the appropriate kernel arguments based on file type and URL
                 if "archinstall-" in auto_url and auto_url.endswith(".json"):
@@ -1971,13 +1974,13 @@ class VMProvisioner:
                 ver = os_version if os_version else "v3.23"
                 if not ver.startswith("v"):
                     ver = f"v{ver}"
-                
+
                 extra_args = (
                     f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
                     f"apkovl={auto_url} "
                     f"ip=dhcp "
                 )
-                
+
                 if "alpine-answers-" in auto_url:
                     # Add noninteractive flag for answers file installations
                     extra_args += "setup_alpine_noninteractive=1 "
@@ -2027,6 +2030,94 @@ class VMProvisioner:
         except Exception as e:
             logging.error(f"An unexpected error occurred while running virt-install: {e}")
             raise
+
+    def _detect_opensuse_version_from_iso(self, iso_url: str) -> Optional[OSVersion]:
+        """
+        Detect OpenSUSE version from ISO URL or filename.
+
+        Args:
+            iso_url: The ISO URL or path
+
+        Returns:
+            OSVersion object if detected, None otherwise
+
+        Note: For Agama, we don't need specific version numbers for Leap.
+        The product names are: openSUSE_Leap, openSUSE_Leap_Micro, Tumbleweed, Slowroll
+        """
+        iso_url_lower = iso_url.lower()
+
+        # Detect Tumbleweed
+        if "tumbleweed" in iso_url_lower:
+            return OSVersion(
+                os_type=OSType.LINUX,
+                version_id="tumbleweed",
+                display_name="openSUSE Tumbleweed",
+                architecture=self.host_arch,
+                is_evaluation=False,
+            )
+
+        # Detect Slowroll
+        if "slowroll" in iso_url_lower:
+            return OSVersion(
+                os_type=OSType.LINUX,
+                version_id="slowroll",
+                display_name="openSUSE Slowroll",
+                architecture=self.host_arch,
+                is_evaluation=False,
+            )
+
+        # Detect Leap Micro (includes SLE-Micro which uses same Agama product)
+        if ("leap" in iso_url_lower and "micro" in iso_url_lower) or "sle-micro" in iso_url_lower:
+            return OSVersion(
+                os_type=OSType.LINUX,
+                version_id="leap-micro",
+                display_name="openSUSE Leap Micro",
+                architecture=self.host_arch,
+                is_evaluation=False,
+            )
+
+        # Detect Leap (any version - Agama uses same product name for all)
+        if "leap" in iso_url_lower:
+            # Extract version for display purposes only
+            leap_match = re.search(r"leap[_-]?(\d+\.\d+)", iso_url_lower)
+            if leap_match:
+                version = leap_match.group(1)
+                display_name = f"openSUSE Leap {version}"
+            else:
+                display_name = "openSUSE Leap"
+
+            return OSVersion(
+                os_type=OSType.LINUX,
+                version_id="leap",  # Generic "leap" - version number not needed for Agama
+                display_name=display_name,
+                architecture=self.host_arch,
+                is_evaluation=False,
+            )
+
+        # Detect MicroOS (not Leap Micro)
+        if "microos" in iso_url_lower:
+            return OSVersion(
+                os_type=OSType.LINUX,
+                version_id="microos",
+                display_name="openSUSE MicroOS",
+                architecture=self.host_arch,
+                is_evaluation=False,
+            )
+
+        # Default to Tumbleweed if OpenSUSE but version unknown
+        if "opensuse" in iso_url_lower or "suse" in iso_url_lower:
+            self.logger.warning(
+                f"Could not detect specific OpenSUSE version from ISO URL: {iso_url}, defaulting to Tumbleweed"
+            )
+            return OSVersion(
+                os_type=OSType.LINUX,
+                version_id="tumbleweed",
+                display_name="openSUSE Tumbleweed",
+                architecture=self.host_arch,
+                is_evaluation=False,
+            )
+
+        return None
 
     def provision_vm(
         self,
@@ -2317,9 +2408,22 @@ class VMProvisioner:
                     # Create a temporary directory for automation file
                     temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
 
+                    # Detect version from ISO URL if it's an OpenSUSE provider
+                    detected_version = None
+                    if provider == self.get_provider("opensuse"):
+                        detected_version = self._detect_opensuse_version_from_iso(iso_url)
+                        if detected_version:
+                            self.logger.info(
+                                f"Detected OpenSUSE version from ISO: {detected_version.version_id}"
+                            )
+                        else:
+                            self.logger.warning(
+                                f"Could not detect OpenSUSE version from ISO URL: {iso_url}"
+                            )
+
                     # Generate automation file using the provider
                     automation_file_path = provider.generate_automation_file(
-                        version=None,  # We don't have version info here
+                        version=detected_version,
                         vm_name=vm_name,
                         user_config=automation_config,
                         output_path=temp_dir,
@@ -2337,7 +2441,7 @@ class VMProvisioner:
                                 self.logger.info("Automation tarball validation passed")
                             else:
                                 raise ValueError("Invalid automation tarball file")
-                            content = "" # No text content to validate
+                            content = ""  # No text content to validate
                         else:
                             with open(automation_file_path, "r", encoding="utf-8") as f:
                                 content = f.read()
@@ -2543,7 +2647,10 @@ class VMProvisioner:
                         # For OpenSUSE/Agama, point to specific file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
                         if is_agama:
-                            self.logger.info(f"Agama file available at: {auto_url}")
+                            self.logger.info(f"Agama automation URL set: {auto_url}")
+                            self.logger.info(
+                                f"  This URL will be passed to kernel cmdline as: inst.auto={auto_url}"
+                            )
                         else:
                             self.logger.info(f"AutoYaST file available at: {auto_url}")
 
@@ -2864,7 +2971,7 @@ class VMProvisioner:
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
                 automation_file_path=final_automation_path,
-                auto_url=auto_url if kernel_path else None,
+                auto_url=auto_url,
                 kernel_path=kernel_path,
                 initrd_path=initrd_path,
                 serial_console=serial_console,
@@ -2915,7 +3022,6 @@ class VMProvisioner:
                 port_to_close=None,
                 ssh_host_to_manage=None,
             ):
-
                 logger.info(f"Starting restart watcher for {name}")
                 # 1. Wait for it to start running (it might be in 'defining' state)
                 timeout = 120

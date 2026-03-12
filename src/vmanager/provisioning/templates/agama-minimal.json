@@ -18,6 +18,9 @@
     "userName": "{username}",
     "password": "{user_password}"
   },
+  "product": {
+    "id": "{OPENSUSE_PRODUCT_NAME}"
+  },
   "software": {
     "patterns": [
       "minimal_base"
@@ -40,8 +43,7 @@
   },
   "storage": {
     "boot": {
-      "configure": true,
-      "device": "vda"
+      "configure": true
     },
     "drives": [
       {

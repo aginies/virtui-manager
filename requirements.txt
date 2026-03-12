@@ -6,3 +6,4 @@ websockify
 pytest-cov
 packaging
 netifaces
+requests
