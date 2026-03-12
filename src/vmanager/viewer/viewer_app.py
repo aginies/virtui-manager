@@ -657,13 +657,41 @@ class RemoteViewer(Gtk.Application):
         if not self.display_manager:
             return
 
+        # Prefer current UI/handler state when available, fall back to manager settings.
+        fullscreen = self.display_handler.is_fullscreen if self.display_handler else False
+        scaling = getattr(
+            self.display_handler,
+            "scaling_enabled",
+            self.display_manager.settings.scaling_enabled,
+        )
+        smoothing = getattr(
+            self.display_handler,
+            "smoothing_enabled",
+            self.display_manager.settings.smoothing_enabled,
+        )
+        lossy_encoding = getattr(
+            self.display_handler,
+            "lossy_encoding_enabled",
+            self.display_manager.settings.lossy_encoding_enabled,
+        )
+        view_only = getattr(
+            self.display_handler,
+            "view_only_enabled",
+            self.display_manager.settings.view_only_enabled,
+        )
+        vnc_depth = getattr(
+            self.display_handler,
+            "vnc_depth",
+            self.display_manager.settings.vnc_depth,
+        )
+
         state = {
-            'fullscreen': self.display_handler.is_fullscreen if self.display_handler else False,
-            'scaling': self.display_manager.settings.scaling_enabled,
-            'smoothing': self.display_manager.settings.smoothing_enabled,
-            'lossy_encoding': self.display_manager.settings.lossy_encoding_enabled,
-            'view_only': self.display_manager.settings.view_only_enabled,
-            'vnc_depth': self.display_manager.settings.vnc_depth,
+            'fullscreen': fullscreen,
+            'scaling': scaling,
+            'smoothing': smoothing,
+            'lossy_encoding': lossy_encoding,
+            'view_only': view_only,
+            'vnc_depth': vnc_depth,
         }
         self.config_manager.save_state(state)
 
