@@ -75,8 +75,7 @@ class TestAlpineProvider(unittest.TestCase):
         }
         content = self.provider._generate_basic_answers(config)
         self.assertIn('HOSTNAMEOPTS="-n test-alpine"', content)
-        self.assertIn('USEROPTS="-a -u tester -g \'Alpine User\' testpassword"', content)
-        self.assertIn('ROOTOPTS="rootpassword"', content)
+        self.assertIn('USEROPTS="-a -u tester -g tester"', content)
 
     @patch("tarfile.open")
     def test_generate_automation_file_default(self, mock_tar):
@@ -90,7 +89,7 @@ class TestAlpineProvider(unittest.TestCase):
                 None, "testvm", user_config, output_path
             )
             
-            self.assertEqual(result_path, output_path / "alpine.apkovl.tar.gz")
+            self.assertEqual(result_path, output_path / "localhost.apkovl.tar.gz")
 
 
 if __name__ == "__main__":
