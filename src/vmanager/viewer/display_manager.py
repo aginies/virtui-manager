@@ -22,6 +22,7 @@ try:
     gi.require_version("SpiceClientGtk", "3.0")
     gi.require_version("SpiceClientGLib", "2.0")
     from gi.repository import SpiceClientGLib, SpiceClientGtk
+
     SPICE_AVAILABLE = True
 except (ValueError, ImportError):
     SPICE_AVAILABLE = False
@@ -32,12 +33,14 @@ from .constants import SSH_TUNNEL_CONNECT_DELAY_MS, RECONNECT_DELAY_MS
 class DisplaySettings:
     """Container for display settings."""
 
-    def __init__(self,
-                 scaling_enabled: bool = False,
-                 smoothing_enabled: bool = True,
-                 lossy_encoding_enabled: bool = False,
-                 view_only_enabled: bool = False,
-                 vnc_depth: int = 0):
+    def __init__(
+        self,
+        scaling_enabled: bool = False,
+        smoothing_enabled: bool = True,
+        lossy_encoding_enabled: bool = False,
+        view_only_enabled: bool = False,
+        vnc_depth: int = 0,
+    ):
         self.scaling_enabled = scaling_enabled
         self.smoothing_enabled = smoothing_enabled
         self.lossy_encoding_enabled = lossy_encoding_enabled
@@ -52,13 +55,15 @@ class DisplayManager:
     Handles display initialization, connection management, and protocol-specific settings.
     """
 
-    def __init__(self,
-                 log_callback: Optional[Callable[[str], None]] = None,
-                 notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None,
-                 error_dialog_callback: Optional[Callable[[str], None]] = None,
-                 disconnect_callback: Optional[Callable[[], None]] = None,
-                 reconnect_callback: Optional[Callable[[], None]] = None,
-                 verbose: bool = False):
+    def __init__(
+        self,
+        log_callback: Optional[Callable[[str], None]] = None,
+        notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None,
+        error_dialog_callback: Optional[Callable[[str], None]] = None,
+        disconnect_callback: Optional[Callable[[], None]] = None,
+        reconnect_callback: Optional[Callable[[], None]] = None,
+        verbose: bool = False,
+    ):
         """
         Initialize the display manager.
 
@@ -72,7 +77,9 @@ class DisplayManager:
         """
         self.log = log_callback if log_callback else lambda msg: None
         self.notify = notification_callback if notification_callback else lambda msg, typ: None
-        self.show_error_dialog = error_dialog_callback if error_dialog_callback else lambda msg: None
+        self.show_error_dialog = (
+            error_dialog_callback if error_dialog_callback else lambda msg: None
+        )
         self.on_disconnect = disconnect_callback if disconnect_callback else lambda: None
         self.on_reconnect = reconnect_callback if reconnect_callback else lambda: None
         self.verbose = verbose
@@ -116,7 +123,9 @@ class DisplayManager:
         self.depth_settings_box = depth_box
         self.lossy_check = lossy_check
 
-    def get_display_info(self, domain, ssh_tunnel_manager=None) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    def get_display_info(
+        self, domain, ssh_tunnel_manager=None
+    ) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
         """
         Retrieve connection info (protocol, host, port, password) from domain XML.
 
@@ -183,14 +192,18 @@ class DisplayManager:
             remote_host = listen
             if listen == "localhost" or listen == "0.0.0.0":
                 # Extract remote host from libvirt URI
-                match = re.search(r"qemu\+ssh://(?:[^@]+@)?([^/:]+)", ssh_tunnel_manager.ssh_gateway)
+                match = re.search(
+                    r"qemu\+ssh://(?:[^@]+@)?([^/:]+)", ssh_tunnel_manager.ssh_gateway
+                )
                 if match:
                     remote_host = match.group(1)
 
             if remote_host:
                 ssh_tunnel_manager.start(remote_host, int(port))
 
-    def init_display(self, domain=None, ssh_tunnel_manager=None, view_only_handler=None, grab_handler=None) -> Optional[Gtk.Widget]:
+    def init_display(
+        self, domain=None, ssh_tunnel_manager=None, view_only_handler=None, grab_handler=None
+    ) -> Optional[Gtk.Widget]:
         """
         Initialize the display widget based on detected protocol.
 
@@ -278,7 +291,7 @@ class DisplayManager:
         self.display_widget.set_property("grab-mouse", True)
 
         # Connect SPICE grab property notifications
-        if grab_handler and hasattr(grab_handler, 'on_spice_grab_changed'):
+        if grab_handler and hasattr(grab_handler, "on_spice_grab_changed"):
             self.display_widget.connect("notify::grab-keyboard", grab_handler.on_spice_grab_changed)
 
     def _init_vnc_display(self, clipboard_handler=None, grab_handler=None):
@@ -313,15 +326,23 @@ class DisplayManager:
 
         # Connect clipboard and grab handlers if provided
         if clipboard_handler:
-            if hasattr(clipboard_handler, 'on_vnc_server_cut_text'):
-                self.vnc_display.connect("vnc-server-cut-text", clipboard_handler.on_vnc_server_cut_text)
-            elif hasattr(clipboard_handler, 'on_server_cut_text'):
-                self.vnc_display.connect("vnc-server-cut-text", clipboard_handler.on_server_cut_text)
+            if hasattr(clipboard_handler, "on_vnc_server_cut_text"):
+                self.vnc_display.connect(
+                    "vnc-server-cut-text", clipboard_handler.on_vnc_server_cut_text
+                )
+            elif hasattr(clipboard_handler, "on_server_cut_text"):
+                self.vnc_display.connect(
+                    "vnc-server-cut-text", clipboard_handler.on_server_cut_text
+                )
         if grab_handler:
-            if hasattr(grab_handler, 'on_keyboard_grab_activated'):
-                self.vnc_display.connect("vnc-grab-keyboard", grab_handler.on_keyboard_grab_activated)
-            if hasattr(grab_handler, 'on_keyboard_grab_released'):
-                self.vnc_display.connect("vnc-ungrab-keyboard", grab_handler.on_keyboard_grab_released)
+            if hasattr(grab_handler, "on_keyboard_grab_activated"):
+                self.vnc_display.connect(
+                    "vnc-keyboard-grab", grab_handler.on_keyboard_grab_activated
+                )
+            if hasattr(grab_handler, "on_keyboard_grab_released"):
+                self.vnc_display.connect(
+                    "vnc-keyboard-ungrab", grab_handler.on_keyboard_grab_released
+                )
 
     def _show_no_display_placeholder(self):
         """Show a placeholder message when no display protocol is available."""
@@ -351,9 +372,16 @@ class DisplayManager:
             self.view_container.remove(self.no_display_label)
             self.no_display_label = None
 
-    def connect(self, host: str, port: int, password: Optional[str] = None,
-                attach: bool = False, domain=None, ssh_tunnel_manager=None,
-                force: bool = False) -> bool:
+    def connect(
+        self,
+        host: str,
+        port: int,
+        password: Optional[str] = None,
+        attach: bool = False,
+        domain=None,
+        ssh_tunnel_manager=None,
+        force: bool = False,
+    ) -> bool:
         """
         Connect to the display server.
 
@@ -430,8 +458,9 @@ class DisplayManager:
 
         return True
 
-    def _connect_spice(self, host: str, port: int, password: Optional[str],
-                      ssh_tunnel_manager=None) -> bool:
+    def _connect_spice(
+        self, host: str, port: int, password: Optional[str], ssh_tunnel_manager=None
+    ) -> bool:
         """Connect to SPICE server."""
         # Use tunneled connection if SSH tunnel is active
         if ssh_tunnel_manager and ssh_tunnel_manager.is_active():
@@ -439,15 +468,22 @@ class DisplayManager:
             port = ssh_tunnel_manager.get_local_port()
             self.log(f"Using SSH tunnel: localhost:{port}")
             # Delay connection to allow tunnel to establish
-            GLib.timeout_add(SSH_TUNNEL_CONNECT_DELAY_MS,
-                           lambda: self._do_spice_connect(host, port, password))
+            GLib.timeout_add(
+                SSH_TUNNEL_CONNECT_DELAY_MS, lambda: self._do_spice_connect(host, port, password)
+            )
             return True
 
         self._do_spice_connect(host, port, password)
         return True
 
-    def _connect_vnc(self, host: str, port: int, password: Optional[str],
-                    ssh_tunnel_manager=None, force: bool = False) -> bool:
+    def _connect_vnc(
+        self,
+        host: str,
+        port: int,
+        password: Optional[str],
+        ssh_tunnel_manager=None,
+        force: bool = False,
+    ) -> bool:
         """Connect to VNC server."""
         # Use tunneled connection if SSH tunnel is active
         if ssh_tunnel_manager and ssh_tunnel_manager.is_active():
@@ -455,8 +491,9 @@ class DisplayManager:
             port = ssh_tunnel_manager.get_local_port()
             self.log(f"Using SSH tunnel: localhost:{port}")
             # Delay connection to allow tunnel to establish
-            GLib.timeout_add(SSH_TUNNEL_CONNECT_DELAY_MS,
-                           lambda: self._do_vnc_connect(host, port, force))
+            GLib.timeout_add(
+                SSH_TUNNEL_CONNECT_DELAY_MS, lambda: self._do_vnc_connect(host, port, force)
+            )
             return True
 
         self._do_vnc_connect(host, port, force)
@@ -562,10 +599,12 @@ class DisplayManager:
             if self.verbose:
                 print("Pending reconnect detected, reconnecting in 500ms...")
             self.reconnect_pending = False
+
             # Delay reconnection briefly
             def do_reconnect():
                 self.on_reconnect()
                 return False  # Don't repeat the timeout
+
             GLib.timeout_add(RECONNECT_DELAY_MS, do_reconnect)
             return
 
@@ -599,11 +638,13 @@ class DisplayManager:
         elif event == SpiceClientGLib.ChannelEvent.CLOSED:
             if self.verbose:
                 print("SPICE channel closed")
-        elif event in [SpiceClientGLib.ChannelEvent.ERROR_CONNECT,
-                       SpiceClientGLib.ChannelEvent.ERROR_TLS,
-                       SpiceClientGLib.ChannelEvent.ERROR_LINK,
-                       SpiceClientGLib.ChannelEvent.ERROR_AUTH,
-                       SpiceClientGLib.ChannelEvent.ERROR_IO]:
+        elif event in [
+            SpiceClientGLib.ChannelEvent.ERROR_CONNECT,
+            SpiceClientGLib.ChannelEvent.ERROR_TLS,
+            SpiceClientGLib.ChannelEvent.ERROR_LINK,
+            SpiceClientGLib.ChannelEvent.ERROR_AUTH,
+            SpiceClientGLib.ChannelEvent.ERROR_IO,
+        ]:
             if self.verbose:
                 print(f"SPICE channel error: {event}")
 
@@ -615,8 +656,7 @@ class DisplayManager:
             flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
         )
         dialog.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
-            Gtk.STOCK_OK, Gtk.ResponseType.OK
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, Gtk.STOCK_OK, Gtk.ResponseType.OK
         )
 
         hbox = Gtk.Box(spacing=6)
@@ -657,4 +697,4 @@ class DisplayManager:
         return False
 
 
-__all__ = ['DisplayManager', 'DisplaySettings', 'SPICE_AVAILABLE']
+__all__ = ["DisplayManager", "DisplaySettings", "SPICE_AVAILABLE"]
