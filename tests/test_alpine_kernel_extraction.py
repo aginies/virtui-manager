@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 import tempfile
 import os
+import subprocess
 from pathlib import Path
 import sys
 
@@ -56,8 +57,11 @@ class TestAlpineKernelExtraction(unittest.TestCase):
         
         # Mock failure on first try (virt), success on second (lts)
         def mock_run_side_effect(cmd, **kwargs):
-            if "vmlinuz-virt" in cmd:
-                raise MagicMock(stderr="File not found")
+            # Check for substring in any of the command arguments
+            if any("vmlinuz-virt" in arg for arg in cmd):
+                raise subprocess.CalledProcessError(
+                    returncode=1, cmd=cmd, stderr="File not found"
+                )
             
             output_dir = next(arg for arg in cmd if arg.startswith("-o")).lstrip("-o")
             kernel_path = Path(output_dir) / "boot" / "vmlinuz-lts"
