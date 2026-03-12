@@ -48,8 +48,7 @@
   },
   "storage": {
     "boot": {
-      "configure": true,
-      "device": "vda"
+      "configure": true
     },
     "drives": [
       {
