@@ -828,7 +828,11 @@ class VMCard(Static):
         self._actions_update_timers.clear()
 
         # Cancel ALL running workers for this VM before card reuse
-        self._cancel_all_workers(self.internal_id)
+        try:
+            self._cancel_all_workers(self.internal_id)
+        except Exception:
+            # Defensive: ignore unexpected errors during worker cancellation
+            pass
 
         # Reset flags
         self._boot_device_checked = False
