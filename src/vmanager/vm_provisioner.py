@@ -80,7 +80,7 @@ class VMProvisioner:
     def _register_providers(self):
         """Register available OS providers."""
         try:
-            opensuse_provider = OpenSUSEProvider()
+            opensuse_provider = OpenSUSEProvider(host_arch=self.host_arch)
             self.provider_registry.register_provider(opensuse_provider)
         except Exception as e:
             self.logger.warning(f"Failed to register OpenSUSE provider: {e}")
@@ -98,19 +98,19 @@ class VMProvisioner:
             self.logger.warning(f"Failed to register Debian provider: {e}")
 
         try:
-            fedora_provider = FedoraProvider()
+            fedora_provider = FedoraProvider(host_arch=self.host_arch)
             self.provider_registry.register_provider(fedora_provider)
         except Exception as e:
             self.logger.warning(f"Failed to register Fedora provider: {e}")
 
         try:
-            arch_provider = ArchLinuxProvider()
+            arch_provider = ArchLinuxProvider(host_arch=self.host_arch)
             self.provider_registry.register_provider(arch_provider)
         except Exception as e:
             self.logger.warning(f"Failed to register Arch Linux provider: {e}")
 
         try:
-            alpine_provider = AlpineProvider()
+            alpine_provider = AlpineProvider(host_arch=self.host_arch)
             self.provider_registry.register_provider(alpine_provider)
         except Exception as e:
             self.logger.warning(f"Failed to register Alpine Linux provider: {e}")
