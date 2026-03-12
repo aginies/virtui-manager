@@ -250,6 +250,23 @@ class DisplayHandler:
         depth_str = combo.get_active_id()
         if depth_str:
             vnc_depth_ref[0] = int(depth_str)
+
+            # Ensure the underlying settings object used by the display
+            # manager sees the updated depth before applying/reconnecting.
+            # This keeps _apply_vnc_depth() and any persisted state in sync
+            # with the user's selection.
+            if hasattr(self, "settings"):
+                try:
+                    self.settings.vnc_depth = vnc_depth_ref[0]
+                except Exception:
+                    # Fallback: ignore if settings object does not allow assignment
+                    pass
+            if hasattr(self, "display_manager") and hasattr(self.display_manager, "settings"):
+                try:
+                    self.display_manager.settings.vnc_depth = vnc_depth_ref[0]
+                except Exception:
+                    # Fallback: ignore if display_manager settings does not allow assignment
+                    pass
             if self.protocol == "vnc" and self.vnc_display:
                 apply_vnc_depth_callback()
                 if self.vnc_display.is_open():
