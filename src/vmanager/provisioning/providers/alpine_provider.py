@@ -203,7 +203,7 @@ fi
 touch /tmp/alpine-install-started
 
 # Send output to console so it's visible in the viewer
-exec > /dev/console 2>&1
+#exec > /dev/console 2>&1
 
 echo ""
 echo "####################################################"
@@ -211,17 +211,18 @@ echo "# Starting unattended Alpine Linux installation... #"
 echo "####################################################"
 echo ""
 
-
-# Set environment variables that setup-alpine respects to skip prompts
-export ERASE_DISK=y
-setup-keymap {config.get('keyboard')} {config.get('keyboard')}
+#setup-keymap {config.get('keyboard')} {config.get('keyboard')}
 
 # Give the system a moment to fully settle
-sleep 2
+#sleep 2
 
 # Run setup-alpine with the answers file. 
-yes y | setup-alpine -f /root/answers.txt
+#yes y | setup-alpine -f /root/answers.txt
 #setup-alpine -f /root/answers.txt
+
+/etc/init.d/devfs restart
+/etc/init.d/modloop start
+/etc/init.d/hwdrivers start
 
 # set root and username password
 echo "root:{config.get('root_password', 'password')}" | chpasswd
@@ -296,7 +297,7 @@ echo ""
         keyboard = config.get("keyboard", "us us")
         
         answers = [
-            f'KEYMAPOPTS="{keyboard}"',
+            f'KEYMAPOPTS="{keyboard} {keyboard}"',
             f'HOSTNAMEOPTS="-n {vm_name}"',
             'INTERFACESOPTS="auto lo',
             'iface lo inet loopback',
@@ -307,14 +308,12 @@ echo ""
             f'TIMEZONEOPTS="-z {config.get("timezone", "UTC")}"',
             'PROXYOPTS="none"',
             'APKREPOSOPTS="-f"',
-            f'USEROPTS="-a -u {username} -g \'Alpine User\' {password}"',
+            f'USEROPTS="-a -u {username} -g {username}"',
             f'SSHDOPTS="-c {config.get("ssh_server", "openssh")}"',
             f'NTPOPTS="-c {config.get("ntp_client", "chrony")}"',
             f'DISKOPTS="-m {config.get("disk_mode", "sys")} {config.get("disk_device", "/dev/vda")}"',
             'LBUOPTS="none"',
             'APKCACHEOPTS="none"',
-            f'ROOTOPTS="{root_password}"',
-            'ERASE_DISK="y"',
         ]
         return "\n".join(answers)
 
