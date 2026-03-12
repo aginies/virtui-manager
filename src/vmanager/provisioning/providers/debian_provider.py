@@ -20,6 +20,7 @@ from ..os_provider import OSProvider, OSType, OSVersion
 class DebianDistro(Enum):
     """Debian distribution types."""
 
+    DEBIAN_13_TRIXIE = "13 (Trixie)"
     DEBIAN_12_BOOKWORM = "12 (Bookworm)"
     DEBIAN_11_BULLSEYE = "11 (Bullseye)"
     DEBIAN_10_BUSTER = "10 (Buster)"
@@ -44,6 +45,7 @@ class DebianProvider(OSProvider):
         """Get list of supported Debian versions."""
         versions = []
         distributions = [
+            ("13", "13 (Trixie)"),
             ("12", "12 (Bookworm)"),
             ("11", "11 (Bullseye)"),
             ("10", "10 (Buster)"),

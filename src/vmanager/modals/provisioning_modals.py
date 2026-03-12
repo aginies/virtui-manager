@@ -135,7 +135,9 @@ class InstallVMModal(BaseModal[str | None]):
                 yield Label(StaticText.CUSTOM_ISO_LOCAL_PATH, classes="label")
                 with Horizontal(classes="input-row"):
                     yield Input(
-                        placeholder="/path/to/local.iso", id="custom-iso-path", classes="path-input"
+                        placeholder="/path/to/local.iso or https://example.com/image.iso",
+                        id="custom-iso-path",
+                        classes="path-input",
                     )
                     yield Button(ButtonLabels.BROWSE, id="browse-iso-btn")
 
@@ -1318,33 +1320,60 @@ class InstallVMModal(BaseModal[str | None]):
 
         try:
             final_iso_url = iso_url
+            downloaded_iso_path = None  # Track downloaded file for cleanup
 
             if custom_path:
-                # Validate custom path exists
-                if not os.path.exists(custom_path):
-                    raise Exception(
-                        ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(path=custom_path)
-                    )
-                if not os.path.isfile(custom_path):
-                    raise Exception(
-                        ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
-                    )
+                # Check if it's an HTTP/HTTPS URL
+                if custom_path.startswith(("http://", "https://")):
+                    # Download ISO from URL
+                    progress_cb(StaticText.DOWNLOADING_ISO, 0)
+
+                    def download_progress(percent, speed):
+                        progress_cb(
+                            StaticText.DOWNLOADING_ISO_PROGRESS.format(
+                                progress=percent, speed=speed
+                            ),
+                            int(percent * 0.3),  # Use first 30% for download
+                        )
+
+                    try:
+                        downloaded_iso_path = self.provisioner.download_iso(
+                            custom_path, download_progress
+                        )
+                        custom_path = (
+                            downloaded_iso_path  # Use downloaded file for subsequent operations
+                        )
+                    except Exception as e:
+                        raise Exception(str(e))
+
+                else:
+                    # Validate local path exists
+                    if not os.path.exists(custom_path):
+                        raise Exception(
+                            ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(
+                                path=custom_path
+                            )
+                        )
+                    if not os.path.isfile(custom_path):
+                        raise Exception(
+                            ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
+                        )
 
                 # 1. Validate Checksum
                 if validate:
                     if not checksum:
                         raise Exception(ErrorMessages.CHECKSUM_MISSING)
-                    progress_cb(StaticText.VALIDATING_CHECKSUM, 0)
+                    progress_cb(StaticText.VALIDATING_CHECKSUM, 30)
                     if not self.provisioner.validate_iso(custom_path, checksum):
                         raise Exception(ErrorMessages.CHECKSUM_VALIDATION_FAILED)
-                    progress_cb(StaticText.CHECKSUM_VALIDATED, 10)
+                    progress_cb(StaticText.CHECKSUM_VALIDATED, 40)
 
                 # 2. Upload
-                progress_cb(StaticText.UPLOADING_ISO, 10)
+                progress_cb(StaticText.UPLOADING_ISO, 40)
 
                 def upload_progress(p):
                     progress_cb(
-                        StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p), 10 + int(p * 0.4)
+                        StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p), 40 + int(p * 0.4)
                     )
 
                 final_iso_url = self.provisioner.upload_iso(custom_path, pool_name, upload_progress)
@@ -1538,7 +1567,29 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(launch_viewer)
             self.app.call_from_thread(self.dismiss, True)
 
+            # Cleanup downloaded ISO if any
+            if downloaded_iso_path and os.path.exists(downloaded_iso_path):
+                try:
+                    temp_dir = os.path.dirname(downloaded_iso_path)
+                    os.remove(downloaded_iso_path)
+                    if os.path.exists(temp_dir) and temp_dir.startswith("/tmp/virtui_iso_"):
+                        os.rmdir(temp_dir)
+                    logging.info(f"Cleaned up downloaded ISO: {downloaded_iso_path}")
+                except Exception as cleanup_error:
+                    logging.warning(f"Failed to cleanup downloaded ISO: {cleanup_error}")
+
         except Exception as e:
+            # Cleanup downloaded ISO on error
+            if downloaded_iso_path and os.path.exists(downloaded_iso_path):
+                try:
+                    temp_dir = os.path.dirname(downloaded_iso_path)
+                    os.remove(downloaded_iso_path)
+                    if os.path.exists(temp_dir) and temp_dir.startswith("/tmp/virtui_iso_"):
+                        os.rmdir(temp_dir)
+                    logging.info(f"Cleaned up downloaded ISO after error: {downloaded_iso_path}")
+                except Exception as cleanup_error:
+                    logging.warning(f"Failed to cleanup downloaded ISO: {cleanup_error}")
+
             self.app.call_from_thread(
                 self.app.show_error_message,
                 ErrorMessages.PROVISIONING_FAILED_TEMPLATE.format(error=e),
