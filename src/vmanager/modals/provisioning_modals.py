@@ -942,13 +942,13 @@ class InstallVMModal(BaseModal[str | None]):
             else:
                 uefi_checkbox.disabled = False
 
-            # Disable "Configure before install" for automated installations
+            # Hide "Configure before install" for automated installations
             configure_checkbox = self.query_one("#configure-before-install-checkbox", Checkbox)
             if should_enable:
-                configure_checkbox.disabled = True
-                configure_checkbox.value = False  # Uncheck it when disabled
+                configure_checkbox.styles.display = "none"
+                configure_checkbox.value = False  # Uncheck it when hidden
             else:
-                configure_checkbox.disabled = False
+                configure_checkbox.styles.display = "block"
         except Exception as e:
             # Widgets may not exist in all contexts
             logging.warning(f"Could not update automation config fields: {e}")
