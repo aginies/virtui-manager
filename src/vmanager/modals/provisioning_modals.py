@@ -365,6 +365,34 @@ class InstallVMModal(BaseModal[str | None]):
         disk_format = "qcow2"
         boot_uefi = True
 
+        # Determine OS type and provider preference if available
+        from ..provisioning.os_provider import OSType
+        from ..vm_provisioner import OpenSUSEDistro
+        from ..provisioning.providers.ubuntu_provider import UbuntuDistro
+        from ..provisioning.providers.debian_provider import DebianDistro
+        from ..provisioning.providers.fedora_provider import FedoraDistro
+        from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
+        from ..provisioning.providers.alpine_provider import AlpineDistro
+
+        os_type = None
+        if isinstance(distro, OpenSUSEDistro):
+            os_type = OSType.OPENSUSE
+        elif isinstance(distro, UbuntuDistro):
+            os_type = OSType.UBUNTU
+        elif isinstance(distro, DebianDistro):
+            os_type = OSType.DEBIAN
+        elif isinstance(distro, FedoraDistro):
+            os_type = OSType.FEDORA
+        elif isinstance(distro, ArchLinuxDistro):
+            os_type = OSType.ARCHLINUX
+        elif isinstance(distro, AlpineDistro):
+            os_type = OSType.ALPINE
+
+        if os_type:
+            provider = self.provisioner.provider_registry.get_provider(os_type)
+            if provider:
+                boot_uefi = provider.preferred_boot_uefi
+
         if vm_type == VMType.COMPUTATION:
             mem = 8
             vcpu = 4
@@ -934,10 +962,17 @@ class InstallVMModal(BaseModal[str | None]):
             if should_enable:
                 self._prefill_automation_fields()
 
-            # Enforce UEFI for automated installations
+            # Enforce UEFI for automated installations (except for Alpine Linux)
+            from ..provisioning.providers.alpine_provider import AlpineDistro
+            distro = self.query_one("#distro", Select).value
+            is_alpine = isinstance(distro, AlpineDistro) or (isinstance(distro, str) and "alpine" in distro.lower())
+
             uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
             if should_enable:
-                uefi_checkbox.value = True
+                if is_alpine:
+                    uefi_checkbox.value = False
+                else:
+                    uefi_checkbox.value = True
                 uefi_checkbox.disabled = True
             else:
                 uefi_checkbox.disabled = False
