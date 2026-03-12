@@ -52,6 +52,26 @@ from gi.repository import Gdk, GLib, Gtk, GtkVnc
 
 
 class RemoteViewer(Gtk.Application):
+    """Remote viewer application for VNC/SPICE connections to virtual machines.
+
+    Constants for timeout and delay values to avoid magic numbers.
+    """
+
+    # Timeout constants (in seconds)
+    SSH_TUNNEL_VERIFY_TIMEOUT = 5
+    SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT = 5
+    SSH_TUNNEL_KILL_TIMEOUT = 2
+    NOTIFICATION_TIMEOUT_SECONDS = 5
+    VM_WAIT_TIMEOUT_SECONDS = 300  # 5 minutes
+    VM_WAIT_CHECK_INTERVAL_SECONDS = 3
+
+    # Delay constants (in milliseconds)
+    RECONNECT_DELAY_MS = 500
+    SSH_TUNNEL_CONNECT_DELAY_MS = 500
+    TUNNEL_VERIFY_CHECK_INTERVAL_MS = 100
+    LIBVIRT_EVENT_TICK_INTERVAL_MS = 100
+    VM_START_CONNECT_DELAY_MS = 1000
+
     def __init__(
         self,
         uri,
@@ -115,11 +135,31 @@ class RemoteViewer(Gtk.Application):
         # Wait for VM state
         self.wait_timeout_id = None
         self.wait_start_time = None
-        self.wait_max_seconds = 300  # 5 minutes default timeout
+        self.wait_max_seconds = self.VM_WAIT_TIMEOUT_SECONDS
         self.wait_cancel_button = None
         self.no_display_label = None
         self.grab_status_label = None
         self.grab_active = False
+        # Serial console
+        self.console_stream = None
+        self.console_buffer = None
+        self.console_view = None
+        self.console_input = None
+        self.console_connected = False
+
+    def __del__(self):
+        """Destructor to ensure SSH tunnel cleanup on object destruction."""
+        self._cleanup_resources()
+
+    def _cleanup_resources(self):
+        """Clean up all resources (SSH tunnel, connections, etc.)."""
+        try:
+            # Stop SSH tunnel if active
+            self.stop_ssh_tunnel()
+        except Exception as e:
+            # Best effort cleanup - don't raise exceptions in destructor
+            if self.verbose:
+                print(f"Warning: Error during resource cleanup: {e}")
 
     def show_error_dialog(self, message):
         dialog = Gtk.MessageDialog(
@@ -144,8 +184,10 @@ class RemoteViewer(Gtk.Application):
                 GLib.source_remove(self.notification_timeout_id)
                 self.notification_timeout_id = None
 
-            # Set new timeout to hide after 5 seconds
-            self.notification_timeout_id = GLib.timeout_add_seconds(5, self._hide_notification)
+            # Set new timeout to hide after configured duration
+            self.notification_timeout_id = GLib.timeout_add_seconds(
+                self.NOTIFICATION_TIMEOUT_SECONDS, self._hide_notification
+            )
 
         elif message_type == Gtk.MessageType.ERROR:
             # Fallback if no window/infobar yet
@@ -327,26 +369,31 @@ class RemoteViewer(Gtk.Application):
             )
             return False
 
-        # Verify tunnel is established by checking if the process is still running
-        # and if the local port is listening
-        if not self._verify_ssh_tunnel():
-            return False
-
-        self.ssh_tunnel_active = True
-        self.log_message("SSH tunnel established successfully.")
+        # Start async verification (non-blocking)
+        self.log_message("SSH tunnel process started, verifying connection...")
+        self._verify_ssh_tunnel()
         return True
 
-    def _verify_ssh_tunnel(self, timeout=5):
+    def _verify_ssh_tunnel(self, timeout=None):
         """Verify that the SSH tunnel process started and local port is listening.
 
-        Returns True if tunnel is ready, False otherwise.
+        This is now non-blocking and uses GLib callbacks instead of time.sleep().
+        Returns True immediately and verification happens asynchronously.
         """
         import time
 
+        if timeout is None:
+            timeout = self.SSH_TUNNEL_VERIFY_TIMEOUT
+
+        # Store verification start time
         start_time = time.time()
 
-        while time.time() - start_time < timeout:
+        def check_tunnel_ready():
+            """Non-blocking callback to check tunnel status."""
             # Check if process died
+            if self.ssh_tunnel_process is None:
+                return False
+
             if self.ssh_tunnel_process.poll() is not None:
                 # Process exited, get error output
                 _, stderr = self.ssh_tunnel_process.communicate()
@@ -357,41 +404,78 @@ class RemoteViewer(Gtk.Application):
                     Gtk.MessageType.ERROR,
                 )
                 self.ssh_tunnel_process = None
+                self.ssh_tunnel_active = False
                 return False
 
             # Check if local port is now listening
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(0.5)
+                    s.settimeout(0.1)
                     result = s.connect_ex(("localhost", self.ssh_tunnel_local_port))
                     if result == 0:
-                        return True
+                        # Success - tunnel is ready
+                        self.ssh_tunnel_active = True
+                        self.log_message("SSH tunnel established successfully.")
+                        return False  # Stop checking
             except Exception:
                 pass
 
-            # Use non-blocking GLib.timeout instead of time.sleep
-            # to avoid freezing the UI
-            GLib.timeout_add(100, lambda: None)
-            time.sleep(0.1)
+            # Check timeout
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                # Timeout reached, but tunnel might still work
+                self.log_message("WARNING: SSH tunnel verification timed out, proceeding anyway.")
+                self.ssh_tunnel_active = True
+                return False  # Stop checking
 
-        # Timeout reached, tunnel may still be starting but took too long
-        self.log_message("WARNING: SSH tunnel verification timed out, proceeding anyway.")
+            # Continue checking
+            return True
+
+        # Start async verification with configured interval
+        GLib.timeout_add(self.TUNNEL_VERIFY_CHECK_INTERVAL_MS, check_tunnel_ready)
         return True
 
     def stop_ssh_tunnel(self, *args):
-        """Terminate the SSH tunnel process if active."""
+        """Terminate the SSH tunnel process if active.
+
+        This method is safe to call multiple times and handles cleanup robustly.
+        """
         if not self.ssh_tunnel_process:
             return
 
-        self.log_message("Terminating SSH tunnel")
-        self.ssh_tunnel_process.terminate()
         try:
-            self.ssh_tunnel_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            self.ssh_tunnel_process.kill()
-        self.ssh_tunnel_process = None
-        self.ssh_tunnel_active = False
-        self.log_message("SSH tunnel terminated.")
+            self.log_message("Terminating SSH tunnel")
+
+            # Check if process is still running before attempting termination
+            if self.ssh_tunnel_process.poll() is None:
+                # Process is still running, attempt graceful termination
+                self.ssh_tunnel_process.terminate()
+
+                try:
+                    # Wait for graceful shutdown
+                    self.ssh_tunnel_process.wait(timeout=self.SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT)
+                    self.log_message("SSH tunnel terminated gracefully.")
+                except subprocess.TimeoutExpired:
+                    # Force kill if graceful termination failed
+                    self.log_message("SSH tunnel did not respond to SIGTERM, sending SIGKILL")
+                    self.ssh_tunnel_process.kill()
+                    try:
+                        # Wait for kill to complete
+                        self.ssh_tunnel_process.wait(timeout=self.SSH_TUNNEL_KILL_TIMEOUT)
+                        self.log_message("SSH tunnel forcefully terminated.")
+                    except subprocess.TimeoutExpired:
+                        self.log_message("WARNING: SSH tunnel process may still be running")
+            else:
+                # Process already exited
+                self.log_message("SSH tunnel process already exited.")
+
+        except Exception as e:
+            # Log but don't raise - cleanup should be robust
+            self.log_message(f"WARNING: Error while stopping SSH tunnel: {e}")
+        finally:
+            # Always clean up our references
+            self.ssh_tunnel_process = None
+            self.ssh_tunnel_active = False
 
     def register_domain_events(self):
         if not self.conn or not self.domain:
@@ -442,7 +526,7 @@ class RemoteViewer(Gtk.Application):
             )
 
             # Start the event loop ticker
-            GLib.timeout_add(100, self._libvirt_event_tick)
+            GLib.timeout_add(self.LIBVIRT_EVENT_TICK_INTERVAL_MS, self._libvirt_event_tick)
             self.events_registered = True
             self.log_message("Registered for libvirt domain events.")
 
@@ -467,8 +551,8 @@ class RemoteViewer(Gtk.Application):
         if event_type == "Started":
             self.show_notification(f"VM '{dom.name()}' has started.", Gtk.MessageType.INFO)
             self.log_message("VM started, scheduling display connection...")
-            # Reduced from 3000ms to 1000ms for faster connection after VM start
-            GLib.timeout_add(1000, self.connect_display)
+            # Delay connection to allow VM display to initialize
+            GLib.timeout_add(self.VM_START_CONNECT_DELAY_MS, self.connect_display)
         elif event_type == "Suspended":
             self.show_notification(f"VM '{dom.name()}' is suspended.", Gtk.MessageType.WARNING)
         elif event_type == "Resumed":
@@ -736,7 +820,9 @@ class RemoteViewer(Gtk.Application):
             f"Waiting for VM to start... ({mins}m {secs}s remaining)", Gtk.MessageType.INFO
         )
 
-        self.wait_timeout_id = GLib.timeout_add_seconds(3, self._wait_and_connect_cb)
+        self.wait_timeout_id = GLib.timeout_add_seconds(
+            self.VM_WAIT_CHECK_INTERVAL_SECONDS, self._wait_and_connect_cb
+        )
 
     def show_viewer(self):
         # Allow viewer to start even if domain is not found
@@ -1101,7 +1187,57 @@ class RemoteViewer(Gtk.Application):
         # Connect tab-select signal to populate snapshots when the tab is switched to
         self.notebook.connect("switch-page", self.on_notebook_switch_page)
 
-        # Tab 4: Logs & Events
+        # Tab 4: Serial Console
+        self.console_tab = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        self.console_tab.set_border_width(10)
+        self.notebook.append_page(self.console_tab, Gtk.Label(label="Serial Console"))
+
+        # Console output
+        self.console_view = Gtk.TextView()
+        self.console_view.set_editable(False)
+        self.console_view.set_monospace(True)
+        self.console_view.set_wrap_mode(Gtk.WrapMode.CHAR)
+        self.console_buffer = self.console_view.get_buffer()
+
+        console_scroll = Gtk.ScrolledWindow()
+        console_scroll.set_vexpand(True)
+        console_scroll.add(self.console_view)
+        self.console_tab.pack_start(console_scroll, True, True, 0)
+
+        # Console input area
+        console_input_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.console_tab.pack_start(console_input_box, False, False, 0)
+
+        input_label = Gtk.Label(label="Input:")
+        console_input_box.pack_start(input_label, False, False, 0)
+
+        self.console_input = Gtk.Entry()
+        self.console_input.set_placeholder_text("Type command and press Enter...")
+        self.console_input.connect("activate", self.on_console_input_activate)
+        console_input_box.pack_start(self.console_input, True, True, 0)
+
+        # Console control buttons
+        console_buttons_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.console_tab.pack_start(console_buttons_box, False, False, 0)
+
+        self.console_connect_button = Gtk.Button(label="Connect to Console")
+        self.console_connect_button.connect("clicked", self.on_console_connect_clicked)
+        console_buttons_box.pack_start(self.console_connect_button, True, True, 0)
+
+        self.console_disconnect_button = Gtk.Button(label="Disconnect Console")
+        self.console_disconnect_button.connect("clicked", self.on_console_disconnect_clicked)
+        self.console_disconnect_button.set_sensitive(False)
+        console_buttons_box.pack_start(self.console_disconnect_button, True, True, 0)
+
+        console_clear_button = Gtk.Button(label="Clear Output")
+        console_clear_button.connect("clicked", self.on_console_clear_clicked)
+        console_buttons_box.pack_start(console_clear_button, True, True, 0)
+
+        console_help_button = Gtk.Button(label="Help")
+        console_help_button.connect("clicked", self.on_console_help_clicked)
+        console_buttons_box.pack_start(console_help_button, True, True, 0)
+
+        # Tab 5: Logs & Events
         self.log_view = Gtk.TextView()
         self.log_view.set_editable(False)
         self.log_view.set_monospace(True)
@@ -1120,8 +1256,8 @@ class RemoteViewer(Gtk.Application):
 
         # Fullscreen management via key-press-event signal
         self.window.connect("key-press-event", self.on_key_press)
-        # Ensure SSH tunnel is stopped if window is destroyed
-        self.window.connect("destroy", self.stop_ssh_tunnel)
+        # Ensure all resources are cleaned up when window is destroyed
+        self.window.connect("destroy", self._cleanup_resources)
 
         # Apply initial fullscreen state
         if self.is_fullscreen:
@@ -1478,8 +1614,10 @@ class RemoteViewer(Gtk.Application):
                     host = "localhost"
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
-                    # Reduced from 2 seconds to 500ms for faster tunnel utilization
-                    GLib.timeout_add(500, self._do_spice_connect, host, port, password)
+                    # Delay connection to allow tunnel to establish
+                    GLib.timeout_add(
+                        self.SSH_TUNNEL_CONNECT_DELAY_MS, self._do_spice_connect, host, port, password
+                    )
                     return False
                 self._do_spice_connect(host, port, password)
 
@@ -1490,8 +1628,10 @@ class RemoteViewer(Gtk.Application):
                     host = "localhost"
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
-                    # Reduced from 2 seconds to 500ms for faster tunnel utilization
-                    GLib.timeout_add(500, self._do_vnc_connect, host, port, force)
+                    # Delay connection to allow tunnel to establish
+                    GLib.timeout_add(
+                        self.SSH_TUNNEL_CONNECT_DELAY_MS, self._do_vnc_connect, host, port, force
+                    )
                     return False
                 self._do_vnc_connect(host, port, force)
 
@@ -1617,8 +1757,8 @@ class RemoteViewer(Gtk.Application):
             if self.verbose:
                 print("Pending reconnect detected, reconnecting in 500ms...")
             self.reconnect_pending = False
-            # Reduced delay to 500ms for faster reconnection after forced close
-            GLib.timeout_add(500, self.connect_display)
+            # Delay reconnection briefly
+            GLib.timeout_add(self.RECONNECT_DELAY_MS, self.connect_display)
             return
 
         self.check_shutdown()
@@ -1662,19 +1802,25 @@ class RemoteViewer(Gtk.Application):
                 self.log_message(f"Clipboard: Sent {len(text)} characters to guest (VNC)")
 
     def on_push_clipboard(self, button, popover):
+        """Push host clipboard to guest (non-blocking)."""
         popover.popdown()
-        text = self.clipboard.wait_for_text()
-        if text:
-            if self.protocol == "vnc" and self.vnc_display and self.vnc_display.is_open():
-                self.vnc_display.client_cut_text(text)
-                self.log_message(
-                    f"Clipboard: Manually pushed {len(text)} characters to guest (VNC)"
-                )
-            elif self.protocol == "spice" and self.spice_gtk_session:
-                # Spice auto-clipboard should handle it, but we can try to force it if needed
-                self.log_message("Clipboard: SPICE auto-clipboard should sync automatically.")
-        else:
-            self.show_notification("Local clipboard is empty.", Gtk.MessageType.WARNING)
+
+        def on_clipboard_received(clipboard, text):
+            """Async callback when clipboard text is retrieved."""
+            if text:
+                if self.protocol == "vnc" and self.vnc_display and self.vnc_display.is_open():
+                    self.vnc_display.client_cut_text(text)
+                    self.log_message(
+                        f"Clipboard: Manually pushed {len(text)} characters to guest (VNC)"
+                    )
+                elif self.protocol == "spice" and self.spice_gtk_session:
+                    # Spice auto-clipboard should handle it, but we can try to force it if needed
+                    self.log_message("Clipboard: SPICE auto-clipboard should sync automatically.")
+            else:
+                self.show_notification("Local clipboard is empty.", Gtk.MessageType.WARNING)
+
+        # Non-blocking async clipboard request
+        self.clipboard.request_text(on_clipboard_received)
 
     def on_pull_clipboard(self, button, popover):
         popover.popdown()
@@ -1784,10 +1930,11 @@ class RemoteViewer(Gtk.Application):
         if not hasattr(self, "notebook"):
             return
 
-        # Page numbers: 0=Display, 1=Snapshots, 2=USB Devices, 3=Logs & Events
+        # Page numbers: 0=Display, 1=Snapshots, 2=USB Devices, 3=Serial Console, 4=Logs & Events
         snapshots_page_num = 1
         usb_page_num = 2
-        logs_page_num = 3
+        console_page_num = 3
+        logs_page_num = 4
 
         if self.show_logs:
             self.notebook.get_nth_page(logs_page_num).show()
@@ -1795,11 +1942,13 @@ class RemoteViewer(Gtk.Application):
                 snapshots_page_num
             ).show()  # Show snapshots too if logs are visible
             self.notebook.get_nth_page(usb_page_num).show()  # Show USB tab
+            self.notebook.get_nth_page(console_page_num).show()  # Show Console tab
             self.notebook.set_show_tabs(True)
         else:
             self.notebook.get_nth_page(logs_page_num).hide()
             self.notebook.get_nth_page(snapshots_page_num).hide()
             self.notebook.get_nth_page(usb_page_num).hide()  # Hide USB tab
+            self.notebook.get_nth_page(console_page_num).hide()  # Hide Console tab
             self.notebook.set_show_tabs(False)
 
         # Always default to Display tab when toggling or at startup
@@ -2541,8 +2690,363 @@ class RemoteViewer(Gtk.Application):
             while Gtk.events_pending():
                 Gtk.main_iteration()
 
+    def on_console_connect_clicked(self, button):
+        """Connect to the serial console"""
+        if not self.domain:
+            self.show_notification(
+                "No domain available for console connection.", Gtk.MessageType.ERROR
+            )
+            return
+
+        if self.console_connected:
+            self.show_notification("Console already connected.", Gtk.MessageType.INFO)
+            return
+
+        try:
+            self.log_message("Connecting to serial console...")
+            # Open console stream (usually serial0 or console.0)
+            # Try common console names
+            console_names = ["serial0", "console.0", "console"]
+
+            for console_name in console_names:
+                try:
+                    self.console_stream = self.conn.newStream(libvirt.VIR_STREAM_NONBLOCK)
+                    self.domain.openConsole(console_name, self.console_stream, 0)
+                    self.log_message(f"Connected to console: {console_name}")
+                    break
+                except libvirt.libvirtError as e:
+                    if "not found" in str(e).lower() or "does not exist" in str(e).lower():
+                        continue
+                    else:
+                        raise
+
+            if not self.console_stream:
+                raise libvirt.libvirtError("No serial console device found")
+
+            # Set up stream callbacks
+            self.console_stream.eventAddCallback(
+                libvirt.VIR_STREAM_EVENT_READABLE, self._console_stream_callback, None
+            )
+
+            self.console_connected = True
+            self.console_connect_button.set_sensitive(False)
+            self.console_disconnect_button.set_sensitive(True)
+            self.console_input.set_sensitive(True)
+            self.show_notification("Serial console connected.", Gtk.MessageType.INFO)
+
+            # Start receiving data
+            GLib.timeout_add(100, self._console_receive_data)
+
+        except libvirt.libvirtError as e:
+            self.log_message(f"Failed to connect to console: {e}")
+            self.show_notification(f"Failed to connect to console: {e}", Gtk.MessageType.ERROR)
+            if self.console_stream:
+                try:
+                    self.console_stream.finish()
+                except:
+                    pass
+                self.console_stream = None
+
+    def on_console_disconnect_clicked(self, button):
+        """Disconnect from the serial console"""
+        if not self.console_connected:
+            return
+
+        try:
+            if self.console_stream:
+                self.console_stream.eventRemoveCallback()
+                self.console_stream.finish()
+                self.console_stream = None
+
+            self.console_connected = False
+            self.console_connect_button.set_sensitive(True)
+            self.console_disconnect_button.set_sensitive(False)
+            self.console_input.set_sensitive(False)
+            self.log_message("Serial console disconnected.")
+            self.show_notification("Serial console disconnected.", Gtk.MessageType.INFO)
+
+        except Exception as e:
+            self.log_message(f"Error disconnecting console: {e}")
+
+    def on_console_clear_clicked(self, button):
+        """Clear the console output buffer"""
+        if self.console_buffer:
+            self.console_buffer.set_text("")
+
+    def on_console_input_activate(self, entry):
+        """Handle Enter key in console input"""
+        if not self.console_connected or not self.console_stream:
+            self.show_notification("Console not connected.", Gtk.MessageType.WARNING)
+            return
+
+        text = entry.get_text()
+        if not text:
+            return
+
+        try:
+            # Send text with newline
+            data = (text + "\n").encode("utf-8")
+            self.console_stream.send(data)
+            entry.set_text("")  # Clear input
+
+            # Echo to console output
+            self._append_console_text(f"> {text}\n")
+
+        except libvirt.libvirtError as e:
+            self.log_message(f"Failed to send to console: {e}")
+            self.show_notification(f"Failed to send to console: {e}", Gtk.MessageType.ERROR)
+
+    def _console_stream_callback(self, stream, events, opaque):
+        """Callback for console stream events"""
+        # This is called by libvirt when data is available
+        return
+
+    def _console_receive_data(self):
+        """Periodically receive data from console stream"""
+        if not self.console_connected or not self.console_stream:
+            return False  # Stop the timer
+
+        try:
+            # Try to receive data
+            data = self.console_stream.recv(4096)
+            if data:
+                text = data.decode("utf-8", errors="replace")
+                self._append_console_text(text)
+        except libvirt.libvirtError as e:
+            # Check if it's just no data available
+            if "no data available" not in str(e).lower():
+                self.log_message(f"Console receive error: {e}")
+        except Exception as e:
+            self.log_message(f"Console receive error: {e}")
+
+        # Continue receiving
+        return self.console_connected
+
+    def _append_console_text(self, text):
+        """Append text to console buffer and auto-scroll"""
+        if not self.console_buffer:
+            return
+
+        end_iter = self.console_buffer.get_end_iter()
+        self.console_buffer.insert(end_iter, text)
+
+        # Auto-scroll to bottom
+        mark = self.console_buffer.create_mark(None, end_iter, False)
+        self.console_view.scroll_to_mark(mark, 0.0, True, 0.0, 1.0)
+
+    def on_console_help_clicked(self, button):
+        """Show help dialog for serial console configuration"""
+        dialog = Gtk.Dialog(
+            title="Serial Console Configuration Help",
+            parent=self.window,
+            flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
+        )
+        dialog.add_button(Gtk.STOCK_CLOSE, Gtk.ResponseType.CLOSE)
+        dialog.set_default_size(700, 600)
+
+        content_area = dialog.get_content_area()
+        content_area.set_border_width(10)
+
+        # Scrollable window for help text
+        scroll = Gtk.ScrolledWindow()
+        scroll.set_vexpand(True)
+        scroll.set_hexpand(True)
+        content_area.pack_start(scroll, True, True, 0)
+
+        # TextView with help content
+        text_view = Gtk.TextView()
+        text_view.set_editable(False)
+        text_view.set_wrap_mode(Gtk.WrapMode.WORD)
+        text_view.set_left_margin(10)
+        text_view.set_right_margin(10)
+        text_view.set_top_margin(10)
+        text_view.set_bottom_margin(10)
+        text_view.set_monospace(False)
+
+        buffer = text_view.get_buffer()
+
+        help_text = """SERIAL CONSOLE CONFIGURATION GUIDE
+
+The serial console allows text-based access to your VM, useful for troubleshooting, viewing boot messages, and accessing headless VMs.
+
+═══════════════════════════════════════════════════════════════
+
+REQUIREMENTS
+
+1. VM must have a serial device configured (usually already present)
+2. Guest OS must redirect output to serial port
+3. Getty service must run on serial port for interactive login
+
+═══════════════════════════════════════════════════════════════
+
+CONFIGURATION STEPS
+
+For Linux VMs (systemd-based: RHEL, CentOS, Fedora, Debian, Ubuntu, openSUSE):
+
+1. ENABLE SERIAL GETTY (for interactive login prompt):
+   
+   Inside the VM, run:
+   
+   sudo systemctl enable serial-getty@ttyS0.service
+   sudo systemctl start serial-getty@ttyS0.service
+
+2. CONFIGURE GRUB BOOTLOADER (for boot messages and GRUB access):
+   
+   Edit /etc/default/grub and add/modify:
+   
+   GRUB_CMDLINE_LINUX="console=tty0 console=ttyS0,115200n8"
+   GRUB_TERMINAL="console serial"
+   GRUB_SERIAL_COMMAND="serial --speed=115200 --unit=0"
+   
+   Then regenerate GRUB configuration:
+   
+   # For RHEL/CentOS/Fedora/openSUSE:
+   sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+   
+   # For Debian/Ubuntu:
+   sudo update-grub
+
+3. REBOOT THE VM:
+   
+   sudo reboot
+
+═══════════════════════════════════════════════════════════════
+
+FOR OPENSUSE SPECIFIC:
+
+Using YaST (recommended):
+   
+   sudo yast2 bootloader
+   
+   Navigate to "Kernel Parameters" and add:
+   console=tty0 console=ttyS0,115200
+   
+   Or manually edit /etc/default/grub as shown above, then:
+   
+   sudo grub2-mkconfig -o /boot/grub2/grub.cfg
+   sudo systemctl enable serial-getty@ttyS0.service
+   sudo systemctl start serial-getty@ttyS0.service
+
+═══════════════════════════════════════════════════════════════
+
+FOR OLDER SYSV INIT SYSTEMS:
+
+Edit /etc/inittab and add:
+   
+   s0:2345:respawn:/sbin/getty -L ttyS0 115200 vt102
+   
+Then reload init:
+   
+   sudo init q
+
+═══════════════════════════════════════════════════════════════
+
+VERIFY CONFIGURATION
+
+After rebooting the VM:
+
+1. Click "Connect to Console" button
+2. Press Enter a few times
+3. You should see a login prompt:
+   
+   hostname login: _
+
+If you only see boot messages but no login prompt, the getty service may not be running.
+
+═══════════════════════════════════════════════════════════════
+
+USING THE SERIAL CONSOLE
+
+• Type commands in the input field and press Enter
+• View output in the scrollable text area above
+• Use "Clear Output" to clean up the display
+• Use "Disconnect Console" when finished
+
+COMMON COMMANDS:
+   - Login with your username/password
+   - Use any standard Linux shell commands
+   - View logs: journalctl -f, dmesg, tail -f /var/log/messages
+   - System control: reboot, poweroff, systemctl status
+   - Network: ip addr show, ping, ss -tulpn
+
+SPECIAL KEYS:
+   - Ctrl+C: Interrupt running command
+   - Ctrl+D: Logout/EOF
+   - Ctrl+Z: Suspend process
+
+═══════════════════════════════════════════════════════════════
+
+TROUBLESHOOTING
+
+• No output after connecting:
+  → VM may not have serial console configured
+  → Check that getty service is enabled and running
+  → Verify kernel parameters include console=ttyS0
+
+• Connection fails:
+  → VM may not have serial device in XML configuration
+  → Check VM is running
+  → Try connecting via graphical display first
+
+• Only boot messages (no login):
+  → Getty service not running on ttyS0
+  → Enable serial-getty@ttyS0.service
+
+═══════════════════════════════════════════════════════════════
+
+CHECKING VM XML CONFIGURATION
+
+To verify the VM has a serial device, check domain XML:
+   
+   virsh dumpxml <vm-name> | grep -A5 serial
+   
+Should show:
+   
+   <serial type='pty'>
+     <target type='isa-serial' port='0'/>
+   </serial>
+   <console type='pty'>
+     <target type='serial' port='0'/>
+   </console>
+
+If missing, add via: virsh edit <vm-name>
+
+═══════════════════════════════════════════════════════════════
+
+For more information, consult your Linux distribution's documentation on serial console configuration.
+"""
+
+        buffer.set_text(help_text)
+
+        # Apply some basic formatting
+        # Make headers bold
+        start = buffer.get_start_iter()
+        end = buffer.get_end_iter()
+
+        # Create tags for formatting
+        bold_tag = buffer.create_tag("bold", weight=700)
+        header_tag = buffer.create_tag("header", weight=700, scale=1.2)
+        code_tag = buffer.create_tag("code", family="monospace", background="#f5f5f5")
+
+        # Apply header tag to first line
+        first_line_end = buffer.get_iter_at_line(1)
+        buffer.apply_tag(header_tag, start, first_line_end)
+
+        scroll.add(text_view)
+
+        dialog.show_all()
+        dialog.run()
+        dialog.destroy()
+
     def do_shutdown(self):
-        """Cleanup SSH tunnel on application shutdown"""
+        """Cleanup SSH tunnel and console on application shutdown"""
+        # Disconnect console if connected
+        if self.console_connected:
+            try:
+                self.on_console_disconnect_clicked(None)
+            except:
+                pass
+
         self.stop_ssh_tunnel()  # Call the unified cleanup method
         Gtk.Application.do_shutdown(self)
 
