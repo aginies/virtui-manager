@@ -43,6 +43,11 @@ class AlpineProvider(OSProvider):
         """Return the OS type for Alpine Linux."""
         return OSType.ALPINE
 
+    @property
+    def preferred_boot_uefi(self) -> bool:
+        """Alpine Linux prefers BIOS for standard installs (syslinux)."""
+        return False
+
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Alpine Linux versions."""
         versions = []
@@ -179,31 +184,37 @@ class AlpineProvider(OSProvider):
                 template_content = f.read()
             answers_content = self._substitute_variables(template_content, config)
 
-        # Create the apkovl tarball
-        # Standard Alpine search pattern for apkovl over HTTP is hostname.apkovl.tar.gz
-        # but we serve it with a unique name from VMProvisioner.
-        output_file = output_path / "alpine.apkovl.tar.gz"
+        # Default to apkovl tarball for full automation
+        output_file = output_path / "localhost.apkovl.tar.gz"
         
         # We create the tarball in memory first then write to file
         with tarfile.open(output_file, "w:gz") as tar:
+            # 1. Add answers.txt
             answers_data = answers_content.encode("utf-8")
+            # We put it in root/ so it's easily found by the trigger script
             answers_info = tarfile.TarInfo(name="root/answers.txt")
             answers_info.size = len(answers_data)
             answers_info.mtime = int(datetime.now().timestamp())
             tar.addfile(answers_info, BytesIO(answers_data))
 
+            # 2. Add trigger script
             trigger_script = f"""#!/bin/sh
 # Unattended Alpine Linux Installation
 # Triggered by VirtUI Manager
 
-# Ensure we don't run multiple times if rebooted into ISO
+# Ensure we don't run multiple times
 if [ -f /tmp/alpine-install-started ]; then
     exit 0
 fi
 touch /tmp/alpine-install-started
 
-# Send output to console so it's visible in the viewer
-#exec > /dev/console 2>&1
+# Send output to console
+for cons in /dev/console /dev/tty0 /dev/ttyS0; do
+    if [ -c "$cons" ]; then
+        exec > "$cons" 2>&1
+        break
+    fi
+done
 
 echo ""
 echo "####################################################"
@@ -211,26 +222,28 @@ echo "# Starting unattended Alpine Linux installation... #"
 echo "####################################################"
 echo ""
 
-#setup-keymap {config.get('keyboard')} {config.get('keyboard')}
-
 # Give the system a moment to fully settle
-#sleep 2
+sleep 2
 
-# Run setup-alpine with the answers file. 
-#yes y | setup-alpine -f /root/answers.txt
-#setup-alpine -f /root/answers.txt
-
+echo "Initializing hardware drivers..."
 /etc/init.d/devfs restart
 /etc/init.d/modloop start
 /etc/init.d/hwdrivers start
 
-# set root and username password
+echo "Executing setup-alpine -f /root/answers.txt..."
+# Use 'yes y' to catch prompts
+yes y | setup-alpine -f /root/answers.txt
+
+# Set root and user password
 echo "root:{config.get('root_password', 'password')}" | chpasswd
 echo "{config.get('username')}:{config.get('user_password', 'password')}" | chpasswd
 
 echo ""
-#echo "Installation complete. Rebooting in 5 seconds..."
-#sleep 5
+echo "####################################################"
+echo "# Installation complete. Rebooting in 5 seconds... #"
+echo "####################################################"
+echo ""
+sleep 5
 #/sbin/reboot
 """
             script_data = trigger_script.encode("utf-8")
@@ -240,8 +253,7 @@ echo ""
             script_info.mode = 0o755  # Executable
             tar.addfile(script_info, BytesIO(script_data))
 
-            # 3. Add a symlink to ensure 'local' service is enabled in default runlevel
-            # Standard Alpine ISO might not have it enabled in the live environment.
+            # 3. Add a symlink to ensure 'local' service is enabled
             symlink_info = tarfile.TarInfo(name="etc/runlevels/default/local")
             symlink_info.type = tarfile.SYMTYPE
             symlink_info.linkname = "/etc/init.d/local"
