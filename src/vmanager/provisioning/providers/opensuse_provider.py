@@ -464,10 +464,10 @@ class OpenSUSEProvider(OSProvider):
         # Strip whitespace from passwords (can come from config files with newlines)
         if "root_password" in variables and variables["root_password"]:
             variables["root_password"] = hash_password(variables["root_password"].strip())
-        
+
         if "user_password" in variables and variables["user_password"]:
             variables["user_password"] = hash_password(variables["user_password"].strip())
-        
+
         # Alias username to user_name for compatibility between Agama and AutoYaST
         if "username" in user_config and "user_name" not in user_config:
             variables["user_name"] = user_config["username"]
@@ -491,7 +491,11 @@ class OpenSUSEProvider(OSProvider):
 
         # Write to output file with restrictive permissions
         output_file = output_path / output_filename
-        with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
+        with open(
+            os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600),
+            "w",
+            encoding="utf-8",
+        ) as f:
             f.write(content)
 
         version_name = version.display_name if version else "OpenSUSE"
@@ -499,6 +503,37 @@ class OpenSUSEProvider(OSProvider):
             f"Generated {output_filename} using template {template_filename} for {version_name} at {output_file}"
         )
         return output_file
+
+    def _get_opensuse_product_name(self, version: OSVersion) -> str:
+        """
+        Map OSVersion to Agama product ID.
+
+        Returns the appropriate product ID for Agama based on the version:
+        - Tumbleweed: "Tumbleweed"
+        - Slowroll: "Slowroll"
+        - Leap: "openSUSE_Leap" (all Leap versions use the same product name)
+        - Leap Micro: "openSUSE_Leap_Micro"
+        - Default: "Tumbleweed" (safest fallback)
+
+        Note: Agama product names don't include version numbers for Leap.
+        """
+        version_id = version.version_id.lower()
+
+        if "tumbleweed" in version_id:
+            return "Tumbleweed"
+        elif "slowroll" in version_id:
+            return "Slowroll"
+        elif "leap" in version_id and "micro" in version_id:
+            return "openSUSE_Leap_Micro"
+        elif "leap" in version_id:
+            return "openSUSE_Leap"
+        elif "microos" in version_id or "micro" in version_id:
+            # Regular MicroOS (not Leap Micro)
+            return "openSUSE Micro OS"
+        else:
+            # Default fallback
+            self.logger.warning(f"Unknown version {version_id}, defaulting to Tumbleweed product")
+            return "Tumbleweed"
 
     def _generate_agama_json(
         self,
@@ -529,6 +564,18 @@ class OpenSUSEProvider(OSProvider):
             except Exception as e:
                 self.logger.error(f"Error reading built-in JSON template: {e}")
                 raise Exception(f"Failed to read JSON template: {e}")
+
+        # Add OpenSUSE product name for Agama based on version
+        if "OPENSUSE_PRODUCT_NAME" not in variables:
+            if version:
+                variables["OPENSUSE_PRODUCT_NAME"] = self._get_opensuse_product_name(version)
+                self.logger.info(f"Set Agama product ID to: {variables['OPENSUSE_PRODUCT_NAME']}")
+            else:
+                # Default to Tumbleweed if no version information available
+                variables["OPENSUSE_PRODUCT_NAME"] = "Tumbleweed"
+                self.logger.warning(
+                    "No version information available, defaulting Agama product to Tumbleweed"
+                )
 
         # Use replace instead of format() to avoid conflicts with JSON curly braces
         for key, value in variables.items():
