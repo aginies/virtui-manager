@@ -211,19 +211,21 @@ echo "# Starting unattended Alpine Linux installation... #"
 echo "####################################################"
 echo ""
 
-# Pre-set root password
-echo "root:{config.get('root_password', 'password')}" | chpasswd
 
 # Set environment variables that setup-alpine respects to skip prompts
 export ERASE_DISK=y
-export ROOT_PASSWORD="{config.get('root_password', 'password')}"
+setup-keymap {config.get('keyboard')} {config.get('keyboard')}
 
 # Give the system a moment to fully settle
 sleep 2
 
 # Run setup-alpine with the answers file. 
-#yes y | setup-alpine -f /root/answers.txt
-setup-alpine -f /root/answers.txt
+yes y | setup-alpine -f /root/answers.txt
+#setup-alpine -f /root/answers.txt
+
+# set root and username password
+echo "root:{config.get('root_password', 'password')}" | chpasswd
+echo "{config.get('username')}:{config.get('user_password', 'password')}" | chpasswd
 
 echo ""
 #echo "Installation complete. Rebooting in 5 seconds..."
