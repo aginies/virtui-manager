@@ -351,12 +351,26 @@ class RemoteViewer(Gtk.Application):
             self.window_builder.get_lossy_check()
         )
 
+        # Adapter to provide the grab handler interface expected by DisplayManager
+        class _GrabHandlerAdapter:
+            def __init__(self, callback):
+                self._callback = callback
+
+            def on_keyboard_grab_activated(self, *args, **kwargs):
+                self._callback(*args, **kwargs)
+
+            def on_keyboard_grab_deactivated(self, *args, **kwargs):
+                self._callback(*args, **kwargs)
+
+            def on_spice_grab_changed(self, *args, **kwargs):
+                self._callback(*args, **kwargs)
+
         # Initialize display (already adds to view_container internally)
         self.display_manager.init_display(
             domain=self.domain,
             ssh_tunnel_manager=self.ssh_tunnel_manager,
             view_only_handler=self._on_view_only_changed,
-            grab_handler=self._on_grab_changed,
+            grab_handler=_GrabHandlerAdapter(self._on_grab_changed),
         )
 
         # Apply initial display settings
