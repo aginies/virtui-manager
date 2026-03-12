@@ -34,15 +34,11 @@ def cmd_main():
 def remote_viewer_main():
     """Entry point for the remote viewer application (GTK3)."""
     try:
-        from vmanager import remote_viewer
+        from vmanager.viewer import main
 
-        if hasattr(remote_viewer, "main"):
-            remote_viewer.main()
-        else:
-            print("Error: remote_viewer module has no 'main' function.")
-            sys.exit(1)
+        main()
     except ImportError as e:
-        print(f"Error importing remote_viewer: {e}")
+        print(f"Error importing viewer: {e}")
         sys.exit(1)
 
 
