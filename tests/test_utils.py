@@ -18,10 +18,23 @@ from vmanager.utils import (
     setup_logging,
     setup_cache_monitoring,
     extract_server_name_from_uri,
+    strip_ansi_codes,
 )
 
 
 class TestUtils(unittest.TestCase):
+    def test_strip_ansi_codes(self):
+        """Test stripping ANSI escape codes."""
+        # Test basic colors
+        self.assertEqual(strip_ansi_codes("\x1B[31mRed Text\x1B[0m"), "Red Text")
+        # Test bold and colors
+        self.assertEqual(strip_ansi_codes("\x1B[1;32mBold Green\x1B[0m"), "Bold Green")
+        # Test complex sequence from user report
+        user_report = "\x1B[1;32m[\x1B]0;nixos@nixos: ~\x07nixos@nixos:~]$\x1B[0m"
+        self.assertEqual(strip_ansi_codes(user_report), "[nixos@nixos:~]$")
+        # Test normal text
+        self.assertEqual(strip_ansi_codes("Normal Text"), "Normal Text")
+
     def test_extract_server_name_from_uri(self):
         """Test extracting server name from URI."""
         # Test various URI formats
