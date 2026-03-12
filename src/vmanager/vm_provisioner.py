@@ -1075,7 +1075,7 @@ class VMProvisioner:
         disk_format: str | None = None,
         loader_path: str | None = None,
         nvram_path: str | None = None,
-        boot_uefi: bool = True,
+        boot_uefi: bool | None = None,
         automation_file_path: str | None = None,
         auto_url: str | None = None,
         kernel_path: str | None = None,
@@ -1088,6 +1088,11 @@ class VMProvisioner:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
+        # If boot_uefi is None, use provider preference
+        if boot_uefi is None:
+            provider = self.provider_registry.get_provider(os_type)
+            boot_uefi = provider.preferred_boot_uefi if provider else True
+
         settings = self._get_vm_settings(
             vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
         )
@@ -1132,8 +1137,8 @@ class VMProvisioner:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
                     cmdline = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
-                elif ".apkovl.tar.gz" in auto_url:
-                    # Alpine Linux apkovl automation (contains trigger script)
+                elif "alpine-" in auto_url and ".apkovl.tar.gz" in auto_url:
+                    # Alpine Linux apkovl automation
                     ver = os_version if os_version else "v3.23"
                     if not ver.startswith("v"):
                         ver = f"v{ver}"
@@ -1148,10 +1153,10 @@ class VMProvisioner:
                     ver = os_version if os_version else "v3.23"
                     if not ver.startswith("v"):
                         ver = f"v{ver}"
-                    # Use 'answerfile' and ensure networking is up with 'ip=dhcp'
+                    # Use 'apkovl' and ensure networking is up with 'ip=dhcp'
                     cmdline = (
                         f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
-                        f"answerfile={auto_url} "
+                        f"apkovl={auto_url} "
                         f"ip=dhcp "
                         f"setup_alpine_noninteractive=1 "
                     )
@@ -1276,6 +1281,7 @@ class VMProvisioner:
       <target dev='fda' bus='fdc'/>
       <readonly/>
     </disk>
+    <controller type='fdc' index='0'/>
 """
 
         # Interface
@@ -1389,15 +1395,16 @@ class VMProvisioner:
             self.logger.warning(f"Failed to determine host IP, using 192.168.122.1: {e}")
             return "192.168.122.1"
 
-    def _create_autoyast_floppy_image(self, autoyast_xml_path: str, output_dir: Path) -> str:
-        """Creates a FAT-formatted floppy image containing the autoyast.xml file."""
-        floppy_image_path = output_dir / "autoyast.img"
-        autoinst_xml_name = "autoinst.xml"
+    def _create_automation_floppy_image(
+        self, automation_file_path: str, output_dir: Path, internal_filename: str = "autoinst.xml"
+    ) -> str:
+        """Creates a FAT-formatted floppy image containing the automation file."""
+        floppy_image_path = output_dir / "automation.img"
 
         # Check for required tools
         if not all(shutil.which(cmd) for cmd in ["dd", "mkfs.vfat", "mcopy"]):
             raise Exception(
-                "XML-based AutoYaST requires 'dd', 'mkfs.vfat', and 'mtools' (for mcopy). "
+                "Floppy-based automation requires 'dd', 'mkfs.vfat', and 'mtools' (for mcopy). "
                 "Please install these utilities or use the virt-install method."
             )
 
@@ -1416,27 +1423,28 @@ class VMProvisioner:
             )
 
             # mcopy needs the file to be in the current directory to use ::/ syntax easily
-            # so we create a temp copy named autoinst.xml in the output dir
-            temp_autoinst_path = output_dir / autoinst_xml_name
-            shutil.copy(autoyast_xml_path, temp_autoinst_path)
+            # so we create a temp copy with the expected internal filename in the output dir
+            temp_file_path = output_dir / internal_filename
+            if Path(automation_file_path) != temp_file_path:
+                shutil.copy(automation_file_path, temp_file_path)
 
             # Use mcopy to copy the file into the root of the floppy image
             subprocess.run(
-                ["mcopy", "-i", str(floppy_image_path), str(temp_autoinst_path), "::/"],
+                ["mcopy", "-i", str(floppy_image_path), str(temp_file_path), "::/"],
                 check=True,
                 capture_output=True,
                 text=True,
             )
 
-            os.remove(temp_autoinst_path)  # Clean up temp copy
+            os.remove(temp_file_path)  # Clean up temp copy
 
-            self.logger.info(f"Successfully created Auto floppy image at {floppy_image_path}")
+            self.logger.info(f"Successfully created automation floppy image at {floppy_image_path}")
             return str(floppy_image_path)
 
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to create floppy image: {stderr}")
-            raise Exception(f"Failed to create Auto floppy image: {stderr}") from e
+            raise Exception(f"Failed to create automation floppy image: {stderr}") from e
 
     def _extract_iso_kernel_initrd(self, iso_path: str, arch: str) -> tuple[str, str]:
         """Extracts kernel and initrd from an openSUSE/SLES ISO."""
@@ -1958,29 +1966,21 @@ class VMProvisioner:
             elif "ks-" in auto_url and auto_url.endswith(".cfg"):
                 # Fedora kickstart automation
                 extra_args = f"inst.ks={auto_url}"
-            elif ".apkovl.tar.gz" in auto_url:
-                # Alpine Linux apkovl automation (contains trigger script)
+            elif "alpine-" in auto_url and (".apkovl.tar.gz" in auto_url or ".txt" in auto_url):
+                # Alpine Linux automation (apkovl or answers)
                 ver = os_version if os_version else "v3.23"
                 if not ver.startswith("v"):
                     ver = f"v{ver}"
+                
                 extra_args = (
                     f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
                     f"apkovl={auto_url} "
                     f"ip=dhcp "
                 )
-            elif "alpine-answers-" in auto_url and auto_url.endswith(".txt"):
-                # Alpine Linux answers automation
-                # Use version-specific repo if available
-                ver = os_version if os_version else "v3.23"
-                if not ver.startswith("v"):
-                    ver = f"v{ver}"
-                # Use 'answerfile' and ensure networking is up with 'ip=dhcp'
-                extra_args = (
-                    f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
-                    f"answerfile={auto_url} "
-                    f"ip=dhcp "
-                    f"setup_alpine_noninteractive=1 "
-                )
+                
+                if "alpine-answers-" in auto_url:
+                    # Add noninteractive flag for answers file installations
+                    extra_args += "setup_alpine_noninteractive=1 "
 
             elif auto_url.endswith(".cfg"):
                 if os_type in [OSType.UBUNTU, OSType.DEBIAN]:
@@ -2039,7 +2039,7 @@ class VMProvisioner:
         disk_size_gb: int = 8,
         disk_format: str | None = None,
         graphics_type: str = "spice",
-        boot_uefi: bool = True,
+        boot_uefi: bool | None = None,
         use_virt_install: bool = True,
         configure_before_install: bool = False,
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
@@ -2098,6 +2098,11 @@ class VMProvisioner:
                 os_type = OSType.ARCHLINUX
             elif "alpine" in iso_url_lower:
                 os_type = OSType.ALPINE
+
+        # If boot_uefi is None, use provider preference
+        if boot_uefi is None:
+            provider = self.provider_registry.get_provider(os_type)
+            boot_uefi = provider.preferred_boot_uefi if provider else True
 
         # Try to extract version for Alpine if possible
         if os_type == OSType.ALPINE:
@@ -2291,6 +2296,10 @@ class VMProvisioner:
                 )
                 is_alpine_template = any(keyword in template_name.lower() for keyword in ["alpine"])
 
+                # If Alpine BIOS, default to answers.txt template if generic one is used
+                if is_alpine_template and not boot_uefi and template_name == "autoyast-basic.xml":
+                    template_name = "alpine-answers-basic.txt"
+
                 if is_ubuntu_template:
                     provider = self.get_provider("ubuntu")
                 elif is_debian_template:
@@ -2408,10 +2417,20 @@ class VMProvisioner:
                         arch_path = temp_dir / "archinstall.json"
                         is_arch_json = arch_path.exists()
 
-                        # Check if this is Alpine Linux (has answers.txt or alpine.apkovl.tar.gz file)
+                        # Check if this is Alpine Linux (has answers.txt or localhost.apkovl.tar.gz file)
                         alpine_path = temp_dir / "answers.txt"
-                        alpine_apkovl_path = temp_dir / "alpine.apkovl.tar.gz"
-                        is_alpine_answers = alpine_path.exists() or alpine_apkovl_path.exists()
+                        alpine_apkovl_path = temp_dir / "localhost.apkovl.tar.gz"
+                        is_alpine_answers = (
+                            alpine_path.exists()
+                            or alpine_apkovl_path.exists()
+                            or (
+                                automation_file_path
+                                and (
+                                    "alpine" in str(automation_file_path).lower()
+                                    or "answers" in str(automation_file_path).lower()
+                                )
+                            )
+                        )
 
                         is_agama = False
                         if is_ubuntu_autoinstall:
@@ -2445,7 +2464,9 @@ class VMProvisioner:
                             shutil.copy(arch_path, autoinst_path)
                         elif alpine_apkovl_path.exists():
                             # Alpine Linux: serve the apkovl tarball (preferred for trigger script)
-                            self.logger.info("Detected Alpine Linux apkovl file (alpine.apkovl.tar.gz)")
+                            self.logger.info(
+                                "Detected Alpine Linux apkovl file (localhost.apkovl.tar.gz)"
+                            )
                             unique_id = uuid.uuid4().hex[:8]
                             autoinst_filename = f"alpine-{unique_id}.apkovl.tar.gz"
                             autoinst_path = temp_dir / autoinst_filename
@@ -2515,9 +2536,9 @@ class VMProvisioner:
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
                         self.logger.info(f"Arch Linux archinstall file available at: {auto_url}")
                     elif is_alpine_answers:
-                        # For Alpine Linux, point to the .txt file
+                        # For Alpine Linux, point to the .txt or .apkovl file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        self.logger.info(f"Alpine Linux answers file available at: {auto_url}")
+                        self.logger.info(f"Alpine Linux automation file available at: {auto_url}")
                     else:
                         # For OpenSUSE/Agama, point to specific file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
@@ -2795,11 +2816,20 @@ class VMProvisioner:
                 if should_use_floppy:
                     # Create floppy for OpenSUSE/AutoYaST or Alpine/answers
                     try:
-                        floppy_image_path = self._create_autoyast_floppy_image(
-                            automation_file_path, Path(os.path.dirname(automation_file_path))
+                        # Determine internal filename for floppy
+                        internal_filename = "autoinst.xml"
+                        if os_type == OSType.ALPINE:
+                            # Alpine looks for <hostname>.apkovl.tar.gz
+                            # Default hostname is localhost
+                            internal_filename = "localhost.apkovl.tar.gz"
+
+                        floppy_image_path = self._create_automation_floppy_image(
+                            automation_file_path,
+                            Path(os.path.dirname(automation_file_path)),
+                            internal_filename=internal_filename,
                         )
                         report("Uploading automation floppy image", 82)
-                        automation_vol_name = f"{vm_name}-autoyast.img"
+                        automation_vol_name = f"{vm_name}-automation.img"
                         final_automation_path = self.upload_file(
                             floppy_image_path, storage_pool_name, volume_name=automation_vol_name
                         )
