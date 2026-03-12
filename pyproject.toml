@@ -40,6 +40,7 @@ dependencies = [
     "markdown-it-py>=3.0.0",
     "packaging",
     "requests",
+    "netifaces",
 ]
 
 [project.optional-dependencies]
@@ -89,6 +90,7 @@ vmanager = [
     "provisioning/templates/*.yaml",
     "provisioning/templates/*.md",
     "provisioning/templates/*.json"
+    "provisioning/templates/*.txt"
 ]
 
 [tool.black]
