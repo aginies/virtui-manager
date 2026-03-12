@@ -89,7 +89,7 @@ vmanager = [
     "provisioning/templates/*.ks",
     "provisioning/templates/*.yaml",
     "provisioning/templates/*.md",
-    "provisioning/templates/*.json"
+    "provisioning/templates/*.json",
     "provisioning/templates/*.txt"
 ]
 
