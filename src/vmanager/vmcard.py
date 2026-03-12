@@ -234,6 +234,30 @@ class VMCard(Static):
             return f"{self.name} ({server_display})"
         return self.name
 
+    def _cancel_all_workers(self, uuid: str = None) -> None:
+        """
+        Cancels all workers associated with this VM card.
+
+        Args:
+            uuid: The internal_id to use for cancellation. If None, uses self.internal_id.
+        """
+        target_uuid = uuid or self.internal_id
+        if not target_uuid:
+            return
+
+        logging.debug(f"Cancelling all workers for VM: {target_uuid}")
+
+        # Cancel all 9 worker types
+        self.app.worker_manager.cancel(f"update_stats_{target_uuid}")
+        self.app.worker_manager.cancel(f"actions_state_{target_uuid}")
+        self.app.worker_manager.cancel(f"refresh_snapshot_tab_{target_uuid}")
+        self.app.worker_manager.cancel(f"snapshot_take_{target_uuid}")
+        self.app.worker_manager.cancel(f"snapshot_delete_fetch_{target_uuid}")
+        self.app.worker_manager.cancel(f"save_{target_uuid}")
+        self.app.worker_manager.cancel(f"delete_{target_uuid}")
+        self.app.worker_manager.cancel(f"xml_tooltip_{target_uuid}")
+        self.app.worker_manager.cancel(f"get_details_{target_uuid}")
+
     def _get_snapshot_tab_title(self, num_snapshots: int = -1) -> str:
         """Get snapshot tab title. Pass num_snapshots to avoid blocking libvirt call."""
         if num_snapshots == -1:
@@ -624,15 +648,7 @@ class VMCard(Static):
         """Called when internal_id changes (card reuse)."""
         if old_value and old_value != new_value:
             # Cancel ALL workers associated with the old VM to prevent stale operations
-            self.app.worker_manager.cancel(f"update_stats_{old_value}")
-            self.app.worker_manager.cancel(f"actions_state_{old_value}")
-            self.app.worker_manager.cancel(f"refresh_snapshot_tab_{old_value}")
-            self.app.worker_manager.cancel(f"snapshot_take_{old_value}")
-            self.app.worker_manager.cancel(f"snapshot_delete_fetch_{old_value}")
-            self.app.worker_manager.cancel(f"save_{old_value}")
-            self.app.worker_manager.cancel(f"delete_{old_value}")
-            self.app.worker_manager.cancel(f"xml_tooltip_{old_value}")
-            self.app.worker_manager.cancel(f"get_details_{old_value}")
+            self._cancel_all_workers(old_value)
 
             # Cancel any pending timers for actions state updates
             for timer in self._actions_update_timers:
@@ -783,16 +799,7 @@ class VMCard(Static):
         # Cancel ALL workers when card is unmounted
         if self.internal_id:
             try:
-                uuid = self.internal_id
-                self.app.worker_manager.cancel(f"update_stats_{uuid}")
-                self.app.worker_manager.cancel(f"actions_state_{uuid}")
-                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{uuid}")
-                self.app.worker_manager.cancel(f"snapshot_take_{uuid}")
-                self.app.worker_manager.cancel(f"snapshot_delete_fetch_{uuid}")
-                self.app.worker_manager.cancel(f"save_{uuid}")
-                self.app.worker_manager.cancel(f"delete_{uuid}")
-                self.app.worker_manager.cancel(f"xml_tooltip_{uuid}")
-                self.app.worker_manager.cancel(f"get_details_{uuid}")
+                self._cancel_all_workers()
             except Exception:
                 pass
 
@@ -821,19 +828,7 @@ class VMCard(Static):
         self._actions_update_timers.clear()
 
         # Cancel ALL running workers for this VM before card reuse
-        if self.internal_id:
-            try:
-                self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
-                self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
-                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{self.internal_id}")
-                self.app.worker_manager.cancel(f"snapshot_take_{self.internal_id}")
-                self.app.worker_manager.cancel(f"snapshot_delete_fetch_{self.internal_id}")
-                self.app.worker_manager.cancel(f"save_{self.internal_id}")
-                self.app.worker_manager.cancel(f"delete_{self.internal_id}")
-                self.app.worker_manager.cancel(f"xml_tooltip_{self.internal_id}")
-                self.app.worker_manager.cancel(f"get_details_{self.internal_id}")
-            except Exception:
-                pass
+        self._cancel_all_workers(self.internal_id)
 
         # Reset flags
         self._boot_device_checked = False
@@ -1627,9 +1622,7 @@ class VMCard(Static):
             if self.timer:
                 self.timer.stop()
                 self.timer = None
-        self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
-        self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
-        self.app.worker_manager.cancel(f"refresh_snapshot_tab_{self.internal_id}")
+        self._cancel_all_workers(self.internal_id)
 
     def _handle_stop_button(self) -> None:
         """Handles the stop button press."""
