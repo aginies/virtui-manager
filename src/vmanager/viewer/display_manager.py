@@ -315,6 +315,8 @@ class DisplayManager:
         if clipboard_handler:
             if hasattr(clipboard_handler, 'on_vnc_server_cut_text'):
                 self.vnc_display.connect("vnc-server-cut-text", clipboard_handler.on_vnc_server_cut_text)
+            elif hasattr(clipboard_handler, 'on_server_cut_text'):
+                self.vnc_display.connect("vnc-server-cut-text", clipboard_handler.on_server_cut_text)
         if grab_handler:
             if hasattr(grab_handler, 'on_keyboard_grab_activated'):
                 self.vnc_display.connect("vnc-grab-keyboard", grab_handler.on_keyboard_grab_activated)
