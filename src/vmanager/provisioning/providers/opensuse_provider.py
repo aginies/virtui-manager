@@ -30,7 +30,6 @@ class OpenSUSEDistro(Enum):
     TUMBLEWEED = "OpenSUSE Tumbleweed"
     SLOWROLL = "OpenSUSE Slowroll"
     STABLE = "OpenSUSE Stable (Leap)"
-    CURRENT = "OpenSUSE Current (Tumbleweed)"
     CUSTOM = "Custom ISO"
 
 
@@ -43,7 +42,6 @@ class OpenSUSEProvider(OSProvider):
         OpenSUSEDistro.TUMBLEWEED: "https://download.opensuse.org/tumbleweed/iso/",
         OpenSUSEDistro.SLOWROLL: "https://download.opensuse.org/slowroll/iso/",
         OpenSUSEDistro.STABLE: "https://download.opensuse.org/distribution/openSUSE-stable/offline/",
-        OpenSUSEDistro.CURRENT: "https://download.opensuse.org/distribution/openSUSE-current/installer/iso/",
     }
 
     def __init__(self, host_arch: str = "x86_64", cache_dir: Optional[Path] = None):
@@ -510,7 +508,7 @@ class OpenSUSEProvider(OSProvider):
 
         Returns the appropriate product ID for Agama based on the version:
         - Tumbleweed: "Tumbleweed"
-        - Slowroll: "Slowroll"
+        - Slowroll: "Slowroll" (Note: Slowroll uses AutoYaST, not Agama - this is a fallback)
         - Leap: "openSUSE_Leap" (all Leap versions use the same product name)
         - Leap Micro: "openSUSE_Leap_Micro"
         - Default: "Tumbleweed" (safest fallback)
@@ -902,7 +900,7 @@ class OpenSUSEProvider(OSProvider):
         - "Cached ISOs" → Show ALL templates (AutoYaST + Agama)
         - "OpenSUSE Leap" → Show ONLY AutoYaST templates
         - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
-        - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
+        - "OpenSUSE Slowroll" → Show ONLY AutoYaST templates (Slowroll uses AutoYaST, not Agama)
         - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
         - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
         - Custom repositories → Show ALL templates
@@ -926,12 +924,16 @@ class OpenSUSEProvider(OSProvider):
                     # OpenSUSE Leap → ONLY AutoYaST templates
                     show_autoyast = True
                     show_agama = False
-                elif distro in [OpenSUSEDistro.TUMBLEWEED, OpenSUSEDistro.SLOWROLL]:
-                    # OpenSUSE Tumbleweed/Slowroll → BOTH AutoYaST + Agama templates
+                elif distro == OpenSUSEDistro.SLOWROLL:
+                    # OpenSUSE Slowroll → ONLY AutoYaST templates (Slowroll uses AutoYaST, not Agama)
+                    show_autoyast = True
+                    show_agama = False
+                elif distro == OpenSUSEDistro.TUMBLEWEED:
+                    # OpenSUSE Tumbleweed → BOTH AutoYaST + Agama templates
                     show_autoyast = True
                     show_agama = True
-                elif distro in [OpenSUSEDistro.STABLE, OpenSUSEDistro.CURRENT]:
-                    # OpenSUSE Stable (Leap) / Current (Tumbleweed) → ONLY Agama templates
+                elif distro == OpenSUSEDistro.STABLE:
+                    # OpenSUSE Stable (Leap) → ONLY Agama templates
                     show_autoyast = False
                     show_agama = True
                 else:

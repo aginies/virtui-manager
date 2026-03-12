@@ -620,7 +620,7 @@ class InstallVMModal(BaseModal[str | None]):
         - "Cached ISOs" → Show ALL templates (AutoYaST + Agama + Ubuntu + Debian)
         - "OpenSUSE Leap" → Show ONLY AutoYaST templates
         - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
-        - "OpenSUSE Slowroll" → Show BOTH AutoYaST + Agama templates
+        - "OpenSUSE Slowroll" → Show ONLY AutoYaST templates (Slowroll uses AutoYaST, not Agama)
         - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
         - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
         - "Ubuntu distributions" → Show ONLY Ubuntu autoinstall templates (cloud-init, NOT preseed)
@@ -636,12 +636,16 @@ class InstallVMModal(BaseModal[str | None]):
                 # OpenSUSE Leap → ONLY AutoYaST templates
                 show_autoyast = True
                 show_agama = False
-            elif distro in [OpenSUSEDistro.TUMBLEWEED, OpenSUSEDistro.SLOWROLL]:
-                # OpenSUSE Tumbleweed/Slowroll → BOTH AutoYaST + Agama templates
+            elif distro == OpenSUSEDistro.SLOWROLL:
+                # OpenSUSE Slowroll → ONLY AutoYaST templates (Slowroll uses AutoYaST, not Agama)
+                show_autoyast = True
+                show_agama = False
+            elif distro == OpenSUSEDistro.TUMBLEWEED:
+                # OpenSUSE Tumbleweed → BOTH AutoYaST + Agama templates
                 show_autoyast = True
                 show_agama = True
-            elif distro in [OpenSUSEDistro.STABLE, OpenSUSEDistro.CURRENT]:
-                # OpenSUSE Stable (Leap) / Current (Tumbleweed) → ONLY Agama templates
+            elif distro == OpenSUSEDistro.STABLE:
+                # OpenSUSE Stable (Leap) → ONLY Agama templates
                 show_autoyast = False
                 show_agama = True
             else:
@@ -964,8 +968,11 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Enforce UEFI for automated installations (except for Alpine Linux)
             from ..provisioning.providers.alpine_provider import AlpineDistro
+
             distro = self.query_one("#distro", Select).value
-            is_alpine = isinstance(distro, AlpineDistro) or (isinstance(distro, str) and "alpine" in distro.lower())
+            is_alpine = isinstance(distro, AlpineDistro) or (
+                isinstance(distro, str) and "alpine" in distro.lower()
+            )
 
             uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
             if should_enable:
