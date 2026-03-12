@@ -902,7 +902,6 @@ class OpenSUSEProvider(OSProvider):
         - "OpenSUSE Tumbleweed" → Show BOTH AutoYaST + Agama templates
         - "OpenSUSE Slowroll" → Show ONLY AutoYaST templates (Slowroll uses AutoYaST, not Agama)
         - "OpenSUSE Stable (Leap)" → Show ONLY Agama templates
-        - "OpenSUSE Current (Tumbleweed)" → Show ONLY Agama templates
         - Custom repositories → Show ALL templates
 
         Args:
