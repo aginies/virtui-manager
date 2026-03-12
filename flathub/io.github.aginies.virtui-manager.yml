@@ -337,6 +337,15 @@ modules:
         url: https://github.com/vim/vim/archive/v9.1.0950.tar.gz
         sha256: ff31083fdbdde49a1cd6e95ac751f194d75065d79c8d07d138a9c1afe3494b31
 
+  - name: netifaces
+    buildsystem: simple
+    build-commands:
+      - pip3 install --prefix=/app --no-deps --no-build-isolation .
+    sources:
+      - type: archive
+        url: https://files.pythonhosted.org/packages/a6/91/86a6eac449ddfae239e93ffc1918cf33fd9bab35c04d1e963b311e347a73/netifaces-0.11.0.tar.gz
+        sha256: 043a79146eb2907edf439899f262b3dfe41717d34124298ed281139a8b93ca32
+
   - name: virtui-manager
     buildsystem: simple
     build-commands:
