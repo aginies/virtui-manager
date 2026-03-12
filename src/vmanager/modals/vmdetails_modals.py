@@ -170,6 +170,7 @@ class VMDetailModal(ModalScreen):
         self.all_bootable_devices = []  # Initialize the new reactive list
         self.sev_caps = {"sev": False, "sev-es": False}
         self.uefi_path_map = {}
+        self.uefi_firmware_map = {}
         self.vm_service = self.app.vm_service
         self.xml_desc = self.vm_service._get_domain_xml(self.domain)
 
@@ -754,8 +755,13 @@ class VMDetailModal(ModalScreen):
         current_path = self.vm_info["firmware"].get("path")
         current_basename = os.path.basename(current_path) if current_path else None
 
+        self.uefi_firmware_map = {
+            os.path.basename(f.executable): f for f in uefi_files_to_show if f.executable
+        }
+
+        # For mapping paths (compatibility with existing logic)
         self.uefi_path_map = {
-            os.path.basename(f.executable): f.executable for f in uefi_files_to_show if f.executable
+            basename: f.executable for basename, f in self.uefi_firmware_map.items()
         }
 
         if current_basename and current_basename not in self.uefi_path_map:
@@ -766,6 +772,28 @@ class VMDetailModal(ModalScreen):
 
         if current_basename and any(opt[1] == current_basename for opt in uefi_options):
             uefi_select.value = current_basename
+            self._update_uefi_tooltip(current_basename)
+
+    def _update_uefi_tooltip(self, basename: str | None) -> None:
+        """Updates the tooltip for the UEFI selection widget."""
+        try:
+            uefi_select = self.query_one("#uefi-file-select", Select)
+            if not basename or basename not in self.uefi_firmware_map:
+                uefi_select.tooltip = None
+                return
+
+            fw = self.uefi_firmware_map[basename]
+            tooltip_parts = []
+            if fw.description:
+                tooltip_parts.append(f"Description: {fw.description}")
+            if fw.features:
+                tooltip_parts.append(f"Features: {', '.join(fw.features)}")
+            if fw.executable:
+                tooltip_parts.append(f"Path: {fw.executable}")
+
+            uefi_select.tooltip = "\n".join(tooltip_parts) if tooltip_parts else None
+        except Exception:
+            pass
 
     @on(Select.Changed)
     def on_network_change(self, event: Select.Changed) -> None:
@@ -837,6 +865,7 @@ class VMDetailModal(ModalScreen):
     @on(Select.Changed, "#uefi-file-select")
     def on_uefi_file_changed(self, event: Select.Changed) -> None:
         new_uefi_basename = event.value
+        self._update_uefi_tooltip(new_uefi_basename)
         new_uefi_path = self.uefi_path_map.get(new_uefi_basename)
         original_uefi_path = self.vm_info["firmware"].get("path")
         current_secure_boot = self.query_one("#secure-boot-checkbox", Checkbox).value
@@ -856,7 +885,10 @@ class VMDetailModal(ModalScreen):
                 msg_text = "File: "
 
             if not self.is_bulk:
-                self.query_one("#firmware-path-label").update(msg_text)
+                try:
+                    self.query_one("#firmware-path-label").update(msg_text)
+                except Exception:
+                    pass
                 self.vm_info["firmware"]["path"] = new_uefi_path
 
         msg_template = SuccessMessages.VM_UEFI_FILE_SET_SUCCESS.format(
@@ -1823,10 +1855,12 @@ class VMDetailModal(ModalScreen):
                             firmware_path = firmware_info.get("path")
 
                             yield Label(f"Firmware: {firmware_type}", id="firmware-type-label")
-                            # if firmware_path:
-                            #    yield Label(f"File: {os.path.basename(firmware_path)}", id="firmware-path-label")
 
                             if firmware_type == "UEFI":
+                                yield Label(
+                                    f"File: {os.path.basename(firmware_path) if firmware_path else ''}",
+                                    id="firmware-path-label",
+                                )
                                 yield Checkbox(
                                     "Secure Boot",
                                     value=firmware_info.get("secure_boot", False),

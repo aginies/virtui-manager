@@ -96,7 +96,10 @@ class AutoYaSTTemplateManager:
             # Also look for Arch Linux templates (archinstall-*.json files)
             arch_patterns = ["archinstall-*.json"]
 
-            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns + arch_patterns
+            # Also look for Alpine templates (alpine-answers-*.txt files)
+            alpine_patterns = ["alpine-answers-*.txt"]
+
+            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns + arch_patterns + alpine_patterns
             for pattern in all_patterns:
                 for template_file in self.TEMPLATES_DIR.glob(pattern):
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
@@ -984,6 +987,10 @@ class AutoYaSTTemplateManager:
                 "Basic System (Archinstall)",
                 "Basic Arch Linux installation using archinstall JSON configuration",
             ),
+            "alpine-answers-basic": (
+                "Basic System (Alpine)",
+                "Basic Alpine Linux installation using setup-alpine answers file",
+            ),
         }
 
         if template_name in info_map:
@@ -1016,6 +1023,11 @@ class AutoYaSTTemplateManager:
                 template_name.replace("archinstall-", "").replace("-", " ").title() + " (Archinstall)"
             )
             description = f"Custom Arch Linux archinstall template: {template_name}"
+        elif template_name.startswith("alpine-answers-"):
+            display_name = (
+                template_name.replace("alpine-answers-", "").replace("-", " ").title() + " (Alpine)"
+            )
+            description = f"Custom Alpine Linux answers template: {template_name}"
         else:
             display_name = (
                 template_name.replace("autoyast-", "").replace("-", " ").title() + " (AutoYaST)"

@@ -367,9 +367,12 @@ class RemoteViewer(Gtk.Application):
             except Exception:
                 pass
 
-            time.sleep(0.2)
+            # Use non-blocking GLib.timeout instead of time.sleep
+            # to avoid freezing the UI
+            GLib.timeout_add(100, lambda: None)
+            time.sleep(0.1)
 
-        # Timeout reached, tunnel may still be starting but taking too long
+        # Timeout reached, tunnel may still be starting but took too long
         self.log_message("WARNING: SSH tunnel verification timed out, proceeding anyway.")
         return True
 
@@ -462,8 +465,8 @@ class RemoteViewer(Gtk.Application):
         if event_type == "Started":
             self.show_notification(f"VM '{dom.name()}' has started.", Gtk.MessageType.INFO)
             self.log_message("VM started, scheduling display connection...")
-            # Schedule connection attempt (give some time for graphics to init)
-            GLib.timeout_add(3000, self.connect_display)
+            # Reduced from 3000ms to 1000ms for faster connection after VM start
+            GLib.timeout_add(1000, self.connect_display)
         elif event_type == "Suspended":
             self.show_notification(f"VM '{dom.name()}' is suspended.", Gtk.MessageType.WARNING)
         elif event_type == "Resumed":
@@ -1341,7 +1344,7 @@ class RemoteViewer(Gtk.Application):
             self.view_container.remove(self.no_display_label)
             self.no_display_label = None
 
-    def connect_display(self, force=False, password=None):
+    def connect_display(self, force=False, password=None, retry_count=0):
         """Attempts connection"""
         # Refresh domain object to ensure we have the latest handle (especially for live XML)
         if self.original_domain_uuid and self.conn:
@@ -1445,8 +1448,8 @@ class RemoteViewer(Gtk.Application):
                     host = "localhost"
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
-                    # Give tunnel time to establish using non-blocking delay
-                    GLib.timeout_add_seconds(2, self._do_spice_connect, host, port, password)
+                    # Reduced from 2 seconds to 500ms for faster tunnel utilization
+                    GLib.timeout_add(500, self._do_spice_connect, host, port, password)
                     return False
                 self._do_spice_connect(host, port, password)
 
@@ -1457,8 +1460,8 @@ class RemoteViewer(Gtk.Application):
                     host = "localhost"
                     port = self.ssh_tunnel_local_port
                     self.log_message(f"Using SSH tunnel: localhost:{port}")
-                    # Give tunnel time to establish using non-blocking delay
-                    GLib.timeout_add_seconds(2, self._do_vnc_connect, host, port, force)
+                    # Reduced from 2 seconds to 500ms for faster tunnel utilization
+                    GLib.timeout_add(500, self._do_vnc_connect, host, port, force)
                     return False
                 self._do_vnc_connect(host, port, force)
 
@@ -1469,6 +1472,18 @@ class RemoteViewer(Gtk.Application):
             self.show_notification(
                 self._sanitize_error_message(f"Connection failed: {e}"), Gtk.MessageType.ERROR
             )
+            # Retry connection if it failed (up to 3 times with increasing delays)
+            if retry_count < 3:
+                retry_delay = 1000 * (retry_count + 1)  # 1s, 2s, 3s
+                self.log_message(
+                    f"Connection failed, retrying in {retry_delay}ms (attempt {retry_count + 1}/3)"
+                )
+                GLib.timeout_add(
+                    retry_delay,
+                    lambda: self.connect_display(
+                        force=force, password=password, retry_count=retry_count + 1
+                    ),
+                )
             return False
 
     def _do_spice_connect(self, host, port, password):
@@ -1570,10 +1585,10 @@ class RemoteViewer(Gtk.Application):
 
         if self.reconnect_pending:
             if self.verbose:
-                print("Pending reconnect detected, reconnecting in 1500ms...")
+                print("Pending reconnect detected, reconnecting in 500ms...")
             self.reconnect_pending = False
-            # Increase delay to 1500ms to ensure socket cleanup
-            GLib.timeout_add(1500, self.connect_display)
+            # Reduced delay to 500ms for faster reconnection after forced close
+            GLib.timeout_add(500, self.connect_display)
             return
 
         self.check_shutdown()
@@ -1767,16 +1782,18 @@ class RemoteViewer(Gtk.Application):
         self.save_state()
 
     def on_reconnect_clicked(self, button):
+        self.log_message("Reconnect button clicked")
         if self.protocol == "vnc" and self.vnc_display:
             # Force disconnect and reconnect (will go through on_vnc_disconnected -> connect_display)
-            self.connect_display(force=True)
+            # With retry logic built into connect_display
+            self.connect_display(force=True, retry_count=0)
         elif self.protocol == "spice" and self.spice_session:
             if self.spice_session.is_connected():
                 self.spice_session.disconnect()
-                # Schedule reconnection after disconnect
-                GLib.timeout_add(1500, self.connect_display)
+                # Reduced delay from 1500ms to 800ms for faster reconnection
+                GLib.timeout_add(800, lambda: self.connect_display(retry_count=0))
             else:
-                self.connect_display()
+                self.connect_display(retry_count=0)
 
     def on_power_menu_show(self, popover):
         try:
@@ -1979,7 +1996,8 @@ class RemoteViewer(Gtk.Application):
                 raise libvirt.libvirtError("No domain identifier available")
 
             self.domain.create()
-            GLib.timeout_add_seconds(5, self.connect_display)
+            # Reduced from 5 seconds to 2 seconds for faster connection after VM start
+            GLib.timeout_add_seconds(2, self.connect_display)
         except libvirt.libvirtError as e:
             self.show_error_dialog(f"Start error: {e}")
 

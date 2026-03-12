@@ -29,6 +29,7 @@ class OSType(Enum):
     DEBIAN = "Debian"
     FEDORA = "Fedora"
     ARCHLINUX = "Arch Linux"
+    ALPINE = "Alpine Linux"
 
 
 @dataclass
@@ -163,6 +164,14 @@ class OSProvider(ABC):
     ) -> Path:
         """Generate automation file (unattend.xml, preseed, etc.) for unattended install."""
         pass
+
+    @property
+    def preferred_boot_uefi(self) -> bool:
+        """Return the preferred boot mode (UEFI vs BIOS).
+        
+        Default is True (UEFI).
+        """
+        return True
 
     def validate_iso(self, iso_path: Path, version: OSVersion) -> bool:
         """Validate that an ISO file matches the expected OS version.

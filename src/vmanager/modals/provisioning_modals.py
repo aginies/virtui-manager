@@ -18,6 +18,7 @@ from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManag
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..provisioning.providers.alpine_provider import AlpineDistro
 from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
 from ..provisioning.providers.debian_provider import DebianDistro
 from ..provisioning.providers.fedora_provider import FedoraDistro
@@ -90,6 +91,10 @@ class InstallVMModal(BaseModal[str | None]):
             # Add Arch Linux distributions
             for d in ArchLinuxDistro:
                 distro_options.append((f"Arch Linux: {d.value}", d))
+
+            # Add Alpine Linux distributions
+            for d in AlpineDistro:
+                distro_options.append((f"Alpine Linux: {d.value}", d))
 
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
@@ -359,6 +364,34 @@ class InstallVMModal(BaseModal[str | None]):
         disk_size = 8
         disk_format = "qcow2"
         boot_uefi = True
+
+        # Determine OS type and provider preference if available
+        from ..provisioning.os_provider import OSType
+        from ..vm_provisioner import OpenSUSEDistro
+        from ..provisioning.providers.ubuntu_provider import UbuntuDistro
+        from ..provisioning.providers.debian_provider import DebianDistro
+        from ..provisioning.providers.fedora_provider import FedoraDistro
+        from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
+        from ..provisioning.providers.alpine_provider import AlpineDistro
+
+        os_type = None
+        if isinstance(distro, OpenSUSEDistro):
+            os_type = OSType.OPENSUSE
+        elif isinstance(distro, UbuntuDistro):
+            os_type = OSType.UBUNTU
+        elif isinstance(distro, DebianDistro):
+            os_type = OSType.DEBIAN
+        elif isinstance(distro, FedoraDistro):
+            os_type = OSType.FEDORA
+        elif isinstance(distro, ArchLinuxDistro):
+            os_type = OSType.ARCHLINUX
+        elif isinstance(distro, AlpineDistro):
+            os_type = OSType.ALPINE
+
+        if os_type:
+            provider = self.provisioner.provider_registry.get_provider(os_type)
+            if provider:
+                boot_uefi = provider.preferred_boot_uefi
 
         if vm_type == VMType.COMPUTATION:
             mem = 8
@@ -817,6 +850,45 @@ class InstallVMModal(BaseModal[str | None]):
                         ):
                             filtered_templates.append(template)
 
+        elif isinstance(distro, AlpineDistro):
+            # Alpine Linux distributions → Show ONLY Alpine templates
+            filtered_templates = []
+            for template in all_templates:
+                filename = template.get("filename", "")
+                display_name = template.get("display_name", "")
+
+                # Check for Alpine-specific template patterns
+                is_alpine_txt = (
+                    filename.startswith("alpine-answers")
+                    and filename.endswith(".txt")
+                    or "alpine-answers" in filename.lower()
+                    and filename.endswith(".txt")
+                )
+
+                # Also check display names for Alpine markers
+                is_alpine_template = (
+                    "(Alpine Linux)" in display_name
+                    or "(Alpine)" in display_name
+                    or "(alpine-answers)" in display_name.lower()
+                )
+
+                # Include Alpine templates
+                should_include = is_alpine_txt or is_alpine_template
+
+                if should_include:
+                    # Include built-in Alpine templates
+                    if template["type"] == "built-in":
+                        filtered_templates.append(template)
+                    # For user templates, check if they're Alpine-related
+                    elif template["type"] == "user":
+                        if (
+                            "(Alpine Linux)" in display_name
+                            or "(Alpine)" in display_name
+                            or "(alpine-answers)" in display_name.lower()
+                            or is_alpine_txt
+                        ):
+                            filtered_templates.append(template)
+
         elif isinstance(distro, str):
             if distro in ["cached", "pool_volumes"]:
                 # Cached ISOs or pool volumes → Show ALL templates
@@ -890,21 +962,28 @@ class InstallVMModal(BaseModal[str | None]):
             if should_enable:
                 self._prefill_automation_fields()
 
-            # Enforce UEFI for automated installations
+            # Enforce UEFI for automated installations (except for Alpine Linux)
+            from ..provisioning.providers.alpine_provider import AlpineDistro
+            distro = self.query_one("#distro", Select).value
+            is_alpine = isinstance(distro, AlpineDistro) or (isinstance(distro, str) and "alpine" in distro.lower())
+
             uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
             if should_enable:
-                uefi_checkbox.value = True
+                if is_alpine:
+                    uefi_checkbox.value = False
+                else:
+                    uefi_checkbox.value = True
                 uefi_checkbox.disabled = True
             else:
                 uefi_checkbox.disabled = False
 
-            # Disable "Configure before install" for automated installations
+            # Hide "Configure before install" for automated installations
             configure_checkbox = self.query_one("#configure-before-install-checkbox", Checkbox)
             if should_enable:
-                configure_checkbox.disabled = True
-                configure_checkbox.value = False  # Uncheck it when disabled
+                configure_checkbox.styles.display = "none"
+                configure_checkbox.value = False  # Uncheck it when hidden
             else:
-                configure_checkbox.disabled = False
+                configure_checkbox.styles.display = "block"
         except Exception as e:
             # Widgets may not exist in all contexts
             logging.warning(f"Could not update automation config fields: {e}")

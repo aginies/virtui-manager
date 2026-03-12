@@ -2249,64 +2249,64 @@ def delete_vm(
                 except Exception as e:
                     log(f"  - [red]ERROR:[/] Unexpected error deleting storage {disk_path}: {e}")
 
-            # Delete boot files (kernel, initrd, floppy, NVRAM)
-            if boot_files_to_delete or delete_storage:
-                nvram_path = None
-                if root is not None:
-                    nvram_elem = root.find(".//os/nvram")
-                    if nvram_elem is not None:
-                        nvram_path = nvram_elem.text
+        # Delete boot files (kernel, initrd, floppy, NVRAM)
+        if boot_files_to_delete or delete_storage or delete_nvram:
+            nvram_path = None
+            if root is not None:
+                nvram_elem = root.find(".//os/nvram")
+                if nvram_elem is not None:
+                    nvram_path = nvram_elem.text
 
-                log(f"Cleaning up boot and asset files...")
-                
-                # 1. Process files explicitly found in XML
-                for file_path in boot_files_to_delete:
-                    if not file_path:
-                        continue
-                    
-                    # Determine if we should delete this specific file
-                    is_nvram = (file_path == nvram_path)
-                    # Non-NVRAM assets follow delete_storage; NVRAM follows delete_nvram
-                    should_delete = delete_nvram if is_nvram else delete_storage
-                    
-                    if not should_delete:
-                        continue
+            log(f"Cleaning up boot and asset files...")
 
-                    log(f"Attempting to delete asset: {file_path}")
+            # 1. Process files explicitly found in XML
+            for file_path in boot_files_to_delete:
+                if not file_path:
+                    continue
+
+                # Determine if we should delete this specific file
+                is_nvram = (file_path == nvram_path)
+                # Non-NVRAM assets follow delete_storage; NVRAM follows delete_nvram
+                should_delete = delete_nvram if is_nvram else delete_storage
+
+                if not should_delete:
+                    continue
+
+                log(f"Attempting to delete asset: {file_path}")
+                try:
+                    vol, pool = _find_vol_by_path(delete_conn, file_path)
+                    if vol:
+                        vol.delete(0)
+                        log(f"  - Deleted: {file_path} from pool {pool.name()}")
+                    else:
+                        log(f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume.")
+                except libvirt.libvirtError as e:
+                    if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
+                        log(f"  - [yellow]Skipped:[/] Volume for path '{file_path}' not found.")
+                    else:
+                        log(f"  - [red]ERROR:[/] Error deleting volume for path {file_path}: {e}")
+                except Exception as e:
+                    log(f"  - [red]ERROR:[/] Unexpected error deleting file {file_path}: {e}")
+
+            # 2. Heuristic: Search for orphaned kernel/initrd volumes (stripped from XML after install)
+            if delete_storage:
+                orphaned_assets = [f"{vm_name}-kernel", f"{vm_name}-initrd"]
+                for pool_name in delete_conn.listStoragePools():
                     try:
-                        vol, pool = _find_vol_by_path(delete_conn, file_path)
-                        if vol:
-                            vol.delete(0)
-                            log(f"  - Deleted: {file_path} from pool {pool.name()}")
-                        else:
-                            log(f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume.")
-                    except libvirt.libvirtError as e:
-                        if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
-                            log(f"  - [yellow]Skipped:[/] Volume for path '{file_path}' not found.")
-                        else:
-                            log(f"  - [red]ERROR:[/] Error deleting volume for path {file_path}: {e}")
-                    except Exception as e:
-                        log(f"  - [red]ERROR:[/] Unexpected error deleting file {file_path}: {e}")
-
-                # 2. Heuristic: Search for orphaned kernel/initrd volumes (stripped from XML after install)
-                if delete_storage:
-                    orphaned_assets = [f"{vm_name}-kernel", f"{vm_name}-initrd"]
-                    for pool_name in delete_conn.listStoragePools():
-                        try:
-                            pool = delete_conn.storagePoolLookupByName(pool_name)
-                            if not pool.isActive():
-                                continue
-                            for asset_name in orphaned_assets:
-                                try:
-                                    vol = pool.storageVolLookupByName(asset_name)
-                                    log(f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting...")
-                                    vol.delete(0)
-                                    log(f"  - Deleted orphaned asset: {asset_name}")
-                                except libvirt.libvirtError as e:
-                                    if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
-                                        log(f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}")
-                        except libvirt.libvirtError:
+                        pool = delete_conn.storagePoolLookupByName(pool_name)
+                        if not pool.isActive():
                             continue
+                        for asset_name in orphaned_assets:
+                            try:
+                                vol = pool.storageVolLookupByName(asset_name)
+                                log(f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting...")
+                                vol.delete(0)
+                                log(f"  - Deleted orphaned asset: {asset_name}")
+                            except libvirt.libvirtError as e:
+                                if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
+                                    log(f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}")
+                    except libvirt.libvirtError:
+                        continue
 
     finally:
         if should_close_conn and delete_conn:
