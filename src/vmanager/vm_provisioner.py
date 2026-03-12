@@ -2778,10 +2778,12 @@ class VMProvisioner:
                     OSType.UBUNTU,
                     OSType.ARCHLINUX,
                     OSType.ALPINE,
+                    OSType.FEDORA,
                 ]
-                is_opensuse = is_other_distro or os_type == OSType.OPENSUSE
+                # Any distro that is not explicitly excluded OR is known floppy-capable
+                should_use_floppy = is_other_distro or is_floppy_capable
 
-                if is_opensuse and is_floppy_capable:
+                if should_use_floppy:
                     # Create floppy for OpenSUSE/AutoYaST or Alpine/answers
                     try:
                         floppy_image_path = self._create_autoyast_floppy_image(
