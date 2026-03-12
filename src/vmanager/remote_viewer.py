@@ -767,14 +767,11 @@ class RemoteViewer(Gtk.Application):
         header.set_subtitle(subtitle)
         self.window.set_titlebar(header)
 
-        # --- Grab Status Indicator (Left side) ---
-        self.grab_status_label = Gtk.Label()
-        self.grab_status_label.set_markup(
-            "<span foreground='#cc0000' weight='bold'>🔒 Keyboard Grabbed - Press Ctrl+Alt to release</span>"
-        )
-        self.grab_status_label.set_no_show_all(True)  # Hidden by default
-        self.grab_status_label.hide()
-        header.pack_start(self.grab_status_label)
+        # --- Keyboard Shortcut Hint (Left side - always visible) ---
+        shortcut_label = Gtk.Label()
+        shortcut_label.set_markup("<span foreground='#666666'>Ctrl+Alt to release</span>")
+        shortcut_label.set_tooltip_text("Press Ctrl+Alt to release grabbed keyboard/mouse")
+        header.pack_start(shortcut_label)
 
         # --- Settings Menu ---
         settings_button = Gtk.MenuButton()
