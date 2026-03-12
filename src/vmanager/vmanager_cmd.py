@@ -32,7 +32,7 @@ from .network_manager import (
     set_network_autostart,
 )
 from .storage_manager import list_storage_pools, list_unused_volumes
-from .utils import remote_viewer_cmd, sanitize_sensitive_data
+from .utils import remote_viewer_cmd, sanitize_sensitive_data, strip_ansi_codes
 from .vm_actions import (
     clone_vm,
     create_vm_snapshot,
@@ -142,7 +142,6 @@ class VManagerCMD(cmd.Cmd):
         # Cache for performance optimization
         self._color_support = None  # Cache color support detection
         self._status_colors_cache = {}  # Cache colored status strings
-        self._ansi_escape_regex = None  # Cache regex for ANSI codes
 
         self.status_map = {
             libvirt.VIR_DOMAIN_NOSTATE: "No State",
@@ -450,14 +449,9 @@ class VManagerCMD(cmd.Cmd):
             return False
 
     def _get_display_width(self, text):
-        """Calculate display width of text, ignoring ANSI escape codes (cached regex)."""
-        import re
-
-        # Cache the regex compilation
-        if self._ansi_escape_regex is None:
-            self._ansi_escape_regex = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        """Calculate display width of text, ignoring ANSI escape codes."""
         # Remove ANSI escape sequences to get the actual display width
-        clean_text = self._ansi_escape_regex.sub("", text)
+        clean_text = strip_ansi_codes(text)
         return len(clean_text)
 
     def do_virsh(self, args):
@@ -742,10 +736,10 @@ class VManagerCMD(cmd.Cmd):
             return text
 
         # For colored text, we need to be more careful about truncation
-        if "\033" in text:
+        if "\033" in text or "\x1B" in text:
             # Simple approach: remove ANSI codes, truncate, then we'll lose colors
             # A more sophisticated approach would preserve color codes
-            clean_text = self._ansi_escape_regex.sub("", text) if self._ansi_escape_regex else text
+            clean_text = strip_ansi_codes(text)
             if len(clean_text) <= max_width - len(suffix):
                 return clean_text[: max_width - len(suffix)] + suffix
             else:
