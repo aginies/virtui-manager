@@ -15,7 +15,7 @@
         packages = {
           virtui-manager = pkgs.python3Packages.buildPythonApplication {
             pname = "virtui-manager";
-            version = "1.9.3";
+            version = "2.4.0";
 
             src = ../.;
 
@@ -27,6 +27,9 @@
               textual
               pyyaml
               markdown-it-py
+              packaging
+              requests
+              netifaces
             ];
 
             # Optional webconsole support
