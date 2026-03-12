@@ -118,6 +118,8 @@ class RemoteViewer(Gtk.Application):
         self.wait_max_seconds = 300  # 5 minutes default timeout
         self.wait_cancel_button = None
         self.no_display_label = None
+        self.grab_status_label = None
+        self.grab_active = False
 
     def show_error_dialog(self, message):
         dialog = Gtk.MessageDialog(
@@ -765,6 +767,15 @@ class RemoteViewer(Gtk.Application):
         header.set_subtitle(subtitle)
         self.window.set_titlebar(header)
 
+        # --- Grab Status Indicator (Left side) ---
+        self.grab_status_label = Gtk.Label()
+        self.grab_status_label.set_markup(
+            "<span foreground='#cc0000' weight='bold'>🔒 Keyboard Grabbed - Press Ctrl+Alt to release</span>"
+        )
+        self.grab_status_label.set_no_show_all(True)  # Hidden by default
+        self.grab_status_label.hide()
+        header.pack_start(self.grab_status_label)
+
         # --- Settings Menu ---
         settings_button = Gtk.MenuButton()
         icon_settings = Gtk.Image.new_from_icon_name("open-menu-symbolic", Gtk.IconSize.BUTTON)
@@ -868,10 +879,20 @@ class RemoteViewer(Gtk.Application):
         key_combinations = [
             ("Ctrl+Alt+Del", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_Delete]),
             ("Ctrl+Alt+Backspace", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_BackSpace]),
+            (
+                "Shift+Ctrl+Alt+Esc",
+                [Gdk.KEY_Shift_L, Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_Escape],
+            ),
             ("Ctrl+Alt+F1", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F1]),
             ("Ctrl+Alt+F2", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F2]),
             ("Ctrl+Alt+F3", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F3]),
+            ("Ctrl+Alt+F4", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F4]),
+            ("Ctrl+Alt+F5", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F5]),
+            ("Ctrl+Alt+F6", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F6]),
             ("Ctrl+Alt+F7", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F7]),
+            ("Ctrl+Alt+F8", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F8]),
+            ("Ctrl+Alt+F9", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F9]),
+            ("Ctrl+Alt+F10", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F10]),
             ("PrintScreen", [Gdk.KEY_Print]),
         ]
 
@@ -1280,8 +1301,14 @@ class RemoteViewer(Gtk.Application):
                     )
 
             self.display_widget = SpiceClientGtk.Display(session=self.spice_session)
-            # SPICE specific configs?
+            # SPICE specific configs
             self.display_widget.set_property("scaling", self.scaling_enabled)
+            # Enable keyboard and mouse grab for SPICE
+            self.display_widget.set_property("grab-keyboard", True)
+            self.display_widget.set_property("grab-mouse", True)
+
+            # Connect SPICE grab property notifications
+            self.display_widget.connect("notify::grab-keyboard", self.on_spice_grab_changed)
         else:
             # Default to VNC
             GLib.MainContext.default().iteration(False)
@@ -1299,11 +1326,17 @@ class RemoteViewer(Gtk.Application):
             self.vnc_display.set_read_only(self.view_only_enabled)
             self._apply_vnc_depth()
 
+            # Enable keyboard grab so Ctrl+Alt+Fx keys are sent to guest
+            self.vnc_display.set_keyboard_grab(True)
+            self.vnc_display.set_pointer_grab(True)
+
             # Signals
             self.vnc_display.connect("vnc-disconnected", self.on_vnc_disconnected)
             self.vnc_display.connect("vnc-connected", self.on_vnc_connected)
             self.vnc_display.connect("vnc-auth-credential", self.on_vnc_auth_credential)
             self.vnc_display.connect("vnc-server-cut-text", self.on_vnc_server_cut_text)
+            self.vnc_display.connect("vnc-grab-keyboard", self.on_keyboard_grab_activated)
+            self.vnc_display.connect("vnc-ungrab-keyboard", self.on_keyboard_grab_released)
 
             # Local clipboard -> VNC
             self.clipboard_handler_id = self.clipboard.connect(
@@ -1873,6 +1906,26 @@ class RemoteViewer(Gtk.Application):
 
         self.vnc_display.set_depth(depth_enum)
 
+    def on_keyboard_grab_activated(self, widget):
+        """Called when keyboard/mouse grab is activated."""
+        self.grab_active = True
+        if self.grab_status_label:
+            self.grab_status_label.show()
+
+    def on_keyboard_grab_released(self, widget):
+        """Called when keyboard/mouse grab is released."""
+        self.grab_active = False
+        if self.grab_status_label:
+            self.grab_status_label.hide()
+
+    def on_spice_grab_changed(self, widget, pspec):
+        """Called when SPICE grab-keyboard property changes."""
+        is_grabbed = widget.get_property("grab-keyboard")
+        if is_grabbed:
+            self.on_keyboard_grab_activated(widget)
+        else:
+            self.on_keyboard_grab_released(widget)
+
     def _add_snapshots_tree_columns(self):
         columns = [("Name", 0), ("Description", 1), ("Creation Time", 2), ("State", 3)]
         for title, col_id in columns:
@@ -1913,14 +1966,19 @@ class RemoteViewer(Gtk.Application):
             self._populate_usb_lists()
 
     def on_send_key(self, button, keys, popover):
+        """Send key combination to the guest VM"""
         if self.protocol == "vnc" and self.vnc_display:
             self.vnc_display.send_keys(keys)
+            self.log_message(f"Sent key combination via VNC: {[hex(k) for k in keys]}")
         elif self.protocol == "spice" and self.display_widget:
-            # Spice send keys implementation would go here
-            # Need to map GDK keys to Spice scancodes or use generic input
-            if self.verbose:
-                print("Send keys not fully implemented for SPICE yet")
-            pass
+            # SPICE implementation: use native send_keys method
+            try:
+                self.display_widget.send_keys(keys, SpiceClientGtk.DisplayKeyEvent.CLICK)
+                self.log_message(f"Sent key combination via SPICE: {[hex(k) for k in keys]}")
+            except Exception as e:
+                self.log_message(f"ERROR: Failed to send keys via SPICE: {e}")
+                if self.verbose:
+                    print(f"SPICE send_keys error: {e}")
         popover.popdown()
 
     def on_type_clipboard(self, button, popover):

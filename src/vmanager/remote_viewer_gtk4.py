@@ -586,8 +586,20 @@ class RemoteViewer(Gtk.Application):
         key_combinations = [
             ("Ctrl+Alt+Del", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_Delete]),
             ("Ctrl+Alt+Backspace", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_BackSpace]),
+            (
+                "Shift+Ctrl+Alt+Esc",
+                [Gdk.KEY_Shift_L, Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_Escape],
+            ),
             ("Ctrl+Alt+F1", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F1]),
             ("Ctrl+Alt+F2", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F2]),
+            ("Ctrl+Alt+F3", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F3]),
+            ("Ctrl+Alt+F4", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F4]),
+            ("Ctrl+Alt+F5", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F5]),
+            ("Ctrl+Alt+F6", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F6]),
+            ("Ctrl+Alt+F7", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F7]),
+            ("Ctrl+Alt+F8", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F8]),
+            ("Ctrl+Alt+F9", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F9]),
+            ("Ctrl+Alt+F10", [Gdk.KEY_Control_L, Gdk.KEY_Alt_L, Gdk.KEY_F10]),
             ("PrintScreen", [Gdk.KEY_Print]),
         ]
 
