@@ -1159,8 +1159,12 @@ class VMProvisioner:
                     # Fedora kickstart automation
                     cmdline = f"inst.ks={auto_url}"
                 elif auto_url.endswith(".cfg"):
-                    # Ubuntu preseed automation
-                    cmdline = f"auto=true preseed/url={auto_url}"
+                    if os_type in [OSType.UBUNTU, OSType.DEBIAN]:
+                        # Ubuntu/Debian preseed automation
+                        cmdline = f"auto=true preseed/url={auto_url}"
+                    else:
+                        # Default to AutoYaST for other distros (e.g. SLES/openSUSE)
+                        cmdline = f"autoyast={auto_url} netsetup=dhcp"
                 else:
                     # OpenSUSE AutoYaST automation (XML format)
                     # Add netsetup=dhcp to ensure network is configured
@@ -1979,12 +1983,17 @@ class VMProvisioner:
                 )
 
             elif auto_url.endswith(".cfg"):
-                # Ubuntu preseed automation
-                extra_args = f"auto=true preseed/url={auto_url}"
+                if os_type in [OSType.UBUNTU, OSType.DEBIAN]:
+                    # Ubuntu/Debian preseed automation
+                    extra_args = f"auto=true preseed/url={auto_url}"
+                else:
+                    # Default to AutoYaST for other distros
+                    extra_args = f"autoyast={auto_url} netsetup=dhcp"
             else:
                 # OpenSUSE AutoYaST automation (XML format)
                 # Add netsetup=dhcp to ensure network is configured
                 extra_args = f"autoyast={auto_url} netsetup=dhcp"
+
         elif kernel_path and os_type == OSType.ARCHLINUX:
             # Manual Arch Linux UEFI boot needs these parameters even without automation
             extra_args = "archisobasedir=arch archisodevice=/dev/sr0"
