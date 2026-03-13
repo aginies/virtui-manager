@@ -1494,9 +1494,14 @@
 <p><strong>Logging</strong>: The CLI automatically logs all output and operations to a file (typically <code>~/.cache/virtui-manager/vm_manager.log</code>), which is useful for audit trails and debugging. Sensitive data (passwords, URIs) is automatically sanitized in logs and output.</p>
 <h2 id="connection-management">Connection Management<a class="headerlink" href="#connection-management" title="Permanent link">&para;</a></h2>
 <ul>
-<li><strong><code>connect &lt;server&gt; [server2 ...]</code></strong>
-    Connects to specific servers defined in your configuration. Use <code>connect all</code> to connect to every configured server. The CLI also automatically connects to any server marked with <code>autoconnect: true</code> in your configuration.<ul>
-<li><em>Example:</em> <code>connect Localhost ryzen9</code></li>
+<li><strong><code>connect &lt;server|uri&gt; [server2|uri2 ...]</code></strong>
+    Connects to specific servers defined in your configuration or directly to a libvirt URI (e.g., <code>qemu:///system</code>, <code>qemu+ssh://user@host/system</code>). Use <code>connect all</code> to connect to every configured server. The CLI also automatically connects to any server marked with <code>autoconnect: true</code> in your configuration.<ul>
+<li><em>Examples:</em><ul>
+<li><code>connect Localhost ryzen9</code> (configured names)</li>
+<li><code>connect qemu:///system</code> (direct local connection)</li>
+<li><code>connect qemu+ssh://admin@server.org/system</code> (direct remote connection)</li>
+</ul>
+</li>
 </ul>
 </li>
 <li><strong><code>disconnect [&lt;server&gt; ...]</code></strong>
