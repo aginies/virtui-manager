@@ -15,6 +15,7 @@ import sys
 
 import gi
 import libvirt
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
 
@@ -34,7 +35,7 @@ from .handlers import (
 from .utils.config import ConfigManager
 from .utils.notifications import NotificationManager
 
-from .. import vm_queries
+from .. import vm_queries, vm_actions
 
 
 class RemoteViewer(Gtk.Application):
@@ -55,7 +56,6 @@ class RemoteViewer(Gtk.Application):
         password: str = None,
         show_logs: bool = False,
         attach: bool = False,
-        wait: bool = False,
         direct: bool = False,
     ):
         """
@@ -69,7 +69,6 @@ class RemoteViewer(Gtk.Application):
             password: VNC/SPICE password
             show_logs: Show logs tab by default
             attach: Use libvirt attach mode
-            wait: Wait for VM to start
             direct: Skip SSH tunneling
         """
         super().__init__(application_id=None)
@@ -83,7 +82,6 @@ class RemoteViewer(Gtk.Application):
         self.password = password
         self.show_logs = show_logs
         self.attach = attach
-        self.wait_for_vm = wait
         self.direct_connection = direct
 
         # Libvirt objects
@@ -286,12 +284,15 @@ class RemoteViewer(Gtk.Application):
 
         # Create display settings from loaded state
         display_settings = DisplaySettings(
-            scaling_enabled=state.get('scaling', False),
-            smoothing_enabled=state.get('smoothing', True),
-            lossy_encoding_enabled=state.get('lossy_encoding', False),
-            view_only_enabled=state.get('view_only', False),
-            vnc_depth=state.get('vnc_depth', 0),
+            scaling_enabled=state.get("scaling", False),
+            smoothing_enabled=state.get("smoothing", True),
+            lossy_encoding_enabled=state.get("lossy_encoding", False),
+            view_only_enabled=state.get("view_only", False),
+            vnc_depth=state.get("vnc_depth", 0),
         )
+
+        # Get boot info and available devices
+        boot_devices, current_boot_device, _ = self._get_boot_data()
 
         # Build window using MainWindowBuilder
         handlers = self._create_event_handlers(display_settings)
@@ -303,13 +304,15 @@ class RemoteViewer(Gtk.Application):
             domain_name=domain_name,
             uri=self.uri,
             attach=self.attach,
-            is_fullscreen=state.get('fullscreen', False),
+            is_fullscreen=state.get("fullscreen", False),
             show_logs=self.show_logs,
             scaling_enabled=display_settings.scaling_enabled,
             smoothing_enabled=display_settings.smoothing_enabled,
             lossy_encoding_enabled=display_settings.lossy_encoding_enabled,
             view_only_enabled=display_settings.view_only_enabled,
             vnc_depth=display_settings.vnc_depth,
+            boot_devices=boot_devices,
+            current_boot_device=current_boot_device,
             log_callback=self._log_message,
             notification_callback=self._show_notification,
             reconnect_callback=self._reconnect_display,
@@ -321,12 +324,10 @@ class RemoteViewer(Gtk.Application):
         self.notification_manager = NotificationManager(verbose=self.verbose)
         self.notification_manager.set_window(self.window)
         self.notification_manager.set_info_bar(
-            self.window_builder.get_info_bar(),
-            self.window_builder.get_info_bar_label()
+            self.window_builder.get_info_bar(), self.window_builder.get_info_bar_label()
         )
         self.notification_manager.set_log_widgets(
-            self.window_builder.get_log_buffer(),
-            self.window_builder.log_view
+            self.window_builder.get_log_buffer(), self.window_builder.log_view
         )
 
         # Update SSH tunnel manager with notification callback
@@ -339,7 +340,7 @@ class RemoteViewer(Gtk.Application):
             error_dialog_callback=self._show_error_dialog,
             disconnect_callback=self._on_display_disconnected,
             reconnect_callback=self._connect_display,
-            verbose=self.verbose
+            verbose=self.verbose,
         )
 
         # Set display manager UI elements
@@ -347,8 +348,7 @@ class RemoteViewer(Gtk.Application):
         self.display_manager.set_view_container(view_container)
         self.display_manager.set_window(self.window)
         self.display_manager.set_ui_elements(
-            self.window_builder.get_depth_settings_box(),
-            self.window_builder.get_lossy_check()
+            self.window_builder.get_depth_settings_box(), self.window_builder.get_lossy_check()
         )
 
         # Adapter to provide the grab handler interface expected by DisplayManager
@@ -383,7 +383,7 @@ class RemoteViewer(Gtk.Application):
         self.window_builder.update_logs_visibility(self.show_logs)
 
         # Show window
-        if state.get('fullscreen', False):
+        if state.get("fullscreen", False):
             self.window.fullscreen()
 
         self.window.show_all()
@@ -397,15 +397,6 @@ class RemoteViewer(Gtk.Application):
         # Start libvirt event loop ticker
         GLib.timeout_add(LIBVIRT_EVENT_TICK_INTERVAL_MS, self._libvirt_event_tick)
 
-        # Connect display or wait for VM
-        if self.wait_for_vm:
-            protocol, host, port, pwd = self.display_manager.get_display_info(
-                self.domain, self.ssh_tunnel_manager
-            )
-            if not self.attach and (not host or not port):
-                self.vm_state_handler.start_wait_for_vm()
-                return
-
         # Check current VM state
         if self.domain:
             try:
@@ -413,11 +404,17 @@ class RemoteViewer(Gtk.Application):
                 state_str = vm_queries.get_status(self.domain)
 
                 if state_code == libvirt.VIR_DOMAIN_PAUSED:
-                    self._show_notification(f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING)
+                    self._show_notification(
+                        f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING
+                    )
                 elif state_code == libvirt.VIR_DOMAIN_RUNNING:
-                    self._show_notification(f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO)
+                    self._show_notification(
+                        f"VM '{self.domain.name()}' is running.", Gtk.MessageType.INFO
+                    )
                 elif state_code in [libvirt.VIR_DOMAIN_SHUTOFF, libvirt.VIR_DOMAIN_SHUTDOWN]:
-                    self._show_notification(f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO)
+                    self._show_notification(
+                        f"VM '{self.domain.name()}' is shut off.", Gtk.MessageType.INFO
+                    )
             except libvirt.libvirtError as e:
                 if self.verbose:
                     print(f"Could not determine VM state: {e}")
@@ -441,35 +438,83 @@ class RemoteViewer(Gtk.Application):
 
         return {
             # Power handlers
-            'on_power_start': lambda btn, pop: self.power_handler.on_start(btn, pop) if self.power_handler else None,
-            'on_power_pause': lambda btn, pop: self.power_handler.on_pause(btn, pop) if self.power_handler else None,
-            'on_power_resume': lambda btn, pop: self.power_handler.on_resume(btn, pop) if self.power_handler else None,
-            'on_power_shutdown': lambda btn, pop: self.power_handler.on_shutdown(btn, pop) if self.power_handler else None,
-            'on_power_reboot': lambda btn, pop: self.power_handler.on_reboot(btn, pop) if self.power_handler else None,
-            'on_power_destroy': lambda btn, pop: self.power_handler.on_destroy(btn, pop) if self.power_handler else None,
-            'on_power_menu_show': lambda pop: self.power_handler.update_menu_sensitivity(pop) if self.power_handler else None,
-
+            "on_power_start": lambda btn, pop: self.power_handler.on_start(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_pause": lambda btn, pop: self.power_handler.on_pause(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_resume": lambda btn, pop: self.power_handler.on_resume(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_shutdown": lambda btn, pop: self.power_handler.on_shutdown(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_reboot": lambda btn, pop: self.power_handler.on_reboot(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_destroy": lambda btn, pop: self.power_handler.on_destroy(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_hibernate": lambda btn, pop: self.power_handler.on_hibernate(btn, pop)
+            if self.power_handler
+            else None,
+            "on_power_menu_show": lambda pop: self.power_handler.update_menu_sensitivity(pop)
+            if self.power_handler
+            else None,
             # Display handlers
-            'on_screenshot_clicked': lambda btn: self.display_handler.on_screenshot_clicked(btn) if self.display_handler else None,
-            'on_reconnect_clicked': lambda btn: self.display_handler.on_reconnect_clicked(btn) if self.display_handler else None,
-            'on_send_key': lambda btn, keys, pop: self.display_handler.on_send_key(btn, keys, pop) if self.display_handler else None,
-            'on_key_press': lambda w, e: self.display_handler.on_key_press(w, e) if self.display_handler else None,
-            'on_fs_button_toggled': lambda btn: self.display_handler.on_fullscreen_toggled(btn) if self.display_handler else None,
-            'on_scaling_toggled': lambda btn: self.display_handler.on_scaling_toggled(btn, scaling_ref) if self.display_handler else None,
-            'on_smoothing_toggled': lambda btn: self.display_handler.on_smoothing_toggled(btn, smoothing_ref) if self.display_handler else None,
-            'on_lossy_toggled': lambda btn: self.display_handler.on_lossy_toggled(btn, lossy_ref) if self.display_handler else None,
-            'on_view_only_toggled': lambda btn: self.display_handler.on_view_only_toggled(btn, view_only_ref) if self.display_handler else None,
-            'on_depth_changed': lambda combo: self.display_handler.on_depth_changed(combo, depth_ref, self._apply_vnc_depth) if self.display_handler else None,
-            'on_logs_toggled': lambda btn: self._on_logs_toggled(btn),
-
+            "on_screenshot_clicked": lambda btn: self.display_handler.on_screenshot_clicked(btn)
+            if self.display_handler
+            else None,
+            "on_reconnect_clicked": lambda btn: self.display_handler.on_reconnect_clicked(btn)
+            if self.display_handler
+            else None,
+            "on_send_key": lambda btn, keys, pop: self.display_handler.on_send_key(btn, keys, pop)
+            if self.display_handler
+            else None,
+            "on_key_press": lambda w, e: self.display_handler.on_key_press(w, e)
+            if self.display_handler
+            else None,
+            "on_fs_button_toggled": lambda btn: self.display_handler.on_fullscreen_toggled(btn)
+            if self.display_handler
+            else None,
+            "on_scaling_toggled": lambda btn: self.display_handler.on_scaling_toggled(
+                btn, scaling_ref
+            )
+            if self.display_handler
+            else None,
+            "on_smoothing_toggled": lambda btn: self.display_handler.on_smoothing_toggled(
+                btn, smoothing_ref
+            )
+            if self.display_handler
+            else None,
+            "on_lossy_toggled": lambda btn: self.display_handler.on_lossy_toggled(btn, lossy_ref)
+            if self.display_handler
+            else None,
+            "on_view_only_toggled": lambda btn: self.display_handler.on_view_only_toggled(
+                btn, view_only_ref
+            )
+            if self.display_handler
+            else None,
+            "on_depth_changed": lambda combo: self.display_handler.on_depth_changed(
+                combo, depth_ref, self._apply_vnc_depth
+            )
+            if self.display_handler
+            else None,
+            "on_boot_device_changed": lambda combo: self._on_boot_device_changed(combo),
+            "on_settings_menu_show": lambda pop: self._on_settings_menu_show(pop),
+            "on_boot_menu_show": lambda pop: self._on_boot_menu_show(pop),
+            "on_logs_toggled": lambda btn: self._on_logs_toggled(btn),
             # Clipboard handlers
-            'on_type_clipboard': lambda btn, pop: self.clipboard_handler.on_type(btn, pop) if self.clipboard_handler else None,
-
+            "on_type_clipboard": lambda btn, pop: self.clipboard_handler.on_type(btn, pop)
+            if self.clipboard_handler
+            else None,
             # Tab switch
-            'on_notebook_switch_page': lambda nb, page, page_num: self._on_notebook_switch_page(nb, page, page_num),
-
+            "on_notebook_switch_page": lambda nb, page, page_num: self._on_notebook_switch_page(
+                nb, page, page_num
+            ),
             # Window destroy
-            'on_destroy': self._cleanup_resources,
+            "on_destroy": self._cleanup_resources,
         }
 
     def _create_handlers(self, display_settings: DisplaySettings):
@@ -502,13 +547,9 @@ class RemoteViewer(Gtk.Application):
         # Connect clipboard event handlers
         if self.display_manager.protocol == "vnc" and self.display_manager.vnc_display:
             self.display_manager.vnc_display.connect(
-                "vnc-server-cut-text",
-                self.clipboard_handler.on_server_cut_text
+                "vnc-server-cut-text", self.clipboard_handler.on_server_cut_text
             )
-            self.clipboard.connect(
-                "owner-change",
-                self.clipboard_handler.on_owner_change
-            )
+            self.clipboard.connect("owner-change", self.clipboard_handler.on_owner_change)
 
         # Display handler
         self.display_handler = DisplayHandler(
@@ -533,7 +574,9 @@ class RemoteViewer(Gtk.Application):
             original_domain_uuid=self.original_domain_uuid,
             attach=self.attach,
             info_bar=self.window_builder.get_info_bar(),
-            get_display_info_callback=lambda: self.display_manager.get_display_info(self.domain, self.ssh_tunnel_manager),
+            get_display_info_callback=lambda: self.display_manager.get_display_info(
+                self.domain, self.ssh_tunnel_manager
+            ),
             connect_display_callback=self._connect_display,
             quit_callback=self.quit,
             log_callback=self._log_message,
@@ -553,7 +596,7 @@ class RemoteViewer(Gtk.Application):
             attach=self.attach,
             domain=self.domain,
             ssh_tunnel_manager=self.ssh_tunnel_manager,
-            force=force
+            force=force,
         )
 
     def _reconnect_display(self):
@@ -686,14 +729,106 @@ class RemoteViewer(Gtk.Application):
         )
 
         state = {
-            'fullscreen': fullscreen,
-            'scaling': scaling,
-            'smoothing': smoothing,
-            'lossy_encoding': lossy_encoding,
-            'view_only': view_only,
-            'vnc_depth': vnc_depth,
+            "fullscreen": fullscreen,
+            "scaling": scaling,
+            "smoothing": smoothing,
+            "lossy_encoding": lossy_encoding,
+            "view_only": view_only,
+            "vnc_depth": vnc_depth,
         }
         self.config_manager.save_state(state)
+
+    def _get_boot_data(self):
+        """Retrieve boot info and all available bootable devices."""
+        if not self.domain:
+            return [], None, False
+
+        _, root = vm_queries._get_domain_root(self.domain)
+        if root is None:
+            return [], None, False
+
+        boot_info = vm_queries.get_boot_info(self.conn, root)
+
+        # Get all disks and networks
+        disks = vm_queries.get_vm_disks_info(self.conn, root)
+        networks = vm_queries.get_vm_networks_info(root)
+
+        boot_devices = []
+        # Disks
+        for disk in disks:
+            if disk.get("status") == "enabled":
+                path = disk.get("path")
+                label = f"Disk: {path.split('/')[-1]}"
+                boot_devices.append((path, label))
+
+        # Networks
+        for net in networks:
+            mac = net.get("mac")
+            label = f"Net: {mac}"
+            boot_devices.append((mac, label))
+
+        current_boot_device = None
+        if boot_info.get("order"):
+            current_boot_device = boot_info["order"][0]
+
+        return boot_devices, current_boot_device, boot_info.get("menu_enabled", False)
+
+    def _on_boot_device_changed(self, combo):
+        """Handle boot device selection change."""
+        if not self.domain:
+            return
+
+        device_id = combo.get_active_id()
+        if not device_id:
+            return
+
+        # Check if VM is running
+        try:
+            if self.domain.isActive():
+                self._show_notification(
+                    "Cannot change boot order while VM is running.", Gtk.MessageType.ERROR
+                )
+                return
+        except libvirt.libvirtError:
+            pass
+
+        # Prepare new order: selected device first, then others
+        boot_devices, _, menu_enabled = self._get_boot_data()
+        all_ids = [d[0] for d in boot_devices]
+
+        new_order = [device_id]
+        for d_id in all_ids:
+            if d_id != device_id:
+                new_order.append(d_id)
+
+        try:
+            vm_actions.set_boot_info(self.domain, menu_enabled, new_order)
+            self._log_message(f"Boot order updated. First device: {device_id}")
+            self._show_notification(f"First boot device set to: {device_id}", Gtk.MessageType.INFO)
+        except Exception as e:
+            self._show_error_dialog(f"Failed to update boot order: {e}")
+
+    def _on_settings_menu_show(self, popover):
+        """Update settings menu elements sensitivity based on VM state."""
+        # Currently no specific sensitivity logic for settings menu
+        pass
+
+    def _on_boot_menu_show(self, popover):
+        """Update boot menu elements sensitivity based on VM state."""
+        if not self.domain or not self.window_builder:
+            return
+
+        boot_combo = self.window_builder.get_boot_combo()
+        if boot_combo:
+            try:
+                is_active = self.domain.isActive()
+                boot_combo.set_sensitive(not is_active)
+                if is_active:
+                    boot_combo.set_tooltip_text("VM must be stopped to change boot order")
+                else:
+                    boot_combo.set_tooltip_text("Select the first device to boot from")
+            except libvirt.libvirtError:
+                boot_combo.set_sensitive(False)
 
     def do_shutdown(self):
         """Cleanup on application shutdown."""
@@ -708,14 +843,13 @@ def main():
     except Exception as e:
         print(f"Warning: Failed to register libvirt event implementation: {e}")
 
-    parser = argparse.ArgumentParser(
-        description="Remote Viewer for VMs with VNC/SPICE (GTK3)"
-    )
+    parser = argparse.ArgumentParser(description="Remote Viewer for VMs with VNC/SPICE (GTK3)")
     parser.add_argument(
-        "-c", "--connect",
+        "-c",
+        "--connect",
         dest="uri",
         required=True,
-        help="libvirt URI connection (e.g., qemu:///system)"
+        help="libvirt URI connection (e.g., qemu:///system)",
     )
 
     group = parser.add_mutually_exclusive_group(required=False)
@@ -726,19 +860,10 @@ def main():
     parser.add_argument("--verbose", action="store_true", help="Verbose mode")
     parser.add_argument("--logs", action="store_true", help="Enable Logs & Events tab")
     parser.add_argument(
-        "-a", "--attach",
-        action="store_true",
-        help="Attach to the local display using libvirt"
+        "-a", "--attach", action="store_true", help="Attach to the local display using libvirt"
     )
     parser.add_argument(
-        "-w", "--wait",
-        action="store_true",
-        help="Wait for VM to start"
-    )
-    parser.add_argument(
-        "--direct",
-        action="store_true",
-        help="Direct connection (disable SSH tunneling)"
+        "--direct", action="store_true", help="Direct connection (disable SSH tunneling)"
     )
 
     args = parser.parse_args()
@@ -751,7 +876,6 @@ def main():
         password=args.password,
         show_logs=args.logs,
         attach=args.attach,
-        wait=args.wait,
         direct=args.direct,
     )
 

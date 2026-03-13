@@ -1,26 +1,23 @@
 """
 VM State Handlers
 
-Handles VM state monitoring, waiting for VM to start, and shutdown detection.
+Handles VM state monitoring and shutdown detection.
 """
 
-import time
 from typing import Optional, Callable
 
 import gi
 import libvirt
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
-
-from ..constants import VM_WAIT_TIMEOUT_SECONDS, VM_WAIT_CHECK_INTERVAL_SECONDS
 
 
 class VMStateHandler:
     """
-    Manages VM state monitoring and waiting operations.
+    Manages VM state monitoring operations.
 
-    Handles waiting for VM to start with timeout, checking for VM shutdown,
-    and domain event callbacks.
+    Handles checking for VM shutdown and domain event callbacks.
     """
 
     def __init__(
@@ -66,116 +63,11 @@ class VMStateHandler:
         self.log = log_callback if log_callback else lambda msg: None
         self.notify = notification_callback if notification_callback else lambda msg, typ: None
 
-        # Wait state
-        self.wait_timeout_id: Optional[int] = None
-        self.wait_start_time: Optional[float] = None
-        self.wait_cancel_button: Optional[Gtk.Button] = None
-        self.wait_max_seconds: int = VM_WAIT_TIMEOUT_SECONDS
-
         # Shutdown check state
         self.shutdown_check_timeout_id: Optional[int] = None
 
         # Lifecycle event reconnection state
         self.lifecycle_reconnect_pending: bool = False
-
-    def start_wait_for_vm(self):
-        """Start waiting for VM with timeout and cancel button."""
-        self.wait_start_time = time.time()
-
-        # Add cancel button to info bar action area
-        if self.info_bar:
-            action_area = self.info_bar.get_action_area()
-            if action_area:
-                self.wait_cancel_button = Gtk.Button(label="Cancel")
-                self.wait_cancel_button.connect("clicked", self._on_cancel_wait)
-                action_area.pack_start(self.wait_cancel_button, False, False, 0)
-                self.wait_cancel_button.show()
-
-        mins, secs = divmod(self.wait_max_seconds, 60)
-        self.notify(
-            f"Waiting for VM to start... ({mins}m {secs}s remaining)",
-            Gtk.MessageType.INFO
-        )
-
-        self.wait_timeout_id = GLib.timeout_add_seconds(
-            VM_WAIT_CHECK_INTERVAL_SECONDS,
-            self._wait_and_connect_cb
-        )
-
-    def _wait_and_connect_cb(self):
-        """
-        Callback for waiting for VM to start.
-
-        Returns:
-            True to keep waiting, False to stop
-        """
-        # Check if wait was cancelled
-        if self.wait_timeout_id is None:
-            self._cleanup_wait_ui()
-            return False
-
-        # Check for timeout
-        if self.wait_start_time:
-            elapsed = time.time() - self.wait_start_time
-            remaining = self.wait_max_seconds - elapsed
-
-            if elapsed >= self.wait_max_seconds:
-                self.log("Wait timeout reached. Stopping wait for VM.")
-                self.notify(
-                    f"Timed out waiting for VM to start after {self.wait_max_seconds} seconds.",
-                    Gtk.MessageType.WARNING
-                )
-                self._cleanup_wait_ui()
-                return False
-
-            # Update notification with remaining time
-            mins, secs = divmod(int(remaining), 60)
-            if mins > 0:
-                time_str = f"{mins}m {secs}s"
-            else:
-                time_str = f"{secs}s"
-            self.notify(
-                f"Waiting for VM to start... ({time_str} remaining)",
-                Gtk.MessageType.INFO
-            )
-
-        try:
-            # Refresh domain info
-            if self.original_domain_uuid:
-                try:
-                    self.domain = self.conn.lookupByUUIDString(self.original_domain_uuid)
-                except libvirt.libvirtError:
-                    pass  # Keep using current domain object
-
-            protocol, host, port, pwd = self.get_display_info()
-            if not self.attach and (not host or not port):
-                return True  # Keep waiting
-
-            self.notify("VM started! Connecting...", Gtk.MessageType.INFO)
-            self._cleanup_wait_ui()
-            self.connect_display()
-            return False
-        except Exception as e:
-            if self.verbose:
-                print(f"Wait error: {e}")
-            return True
-
-    def _on_cancel_wait(self, button):
-        """Handle cancel button click during wait."""
-        self.log("Wait for VM cancelled by user.")
-        if self.wait_timeout_id:
-            GLib.source_remove(self.wait_timeout_id)
-            self.wait_timeout_id = None
-        self._cleanup_wait_ui()
-        self.notify("Wait for VM cancelled.", Gtk.MessageType.INFO)
-
-    def _cleanup_wait_ui(self):
-        """Remove the cancel button from the info bar."""
-        self.wait_timeout_id = None
-        self.wait_start_time = None
-        if self.wait_cancel_button and self.wait_cancel_button.get_parent():
-            self.wait_cancel_button.get_parent().remove(self.wait_cancel_button)
-            self.wait_cancel_button = None
 
     def check_shutdown(self):
         """Poll VM state for a few seconds to detect shutdown."""
@@ -186,7 +78,9 @@ class VMStateHandler:
                     # Cancel any existing shutdown check
                     if self.shutdown_check_timeout_id:
                         GLib.source_remove(self.shutdown_check_timeout_id)
-                    self.shutdown_check_timeout_id = GLib.timeout_add_seconds(1, self._check_shutdown_async, 0)
+                    self.shutdown_check_timeout_id = GLib.timeout_add_seconds(
+                        1, self._check_shutdown_async, 0
+                    )
             except libvirt.libvirtError:
                 self.notify("ERROR: Domain invalid", Gtk.MessageType.ERROR)
                 self.quit()
@@ -207,7 +101,7 @@ class VMStateHandler:
                     print("VM is shutdown. Exiting...")
                 self.notify(
                     "VM has shut down. You can restart it from the Power menu.",
-                    Gtk.MessageType.INFO
+                    Gtk.MessageType.INFO,
                 )
                 self.shutdown_check_timeout_id = None
                 return False
@@ -228,7 +122,9 @@ class VMStateHandler:
             return False
 
         if counter < 10:  # Try for 10 seconds
-            self.shutdown_check_timeout_id = GLib.timeout_add_seconds(1, self._check_shutdown_async, counter + 1)
+            self.shutdown_check_timeout_id = GLib.timeout_add_seconds(
+                1, self._check_shutdown_async, counter + 1
+            )
             return False
 
         # Check VM state - only reconnect if RUNNING, not if PAUSED
@@ -242,7 +138,9 @@ class VMStateHandler:
                 return False
             elif state == libvirt.VIR_DOMAIN_RUNNING:
                 if self.verbose:
-                    print("VM still running after disconnect (Reboot or Network issue?). Reconnecting...")
+                    print(
+                        "VM still running after disconnect (Reboot or Network issue?). Reconnecting..."
+                    )
                 # Auto-reconnect if VM is still running
                 self.shutdown_check_timeout_id = None
                 self.connect_display()
@@ -285,10 +183,12 @@ class VMStateHandler:
             # Reconnect display when VM starts (prevent duplicates)
             if not self.lifecycle_reconnect_pending:
                 self.lifecycle_reconnect_pending = True
+
                 def do_start_reconnect():
                     self.lifecycle_reconnect_pending = False
                     self.connect_display()
                     return False
+
                 GLib.timeout_add(1000, do_start_reconnect)
 
         elif event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
@@ -337,18 +237,12 @@ class VMStateHandler:
         try:
             # Register lifecycle events
             self.conn.domainEventRegisterAny(
-                self.domain,
-                libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE,
-                self.lifecycle_callback,
-                None
+                self.domain, libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE, self.lifecycle_callback, None
             )
 
             # Register reboot events
             self.conn.domainEventRegisterAny(
-                self.domain,
-                libvirt.VIR_DOMAIN_EVENT_ID_REBOOT,
-                self.reboot_callback,
-                None
+                self.domain, libvirt.VIR_DOMAIN_EVENT_ID_REBOOT, self.reboot_callback, None
             )
 
             self.log("Domain event callbacks registered")
@@ -358,4 +252,4 @@ class VMStateHandler:
                 print(f"Event registration error: {e}")
 
 
-__all__ = ['VMStateHandler']
+__all__ = ["VMStateHandler"]

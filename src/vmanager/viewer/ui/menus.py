@@ -22,6 +22,7 @@ def build_settings_menu(
     on_lossy_toggled: Callable,
     on_view_only_toggled: Callable,
     on_depth_changed: Callable,
+    on_menu_show: Optional[Callable] = None,
 ) -> tuple[Gtk.MenuButton, Gtk.Box, Gtk.CheckButton]:
     """
     Build the settings menu with display options.
@@ -37,6 +38,7 @@ def build_settings_menu(
         on_lossy_toggled: Callback for lossy encoding toggle
         on_view_only_toggled: Callback for view-only toggle
         on_depth_changed: Callback for depth change
+        on_menu_show: Optional callback when menu is shown
 
     Returns:
         Tuple of (menu_button, depth_settings_box, lossy_check)
@@ -47,6 +49,8 @@ def build_settings_menu(
     settings_button.set_tooltip_text("Settings")
 
     settings_popover = Gtk.Popover()
+    if on_menu_show:
+        settings_popover.connect("show", on_menu_show)
     vbox_settings = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
     vbox_settings.set_margin_top(10)
     vbox_settings.set_margin_bottom(10)
@@ -77,6 +81,8 @@ def build_settings_menu(
     view_only_check.connect("toggled", on_view_only_toggled)
     vbox_settings.pack_start(view_only_check, False, False, 0)
 
+    vbox_settings.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0)
+
     # Color Depth Selector
     depth_settings_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
     depth_label = Gtk.Label(label="Color Depth:")
@@ -99,10 +105,67 @@ def build_settings_menu(
     return settings_button, depth_settings_box, lossy_check
 
 
+def build_boot_menu(
+    boot_devices: list[tuple[str, str]],
+    current_boot_device: Optional[str],
+    on_boot_device_changed: Callable,
+    on_menu_show: Optional[Callable] = None,
+) -> tuple[Gtk.MenuButton, Gtk.ComboBoxText]:
+    """
+    Build the boot device selection menu.
+
+    Args:
+        boot_devices: List of (device_id, label) for boot selection
+        current_boot_device: Initial boot device ID
+        on_boot_device_changed: Callback for boot order change
+        on_menu_show: Optional callback when menu is shown
+
+    Returns:
+        Tuple of (menu_button, boot_combo)
+    """
+    boot_button = Gtk.MenuButton()
+    icon_boot = Gtk.Image.new_from_icon_name("media-floppy-symbolic", Gtk.IconSize.BUTTON)
+    boot_button.set_image(icon_boot)
+    boot_button.set_tooltip_text("First Boot Device")
+
+    boot_popover = Gtk.Popover()
+    if on_menu_show:
+        boot_popover.connect("show", on_menu_show)
+    
+    vbox_boot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    vbox_boot.set_margin_top(10)
+    vbox_boot.set_margin_bottom(10)
+    vbox_boot.set_margin_start(10)
+    vbox_boot.set_margin_end(10)
+
+    boot_label = Gtk.Label(label="<b>Select First Boot Device</b>", use_markup=True)
+    vbox_boot.pack_start(boot_label, False, False, 0)
+
+    boot_combo = Gtk.ComboBoxText()
+    for dev_id, label in boot_devices:
+        boot_combo.append(dev_id, label)
+    
+    if current_boot_device:
+        boot_combo.set_active_id(current_boot_device)
+    elif boot_devices:
+        boot_combo.set_active(0)
+
+    boot_combo.connect("changed", on_boot_device_changed)
+    vbox_boot.pack_start(boot_combo, True, True, 0)
+
+    vbox_boot.show_all()
+    boot_popover.add(vbox_boot)
+    boot_button.set_popover(boot_popover)
+
+    return boot_button, boot_combo
+
+
+
 def build_power_menu(
     on_start: Callable,
     on_pause: Callable,
     on_resume: Callable,
+    on_hibernate: Callable,
     on_shutdown: Callable,
     on_reboot: Callable,
     on_destroy: Callable,
@@ -115,6 +178,7 @@ def build_power_menu(
         on_start: Callback for start action
         on_pause: Callback for pause action
         on_resume: Callback for resume action
+        on_hibernate: Callback for hibernate action
         on_shutdown: Callback for graceful shutdown
         on_reboot: Callback for reboot action
         on_destroy: Callback for force power off
@@ -141,6 +205,7 @@ def build_power_menu(
         ("Start", "media-playback-start-symbolic", on_start),
         ("Pause", "media-playback-pause-symbolic", on_pause),
         ("Resume", "media-playback-start-symbolic", on_resume),
+        ("Hibernate", "media-record-symbolic", on_hibernate),
         ("Graceful Shutdown", "system-shutdown-symbolic", on_shutdown),
         ("Reboot", "system-reboot-symbolic", on_reboot),
         ("Force Power Off", "system-shutdown-symbolic", on_destroy),
@@ -263,6 +328,7 @@ def build_clipboard_menu(
 
 __all__ = [
     'build_settings_menu',
+    'build_boot_menu',
     'build_power_menu',
     'build_keys_menu',
     'build_clipboard_menu',

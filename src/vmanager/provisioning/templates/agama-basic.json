@@ -25,7 +25,6 @@
     "patterns": [
       "base",
       "enhanced_base",
-      "yast2_basis",
       "minimal_base"
     ],
     "packages": [

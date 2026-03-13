@@ -86,6 +86,7 @@ class PowerHandler:
             self.power_buttons["Start"].set_sensitive(False)
             self.power_buttons["Pause"].set_sensitive(True)
             self.power_buttons["Resume"].set_sensitive(False)
+            self.power_buttons["Hibernate"].set_sensitive(True)
             self.power_buttons["Graceful Shutdown"].set_sensitive(True)
             self.power_buttons["Reboot"].set_sensitive(True)
             self.power_buttons["Force Power Off"].set_sensitive(True)
@@ -93,6 +94,7 @@ class PowerHandler:
             self.power_buttons["Start"].set_sensitive(False)
             self.power_buttons["Pause"].set_sensitive(False)
             self.power_buttons["Resume"].set_sensitive(True)
+            self.power_buttons["Hibernate"].set_sensitive(False)
             self.power_buttons["Graceful Shutdown"].set_sensitive(True)
             self.power_buttons["Reboot"].set_sensitive(True)
             self.power_buttons["Force Power Off"].set_sensitive(True)
@@ -100,11 +102,13 @@ class PowerHandler:
             self.power_buttons["Start"].set_sensitive(True)
             self.power_buttons["Pause"].set_sensitive(False)
             self.power_buttons["Resume"].set_sensitive(False)
+            self.power_buttons["Hibernate"].set_sensitive(False)
             self.power_buttons["Graceful Shutdown"].set_sensitive(False)
             self.power_buttons["Reboot"].set_sensitive(False)
             self.power_buttons["Force Power Off"].set_sensitive(False)
         else:  # NOSTATE, BLOCKED, CRASHED, PMSUSPENDED, etc.
             self.power_buttons["Start"].set_sensitive(True)
+            self.power_buttons["Hibernate"].set_sensitive(False)
             self.power_buttons["Force Power Off"].set_sensitive(True)
 
     def on_start(self, button, popover):
@@ -152,6 +156,23 @@ class PowerHandler:
 
         # Run in thread to avoid blocking UI
         threading.Thread(target=do_resume, daemon=True).start()
+
+    def on_hibernate(self, button, popover):
+        """Hibernate the VM."""
+        popover.popdown()
+        try:
+            # We need to import hibernate_vm from ..vm_actions
+            # but it is easier to just call it if we pass it or if we use the domain
+            # The user requested to use hibernate_vm from @src/vmanager/vm_actions.py
+            from ...vm_actions import hibernate_vm
+            hibernate_vm(self.domain)
+            self.log("VM hibernation initiated")
+        except libvirt.libvirtError as e:
+            self.log(f"Hibernate error: {e}")
+            self.show_error_dialog(f"Hibernate error: {e}")
+        except Exception as e:
+            self.log(f"Hibernate error: {e}")
+            self.show_error_dialog(f"Hibernate error: {e}")
 
     def on_shutdown(self, button, popover):
         """Gracefully shutdown the VM."""

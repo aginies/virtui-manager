@@ -37,12 +37,6 @@ NOTIFICATION_TIMEOUT_SECONDS = 5
 # VM State Monitoring Constants
 # ============================================================================
 
-# Maximum time to wait for VM to start (seconds)
-VM_WAIT_TIMEOUT_SECONDS = 300  # 5 minutes
-
-# Interval for checking if VM has started (seconds)
-VM_WAIT_CHECK_INTERVAL_SECONDS = 3
-
 # Delay after VM start event before attempting display connection (milliseconds)
 VM_START_CONNECT_DELAY_MS = 1000
 
@@ -68,15 +62,13 @@ LIBVIRT_EVENT_TICK_INTERVAL_MS = 100
 # ============================================================================
 
 __all__ = [
-    'SSH_TUNNEL_VERIFY_TIMEOUT',
-    'SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT',
-    'SSH_TUNNEL_KILL_TIMEOUT',
-    'SSH_TUNNEL_CONNECT_DELAY_MS',
-    'TUNNEL_VERIFY_CHECK_INTERVAL_MS',
-    'NOTIFICATION_TIMEOUT_SECONDS',
-    'VM_WAIT_TIMEOUT_SECONDS',
-    'VM_WAIT_CHECK_INTERVAL_SECONDS',
-    'VM_START_CONNECT_DELAY_MS',
-    'RECONNECT_DELAY_MS',
-    'LIBVIRT_EVENT_TICK_INTERVAL_MS',
+    "SSH_TUNNEL_VERIFY_TIMEOUT",
+    "SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT",
+    "SSH_TUNNEL_KILL_TIMEOUT",
+    "SSH_TUNNEL_CONNECT_DELAY_MS",
+    "TUNNEL_VERIFY_CHECK_INTERVAL_MS",
+    "NOTIFICATION_TIMEOUT_SECONDS",
+    "VM_START_CONNECT_DELAY_MS",
+    "RECONNECT_DELAY_MS",
+    "LIBVIRT_EVENT_TICK_INTERVAL_MS",
 ]
