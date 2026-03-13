@@ -19,21 +19,25 @@ pkgs.python3Packages.buildPythonApplication {
     netifaces
     # GUI dependencies (optional at runtime, but included for convenience)
     pygobject3
+    pycairo
   ] ++ (with pkgs; [
     gtk3
     vte
     gobject-introspection
+    cairo
   ]);
 
   # Optional webconsole support
   passthru.optional-dependencies = {
     webconsole = with pkgs.python3Packages; [ websockify ];
     gui = with pkgs.python3Packages; [ 
-      pygobject3 
+      pygobject3
+      pycairo
     ] ++ (with pkgs; [
       gtk3
       vte
       gobject-introspection
+      cairo
     ]);
   };
 
@@ -70,7 +74,7 @@ pkgs.python3Packages.buildPythonApplication {
     for prog in $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
       if [ -f "$prog" ]; then
         wrapProgram "$prog" \
-          --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte ]}"
+          --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.cairo ]}"
       fi
     done
   '';
