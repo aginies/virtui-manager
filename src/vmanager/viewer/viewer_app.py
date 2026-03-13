@@ -34,7 +34,7 @@ from .handlers import (
 from .utils.config import ConfigManager
 from .utils.notifications import NotificationManager
 
-from .. import vm_queries
+from .. import vm_queries, vm_actions
 
 
 class RemoteViewer(Gtk.Application):
@@ -293,6 +293,9 @@ class RemoteViewer(Gtk.Application):
             vnc_depth=state.get('vnc_depth', 0),
         )
 
+        # Get boot info and available devices
+        boot_devices, current_boot_device, _ = self._get_boot_data()
+
         # Build window using MainWindowBuilder
         handlers = self._create_event_handlers(display_settings)
 
@@ -310,6 +313,8 @@ class RemoteViewer(Gtk.Application):
             lossy_encoding_enabled=display_settings.lossy_encoding_enabled,
             view_only_enabled=display_settings.view_only_enabled,
             vnc_depth=display_settings.vnc_depth,
+            boot_devices=boot_devices,
+            current_boot_device=current_boot_device,
             log_callback=self._log_message,
             notification_callback=self._show_notification,
             reconnect_callback=self._reconnect_display,
@@ -460,6 +465,8 @@ class RemoteViewer(Gtk.Application):
             'on_lossy_toggled': lambda btn: self.display_handler.on_lossy_toggled(btn, lossy_ref) if self.display_handler else None,
             'on_view_only_toggled': lambda btn: self.display_handler.on_view_only_toggled(btn, view_only_ref) if self.display_handler else None,
             'on_depth_changed': lambda combo: self.display_handler.on_depth_changed(combo, depth_ref, self._apply_vnc_depth) if self.display_handler else None,
+            'on_boot_device_changed': lambda combo: self._on_boot_device_changed(combo),
+            'on_settings_menu_show': lambda pop: self._on_settings_menu_show(pop),
             'on_logs_toggled': lambda btn: self._on_logs_toggled(btn),
 
             # Clipboard handlers
@@ -694,6 +701,91 @@ class RemoteViewer(Gtk.Application):
             'vnc_depth': vnc_depth,
         }
         self.config_manager.save_state(state)
+
+    def _get_boot_data(self):
+        """Retrieve boot info and all available bootable devices."""
+        if not self.domain:
+            return [], None, False
+
+        _, root = vm_queries._get_domain_root(self.domain)
+        if root is None:
+            return [], None, False
+
+        boot_info = vm_queries.get_boot_info(self.conn, root)
+
+        # Get all disks and networks
+        disks = vm_queries.get_vm_disks_info(self.conn, root)
+        networks = vm_queries.get_vm_networks_info(root)
+
+        boot_devices = []
+        # Disks
+        for disk in disks:
+            if disk.get('status') == 'enabled':
+                path = disk.get('path')
+                label = f"Disk: {path.split('/')[-1]}"
+                boot_devices.append((path, label))
+
+        # Networks
+        for net in networks:
+            mac = net.get('mac')
+            label = f"Net: {mac}"
+            boot_devices.append((mac, label))
+
+        current_boot_device = None
+        if boot_info.get('order'):
+            current_boot_device = boot_info['order'][0]
+
+        return boot_devices, current_boot_device, boot_info.get('menu_enabled', False)
+
+    def _on_boot_device_changed(self, combo):
+        """Handle boot device selection change."""
+        if not self.domain:
+            return
+
+        device_id = combo.get_active_id()
+        if not device_id:
+            return
+
+        # Check if VM is running
+        try:
+            if self.domain.isActive():
+                self._show_notification("Cannot change boot order while VM is running.", Gtk.MessageType.ERROR)
+                return
+        except libvirt.libvirtError:
+            pass
+
+        # Prepare new order: selected device first, then others
+        boot_devices, _, menu_enabled = self._get_boot_data()
+        all_ids = [d[0] for d in boot_devices]
+
+        new_order = [device_id]
+        for d_id in all_ids:
+            if d_id != device_id:
+                new_order.append(d_id)
+
+        try:
+            vm_actions.set_boot_info(self.domain, menu_enabled, new_order)
+            self._log_message(f"Boot order updated. First device: {device_id}")
+            self._show_notification(f"First boot device set to: {device_id}", Gtk.MessageType.INFO)
+        except Exception as e:
+            self._show_error_dialog(f"Failed to update boot order: {e}")
+
+    def _on_settings_menu_show(self, popover):
+        """Update settings menu elements sensitivity based on VM state."""
+        if not self.domain or not self.window_builder:
+            return
+
+        boot_combo = self.window_builder.get_boot_combo()
+        if boot_combo:
+            try:
+                is_active = self.domain.isActive()
+                boot_combo.set_sensitive(not is_active)
+                if is_active:
+                    boot_combo.set_tooltip_text("VM must be stopped to change boot order")
+                else:
+                    boot_combo.set_tooltip_text("Select the first device to boot from")
+            except libvirt.libvirtError:
+                boot_combo.set_sensitive(False)
 
     def do_shutdown(self):
         """Cleanup on application shutdown."""

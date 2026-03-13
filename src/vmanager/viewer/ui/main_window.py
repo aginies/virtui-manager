@@ -45,6 +45,9 @@ class MainWindowBuilder:
         lossy_encoding_enabled: bool,
         view_only_enabled: bool,
         vnc_depth: int,
+        # Boot settings
+        boot_devices: list[tuple[str, str]],
+        current_boot_device: Optional[str],
         # Callbacks
         log_callback: Optional[Callable[[str], None]] = None,
         notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None,
@@ -67,6 +70,8 @@ class MainWindowBuilder:
             lossy_encoding_enabled: Initial lossy encoding state
             view_only_enabled: Initial view-only state
             vnc_depth: Initial VNC color depth
+            boot_devices: List of (device_id, label) for boot selection
+            current_boot_device: Initial boot device ID
             log_callback: Function to call for logging
             notification_callback: Function to call for notifications
             reconnect_callback: Function to call for reconnection after snapshot restore
@@ -86,6 +91,10 @@ class MainWindowBuilder:
         self.lossy_encoding_enabled = lossy_encoding_enabled
         self.view_only_enabled = view_only_enabled
         self.vnc_depth = vnc_depth
+
+        # Boot settings
+        self.boot_devices = boot_devices
+        self.current_boot_device = current_boot_device
 
         # Callbacks
         self.log = log_callback if log_callback else lambda msg: None
@@ -108,6 +117,7 @@ class MainWindowBuilder:
         self.logs_button: Optional[Gtk.ToggleButton] = None
         self.depth_settings_box: Optional[Gtk.Box] = None
         self.lossy_check: Optional[Gtk.CheckButton] = None
+        self.boot_combo: Optional[Gtk.ComboBoxText] = None
         self.power_buttons: Dict[str, Gtk.ModelButton] = {}
 
         # Tab components
@@ -180,17 +190,21 @@ class MainWindowBuilder:
         header.pack_start(shortcut_label)
 
         # Settings Menu
-        settings_button, self.depth_settings_box, self.lossy_check = build_settings_menu(
+        settings_button, self.depth_settings_box, self.lossy_check, self.boot_combo = build_settings_menu(
             scaling_enabled=self.scaling_enabled,
             smoothing_enabled=self.smoothing_enabled,
             lossy_encoding_enabled=self.lossy_encoding_enabled,
             view_only_enabled=self.view_only_enabled,
             vnc_depth=self.vnc_depth,
+            boot_devices=self.boot_devices,
+            current_boot_device=self.current_boot_device,
             on_scaling_toggled=handlers.get("on_scaling_toggled"),
             on_smoothing_toggled=handlers.get("on_smoothing_toggled"),
             on_lossy_toggled=handlers.get("on_lossy_toggled"),
             on_view_only_toggled=handlers.get("on_view_only_toggled"),
             on_depth_changed=handlers.get("on_depth_changed"),
+            on_boot_device_changed=handlers.get("on_boot_device_changed"),
+            on_menu_show=handlers.get("on_settings_menu_show"),
         )
         header.pack_end(settings_button)
 
@@ -347,6 +361,10 @@ class MainWindowBuilder:
     def get_lossy_check(self) -> Gtk.CheckButton:
         """Get the lossy encoding checkbox."""
         return self.lossy_check
+
+    def get_boot_combo(self) -> Gtk.ComboBoxText:
+        """Get the boot device selector combo box."""
+        return self.boot_combo
 
     def get_fullscreen_button(self) -> Gtk.ToggleButton:
         """Get the fullscreen toggle button."""

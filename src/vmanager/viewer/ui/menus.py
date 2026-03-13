@@ -17,14 +17,18 @@ def build_settings_menu(
     lossy_encoding_enabled: bool,
     view_only_enabled: bool,
     vnc_depth: int,
+    boot_devices: list[tuple[str, str]],
+    current_boot_device: Optional[str],
     on_scaling_toggled: Callable,
     on_smoothing_toggled: Callable,
     on_lossy_toggled: Callable,
     on_view_only_toggled: Callable,
     on_depth_changed: Callable,
-) -> tuple[Gtk.MenuButton, Gtk.Box, Gtk.CheckButton]:
+    on_boot_device_changed: Callable,
+    on_menu_show: Optional[Callable] = None,
+) -> tuple[Gtk.MenuButton, Gtk.Box, Gtk.CheckButton, Gtk.ComboBoxText]:
     """
-    Build the settings menu with display options.
+    Build the settings menu with display options and boot order.
 
     Args:
         scaling_enabled: Initial scaling state
@@ -32,14 +36,18 @@ def build_settings_menu(
         lossy_encoding_enabled: Initial lossy encoding state
         view_only_enabled: Initial view-only state
         vnc_depth: Initial VNC color depth
+        boot_devices: List of (device_id, label) for boot selection
+        current_boot_device: Initial boot device ID
         on_scaling_toggled: Callback for scaling toggle
         on_smoothing_toggled: Callback for smoothing toggle
         on_lossy_toggled: Callback for lossy encoding toggle
         on_view_only_toggled: Callback for view-only toggle
         on_depth_changed: Callback for depth change
+        on_boot_device_changed: Callback for boot order change
+        on_menu_show: Optional callback when menu is shown
 
     Returns:
-        Tuple of (menu_button, depth_settings_box, lossy_check)
+        Tuple of (menu_button, depth_settings_box, lossy_check, boot_combo)
     """
     settings_button = Gtk.MenuButton()
     icon_settings = Gtk.Image.new_from_icon_name("open-menu-symbolic", Gtk.IconSize.BUTTON)
@@ -47,6 +55,8 @@ def build_settings_menu(
     settings_button.set_tooltip_text("Settings")
 
     settings_popover = Gtk.Popover()
+    if on_menu_show:
+        settings_popover.connect("show", on_menu_show)
     vbox_settings = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
     vbox_settings.set_margin_top(10)
     vbox_settings.set_margin_bottom(10)
@@ -77,6 +87,8 @@ def build_settings_menu(
     view_only_check.connect("toggled", on_view_only_toggled)
     vbox_settings.pack_start(view_only_check, False, False, 0)
 
+    vbox_settings.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0)
+
     # Color Depth Selector
     depth_settings_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
     depth_label = Gtk.Label(label="Color Depth:")
@@ -92,11 +104,30 @@ def build_settings_menu(
     depth_settings_box.pack_start(depth_combo, True, True, 0)
     vbox_settings.pack_start(depth_settings_box, False, False, 0)
 
+    # Boot Device Selector
+    boot_settings_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+    boot_label = Gtk.Label(label="First Boot:")
+    boot_settings_box.pack_start(boot_label, False, False, 0)
+
+    boot_combo = Gtk.ComboBoxText()
+    for dev_id, label in boot_devices:
+        boot_combo.append(dev_id, label)
+    
+    if current_boot_device:
+        boot_combo.set_active_id(current_boot_device)
+    elif boot_devices:
+        boot_combo.set_active(0)
+
+    boot_combo.connect("changed", on_boot_device_changed)
+    boot_settings_box.pack_start(boot_combo, True, True, 0)
+    vbox_settings.pack_start(boot_settings_box, False, False, 0)
+
     vbox_settings.show_all()
     settings_popover.add(vbox_settings)
     settings_button.set_popover(settings_popover)
 
-    return settings_button, depth_settings_box, lossy_check
+    return settings_button, depth_settings_box, lossy_check, boot_combo
+
 
 
 def build_power_menu(
