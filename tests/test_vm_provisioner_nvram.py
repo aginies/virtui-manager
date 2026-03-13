@@ -147,6 +147,77 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
     @patch("vmanager.vm_provisioner.tempfile.NamedTemporaryFile")
     @patch("vmanager.vm_provisioner.os.remove")
     @patch("vmanager.vm_provisioner.os.path.exists")
+    @patch("builtins.open", new_callable=mock_open, read_data=b"mock_nvram_content")
+    def test_setup_uefi_nvram_uses_nvram_pool(
+        self,
+        mock_file,
+        mock_exists,
+        mock_remove,
+        mock_tempfile,
+        mock_run,
+        mock_select_fw,
+        mock_get_uefi,
+    ):
+        """Test that 'nvram' pool is used if it exists and is active"""
+        mock_get_uefi.return_value = []
+
+        # Mocks for connection and pools
+        self.mock_nvram_pool = MagicMock()
+        self.mock_nvram_pool.isActive.return_value = True
+        self.mock_target_pool = MagicMock()
+        self.mock_temp_pool = MagicMock()
+
+        def pool_lookup(name):
+            if name == "nvram":
+                return self.mock_nvram_pool
+            if "virtui-fw-" in name:
+                raise libvirt.libvirtError("Not found")
+            return self.mock_target_pool
+
+        self.mock_conn.storagePoolLookupByName.side_effect = pool_lookup
+        self.mock_conn.storagePoolDefineXML.return_value = self.mock_temp_pool
+
+        # Stream mock to avoid infinite loop in while True: data = stream.recv()
+        self.mock_stream = MagicMock()
+        self.mock_stream.recv.side_effect = [b"raw_content", b""]
+        self.mock_conn.newStream.return_value = self.mock_stream
+
+        # Volumes
+        self.mock_source_vol = MagicMock()
+        self.mock_source_vol.info.return_value = [0, 1024, 0]
+        self.mock_temp_pool.storageVolLookupByName.return_value = self.mock_source_vol
+
+        # NVRAM volume setup
+        self.mock_nvram_pool.storageVolLookupByName.side_effect = libvirt.libvirtError("Not found")
+        self.mock_nvram_vol = MagicMock()
+        self.mock_nvram_pool.createXML.return_value = self.mock_nvram_vol
+        self.mock_nvram_vol.path.return_value = "/var/lib/libvirt/nvram/testvm_VARS.qcow2"
+
+        mock_exists.return_value = True
+        fw = Firmware()
+        fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
+        fw.nvram_template = "/usr/share/OVMF/OVMF_VARS.fd"
+        fw.interfaces = ["pflash"]
+        mock_select_fw.return_value = fw
+
+        mock_temp = MagicMock()
+        mock_temp.name = "/tmp/temp_input.raw"
+        mock_tempfile.return_value.__enter__.return_value = mock_temp
+
+        loader, nvram = self.provisioner._setup_uefi_nvram("testvm", "default", VMType.DESKTOP)
+
+        # Verify nvram path is from nvram pool
+        self.assertEqual(nvram, "/var/lib/libvirt/nvram/testvm_VARS.qcow2")
+        # Verify createXML was called on nvram pool, not target pool
+        self.mock_nvram_pool.createXML.assert_called()
+        self.mock_target_pool.createXML.assert_not_called()
+
+    @patch("vmanager.vm_provisioner.get_uefi_files")
+    @patch("vmanager.vm_provisioner.select_best_firmware")
+    @patch("vmanager.vm_provisioner.subprocess.run")
+    @patch("vmanager.vm_provisioner.tempfile.NamedTemporaryFile")
+    @patch("vmanager.vm_provisioner.os.remove")
+    @patch("vmanager.vm_provisioner.os.path.exists")
     @patch("builtins.open", new_callable=mock_open, read_data=b"mock_converted_content")
     def test_setup_uefi_nvram_conversion_nopflash(
         self,
