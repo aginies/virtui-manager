@@ -447,23 +447,40 @@ class VMProvisioner:
     def download_iso(
         self,
         url: str,
-        dest_path: str,
+        dest_path: Optional[str] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
-    ):
+    ) -> str:
         """
-        Downloads the ISO from the given URL to the destination path.
+        Downloads the ISO from the given URL.
         Shows download progress with network speed.
 
         Args:
             url: URL to download from
-            dest_path: Local path to save the file
+            dest_path: Optional local path to save the file. If None, a temporary file is created.
             progress_callback: Optional callback that receives (message, percent)
+
+        Returns:
+            Path to the downloaded ISO file.
         """
-        if os.path.exists(dest_path):
+        from .constants import ErrorMessages
+
+        # Validate URL
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(ErrorMessages.CUSTOM_ISO_INVALID_URL_TEMPLATE.format(url=url))
+
+        # Handle temporary path if none provided
+        if dest_path is None:
+            temp_dir = tempfile.mkdtemp(prefix="virtui_iso_")
+            filename = os.path.basename(url.split("?")[0])  # Remove query params
+            if not filename or not filename.endswith(".iso"):
+                filename = "downloaded.iso"
+            dest_path = os.path.join(temp_dir, filename)
+
+        if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
             logging.info(f"ISO already exists at {dest_path}, skipping download.")
             if progress_callback:
                 progress_callback("ISO already exists", 100)
-            return
+            return dest_path
 
         logging.info(f"Downloading ISO from {url} to {dest_path}")
 
@@ -471,10 +488,14 @@ class VMProvisioner:
         context = ssl._create_unverified_context()
 
         try:
-            with urllib.request.urlopen(url, context=context) as response, open(
+            req = urllib.request.Request(url)
+            req.add_header("User-Agent", f"{AppInfo.namecase}/{AppInfo.version}")
+
+            with urllib.request.urlopen(req, context=context, timeout=30) as response, open(
                 dest_path, "wb"
             ) as out_file:
-                total_size = int(response.getheader("Content-Length").strip())
+                content_length = response.getheader("Content-Length")
+                total_size = int(content_length.strip()) if content_length else 0
                 downloaded_size = 0
                 chunk_size = 1024 * 1024  # 1MB chunks
 
@@ -486,7 +507,6 @@ class VMProvisioner:
                 speed_str = "0 B"  # Initialize speed display
 
                 while True:
-                    chunk_start_time = time.time()
                     chunk = response.read(chunk_size)
                     if not chunk:
                         break
@@ -525,11 +545,19 @@ class VMProvisioner:
                         )
                         progress_callback(message, percent)
 
+            logging.info(f"Successfully downloaded ISO to {dest_path}")
+            return dest_path
+
         except Exception as e:
-            logging.error(f"Failed to download ISO: {e}")
+            logging.error(f"Failed to download ISO from {url}: {e}")
             if os.path.exists(dest_path):
-                os.remove(dest_path)  # Clean up partial file
-            raise e
+                try:
+                    os.remove(dest_path)  # Clean up partial file
+                except Exception:
+                    pass
+            raise Exception(
+                ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(url=url, error=str(e))
+            ) from e
 
     def upload_iso(
         self,
@@ -680,89 +708,6 @@ class VMProvisioner:
             return calculated_checksum.lower() == expected_checksum.lower()
 
         return True
-
-    def download_iso(
-        self, url: str, progress_callback: Optional[Callable[[int, str], None]] = None
-    ) -> str:
-        """
-        Downloads an ISO file from an HTTP/HTTPS URL to a temporary location.
-
-        Args:
-            url: The HTTP/HTTPS URL of the ISO file
-            progress_callback: Optional callback(progress_percent, speed_str) for progress updates
-
-        Returns:
-            Path to the downloaded ISO file in a temporary directory
-
-        Raises:
-            Exception: If download fails
-        """
-        from .constants import ErrorMessages
-
-        # Validate URL
-        if not url.startswith(("http://", "https://")):
-            raise ValueError(ErrorMessages.CUSTOM_ISO_INVALID_URL_TEMPLATE.format(url=url))
-
-        # Create temporary file
-        temp_dir = tempfile.mkdtemp(prefix="virtui_iso_")
-        filename = os.path.basename(url.split("?")[0])  # Remove query params
-        if not filename or not filename.endswith(".iso"):
-            filename = "downloaded.iso"
-
-        local_path = os.path.join(temp_dir, filename)
-
-        try:
-            logging.info(f"Downloading ISO from {url} to {local_path}")
-
-            # Download with progress tracking
-            req = urllib.request.Request(url)
-            req.add_header("User-Agent", f"{AppInfo.namecase}/{AppInfo.version}")
-
-            with urllib.request.urlopen(req, timeout=30) as response:
-                total_size = int(response.headers.get("content-length", 0))
-                downloaded = 0
-                block_size = 8192
-                start_time = time.time()
-
-                with open(local_path, "wb") as out_file:
-                    while True:
-                        buffer = response.read(block_size)
-                        if not buffer:
-                            break
-
-                        downloaded += len(buffer)
-                        out_file.write(buffer)
-
-                        # Calculate progress
-                        if progress_callback and total_size > 0:
-                            progress = int((downloaded / total_size) * 100)
-                            elapsed = time.time() - start_time
-                            if elapsed > 0:
-                                speed = downloaded / elapsed
-                                speed_str = self._format_speed(speed)
-                                progress_callback(progress, speed_str)
-
-                logging.info(f"Successfully downloaded ISO to {local_path}")
-                return local_path
-
-        except urllib.error.URLError as e:
-            # Clean up on failure
-            if os.path.exists(local_path):
-                os.remove(local_path)
-            if os.path.exists(temp_dir):
-                os.rmdir(temp_dir)
-            raise Exception(
-                ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(url=url, error=str(e))
-            )
-        except Exception as e:
-            # Clean up on failure
-            if os.path.exists(local_path):
-                os.remove(local_path)
-            if os.path.exists(temp_dir):
-                os.rmdir(temp_dir)
-            raise Exception(
-                ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(url=url, error=str(e))
-            )
 
     def _format_speed(self, bytes_per_sec: float) -> str:
         """Format download speed in human-readable format."""
@@ -2713,8 +2658,20 @@ class VMProvisioner:
                         self.logger.error(f"Failed to start HTTP server for Auto Install: {e}")
                         if http_server:
                             http_server.stop()
+                        # Cleanup temp directory on error
+                        if temp_dir and os.path.exists(str(temp_dir)):
+                            try:
+                                shutil.rmtree(str(temp_dir), ignore_errors=True)
+                                self.logger.info(
+                                    f"Cleaned up automation temp directory after error: {temp_dir}"
+                                )
+                            except Exception as cleanup_error:
+                                self.logger.warning(
+                                    f"Failed to cleanup temp directory: {cleanup_error}"
+                                )
                         # Continue without automation
                         auto_url = None
+                        temp_dir = None
 
                     # Get host IP and build Auto Install URL
                     host_ip = self._get_host_ip_for_vms()
@@ -2756,9 +2713,19 @@ class VMProvisioner:
 
             except Exception as e:
                 self.logger.error(f"Failed to generate automation file: {e}")
+                # Cleanup temp directory on error
+                if temp_dir and os.path.exists(str(temp_dir)):
+                    try:
+                        shutil.rmtree(str(temp_dir), ignore_errors=True)
+                        self.logger.info(
+                            f"Cleaned up automation temp directory after error: {temp_dir}"
+                        )
+                    except Exception as cleanup_error:
+                        self.logger.warning(f"Failed to cleanup temp directory: {cleanup_error}")
                 # Continue without automation rather than failing the entire process
                 automation_file_path = None
                 auto_url = None
+                temp_dir = None
 
         # Handle Configure Before Install feature
         if configure_before_install:
@@ -3196,5 +3163,36 @@ class VMProvisioner:
                 daemon=True,
             ).start()
 
+        # Cleanup any leftover temporary directories that weren't automat setup
+        # (extract directories are not tracked by the restart_watcher)
+        self._cleanup_extract_temp_dirs()
+
         report(StaticText.PROVISIONING_COMPLETE, 100)
         return dom
+
+    @staticmethod
+    def _cleanup_extract_temp_dirs():
+        """
+        Clean up temporary directories created during ISO extraction.
+        These are created by _extract_*_iso_kernel_initrd methods and should be
+        cleaned up after the kernel/initrd files have been uploaded to storage.
+        """
+        import glob
+
+        temp_patterns = [
+            "/tmp/virtui_iso_extract_*",
+            "/tmp/virtui_debian_iso_extract_*",
+            "/tmp/virtui_ubuntu_iso_extract_*",
+            "/tmp/virtui_fedora_iso_extract_*",
+            "/tmp/virtui_arch_iso_extract_*",
+            "/tmp/virtui_alpine_iso_extract_*",
+        ]
+
+        for pattern in temp_patterns:
+            for temp_dir in glob.glob(pattern):
+                try:
+                    if os.path.isdir(temp_dir):
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        logging.info(f"Cleaned up extraction temp directory: {temp_dir}")
+                except Exception as e:
+                    logging.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
