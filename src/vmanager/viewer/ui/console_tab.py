@@ -325,7 +325,7 @@ Use 'virsh edit <vm-name>' to check/modify if needed.
             flags=Gtk.DialogFlags.MODAL | Gtk.DialogFlags.DESTROY_WITH_PARENT,
         )
         dialog.add_button(Gtk.STOCK_CLOSE, Gtk.ResponseType.CLOSE)
-        dialog.set_default_size(700, 600)
+        dialog.set_default_size(800, 700)
 
         content_area = dialog.get_content_area()
         content_area.set_border_width(10)
