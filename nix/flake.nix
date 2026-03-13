@@ -53,7 +53,7 @@
             nativeBuildInputs = with pkgs.python3Packages; [
               setuptools
               wheel
-            ];
+            ] ++ [ pkgs.makeWrapper ];
 
             # Test dependencies
             nativeCheckInputs = with pkgs.python3Packages; [
@@ -76,6 +76,16 @@
               # Fix the shebang in wrapper.py to use the correct python path
               substituteInPlace src/vmanager/wrapper.py \
                 --replace '#!/usr/bin/env python3' "#!${pkgs.python3.interpreter}"
+            '';
+
+            # Wrap binaries to set GI_TYPELIB_PATH for GTK/GObject Introspection
+            postFixup = ''
+              for prog in $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
+                if [ -f "$prog" ]; then
+                  wrapProgram "$prog" \
+                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte ]}"
+                fi
+              done
             '';
 
             meta = with pkgs.lib; {
