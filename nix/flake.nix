@@ -30,11 +30,24 @@
               packaging
               requests
               netifaces
-            ];
+              # GUI dependencies (optional at runtime, but included for convenience)
+              pygobject3
+            ] ++ (with pkgs; [
+              gtk3
+              vte
+              gobject-introspection
+            ]);
 
             # Optional webconsole support
             passthru.optional-dependencies = {
               webconsole = with pkgs.python3Packages; [ websockify ];
+              gui = with pkgs.python3Packages; [ 
+                pygobject3 
+              ] ++ (with pkgs; [
+                gtk3
+                vte
+                gobject-introspection
+              ]);
             };
 
             nativeBuildInputs = with pkgs.python3Packages; [
