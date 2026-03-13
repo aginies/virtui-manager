@@ -110,6 +110,12 @@ class DisplayManager:
         # Clipboard handler ID (for VNC)
         self.clipboard_handler_id: Optional[int] = None
 
+        # Store handlers for reinitializing display when protocol changes
+        self._stored_view_only_handler = None
+        self._stored_grab_handler = None
+        self._stored_domain = None
+        self._stored_ssh_tunnel_manager = None
+
     def set_view_container(self, container: Gtk.Box):
         """Set the container where the display will be added."""
         self.view_container = container
@@ -136,6 +142,7 @@ class DisplayManager:
         Returns:
             Tuple of (protocol, host, port, password)
             password will be None if no password is set in VM XML
+            port will be None if VM is stopped (port = -1)
         """
         if not domain:
             return None, None, None, None
@@ -157,26 +164,30 @@ class DisplayManager:
 
                 password = g_node.get("passwd")  # Actual password from XML
 
-                if port and port != "-1":
-                    return listen, port, password
-                return None
+                # Return info even if port is -1 (VM stopped), so protocol can be detected
+                # When VM is stopped, port will be "-1" which we return as None
+                return listen, (port if port and port != "-1" else None), password
 
             # Check SPICE (only if client is available)
             if SPICE_AVAILABLE:
-                info = get_graphics_info(root.find(".//graphics[@type='spice']"))
-                if info:
-                    listen, port, password = info
-                    if ssh_tunnel_manager:
-                        self._setup_tunnel_if_needed(ssh_tunnel_manager, listen, port)
-                    return "spice", listen, port, password
+                spice_node = root.find(".//graphics[@type='spice']")
+                if spice_node is not None:
+                    info = get_graphics_info(spice_node)
+                    if info:
+                        listen, port, password = info
+                        if ssh_tunnel_manager and port:
+                            self._setup_tunnel_if_needed(ssh_tunnel_manager, listen, port)
+                        return "spice", listen, port, password
 
             # Check VNC
-            info = get_graphics_info(root.find(".//graphics[@type='vnc']"))
-            if info:
-                listen, port, password = info
-                if ssh_tunnel_manager:
-                    self._setup_tunnel_if_needed(ssh_tunnel_manager, listen, port)
-                return "vnc", listen, port, password
+            vnc_node = root.find(".//graphics[@type='vnc']")
+            if vnc_node is not None:
+                info = get_graphics_info(vnc_node)
+                if info:
+                    listen, port, password = info
+                    if ssh_tunnel_manager and port:
+                        self._setup_tunnel_if_needed(ssh_tunnel_manager, listen, port)
+                    return "vnc", listen, port, password
 
         except Exception as e:
             msg = f"XML parse error: {e}"
@@ -216,6 +227,16 @@ class DisplayManager:
         Returns:
             The initialized display widget, or None if no protocol available
         """
+        # Store handlers for potential protocol change reinit
+        if view_only_handler is not None:
+            self._stored_view_only_handler = view_only_handler
+        if grab_handler is not None:
+            self._stored_grab_handler = grab_handler
+        if domain is not None:
+            self._stored_domain = domain
+        if ssh_tunnel_manager is not None:
+            self._stored_ssh_tunnel_manager = ssh_tunnel_manager
+
         # Detect protocol if not already set and domain is provided
         if self.protocol is None and domain:
             protocol, _, _, _ = self.get_display_info(domain, ssh_tunnel_manager)
@@ -271,6 +292,11 @@ class DisplayManager:
         if self.lossy_check:
             self.lossy_check.set_visible(False)
 
+        # Don't recreate session if it already exists
+        if self.spice_session:
+            self.log("SPICE session already exists, reusing it")
+            return
+
         self.spice_session = SpiceClientGLib.Session()
 
         # Connect SPICE session signals using GObject.Object.connect to avoid conflict with Session.connect()
@@ -302,6 +328,11 @@ class DisplayManager:
             self.depth_settings_box.set_visible(True)
         if self.lossy_check:
             self.lossy_check.set_visible(True)
+
+        # Don't recreate display if it already exists
+        if self.vnc_display:
+            self.log("VNC display already exists, reusing it")
+            return
 
         self.protocol = "vnc"  # Fallback if spice not available
         self.vnc_display = GtkVnc.Display()
@@ -417,6 +448,40 @@ class DisplayManager:
                     self.log("No display protocol detected")
                     return False
 
+                # Update protocol if not set yet (e.g., viewer started before protocol could be detected)
+                if self.protocol is None and protocol:
+                    self.log(f"Protocol detected: {protocol}, initializing display")
+                    self.protocol = protocol
+                    # Initialize display widget with detected protocol using stored handlers
+                    self.init_display(
+                        domain=domain,
+                        ssh_tunnel_manager=ssh_tunnel_manager,
+                        view_only_handler=self._stored_view_only_handler,
+                        grab_handler=self._stored_grab_handler,
+                    )
+                elif self.protocol != protocol:
+                    # This shouldn't normally happen, but handle it just in case
+                    self.log(
+                        f"WARNING: Protocol mismatch: expected {self.protocol}, detected {protocol}"
+                    )
+                # Check if display widget exists for the current protocol (only if we didn't just init)
+                elif self.protocol == "vnc" and not self.vnc_display:
+                    self.log("VNC display widget not initialized, initializing now")
+                    self.init_display(
+                        domain=domain,
+                        ssh_tunnel_manager=ssh_tunnel_manager,
+                        view_only_handler=self._stored_view_only_handler,
+                        grab_handler=self._stored_grab_handler,
+                    )
+                elif self.protocol == "spice" and not self.spice_session:
+                    self.log("SPICE display widget not initialized, initializing now")
+                    self.init_display(
+                        domain=domain,
+                        ssh_tunnel_manager=ssh_tunnel_manager,
+                        view_only_handler=self._stored_view_only_handler,
+                        grab_handler=self._stored_grab_handler,
+                    )
+
                 host = detected_host
                 port = detected_port
 
@@ -449,7 +514,7 @@ class DisplayManager:
 
         if self.protocol == "spice" and SPICE_AVAILABLE:
             self.spice_session.open_fd(fd)
-        elif self.protocol == "vnc":
+        elif self.protocol == "vnc" and self.vnc_display:
             if self.vnc_display.is_open() and force:
                 self.vnc_display.close()
             self.reconnect_pending = False
@@ -518,7 +583,7 @@ class DisplayManager:
         """Perform the actual VNC connection (called directly or via GLib.timeout)."""
         try:
             self.log(f"Connecting to VNC at {host}:{port}")
-            if self.vnc_display.is_open():
+            if self.vnc_display and self.vnc_display.is_open():
                 if force:
                     if self.verbose:
                         print("Forcing reconnection (closing first)...")
@@ -531,7 +596,8 @@ class DisplayManager:
             # Re-apply depth setting before connecting
             self._apply_vnc_depth()
 
-            self.vnc_display.open_host(host, str(port))
+            if self.vnc_display:
+                self.vnc_display.open_host(host, str(port))
         except Exception as e:
             error_msg = f"Failed to connect to VNC server at {host}:{port}\n\nError: {e}"
             self.log(f"ERROR: {error_msg}")
