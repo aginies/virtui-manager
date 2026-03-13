@@ -960,34 +960,64 @@ class VManagerCMD(cmd.Cmd):
         return vms_to_operate
 
     def do_connect(self, args):
-        """Connect to one or more servers.
-        Usage: connect <server_name_1> [<server_name_2> ...] | all"""
-        server_names_to_connect = args.split()
+        """Connect to one or more servers or URIs.
+        Usage: connect <server_name_or_uri_1> [<server_name_or_uri_2> ...] | all
+        
+        Example:
+          connect local
+          connect qemu:///system
+          connect qemu+ssh://user@host/system
+        """
+        targets_to_connect = args.split()
 
-        if not server_names_to_connect:
-            print("Please specify one or more server names.")
-            print(f"Available servers: {', '.join(self.server_names)}")
+        if not targets_to_connect:
+            print("Please specify one or more server names or URIs.")
+            if self.server_names:
+                print(f"Available configured servers: {', '.join(self.server_names)}")
             return
 
-        if "all" in server_names_to_connect:
-            server_names_to_connect = self.server_names
+        if "all" in targets_to_connect:
+            targets_to_connect = self.server_names
 
-        for server_name in server_names_to_connect:
-            if server_name in self.active_connections:
-                print(f"Already connected to '{server_name}'.")
+        from .utils import extract_server_name_from_uri
+
+        for target in targets_to_connect:
+            # Check if it's already connected
+            if target in self.active_connections:
+                print(f"Already connected to '{target}'.")
                 continue
 
-            server_info = next((s for s in self.servers if s["name"] == server_name), None)
+            # Check if it's a URI or a configured server name
+            uri = None
+            server_name = None
 
-            if not server_info:
-                print(f"Server '{server_name}' not found in configuration.")
-                continue
+            if "://" in target or target.startswith("qemu:///"):
+                uri = target
+                # Extract a friendly name for the URI
+                server_name = extract_server_name_from_uri(uri)
+                # If name already exists, append a unique identifier or the URI itself
+                if server_name in self.active_connections:
+                    server_name = f"{server_name} ({self._sanitize_message(uri)})"
+            else:
+                server_info = next((s for s in self.servers if s["name"] == target), None)
+                if server_info:
+                    server_name = target
+                    uri = server_info["uri"]
+                else:
+                    print(f"Error: '{target}' is not a configured server name and does not look like a URI.")
+                    continue
+
+            # Ensure we have a color for this server
+            if server_name not in self.server_colors:
+                self.server_colors[server_name] = ServerPallette.COLOR[
+                    len(self.server_colors) % len(ServerPallette.COLOR)
+                ]
 
             try:
                 self._safe_print(
-                    f"Connecting to {server_name} at {self._sanitize_message(server_info['uri'])}..."
+                    f"Connecting to {server_name} at {self._sanitize_message(uri)}..."
                 )
-                conn = self.vm_service.connect(server_info["uri"])
+                conn = self.vm_service.connect(uri)
                 if conn:
                     self.active_connections[server_name] = conn
                     print(f"Successfully connected to '{server_name}'.")
@@ -995,16 +1025,22 @@ class VManagerCMD(cmd.Cmd):
                     print(f"Failed to connect to '{server_name}'.")
             except libvirt.libvirtError as e:
                 self._safe_print(f"Error connecting to {server_name}: {e}")
+            except Exception as e:
+                self._safe_print(f"Unexpected error connecting to {server_name}: {e}")
 
         self._update_prompt()
 
     def complete_connect(self, text, line, begidx, endidx):
         """Auto-completion for server names."""
+        # Include both configured server names and active connection names
+        all_possible = set(self.server_names) | set(self.active_connections.keys())
+        all_possible.add("all")
+        
         if not text:
-            completions = self.server_names[:]
+            completions = sorted(list(all_possible))
         else:
-            completions = [s for s in self.server_names if s.startswith(text)]
-        return completions
+            completions = [s for s in all_possible if s.startswith(text)]
+        return sorted(completions)
 
     def do_disconnect(self, args):
         """Disconnects from one or more libvirt servers.
