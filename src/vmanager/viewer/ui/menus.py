@@ -17,18 +17,15 @@ def build_settings_menu(
     lossy_encoding_enabled: bool,
     view_only_enabled: bool,
     vnc_depth: int,
-    boot_devices: list[tuple[str, str]],
-    current_boot_device: Optional[str],
     on_scaling_toggled: Callable,
     on_smoothing_toggled: Callable,
     on_lossy_toggled: Callable,
     on_view_only_toggled: Callable,
     on_depth_changed: Callable,
-    on_boot_device_changed: Callable,
     on_menu_show: Optional[Callable] = None,
-) -> tuple[Gtk.MenuButton, Gtk.Box, Gtk.CheckButton, Gtk.ComboBoxText]:
+) -> tuple[Gtk.MenuButton, Gtk.Box, Gtk.CheckButton]:
     """
-    Build the settings menu with display options and boot order.
+    Build the settings menu with display options.
 
     Args:
         scaling_enabled: Initial scaling state
@@ -36,18 +33,15 @@ def build_settings_menu(
         lossy_encoding_enabled: Initial lossy encoding state
         view_only_enabled: Initial view-only state
         vnc_depth: Initial VNC color depth
-        boot_devices: List of (device_id, label) for boot selection
-        current_boot_device: Initial boot device ID
         on_scaling_toggled: Callback for scaling toggle
         on_smoothing_toggled: Callback for smoothing toggle
         on_lossy_toggled: Callback for lossy encoding toggle
         on_view_only_toggled: Callback for view-only toggle
         on_depth_changed: Callback for depth change
-        on_boot_device_changed: Callback for boot order change
         on_menu_show: Optional callback when menu is shown
 
     Returns:
-        Tuple of (menu_button, depth_settings_box, lossy_check, boot_combo)
+        Tuple of (menu_button, depth_settings_box, lossy_check)
     """
     settings_button = Gtk.MenuButton()
     icon_settings = Gtk.Image.new_from_icon_name("open-menu-symbolic", Gtk.IconSize.BUTTON)
@@ -104,10 +98,48 @@ def build_settings_menu(
     depth_settings_box.pack_start(depth_combo, True, True, 0)
     vbox_settings.pack_start(depth_settings_box, False, False, 0)
 
-    # Boot Device Selector
-    boot_settings_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-    boot_label = Gtk.Label(label="First Boot:")
-    boot_settings_box.pack_start(boot_label, False, False, 0)
+    vbox_settings.show_all()
+    settings_popover.add(vbox_settings)
+    settings_button.set_popover(settings_popover)
+
+    return settings_button, depth_settings_box, lossy_check
+
+
+def build_boot_menu(
+    boot_devices: list[tuple[str, str]],
+    current_boot_device: Optional[str],
+    on_boot_device_changed: Callable,
+    on_menu_show: Optional[Callable] = None,
+) -> tuple[Gtk.MenuButton, Gtk.ComboBoxText]:
+    """
+    Build the boot device selection menu.
+
+    Args:
+        boot_devices: List of (device_id, label) for boot selection
+        current_boot_device: Initial boot device ID
+        on_boot_device_changed: Callback for boot order change
+        on_menu_show: Optional callback when menu is shown
+
+    Returns:
+        Tuple of (menu_button, boot_combo)
+    """
+    boot_button = Gtk.MenuButton()
+    icon_boot = Gtk.Image.new_from_icon_name("media-floppy-symbolic", Gtk.IconSize.BUTTON)
+    boot_button.set_image(icon_boot)
+    boot_button.set_tooltip_text("First Boot Device")
+
+    boot_popover = Gtk.Popover()
+    if on_menu_show:
+        boot_popover.connect("show", on_menu_show)
+    
+    vbox_boot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+    vbox_boot.set_margin_top(10)
+    vbox_boot.set_margin_bottom(10)
+    vbox_boot.set_margin_start(10)
+    vbox_boot.set_margin_end(10)
+
+    boot_label = Gtk.Label(label="<b>Select First Boot Device</b>", use_markup=True)
+    vbox_boot.pack_start(boot_label, False, False, 0)
 
     boot_combo = Gtk.ComboBoxText()
     for dev_id, label in boot_devices:
@@ -119,14 +151,13 @@ def build_settings_menu(
         boot_combo.set_active(0)
 
     boot_combo.connect("changed", on_boot_device_changed)
-    boot_settings_box.pack_start(boot_combo, True, True, 0)
-    vbox_settings.pack_start(boot_settings_box, False, False, 0)
+    vbox_boot.pack_start(boot_combo, True, True, 0)
 
-    vbox_settings.show_all()
-    settings_popover.add(vbox_settings)
-    settings_button.set_popover(settings_popover)
+    vbox_boot.show_all()
+    boot_popover.add(vbox_boot)
+    boot_button.set_popover(boot_popover)
 
-    return settings_button, depth_settings_box, lossy_check, boot_combo
+    return boot_button, boot_combo
 
 
 
@@ -297,6 +328,7 @@ def build_clipboard_menu(
 
 __all__ = [
     'build_settings_menu',
+    'build_boot_menu',
     'build_power_menu',
     'build_keys_menu',
     'build_clipboard_menu',

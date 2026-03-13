@@ -503,6 +503,7 @@ class RemoteViewer(Gtk.Application):
             else None,
             "on_boot_device_changed": lambda combo: self._on_boot_device_changed(combo),
             "on_settings_menu_show": lambda pop: self._on_settings_menu_show(pop),
+            "on_boot_menu_show": lambda pop: self._on_boot_menu_show(pop),
             "on_logs_toggled": lambda btn: self._on_logs_toggled(btn),
             # Clipboard handlers
             "on_type_clipboard": lambda btn, pop: self.clipboard_handler.on_type(btn, pop)
@@ -809,6 +810,11 @@ class RemoteViewer(Gtk.Application):
 
     def _on_settings_menu_show(self, popover):
         """Update settings menu elements sensitivity based on VM state."""
+        # Currently no specific sensitivity logic for settings menu
+        pass
+
+    def _on_boot_menu_show(self, popover):
+        """Update boot menu elements sensitivity based on VM state."""
         if not self.domain or not self.window_builder:
             return
 

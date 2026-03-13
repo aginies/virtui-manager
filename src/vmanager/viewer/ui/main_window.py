@@ -12,6 +12,7 @@ from gi.repository import Gtk
 
 from .menus import (
     build_settings_menu,
+    build_boot_menu,
     build_power_menu,
     build_keys_menu,
     build_clipboard_menu,
@@ -190,23 +191,29 @@ class MainWindowBuilder:
         header.pack_start(shortcut_label)
 
         # Settings Menu
-        settings_button, self.depth_settings_box, self.lossy_check, self.boot_combo = build_settings_menu(
+        settings_button, self.depth_settings_box, self.lossy_check = build_settings_menu(
             scaling_enabled=self.scaling_enabled,
             smoothing_enabled=self.smoothing_enabled,
             lossy_encoding_enabled=self.lossy_encoding_enabled,
             view_only_enabled=self.view_only_enabled,
             vnc_depth=self.vnc_depth,
-            boot_devices=self.boot_devices,
-            current_boot_device=self.current_boot_device,
             on_scaling_toggled=handlers.get("on_scaling_toggled"),
             on_smoothing_toggled=handlers.get("on_smoothing_toggled"),
             on_lossy_toggled=handlers.get("on_lossy_toggled"),
             on_view_only_toggled=handlers.get("on_view_only_toggled"),
             on_depth_changed=handlers.get("on_depth_changed"),
-            on_boot_device_changed=handlers.get("on_boot_device_changed"),
             on_menu_show=handlers.get("on_settings_menu_show"),
         )
         header.pack_end(settings_button)
+
+        # Boot Menu
+        boot_button, self.boot_combo = build_boot_menu(
+            boot_devices=self.boot_devices,
+            current_boot_device=self.current_boot_device,
+            on_boot_device_changed=handlers.get("on_boot_device_changed"),
+            on_menu_show=handlers.get("on_boot_menu_show"),
+        )
+        header.pack_end(boot_button)
 
         # Power Menu
         power_button, self.power_buttons = build_power_menu(
