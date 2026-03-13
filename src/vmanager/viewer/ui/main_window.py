@@ -213,6 +213,7 @@ class MainWindowBuilder:
             on_start=handlers.get("on_power_start"),
             on_pause=handlers.get("on_power_pause"),
             on_resume=handlers.get("on_power_resume"),
+            on_hibernate=handlers.get("on_power_hibernate"),
             on_shutdown=handlers.get("on_power_shutdown"),
             on_reboot=handlers.get("on_power_reboot"),
             on_destroy=handlers.get("on_power_destroy"),

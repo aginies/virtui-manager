@@ -134,6 +134,7 @@ def build_power_menu(
     on_start: Callable,
     on_pause: Callable,
     on_resume: Callable,
+    on_hibernate: Callable,
     on_shutdown: Callable,
     on_reboot: Callable,
     on_destroy: Callable,
@@ -146,6 +147,7 @@ def build_power_menu(
         on_start: Callback for start action
         on_pause: Callback for pause action
         on_resume: Callback for resume action
+        on_hibernate: Callback for hibernate action
         on_shutdown: Callback for graceful shutdown
         on_reboot: Callback for reboot action
         on_destroy: Callback for force power off
@@ -172,6 +174,7 @@ def build_power_menu(
         ("Start", "media-playback-start-symbolic", on_start),
         ("Pause", "media-playback-pause-symbolic", on_pause),
         ("Resume", "media-playback-start-symbolic", on_resume),
+        ("Hibernate", "media-record-symbolic", on_hibernate),
         ("Graceful Shutdown", "system-shutdown-symbolic", on_shutdown),
         ("Reboot", "system-reboot-symbolic", on_reboot),
         ("Force Power Off", "system-shutdown-symbolic", on_destroy),

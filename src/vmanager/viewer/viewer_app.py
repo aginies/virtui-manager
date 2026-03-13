@@ -452,6 +452,7 @@ class RemoteViewer(Gtk.Application):
             'on_power_shutdown': lambda btn, pop: self.power_handler.on_shutdown(btn, pop) if self.power_handler else None,
             'on_power_reboot': lambda btn, pop: self.power_handler.on_reboot(btn, pop) if self.power_handler else None,
             'on_power_destroy': lambda btn, pop: self.power_handler.on_destroy(btn, pop) if self.power_handler else None,
+            'on_power_hibernate': lambda btn, pop: self.power_handler.on_hibernate(btn, pop) if self.power_handler else None,
             'on_power_menu_show': lambda pop: self.power_handler.update_menu_sensitivity(pop) if self.power_handler else None,
 
             # Display handlers
