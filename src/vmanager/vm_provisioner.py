@@ -1064,7 +1064,7 @@ class VMProvisioner:
                     "mem_backing": "memfd",
                     "sound_model": "ich9",
                     "on_poweroff": "destroy",
-                    "on_reboot": "destroy",
+                    "on_reboot": "restart",
                     "on_crash": "destroy",
                 }
             )
@@ -1082,7 +1082,7 @@ class VMProvisioner:
                     "sound_model": "ich9",
                     "tpm": True if vm_type == VMType.WDESKTOP else False,
                     "on_poweroff": "destroy",
-                    "on_reboot": "destroy",
+                    "on_reboot": "restart",
                     "on_crash": "destroy",
                 }
             )
@@ -1101,7 +1101,7 @@ class VMProvisioner:
                     "suspend_to_disk": "on",
                     "mem_backing": False,
                     "on_poweroff": "destroy",
-                    "on_reboot": "destroy",
+                    "on_reboot": "restart",
                     "on_crash": "restart",
                 }
             )
