@@ -51,7 +51,7 @@ pkgs.python3Packages.buildPythonApplication {
     wheel
   ] ++ (with pkgs; [ 
     makeWrapper
-    wrapGAppsHook
+    wrapGAppsHook3
     gobject-introspection
   ]);
 

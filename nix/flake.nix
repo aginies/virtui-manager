@@ -62,7 +62,11 @@
             nativeBuildInputs = with pkgs.python3Packages; [
               setuptools
               wheel
-            ] ++ [ pkgs.makeWrapper ];
+            ] ++ (with pkgs; [ 
+              makeWrapper
+              wrapGAppsHook3
+              gobject-introspection
+            ]);
 
             # Test dependencies
             nativeCheckInputs = with pkgs.python3Packages; [
