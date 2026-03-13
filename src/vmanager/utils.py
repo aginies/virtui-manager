@@ -172,6 +172,34 @@ def sanitize_sensitive_data(message: str) -> str:
     return sanitized
 
 
+def strip_ansi_codes(text: str) -> str:
+    """
+    Remove ANSI escape sequences (colors, terminal control) from a string.
+
+    Args:
+        text: The string to clean
+
+    Returns:
+        Clean string without escape sequences
+    """
+    if not isinstance(text, str):
+        return text
+
+    # Handle CSI (Control Sequence Introducer) sequences: \x1B[...
+    # This covers colors, cursor movement, etc.
+    text = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", text)
+
+    # Handle OSC (Operating System Command) sequences: \x1B]...
+    # These often end with \x07 (BEL) or \x1B\ (ST)
+    # Using a more robust pattern for OSC
+    text = re.sub(r"\x1B\].*?(?:\x07|\x1B\\)", "", text)
+
+    # Handle other escape sequences like \x1B=, \x1B>, \x1B(B, etc.
+    text = re.sub(r"\x1B[()=@-Z\\-_]|[\x80-\x9F]", "", text)
+
+    return text
+
+
 class SanitizingFilter(logging.Filter):  # pylint: disable=too-few-public-methods
     """A logging filter that sanitizes sensitive information from log messages.
 

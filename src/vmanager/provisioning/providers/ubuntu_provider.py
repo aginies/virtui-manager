@@ -23,6 +23,7 @@ class UbuntuDistro(Enum):
     UBUNTU_24_04_LTS = "24.04 LTS (Noble Numbat)"
     UBUNTU_22_04_LTS = "22.04 LTS (Jammy Jellyfish)"
     UBUNTU_20_04_LTS = "20.04 LTS (Focal Fossa)"
+    UBUNTU_25_10 = "25.10 (Questing Quokka)"
     UBUNTU_24_10 = "24.10 (Oracular Oriole)"
     UBUNTU_23_10 = "23.10 (Mantic Minotaur)"
     UBUNTU_23_04 = "23.04 (Lunar Lobster)"
@@ -48,6 +49,7 @@ class UbuntuProvider(OSProvider):
             ("24.04", "24.04 LTS (Noble Numbat)"),
             ("22.04", "22.04 LTS (Jammy Jellyfish)"),
             ("20.04", "20.04 LTS (Focal Fossa)"),
+            ("25.10", "25.10 (Questing Quokka)"),
             ("24.10", "24.10 (Oracular Oriole)"),
             ("23.10", "23.10 (Mantic Minotaur)"),
             ("23.04", "23.04 (Lunar Lobster)"),
@@ -94,35 +96,6 @@ class UbuntuProvider(OSProvider):
 
         except Exception as e:
             self.logger.error(f"Error fetching Ubuntu ISO list: {e}")
-            return []
-
-    def get_iso_list_from_url(self, url: str) -> List[Dict[str, Any]]:
-        """Get ISO list from a specific URL."""
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-
-            # Parse the HTML to extract ISO links
-            # This is a simplified implementation
-            iso_list = []
-            content = response.text.lower()
-
-            if "ubuntu" in content and (".iso" in content):
-                # Basic parsing - in a real implementation, you'd use BeautifulSoup
-                iso_list.append(
-                    {
-                        "name": "Ubuntu Server ISO",
-                        "url": url,
-                        "size": "Unknown",
-                        "arch": "amd64",
-                        "type": "server",
-                    }
-                )
-
-            return iso_list
-
-        except Exception as e:
-            self.logger.error(f"Error fetching ISOs from URL {url}: {e}")
             return []
 
     def generate_automation_file(
@@ -260,109 +233,32 @@ class UbuntuProvider(OSProvider):
         self, version_number: str, version_display: str
     ) -> List[Dict[str, Any]]:
         """Get ISO list for specific Ubuntu version."""
-        iso_list = []
-
         try:
             # Ubuntu releases URL pattern
             base_url = f"http://releases.ubuntu.com/{version_number}/"
 
-            # First, try to get the directory listing to find actual files
-            try:
-                response = requests.get(base_url, timeout=10)
-                if response.status_code == 200:
-                    # Parse HTML to find ISO files
-                    import re
+            # Use base class method to fetch and parse ISOs
+            iso_list = self.get_iso_list_from_url(base_url, arch="amd64")
 
-                    iso_files = re.findall(r'href="([^"]*\.iso)"', response.text)
-
-                    # Filter for common ISO types we want to show
-                    server_isos = [
-                        f for f in iso_files if "server" in f.lower() and f.endswith(".iso")
-                    ]
-                    desktop_isos = [
-                        f for f in iso_files if "desktop" in f.lower() and f.endswith(".iso")
-                    ]
-
-                    # Get the latest version of each type (usually the highest point release)
-                    iso_candidates = []
-
-                    if server_isos:
-                        # Sort by filename to get the latest point release
-                        server_isos.sort(reverse=True)
-                        iso_candidates.append(
-                            {
-                                "filename": server_isos[0],
-                                "type": "server",
-                                "name": f"Ubuntu {version_number} Server (amd64)",
-                            }
-                        )
-
-                    if desktop_isos:
-                        desktop_isos.sort(reverse=True)
-                        iso_candidates.append(
-                            {
-                                "filename": desktop_isos[0],
-                                "type": "desktop",
-                                "name": f"Ubuntu {version_number} Desktop (amd64)",
-                            }
-                        )
-
-                    # Now get detailed info for each file
-                    for candidate in iso_candidates:
-                        iso_url = base_url + candidate["filename"]
-                        date_str = ""
-                        size_str = "Unknown"
-
-                        try:
-                            # Get file metadata
-                            head_response = requests.head(iso_url, timeout=10)
-                            if head_response.status_code == 200:
-                                # Get file size
-                                content_length = head_response.headers.get("content-length")
-                                if content_length and content_length.isdigit():
-                                    size_mb = int(content_length) // (1024 * 1024)
-                                    size_str = f"{size_mb} MB"
-
-                                # Get last modified date
-                                last_modified = head_response.headers.get("last-modified")
-                                if last_modified:
-                                    try:
-                                        from email.utils import parsedate_to_datetime
-
-                                        dt = parsedate_to_datetime(last_modified)
-                                        # Format to match OpenSUSE format: "YYYY-MM-DD HH:MM"
-                                        date_str = dt.strftime("%Y-%m-%d %H:%M")
-                                    except Exception as e:
-                                        self.logger.debug(
-                                            f"Could not parse date from {last_modified}: {e}"
-                                        )
-
-                        except Exception as e:
-                            self.logger.debug(f"Could not fetch metadata for {iso_url}: {e}")
-
-                        iso_list.append(
-                            {
-                                "name": candidate["name"],
-                                "url": iso_url,
-                                "size": size_str,
-                                "arch": "amd64",
-                                "type": candidate["type"],
-                                "description": f"Ubuntu {candidate['type'].title()} Live installer",
-                                "version": version_display,
-                                "date": date_str,
-                            }
-                        )
-
+            # Filter and enrich results
+            filtered_list = []
+            for iso in iso_list:
+                filename = iso["name"].lower()
+                if "live-server" in filename:
+                    iso["type"] = "server"
+                    iso["name"] = f"Ubuntu {version_number} Live Server (amd64) - {iso['name']}"
+                elif "desktop" in filename:
+                    iso["type"] = "desktop"
+                    iso["name"] = f"Ubuntu {version_number} Desktop (amd64) - {iso['name']}"
                 else:
-                    self.logger.warning(
-                        f"Could not fetch directory listing from {base_url}: {response.status_code}"
-                    )
+                    iso["type"] = "other"
 
-            except Exception as e:
-                self.logger.warning(f"Error fetching Ubuntu directory listing: {e}")
+                iso["description"] = f"Ubuntu {iso['type'].title()} Live installer"
+                iso["version"] = version_display
+                filtered_list.append(iso)
 
             # Fallback: if we couldn't get real files, provide static entries
-            if not iso_list:
+            if not filtered_list:
                 self.logger.info("Falling back to static Ubuntu ISO entries")
                 static_variants = [
                     {

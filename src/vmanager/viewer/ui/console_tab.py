@@ -11,6 +11,8 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+from ...utils import strip_ansi_codes
+
 
 class ConsoleTab:
     """
@@ -220,9 +222,11 @@ class ConsoleTab:
         try:
             # Try to receive data
             data = self.console_stream.recv(4096)
-            if data:
+            if data and isinstance(data, bytes):
                 text = data.decode("utf-8", errors="replace")
-                self._append_console_text(text)
+                # Strip ANSI escape sequences for cleaner text view
+                clean_text = strip_ansi_codes(text)
+                self._append_console_text(clean_text)
         except libvirt.libvirtError as e:
             # Check if it's just no data available
             if "no data available" not in str(e).lower():

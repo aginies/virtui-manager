@@ -2,12 +2,23 @@
 
 pkgs.python3Packages.buildPythonApplication {
   pname = "virtui-manager";
-  version = "2.4.0";
+  version = "2.4.1";
 
   src = ../.;
 
   # Use pyproject.toml for build configuration
   format = "pyproject";
+
+  # Build-time dependencies
+  buildInputs = with pkgs; [
+    gtk3
+    vte
+    cairo
+    gdk-pixbuf
+    gobject-introspection
+    pango
+    gtk-vnc
+  ];
 
   propagatedBuildInputs = with pkgs.python3Packages; [
     libvirt
@@ -17,17 +28,33 @@ pkgs.python3Packages.buildPythonApplication {
     packaging
     requests
     netifaces
+    # GUI dependencies (optional at runtime, but included for convenience)
+    pygobject3
+    pycairo
   ];
 
   # Optional webconsole support
   passthru.optional-dependencies = {
     webconsole = with pkgs.python3Packages; [ websockify ];
+    gui = with pkgs.python3Packages; [ 
+      pygobject3
+      pycairo
+    ] ++ (with pkgs; [
+      gtk3
+      vte
+      gobject-introspection
+      cairo
+    ]);
   };
 
   nativeBuildInputs = with pkgs.python3Packages; [
     setuptools
     wheel
-  ];
+  ] ++ (with pkgs; [ 
+    makeWrapper
+    wrapGAppsHook3
+    gobject-introspection
+  ]);
 
   # Test dependencies
   nativeCheckInputs = with pkgs.python3Packages; [
@@ -50,6 +77,18 @@ pkgs.python3Packages.buildPythonApplication {
     # Fix the shebang in wrapper.py to use the correct python path
     substituteInPlace src/vmanager/wrapper.py \
       --replace '#!/usr/bin/env python3' "#!${pkgs.python3.interpreter}"
+  '';
+
+  # Wrap binaries to set GI_TYPELIB_PATH for GTK/GObject Introspection
+  postFixup = ''
+    for prog in $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
+      if [ -f "$prog" ]; then
+        wrapProgram "$prog" \
+          --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.gdk-pixbuf pkgs.gobject-introspection pkgs.gtk-vnc ]}" \
+          --prefix GI_TYPELIB_PATH : "${pkgs.pango.out}/lib/girepository-1.0" \
+          --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.cairo ]}"
+      fi
+    done
   '';
 
   meta = with pkgs.lib; {

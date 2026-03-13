@@ -9,7 +9,6 @@ import os
 import re
 import urllib.request
 from datetime import datetime
-from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -82,67 +81,9 @@ class FedoraProvider(OSProvider):
         # Fetch from major variants
         for variant in ["Server", "Workstation", "Spins"]:
             url = f"{self.BASE_URL}{version}/{variant}/{self.host_arch}/iso/"
-            all_isos.extend(self.get_iso_list_from_url(url, variant=variant))
+            all_isos.extend(self.get_iso_list_from_url(url, name_prefix=f"[{variant}] ", arch=self.host_arch))
             
         return all_isos
-
-    def get_iso_list_from_url(self, url: str, variant: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get ISO list from a specific URL."""
-        variant_prefix = f"[{variant}] " if variant else ""
-        self.logger.info(f"Fetching Fedora {variant if variant else ''} ISO list from {url}")
-        
-        iso_list = []
-        try:
-            # Use default secure context instead of unverified one
-            with urllib.request.urlopen(url, timeout=10) as response:
-                content = response.read().decode("utf-8")
-                
-            # Parse HTML to find ISO files
-            links = re.findall(r'href="([^"]*\.iso)"', content)
-            
-            for link in links:
-                # Clean the link
-                clean_link = link.lstrip("./")
-                # Skip netinst for workstation if server netinst is preferred, 
-                # but usually we want to show what's available.
-                
-                full_url = url + clean_link if not link.startswith("http") else link
-                
-                # Fetch metadata
-                date_str = ""
-                size_str = "Unknown"
-                try:
-                    req = urllib.request.Request(full_url, method="HEAD")
-                    with urllib.request.urlopen(req, timeout=5) as head_res:
-                        # Size
-                        content_length = head_res.getheader("Content-Length")
-                        if content_length:
-                            size_mb = int(content_length) // (1024 * 1024)
-                            size_str = f"{size_mb} MB"
-                        
-                        # Date
-                        last_modified = head_res.getheader("Last-Modified")
-                        if last_modified:
-                            dt = parsedate_to_datetime(last_modified)
-                            date_str = dt.strftime("%Y-%m-%d %H:%M")
-                except Exception as e:
-                    self.logger.debug(f"Could not fetch metadata for {full_url}: {e}")
-
-                iso_list.append({
-                    "name": f"{variant_prefix}{clean_link}",
-                    "url": full_url,
-                    "size": size_str,
-                    "date": date_str,
-                    "arch": self.host_arch
-                })
-                
-            # Sort by name descending
-            iso_list.sort(key=lambda x: x["name"], reverse=True)
-            return iso_list
-
-        except Exception as e:
-            self.logger.error(f"Error fetching Fedora ISO list from {url}: {e}")
-            return []
 
     def generate_automation_file(
         self,

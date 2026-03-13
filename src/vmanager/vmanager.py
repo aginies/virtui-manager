@@ -2420,6 +2420,31 @@ def main():
             print(ErrorMessages.TERMINAL_WIDTH_TOO_SMALL.format(width=width))
             return
 
+        # Set up signal handler to reap zombie child processes
+        # This prevents zombie processes when spawned viewers (virt-viewer, etc.) exit
+        def sigchld_handler(signum, frame):
+            """Reap zombie child processes."""
+            import sys
+
+            while True:
+                try:
+                    # Wait for any child process, don't block
+                    pid, status = os.waitpid(-1, os.WNOHANG)
+                    if pid == 0:
+                        # No more children to reap
+                        break
+                    logging.debug(f"Reaped child process {pid} with status {status}")
+                except ChildProcessError:
+                    # No child processes
+                    break
+                except Exception as e:
+                    logging.warning(f"Error reaping child process: {e}")
+                    break
+
+        # Register the signal handler
+        signal.signal(signal.SIGCHLD, sigchld_handler)
+        logging.info("SIGCHLD handler registered to prevent zombie processes")
+
         app = VMManagerTUI()
         app.run()
 

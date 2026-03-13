@@ -20,6 +20,7 @@ from ..os_provider import OSProvider, OSType, OSVersion
 class DebianDistro(Enum):
     """Debian distribution types."""
 
+    DEBIAN_13_TRIXIE = "13 (Trixie)"
     DEBIAN_12_BOOKWORM = "12 (Bookworm)"
     DEBIAN_11_BULLSEYE = "11 (Bullseye)"
     DEBIAN_10_BUSTER = "10 (Buster)"
@@ -44,6 +45,7 @@ class DebianProvider(OSProvider):
         """Get list of supported Debian versions."""
         versions = []
         distributions = [
+            ("13", "13 (Trixie)"),
             ("12", "12 (Bookworm)"),
             ("11", "11 (Bullseye)"),
             ("10", "10 (Buster)"),
@@ -98,35 +100,6 @@ class DebianProvider(OSProvider):
 
         except Exception as e:
             self.logger.error(f"Error fetching Debian ISO list: {e}")
-            return []
-
-    def get_iso_list_from_url(self, url: str) -> List[Dict[str, Any]]:
-        """Get ISO list from a specific URL."""
-        try:
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-
-            # Parse the HTML to extract ISO links
-            # This is a simplified implementation
-            iso_list = []
-            content = response.text.lower()
-
-            if "debian" in content and (".iso" in content):
-                # Basic parsing - in a real implementation, you'd use BeautifulSoup
-                iso_list.append(
-                    {
-                        "name": "Debian Server ISO",
-                        "url": url,
-                        "size": "Unknown",
-                        "arch": "amd64",
-                        "type": "server",
-                    }
-                )
-
-            return iso_list
-
-        except Exception as e:
-            self.logger.error(f"Error fetching ISOs from URL {url}: {e}")
             return []
 
     def generate_automation_file(
@@ -267,8 +240,6 @@ class DebianProvider(OSProvider):
         self, version_number: str, version_display: str
     ) -> List[Dict[str, Any]]:
         """Get ISO list for specific Debian version."""
-        iso_list = []
-
         try:
             # Debian releases URL pattern
             if version_number in ["12", "11", "10"]:
@@ -284,104 +255,28 @@ class DebianProvider(OSProvider):
                 # Fallback to current
                 base_url = "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
 
-            # First, try to get the directory listing to find actual files
-            try:
-                response = requests.get(base_url, timeout=10)
-                if response.status_code == 200:
-                    # Parse HTML to find ISO files
-                    import re
+            # Use base class method to fetch and parse ISOs
+            iso_list = self.get_iso_list_from_url(base_url, arch="amd64")
 
-                    iso_files = re.findall(r'href="([^"]*\.iso)"', response.text)
-
-                    # Filter for common ISO types we want to show
-                    netinst_isos = [
-                        f for f in iso_files if "netinst" in f.lower() and f.endswith(".iso")
-                    ]
-                    dvd_isos = [
-                        f
-                        for f in iso_files
-                        if ("dvd" in f.lower() or "cd" in f.lower()) and f.endswith(".iso")
-                    ]
-
-                    # Get the latest version of each type
-                    iso_candidates = []
-
-                    if netinst_isos:
-                        # Sort by filename to get the latest
-                        netinst_isos.sort(reverse=True)
-                        iso_candidates.append(
-                            {
-                                "filename": netinst_isos[0],
-                                "type": "netinst",
-                                "name": f"Debian {version_number} NetInstall (amd64)",
-                            }
-                        )
-
-                    if dvd_isos:
-                        dvd_isos.sort(reverse=True)
-                        iso_candidates.append(
-                            {
-                                "filename": dvd_isos[0],
-                                "type": "dvd",
-                                "name": f"Debian {version_number} DVD (amd64)",
-                            }
-                        )
-
-                    # Now get detailed info for each file
-                    for candidate in iso_candidates:
-                        iso_url = base_url + candidate["filename"]
-                        date_str = ""
-                        size_str = "Unknown"
-
-                        try:
-                            # Get file metadata
-                            head_response = requests.head(iso_url, timeout=10)
-                            if head_response.status_code == 200:
-                                # Get file size
-                                content_length = head_response.headers.get("content-length")
-                                if content_length and content_length.isdigit():
-                                    size_mb = int(content_length) // (1024 * 1024)
-                                    size_str = f"{size_mb} MB"
-
-                                # Get last modified date
-                                last_modified = head_response.headers.get("last-modified")
-                                if last_modified:
-                                    try:
-                                        from email.utils import parsedate_to_datetime
-
-                                        dt = parsedate_to_datetime(last_modified)
-                                        date_str = dt.strftime("%Y-%m-%d %H:%M")
-                                    except Exception as e:
-                                        self.logger.debug(
-                                            f"Could not parse date from {last_modified}: {e}"
-                                        )
-
-                        except Exception as e:
-                            self.logger.debug(f"Could not fetch metadata for {iso_url}: {e}")
-
-                        iso_list.append(
-                            {
-                                "name": candidate["name"],
-                                "url": iso_url,
-                                "size": size_str,
-                                "arch": "amd64",
-                                "type": candidate["type"],
-                                "description": f"Debian {candidate['type'].upper()} installer",
-                                "version": version_display,
-                                "date": date_str,
-                            }
-                        )
-
+            # Filter and enrich results
+            filtered_list = []
+            for iso in iso_list:
+                filename = iso["name"].lower()
+                if "netinst" in filename:
+                    iso["type"] = "netinst"
+                    iso["name"] = f"Debian {version_number} NetInstall (amd64) - {iso['name']}"
+                elif "dvd" in filename or "cd" in filename:
+                    iso["type"] = "dvd"
+                    iso["name"] = f"Debian {version_number} DVD (amd64) - {iso['name']}"
                 else:
-                    self.logger.warning(
-                        f"Could not fetch directory listing from {base_url}: {response.status_code}"
-                    )
+                    iso["type"] = "other"
 
-            except Exception as e:
-                self.logger.warning(f"Error fetching Debian directory listing: {e}")
+                iso["description"] = f"Debian {iso['type'].upper()} installer"
+                iso["version"] = version_display
+                filtered_list.append(iso)
 
             # Fallback: if we couldn't get real files, provide static entries
-            if not iso_list:
+            if not filtered_list:
                 self.logger.info("Falling back to static Debian ISO entries")
 
                 # Determine naming for static variants

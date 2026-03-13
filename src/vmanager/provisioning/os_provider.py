@@ -4,19 +4,25 @@ OS Provider Interface for Multi-OS VM Provisioning
 This module defines the base interface that all OS providers must implement,
 along with common data structures for OS types and versions.
 """
-
 import base64
 import hashlib
 import logging
 import os
+import re
 import secrets
+import ssl
 import subprocess
 import string
+import urllib.request
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import datetime
+from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from urllib.parse import urlparse
 
 
 class OSType(Enum):
@@ -180,3 +186,136 @@ class OSProvider(ABC):
         Providers can override for specific validation logic.
         """
         return iso_path.exists() and iso_path.stat().st_size > 0
+
+    def _get_iso_details(self, url: str, arch: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch details (Size, Last-Modified) for a given ISO URL."""
+        name = url.split("/")[-1].lstrip("./")
+        size_str = "Unknown"
+        date_str = ""
+
+        try:
+            # Use unverified context to be more compatible with various mirrors
+            context = ssl._create_unverified_context()
+            req = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(req, context=context, timeout=5) as response:
+                # Size
+                content_length = response.getheader("Content-Length")
+                if content_length:
+                    size_mb = int(content_length) // (1024 * 1024)
+                    size_str = f"{size_mb} MB"
+
+                # Date
+                last_modified = response.getheader("Last-Modified")
+                if last_modified:
+                    try:
+                        dt = parsedate_to_datetime(last_modified)
+                        date_str = dt.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        date_str = last_modified
+        except Exception:
+            pass
+
+        return {"name": name, "url": url, "size": size_str, "date": date_str, "arch": arch}
+
+    def _get_local_iso_list(self, path: str, arch: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Lists ISO files from a local directory."""
+        if path.startswith("file://"):
+            path = path[7:]
+
+        results = []
+        try:
+            path_obj = Path(path)
+            if not path_obj.exists() or not path_obj.is_dir():
+                return []
+
+            for f in path_obj.glob("*.iso"):
+                try:
+                    stats = f.stat()
+                    dt_str = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
+                    results.append(
+                        {"name": f.name, "url": str(f.absolute()), "date": dt_str, "arch": arch}
+                    )
+                except Exception:
+                    continue
+
+            results.sort(key=lambda x: x["name"], reverse=True)
+        except Exception:
+            pass
+
+        return results
+
+    def get_iso_list_from_url(
+        self,
+        url: str,
+        name_prefix: str = "",
+        arch: Optional[str] = None,
+        filter_pattern: str = r'href="([^"]*\.iso)"',
+    ) -> List[Dict[str, Any]]:
+        """
+        Generic method to fetch ISO list from a directory listing URL or local path.
+
+        Args:
+            url: The URL or path to scrape for .iso links
+            name_prefix: Prefix to add to ISO names
+            arch: Architecture string to include in results
+            filter_pattern: Regex pattern to find ISO links in HTML
+
+        Returns:
+            List of ISO dictionaries
+        """
+        # Check for local directory or file URI
+        if url.startswith("/") or url.startswith("file://") or os.path.isdir(url):
+            results = self._get_local_iso_list(url, arch=arch)
+            if name_prefix:
+                for res in results:
+                    res["name"] = f"{name_prefix}{res['name']}"
+            return results
+
+        logging.info(f"Fetching ISO list from {url}")
+
+        try:
+            # Use unverified context for compatibility
+            context = ssl._create_unverified_context()
+            with urllib.request.urlopen(url, context=context, timeout=10) as response:
+                content = response.read().decode("utf-8")
+
+            # Parse HTML to find ISO files
+            links = re.findall(filter_pattern, content)
+            unique_urls = []
+            for link in links:
+                # Clean the link
+                clean_link = link.lstrip("./")
+
+                # Build full URL
+                if link.startswith("http"):
+                    full_url = link
+                else:
+                    # Handle relative paths correctly
+                    base_url = url if url.endswith("/") else url + "/"
+                    full_url = base_url + clean_link
+
+                unique_urls.append(full_url)
+
+            # Deduplicate and sort
+            unique_urls = sorted(list(set(unique_urls)), reverse=True)
+
+            # Fetch details in parallel for performance
+            results = []
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = [executor.submit(self._get_iso_details, u, arch) for u in unique_urls]
+                for future in futures:
+                    try:
+                        res = future.result()
+                        if name_prefix:
+                            res["name"] = f"{name_prefix}{res['name']}"
+                        results.append(res)
+                    except Exception:
+                        continue
+
+            # Sort by name descending
+            results.sort(key=lambda x: x["name"], reverse=True)
+            return results
+
+        except Exception as e:
+            logging.error(f"Error fetching ISO list from {url}: {e}")
+            return []

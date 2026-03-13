@@ -681,6 +681,101 @@ class VMProvisioner:
 
         return True
 
+    def download_iso(
+        self, url: str, progress_callback: Optional[Callable[[int, str], None]] = None
+    ) -> str:
+        """
+        Downloads an ISO file from an HTTP/HTTPS URL to a temporary location.
+
+        Args:
+            url: The HTTP/HTTPS URL of the ISO file
+            progress_callback: Optional callback(progress_percent, speed_str) for progress updates
+
+        Returns:
+            Path to the downloaded ISO file in a temporary directory
+
+        Raises:
+            Exception: If download fails
+        """
+        from .constants import ErrorMessages
+
+        # Validate URL
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(ErrorMessages.CUSTOM_ISO_INVALID_URL_TEMPLATE.format(url=url))
+
+        # Create temporary file
+        temp_dir = tempfile.mkdtemp(prefix="virtui_iso_")
+        filename = os.path.basename(url.split("?")[0])  # Remove query params
+        if not filename or not filename.endswith(".iso"):
+            filename = "downloaded.iso"
+
+        local_path = os.path.join(temp_dir, filename)
+
+        try:
+            logging.info(f"Downloading ISO from {url} to {local_path}")
+
+            # Download with progress tracking
+            req = urllib.request.Request(url)
+            req.add_header("User-Agent", f"{AppInfo.namecase}/{AppInfo.version}")
+
+            with urllib.request.urlopen(req, timeout=30) as response:
+                total_size = int(response.headers.get("content-length", 0))
+                downloaded = 0
+                block_size = 8192
+                start_time = time.time()
+
+                with open(local_path, "wb") as out_file:
+                    while True:
+                        buffer = response.read(block_size)
+                        if not buffer:
+                            break
+
+                        downloaded += len(buffer)
+                        out_file.write(buffer)
+
+                        # Calculate progress
+                        if progress_callback and total_size > 0:
+                            progress = int((downloaded / total_size) * 100)
+                            elapsed = time.time() - start_time
+                            if elapsed > 0:
+                                speed = downloaded / elapsed
+                                speed_str = self._format_speed(speed)
+                                progress_callback(progress, speed_str)
+
+                logging.info(f"Successfully downloaded ISO to {local_path}")
+                return local_path
+
+        except urllib.error.URLError as e:
+            # Clean up on failure
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            if os.path.exists(temp_dir):
+                os.rmdir(temp_dir)
+            raise Exception(
+                ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(url=url, error=str(e))
+            )
+        except Exception as e:
+            # Clean up on failure
+            if os.path.exists(local_path):
+                os.remove(local_path)
+            if os.path.exists(temp_dir):
+                os.rmdir(temp_dir)
+            raise Exception(
+                ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(url=url, error=str(e))
+            )
+
+    def _format_speed(self, bytes_per_sec: float) -> str:
+        """Format download speed in human-readable format."""
+        units = ["B", "KB", "MB", "GB"]
+        unit_index = 0
+        speed = bytes_per_sec
+
+        while speed >= 1024 and unit_index < len(units) - 1:
+            speed /= 1024
+            unit_index += 1
+
+        return f"{speed:.1f} {units[unit_index]}"
+
     def _get_sev_capabilities(self) -> Dict[str, Any]:
         """
         Retrieves SEV capabilities from the host.
@@ -1169,7 +1264,9 @@ class VMProvisioner:
                 elif auto_url.endswith(".cfg"):
                     if os_type in [OSType.UBUNTU, OSType.DEBIAN]:
                         # Ubuntu/Debian preseed automation
-                        cmdline = f"auto=true preseed/url={auto_url} hostname={vm_name} domain=home.net"
+                        cmdline = (
+                            f"auto=true preseed/url={auto_url} hostname={vm_name} domain=home.net"
+                        )
                     else:
                         # Default to AutoYaST for other distros (e.g. SLES/openSUSE)
                         cmdline = f"autoyast={auto_url} netsetup=dhcp"

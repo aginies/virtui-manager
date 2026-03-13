@@ -594,51 +594,6 @@ class OpenSUSEProvider(OSProvider):
         iso_urls = []
 
         try:
-            # Helper to fetch and find ISOs in a specific URL
-            def fetch_isos_from_url(url):
-                try:
-                    # Use default secure context
-                    with urllib.request.urlopen(url, timeout=10) as response:
-                        html = response.read().decode("utf-8")
-
-                    pattern = r'href="([^"]+\.iso)"'
-                    links = re.findall(pattern, html)
-
-                    valid_links = []
-                    for link in links:
-                        if not link.endswith(".iso"):
-                            continue
-
-                        link_lower = link.lower()
-                        is_arch_specific = any(
-                            a in link_lower for a in ["x86_64", "amd64", "aarch64", "arm64"]
-                        )
-
-                        if is_arch_specific:
-                            target_arch = self.host_arch
-                            if target_arch == "x86_64":
-                                if "x86_64" in link_lower or "amd64" in link_lower:
-                                    pass
-                                else:
-                                    continue
-                            elif target_arch == "aarch64":
-                                if "aarch64" in link_lower or "arm64" in link_lower:
-                                    pass
-                                else:
-                                    continue
-
-                        # Clean the link by removing ./ prefix if present
-                        clean_link = link.lstrip("./")
-                        full_url = (
-                            os.path.join(url, clean_link) if not link.startswith("http") else link
-                        )
-                        valid_links.append(full_url)
-
-                    return valid_links
-                except Exception as e:
-                    self.logger.warning(f"Error fetching ISOs from {url}: {e}")
-                    return []
-
             if distro == OpenSUSEDistro.LEAP:
                 # Use hardcoded versions
                 versions15 = ["15.5", "15.6"]
@@ -646,52 +601,29 @@ class OpenSUSEProvider(OSProvider):
                 for ver in versions15 + versions16:
                     if ver in versions15:
                         ver_iso_url = f"{base_url}{ver}/iso/"
-                        iso_urls.extend(fetch_isos_from_url(ver_iso_url))
+                        iso_urls.extend(self.get_iso_list_from_url(ver_iso_url, arch=self.host_arch))
                     if ver in versions16:
                         ver_iso_url = f"{base_url}{ver}/offline/"
-                        iso_urls.extend(fetch_isos_from_url(ver_iso_url))
+                        iso_urls.extend(self.get_iso_list_from_url(ver_iso_url, arch=self.host_arch))
             else:
                 # Direct ISO directories
-                iso_urls.extend(fetch_isos_from_url(base_url))
+                iso_urls.extend(self.get_iso_list_from_url(base_url, arch=self.host_arch))
 
-            # Deduplicate URLs
-            unique_urls = sorted(list(set(iso_urls)), reverse=True)
-
-            # Fetch details in parallel
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                results = list(executor.map(self._get_iso_details, unique_urls))
+            # Deduplicate results by URL
+            seen_urls = set()
+            unique_isos = []
+            for iso in iso_urls:
+                if iso["url"] not in seen_urls:
+                    seen_urls.add(iso["url"])
+                    unique_isos.append(iso)
 
             # Sort by name descending
-            results.sort(key=lambda x: x["name"], reverse=True)
-            return results
+            unique_isos.sort(key=lambda x: x["name"], reverse=True)
+            return unique_isos
 
         except Exception as e:
             self.logger.error(f"Failed to fetch ISO list: {e}")
             return []
-
-    def _get_iso_details(self, url: str) -> Dict[str, Any]:
-        """Fetch details (Last-Modified) for a given ISO URL."""
-        name = url.split("/")[-1]
-        # Clean the name by removing ./ prefix if present (additional safety)
-        name = name.lstrip("./")
-        try:
-            # Create unverified context to avoid SSL errors with custom repositories/mirrors
-            context = ssl._create_unverified_context()
-            req = urllib.request.Request(url, method="HEAD")
-            with urllib.request.urlopen(req, context=context, timeout=5) as response:
-                last_modified = response.getheader("Last-Modified")
-                date_str = ""
-                if last_modified:
-                    try:
-                        dt = parsedate_to_datetime(last_modified)
-                        date_str = dt.strftime("%Y-%m-%d %H:%M")
-                    except:
-                        date_str = last_modified
-
-                return {"name": name, "url": url, "date": date_str}
-        except Exception as e:
-            self.logger.warning(f"Failed to get details for {url}: {e}")
-            return {"name": name, "url": url, "date": ""}
 
     def _generate_autoyast_xml(
         self,
@@ -787,108 +719,13 @@ class OpenSUSEProvider(OSProvider):
                 return []  # Pool volumes are handled elsewhere
             else:
                 # Treat as custom repository URL
-                return self.get_iso_list_from_url(distro)
+                return self.get_iso_list_from_url(distro, arch=self.host_arch)
 
         # Handle OpenSUSEDistro enum values
         if distro == OpenSUSEDistro.CUSTOM:
             return []
 
         return self._get_iso_list_for_distro(distro)
-
-    def get_iso_list_from_url(self, url: str) -> List[Dict[str, Any]]:
-        """
-        Get list of ISOs from a custom repository URL or local path.
-        This method handles both local directories and remote HTTP/HTTPS URLs.
-        """
-        # Check for local directory or file URI
-        if url.startswith("/") or url.startswith("file://") or os.path.isdir(url):
-            return self._get_local_iso_list(url)
-
-        # Handle remote URLs
-        return self._get_remote_iso_list(url)
-
-    def _get_local_iso_list(self, path: str) -> List[Dict[str, Any]]:
-        """Lists ISO files from a local directory."""
-        if path.startswith("file://"):
-            path = path[7:]
-
-        results = []
-        try:
-            path_obj = Path(path)
-            if not path_obj.exists() or not path_obj.is_dir():
-                self.logger.warning(f"Local path {path} does not exist or is not a directory.")
-                return []
-
-            for f in path_obj.glob("*.iso"):
-                try:
-                    stats = f.stat()
-                    dt_str = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
-                    results.append({"name": f.name, "url": str(f.absolute()), "date": dt_str})
-                except Exception as e:
-                    self.logger.warning(f"Error reading file {f}: {e}")
-
-            results.sort(key=lambda x: x["name"], reverse=True)
-        except Exception as e:
-            self.logger.error(f"Error listing local ISOs from {path}: {e}")
-
-        return results
-
-    def _get_remote_iso_list(self, url: str) -> List[Dict[str, Any]]:
-        """Get ISO list from a remote URL by scraping directory listings."""
-        self.logger.info(f"Fetching ISO list from {url} for arch {self.host_arch}")
-
-        iso_urls = []
-
-        try:
-            # Create unverified context to avoid SSL errors with custom repositories/mirrors
-            context = ssl._create_unverified_context()
-            with urllib.request.urlopen(url, context=context, timeout=10) as response:
-                html = response.read().decode("utf-8")
-
-            pattern = r'href="([^"]+\.iso)"'
-            links = re.findall(pattern, html)
-
-            valid_links = []
-            for link in links:
-                # Basic filtering: ends with .iso
-                if not link.endswith(".iso"):
-                    continue
-
-                link_lower = link.lower()
-                is_arch_specific = any(
-                    a in link_lower for a in ["x86_64", "amd64", "aarch64", "arm64"]
-                )
-
-                if is_arch_specific:
-                    # Filter by host architecture
-                    target_arch = self.host_arch
-                    if target_arch == "x86_64":
-                        if "x86_64" in link_lower or "amd64" in link_lower:
-                            pass
-                        else:
-                            continue  # specific to another arch
-                    elif target_arch == "aarch64":
-                        if "aarch64" in link_lower or "arm64" in link_lower:
-                            pass
-                        else:
-                            continue
-
-                # Clean the link by removing ./ prefix if present
-                clean_link = link.lstrip("./")
-                full_url = os.path.join(url, clean_link) if not link.startswith("http") else link
-                valid_links.append(full_url)
-
-            # Fetch details in parallel
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                results = list(executor.map(self._get_iso_details, valid_links))
-
-            # Sort by name descending
-            results.sort(key=lambda x: x["name"], reverse=True)
-            return results
-
-        except Exception as e:
-            self.logger.error(f"Failed to fetch ISO list from {url}: {e}")
-            return []
 
     def get_filtered_templates_by_distribution(
         self, distro, all_templates: Optional[List[Dict[str, Any]]] = None

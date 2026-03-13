@@ -243,7 +243,7 @@ modules:
           - --sbindir=/app/bin
         sources:
           - type: archive
-            url: https://spice-space.org/download/usbredir/usbredir-0.15.0.tar.xz
+            url: https://www.spice-space.org/download/usbredir/usbredir-0.15.0.tar.xz
             sha256: 6dc2a380277688a068191245dac2ab7063a552999d8ac3ad8e841c10ff050961
       - name: spice-protocol
         buildsystem: meson

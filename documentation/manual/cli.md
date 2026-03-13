@@ -26,9 +26,12 @@ The prompt dynamically updates to show your active context:
 
 ## Connection Management
 
-*   **`connect <server> [server2 ...]`**
-    Connects to specific servers defined in your configuration. Use `connect all` to connect to every configured server. The CLI also automatically connects to any server marked with `autoconnect: true` in your configuration.
-    *   *Example:* `connect Localhost ryzen9`
+*   **`connect <server|uri> [server2|uri2 ...]`**
+    Connects to specific servers defined in your configuration or directly to a libvirt URI (e.g., `qemu:///system`, `qemu+ssh://user@host/system`). Use `connect all` to connect to every configured server. The CLI also automatically connects to any server marked with `autoconnect: true` in your configuration.
+    *   *Examples:*
+        *   `connect Localhost ryzen9` (configured names)
+        *   `connect qemu:///system` (direct local connection)
+        *   `connect qemu+ssh://admin@server.org/system` (direct remote connection)
 *   **`disconnect [<server> ...]`**
     Closes connections to specific servers. If no server is specified, it disconnects from **all** active sessions.
 
