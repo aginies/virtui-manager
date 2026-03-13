@@ -91,7 +91,7 @@
               for prog in $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
                 if [ -f "$prog" ]; then
                   wrapProgram "$prog" \
-                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.gdk-pixbuf ]}" \
+                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.gdk-pixbuf pkgs.gobject-introspection ]}" \
                     --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.cairo ]}"
                 fi
               done
