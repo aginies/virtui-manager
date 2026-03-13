@@ -22,6 +22,15 @@
             # Use pyproject.toml for build configuration
             format = "pyproject";
 
+            # Build-time dependencies
+            buildInputs = with pkgs; [
+              gtk3
+              vte
+              cairo
+              gdk-pixbuf
+              gobject-introspection
+            ];
+
             propagatedBuildInputs = with pkgs.python3Packages; [
               libvirt
               textual
@@ -33,12 +42,7 @@
               # GUI dependencies (optional at runtime, but included for convenience)
               pygobject3
               pycairo
-            ] ++ (with pkgs; [
-              gtk3
-              vte
-              gobject-introspection
-              cairo
-            ]);
+            ];
 
             # Optional webconsole support
             passthru.optional-dependencies = {
@@ -87,7 +91,8 @@
               for prog in $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
                 if [ -f "$prog" ]; then
                   wrapProgram "$prog" \
-                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.cairo ]}"
+                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.gdk-pixbuf ]}" \
+                    --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.cairo ]}"
                 fi
               done
             '';
