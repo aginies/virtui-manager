@@ -162,6 +162,47 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             source_elem.set("pool", original_pool.name())
             source_elem.set("volume", new_vol.name())
 
+        # Clone NVRAM if present
+        nvram_elem = root.find(".//os/nvram")
+        if nvram_elem is not None:
+            nvram_path = nvram_elem.text
+            if nvram_path:
+                from .libvirt_utils import _find_vol_by_path
+
+                nvram_vol, nvram_pool = _find_vol_by_path(clone_conn, nvram_path)
+                if nvram_vol and nvram_pool:
+                    try:
+                        nvram_vol_xml = nvram_vol.XMLDesc(0)
+                        nvram_vol_root = ET.fromstring(nvram_vol_xml)
+
+                        _, nvram_ext = os.path.splitext(nvram_vol.name())
+                        new_nvram_name = f"{new_vm_name}_VARS{nvram_ext}"
+                        nvram_vol_root.find("name").text = new_nvram_name
+
+                        if nvram_vol_root.find("key") is not None:
+                            nvram_vol_root.remove(nvram_vol_root.find("key"))
+                        nvram_target = nvram_vol_root.find("target")
+                        if nvram_target is not None:
+                            if nvram_target.find("path") is not None:
+                                nvram_target.remove(nvram_target.find("path"))
+
+                        new_nvram_vol_xml = ET.tostring(nvram_vol_root, encoding="unicode")
+
+                        msg = f"Cloning NVRAM volume: {new_nvram_name}"
+                        logging.info(msg)
+                        if log_callback:
+                            log_callback(msg)
+
+                        new_nvram_vol = nvram_pool.createXMLFrom(
+                            new_nvram_vol_xml, nvram_vol, 0
+                        )
+                        # Update XML with new NVRAM path
+                        nvram_elem.text = new_nvram_vol.path()
+                    except libvirt.libvirtError as e:
+                        logging.warning("Failed to clone NVRAM volume: %s", e)
+                        if log_callback:
+                            log_callback(f"Warning: Failed to clone NVRAM: {e}")
+
         new_xml = ET.tostring(root, encoding="unicode")
         msg_end = "Defining the VM..."
         logging.info(msg_end)

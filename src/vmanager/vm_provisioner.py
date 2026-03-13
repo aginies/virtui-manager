@@ -812,7 +812,19 @@ class VMProvisioner:
             temp_pool.create(0)
 
             source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
-            target_pool = self.conn.storagePoolLookupByName(target_pool_name)
+            
+            # Use 'nvram' pool if it exists and is active, otherwise fallback to target_pool_name
+            target_pool = None
+            try:
+                nvram_pool = self.conn.storagePoolLookupByName("nvram")
+                if nvram_pool.isActive():
+                    target_pool = nvram_pool
+                    logging.info("Using dedicated 'nvram' storage pool for UEFI variables.")
+            except libvirt.libvirtError:
+                pass
+                
+            if not target_pool:
+                target_pool = self.conn.storagePoolLookupByName(target_pool_name)
 
             # Always use QCOW2 format for NVRAM to support snapshots
             nvram_format = "qcow2"
