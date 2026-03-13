@@ -1134,7 +1134,7 @@ class VMCard(Static):
 
         self.ui["btn_quick_start"].display = is_stopped
         self.ui["btn_quick_stop"].display = is_running or is_blocked
-        self.ui["btn_quick_view"].display = is_running or is_paused or is_blocked
+        self.ui["btn_quick_view"].display = True
         self.ui["btn_quick_resume"].display = is_paused or is_pmsuspended
 
         if not self.query("#rename-button"):
