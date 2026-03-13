@@ -33,8 +33,10 @@ from .network_manager import (
 )
 from .storage_manager import list_storage_pools, list_unused_volumes
 from .utils import (
-        remote_viewer_cmd, sanitize_sensitive_data, strip_ansi_codes
-        extract_server_name_from_uri
+    remote_viewer_cmd,
+    sanitize_sensitive_data,
+    strip_ansi_codes,
+    extract_server_name_from_uri,
 )
 from .vm_actions import (
     clone_vm,
