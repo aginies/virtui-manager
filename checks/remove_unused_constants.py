@@ -27,13 +27,11 @@ CONSTANTS_FILE = os.path.join(BASE_DIR, "../src/vmanager/constants.py")
 SEARCH_DIR = os.path.join(BASE_DIR, "../src")
 
 dont_check_files = [
-    "remote_viewer.py",
     "vmanager_cmd.py",
     "gui_wrapper.py",
     "i18n.py",
     "virtui_dev.py",
     "wrapper.py",
-    "remote_viewer_gtk4.py",
 ]
 
 
@@ -223,11 +221,7 @@ Examples:
     )
 
     args = parser.parse_args()
-
-    # Get constants with line numbers
     class_constants, lines = get_class_constants(CONSTANTS_FILE)
-
-    # Find unused constants
     unused_constants = find_unused_constants(SEARCH_DIR, class_constants)
 
     if not unused_constants:
