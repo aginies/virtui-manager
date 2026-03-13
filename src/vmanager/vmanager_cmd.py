@@ -32,7 +32,10 @@ from .network_manager import (
     set_network_autostart,
 )
 from .storage_manager import list_storage_pools, list_unused_volumes
-from .utils import remote_viewer_cmd, sanitize_sensitive_data, strip_ansi_codes
+from .utils import (
+        remote_viewer_cmd, sanitize_sensitive_data, strip_ansi_codes
+        extract_server_name_from_uri
+)
 from .vm_actions import (
     clone_vm,
     create_vm_snapshot,
@@ -45,7 +48,7 @@ from .vm_actions import (
     start_vm,
     stop_vm,
 )
-from .vm_queries import get_vm_snapshots
+from .vm_queries import get_vm_snapshots, get_domain_info_dict
 from .vm_service import VMService
 from .pipeline import PipelineExecutor, PipelineMode
 from .backup_manager import BackupManager, BackupType, BackupOptions, RetentionPolicy
@@ -272,7 +275,6 @@ class VManagerCMD(cmd.Cmd):
             return os.get_terminal_size().columns
         except (AttributeError, OSError):
             try:
-                import subprocess
 
                 result = subprocess.run(["tput", "cols"], capture_output=True, text=True)
                 if result.returncode == 0:
@@ -432,8 +434,6 @@ class VManagerCMD(cmd.Cmd):
         """Check if the terminal supports ANSI colors (cached)."""
         if self._color_support is not None:
             return self._color_support
-
-        import os
 
         # Check common environment variables that indicate color support
         term = os.environ.get("TERM", "")
@@ -979,7 +979,6 @@ class VManagerCMD(cmd.Cmd):
         if "all" in targets_to_connect:
             targets_to_connect = self.server_names
 
-        from .utils import extract_server_name_from_uri
 
         for target in targets_to_connect:
             # Check if it's already connected
@@ -1322,8 +1321,6 @@ class VManagerCMD(cmd.Cmd):
         vms_to_check = self._get_vms_to_operate(args)
         if not vms_to_check:
             return
-
-        from .vm_queries import get_domain_info_dict
 
         for server_name, vm_list in vms_to_check.items():
             print(f"\n--- VM Information on {self._colorize(server_name, server_name)} ---")
@@ -1940,8 +1937,6 @@ class VManagerCMD(cmd.Cmd):
 
     def _expand_backup_variables(self, backup_name: str) -> str:
         """Expand variables like $(date) and $(time) in backup names."""
-        import datetime
-
         if "$(date)" in backup_name:
             date_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             backup_name = backup_name.replace("$(date)", date_str)
@@ -2119,8 +2114,6 @@ class VManagerCMD(cmd.Cmd):
                 if created_at != "Unknown":
                     # Format datetime for display
                     try:
-                        import datetime
-
                         dt = datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                         created_at = dt.strftime("%Y-%m-%d %H:%M:%S")
                     except:
@@ -2581,8 +2574,6 @@ Dry-run testing:
 
     def do_about(self, args):
         """Display GPL license and copyright information."""
-        from datetime import datetime
-
         current_year = datetime.now().year
         about_text = f"""
 {AppInfo.namecase} {AppInfo.version}

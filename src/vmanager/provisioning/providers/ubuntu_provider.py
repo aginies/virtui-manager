@@ -8,14 +8,14 @@ import json
 import logging
 import os
 import tempfile
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
 import requests
 import yaml
-from ..os_provider import OSProvider, OSType, OSVersion
-
+from ..os_provider import OSProvider, OSType, OSVersion, hash_password
 
 class UbuntuDistro(Enum):
     """Ubuntu distribution types."""
@@ -208,8 +208,6 @@ class UbuntuProvider(OSProvider):
 
     def _extract_version_number(self, version_display: str) -> Optional[str]:
         """Extract version number from display string."""
-        import re
-
         # Extract version number like "24.04", "22.04", etc.
         match = re.search(r"(\d+\.\d+)", version_display)
         return match.group(1) if match else None
@@ -356,7 +354,6 @@ class UbuntuProvider(OSProvider):
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
-        from ..os_provider import hash_password
 
         # Get passwords and hash them for autoinstall (identity section requires hashed passwords)
         # Strip whitespace that may come from config files with newlines
@@ -410,8 +407,6 @@ class UbuntuProvider(OSProvider):
 
     def _generate_basic_preseed(self, config: Dict[str, Any]) -> str:
         """Generate basic preseed configuration."""
-        from ..os_provider import hash_password
-
         username = config.get("username", config.get("user_name", "user"))
         password = config.get(
             "password", config.get("user_password", config.get("user_pw", "linux"))
