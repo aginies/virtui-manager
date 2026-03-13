@@ -1338,7 +1338,7 @@ class InstallVMModal(BaseModal[str | None]):
 
                     try:
                         downloaded_iso_path = self.provisioner.download_iso(
-                            custom_path, download_progress
+                            custom_path, progress_callback=download_progress
                         )
                         custom_path = (
                             downloaded_iso_path  # Use downloaded file for subsequent operations
