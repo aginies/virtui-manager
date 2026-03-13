@@ -263,7 +263,6 @@ class OSProvider(ABC):
         Returns:
             List of ISO dictionaries
         """
-        # Check for local directory or file URI
         if url.startswith("/") or url.startswith("file://") or os.path.isdir(url):
             results = self._get_local_iso_list(url, arch=arch)
             if name_prefix:
@@ -283,20 +282,15 @@ class OSProvider(ABC):
             links = re.findall(filter_pattern, content)
             unique_urls = []
             for link in links:
-                # Clean the link
                 clean_link = link.lstrip("./")
-
-                # Build full URL
                 if link.startswith("http"):
                     full_url = link
                 else:
-                    # Handle relative paths correctly
                     base_url = url if url.endswith("/") else url + "/"
                     full_url = base_url + clean_link
 
                 unique_urls.append(full_url)
 
-            # Deduplicate and sort
             unique_urls = sorted(list(set(unique_urls)), reverse=True)
 
             # Fetch details in parallel for performance
@@ -312,7 +306,6 @@ class OSProvider(ABC):
                     except Exception:
                         continue
 
-            # Sort by name descending
             results.sort(key=lambda x: x["name"], reverse=True)
             return results
 

@@ -6,9 +6,6 @@ including ISO management and Kickstart automation file generation.
 
 import logging
 import os
-import re
-import urllib.request
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -118,7 +115,6 @@ class FedoraProvider(OSProvider):
             if key not in config:
                 config[key] = value
 
-        # Load template
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
             # Fallback to basic Kickstart if template not found
@@ -128,10 +124,8 @@ class FedoraProvider(OSProvider):
             with open(template_path, "r", encoding="utf-8") as f:
                 template_content = f.read()
             
-            # Substitute variables
             ks_content = self._substitute_variables(template_content, config)
 
-        # Write to file
         output_file = output_path / "ks.cfg"
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(ks_content)
@@ -173,7 +167,6 @@ class FedoraProvider(OSProvider):
         current_dir = Path(__file__).parent
         templates_dir = current_dir.parent / "templates"
 
-        # Try exact match first
         template_path = templates_dir / template_name
         if template_path.exists():
             return template_path

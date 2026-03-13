@@ -18,11 +18,13 @@ from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManag
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
+from ..provisioning.os_provider import OSType
 from ..provisioning.providers.alpine_provider import AlpineDistro
 from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
 from ..provisioning.providers.debian_provider import DebianDistro
 from ..provisioning.providers.fedora_provider import FedoraDistro
 from ..provisioning.providers.ubuntu_provider import UbuntuDistro
+
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name
@@ -368,13 +370,6 @@ class InstallVMModal(BaseModal[str | None]):
         boot_uefi = True
 
         # Determine OS type and provider preference if available
-        from ..provisioning.os_provider import OSType
-        from ..vm_provisioner import OpenSUSEDistro
-        from ..provisioning.providers.ubuntu_provider import UbuntuDistro
-        from ..provisioning.providers.debian_provider import DebianDistro
-        from ..provisioning.providers.fedora_provider import FedoraDistro
-        from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
-        from ..provisioning.providers.alpine_provider import AlpineDistro
 
         os_type = None
         if isinstance(distro, OpenSUSEDistro):
@@ -968,8 +963,6 @@ class InstallVMModal(BaseModal[str | None]):
                 self._prefill_automation_fields()
 
             # Enforce UEFI for automated installations (except for Alpine Linux)
-            from ..provisioning.providers.alpine_provider import AlpineDistro
-
             distro = self.query_one("#distro", Select).value
             is_alpine = isinstance(distro, AlpineDistro) or (
                 isinstance(distro, str) and "alpine" in distro.lower()

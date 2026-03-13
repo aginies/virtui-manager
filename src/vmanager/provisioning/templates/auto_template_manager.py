@@ -9,6 +9,8 @@ import os
 import subprocess
 import tempfile
 import uuid
+import json
+import yaml
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable
@@ -62,14 +64,8 @@ class AutoYaSTTemplateManager:
             - template_id: UUID for user templates
         """
         templates = []
-
-        # Get built-in templates
         templates.extend(self.get_builtin_templates())
-
-        # Get user templates
         templates.extend(self.get_user_templates())
-
-        # Sort: built-in first, then by display name
         templates.sort(key=lambda x: (x["type"] != "built-in", x["display_name"]))
 
         return templates
@@ -136,7 +132,6 @@ class AutoYaSTTemplateManager:
         templates = []
 
         try:
-            # Scan file system for user templates
             base_dir = get_user_templates_dir()
 
             # Recursively find all template files in templates directory
@@ -152,7 +147,6 @@ class AutoYaSTTemplateManager:
                             relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
                         )
 
-                        # Read template content
                         with open(template_file, "r", encoding="utf-8") as f:
                             content = f.read()
 
@@ -161,8 +155,6 @@ class AutoYaSTTemplateManager:
                         description = "User-defined template"
                         if meta_file.exists():
                             try:
-                                import json
-
                                 with open(meta_file, "r", encoding="utf-8") as f:
                                     meta = json.load(f)
                                     description = meta.get("description", description)
@@ -221,13 +213,10 @@ class AutoYaSTTemplateManager:
                 relative_path = template_path.relative_to(base_dir)
                 os_name = relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
 
-                # Read metadata
                 meta_file = template_path.with_suffix(template_path.suffix + ".meta")
                 description = "User-defined template"
                 if meta_file.exists():
                     try:
-                        import json
-
                         with open(meta_file, "r", encoding="utf-8") as f:
                             meta = json.load(f)
                             description = meta.get("description", description)
@@ -247,7 +236,6 @@ class AutoYaSTTemplateManager:
             except Exception as e:
                 self.logger.error(f"Error reading template file {template_id}: {e}")
 
-        # Check built-in templates
         for template in self.get_builtin_templates():
             if template["filename"] == template_id:
                 return template
@@ -304,24 +292,17 @@ class AutoYaSTTemplateManager:
             Tuple of (success: bool, template_path: str)
         """
         try:
-            # Get or create template file path
             if template_id and Path(template_id).exists():
-                # Update existing file
                 template_path = Path(template_id)
             else:
-                # Create new file
-                # Sanitize filename
                 safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "-", "_")).strip()
                 safe_name = safe_name.replace(" ", "_")
-
-                # Get OS-specific directory
                 os_dir = get_user_templates_dir_for_os(os_name)
 
                 # Determine extension based on content and OS type
                 extension = ".xml"
                 content_stripped = content.strip()
 
-                # Detect format based on content
                 if content_stripped.startswith("{") and content_stripped.endswith("}"):
                     extension = ".json"  # JSON format (e.g., Agama)
                 elif content_stripped.startswith("#") or "debconf" in content_stripped.lower():
@@ -344,11 +325,9 @@ class AutoYaSTTemplateManager:
                     template_path = os_dir / f"{safe_name}_{counter}{extension}"
                     counter += 1
 
-            # Write template content
             with open(template_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
-            # Write metadata to companion .meta file
             meta_file = template_path.with_suffix(template_path.suffix + ".meta")
             import json
 
@@ -379,7 +358,6 @@ class AutoYaSTTemplateManager:
             True if deleted successfully, False otherwise
         """
         try:
-            # Check if it's a file path
             template_path = Path(template_id)
             if template_path.exists() and template_path.suffix in [
                 ".xml",
@@ -388,10 +366,8 @@ class AutoYaSTTemplateManager:
                 ".yml",
                 ".cfg",
             ]:
-                # Delete template file
                 template_path.unlink()
 
-                # Delete companion .meta file if exists
                 meta_file = template_path.with_suffix(template_path.suffix + ".meta")
                 if meta_file.exists():
                     meta_file.unlink()
@@ -399,7 +375,6 @@ class AutoYaSTTemplateManager:
                 self.logger.info(f"Deleted template {template_path}")
                 return True
 
-            # Template not found
             self.logger.warning(f"Template not found: {template_id}")
             return False
 
@@ -430,9 +405,7 @@ class AutoYaSTTemplateManager:
                 with open(template["path"], "r", encoding="utf-8") as f:
                     content = f.read()
 
-            # Determine output path
             if destination.is_dir():
-                # Generate filename from template name
                 safe_name = (
                     template["display_name"].replace(" ", "_").replace("(", "").replace(")", "")
                 )
@@ -444,7 +417,6 @@ class AutoYaSTTemplateManager:
             else:
                 output_path = destination
 
-            # Write file
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
@@ -505,7 +477,6 @@ class AutoYaSTTemplateManager:
                 return f.read()
         except Exception as e:
             self.logger.error(f"Error reading skeleton template: {e}")
-            # Return minimal fallback
             return self._get_fallback_skeleton()
 
     def get_template_content(self, template_id: str) -> str | None:
@@ -550,8 +521,6 @@ class AutoYaSTTemplateManager:
 
         # JSON validation (Agama templates)
         if content_stripped.startswith("{") and content_stripped.endswith("}"):
-            import json
-
             try:
                 json.loads(content)
                 return True, None
@@ -565,8 +534,6 @@ class AutoYaSTTemplateManager:
             or "version:" in content_stripped
         ):
             try:
-                import yaml
-
                 yaml.safe_load(content)
                 return True, None
             except Exception as e:
@@ -620,7 +587,6 @@ class AutoYaSTTemplateManager:
                 if provider and hasattr(provider, "validate_template_content"):
                     is_valid, errors = provider.validate_template_content(content)
                     if not is_valid:
-                        # Find the serious error
                         serious = [
                             e
                             for e in errors
@@ -702,13 +668,8 @@ class AutoYaSTTemplateManager:
                 tmp_file_path = tmp_file.name
 
             try:
-                # Get editor from environment
                 editor = os.environ.get("EDITOR", "vi")
-
-                # Create unique signal name for this edit session
                 signal_name = f"virtui-edit-{os.getpid()}-{uuid.uuid4().hex[:8]}"
-
-                # Launch editor in new tmux window
                 subprocess.run(
                     [
                         "tmux",
@@ -720,14 +681,10 @@ class AutoYaSTTemplateManager:
                     check=True,
                 )
 
-                # Wait for signal (blocks until editor closes)
                 subprocess.run(["tmux", "wait-for", signal_name], check=True)
-
-                # Read edited content
                 with open(tmp_file_path, "r", encoding="utf-8") as f:
                     edited_content = f.read()
 
-                # Check if content changed
                 if edited_content != content:
                     on_save(edited_content)
                 elif on_cancel:
@@ -736,7 +693,6 @@ class AutoYaSTTemplateManager:
                 return True
 
             finally:
-                # Clean up temp file
                 try:
                     os.unlink(tmp_file_path)
                 except OSError:
@@ -796,10 +752,7 @@ class AutoYaSTTemplateManager:
                 tmp_file_path = tmp_file.name
 
             try:
-                # Get editor from environment
                 editor = os.environ.get("EDITOR", "vi")
-
-                # Determine read-only flag based on editor
                 if "vim" in editor or "vi" in editor:
                     readonly_flag = "-R"
                 elif "nano" in editor:
@@ -807,14 +760,11 @@ class AutoYaSTTemplateManager:
                 elif "emacs" in editor:
                     readonly_flag = "--eval '(setq buffer-read-only t)'"
                 else:
-                    # Fallback to less for viewing
                     editor = "less"
                     readonly_flag = ""
 
-                # Create unique signal name
                 signal_name = f"virtui-view-{os.getpid()}-{uuid.uuid4().hex[:8]}"
 
-                # Launch editor in read-only mode in new tmux window
                 cmd = f"{editor} {readonly_flag} {tmp_file_path}; tmux wait-for -S {signal_name}"
                 subprocess.run(
                     ["tmux", "new-window", "-n", "template-viewer", cmd],
@@ -830,7 +780,6 @@ class AutoYaSTTemplateManager:
                 return True
 
             finally:
-                # Clean up temp file
                 try:
                     os.unlink(tmp_file_path)
                 except OSError:
@@ -1055,7 +1004,7 @@ class AutoYaSTTemplateManager:
                 warnings.append(f"Missing section: {section.strip('<')}")
 
         # Check recommended variables
-        recommended_vars = ["root_password", "user_name", "user_password", "hostname"]
+        recommended_vars = ["root_password", "username", "user_password", "hostname"]
         missing_vars = [v for v in recommended_vars if f"{{{v}}}" not in content]
         if missing_vars:
             warnings.append(f"Missing recommended variables: {', '.join(missing_vars)}")

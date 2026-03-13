@@ -4,17 +4,15 @@ This module provides Debian-specific functionality for VM provisioning,
 including ISO management, template handling, and automation file generation.
 """
 
-import json
 import logging
 import os
-import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
-import requests
+import re
 import yaml
-from ..os_provider import OSProvider, OSType, OSVersion
+from ..os_provider import OSProvider, OSType, OSVersion, hash_password
 
 
 class DebianDistro(Enum):
@@ -223,8 +221,6 @@ class DebianProvider(OSProvider):
 
     def _extract_version_number(self, version_display: str) -> Optional[str]:
         """Extract version number from display string."""
-        import re
-
         # Handle special cases for Testing and Unstable
         version_lower = version_display.lower()
         if "testing" in version_lower:
@@ -255,7 +251,6 @@ class DebianProvider(OSProvider):
                 # Fallback to current
                 base_url = "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/"
 
-            # Use base class method to fetch and parse ISOs
             iso_list = self.get_iso_list_from_url(base_url, arch="amd64")
 
             # Filter and enrich results
@@ -336,9 +331,7 @@ class DebianProvider(OSProvider):
         with open(template_path, "r", encoding="utf-8") as f:
             template_content = f.read()
 
-        # Generate cloud-init YAML with variable substitution
         cloud_init_content = self._generate_cloud_init_yaml(template_content, config)
-
         # Write the cloud-init file with restrictive permissions
         output_file = output_dir / "user-data"
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
@@ -359,7 +352,6 @@ class DebianProvider(OSProvider):
         self, template_name: str, config: Dict[str, Any], output_dir: Path
     ) -> Path:
         """Generate Debian preseed file."""
-        # Load the preseed template
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
             # Generate basic preseed if template not found
@@ -368,14 +360,12 @@ class DebianProvider(OSProvider):
             )
             preseed_content = self._generate_basic_preseed(config)
         else:
-            # Read template content
             with open(template_path, "r", encoding="utf-8") as f:
                 template_content = f.read()
 
             # Generate preseed with variable substitution
             preseed_content = self._substitute_variables(template_content, config)
 
-        # Write the preseed file with restrictive permissions
         output_file = output_dir / "preseed.cfg"
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(preseed_content)
@@ -385,22 +375,17 @@ class DebianProvider(OSProvider):
 
     def _generate_cloud_init_yaml(self, template_content: str, config: Dict[str, Any]) -> str:
         """Generate cloud-init YAML with variable substitution."""
-        # First, do string substitution on the template content
         substituted_content = self._substitute_variables(template_content, config)
 
         try:
-            # Parse the substituted content as YAML to validate it
             yaml.safe_load(substituted_content)
-            # If parsing succeeds, return the substituted content
             return substituted_content
         except Exception as e:
             self.logger.error(f"Error validating cloud-init YAML after substitution: {e}")
-            # Return it anyway - the installer might be more lenient
             return substituted_content
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
-        from ..os_provider import hash_password
 
         # Get passwords and hash them for security (Preseed supports crypted passwords)
         # Strip whitespace that may come from config files with newlines
@@ -417,7 +402,6 @@ class DebianProvider(OSProvider):
         if not root_password:
             root_password = user_password
 
-        # Hash passwords for security
         hashed_user_password = hash_password(user_password)
         hashed_root_password = hash_password(root_password)
 
@@ -454,7 +438,7 @@ class DebianProvider(OSProvider):
     def _generate_basic_preseed(self, config: Dict[str, Any]) -> str:
         """Generate basic preseed configuration."""
         # Support both key name styles for compatibility
-        username = config.get("username", config.get("user_name", "user"))
+        username = config.get("username", "user")
         # Strip whitespace from password (can come from config files with newlines)
         password = config.get(
             "password", config.get("user_password", config.get("user_pw", "password"))
@@ -511,16 +495,13 @@ d-i finish-install/reboot_in_progress note
 
     def _find_template_file(self, template_name: str) -> Optional[Path]:
         """Find template file in templates directory."""
-        # Get the directory where this provider is located
         current_dir = Path(__file__).parent
         templates_dir = current_dir.parent / "templates"
 
-        # Try exact match first
         template_path = templates_dir / template_name
         if template_path.exists():
             return template_path
 
-        # Try without extension and add common extensions
         base_name = Path(template_name).stem
         for ext in [".yaml", ".cfg"]:
             template_path = templates_dir / f"{base_name}{ext}"

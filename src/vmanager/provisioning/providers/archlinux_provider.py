@@ -6,15 +6,11 @@ including ISO management and archinstall automation file generation.
 
 import logging
 import os
-import re
-import ssl
-import urllib.request
-from datetime import datetime
+import json
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ...config import load_config
 from ..os_provider import OSProvider, OSType, OSVersion, hash_password
 
 
@@ -120,7 +116,6 @@ class ArchLinuxProvider(OSProvider):
             # Substitute variables
             automation_content = self._substitute_variables(template_content, config)
 
-        # Write to file
         output_file = output_path / "archinstall.json"
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(automation_content)
@@ -178,8 +173,6 @@ class ArchLinuxProvider(OSProvider):
 
     def _generate_basic_json(self, config: Dict[str, Any]) -> str:
         """Generate a basic archinstall JSON configuration."""
-        import json
-        
         # Hash passwords for security
         user_pwd = config.get("user_password", "")
         hashed_password = hash_password(str(user_pwd).strip())
@@ -222,7 +215,6 @@ class ArchLinuxProvider(OSProvider):
 
     def validate_template_content(self, content: str, template_name: str) -> bool:
         """Validate Arch Linux template content (JSON)."""
-        import json
         try:
             json.loads(content)
             return True

@@ -124,12 +124,12 @@
         </user>
         <!-- Regular User -->
         <user>
-            <username>{user_name}</username>
+            <username>{username}</username>
             <user_password>{user_password}</user_password>
             <encrypted config:type="boolean">true</encrypted>
-            <fullname>{user_name}</fullname>
+            <fullname>{username}</fullname>
             <gid>100</gid>
-            <home>/home/{user_name}</home>
+            <home>/home/{username}</home>
             <shell>/bin/bash</shell>
             <uid>1000</uid>
         </user>

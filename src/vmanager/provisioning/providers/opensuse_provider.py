@@ -8,21 +8,16 @@ This module provides OpenSUSE-specific provisioning capabilities including:
 - Support for custom repositories and cached ISOs
 """
 
-import hashlib
 import logging
 import os
 import re
-import ssl
-import urllib.request
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from ..os_provider import AutomationConfig, DriverInfo, OSProvider, OSType, OSVersion, hash_password
+from ..os_provider import AutomationConfig, OSProvider, OSType, OSVersion, hash_password
 
 
 class OpenSUSEDistro(Enum):
@@ -293,31 +288,24 @@ class OpenSUSEProvider(OSProvider):
                         }
                     )
 
-            # Sort by type (built-in first) then by display name
             templates.sort(key=lambda x: (x["type"] != "built-in", x["display_name"]))
             return templates
 
     def validate_template(self, template_path: Path) -> bool:
         """Validate an AutoYaST template file."""
         try:
-            # Check if file exists
             if not template_path.exists():
                 self.logger.error(f"Template file does not exist: {template_path}")
                 return False
 
-            # Check if file is readable
             if not template_path.is_file():
                 self.logger.error(f"Template path is not a file: {template_path}")
                 return False
-
-            # Try to parse as XML
-            import xml.etree.ElementTree as ET
 
             try:
                 with open(template_path, "r", encoding="utf-8") as f:
                     content = f.read()
 
-                # Check if it contains required template variables
                 required_variables = [
                     "language",
                     "keyboard",
@@ -339,10 +327,7 @@ class OpenSUSEProvider(OSProvider):
                     )
                     # Don't fail validation for missing variables, just log warning
 
-                # Try to parse XML
                 ET.fromstring(content)
-
-                # Check if it's a valid AutoYaST profile
                 if 'xmlns="http://www.suse.com/1.0/yast2ns"' not in content:
                     self.logger.warning(
                         f"Template {template_path.name} may not be a valid AutoYaST profile (missing namespace)"
@@ -369,9 +354,6 @@ class OpenSUSEProvider(OSProvider):
         errors = []
 
         try:
-            # Try to parse as XML
-            import xml.etree.ElementTree as ET
-
             try:
                 ET.fromstring(template_content)
             except ET.ParseError as e:
@@ -455,7 +437,6 @@ class OpenSUSEProvider(OSProvider):
             raise Exception(f"No automation config available for {version_name}")
         variables = config.variables.copy()
 
-        # Override with user-provided values
         variables.update(user_config)
 
         # Hash passwords for security before substitution
@@ -476,7 +457,6 @@ class OpenSUSEProvider(OSProvider):
         clean_vm_name = re.sub(r"[^a-zA-Z0-9-]", "", vm_name)[:63]  # hostname limit
         variables["hostname"] = clean_vm_name or "opensuse-vm"
 
-        # Use specified template or default to basic
         template_filename = template_name if template_name else "autoyast-basic.xml"
 
         # Generate content based on template extension
@@ -597,7 +577,7 @@ class OpenSUSEProvider(OSProvider):
             if distro == OpenSUSEDistro.LEAP:
                 # Use hardcoded versions
                 versions15 = ["15.5", "15.6"]
-                versions16 = ["16.0"]
+                versions16 = ["16.0", "16.1"]
                 for ver in versions15 + versions16:
                     if ver in versions15:
                         ver_iso_url = f"{base_url}{ver}/iso/"
@@ -799,10 +779,10 @@ class OpenSUSEProvider(OSProvider):
 
             elif isinstance(distro, str):
                 if distro in ["cached", "pool_volumes"]:
-                    # Cached ISOs or pool volumes → Show ALL templates
+                    # Cached ISOs or pool volumes Show ALL templates
                     return all_templates
                 else:
-                    # Custom repository URL → Show ALL templates for flexibility
+                    # Custom repository URL Show ALL templates for flexibility
                     return all_templates
             else:
                 # Fallback - show all templates

@@ -8,14 +8,14 @@ import json
 import logging
 import os
 import tempfile
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from enum import Enum
 
 import requests
 import yaml
-from ..os_provider import OSProvider, OSType, OSVersion
-
+from ..os_provider import OSProvider, OSType, OSVersion, hash_password
 
 class UbuntuDistro(Enum):
     """Ubuntu distribution types."""
@@ -107,20 +107,15 @@ class UbuntuProvider(OSProvider):
         template_name: str | None = None,
     ) -> Path:
         """Generate Ubuntu automation file (autoinstall or preseed)."""
-        # Use default template if not provided
         if not template_name:
             template_name = "autoinstall-basic.yaml"
 
         self.logger.info(f"Generating Ubuntu automation file with template: {template_name}")
 
-        # Merge vm_name into config for variable substitution
         config = user_config.copy()
         config["vm_name"] = vm_name
-
-        # Use output_path as output_dir for compatibility
         output_dir = output_path
 
-        # Determine if this is autoinstall or preseed based on filename patterns
         is_autoinstall = (
             template_name.startswith("autoinstall")
             and (template_name.endswith(".yaml") or template_name.endswith(".yml"))
@@ -168,31 +163,24 @@ class UbuntuProvider(OSProvider):
                 or "autoinstall" in template_name.lower()
                 and template_name.endswith(".yaml")
             ):
-                # Validate cloud-init autoinstall YAML
                 data = yaml.safe_load(content)
-
-                # Check for required autoinstall structure
                 if not isinstance(data, dict):
                     return False
 
-                # Should have autoinstall section for Ubuntu autoinstall
                 if "autoinstall" not in data:
                     self.logger.warning("Ubuntu autoinstall template missing 'autoinstall' section")
                     return False
 
                 return True
 
-            # Check for Ubuntu preseed files (preseed*.cfg)
             elif (
                 (template_name.startswith("preseed") and template_name.endswith(".cfg"))
                 or "preseed" in template_name.lower()
                 and template_name.endswith(".cfg")
             ):
-                # Validate preseed content
                 if not content.strip():
                     return False
 
-                # Check for at least one valid preseed directive
                 lines = content.split("\n")
                 valid_lines = [
                     line.strip()
@@ -202,7 +190,6 @@ class UbuntuProvider(OSProvider):
 
                 return len(valid_lines) > 0
 
-            # Generic YAML check for other Ubuntu automation files
             elif template_name.endswith(".yaml") or template_name.endswith(".yml"):
                 try:
                     yaml.safe_load(content)
@@ -210,9 +197,7 @@ class UbuntuProvider(OSProvider):
                 except yaml.YAMLError:
                     return False
 
-            # Generic config file check
             elif template_name.endswith(".cfg"):
-                # Basic check for non-empty config files
                 return bool(content.strip())
 
             return False
@@ -223,8 +208,6 @@ class UbuntuProvider(OSProvider):
 
     def _extract_version_number(self, version_display: str) -> Optional[str]:
         """Extract version number from display string."""
-        import re
-
         # Extract version number like "24.04", "22.04", etc.
         match = re.search(r"(\d+\.\d+)", version_display)
         return match.group(1) if match else None
@@ -234,13 +217,8 @@ class UbuntuProvider(OSProvider):
     ) -> List[Dict[str, Any]]:
         """Get ISO list for specific Ubuntu version."""
         try:
-            # Ubuntu releases URL pattern
             base_url = f"http://releases.ubuntu.com/{version_number}/"
-
-            # Use base class method to fetch and parse ISOs
             iso_list = self.get_iso_list_from_url(base_url, arch="amd64")
-
-            # Filter and enrich results
             filtered_list = []
             for iso in iso_list:
                 filename = iso["name"].lower()
@@ -297,19 +275,14 @@ class UbuntuProvider(OSProvider):
         self, template_name: str, config: Dict[str, Any], output_dir: Path
     ) -> Path:
         """Generate Ubuntu cloud-init autoinstall file."""
-        # Load the autoinstall template
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
             raise Exception(f"Ubuntu autoinstall template not found: {template_name}")
 
-        # Read template content
         with open(template_path, "r", encoding="utf-8") as f:
             template_content = f.read()
 
-        # Generate autoinstall YAML with variable substitution
         autoinstall_content = self._generate_autoinstall_yaml(template_content, config)
-
-        # Write the autoinstall file with restrictive permissions
         output_file = output_dir / "user-data"
         with open(os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(autoinstall_content)
@@ -329,10 +302,8 @@ class UbuntuProvider(OSProvider):
         self, template_name: str, config: Dict[str, Any], output_dir: Path
     ) -> Path:
         """Generate Ubuntu preseed file."""
-        # Load the preseed template
         template_path = self._find_template_file(template_name)
         if not template_path or not template_path.exists():
-            # Generate basic preseed if template not found
             self.logger.warning(
                 f"Ubuntu preseed template not found: {template_name}, using basic preseed"
             )
@@ -361,13 +332,10 @@ class UbuntuProvider(OSProvider):
         substituted_content = self._substitute_variables(template_content, config)
 
         try:
-            # Parse the substituted content as YAML to validate it
             yaml.safe_load(substituted_content)
-            # If parsing succeeds, return the substituted content
             return substituted_content
         except Exception as e:
             self.logger.error(f"Error validating autoinstall YAML after substitution: {e}")
-            # Return it anyway - the installer might be more lenient
             return substituted_content
 
     def _substitute_variables_recursive(self, data: Any, config: Dict[str, Any]) -> Any:
@@ -386,7 +354,6 @@ class UbuntuProvider(OSProvider):
 
     def _substitute_variables(self, content: str, config: Dict[str, Any]) -> str:
         """Substitute variables in template content."""
-        from ..os_provider import hash_password
 
         # Get passwords and hash them for autoinstall (identity section requires hashed passwords)
         # Strip whitespace that may come from config files with newlines
@@ -428,7 +395,6 @@ class UbuntuProvider(OSProvider):
             "network_interface": config.get("network_interface", "enp1s0"),
         }
 
-        # Perform variable substitution
         result = content
         for key, value in substitutions.items():
             placeholder = f"{{{key}}}"
@@ -441,11 +407,7 @@ class UbuntuProvider(OSProvider):
 
     def _generate_basic_preseed(self, config: Dict[str, Any]) -> str:
         """Generate basic preseed configuration."""
-        from ..os_provider import hash_password
-
-        # Support both key name styles for compatibility
         username = config.get("username", config.get("user_name", "user"))
-        # Strip whitespace from password
         password = config.get(
             "password", config.get("user_password", config.get("user_pw", "linux"))
         ).strip()
@@ -495,16 +457,12 @@ d-i finish-install/reboot_in_progress note
 
     def _find_template_file(self, template_name: str) -> Optional[Path]:
         """Find template file in templates directory."""
-        # Get the directory where this provider is located
         current_dir = Path(__file__).parent
         templates_dir = current_dir.parent / "templates"
-
-        # Try exact match first
         template_path = templates_dir / template_name
         if template_path.exists():
             return template_path
 
-        # Try without extension and add common extensions
         base_name = Path(template_name).stem
         for ext in [".yaml", ".cfg"]:
             template_path = templates_dir / f"{base_name}{ext}"

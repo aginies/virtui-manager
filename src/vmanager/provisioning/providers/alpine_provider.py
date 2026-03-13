@@ -5,15 +5,14 @@ including ISO management and answers file generation.
 """
 
 import logging
-import os
-import re
-import urllib.request
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import tarfile
+from io import BytesIO
 
-from ..os_provider import OSProvider, OSType, OSVersion, hash_password
+from ..os_provider import OSProvider, OSType, OSVersion
 
 
 class AlpineDistro(Enum):
@@ -87,10 +86,6 @@ class AlpineProvider(OSProvider):
         template_name: str | None = None,
     ) -> Path:
         """Generate Alpine Linux apkovl tarball for automated installation."""
-        import shutil
-        import tarfile
-        import tempfile
-        from io import BytesIO
 
         # Use default template if not provided
         if not template_name:
@@ -226,7 +221,6 @@ sleep 5
         current_dir = Path(__file__).parent
         templates_dir = current_dir.parent / "templates"
 
-        # Try exact match first
         template_path = templates_dir / template_name
         if template_path.exists():
             return template_path

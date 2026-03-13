@@ -21,6 +21,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import libvirt
+from .backup_manager import BackupManager
 
 from .utils import remote_viewer_cmd
 from .vm_actions import (
@@ -787,9 +788,6 @@ class BackupCommand(PipelineCommand):
             return context
 
         # Execute backups
-        from .backup_scheduler import BackupType, BackupOptions
-        from .backup_manager import BackupManager
-
         backup_manager = BackupManager()
 
         for server_name, vm_list in vms_to_backup.items():
@@ -877,9 +875,6 @@ class BackupCommand(PipelineCommand):
                         f"Would schedule {backup_type} backup for VM '{vm_name}' with pattern '{schedule_pattern}' (keep {keep_count})"
                     )
             return context
-
-        # Create schedules
-        from .backup_scheduler import BackupType, BackupOptions, RetentionPolicy
 
         # Map backup type
         if backup_type.lower() == "snapshot":
@@ -990,8 +985,6 @@ class BackupCommand(PipelineCommand):
                     domain = conn.lookupByName(vm_name)
 
                     # Get available snapshots
-                    from .vm_queries import get_vm_snapshots
-
                     snapshots = get_vm_snapshots(domain)
                     backup_snapshots = [s for s in snapshots if "_backup_" in s["name"]]
 
@@ -1007,8 +1000,6 @@ class BackupCommand(PipelineCommand):
                         selected_backup = backup_name
 
                     # Restore
-                    from .vm_actions import restore_vm_snapshot
-
                     restore_vm_snapshot(domain, selected_backup)
                     restored_count += 1
 
