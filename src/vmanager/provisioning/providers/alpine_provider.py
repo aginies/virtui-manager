@@ -93,10 +93,27 @@ class AlpineProvider(OSProvider):
 
         self.logger.info(f"Generating Alpine Linux automation file with template: {template_name}")
 
+        # Detect desktop from template name
+        desktop_cmd = ""
+        keyb_pkg = "apk add setxkbmap\n"
+        if template_name:
+            if "gnome" in template_name.lower():
+                desktop_cmd = "setup-desktop gnome\n" + keyb_pkg
+            elif "plasma" in template_name.lower():
+                desktop_cmd = "setup-desktop plasma\n" + keyb_pkg
+            elif "xfce" in template_name.lower():
+                desktop_cmd = "setup-desktop xfce\n" + keyb_pkg
+            elif "mate" in template_name.lower():
+                desktop_cmd = "setup-desktop mate\n" + keyb_pkg
+            elif "sway" in template_name.lower():
+                desktop_cmd = "setup-desktop sway\n" + keyb_pkg
+            elif "lxqt" in template_name.lower():
+                desktop_cmd = "setup-desktop lxqt\n" + keyb_pkg
+
         # Merge defaults and user config
         config = user_config.copy()
         config["vm_name"] = vm_name
-        
+
         # Ensure default values are present
         defaults = {
             "username": "alpine",
@@ -114,13 +131,9 @@ class AlpineProvider(OSProvider):
                 config[key] = value
 
         template_path = self._find_template_file(template_name)
-        if not template_path or not template_path.exists():
-            self.logger.warning(f"Alpine template not found: {template_name}, using basic answers")
-            answers_content = self._generate_basic_answers(config)
-        else:
-            with open(template_path, "r", encoding="utf-8") as f:
-                template_content = f.read()
-            answers_content = self._substitute_variables(template_content, config)
+        with open(template_path, "r", encoding="utf-8") as f:
+            template_content = f.read()
+        answers_content = self._substitute_variables(template_content, config)
 
         # Default to apkovl tarball for full automation
         output_file = output_path / "localhost.apkovl.tar.gz"
@@ -163,26 +176,61 @@ echo ""
 # Give the system a moment to fully settle
 sleep 2
 
-echo "Initializing hardware drivers..."
+#echo "Initializing hardware drivers..."
 /etc/init.d/devfs restart
 /etc/init.d/modloop start
-/etc/init.d/hwdrivers start
+#/etc/init.d/hwdrivers start
+/etc/init.d/fsck start
 
-echo "Executing setup-alpine -f /root/answers.txt..."
 # Use 'yes y' to catch prompts
-yes y | setup-alpine -f /root/answers.txt
+#setup-alpine -q -a -f /root/answers.txt
+
+# remove this script
+rm -vf /etc/local.d/virtui-install.start
+
+setup-timezone {config.get('timezone')}
+setup-apkrepos -1 -c
+apk add qemu-guest-agent
+/etc/init.d/qemu-guest-agent start
+
+setup-hostname {config.get('vm_name')}.home.net
+/etc/init.d/hostname start
+setup-sshd openssh
+{desktop_cmd}
+#setup-ntp chrony
+setup-interfaces -a
+rc-udpate add sshd boot
+#rc-update add chronyd boot
+#rc-update add networking boot
+
+setup-user -a {config.get('username')}
+cat >> /home/aginies/.xinitrc <<EOF
+setxkbmap {config.get('keyboard')}
+EOF
 
 # Set root and user password
 echo "root:{config.get('root_password', 'password')}" | chpasswd
 echo "{config.get('username')}:{config.get('user_password', 'password')}" | chpasswd
 
+setup-keymap {config.get('keyboard')} {config.get('keyboard')}
+export ERASE_DISKS={config.get('disk_device')}
+export DEFAULT_DISK={config.get('disk_device')}
+export DISK_MODE=sys
+setup-disk -m sys -v {config.get('disk_device')}
+
+# Workaround missing user dir
+modprobe ext4
+mkdir vda3t
+mount /dev/vda3 vda3t
+cp -a /home/{config.get('username')} vda3t/home
+umount vda3t
+
 echo ""
-echo "####################################################"
-echo "# Installation complete. Rebooting in 5 seconds... #"
-echo "####################################################"
+echo "########################################################"
+echo "# Installation complete. System Power Off              #"
+echo "########################################################"
 echo ""
-sleep 5
-#/sbin/reboot
+poweroff
 """
             script_data = trigger_script.encode("utf-8")
             script_info = tarfile.TarInfo(name="etc/local.d/virtui-install.start")
@@ -233,38 +281,6 @@ sleep 5
                 return template_path
 
         return None
-
-    def _generate_basic_answers(self, config: Dict[str, Any]) -> str:
-        """Generate a basic Alpine answers file."""
-        # Alpine answers file format
-        vm_name = config.get("vm_name", "alpine-vm")
-        username = config.get("username", "alpine")
-        password = config.get("password", "password")
-        root_password = config.get("root_password", "password")
-        
-        # Keyboard layout
-        keyboard = config.get("keyboard", "us us")
-        
-        answers = [
-            f'KEYMAPOPTS="{keyboard} {keyboard}"',
-            f'HOSTNAMEOPTS="-n {vm_name}"',
-            'INTERFACESOPTS="auto lo',
-            'iface lo inet loopback',
-            '',
-            'auto eth0',
-            'iface eth0 inet dhcp"',
-            'DNSOPTS="-d localdomain 8.8.8.8"',
-            f'TIMEZONEOPTS="-z {config.get("timezone", "UTC")}"',
-            'PROXYOPTS="none"',
-            'APKREPOSOPTS="-f"',
-            f'USEROPTS="-a -u {username} -g {username}"',
-            f'SSHDOPTS="-c {config.get("ssh_server", "openssh")}"',
-            f'NTPOPTS="-c {config.get("ntp_client", "chrony")}"',
-            f'DISKOPTS="-m {config.get("disk_mode", "sys")} {config.get("disk_device", "/dev/vda")}"',
-            'LBUOPTS="none"',
-            'APKCACHEOPTS="none"',
-        ]
-        return "\n".join(answers)
 
     def validate_template_content(self, content: str, template_name: str) -> bool:
         """Validate Alpine answers file content."""

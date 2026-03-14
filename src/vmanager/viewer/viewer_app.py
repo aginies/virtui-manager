@@ -194,7 +194,7 @@ class RemoteViewer(Gtk.Application):
     def show_vm_list(self):
         """Show VM selection dialog."""
         self.list_window = Gtk.Window(application=self, title="Select VM to Connect")
-        self.list_window.set_default_size(400, 500)
+        self.list_window.set_default_size(600, 700)
 
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         vbox.set_border_width(10)

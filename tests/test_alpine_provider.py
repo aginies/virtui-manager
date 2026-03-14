@@ -65,31 +65,27 @@ class TestAlpineProvider(unittest.TestCase):
         self.assertEqual(iso_list[0]["name"], "alpine-virt-3.23.0-x86_64.iso")
         self.assertEqual(iso_list[0]["size"], "100 MB")
 
-    def test_generate_basic_answers(self):
-        """Test generating a basic answers file content"""
-        config = {
-            "vm_name": "test-alpine",
-            "username": "tester",
-            "password": "testpassword",
-            "root_password": "rootpassword"
-        }
-        content = self.provider._generate_basic_answers(config)
-        self.assertIn('HOSTNAMEOPTS="-n test-alpine"', content)
-        self.assertIn('USEROPTS="-a -u tester -g tester"', content)
-
     @patch("tarfile.open")
     def test_generate_automation_file_default(self, mock_tar):
         """Test generating the automation file using the default template"""
-        # Mock template finding to return None so it uses basic answers
-        with patch.object(self.provider, "_find_template_file", return_value=None):
-            output_path = Path("/tmp")
-            user_config = {"username": "alpine", "password": "password"}
-            
-            result_path = self.provider.generate_automation_file(
-                None, "testvm", user_config, output_path
-            )
-            
-            self.assertEqual(result_path, output_path / "localhost.apkovl.tar.gz")
+        # Create a real temporary template file for the test
+        template_dir = Path("src/vmanager/provisioning/templates")
+        template_dir.mkdir(parents=True, exist_ok=True)
+        template_file = template_dir / "alpine-answers-basic.txt"
+        
+        # Ensure template file exists for the test
+        if not template_file.exists():
+            with open(template_file, "w") as f:
+                f.write("HOSTNAMEOPTS=\"-n {vm_name}\"\nDISKOPTS=\"-m sys {disk_device}\"")
+
+        output_path = Path("/tmp")
+        user_config = {"username": "alpine", "password": "password"}
+        
+        result_path = self.provider.generate_automation_file(
+            None, "testvm", user_config, output_path
+        )
+        
+        self.assertEqual(result_path, output_path / "localhost.apkovl.tar.gz")
 
 
 if __name__ == "__main__":

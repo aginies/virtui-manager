@@ -144,7 +144,7 @@ class MainWindowBuilder:
 
         # Main Window
         self.window = Gtk.ApplicationWindow(application=self.application, title=title)
-        self.window.set_default_size(1024, 768)
+        self.window.set_default_size(1280, 800)
 
         # Build header bar
         header = self._build_header_bar(title, subtitle, handlers)

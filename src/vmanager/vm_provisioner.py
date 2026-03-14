@@ -1183,7 +1183,7 @@ class VMProvisioner:
                 # Determine the appropriate kernel arguments based on file type and URL
                 if "archinstall-" in auto_url and auto_url.endswith(".json"):
                     # Arch Linux archinstall automation
-                    cmdline = f"archinstall.config={auto_url} archisodevice=/dev/sr0"
+                    cmdline = f"archinstall.config={auto_url} archinstall.auto archisodevice=/dev/sr0"
                 elif auto_url.endswith(".json"):
                     # Agama (openSUSE) automation
                     # Multiple flags to disable SSL verification and allow insecure HTTP
@@ -2012,7 +2012,7 @@ class VMProvisioner:
             # HTTP-based automation (uses --extra-args with --location)
             if "archinstall-" in auto_url and auto_url.endswith(".json"):
                 # Arch Linux archinstall automation
-                extra_args = f"archinstall.config={auto_url} archisodevice=/dev/sr0"
+                extra_args = f"archinstall.config={auto_url} archinstall.auto archisodevice=/dev/sr0"
             elif auto_url.endswith(".json"):
                 # Agama (openSUSE) automation
                 # Multiple flags to disable SSL verification and allow insecure HTTP
