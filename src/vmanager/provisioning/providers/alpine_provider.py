@@ -188,7 +188,6 @@ sleep 2
 # remove this script
 rm -vf /etc/local.d/virtui-install.start
 
-
 setup-timezone {config.get('timezone')}
 setup-apkrepos -1 -c
 apk add qemu-guest-agent
@@ -228,15 +227,10 @@ umount vda3t
 
 echo ""
 echo "########################################################"
-echo "# Installation complete. System Halted                 #"
-echo "#                                                      #"
-echo "# YOU MUST POWER OFF TO CONTINUE as Alpine doesnt      #"
-echo "# support halt poweroff :/                             #"
-echo "#                                                      #"
-echo "# WHEN THE VM IS POWER OFF, POWER ON it again          #"
+echo "# Installation complete. System Power Off              #"
 echo "########################################################"
 echo ""
-#halt -f
+poweroff
 """
             script_data = trigger_script.encode("utf-8")
             script_info = tarfile.TarInfo(name="etc/local.d/virtui-install.start")
