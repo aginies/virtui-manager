@@ -93,22 +93,24 @@ class AlpineProvider(OSProvider):
 
         self.logger.info(f"Generating Alpine Linux automation file with template: {template_name}")
 
-        # Detect desktop from template name
+        # Detect desktop from template name and install needed stuff
         desktop_cmd = ""
-        keyb_pkg = "apk add setxkbmap\n"
+        keyb_xorg_pkg = "apk add setxkbmap font-dejavu\nsetup-xorg-base\n"
+        lightdm = "apk add lightdm-gtk-greeter xterm\n"
+        start_lightdm = "rc-update add lightdm boot\n"
         if template_name:
             if "gnome" in template_name.lower():
-                desktop_cmd = "setup-desktop gnome\n" + keyb_pkg
+                desktop_cmd = "setup-desktop gnome\n" + keyb_xorg_pkg
             elif "plasma" in template_name.lower():
-                desktop_cmd = "setup-desktop plasma\n" + keyb_pkg
+                desktop_cmd = "setup-desktop plasma\n" + keyb_xorg_pkg
             elif "xfce" in template_name.lower():
-                desktop_cmd = "setup-desktop xfce\n" + keyb_pkg
+                desktop_cmd = "setup-desktop xfce\n" + keyb_xorg_pkg
             elif "mate" in template_name.lower():
-                desktop_cmd = "setup-desktop mate\n" + keyb_pkg
+                desktop_cmd = "setup-desktop mate\n" + keyb_xorg_pkg
             elif "sway" in template_name.lower():
-                desktop_cmd = "setup-desktop sway\n" + keyb_pkg
+                desktop_cmd = "setup-desktop sway\n" + keyb_xorg_pkg + lightdm + start_lightdm
             elif "lxqt" in template_name.lower():
-                desktop_cmd = "setup-desktop lxqt\n" + keyb_pkg
+                desktop_cmd = "setup-desktop lxqt\n" + keyb_xorg_pkg + lightdm + start_lightdm
 
         # Merge defaults and user config
         config = user_config.copy()
@@ -201,7 +203,6 @@ setup-sshd openssh
 setup-interfaces -a
 rc-udpate add sshd boot
 #rc-update add chronyd boot
-#rc-update add networking boot
 
 setup-user -a {config.get('username')}
 cat >> /home/aginies/.xinitrc <<EOF
@@ -213,6 +214,9 @@ echo "root:{config.get('root_password', 'password')}" | chpasswd
 echo "{config.get('username')}:{config.get('user_password', 'password')}" | chpasswd
 
 setup-keymap {config.get('keyboard')} {config.get('keyboard')}
+rc-update add networking boot
+rc-update add qemu-guest-agent boot
+rc-update add acpid boot
 export ERASE_DISKS={config.get('disk_device')}
 export DEFAULT_DISK={config.get('disk_device')}
 export DISK_MODE=sys
