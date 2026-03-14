@@ -95,24 +95,25 @@ class AlpineProvider(OSProvider):
 
         # Detect desktop from template name
         desktop_cmd = ""
+        keyb_pkg = "apk add setxkbmap\n"
         if template_name:
             if "gnome" in template_name.lower():
-                desktop_cmd = "setup-desktop gnome\n"
+                desktop_cmd = "setup-desktop gnome\n" + keyb_pkg
             elif "plasma" in template_name.lower():
-                desktop_cmd = "setup-desktop plasma\n"
+                desktop_cmd = "setup-desktop plasma\n" + keyb_pkg
             elif "xfce" in template_name.lower():
-                desktop_cmd = "setup-desktop xfce\n"
+                desktop_cmd = "setup-desktop xfce\n" + keyb_pkg
             elif "mate" in template_name.lower():
-                desktop_cmd = "setup-desktop mate\n"
+                desktop_cmd = "setup-desktop mate\n" + keyb_pkg
             elif "sway" in template_name.lower():
-                desktop_cmd = "setup-desktop sway\n"
+                desktop_cmd = "setup-desktop sway\n" + keyb_pkg
             elif "lxqt" in template_name.lower():
-                desktop_cmd = "setup-desktop lxqt\n"
+                desktop_cmd = "setup-desktop lxqt\n" + keyb_pkg
 
         # Merge defaults and user config
         config = user_config.copy()
         config["vm_name"] = vm_name
-        
+
         # Ensure default values are present
         defaults = {
             "username": "alpine",
@@ -190,7 +191,6 @@ rm -vf /etc/local.d/virtui-install.start
 
 setup-timezone {config.get('timezone')}
 setup-apkrepos -1 -c
-#setup-desktop xfce
 apk add qemu-guest-agent
 /etc/init.d/qemu-guest-agent start
 
@@ -202,8 +202,13 @@ setup-sshd openssh
 setup-interfaces -a
 rc-udpate add sshd boot
 #rc-update add chronyd boot
+#rc-update add networking boot
 
 setup-user -a {config.get('username')}
+cat >> /home/aginies/.xinitrc <<EOF
+setxkbmap {config.get('keyboard')}
+EOF
+
 # Set root and user password
 echo "root:{config.get('root_password', 'password')}" | chpasswd
 echo "{config.get('username')}:{config.get('user_password', 'password')}" | chpasswd
@@ -214,9 +219,16 @@ export DEFAULT_DISK={config.get('disk_device')}
 export DISK_MODE=sys
 setup-disk -m sys -v {config.get('disk_device')}
 
+# Workaround missing user dir
+modprobe ext4
+mkdir vda3t
+mount /dev/vda3 vda3t
+cp -a /home/{config.get('username')} vda3t/home
+umount vda3t
+
 echo ""
 echo "########################################################"
-echo "# Installation complete. System Halted in 2 seconds... #"
+echo "# Installation complete. System Halted                 #"
 echo "#                                                      #"
 echo "# YOU MUST POWER OFF TO CONTINUE as Alpine doesnt      #"
 echo "# support halt poweroff :/                             #"
@@ -224,8 +236,7 @@ echo "#                                                      #"
 echo "# WHEN THE VM IS POWER OFF, POWER ON it again          #"
 echo "########################################################"
 echo ""
-sleep 2
-halt -f
+#halt -f
 """
             script_data = trigger_script.encode("utf-8")
             script_info = tarfile.TarInfo(name="etc/local.d/virtui-install.start")
