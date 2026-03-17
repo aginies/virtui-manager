@@ -205,5 +205,5 @@ python3 virtui_dev.py
 To install dependencies manually from official repositories (this is done automatically when installing the package):
 
 ```bash
-sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py 7z tmux
+sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py 7zip tmux python3-packaging python3-netifaces python3-requests
 ```
