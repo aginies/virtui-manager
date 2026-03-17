@@ -7,3 +7,4 @@ pytest-cov
 packaging
 netifaces
 requests
+linkify-it-py
