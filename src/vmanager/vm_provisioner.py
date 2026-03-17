@@ -42,6 +42,7 @@ from .provisioning.providers.alpine_provider import AlpineProvider, AlpineDistro
 from .provisioning.providers.archlinux_provider import ArchLinuxProvider, ArchLinuxDistro
 from .provisioning.providers.debian_provider import DebianProvider, DebianDistro
 from .provisioning.providers.fedora_provider import FedoraProvider, FedoraDistro
+from .provisioning.providers.generic_provider import GenericProvider
 from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
 from .provisioning.providers.ubuntu_provider import UbuntuProvider, UbuntuDistro
 from .storage_manager import create_volume
@@ -113,7 +114,13 @@ class VMProvisioner:
             alpine_provider = AlpineProvider(host_arch=self.host_arch)
             self.provider_registry.register_provider(alpine_provider)
         except Exception as e:
-            self.logger.warning(f"Failed to register Alpine Linux provider: {e}")
+            self.logger.warning(f"Failed to register Alpine provider: {e}")
+
+        try:
+            generic_provider = GenericProvider()
+            self.provider_registry.register_provider(generic_provider)
+        except Exception as e:
+            self.logger.warning(f"Failed to register Generic provider: {e}")
 
     def get_provider(self, os_type_str: str):
         """Get provider by OS type string."""
@@ -127,6 +134,8 @@ class VMProvisioner:
             "archlinux": OSType.ARCHLINUX,
             "arch": OSType.ARCHLINUX,
             "alpine": OSType.ALPINE,
+            "generic": OSType.GENERIC,
+            "custom": OSType.GENERIC,
             "windows": OSType.WINDOWS,
         }
 
@@ -1187,7 +1196,7 @@ class VMProvisioner:
                 elif auto_url.endswith(".json"):
                     # Agama (openSUSE) automation
                     # Multiple flags to disable SSL verification and allow insecure HTTP
-                    cmdline = f"inst.auto={auto_url} inst.insecure=1 ssl_verify=no"
+                    cmdline = f"inst.auto={auto_url} inst.insecure=1 inst.auto_insecure=1 ssl_verify=no"
                 elif auto_url.endswith("/") or "user-data" in auto_url:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
@@ -2016,7 +2025,7 @@ class VMProvisioner:
             elif auto_url.endswith(".json"):
                 # Agama (openSUSE) automation
                 # Multiple flags to disable SSL verification and allow insecure HTTP
-                extra_args = f"inst.auto={auto_url} inst.insecure=1 ssl_verify=no"
+                extra_args = f"inst.auto={auto_url} inst.insecure=1 inst.auto_insecure=1 ssl_verify=no"
             elif auto_url.endswith("/") or "user-data" in auto_url:
                 # Ubuntu autoinstall automation (cloud-init based)
                 extra_args = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"

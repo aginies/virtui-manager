@@ -313,6 +313,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     VM_NAME = _("Virtual Machine Name")
     DISTRIBUTION = _("Distribution")
     CACHED_ISOS = _("Cached ISOs")
+    GENERIC_CUSTOM_ISO = _("Generic / Custom ISO")
     FROM_STORAGE_POOL = _("From Storage Pool")
     ISO_IMAGE_REPO = _("ISO Image (Repo):")
     ISOS_DOWNLOAD_PATH = _("ISOs will be downloaded to: {iso_path}")

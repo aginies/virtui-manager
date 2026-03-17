@@ -6,6 +6,7 @@ from .alpine_provider import AlpineProvider, AlpineDistro
 from .archlinux_provider import ArchLinuxProvider, ArchLinuxDistro
 from .debian_provider import DebianProvider, DebianDistro
 from .fedora_provider import FedoraProvider, FedoraDistro
+from .generic_provider import GenericProvider
 from .opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
 from .ubuntu_provider import UbuntuProvider, UbuntuDistro
 
@@ -18,6 +19,7 @@ __all__ = [
     "DebianDistro",
     "FedoraProvider",
     "FedoraDistro",
+    "GenericProvider",
     "OpenSUSEProvider",
     "OpenSUSEDistro",
     "UbuntuProvider",
