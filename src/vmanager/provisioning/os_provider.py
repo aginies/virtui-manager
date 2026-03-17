@@ -36,6 +36,7 @@ class OSType(Enum):
     FEDORA = "Fedora"
     ARCHLINUX = "Arch Linux"
     ALPINE = "Alpine Linux"
+    GENERIC = "Generic / Custom ISO"
 
 
 @dataclass

@@ -77,9 +77,9 @@ class AutoHTTPServer:
                     )
 
                 def log_error(self, format, *args):
-                    # Suppress "Bad request version" errors which happen when
-                    # client tries HTTPS on HTTP port (common with Agama probing)
-                    if "Bad request version" in format:
+                    # Suppress "Bad request version" or "Bad request syntax" errors 
+                    # which happen when client tries HTTPS on HTTP port (common with Agama probing)
+                    if any(msg in format for msg in ["Bad request version", "Bad request syntax"]):
                         return
                     super().log_error(format, *args)
 

@@ -98,6 +98,9 @@ class InstallVMModal(BaseModal[str | None]):
             for d in AlpineDistro:
                 distro_options.append((f"Alpine Linux: {d.value}", d))
 
+            # Add Generic Custom ISO option
+            distro_options.append((StaticText.GENERIC_CUSTOM_ISO, "generic_custom"))
+
             distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
             custom_repos = self.provisioner.get_custom_repos()
             for repo in custom_repos:
@@ -384,6 +387,8 @@ class InstallVMModal(BaseModal[str | None]):
             os_type = OSType.ARCHLINUX
         elif isinstance(distro, AlpineDistro):
             os_type = OSType.ALPINE
+        elif distro == "generic_custom":
+            os_type = OSType.GENERIC
 
         if os_type:
             provider = self.provisioner.provider_registry.get_provider(os_type)
@@ -446,6 +451,7 @@ class InstallVMModal(BaseModal[str | None]):
             DebianDistro.CUSTOM,
             FedoraDistro.CUSTOM,
             ArchLinuxDistro.CUSTOM,
+            "generic_custom",
         ]:
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
@@ -890,8 +896,8 @@ class InstallVMModal(BaseModal[str | None]):
                             filtered_templates.append(template)
 
         elif isinstance(distro, str):
-            if distro in ["cached", "pool_volumes"]:
-                # Cached ISOs or pool volumes → Show ALL templates
+            if distro in ["cached", "pool_volumes", "generic_custom"]:
+                # Cached ISOs, pool volumes or Generic Custom ISO → Show ALL templates
                 filtered_templates = all_templates
             else:
                 # Custom repository URL → Show ALL templates
@@ -1066,6 +1072,7 @@ class InstallVMModal(BaseModal[str | None]):
             DebianDistro.CUSTOM,
             FedoraDistro.CUSTOM,
             ArchLinuxDistro.CUSTOM,
+            "generic_custom",
         ]:
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
@@ -1184,6 +1191,7 @@ class InstallVMModal(BaseModal[str | None]):
             DebianDistro.CUSTOM,
             FedoraDistro.CUSTOM,
             ArchLinuxDistro.CUSTOM,
+            "generic_custom",
         ]:
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
