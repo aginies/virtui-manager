@@ -1002,7 +1002,7 @@ class VMProvisioner:
             "disk_format": "qcow2",
             "disk_cache": "none",
             # Guest
-            "machine": "pc-q35-10.1" if boot_uefi else "pc-i440fx-10.1",
+            "machine": "pc-q35" if boot_uefi else "pc-i440fx",
             "video": "virtio",
             "graphics_type": graphics_type,
             "network_model": "e1000",
