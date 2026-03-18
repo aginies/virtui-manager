@@ -59,7 +59,7 @@ class OpenSUSEProvider(OSProvider):
 
     @property
     def os_type(self) -> OSType:
-        return OSType.LINUX
+        return OSType.OPENSUSE
 
     def get_supported_versions(self) -> List[OSVersion]:
         """Return supported OpenSUSE versions."""
@@ -76,7 +76,7 @@ class OpenSUSEProvider(OSProvider):
         for version_id, display_name, is_eval in distributions:
             versions.append(
                 OSVersion(
-                    os_type=OSType.LINUX,
+                    os_type=OSType.OPENSUSE,
                     version_id=version_id,
                     display_name=display_name,
                     architecture=self.host_arch,
