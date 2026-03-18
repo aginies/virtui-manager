@@ -82,6 +82,7 @@ class DisplayManager:
         )
         self.on_disconnect = disconnect_callback if disconnect_callback else lambda: None
         self.on_reconnect = reconnect_callback if reconnect_callback else lambda: None
+        self.clipboard_update_callback: Optional[Callable[[str], None]] = None
         self.verbose = verbose
 
         # Display widgets
@@ -123,6 +124,10 @@ class DisplayManager:
     def set_window(self, window: Gtk.Window):
         """Set the main window for password dialogs."""
         self.window = window
+
+    def set_clipboard_update_callback(self, callback: Callable[[str], None]):
+        """Set the callback for clipboard updates from guest."""
+        self.clipboard_update_callback = callback
 
     def set_ui_elements(self, depth_box: Gtk.Box, lossy_check: Gtk.CheckButton):
         """Set UI elements that need protocol-specific visibility control."""
@@ -681,8 +686,70 @@ class DisplayManager:
         """Handle SPICE new channel event."""
         if self.verbose:
             print(f"SPICE channel created: {channel}")
+        
         # Connect to channel events to detect disconnections
         GObject.Object.connect(channel, "channel-event", self.on_spice_channel_event)
+
+        # Connect clipboard signals for Main channel
+        if SPICE_AVAILABLE and isinstance(channel, SpiceClientGLib.MainChannel):
+            if self.verbose:
+                print("Connecting to SPICE MainChannel clipboard signals")
+            
+            # Request data when guest grabs the clipboard
+            GObject.Object.connect(
+                channel, "main-clipboard-selection-grab", self.on_spice_clipboard_selection_grab
+            )
+            
+            # Handle received data
+            GObject.Object.connect(
+                channel, "main-clipboard-selection-data", self.on_spice_clipboard_selection_data
+            )
+            
+            # Monitor agent status
+            GObject.Object.connect(
+                channel, "notify::agent-connected", self.on_spice_agent_connected
+            )
+            
+            # Initial check
+            if channel.get_property("agent-connected"):
+                self.log("SPICE Agent is connected and active.")
+
+    def on_spice_agent_connected(self, channel, pspec):
+        """Handle SPICE agent connection status changes."""
+        connected = channel.get_property("agent-connected")
+        if connected:
+            self.log("SPICE Agent connected.")
+        else:
+            self.log("SPICE Agent disconnected.")
+
+    def on_spice_clipboard_selection_grab(self, channel, selection, types, ntypes):
+        """Handle SPICE clipboard grab from guest."""
+        if self.verbose:
+            print(f"SPICE Clipboard Grab: selection={selection}, types={types}")
+        
+        # If guest has text data, request it to update our cache
+        # SpiceClientGLib.ClipboardType.TEXT is usually 1
+        for i in range(ntypes):
+            # types is a pointer to an array in C, in Python it's often a list
+            t = types[i] if isinstance(types, (list, tuple)) else types
+            if t == SpiceClientGLib.ClipboardType.TEXT:
+                if self.verbose:
+                    print("Requesting SPICE clipboard text from guest...")
+                channel.clipboard_selection_request(selection, SpiceClientGLib.ClipboardType.TEXT)
+                break
+
+    def on_spice_clipboard_selection_data(self, channel, selection, type, data, size):
+        """Handle SPICE clipboard data from guest."""
+        if self.verbose:
+            print(f"SPICE Clipboard Data: {size} bytes, type={type}")
+        
+        if type == SpiceClientGLib.ClipboardType.TEXT and self.clipboard_update_callback:
+            try:
+                # data is usually a bytearray/bytes
+                text = data.decode("utf-8").rstrip("\0")
+                self.clipboard_update_callback(text)
+            except Exception as e:
+                self.log(f"Error decoding SPICE clipboard data: {e}")
 
     def on_spice_channel_event(self, channel, event):
         """Handle SPICE channel events."""

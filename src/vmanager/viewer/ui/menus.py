@@ -305,19 +305,19 @@ def build_clipboard_menu(
     btn_type_clip.connect("clicked", on_type_clipboard, clip_popover)
     vbox_clip.pack_start(btn_type_clip, False, False, 0)
 
-    # Manual Pull (currently commented out in original - not adding to menu)
-    # btn_pull_clip = Gtk.ModelButton()
-    # btn_pull_clip.set_label("Pull Guest Clipboard to Host")
-    # if on_pull_clipboard:
-    #     btn_pull_clip.connect("clicked", on_pull_clipboard, clip_popover)
-    # vbox_clip.pack_start(btn_pull_clip, False, False, 0)
+    # Manual Pull
+    btn_pull_clip = Gtk.ModelButton()
+    btn_pull_clip.set_label("Pull Guest Clipboard to Host")
+    if on_pull_clipboard:
+        btn_pull_clip.connect("clicked", on_pull_clipboard, clip_popover)
+    vbox_clip.pack_start(btn_pull_clip, False, False, 0)
 
-    # Manual Push (currently commented out in original - not adding to menu)
-    # btn_push_clip = Gtk.ModelButton()
-    # btn_push_clip.set_label("Push Host Clipboard to Guest")
-    # if on_push_clipboard:
-    #     btn_push_clip.connect("clicked", on_push_clipboard, clip_popover)
-    # vbox_clip.pack_start(btn_push_clip, False, False, 0)
+    # Manual Push
+    btn_push_clip = Gtk.ModelButton()
+    btn_push_clip.set_label("Push Host Clipboard to Guest")
+    if on_push_clipboard:
+        btn_push_clip.connect("clicked", on_push_clipboard, clip_popover)
+    vbox_clip.pack_start(btn_push_clip, False, False, 0)
 
     vbox_clip.show_all()
     clip_popover.add(vbox_clip)
