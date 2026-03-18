@@ -9,7 +9,27 @@ VirtUI Manager is a Python-based application that leverages `libvirt` for virtua
 *   **Operating System:** Linux (tested on openSUSE, Fedora, Ubuntu, Arch)
 *   **Python:** 3.7+
 *   **Virtualization:** KVM/QEMU and Libvirt installed and running.
-*   **Access:** Your user must have permissions to manage libvirt (usually part of the `libvirt` group).
+*   **Essential Tools:**
+    *   `libvirt` (daemon and client tools like `virsh`)
+    *   `qemu-img` (from `qemu` or `qemu-utils`, for disk management)
+    *   `tmux` (required for terminal console management)
+    *   `7zip` / `p7zip` (required for some ISO and archive operations)
+    *   `spice-gtk` and `gtk-vnc` (required for remote viewer support)
+    *   `vte` (required for the `virtui-gui` wrapper)
+*   **Access:** Your user must have permissions to manage libvirt (usually part of the `libvirt` group). You can add your user to the group with: `sudo usermod -aG libvirt $USER` (a logout/login is required).
+
+### Python Dependencies
+
+VirtUI Manager requires the following Python libraries:
+
+*   `libvirt-python`: Libvirt Python bindings
+*   `textual`: Terminal User Interface framework
+*   `PyYAML`: YAML configuration parsing
+*   `markdown-it-py`: Markdown rendering for documentation
+*   `packaging`: Version parsing and management
+*   `requests`: HTTP library for ISO and template downloads
+*   `netifaces`: Network interface discovery
+*   `websockify`: (Optional) Required for web console support
 
 
 ## OpenSUSE / SLE Installation
@@ -205,5 +225,5 @@ python3 virtui_dev.py
 To install dependencies manually from official repositories (this is done automatically when installing the package):
 
 ```bash
-sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py 7zip tmux python3-packaging python3-netifaces python3-requests
+sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py 7zip tmux python3-packaging python3-netifaces python3-requests python3-websockify
 ```

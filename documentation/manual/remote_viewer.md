@@ -4,6 +4,8 @@ The **VirtUI Remote Viewer** is a custom-built, high-performance graphical conso
 
 It supports both **VNC** and **SPICE** protocols and offers advanced features like USB redirection and snapshot management directly from the viewer window.
 
+![VirtUI Remote Viewer Interface](images/vr.jpg)
+
 ## Interface Overview
 
 The viewer is designed to be intuitive, with a toolbar at the top and a tabbed interface for advanced controls.
@@ -13,9 +15,10 @@ The viewer is designed to be intuitive, with a toolbar at the top and a tabbed i
 The header bar provides quick access to essential functions:
 
 *   **Settings Menu:** Configure display scaling, smoothing, compression, and view-only mode.
-*   **Power Menu:** Quickly Start, Pause, Resume, Shutdown, or Force Off the VM.
+*   **Boot Menu:** Select the first boot device for the next VM start (e.g., Hard Disk, CD-ROM, Network).
+*   **Power Menu:** Quickly Start, Pause, Resume, Hibernate, Shutdown, Reboot, or Force Off the VM.
 *   **Send Keys:** Send special key combinations like `Ctrl+Alt+Del` or `Ctrl+Alt+F1` directly to the guest.
-*   **Clipboard:** Push/Pull text to and from the guest clipboard.
+*   **Clipboard:** Type host clipboard content into the guest or manage push/pull operations.
 *   **Screenshot:** Capture the current state of the VM display to a file.
 *   **Fullscreen:** Toggle fullscreen mode for an immersive experience.
 *   **Logs & Events:** Toggle the visibility of the logs and events panel.
@@ -32,6 +35,22 @@ You can customize the viewing experience to match your network conditions and pr
 *   **Smoothing:** Enable interpolation for better image quality when scaled.
 *   **Lossy Compression:** Use JPEG compression to reduce bandwidth usage (useful for slow connections).
 *   **Color Depth:** Adjust the color depth (8-bit, 16-bit, 24-bit) to balance quality and performance.
+
+### Boot Selection
+
+The **Boot Menu** (floppy disk icon) allows you to temporarily override the boot order for the next startup. This is particularly useful when you need to boot from an installation ISO or a network source without permanently changing the VM configuration.
+
+![Boot Device Selection](images/vr_first_boot.jpg)
+
+### Serial Console
+
+The **Console** tab provides a persistent text-based interface to the VM's serial port. This is an essential tool for:
+
+*   **Kernel Debugging:** Monitor early boot messages before the graphical display is active.
+*   **Headless Access:** Manage Linux servers that don't have a graphical environment installed.
+*   **Troubleshooting:** Access the system when the network or graphical stack is unresponsive.
+
+The console includes built-in help for configuring your Guest OS to properly redirect output to the serial port.
 
 ### Snapshot Management
 
