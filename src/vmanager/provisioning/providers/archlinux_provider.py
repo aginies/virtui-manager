@@ -269,7 +269,7 @@ echo "Configuration downloaded successfully"
 
 # Run archinstall with the downloaded configuration
 echo "Starting archinstall..."
-archinstall --config /root/auto.json --creds /root/creds.json --verbose
+archinstall --config /root/auto.json --creds /root/creds.json --silent
 
 if [ $? -ne 0 ]; then
     echo "ERROR: archinstall failed!"
