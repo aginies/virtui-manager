@@ -18,6 +18,7 @@ from vmanager.firmware_manager import (
     get_uefi_files,
     _load_firmware_from_files,
     clear_firmware_cache,
+    select_best_firmware,
 )
 
 
@@ -441,6 +442,48 @@ class TestFirmwareFeatureInference(unittest.TestCase):
 
         self.assertGreater(len(amd_sev), 0, "Should detect 'amd-sev' feature")
         self.assertGreater(len(amd_sev_es), 0, "Should detect 'amd-sev-es' feature")
+
+
+class TestFirmwareSelection(unittest.TestCase):
+    """Tests for select_best_firmware logic"""
+
+    def setUp(self):
+        # Create standard non-secure firmware
+        self.fw_normal = Firmware()
+        self.fw_normal.executable = "/usr/share/OVMF/OVMF_CODE.fd"
+        self.fw_normal.architectures = ["x86_64"]
+        self.fw_normal.features = ["acpi-s3"]
+        self.fw_normal.nvram_template = "/usr/share/OVMF/OVMF_VARS.fd"
+
+        # Create secure boot firmware
+        self.fw_secure = Firmware()
+        self.fw_secure.executable = "/usr/share/OVMF/OVMF_CODE.secboot.fd"
+        self.fw_secure.architectures = ["x86_64"]
+        self.fw_secure.features = ["acpi-s3", "secure-boot", "requires-smm"]
+        self.fw_secure.nvram_template = "/usr/share/OVMF/OVMF_VARS.secboot.fd"
+
+        self.firmwares = [self.fw_normal, self.fw_secure]
+
+    def test_select_secure_boot_when_required(self):
+        """Test that secure-boot firmware is selected when requested"""
+        selected = select_best_firmware(self.firmwares, architecture="x86_64", secure_boot=True)
+        self.assertEqual(selected.executable, self.fw_secure.executable)
+
+    def test_select_non_secure_boot_when_not_required(self):
+        """Test that non-secure firmware is preferred when secure-boot is not requested"""
+        selected = select_best_firmware(self.firmwares, architecture="x86_64", secure_boot=False)
+        self.assertEqual(selected.executable, self.fw_normal.executable)
+
+    def test_select_by_architecture(self):
+        """Test filtering by architecture"""
+        fw_aarch64 = Firmware()
+        fw_aarch64.executable = "/usr/share/AAVMF/AAVMF_CODE.fd"
+        fw_aarch64.architectures = ["aarch64"]
+        
+        firmwares = self.firmwares + [fw_aarch64]
+        
+        selected = select_best_firmware(firmwares, architecture="aarch64")
+        self.assertEqual(selected.executable, fw_aarch64.executable)
 
 
 class TestFirmwareCaching(unittest.TestCase):

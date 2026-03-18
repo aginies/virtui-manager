@@ -1438,6 +1438,10 @@
   - <strong>"Configure before install" is disabled</strong> (since the template handles configuration)
 - The VM will boot directly into the unattended installation process
 - Installation progress can be monitored through the remote viewer console</p>
+<div class="admonition note">
+<p class="admonition-title">Arch Linux Auto-Installation</p>
+<p>During Arch Linux automated installation, if the process hangs while "waiting for system to be online", you must open another console with <strong><code>Alt+Ctrl+F2</code></strong>, login as <strong><code>root</code></strong> (no password), and type: <code>systemctl start network-online</code>. You can then return to the installer with <strong><code>Alt+Ctrl+F1</code></strong>.</p>
+</div>
 <h2 id="starting-the-installation">Starting the Installation<a class="headerlink" href="#starting-the-installation" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Review your settings.</li>

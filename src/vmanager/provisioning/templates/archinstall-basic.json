@@ -1,44 +1,136 @@
 {
+    "app_config": {
+        "audio_config": {
+            "audio": "pipewire"
+        },
+        "bluetooth_config": {
+            "enabled": false
+        },
+        "print_service_config": {
+            "enabled": false
+        }
+    },
+    "archinstall-language": "English",
+    "auth_config": {},
+    "bootloader_config": {
+        "bootloader": "Systemd-boot",
+        "removable": false,
+        "uki": false
+    },
+    "custom_commands": [],
+    "disk_config": {
+        "btrfs_options": {
+            "snapshot_config": null
+        },
+        "config_type": "default_layout",
+        "device_modifications": [
+            {
+                "device": "/dev/vda",
+                "partitions": [
+                    {
+                        "btrfs": [],
+                        "dev_path": null,
+                        "flags": [
+                            "boot",
+                            "esp"
+                        ],
+                        "fs_type": "fat32",
+                        "mount_options": [],
+                        "mountpoint": "/boot",
+			"obj_id": null,
+                        "size": {
+                            "sector_size": {
+                                "unit": "B",
+                                "value": 512
+                            },
+                            "unit": "GiB",
+                            "value": 1
+                        },
+                        "start": {
+                            "sector_size": {
+                                "unit": "B",
+                                "value": 512
+                            },
+                            "unit": "MiB",
+                            "value": 1
+                        },
+                        "status": "create",
+                        "type": "primary"
+                    },
+                    {
+                        "btrfs": [],
+                        "dev_path": null,
+                        "flags": [],
+                        "fs_type": "ext4",
+                        "obj_id": null,
+			"mount_options": [],
+                        "mountpoint": "/",
+                        "size": {
+                            "sector_size": {
+                                "unit": "B",
+                                "value": 512
+                            },
+                            "unit": "B",
+                            "value": 31136415744
+                        },
+                        "start": {
+                            "sector_size": {
+                                "unit": "B",
+                                "value": 512
+                            },
+                            "unit": "B",
+                            "value": 1074790400
+                        },
+                        "status": "create",
+                        "type": "primary"
+                    }
+                ],
+                "wipe": true
+            }
+        ]
+    },
     "hostname": "{vm_name}",
-    "keyboard-layout": "{keyboard}",
-    "locale": "{locale}",
+    "locale_config": {
+    	"kb_layout": "{keyboard}",
+    	"sys_enc": "UTF-8",
+	"sys_lang": "{locale}"
+    },
+    "kernels": [
+        "linux"
+    ],
+    "mirror_config": {
+        "custom_repositories": [],
+        "custom_servers": [],
+        "mirror_regions": {},
+        "optional_repositories": []
+    },
     "timezone": "{timezone}",
-    "users": [
-        {
-            "username": "{username}",
-            "password": "{user_password}",
-            "sudo": true
-        }
-    ],
-    "root-password": "{root_password}",
-    "disk_layouts": [
-        {
-            "device": "/dev/vda",
-            "wipe": true,
-            "partitions": [
-                {
-                    "type": "primary",
-                    "start": "1MiB",
-                    "size": "100%",
-                    "boot": true,
-                    "mountpoint": "/",
-                    "filesystem": "ext4"
-                }
-            ]
-        }
-    ],
-    "bootloader": "grub-install",
+    "root_enc_password": "{root_password}",
+    "bootloader_config": {
+    	"bootloader": "Grub",
+	"removable": true,
+	"uki": false
+    },
     "packages": [
         "openssh",
         "qemu-guest-agent",
         "git",
         "vim"
     ],
+    "profile_config": {
+        "gfx_driver": null,
+        "greeter": null,
+        "profile": {
+            "custom_settings": {},
+            "details": [],
+            "main": "Minimal"
+        }
+    },
+    "parallel_downloads": 2,
     "services": [
         "sshd",
         "qemu-guest-agent"
     ],
-    "audio": null,
     "nic": {
         "type": "nm"
     },
