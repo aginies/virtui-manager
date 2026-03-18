@@ -13,7 +13,7 @@ authors = [
 maintainers = [
     {name = "Antoine Ginies", email = "antoine@ginies.org"}
 ]
-license = "GPL-3.0-or-later"
+license = {text = "GPL-3.0-or-later"}
 requires-python = ">=3.6"
 keywords = ["virtualization", "libvirt", "kvm", "qemu", "tui", "terminal", "manager", "virt"]
 classifiers = [
