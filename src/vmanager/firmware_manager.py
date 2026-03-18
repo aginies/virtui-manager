@@ -473,7 +473,7 @@ def _score_firmware(
         "acpi-s3": 2,  # Modern systems support S3
         "acpi-s4": 2,  # Modern systems support S4
         "requires-smm": 10,  # Secure boot requires SMM
-        "secure-boot": 50 if secure_boot_required else 5,  # High value for secure boot
+        "secure-boot": 50 if secure_boot_required else -50,  # High value if required, strong penalty if NOT required
         "verbose-dynamic": 5,  # Debug capability
         "amd-sev": 50,  # SEV capability (valuable but platform-specific)
         "amd-sev-es": 60,  # SEV-ES is more advanced
