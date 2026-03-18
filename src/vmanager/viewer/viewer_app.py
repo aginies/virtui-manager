@@ -509,6 +509,12 @@ class RemoteViewer(Gtk.Application):
             "on_type_clipboard": lambda btn, pop: self.clipboard_handler.on_type(btn, pop)
             if self.clipboard_handler
             else None,
+            "on_push_clipboard": lambda btn, pop: self.clipboard_handler.on_push(btn, pop)
+            if self.clipboard_handler
+            else None,
+            "on_pull_clipboard": lambda btn, pop: self.clipboard_handler.on_pull(btn, pop)
+            if self.clipboard_handler
+            else None,
             # Tab switch
             "on_notebook_switch_page": lambda nb, page, page_num: self._on_notebook_switch_page(
                 nb, page, page_num
@@ -539,6 +545,7 @@ class RemoteViewer(Gtk.Application):
             protocol=self.display_manager.protocol,
             vnc_display=self.display_manager.vnc_display,
             spice_gtk_session=self.display_manager.spice_gtk_session,
+            display_widget=self.display_manager.display_widget,
             log_callback=self._log_message,
             notification_callback=self._show_notification,
             verbose=self.verbose,
@@ -549,7 +556,14 @@ class RemoteViewer(Gtk.Application):
             self.display_manager.vnc_display.connect(
                 "vnc-server-cut-text", self.clipboard_handler.on_server_cut_text
             )
-            self.clipboard.connect("owner-change", self.clipboard_handler.on_owner_change)
+        elif self.display_manager.protocol == "spice":
+            # For SPICE, we use our generic callback that handles MainChannel signals
+            self.display_manager.set_clipboard_update_callback(
+                lambda text: self.clipboard_handler.on_guest_cut_text(text, source="SPICE")
+            )
+        
+        # Monitor host clipboard for cache updates (works for both VNC and SPICE)
+        self.clipboard.connect("owner-change", self.clipboard_handler.on_owner_change)
 
         # Display handler
         self.display_handler = DisplayHandler(

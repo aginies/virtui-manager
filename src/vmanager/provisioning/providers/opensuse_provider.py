@@ -126,7 +126,7 @@ class OpenSUSEProvider(OSProvider):
             "watchdog": False,
             "suspend_to_mem": "on",
             "suspend_to_disk": "on",
-            "virtio_channels": ["org.qemu.guest_agent.0"],
+            "virtio_channels": ["org.qemu.guest_agent.0", "com.redhat.spice.0"],
         }
 
         # VM type specific adjustments

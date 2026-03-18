@@ -237,6 +237,8 @@ class MainWindowBuilder:
         # Clipboard Menu
         clip_button = build_clipboard_menu(
             on_type_clipboard=handlers.get("on_type_clipboard"),
+            on_push_clipboard=handlers.get("on_push_clipboard"),
+            on_pull_clipboard=handlers.get("on_pull_clipboard"),
         )
         header.pack_end(clip_button)
 

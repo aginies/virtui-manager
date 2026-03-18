@@ -1037,7 +1037,12 @@ class VMProvisioner:
             "on_poweroff": "destroy",
             "on_reboot": "destroy",
             "on_crash": "destroy",
+            "virtio_channels": ["org.qemu.guest_agent.0"],
         }
+
+        # Add SPICE agent channel if using SPICE
+        if graphics_type == "spice":
+            settings["virtio_channels"].append("com.redhat.spice.0")
 
         # Disable SEV/TPM/Secure Boot by default for Arch Linux, Debian and Alpine
         is_arch_debian_or_alpine = os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]
@@ -1443,10 +1448,12 @@ class VMProvisioner:
     </console>
 """
 
-        # QEMU Guest Agent
-        xml += """
-    <channel type='unix'>
-      <target type='virtio' name='org.qemu.guest_agent.0'/>
+        # Channels (Guest Agent, SPICE Agent, etc)
+        for channel_name in settings.get("virtio_channels", []):
+            channel_type = "spicevmc" if channel_name == "com.redhat.spice.0" else "unix"
+            xml += f"""
+    <channel type='{channel_type}'>
+      <target type='virtio' name='{channel_name}'/>
     </channel>
 """
 
@@ -2011,8 +2018,10 @@ class VMProvisioner:
         # Console
         cmd.extend(["--console", "pty,target.type=serial"])
 
-        # QEMU Guest Agent
-        cmd.extend(["--channel", "unix,target.type=virtio,name=org.qemu.guest_agent.0"])
+        # Channels (Guest Agent, SPICE Agent, etc)
+        for channel_name in settings.get("virtio_channels", []):
+            channel_type = "spicevmc" if channel_name == "com.redhat.spice.0" else "unix"
+            cmd.extend(["--channel", f"{channel_type},target.type=virtio,name={channel_name}"])
 
         # Machine
         cmd.extend(["--machine", settings["machine"]])
