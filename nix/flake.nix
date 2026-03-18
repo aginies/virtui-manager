@@ -31,6 +31,11 @@
               gobject-introspection
               pango
               gtk-vnc
+              spice-gtk
+              # Runtime tools
+              tmux
+              p7zip
+              qemu
             ];
 
             propagatedBuildInputs = with pkgs.python3Packages; [
@@ -57,6 +62,8 @@
                 vte
                 gobject-introspection
                 cairo
+                spice-gtk
+                gtk-vnc
               ]);
             };
 
@@ -93,11 +100,13 @@
             '';
 
             # Wrap binaries to set GI_TYPELIB_PATH for GTK/GObject Introspection
+            # and ensure runtime tools are in the PATH
             postFixup = ''
-              for prog in $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
+              for prog in $out/bin/virtui-manager $out/bin/virtui-manager-cmd $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
                 if [ -f "$prog" ]; then
                   wrapProgram "$prog" \
-                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.gdk-pixbuf pkgs.gobject-introspection pkgs.gtk-vnc ]}" \
+                    --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.tmux pkgs.p7zip pkgs.qemu pkgs.libvirt ]}" \
+                    --prefix GI_TYPELIB_PATH : "${pkgs.lib.makeSearchPath "lib/girepository-1.0" [ pkgs.gtk3 pkgs.vte pkgs.gdk-pixbuf pkgs.gobject-introspection pkgs.gtk-vnc pkgs.spice-gtk ]}" \
                     --prefix GI_TYPELIB_PATH : "${pkgs.pango.out}/lib/girepository-1.0" \
                     --prefix LD_LIBRARY_PATH : "${pkgs.lib.makeLibraryPath [ pkgs.cairo ]}"
                 fi
@@ -142,6 +151,12 @@
 
             # System dependencies
             libvirt
+            tmux
+            p7zip
+            qemu
+            spice-gtk
+            gtk-vnc
+            vte
           ];
 
           shellHook = ''
