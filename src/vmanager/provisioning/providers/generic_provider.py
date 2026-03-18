@@ -37,3 +37,14 @@ class GenericProvider(OSProvider):
     def get_iso_list(self, version: Optional[str] = None) -> List[Dict[str, Any]]:
         """Return empty list, as user will provide path/URL."""
         return []
+
+    def generate_automation_file(
+        self,
+        version: Optional[OSVersion],
+        vm_name: str,
+        user_config: Dict[str, Any],
+        output_path: Path,
+        template_name: str | None = None,
+    ) -> Path:
+        """Generic provider does not support automation file generation."""
+        raise NotImplementedError("Generic provider does not support auto-installation.")
