@@ -156,6 +156,25 @@
   
   
     <li class="md-tabs__item">
+      <a href="https://aginies.github.io/virtui-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Website
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
       <a href="../.." class="md-tabs__link">
         
   
@@ -262,6 +281,33 @@
   
   
     <li class="md-nav__item">
+      <a href="https://aginies.github.io/virtui-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Website
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../.." class="md-nav__link">
         
   
@@ -302,10 +348,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -323,8 +369,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -814,10 +860,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
             
   
   
@@ -835,8 +881,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1210,10 +1256,11 @@ To make the share available automatically every time the VM boots, add an entry 
 <hr />
 <h3 id="mounting-in-a-windows-guest">Mounting in a Windows Guest<a class="headerlink" href="#mounting-in-a-windows-guest" title="Permanent link">&para;</a></h3>
 <p><strong>1. Install Drivers:</strong>
-You must install the VirtIO-FS drivers in the Windows guest. These are included in the <strong>"VirtIO-Win Guest Tools"</strong> package, which you can typically download as an ISO file.
-- Download the latest stable <code>virtio-win.iso</code> from the <a href="https://github.com/virtio-win/virtio-win-pkg-scripts/blob/master/README.md">Fedora VirtIO-Win project</a>.
-- Attach the ISO to your VM as a CD-ROM.
-- Open the CD-ROM in Windows and run the <code>virtio-win-guest-tools.exe</code> installer, ensuring the <strong>"VirtIO-FS"</strong> feature is selected.</p>
+You must install the VirtIO-FS drivers in the Windows guest. These are included in the <strong>"VirtIO-Win Guest Tools"</strong> package or the <strong>"Virtual Machine Driver Pack (VMDP)"</strong>.
+- <strong>Option A (SUSE VMDP):</strong> Use the <a href="https://github.com/SUSE/vmdp">Virtual Machine Driver Pack (VMDP)</a> for a comprehensive set of optimized drivers.
+- <strong>Option B (Fedora):</strong> Download the latest stable <code>virtio-win.iso</code> from the <a href="https://github.com/virtio-win/virtio-win-pkg-scripts/blob/master/README.md">Fedora VirtIO-Win project</a>.
+- Attach the chosen ISO to your VM as a CD-ROM.
+- Open the CD-ROM in Windows and run the installer, ensuring the <strong>"VirtIO-FS"</strong> feature is selected.</p>
 <p><strong>2. Access the Share:</strong>
 After installation and a reboot, the VirtIO-FS service will start. The shared folder will automatically appear as a network drive in <strong>This PC</strong> (or My Computer). The drive will be named after the <strong>Target Path (mount tag)</strong> you set.</p>
 
