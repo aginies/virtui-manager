@@ -752,3 +752,102 @@ def get_host_domain_capabilities(conn: libvirt.virConnect) -> Optional[str]:
     except libvirt.libvirtError as e:
         logging.error(f"Error getting host capabilities: {e}")
         return None
+
+
+@lru_cache(maxsize=4)
+def get_latest_machine_types(conn: libvirt.virConnect, arch: str = "x86_64") -> Dict[str, str]:
+    """Get the latest available pc-i440fx and pc-q35 machine types from the hypervisor.
+
+    Args:
+        conn: The libvirt connection object
+        arch: The architecture to query (default: x86_64)
+
+    Returns:
+        Dictionary with 'pc-i440fx' and 'pc-q35' keys containing the latest versions,
+        or default fallback values if detection fails
+    """
+    defaults = {
+        "pc-i440fx": "pc-i440fx",
+        "pc-q35": "pc-q35",
+    }
+
+    if not conn:
+        return defaults
+
+    try:
+        caps_xml = conn.getCapabilities()
+        if not caps_xml:
+            return defaults
+
+        root = ET.fromstring(caps_xml)
+
+        # Find the guest element for the specified architecture
+        guest = None
+        for guest_elem in root.findall("guest"):
+            arch_elem = guest_elem.find("arch")
+            if arch_elem is not None and arch_elem.get("name") == arch:
+                guest = guest_elem
+                break
+
+        if guest is None:
+            logging.warning(f"No guest capabilities found for architecture {arch}")
+            return defaults
+
+        # Extract all machine types for this architecture
+        arch_elem = guest.find("arch")
+        if arch_elem is None:
+            return defaults
+
+        i440fx_machines = []
+        q35_machines = []
+
+        for machine_elem in arch_elem.findall("machine"):
+            machine_name = machine_elem.text
+            if not machine_name:
+                continue
+
+            # Parse machine type name
+            canonical = machine_elem.get("canonical")
+            if canonical:
+                machine_name = canonical
+
+            if machine_name.startswith("pc-i440fx"):
+                i440fx_machines.append(machine_name)
+            elif machine_name.startswith("pc-q35"):
+                q35_machines.append(machine_name)
+
+        # Sort and get the latest versions
+        def extract_version(machine_name: str) -> Tuple[int, int]:
+            """Extract version number from machine type name."""
+            try:
+                parts = machine_name.split("-")
+                if len(parts) >= 3:
+                    version_str = parts[-1]
+                    # Handle version format like "8.2" or just "8"
+                    version_parts = version_str.split(".")
+                    major = int(version_parts[0])
+                    minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+                    return (major, minor)
+            except (ValueError, IndexError):
+                pass
+            return (0, 0)
+
+        # Get the latest versions
+        if i440fx_machines:
+            i440fx_machines.sort(key=extract_version, reverse=True)
+            defaults["pc-i440fx"] = i440fx_machines[0]
+            logging.info(f"Detected latest pc-i440fx machine type: {defaults['pc-i440fx']}")
+
+        if q35_machines:
+            q35_machines.sort(key=extract_version, reverse=True)
+            defaults["pc-q35"] = q35_machines[0]
+            logging.info(f"Detected latest pc-q35 machine type: {defaults['pc-q35']}")
+
+        return defaults
+
+    except ET.ParseError as e:
+        logging.error(f"Error parsing capabilities XML for machine types: {e}")
+        return defaults
+    except libvirt.libvirtError as e:
+        logging.error(f"Error getting machine types: {e}")
+        return defaults
