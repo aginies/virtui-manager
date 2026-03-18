@@ -1176,6 +1176,7 @@ class VMProvisioner:
         os_type: OSType = OSType.LINUX,
         graphics_type: str = "spice",
         os_version: str | None = None,
+        network_name: str = "default",
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
@@ -1408,7 +1409,7 @@ class VMProvisioner:
         # Interface
         xml += f"""
     <interface type='network'>
-      <source network='default'/>
+      <source network='{network_name}'/>
       <model type='{settings["network_model"]}'/>
     </interface>
 """
@@ -1939,6 +1940,7 @@ class VMProvisioner:
         kernel_path: str | None = None,
         initrd_path: str | None = None,
         os_version: str | None = None,
+        network_name: str = "default",
     ) -> str | None:
         """
         Executes virt-install to create the VM using the provided settings.
@@ -2003,7 +2005,7 @@ class VMProvisioner:
             cmd.extend(["--cdrom", iso_path])
 
         # Network
-        cmd.extend(["--network", f"default,model={settings['network_model']}"])
+        cmd.extend(["--network", f"{network_name},model={settings['network_model']}"])
 
         # Graphics
         cmd.extend(["--graphics", f"{settings['graphics_type']},port=-1,listen=0.0.0.0"])
@@ -2258,6 +2260,7 @@ class VMProvisioner:
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
         automation_config: Optional[Dict[str, Any]] = None,
+        network_name: str = "default",
     ) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -2895,6 +2898,7 @@ class VMProvisioner:
                     kernel_path=kernel_path,
                     initrd_path=initrd_path,
                     os_version=os_version,
+                    network_name=network_name,
                 )
             else:
                 xml_desc = self.generate_xml(
@@ -2918,6 +2922,7 @@ class VMProvisioner:
                     os_type=os_type,
                     graphics_type=graphics_type,
                     os_version=os_version,
+                    network_name=network_name,
                 )
 
             # Define the VM
@@ -3009,6 +3014,7 @@ class VMProvisioner:
                 kernel_path=kernel_path,
                 initrd_path=initrd_path,
                 os_version=os_version,
+                network_name=network_name,
             )
 
             report(StaticText.PROVISIONING_WAITING_FOR_VM, 95)
@@ -3144,8 +3150,8 @@ class VMProvisioner:
                 os_type=os_type,
                 graphics_type=graphics_type,
                 os_version=os_version,
-            )
-
+                network_name=network_name,
+                )
             # Define and Start VM
             report(StaticText.PROVISIONING_STARTING_VM, 90)
             dom = self.conn.defineXML(xml_desc)
