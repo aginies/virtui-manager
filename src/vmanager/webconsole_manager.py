@@ -10,6 +10,7 @@ import shlex
 import signal
 import socket
 import subprocess
+import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from functools import partial
@@ -395,13 +396,14 @@ wp.websockify_init()
         end_port = int(self.app.WC_PORT_RANGE_END)
 
         # Initialize variable to avoid UnboundLocalError
+        # Make websockify listen on all interfaces (0.0.0.0:port format) so SSH tunnel can reach it
         remote_websockify_cmd_list = [
             "python3",
             "-c",
             self._OPTIMIZED_WEBSOCKIFY_WRAPPER.format(buf_size=buf_size),
             "--run-once",
             "--verbose",
-            str(web_port),
+            f"0.0.0.0:{web_port}",  # Listen on all interfaces
             f"{vnc_target_host}:{vnc_port}",
             "--web",
             remote_novnc_path,
@@ -518,9 +520,9 @@ else:
                     try:
                         web_port = int(remote_port_found)
                         logging.info(f"Found free port on remote host: {web_port}")
-                        # Update the port in the command list
-                        # It's after --verbose which is at index 4
-                        remote_websockify_cmd_list[5] = str(web_port)
+                        # Update the port in the command list (format: 0.0.0.0:port)
+                        # Index: [0]=python3, [1]=-c, [2]=wrapper, [3]=--run-once, [4]=--verbose, [5]=port
+                        remote_websockify_cmd_list[5] = f"0.0.0.0:{web_port}"
                     except (ValueError, IndexError):
                         logging.warning(f"Failed to parse remote port: {remote_port_found}")
 
@@ -689,16 +691,26 @@ else:
             )
             return
 
+        logging.info(
+            f"Remote websockify port: {web_port}, Local tunnel port: {local_tunnel_port}"
+        )
+
         # Create control socket for the tunnel
         raw_uuid = uuid.split("@")[0] if "@" in uuid else uuid
         socket_name = f"wc_tunnel_{raw_uuid}_{datetime.now().strftime('%Y%m%d%H%M%S')}.sock"
         control_socket = os.path.join("/tmp", socket_name)
 
         # SSH tunnel command: forward local_tunnel_port to remote web_port
+        # Explicitly bind to 127.0.0.1 on local side to avoid IPv6 issues
+        # Remote side connects to 127.0.0.1:web_port where websockify is listening on 0.0.0.0
         tunnel_cmd = ["ssh", "-M", "-S", control_socket, "-f", "-N"]
         if ssh_port != 22:
             tunnel_cmd.extend(["-p", str(ssh_port)])
-        tunnel_cmd.extend(["-L", f"{local_tunnel_port}:127.0.0.1:{web_port}", remote_user_host])
+        tunnel_cmd.extend(["-L", f"127.0.0.1:{local_tunnel_port}:127.0.0.1:{web_port}", remote_user_host])
+
+        logging.info(
+            f"Creating SSH tunnel: ssh -L 127.0.0.1:{local_tunnel_port}:127.0.0.1:{web_port} {remote_user_host}"
+        )
 
         try:
             subprocess.run(
@@ -710,8 +722,15 @@ else:
                 stderr=subprocess.DEVNULL,
             )
             logging.info(
-                f"SSH tunnel created: localhost:{local_tunnel_port} -> {remote_user_host}:{web_port}"
+                f"SSH tunnel established: local 127.0.0.1:{local_tunnel_port} -> remote 127.0.0.1:{web_port} (via {remote_user_host})"
             )
+            logging.info(
+                f"Websockify on remote: 0.0.0.0:{web_port} -> VNC {vnc_target_host}:{vnc_port}"
+            )
+
+            # Verify the tunnel is listening on the local port
+            if not self._verify_tunnel_port(local_tunnel_port):
+                logging.warning("SSH tunnel may have configuration issues, but proceeding anyway")
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError) as e:
             # Clean up remote websockify
             try:
@@ -803,10 +822,11 @@ else:
         ]
         if ssh_port != 22:
             ssh_cmd.extend(["-p", str(ssh_port)])
+        # Explicitly bind to 127.0.0.1 on local side to avoid IPv6 issues
         ssh_cmd.extend(
             [
                 "-L",
-                f"{tunnel_port}:{vnc_target_host}:{vnc_port}",
+                f"127.0.0.1:{tunnel_port}:{vnc_target_host}:{vnc_port}",
                 remote_user_host,
             ]
         )
@@ -821,7 +841,14 @@ else:
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
-            logging.info(f"SSH tunnel created for VM {vm_name} via {control_socket}")
+            logging.info(
+                f"SSH tunnel created for VM {vm_name}: local 127.0.0.1:{tunnel_port} -> remote {vnc_target_host}:{vnc_port} (via {remote_user_host})"
+            )
+
+            # Verify the tunnel is listening on the local port
+            if not self._verify_tunnel_port(tunnel_port):
+                logging.warning("SSH tunnel may have configuration issues, but proceeding anyway")
+
             return (
                 "127.0.0.1",
                 tunnel_port,
@@ -928,6 +955,37 @@ else:
             self.app.call_from_thread(
                 self.app.push_screen, WebConsoleDialog(url), on_dialog_dismiss
             )
+
+    def _verify_tunnel_port(self, port: int, max_attempts: int = 5, timeout_per_attempt: float = 0.2) -> bool:
+        """
+        Verify that a local port is accessible by attempting to connect to it.
+
+        Args:
+            port: The local port to verify
+            max_attempts: Maximum number of connection attempts (default: 5)
+            timeout_per_attempt: Timeout in seconds for each attempt (default: 0.2)
+
+        Returns:
+            True if port is accessible, False otherwise
+        """
+        for attempt in range(max_attempts):
+            try:
+                test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                test_sock.settimeout(timeout_per_attempt)
+                test_sock.connect(("127.0.0.1", port))
+                test_sock.close()
+                logging.info(f"Port {port} verified accessible (attempt {attempt + 1}/{max_attempts})")
+                return True
+            except (socket.error, socket.timeout):
+                if attempt < max_attempts - 1:  # Don't sleep on last attempt
+                    time.sleep(timeout_per_attempt)
+                continue
+
+        logging.warning(
+            f"Port {port} not responding after {max_attempts} attempts "
+            f"({max_attempts * timeout_per_attempt:.1f}s total)"
+        )
+        return False
 
     def _stop_ssh_tunnel(self, vm_name: str, ssh_info: dict):
         """Stops the SSH tunnel using its control socket."""
