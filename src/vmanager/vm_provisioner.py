@@ -126,8 +126,8 @@ class VMProvisioner:
         """Get provider by OS type string."""
         # Convert string to OSType enum
         os_type_map = {
-            "linux": OSType.LINUX,
-            "opensuse": OSType.LINUX,
+            "linux": OSType.OPENSUSE,
+            "opensuse": OSType.OPENSUSE,
             "ubuntu": OSType.UBUNTU,
             "debian": OSType.DEBIAN,
             "fedora": OSType.FEDORA,
@@ -2283,7 +2283,7 @@ class VMProvisioner:
                 progress_callback(stage, percent)
 
         # Determine OS Type from iso_url or automation_config
-        os_type = OSType.LINUX
+        os_type = OSType.OPENSUSE
         os_version = None
         if automation_config:
             template_name = automation_config.get("template_name", "").lower()
