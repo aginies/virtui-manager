@@ -156,6 +156,7 @@ SelectDiskModal > #select-disk-dialog,
 SelectSnapshotDialog > #dialog {
   width: 68;
 }
+#vminstall-network-label,
 #vminstall-storage-label {
   margin-top: 1;
   padding: 0 0;
@@ -210,8 +211,19 @@ SelectOneServerModal > #select-one-server-container, {
 #automation-user-config-wrapper,
 #repo-iso-container,
 #pool-selection,
+#network-selection,
 #automation-template-container {
    height: 5;
+}
+#pool-network-selection {
+  height: 5;
+  width: 100%;
+}
+#pool-selection {
+  width: 50%;
+}
+#network-selection {
+  width: 50%;
 }
 #pool-iso-container, {
    height: 8;
