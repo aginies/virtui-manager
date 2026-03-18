@@ -15,7 +15,7 @@
         packages = {
           virtui-manager = pkgs.python3Packages.buildPythonApplication {
             pname = "virtui-manager";
-            version = "2.4.4";
+            version = "2.4.5";
 
             src = ../.;
 
