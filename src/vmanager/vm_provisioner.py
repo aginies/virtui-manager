@@ -1220,9 +1220,9 @@ class VMProvisioner:
             )
             if auto_url:
                 # Determine the appropriate kernel arguments based on file type and URL
-                if "archinstall-" in auto_url and auto_url.endswith(".json"):
-                    # Arch Linux archinstall automation
-                    cmdline = f"archinstall.config={auto_url} archinstall.auto archisodevice=/dev/sr0"
+                if "archinstall-setup-" in auto_url and auto_url.endswith(".sh"):
+                    # Arch Linux archinstall automation with setup script
+                    cmdline = f"script={auto_url} ipv6.disable=1 ip=::::arch-installer:eth0:dhcp archisobasedir=arch archisodevice=/dev/sr0"
                 elif auto_url.endswith(".json"):
                     # Agama (openSUSE) automation
                     # Multiple flags to disable SSL verification and allow insecure HTTP
@@ -2069,9 +2069,9 @@ class VMProvisioner:
         extra_args = ""
         if auto_url:
             # HTTP-based automation (uses --extra-args with --location)
-            if "archinstall-" in auto_url and auto_url.endswith(".json"):
-                # Arch Linux archinstall automation
-                extra_args = f"archinstall.config={auto_url} archinstall.auto archisodevice=/dev/sr0"
+            if "archinstall-setup-" in auto_url and auto_url.endswith(".sh"):
+                # Arch Linux archinstall automation with setup script
+                extra_args = f"script={auto_url} ip=::::arch-installer:eth0:dhcp archisobasedir=arch archisodevice=/dev/sr0"
             elif auto_url.endswith(".json"):
                 # Agama (openSUSE) automation
                 # Multiple flags to disable SSL verification and allow insecure HTTP
@@ -2671,14 +2671,20 @@ class VMProvisioner:
                             autoinst_path = temp_dir / autoinst_filename
                             shutil.copy(ks_path, autoinst_path)
                         elif is_arch_json:
-                            # Arch Linux: serve the archinstall.json file
+                            # Arch Linux: serve archinstall.json creds.json files and a setup.sh script
                             self.logger.info(
-                                "Detected Arch Linux archinstall file (archinstall.json)"
+                                "Detected Arch Linux archinstall file (archinstall.json, creds.json)"
                             )
                             unique_id = uuid.uuid4().hex[:8]
                             autoinst_filename = f"archinstall-{unique_id}.json"
+                            creds_filename = f"creds-{unique_id}.json"
                             autoinst_path = temp_dir / autoinst_filename
+                            creds_path = temp_dir / creds_filename
                             shutil.copy(arch_path, autoinst_path)
+                            shutil.copy(arch_path, creds_path)
+
+                            # Prepare setup.sh script filename (content will be created after HTTP server starts)
+                            setup_script_filename = f"archinstall-setup-{unique_id}.sh"
                         elif alpine_apkovl_path.exists():
                             # Alpine Linux: serve the apkovl tarball (preferred for trigger script)
                             self.logger.info(
@@ -2761,9 +2767,23 @@ class VMProvisioner:
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
                         self.logger.info(f"Fedora kickstart file available at: {auto_url}")
                     elif is_arch_json:
-                        # For Arch Linux archinstall, point to the .json file
-                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        self.logger.info(f"Arch Linux archinstall file available at: {auto_url}")
+                        # For Arch Linux archinstall, create setup.sh script and point to it
+                        json_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                        creds_url = f"http://{host_ip}:{port}/{creds_filename}"
+                        setup_script_url = f"http://{host_ip}:{port}/{setup_script_filename}"
+
+                        # Get the Arch Linux provider to generate the setup script
+                        arch_provider = self.provider_registry.get_provider(OSType.ARCHLINUX)
+                        setup_script_content = arch_provider.generate_setup_script(json_url, creds_url)
+
+                        setup_script_path = temp_dir / setup_script_filename
+                        with open(setup_script_path, "w", encoding="utf-8") as f:
+                            f.write(setup_script_content)
+                        os.chmod(setup_script_path, 0o755)
+                        auto_url = setup_script_url
+                        self.logger.info(f"Arch Linux archinstall setup script available at: {setup_script_url}")
+                        self.logger.info(f"Arch Linux archinstall JSON file available at: {json_url}")
+                        self.logger.info(f"Arch Linux archinstall creds JSON file available at: {creds_url}")
                     elif is_alpine_answers:
                         # For Alpine Linux, point to the .txt or .apkovl file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
