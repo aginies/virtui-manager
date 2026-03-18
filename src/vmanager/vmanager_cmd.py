@@ -22,7 +22,7 @@ import sys
 
 import libvirt
 
-from .config import get_log_path, load_config
+from .config import get_log_path, load_config, save_config
 from .constants import AppInfo, ServerPallette
 from .libvirt_utils import get_host_resources, get_network_info
 from .network_manager import (
@@ -54,6 +54,10 @@ from .vm_queries import get_vm_snapshots, get_domain_info_dict
 from .vm_service import VMService
 from .pipeline import PipelineExecutor, PipelineMode
 from .backup_manager import BackupManager, BackupType, BackupOptions, RetentionPolicy
+from .provisioning.provider_registry import get_registry
+from .provisioning.os_provider import OSType
+from .vm_provisioner import VMProvisioner, VMType
+from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 
 
 class CLILogger:
@@ -179,6 +183,7 @@ class VManagerCMD(cmd.Cmd):
                 "hibernate",
                 "delete",
                 "clone_vm",
+                "installvm",
                 "view",
             ],
             "Snapshots": ["snapshot_list", "snapshot_create", "snapshot_delete", "snapshot_revert"],
@@ -3317,6 +3322,265 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         return []
 
+
+    def do_installvm(self, args):
+        """Install a new Virtual Machine interactively.
+        Usage: installvm <vm_name>"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vm_name = args.strip()
+        if not vm_name:
+            print("Usage: installvm <vm_name>")
+            return
+
+        # 1. Select Server
+        target_server = None
+        if len(self.active_connections) == 1:
+            target_server = list(self.active_connections.keys())[0]
+        else:
+            print("Multiple active connections. Select server:")
+            servers = list(self.active_connections.keys())
+            for i, name in enumerate(servers):
+                print(f"  {i + 1}. {name}")
+            try:
+                choice = input("Select server (number): ")
+                idx = int(choice) - 1
+                if 0 <= idx < len(servers):
+                    target_server = servers[idx]
+                else:
+                    print("Invalid selection.")
+                    return
+            except ValueError:
+                print("Invalid input.")
+                return
+
+        conn = self.active_connections[target_server]
+        provisioner = VMProvisioner(conn)
+
+        # 2. Select VM Type
+        print("\nSelect VM Type:")
+        vm_types = [t for t in VMType]
+        for i, t in enumerate(vm_types):
+            print(f"  {i + 1}. {t.name} ({t.value})")
+        try:
+            choice = input(f"Select VM Type [1-{len(vm_types)}]: ")
+            idx = int(choice) - 1
+            if 0 <= idx < len(vm_types):
+                selected_vm_type = vm_types[idx]
+            else:
+                print("Invalid selection.")
+                return
+        except ValueError:
+            print("Invalid input.")
+            return
+
+        # 3. Select Distribution
+        print("\nSelect Distribution:")
+        registry = provisioner.provider_registry
+        os_types = registry.get_supported_os_types()
+        for i, os_t in enumerate(os_types):
+            print(f"  {i + 1}. {os_t.value}")
+        try:
+            choice = input(f"Select Distribution [1-{len(os_types)}]: ")
+            idx = int(choice) - 1
+            if 0 <= idx < len(os_types):
+                selected_os_type = os_types[idx]
+            else:
+                print("Invalid selection.")
+                return
+        except ValueError:
+            print("Invalid input.")
+            return
+
+        # 4. Select Version
+        provider = registry.get_provider(selected_os_type)
+        versions = provider.get_supported_versions()
+        print(f"\nSelect Version for {selected_os_type.value}:")
+        for i, v in enumerate(versions):
+            print(f"  {i + 1}. {v.display_name}")
+        try:
+            choice = input(f"Select Version [1-{len(versions)}]: ")
+            idx = int(choice) - 1
+            if 0 <= idx < len(versions):
+                selected_version = versions[idx]
+            else:
+                print("Invalid selection.")
+                return
+        except ValueError:
+            print("Invalid input.")
+            return
+
+        # 5. Select ISO
+        iso_list = provider.get_iso_list(selected_version.display_name)
+        iso_url = ""
+        if iso_list:
+            print("\nSelect ISO Image:")
+            for i, iso in enumerate(iso_list):
+                print(f"  {i + 1}. {iso.get('name', iso.get('url'))} ({iso.get('size', 'Unknown')})")
+            print(f"  {len(iso_list) + 1}. Custom URL/Path")
+            try:
+                choice = input(f"Select ISO [1-{len(iso_list)+1}]: ")
+                idx = int(choice) - 1
+                if 0 <= idx < len(iso_list):
+                    iso_url = iso_list[idx]["url"]
+                elif idx == len(iso_list):
+                    iso_url = input("Enter custom ISO URL or absolute path: ").strip()
+                else:
+                    print("Invalid selection.")
+                    return
+            except ValueError:
+                print("Invalid input.")
+                return
+        else:
+            iso_url = input("No ISOs found. Enter custom ISO URL or absolute path: ").strip()
+
+        if not iso_url:
+            print("Valid ISO URL or path is required.")
+            return
+
+        # 6. Select Storage Pool
+        print("\nSelect Storage Pool:")
+        try:
+            pools_info = list_storage_pools(conn)
+            if not pools_info:
+                print("No active storage pools found.")
+                return
+            for i, pool in enumerate(pools_info):
+                capacity = pool['capacity']
+                allocation = pool['allocation']
+                usage_pct = (allocation / capacity * 100) if capacity > 0 else 0
+                print(f"  {i + 1}. {pool['name']} (Capacity: {capacity // (1024**3)} GiB, Used: {usage_pct:.1f}%)")
+            
+            choice = input(f"Select Pool [1-{len(pools_info)}] (default: 1): ").strip()
+            if not choice:
+                selected_pool = pools_info[0]["name"]
+            else:
+                idx = int(choice) - 1
+                if 0 <= idx < len(pools_info):
+                    selected_pool = pools_info[idx]["name"]
+                else:
+                    print("Invalid selection.")
+                    return
+        except Exception as e:
+            print(f"Error fetching storage pools: {e}")
+            return
+
+        # 7. Automated Installation
+        auto_config = None
+        templates = []
+        try:
+            template_mgr = AutoYaSTTemplateManager(provisioner)
+            all_templates = template_mgr.get_all_templates()
+            os_lower = selected_os_type.value.lower()
+            if "ubuntu" in os_lower:
+                templates = [t for t in all_templates if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()]
+            elif "suse" in os_lower or "sles" in os_lower:
+                templates = [t for t in all_templates if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()]
+            elif "fedora" in os_lower:
+                templates = [t for t in all_templates if "kickstart" in t["filename"].lower() or "ks" in t["filename"].lower()]
+            elif "arch" in os_lower:
+                templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
+            elif "alpine" in os_lower:
+                templates = [t for t in all_templates if "alpine" in t["filename"].lower()]
+        except Exception as e:
+            print(f"Warning: Could not fetch templates: {e}")
+
+        if templates:
+            use_auto = input("\nDo you want to use automated installation? (yes/no) [no]: ").strip().lower()
+            if use_auto in ["y", "yes"]:
+                print("\nSelect Template:")
+                for i, t in enumerate(templates):
+                    print(f"  {i + 1}. {t['display_name']} - {t['description']}")
+                try:
+                    choice = input(f"Select Template [1-{len(templates)}]: ")
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(templates):
+                        selected_template = templates[idx]["filename"]
+                        
+                        # Use pre-fill settings from config
+                        prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
+                        scc_config = self.config.get("SUSE_SCC", {})
+                        prefill_modified = False
+                        
+                        print("\nEnter Automated Installation Credentials:")
+                        
+                        def get_setting(key, label, default_val="", is_password=False):
+                            nonlocal prefill_modified
+                            val = prefill.get(key, "")
+                            if not val:
+                                prompt = f"{label}: " if is_password else f"{label} [{default_val}]: "
+                                user_input = input(prompt).strip()
+                                final_val = user_input if user_input else default_val
+                                prefill[key] = final_val
+                                prefill_modified = True
+                                return final_val
+                            else:
+                                display_val = "***" if is_password else val
+                                print(f"Using {label}: {display_val} (from config)")
+                                return val
+
+                        root_pw = get_setting("root_password", "Root Password", is_password=True)
+                        hostname = input(f"Hostname [{vm_name}]: ").strip() or vm_name
+                        username = get_setting("username", "Primary Username", "admin")
+                        user_pw = get_setting("user_password", "User Password", is_password=True)
+                        keyboard = get_setting("keyboard", "Keyboard Layout", "us")
+                        language = get_setting("language", "Language", "English (US)")
+                        
+                        if prefill_modified:
+                            save_now = input("New auto-fill values entered. Save to config? (yes/no) [yes]: ").strip().lower()
+                            if save_now not in ["n", "no"]:
+                                self.config["AUTO_INSTALL_PRE_FILL"] = prefill
+                                save_config(self.config)
+                                print("Configuration updated.")
+
+                        auto_config = {
+                            "template_name": selected_template,
+                            "root_password": root_pw,
+                            "hostname": hostname,
+                            "username": username,
+                            "user_password": user_pw,
+                            "keyboard": keyboard,
+                            "language": language,
+                            "scc_email": scc_config.get("scc_email", ""),
+                            "scc_reg_code": scc_config.get("scc_reg_code", ""),
+                            "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
+                            "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
+                            "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
+                            "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
+                            "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
+                            "scc_product_arch": scc_config.get("scc_product_arch", ""),
+                        }
+                    else:
+                        print("Invalid selection.")
+                        return
+                except ValueError:
+                    print("Invalid input.")
+                    return
+
+        # 8. Provisioning
+        def cli_progress_callback(stage, percent):
+            print(f"[{percent}%] {stage}")
+
+        print(f"\nProvisioning VM '{vm_name}' on server '{target_server}'...")
+        try:
+            domain = provisioner.provision_vm(
+                vm_name=vm_name,
+                vm_type=selected_vm_type,
+                iso_url=iso_url,
+                storage_pool_name=selected_pool,
+                use_virt_install=False,
+                configure_before_install=False,
+                automation_config=auto_config,
+                progress_callback=cli_progress_callback
+            )
+            if domain:
+                print(f"Successfully provisioned VM '{vm_name}'.")
+                start_vm(domain)
+                print(f"VM '{vm_name}' started.")
+        except Exception as e:
+            print(f"Failed to provision VM: {e}")
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
