@@ -104,6 +104,12 @@ class PipelineMode(Enum):
     INTERACTIVE = "interactive"
 
 
+class InterruptionRequested(Exception):
+    """Exception raised when a user wants to cancel an interactive process."""
+
+    pass
+
+
 @dataclass
 class PipelineContext:
     """Context passed between pipeline commands."""
@@ -1262,7 +1268,9 @@ class PipelineExecutor:
             print(f"{i + 1}. {command.get_description(context)}")
         print("=" * 31)
 
-        response = input("Execute this pipeline? (yes/no): ").lower().strip()
+        response = input("Execute this pipeline? (yes/no): ").strip().lower()
+        if response in ["exit", "quit"]:
+            raise InterruptionRequested()
         return response == "yes"
 
     def _should_continue_on_error(self, command: PipelineCommand) -> bool:

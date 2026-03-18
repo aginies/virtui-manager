@@ -60,6 +60,12 @@ from .vm_provisioner import VMProvisioner, VMType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 
 
+class InterruptionRequested(Exception):
+    """Exception raised when a user wants to cancel an interactive process."""
+
+    pass
+
+
 class CLILogger:
     """A logger that captures stdout/stderr and logs to a file.
 
@@ -543,6 +549,9 @@ class VManagerCMD(cmd.Cmd):
             except EOFError:
                 return None
 
+            if choice.lower() in ["exit", "quit"]:
+                raise InterruptionRequested()
+
             if not choice:
                 # Default to 1 if enter is pressed
                 choice = "1"
@@ -589,6 +598,8 @@ class VManagerCMD(cmd.Cmd):
         else:
             try:
                 val = input(prompt).strip()
+                if val.lower() in ["exit", "quit"]:
+                    raise InterruptionRequested()
             except EOFError:
                 val = ""
         if choices_used is not None:
@@ -625,7 +636,7 @@ class VManagerCMD(cmd.Cmd):
                 print(f"  {i + 1}. {name}")
 
             try:
-                choice = input("Select server (number): ")
+                choice = self._get_input("Select server (number): ")
                 idx = int(choice) - 1
                 if 0 <= idx < len(servers):
                     target_server = servers[idx]
@@ -634,6 +645,8 @@ class VManagerCMD(cmd.Cmd):
                     return
             except ValueError:
                 print("Invalid input.")
+                return
+            except InterruptionRequested:
                 return
 
         if target_server:
@@ -1036,7 +1049,7 @@ class VManagerCMD(cmd.Cmd):
             print(f"  {i + 1}. {server_name}")
 
         try:
-            choice = input("Select server (number): ")
+            choice = self._get_input("Select server (number): ")
             idx = int(choice) - 1
             if 0 <= idx < len(found_vms):
                 return found_vms[idx]
@@ -1045,6 +1058,8 @@ class VManagerCMD(cmd.Cmd):
                 return None, None
         except (ValueError, IndexError):
             print("Invalid input.")
+            return None, None
+        except InterruptionRequested:
             return None, None
 
     def _get_vms_to_operate(self, args):
@@ -1797,23 +1812,27 @@ class VManagerCMD(cmd.Cmd):
             return
 
         vm_list_str = ", ".join(all_vm_names)
-        confirm_vm_delete = input(
-            f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): "
-        ).lower()
-
-        if confirm_vm_delete != "yes":
-            print("VM deletion cancelled.")
-            return
-
-        delete_storage_confirmed = False
-        if force_storage_delete:
-            delete_storage_confirmed = True
-        else:
-            confirm_storage = input(
-                "Do you want to delete associated storage for all selected VMs? (yes/no): "
+        try:
+            confirm_vm_delete = self._get_input(
+                f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): "
             ).lower()
-            if confirm_storage == "yes":
+
+            if confirm_vm_delete != "yes":
+                print("VM deletion cancelled.")
+                return
+
+            delete_storage_confirmed = False
+            if force_storage_delete:
                 delete_storage_confirmed = True
+            else:
+                confirm_storage = self._get_input(
+                    "Do you want to delete associated storage for all selected VMs? (yes/no): "
+                ).lower()
+                if confirm_storage == "yes":
+                    delete_storage_confirmed = True
+        except InterruptionRequested:
+            print("\nDeletion cancelled.")
+            return
 
         for server_name, vm_list in vms_to_delete.items():
             print(f"\n--- Deleting VMs on {server_name} ---")
@@ -1866,29 +1885,37 @@ class VManagerCMD(cmd.Cmd):
 
         print(f"Found VM '{original_vm_name}' on server '{original_vm_server_name}'.")
 
-        # Start asking questions
-        new_vm_base_name = input(f"Enter the new VM name [clone_of_{original_vm_name}]: ").strip()
-        if not new_vm_base_name:
-            new_vm_base_name = f"clone_of_{original_vm_name}"
-
         try:
-            num_clones_str = input("How many VM to create? [1]: ").strip()
-            num_clones = int(num_clones_str) if num_clones_str else 1
-            if num_clones < 1:
-                print("Error: Number of VMs must be at least 1.")
+            # Start asking questions
+            new_vm_base_name = self._get_input(
+                f"Enter the new VM name [clone_of_{original_vm_name}]: "
+            )
+            if not new_vm_base_name:
+                new_vm_base_name = f"clone_of_{original_vm_name}"
+
+            try:
+                num_clones_str = self._get_input("How many VM to create? [1]: ")
+                num_clones = int(num_clones_str) if num_clones_str else 1
+                if num_clones < 1:
+                    print("Error: Number of VMs must be at least 1.")
+                    return
+            except ValueError:
+                print("Error: Invalid number.")
                 return
-        except ValueError:
-            print("Error: Invalid number.")
+
+            postfix = ""
+            if num_clones > 1:
+                postfix = self._get_input("Enter postfix name (e.g. '-') [-]: ")
+                if not postfix:
+                    postfix = "-"
+
+            clone_storage_input = (
+                self._get_input("Clone also the storage? (yes/no) [yes]: ").strip().lower()
+            )
+            clone_storage = clone_storage_input != "no"
+        except InterruptionRequested:
+            print("\nCloning cancelled.")
             return
-
-        postfix = ""
-        if num_clones > 1:
-            postfix = input("Enter postfix name (e.g. '-') [-]: ").strip()
-            if not postfix:
-                postfix = "-"
-
-        clone_storage_input = input("Clone also the storage? (yes/no) [yes]: ").strip().lower()
-        clone_storage = clone_storage_input != "no"
 
         def log_to_console(message):
             columns, _ = shutil.get_terminal_size()
@@ -2579,10 +2606,13 @@ class VManagerCMD(cmd.Cmd):
                 print("   Current VM state will be lost!")
 
                 try:
-                    response = input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    response = self._get_input("\nDo you want to continue? (yes/no): ").lower().strip()
                     if response not in ["yes", "y"]:
                         print("Restore cancelled.")
                         return
+                except InterruptionRequested:
+                    print("\nRestore cancelled.")
+                    return
                 except KeyboardInterrupt:
                     print("\nRestore cancelled.")
                     return
@@ -2838,9 +2868,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         vm_display_name = domain.name()
-        confirm = input(
-            f"Are you sure you want to delete snapshot '{snapshot_name}' for VM '{vm_display_name}'? (yes/no): "
-        ).lower()
+        try:
+            confirm = self._get_input(
+                f"Are you sure you want to delete snapshot '{snapshot_name}' for VM '{vm_display_name}'? (yes/no): "
+            ).lower()
+        except InterruptionRequested:
+            print("\nDeletion cancelled.")
+            return
+
         if confirm != "yes":
             print("Deletion cancelled.")
             return
@@ -2868,9 +2903,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         vm_display_name = domain.name()
-        confirm = input(
-            f"Are you sure you want to revert VM '{vm_display_name}' to snapshot '{snapshot_name}'? (yes/no): "
-        ).lower()
+        try:
+            confirm = self._get_input(
+                f"Are you sure you want to revert VM '{vm_display_name}' to snapshot '{snapshot_name}'? (yes/no): "
+            ).lower()
+        except InterruptionRequested:
+            print("\nRevert cancelled.")
+            return
+
         if confirm != "yes":
             print("Revert cancelled.")
             return
@@ -2973,7 +3013,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"  {i + 1}. {name}")
 
             try:
-                choice_str = input(
+                choice_str = self._get_input(
                     f"Select server to {operation_verb} network '{net_name}' on (number): "
                 )
                 idx = int(choice_str) - 1
@@ -2984,6 +3024,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     return None, None
             except (ValueError, IndexError):
                 print("Invalid input.")
+                return None, None
+            except InterruptionRequested:
                 return None, None
 
         if target_server_name:
@@ -3070,9 +3112,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if not conn:
             return
 
-        confirm = input(
-            f"Are you sure you want to delete network '{net_name}' from server '{target_server_name}'? This cannot be undone. (yes/no): "
-        ).lower()
+        try:
+            confirm = self._get_input(
+                f"Are you sure you want to delete network '{net_name}' from server '{target_server_name}'? This cannot be undone. (yes/no): "
+            ).lower()
+        except InterruptionRequested:
+            print("\nOperation cancelled.")
+            return
+
         if confirm != "yes":
             print("Operation cancelled.")
             return
@@ -3305,7 +3352,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"  Error: {error}")
             return
 
-        context = self.pipeline_executor.execute_pipeline(pipeline_str, mode)
+        try:
+            context = self.pipeline_executor.execute_pipeline(pipeline_str, mode)
+        except InterruptionRequested:
+            print("\nPipeline execution cancelled.")
+            return
+
         self._display_pipeline_results(context, mode)
 
         if context.selected_vms:
@@ -3483,224 +3535,229 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         choices_provided = arg_list[:]
         choices_used = []
 
-        # 1. Select Server
-        target_server = self._select_choice(
-            "Select Server",
-            list(self.active_connections.keys()),
-            choices_provided=choices_provided,
-            choices_used=choices_used,
-            auto_select=True,
-        )
-        if not target_server:
-            return
-
-        conn = self.active_connections[target_server]
-        provisioner = VMProvisioner(conn)
-
-        # 2. Select VM Type
-        selected_vm_type = self._select_choice(
-            "Select VM Type",
-            [t for t in VMType],
-            choices_provided=choices_provided,
-            choices_used=choices_used,
-            display_func=lambda t: f"{t.name} ({t.value})",
-            auto_select=False,
-        )
-        if not selected_vm_type:
-            return
-
-        # 3. Select Distribution
-        registry = provisioner.provider_registry
-        selected_os_type = self._select_choice(
-            "Select Distribution",
-            registry.get_supported_os_types(),
-            choices_provided=choices_provided,
-            choices_used=choices_used,
-            display_func=lambda os_t: os_t.value,
-            auto_select=False,
-        )
-        if not selected_os_type:
-            return
-
-        # 4. Select Version
-        provider = registry.get_provider(selected_os_type)
-        versions = provider.get_supported_versions()
-        selected_version = self._select_choice(
-            f"Select Version for {selected_os_type.value}",
-            versions,
-            choices_provided=choices_provided,
-            choices_used=choices_used,
-            display_func=lambda v: v.display_name,
-            auto_select=False,
-        )
-        if not selected_version:
-            return
-
-        # 5. Select ISO
-        print(f"\nFetching available ISOs for {selected_version.display_name}...")
-        iso_list = provider.get_iso_list(selected_version.display_name)
-        iso_options = iso_list + ["Custom URL/Path"]
-
-        def iso_display(iso):
-            if isinstance(iso, str):
-                return iso
-            name = iso.get("name", iso.get("url"))
-            date = iso.get("date", "")
-            size = iso.get("size", "Unknown")
-            label = f"{name}"
-            if date:
-                label += f" ({date})"
-            return f"{label} [Size: {size}]"
-
-        selected_iso_obj = self._select_choice(
-            "Select ISO Image",
-            iso_options,
-            choices_provided=choices_provided,
-            choices_used=choices_used,
-            display_func=iso_display,
-            auto_select=False,
-        )
-
-        if not selected_iso_obj:
-            return
-
-        if selected_iso_obj == "Custom URL/Path":
-            iso_url = self._get_input(
-                "Enter custom ISO URL or absolute path: ", choices_provided, choices_used
-            )
-        elif isinstance(selected_iso_obj, dict):
-            iso_url = selected_iso_obj["url"]
-        else:
-            iso_url = selected_iso_obj
-
-        if not iso_url:
-            print("Valid ISO URL or path is required.")
-            return
-
-        # 6. Select Network
-        active_networks = [n for n in list_networks(conn) if n["active"]]
-        if not active_networks:
-            print("No active networks found. Defaulting to 'default'.")
-            selected_network = "default"
-            choices_used.append("default")
-        else:
-            selected_network = self._select_choice(
-                "Select Network",
-                active_networks,
+        try:
+            # 1. Select Server
+            target_server = self._select_choice(
+                "Select Server",
+                list(self.active_connections.keys()),
                 choices_provided=choices_provided,
                 choices_used=choices_used,
-                display_func=lambda n: f"{n['name']} (Mode: {n['mode']})",
-                value_func=lambda n: n["name"],
                 auto_select=True,
             )
+            if not target_server:
+                return
 
-        if not selected_network:
-            selected_network = "default"
+            conn = self.active_connections[target_server]
+            provisioner = VMProvisioner(conn)
 
-        # 7. Select Storage Pool
-        pools_info = list_storage_pools(conn)
-        if not pools_info:
-            print("No active storage pools found.")
-            return
-
-        selected_pool = self._select_choice(
-            "Select Storage Pool",
-            pools_info,
-            choices_provided=choices_provided,
-            choices_used=choices_used,
-            display_func=lambda p: f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation']/p['capacity']*100) if p['capacity']>0 else 0:.1f}%)",
-            value_func=lambda p: p["name"],
-            auto_select=True,
-        )
-        if not selected_pool:
-            return
-
-        # 7. Automated Installation
-        auto_config = None
-        templates = []
-        try:
-            template_mgr = AutoYaSTTemplateManager(provisioner)
-            all_templates = template_mgr.get_all_templates()
-            os_lower = selected_os_type.value.lower()
-            if "ubuntu" in os_lower:
-                templates = [
-                    t
-                    for t in all_templates
-                    if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()
-                ]
-            elif "suse" in os_lower or "sles" in os_lower:
-                templates = [
-                    t
-                    for t in all_templates
-                    if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()
-                ]
-            elif "fedora" in os_lower:
-                templates = [
-                    t
-                    for t in all_templates
-                    if "kickstart" in t["filename"].lower() or "ks" in t["filename"].lower()
-                ]
-            elif "arch" in os_lower:
-                templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
-            elif "alpine" in os_lower:
-                templates = [t for t in all_templates if "alpine" in t["filename"].lower()]
-        except Exception as e:
-            print(f"Warning: Could not fetch templates: {e}")
-
-        if templates:
-            use_auto = self._select_choice(
-                "Do you want to use automated installation?",
-                ["no", "yes"],
+            # 2. Select VM Type
+            selected_vm_type = self._select_choice(
+                "Select VM Type",
+                [t for t in VMType],
                 choices_provided=choices_provided,
                 choices_used=choices_used,
+                display_func=lambda t: f"{t.name} ({t.value})",
+                auto_select=False,
+            )
+            if not selected_vm_type:
+                return
+
+            # 3. Select Distribution
+            registry = provisioner.provider_registry
+            selected_os_type = self._select_choice(
+                "Select Distribution",
+                registry.get_supported_os_types(),
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda os_t: os_t.value,
+                auto_select=False,
+            )
+            if not selected_os_type:
+                return
+
+            # 4. Select Version
+            provider = registry.get_provider(selected_os_type)
+            versions = provider.get_supported_versions()
+            selected_version = self._select_choice(
+                f"Select Version for {selected_os_type.value}",
+                versions,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda v: v.display_name,
+                auto_select=False,
+            )
+            if not selected_version:
+                return
+
+            # 5. Select ISO
+            print(f"\nFetching available ISOs for {selected_version.display_name}...")
+            iso_list = provider.get_iso_list(selected_version.display_name)
+            iso_options = iso_list + ["Custom URL/Path"]
+
+            def iso_display(iso):
+                if isinstance(iso, str):
+                    return iso
+                name = iso.get("name", iso.get("url"))
+                date = iso.get("date", "")
+                size = iso.get("size", "Unknown")
+                label = f"{name}"
+                if date:
+                    label += f" ({date})"
+                return f"{label} [Size: {size}]"
+
+            selected_iso_obj = self._select_choice(
+                "Select ISO Image",
+                iso_options,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=iso_display,
                 auto_select=False,
             )
 
-            if use_auto == "yes":
-                selected_template_obj = self._select_choice(
-                    "Select Template",
-                    templates,
+            if not selected_iso_obj:
+                return
+
+            if selected_iso_obj == "Custom URL/Path":
+                iso_url = self._get_input(
+                    "Enter custom ISO URL or absolute path: ", choices_provided, choices_used
+                )
+            elif isinstance(selected_iso_obj, dict):
+                iso_url = selected_iso_obj["url"]
+            else:
+                iso_url = selected_iso_obj
+
+            if not iso_url:
+                print("Valid ISO URL or path is required.")
+                return
+
+            # 6. Select Network
+            active_networks = [n for n in list_networks(conn) if n["active"]]
+            if not active_networks:
+                print("No active networks found. Defaulting to 'default'.")
+                selected_network = "default"
+                choices_used.append("default")
+            else:
+                selected_network = self._select_choice(
+                    "Select Network",
+                    active_networks,
                     choices_provided=choices_provided,
                     choices_used=choices_used,
-                    display_func=lambda t: f"{t['display_name']} - {t['description']}",
+                    display_func=lambda n: f"{n['name']} (Mode: {n['mode']})",
+                    value_func=lambda n: n["name"],
+                    auto_select=True,
+                )
+
+            if not selected_network:
+                selected_network = "default"
+
+            # 7. Select Storage Pool
+            pools_info = list_storage_pools(conn)
+            if not pools_info:
+                print("No active storage pools found.")
+                return
+
+            selected_pool = self._select_choice(
+                "Select Storage Pool",
+                pools_info,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda p: f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation']/p['capacity']*100) if p['capacity']>0 else 0:.1f}%)",
+                value_func=lambda p: p["name"],
+                auto_select=True,
+            )
+            if not selected_pool:
+                return
+
+            # 7. Automated Installation
+            auto_config = None
+            templates = []
+            try:
+                template_mgr = AutoYaSTTemplateManager(provisioner)
+                all_templates = template_mgr.get_all_templates()
+                os_lower = selected_os_type.value.lower()
+                if "ubuntu" in os_lower:
+                    templates = [
+                        t
+                        for t in all_templates
+                        if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()
+                    ]
+                elif "suse" in os_lower or "sles" in os_lower:
+                    templates = [
+                        t
+                        for t in all_templates
+                        if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()
+                    ]
+                elif "fedora" in os_lower:
+                    templates = [
+                        t
+                        for t in all_templates
+                        if "kickstart" in t["filename"].lower() or "ks" in t["filename"].lower()
+                    ]
+                elif "arch" in os_lower:
+                    templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
+                elif "alpine" in os_lower:
+                    templates = [t for t in all_templates if "alpine" in t["filename"].lower()]
+            except Exception as e:
+                print(f"Warning: Could not fetch templates: {e}")
+
+            if templates:
+                use_auto = self._select_choice(
+                    "Do you want to use automated installation?",
+                    ["no", "yes"],
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
                     auto_select=False,
                 )
 
-                if selected_template_obj:
-                    selected_template = selected_template_obj["filename"]
+                if use_auto == "yes":
+                    selected_template_obj = self._select_choice(
+                        "Select Template",
+                        templates,
+                        choices_provided=choices_provided,
+                        choices_used=choices_used,
+                        display_func=lambda t: f"{t['display_name']} - {t['description']}",
+                        auto_select=False,
+                    )
 
-                    prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
-                    scc_config = self.config.get("SUSE_SCC", {})
+                    if selected_template_obj:
+                        selected_template = selected_template_obj["filename"]
 
-                    if not prefill.get("root_password") or not prefill.get("user_password"):
-                        print(
-                            "\033[1;33mWarning: Automated installation passwords are not set in configuration!\033[0m"
-                        )
-                        print(
-                            "Using empty passwords. Please update AUTO_INSTALL_PRE_FILL in your config file."
-                        )
+                        prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
+                        scc_config = self.config.get("SUSE_SCC", {})
+
+                        if not prefill.get("root_password") or not prefill.get("user_password"):
+                            print(
+                                "\033[1;33mWarning: Automated installation passwords are not set in configuration!\033[0m"
+                            )
+                            print(
+                                "Using empty passwords. Please update AUTO_INSTALL_PRE_FILL in your config file."
+                            )
+                        else:
+                            print("\nUsing Automated Installation Credentials from configuration.")
+
+                        auto_config = {
+                            "template_name": selected_template,
+                            "root_password": prefill.get("root_password", ""),
+                            "hostname": prefill.get("hostname", vm_name),
+                            "username": prefill.get("username", "admin"),
+                            "user_password": prefill.get("user_password", ""),
+                            "keyboard": prefill.get("keyboard", "us"),
+                            "language": prefill.get("language", "English (US)"),
+                            "scc_email": scc_config.get("scc_email", ""),
+                            "scc_reg_code": scc_config.get("scc_reg_code", ""),
+                            "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
+                            "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
+                            "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
+                            "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
+                            "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
+                            "scc_product_arch": scc_config.get("scc_product_arch", ""),
+                        }
                     else:
-                        print("\nUsing Automated Installation Credentials from configuration.")
+                        return
 
-                    auto_config = {
-                        "template_name": selected_template,
-                        "root_password": prefill.get("root_password", ""),
-                        "hostname": prefill.get("hostname", vm_name),
-                        "username": prefill.get("username", "admin"),
-                        "user_password": prefill.get("user_password", ""),
-                        "keyboard": prefill.get("keyboard", "us"),
-                        "language": prefill.get("language", "English (US)"),
-                        "scc_email": scc_config.get("scc_email", ""),
-                        "scc_reg_code": scc_config.get("scc_reg_code", ""),
-                        "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
-                        "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
-                        "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
-                        "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
-                        "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
-                        "scc_product_arch": scc_config.get("scc_product_arch", ""),
-                    }
-                else:
-                    return
+        except InterruptionRequested:
+            print("\nInstallation cancelled.")
+            return
 
         if is_dryrun:
             cmd = f"installvm {shlex.quote(vm_name)} " + " ".join(choices_used)
