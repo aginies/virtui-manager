@@ -581,13 +581,22 @@ class OpenSUSEProvider(OSProvider):
                 for ver in versions15 + versions16:
                     if ver in versions15:
                         ver_iso_url = f"{base_url}{ver}/iso/"
-                        iso_urls.extend(self.get_iso_list_from_url(ver_iso_url, arch=self.host_arch))
+                        iso_urls.extend(
+                            self.get_iso_list_from_url(ver_iso_url, arch=self.host_arch)
+                        )
                     if ver in versions16:
-                        ver_iso_url = f"{base_url}{ver}/offline/"
-                        iso_urls.extend(self.get_iso_list_from_url(ver_iso_url, arch=self.host_arch))
+                        ver_iso_url = f"{base_url}{ver}/offline/{self.host_arch}/"
+                        iso_urls.extend(
+                            self.get_iso_list_from_url(ver_iso_url, arch=self.host_arch)
+                        )
             else:
-                # Direct ISO directories
+                # Direct ISO directories - Try both the arch subdir and the base URL
+                # Tumbleweed usually has ISOs in the base directory
                 iso_urls.extend(self.get_iso_list_from_url(base_url, arch=self.host_arch))
+
+                # Some mirrors/distributions might use an arch subdirectory
+                iso_url_with_arch = f"{base_url}{self.host_arch}/"
+                iso_urls.extend(self.get_iso_list_from_url(iso_url_with_arch, arch=self.host_arch))
 
             # Deduplicate results by URL
             seen_urls = set()
@@ -697,9 +706,20 @@ class OpenSUSEProvider(OSProvider):
                 return self.get_cached_isos()
             elif distro == "pool_volumes":
                 return []  # Pool volumes are handled elsewhere
-            else:
+
+            # Check if it matches a known version display name or ID
+            distro_lower = distro.lower()
+            if "tumbleweed" in distro_lower:
+                return self._get_iso_list_for_distro(OpenSUSEDistro.TUMBLEWEED)
+            elif "slowroll" in distro_lower:
+                return self._get_iso_list_for_distro(OpenSUSEDistro.SLOWROLL)
+            elif "leap" in distro_lower:
+                return self._get_iso_list_for_distro(OpenSUSEDistro.LEAP)
+            elif distro.startswith("http") or distro.startswith("/"):
                 # Treat as custom repository URL
                 return self.get_iso_list_from_url(distro, arch=self.host_arch)
+
+            return []
 
         # Handle OpenSUSEDistro enum values
         if distro == OpenSUSEDistro.CUSTOM:

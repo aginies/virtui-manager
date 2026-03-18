@@ -188,7 +188,7 @@ class VMProvisioner:
         """
         # Handle OpenSUSE distributions - delegate to provider
         if isinstance(distro, OpenSUSEDistro):
-            provider = self.get_provider("linux")
+            provider = self.get_provider("opensuse")
             if provider and hasattr(provider, "get_iso_list"):
                 return provider.get_iso_list(distro)
             else:
@@ -748,7 +748,7 @@ class VMProvisioner:
         target_pool_name: str,
         vm_type: VMType,
         support_snapshots: bool = True,
-        os_type: OSType = OSType.LINUX,
+        os_type: OSType = OSType.OPENSUSE,
     ) -> tuple[str, str]:
         """
         Sets up UEFI NVRAM on the server side by:
@@ -990,7 +990,7 @@ class VMProvisioner:
         vm_type: VMType,
         boot_uefi: bool,
         disk_format: str | None = None,
-        os_type: OSType = OSType.LINUX,
+        os_type: OSType = OSType.OPENSUSE,
         graphics_type: str = "spice",
         is_auto_install: bool = False,
     ) -> Dict[str, Any]:
@@ -1173,7 +1173,7 @@ class VMProvisioner:
         kernel_path: str | None = None,
         initrd_path: str | None = None,
         serial_console: bool = False,
-        os_type: OSType = OSType.LINUX,
+        os_type: OSType = OSType.OPENSUSE,
         graphics_type: str = "spice",
         os_version: str | None = None,
         network_name: str = "default",
@@ -1936,7 +1936,7 @@ class VMProvisioner:
         auto_url: str | None = None,
         is_remote_connection: bool = False,
         serial_console: bool = False,
-        os_type: OSType = OSType.LINUX,
+        os_type: OSType = OSType.OPENSUSE,
         kernel_path: str | None = None,
         initrd_path: str | None = None,
         os_version: str | None = None,
@@ -2173,7 +2173,7 @@ class VMProvisioner:
         # Detect Tumbleweed
         if "tumbleweed" in iso_url_lower:
             return OSVersion(
-                os_type=OSType.LINUX,
+                os_type=OSType.OPENSUSE,
                 version_id="tumbleweed",
                 display_name="openSUSE Tumbleweed",
                 architecture=self.host_arch,
@@ -2183,7 +2183,7 @@ class VMProvisioner:
         # Detect Slowroll
         if "slowroll" in iso_url_lower:
             return OSVersion(
-                os_type=OSType.LINUX,
+                os_type=OSType.OPENSUSE,
                 version_id="slowroll",
                 display_name="openSUSE Slowroll",
                 architecture=self.host_arch,
@@ -2193,7 +2193,7 @@ class VMProvisioner:
         # Detect Leap Micro (includes SLE-Micro which uses same Agama product)
         if ("leap" in iso_url_lower and "micro" in iso_url_lower) or "sle-micro" in iso_url_lower:
             return OSVersion(
-                os_type=OSType.LINUX,
+                os_type=OSType.OPENSUSE,
                 version_id="leap-micro",
                 display_name="openSUSE Leap Micro",
                 architecture=self.host_arch,
@@ -2211,7 +2211,7 @@ class VMProvisioner:
                 display_name = "openSUSE Leap"
 
             return OSVersion(
-                os_type=OSType.LINUX,
+                os_type=OSType.OPENSUSE,
                 version_id="leap",  # Generic "leap" - version number not needed for Agama
                 display_name=display_name,
                 architecture=self.host_arch,
@@ -2221,7 +2221,7 @@ class VMProvisioner:
         # Detect MicroOS (not Leap Micro)
         if "microos" in iso_url_lower:
             return OSVersion(
-                os_type=OSType.LINUX,
+                os_type=OSType.OPENSUSE,
                 version_id="microos",
                 display_name="openSUSE MicroOS",
                 architecture=self.host_arch,
@@ -2234,7 +2234,7 @@ class VMProvisioner:
                 f"Could not detect specific OpenSUSE version from ISO URL: {iso_url}, defaulting to Tumbleweed"
             )
             return OSVersion(
-                os_type=OSType.LINUX,
+                os_type=OSType.OPENSUSE,
                 version_id="tumbleweed",
                 display_name="openSUSE Tumbleweed",
                 architecture=self.host_arch,
@@ -2286,7 +2286,7 @@ class VMProvisioner:
                 progress_callback(stage, percent)
 
         # Determine OS Type from iso_url or automation_config
-        os_type = OSType.OPENSUSE
+        os_type = OSType.LINUX
         os_version = None
         if automation_config:
             template_name = automation_config.get("template_name", "").lower()
@@ -2300,6 +2300,8 @@ class VMProvisioner:
                 os_type = OSType.ARCHLINUX
             elif any(k in template_name for k in ["alpine"]):
                 os_type = OSType.ALPINE
+            elif any(k in template_name for k in ["suse", "sles", "autoyast", "agama"]):
+                os_type = OSType.OPENSUSE
 
         # If not determined by automation, try to guess from ISO URL
         if os_type == OSType.LINUX:
@@ -2314,6 +2316,8 @@ class VMProvisioner:
                 os_type = OSType.ARCHLINUX
             elif "alpine" in iso_url_lower:
                 os_type = OSType.ALPINE
+            elif "opensuse" in iso_url_lower or "suse" in iso_url_lower:
+                os_type = OSType.OPENSUSE
 
         # If boot_uefi is None, use provider preference
         if boot_uefi is None:
