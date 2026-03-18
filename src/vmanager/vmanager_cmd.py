@@ -3325,15 +3325,43 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     def do_installvm(self, args):
         """Install a new Virtual Machine interactively.
-        Usage: installvm <vm_name>"""
+        Usage: installvm [--dryrun|--show] <vm_name> [choice1 choice2 ...]
+        
+        Options:
+          --dryrun   Show a summary of actions and the automated command without provisioning.
+          --show     Show a summary of actions and the automated command without provisioning.
+        """
         if not self.active_connections:
             print("Not connected to any server. Use 'connect <server_name>'.")
             return
 
-        vm_name = args.strip()
-        if not vm_name:
-            print("Usage: installvm <vm_name>")
+        arg_list = shlex.split(args)
+        is_dryrun = "--dryrun" in arg_list or "--show" in arg_list
+        if "--dryrun" in arg_list:
+            arg_list.remove("--dryrun")
+        if "--show" in arg_list:
+            arg_list.remove("--show")
+
+        if not arg_list:
+            print("Usage: installvm [--dryrun|--show] <vm_name> [choices...]")
             return
+
+        vm_name = arg_list.pop(0)
+
+        choices_provided = arg_list[:]
+        choices_used = []
+
+        def get_input(prompt_text):
+            if choices_provided:
+                val = choices_provided.pop(0)
+                print(f"{prompt_text}{val}")
+            else:
+                try:
+                    val = input(prompt_text).strip()
+                except EOFError:
+                    val = ""
+            choices_used.append(shlex.quote(val) if val else '""')
+            return val
 
         # 1. Select Server
         target_server = None
@@ -3345,7 +3373,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             for i, name in enumerate(servers):
                 print(f"  {i + 1}. {name}")
             try:
-                choice = input("Select server (number): ")
+                choice = get_input("Select server (number): ")
                 idx = int(choice) - 1
                 if 0 <= idx < len(servers):
                     target_server = servers[idx]
@@ -3365,7 +3393,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         for i, t in enumerate(vm_types):
             print(f"  {i + 1}. {t.name} ({t.value})")
         try:
-            choice = input(f"Select VM Type [1-{len(vm_types)}]: ")
+            choice = get_input(f"Select VM Type [1-{len(vm_types)}]: ")
             idx = int(choice) - 1
             if 0 <= idx < len(vm_types):
                 selected_vm_type = vm_types[idx]
@@ -3383,7 +3411,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         for i, os_t in enumerate(os_types):
             print(f"  {i + 1}. {os_t.value}")
         try:
-            choice = input(f"Select Distribution [1-{len(os_types)}]: ")
+            choice = get_input(f"Select Distribution [1-{len(os_types)}]: ")
             idx = int(choice) - 1
             if 0 <= idx < len(os_types):
                 selected_os_type = os_types[idx]
@@ -3401,7 +3429,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         for i, v in enumerate(versions):
             print(f"  {i + 1}. {v.display_name}")
         try:
-            choice = input(f"Select Version [1-{len(versions)}]: ")
+            choice = get_input(f"Select Version [1-{len(versions)}]: ")
             idx = int(choice) - 1
             if 0 <= idx < len(versions):
                 selected_version = versions[idx]
@@ -3428,12 +3456,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"  {i + 1}. {label} [Size: {size}]")
             print(f"  {len(iso_list) + 1}. Custom URL/Path")
             try:
-                choice = input(f"Select ISO [1-{len(iso_list)+1}]: ")
+                choice = get_input(f"Select ISO [1-{len(iso_list)+1}]: ")
                 idx = int(choice) - 1
                 if 0 <= idx < len(iso_list):
                     iso_url = iso_list[idx]["url"]
                 elif idx == len(iso_list):
-                    iso_url = input("Enter custom ISO URL or absolute path: ").strip()
+                    iso_url = get_input("Enter custom ISO URL or absolute path: ")
                 else:
                     print("Invalid selection.")
                     return
@@ -3441,7 +3469,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print("Invalid input.")
                 return
         else:
-            iso_url = input("No ISOs found. Enter custom ISO URL or absolute path: ").strip()
+            iso_url = get_input("No ISOs found. Enter custom ISO URL or absolute path: ")
 
         if not iso_url:
             print("Valid ISO URL or path is required.")
@@ -3459,7 +3487,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 for i, net in enumerate(active_networks):
                     print(f"  {i + 1}. {net['name']} (Mode: {net['mode']})")
                 
-                choice = input(f"Select Network [1-{len(active_networks)}] (default: 1): ").strip()
+                choice = get_input(f"Select Network [1-{len(active_networks)}] (default: 1): ")
                 if not choice:
                     selected_network = active_networks[0]["name"]
                 else:
@@ -3486,7 +3514,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 usage_pct = (allocation / capacity * 100) if capacity > 0 else 0
                 print(f"  {i + 1}. {pool['name']} (Capacity: {capacity // (1024**3)} GiB, Used: {usage_pct:.1f}%)")
             
-            choice = input(f"Select Pool [1-{len(pools_info)}] (default: 1): ").strip()
+            choice = get_input(f"Select Pool [1-{len(pools_info)}] (default: 1): ")
             if not choice:
                 selected_pool = pools_info[0]["name"]
             else:
@@ -3521,61 +3549,34 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print(f"Warning: Could not fetch templates: {e}")
 
         if templates:
-            use_auto = input("\nDo you want to use automated installation? (yes/no) [no]: ").strip().lower()
+            use_auto = get_input("\nDo you want to use automated installation? (yes/no) [no]: ").lower()
             if use_auto in ["y", "yes"]:
                 print("\nSelect Template:")
                 for i, t in enumerate(templates):
                     print(f"  {i + 1}. {t['display_name']} - {t['description']}")
                 try:
-                    choice = input(f"Select Template [1-{len(templates)}]: ")
+                    choice = get_input(f"Select Template [1-{len(templates)}]: ")
                     idx = int(choice) - 1
                     if 0 <= idx < len(templates):
                         selected_template = templates[idx]["filename"]
                         
-                        # Use pre-fill settings from config
                         prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
                         scc_config = self.config.get("SUSE_SCC", {})
-                        prefill_modified = False
                         
-                        print("\nEnter Automated Installation Credentials:")
-                        
-                        def get_setting(key, label, default_val="", is_password=False):
-                            nonlocal prefill_modified
-                            val = prefill.get(key, "")
-                            if not val:
-                                prompt = f"{label}: " if is_password else f"{label} [{default_val}]: "
-                                user_input = input(prompt).strip()
-                                final_val = user_input if user_input else default_val
-                                prefill[key] = final_val
-                                prefill_modified = True
-                                return final_val
-                            else:
-                                display_val = "***" if is_password else val
-                                print(f"Using {label}: {display_val} (from config)")
-                                return val
-
-                        root_pw = get_setting("root_password", "Root Password", is_password=True)
-                        hostname = input(f"Hostname [{vm_name}]: ").strip() or vm_name
-                        username = get_setting("username", "Primary Username", "admin")
-                        user_pw = get_setting("user_password", "User Password", is_password=True)
-                        keyboard = get_setting("keyboard", "Keyboard Layout", "us")
-                        language = get_setting("language", "Language", "English (US)")
-                        
-                        if prefill_modified:
-                            save_now = input("New auto-fill values entered. Save to config? (yes/no) [yes]: ").strip().lower()
-                            if save_now not in ["n", "no"]:
-                                self.config["AUTO_INSTALL_PRE_FILL"] = prefill
-                                save_config(self.config)
-                                print("Configuration updated.")
+                        if not prefill.get("root_password") or not prefill.get("user_password"):
+                            print("\033[1;33mWarning: Automated installation passwords are not set in configuration!\033[0m")
+                            print("Using empty passwords. Please update AUTO_INSTALL_PRE_FILL in your config file.")
+                        else:
+                            print("\nUsing Automated Installation Credentials from configuration.")
 
                         auto_config = {
                             "template_name": selected_template,
-                            "root_password": root_pw,
-                            "hostname": hostname,
-                            "username": username,
-                            "user_password": user_pw,
-                            "keyboard": keyboard,
-                            "language": language,
+                            "root_password": prefill.get("root_password", ""),
+                            "hostname": prefill.get("hostname", vm_name),
+                            "username": prefill.get("username", "admin"),
+                            "user_password": prefill.get("user_password", ""),
+                            "keyboard": prefill.get("keyboard", "us"),
+                            "language": prefill.get("language", "English (US)"),
                             "scc_email": scc_config.get("scc_email", ""),
                             "scc_reg_code": scc_config.get("scc_reg_code", ""),
                             "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
@@ -3591,6 +3592,26 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 except ValueError:
                     print("Invalid input.")
                     return
+
+        if is_dryrun:
+            cmd = f"installvm {shlex.quote(vm_name)} " + " ".join(choices_used)
+            print("\n--- Summary of Actions ---")
+            print(f"VM Name: {vm_name}")
+            if target_server:
+                print(f"Server: {target_server}")
+            print(f"VM Type: {selected_vm_type.name}")
+            print(f"Distribution: {selected_os_type.value}")
+            print(f"Version: {selected_version.display_name}")
+            print(f"ISO: {iso_url}")
+            print(f"Network: {selected_network}")
+            print(f"Storage Pool: {selected_pool}")
+            if auto_config:
+                print(f"Automated Install: Yes (Template: {selected_template})")
+            else:
+                print("Automated Install: No")
+            print("\nCommand to run this unattended:")
+            print(cmd)
+            return
 
         # 8. Provisioning
         def cli_progress_callback(stage, percent):
