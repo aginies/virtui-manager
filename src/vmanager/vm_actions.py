@@ -1416,6 +1416,9 @@ def strip_installation_assets(domain: libvirt.virDomain):
     Removes installation-only elements from the VM configuration.
     Specifically removes <kernel>, <initrd>, <cmdline> from <os>
     and any <disk device='floppy'>.
+
+    Also adjusts on_reboot from "destroy" to "restart" for auto-installation VMs,
+    except for SECURE VMs (those with SEV enabled) which keep "destroy".
     """
     if not domain:
         raise ValueError("Invalid domain object.")
@@ -1440,6 +1443,26 @@ def strip_installation_assets(domain: libvirt.virDomain):
         for disk in devices.findall("disk"):
             if disk.get("device") == "floppy":
                 devices.remove(disk)
+
+    # 3. Adjust on_reboot behavior for auto-installation
+    # If on_reboot is currently "destroy" (set for auto-installation), change it to "restart"
+    # UNLESS this is a SECURE VM (has SEV enabled), which should keep "destroy"
+    on_reboot_elem = root.find("on_reboot")
+    if on_reboot_elem is not None and on_reboot_elem.text == "destroy":
+        # Check if this is a SECURE VM by looking for SEV
+        is_secure_vm = root.find("launchSecurity[@type='sev']") is not None
+
+        if not is_secure_vm:
+            # Change on_reboot to restart for non-SECURE VMs
+            on_reboot_elem.text = "restart"
+            logging.info(
+                f"Auto-installation complete for {domain.name()}: "
+                f"changed on_reboot from 'destroy' to 'restart'"
+            )
+        else:
+            logging.info(
+                f"SECURE VM {domain.name()}: keeping on_reboot as 'destroy' (SEV enabled)"
+            )
 
     new_xml = ET.tostring(root, encoding="unicode")
     conn.defineXML(new_xml)

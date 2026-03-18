@@ -27,6 +27,12 @@ pkgs.mkShell {
 
     # System dependencies
     libvirt
+    tmux
+    p7zip
+    qemu
+    spice-gtk
+    gtk-vnc
+    vte
   ];
 
   shellHook = ''

@@ -35,7 +35,7 @@ from .auto_http_server import AutoHTTPServer
 from .config import load_config
 from .constants import AppInfo, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
-from .libvirt_utils import get_host_architecture
+from .libvirt_utils import get_host_architecture, get_latest_machine_types
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType, OSVersion
 from .provisioning.providers.alpine_provider import AlpineProvider, AlpineDistro
@@ -992,17 +992,33 @@ class VMProvisioner:
         disk_format: str | None = None,
         os_type: OSType = OSType.LINUX,
         graphics_type: str = "spice",
+        is_auto_install: bool = False,
     ) -> Dict[str, Any]:
         """
         Returns a dictionary of VM settings based on type and options.
+
+        Args:
+            vm_type: The type of VM (SECURE, COMPUTATION, DESKTOP, etc.)
+            boot_uefi: Whether to use UEFI boot
+            disk_format: Optional disk format override
+            os_type: The OS type being installed
+            graphics_type: Graphics type (spice, vnc, etc.)
+            is_auto_install: Whether this is an auto-installation (sets on_reboot to 'destroy')
+
+        Returns:
+            Dictionary of VM settings including machine type, video, network, etc.
         """
+        # Detect latest machine types available on the hypervisor
+        machine_types = get_latest_machine_types(self.conn, self.host_arch)
+        default_machine = machine_types["pc-q35"] if boot_uefi else machine_types["pc-i440fx"]
+
         settings = {
             # Storage
             "disk_bus": "virtio",
             "disk_format": "qcow2",
             "disk_cache": "none",
             # Guest
-            "machine": "pc-q35-10.1" if boot_uefi else "pc-i440fx-10.1",
+            "machine": default_machine,
             "video": "virtio",
             "graphics_type": graphics_type,
             "network_model": "e1000",
@@ -1057,7 +1073,7 @@ class VMProvisioner:
                     "mem_backing": "memfd",  # memfd/shared
                     "watchdog": True,
                     "on_poweroff": "restart",
-                    "on_reboot": "destroy",
+                    "on_reboot": "restart",
                     "on_crash": "restart",
                 }
             )
@@ -1096,7 +1112,8 @@ class VMProvisioner:
                 }
             )
             if vm_type == VMType.WLDESKTOP:
-                settings["machine"] = "pc-i440fx-10.1"
+                # Use latest pc-i440fx for WLDESKTOP (legacy Windows desktop)
+                settings["machine"] = machine_types["pc-i440fx"]
                 settings["input_bus"] = "usb"
 
         elif vm_type == VMType.SERVER:
@@ -1122,6 +1139,15 @@ class VMProvisioner:
         # Alpine Linux (especially virt ISO) only supports virtio-net
         if os_type == OSType.ALPINE:
             settings["network_model"] = "virtio"
+
+        # For auto-installation, ensure on_reboot is "destroy" so the VM stops after installation
+        # This allows the app to detect completion, cleanup HTTP server, and strip installation assets
+        # The on_reboot will be changed back to "restart" (except for SECURE VMs) by strip_installation_assets
+        if is_auto_install and vm_type != VMType.SECURE:
+            self.logger.info(
+                f"Auto-installation mode: setting on_reboot to 'destroy' for {vm_type.value} VM"
+            )
+            settings["on_reboot"] = "destroy"
 
         return settings
 
@@ -1154,8 +1180,12 @@ class VMProvisioner:
             provider = self.provider_registry.get_provider(os_type)
             boot_uefi = provider.preferred_boot_uefi if provider else True
 
+        # Determine if this is an auto-installation (has auto_url)
+        is_auto_install = bool(auto_url)
+
         settings = self._get_vm_settings(
-            vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
+            vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type,
+            is_auto_install=is_auto_install
         )
 
         # Boot order: if kernel_path is provided, we are doing a direct kernel boot for install
@@ -1240,13 +1270,33 @@ class VMProvisioner:
                     # OpenSUSE AutoYaST automation (XML format)
                     # Add netsetup=dhcp to ensure network is configured
                     cmdline = f"autoyast={auto_url} netsetup=dhcp"
-            elif os_type == OSType.ARCHLINUX:
-                # Manual Arch Linux UEFI boot needs these parameters even without automation
-                cmdline = "archisobasedir=arch archisodevice=/dev/sr0"
+            else:
+                # Default cmdline for direct kernel boot without automation
+                if os_type == OSType.UBUNTU:
+                    cmdline = "boot=casper"
+                elif os_type == OSType.DEBIAN:
+                    cmdline = "boot=live"
+                elif os_type == OSType.FEDORA:
+                    cmdline = "inst.stage2"
+                elif os_type == OSType.OPENSUSE:
+                    cmdline = "install=cd:/"
+                elif os_type == OSType.ARCHLINUX:
+                    cmdline = "archisobasedir=arch archisodevice=/dev/sr0"
+                elif os_type == OSType.ALPINE:
+                    ver = os_version if os_version else "v3.23"
+                    if not ver.startswith("v"):
+                        ver = f"v{ver}"
+                    cmdline = f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main ip=dhcp"
+                else:
+                    # Fallback for other Linux distros
+                    cmdline = "quiet"
+
+            if serial_console:
+                if cmdline:
+                    cmdline += " "
+                cmdline += "console=tty0 console=ttyS0,115200"
 
             if cmdline:
-                if serial_console:
-                    cmdline += " console=tty0 console=ttyS0,115200"
                 xml += f"    <cmdline>{cmdline}</cmdline>\n"
             xml += "  </os>"
         # Standard UEFI/BIOS boot
@@ -2795,7 +2845,8 @@ class VMProvisioner:
             # Generate the XML configuration that would be used
             if is_virt_install_available:
                 settings = self._get_vm_settings(
-                    vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
+                    vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type,
+                    is_auto_install=bool(auto_url)
                 )
                 xml_desc = self._run_virt_install(
                     vm_name,
@@ -2909,7 +2960,8 @@ class VMProvisioner:
                     )
 
             settings = self._get_vm_settings(
-                vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type
+                vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type,
+                is_auto_install=bool(auto_url)
             )
             self._run_virt_install(
                 vm_name,
@@ -3130,8 +3182,20 @@ class VMProvisioner:
                                 )
                             else:
                                 logger.info(
-                                    f"VM {name} stopped (Stage 1 complete, reason={reason}). Restarting in 3 seconds..."
+                                    f"VM {name} stopped (Stage 1 complete, reason={reason}). Cleaning up and restarting..."
                                 )
+
+                                # Strip installation assets from persistent config and update on_reboot
+                                try:
+                                    logger.info(
+                                        f"Stripping installation assets from {name} persistent config"
+                                    )
+                                    strip_installation_assets(domain)
+                                except Exception as e:
+                                    logger.warning(
+                                        f"Failed to strip installation assets from {name}: {e}"
+                                    )
+
                                 time.sleep(3)
                                 try:
                                     domain.create()

@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
     
     
       
@@ -158,6 +158,25 @@
   
   
     <li class="md-tabs__item">
+      <a href="https://aginies.github.io/virtui-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Website
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
       <a href=".." class="md-tabs__link">
         
   
@@ -264,6 +283,33 @@
   
   
     <li class="md-nav__item">
+      <a href="https://aginies.github.io/virtui-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Website
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href=".." class="md-nav__link">
         
   
@@ -309,10 +355,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -330,8 +376,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -452,6 +498,17 @@
     <span class="md-ellipsis">
       
         System Requirements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python Dependencies
       
     </span>
   </a>
@@ -1113,10 +1170,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -1134,8 +1191,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1335,6 +1392,17 @@
     <span class="md-ellipsis">
       
         System Requirements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#python-dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Python Dependencies
       
     </span>
   </a>
@@ -1596,7 +1664,28 @@
 <li><strong>Operating System:</strong> Linux (tested on openSUSE, Fedora, Ubuntu, Arch)</li>
 <li><strong>Python:</strong> 3.7+</li>
 <li><strong>Virtualization:</strong> KVM/QEMU and Libvirt installed and running.</li>
-<li><strong>Access:</strong> Your user must have permissions to manage libvirt (usually part of the <code>libvirt</code> group).</li>
+<li><strong>Essential Tools:</strong><ul>
+<li><code>libvirt</code> (daemon and client tools like <code>virsh</code>)</li>
+<li><code>qemu-img</code> (from <code>qemu</code> or <code>qemu-utils</code>, for disk management)</li>
+<li><code>tmux</code> (required for terminal console management)</li>
+<li><code>7zip</code> / <code>p7zip</code> (required for some ISO and archive operations)</li>
+<li><code>spice-gtk</code> and <code>gtk-vnc</code> (required for remote viewer support)</li>
+<li><code>vte</code> (required for the <code>virtui-gui</code> wrapper)</li>
+</ul>
+</li>
+<li><strong>Access:</strong> Your user must have permissions to manage libvirt (usually part of the <code>libvirt</code> group). You can add your user to the group with: <code>sudo usermod -aG libvirt $USER</code> (a logout/login is required).</li>
+</ul>
+<h3 id="python-dependencies">Python Dependencies<a class="headerlink" href="#python-dependencies" title="Permanent link">&para;</a></h3>
+<p>VirtUI Manager requires the following Python libraries:</p>
+<ul>
+<li><code>libvirt-python</code>: Libvirt Python bindings</li>
+<li><code>textual</code>: Terminal User Interface framework</li>
+<li><code>PyYAML</code>: YAML configuration parsing</li>
+<li><code>markdown-it-py</code>: Markdown rendering for documentation</li>
+<li><code>packaging</code>: Version parsing and management</li>
+<li><code>requests</code>: HTTP library for ISO and template downloads</li>
+<li><code>netifaces</code>: Network interface discovery</li>
+<li><code>websockify</code>: (Optional) Required for web console support</li>
 </ul>
 <h2 id="opensuse-sle-installation">OpenSUSE / SLE Installation<a class="headerlink" href="#opensuse-sle-installation" title="Permanent link">&para;</a></h2>
 <p>VirtUI Manager is available as a package in the <a href="https://build.opensuse.org/package/show/Virtualization/virtui-manager">Virtualization</a> repository. Choose the right repository, go to it and download packages and install them.</p>
@@ -1748,7 +1837,7 @@ As some user prefer container enviroment, github as been setup to build a flatpa
 </code></pre></div>
 <h3 id="opensuse-sle-zypper">openSUSE / SLE (Zypper)<a class="headerlink" href="#opensuse-sle-zypper" title="Permanent link">&para;</a></h3>
 <p>To install dependencies manually from official repositories (this is done automatically when installing the package):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py<span class="w"> </span>7z<span class="w"> </span>tmux
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py<span class="w"> </span>7zip<span class="w"> </span>tmux<span class="w"> </span>python3-packaging<span class="w"> </span>python3-netifaces<span class="w"> </span>python3-requests<span class="w"> </span>python3-websockify
 </code></pre></div>
 
 

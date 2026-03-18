@@ -1,5 +1,7 @@
 # VirtUI Manager
 
+[Project Website](https://aginies.github.io/virtui-manager/)
+
 A powerful, text-based Terminal User Interface (TUI) application for managing QEMU/KVM virtual machines using the libvirt Python API. 
 
 ![Main](documentation/manual/images/main.png)
@@ -29,7 +31,7 @@ VirtUI Manager solves these challenges with:
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
 - **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
-- **Auto installtion**: Support auto installation for Debian, Ubuntu, Fedora, Archlinux (WIP), OpenSUSE and SLES (with SCC registration)
+- **Auto Installation**: Support auto installation for Debian, Ubuntu, Fedora, Archlinux (WIP), Alpine, OpenSUSE and SLES (with SCC registration)
 
 ## Documentation
 

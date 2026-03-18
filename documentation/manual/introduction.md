@@ -1,65 +1,53 @@
 # Introduction to VirtUI Manager
 
-VirtUI Manager is a powerful, text-based **Terminal User Interface (TUI)** application designed for managing QEMU/KVM virtual machines using the **libvirt** Python API.
+**Command Your Virtual Machines** with unparalleled efficiency. 
 
-It bridges the gap between the simplicity of command-line tools and the rich functionality of GUI-based solutions like `virt-manager`, offering a comprehensive management experience directly from your terminal.
+VirtUI Manager is a powerful, next-generation terminal-based management solution for QEMU/KVM virtualization. It bridges the gap between the simplicity of command-line tools and the rich functionality of GUI-based solutions like `virt-manager`, offering a comprehensive, keyboard-centric management experience directly from your terminal.
 
 ![VirtUI Manager Main Window](images/main.png)
 
 ## Why VirtUI Manager?
 
-Managing virtual infrastructure often involves a trade-off between convenience and accessibility.
+Managing virtual infrastructure often involves a trade-off between convenience and accessibility. Traditional tools often come with significant drawbacks:
 
-*   **GUI tools (virt-manager)** offer great visualization but require X11 forwarding or a desktop environment, which can be slow, resource-heavy over remote connections.
-*   **Web interfaces (Cockpit)** are user-friendly but can be heavy to deploy, feature-incomplete, or lack multi-hypervisor support.
-*   **CLI tools (virsh)** are fast and scriptable but lack the intuitive "at-a-glance" overview and ease of use for complex tasks.
+*   **GUI tools (virt-manager)** offer great visualization but require X11 forwarding or a heavy desktop environment, which is slow and resource-intensive over remote connections.
+*   **Web interfaces (Cockpit)** can be complex to deploy, feature-incomplete, or lack robust multi-hypervisor support.
+*   **CLI tools (virsh)** are fast but lack the intuitive "at-a-glance" overview and ease of use required for complex management tasks.
 
-**VirtUI Manager** solves these challenges by providing a **lightweight, fast, and feature-rich interface** that runs entirely in the terminal. It is perfect for:
+**VirtUI Manager** solves these challenges by providing a **lightweight, fast, and feature-rich interface** that runs entirely in the terminal.
 
-*   **Headless Servers:** Manage VMs directly on the server without needing a graphical environment.
-*   **Remote Management via SSH:** Works flawlessly over SSH connections without the lag of X11 forwarding.
-*   **Low-Bandwidth Environments:** The text-based interface is incredibly efficient.
-*   **Power Users:** Keyboard-centric workflow for rapid management.
+*   **Intuitive Control:** Navigate complex infrastructures with a streamlined "Actions" menu. Context-aware options appear exactly when you need them.
+*   **Scale Without Limits:** Execute commands across hundreds of VMs simultaneously using powerful regex patterns and group filters.
+*   **Seamless Mobility:** Migrate workloads between different servers with ease. Our custom migration engine handles storage, snapshots, and overlays.
+*   **Zero Dependencies:** No X11 required. Runs perfectly on headless servers and via low-bandwidth SSH connections.
 
 ## Key Features
 
 ### 🚀 Performance & Architecture
-*   **Lightweight TUI:** built with `textual`, requiring no X dependencies.
-*   **Event-Driven:** Uses libvirt events to update the UI in real-time, minimizing polling overhead.
-*   **Smart Caching:** Built-in caching for libvirt calls ensures a responsive interface even with large numbers of VMs.
-
-### 🌐 Multi-Server Management
-*   **Single Pane of Glass:** Connect to and manage multiple local or remote libvirt servers simultaneously.
-*   **Transhypervisor View:** See VMs from different servers in a unified grid.
+*   **Event-Driven UI:** Uses libvirt events for real-time updates, ensuring ultra-low bandwidth usage and immediate responsiveness.
+*   **Smart Caching:** Advanced metadata caching reduces API load by up to 70%, keeping the interface fluid even with massive VM fleets.
+*   **Transhypervisor View:** Connect to and manage multiple local or remote libvirt servers simultaneously in one unified dashboard.
 
 ### 🛠️ Comprehensive VM Control
-*   **Lifecycle Management:** Start, Stop, Pause, Resume, Force Off, and Delete VM, etc...
-*   **Configuration:** detailed editing of CPU, Memory, Disks, Networks, and Boot options and mode.
-*   **State Management:** Create, restore, and manage internal snapshots, external disk overlays, and VM hibernation.
-*   **Real-time Monitoring:** Interactive sparklines showing CPU, Memory, Disk I/O, and Network performance with toggleable views.
-*   **Compact View Mode:** High-density display for managing large numbers of VMs efficiently.
+*   **Surgical Precision:** Tweak CPU topology, memory, storage, and networking with deep configuration options.
+*   **State Mastery:** Full support for snapshots and external disk overlays. Branch your VM states or revert changes with confidence.
+*   **Host Intelligence:** Gain deep insights into physical infrastructure with real-time resource monitoring and detailed hardware capability trees (NUMA, CPU topology, cache).
 
-### 📦 Advanced Operations
-*   **Bulk Actions:** Select multiple VMs (using patterns or manual selection) to perform mass start/stop/delete operations or configuration changes.
-*   **Migration:** Support for standard live migration and a unique **Custom Migration** mode for moving offline VMs with non-shared storage.
-*   **Provisioning:** Built-in wizard for installing new VMs from cached ISOs or online repositories.
+### 📦 Rapid Deployment
+*   **Modern Installation:** Experience a streamlined provisioning process with intelligent defaults, UEFI support, and optimized hardware detection.
+*   **Automated Provisioning:** Take deployment to the next level with full automated installation support (Debian, Ubuntu, Fedora, Arch Linux, Alpine, openSUSE/SLES), template management, and intelligent auto-prefill.
+*   **Instant Cloning:** Scale out instantly with advanced VM cloning, including auto-provisioning of storage.
 
-### 🖥️ Remote Access
-*   **VirtUI Remote Viewer:** A custom-built, native graphical viewer for accessing VM consoles (VNC/SPICE) with support for USB redirection.
-*   **Web Console:** Integrated support for `noVNC` to access VM consoles via a web browser, even for remote servers.
-*   **Tmux Integration:** Seamlessly open text consoles (`virsh console`) in new tmux windows when running inside a tmux session.
-
-### 📊 Monitoring & Debugging
-*   **Real-time Stats:** View CPU, Memory, Disk, and Network usage for each VM with interactive sparkline views.
-*   **Event-Driven Updates:** UI updates automatically when VM states change.
-*   **Log Viewer:** Built-in log viewer for troubleshooting.
-*   **Statistics Logging:** Continuous performance monitoring with detailed libvirt call statistics and cache analysis.
-*   **Cache Statistics:** Real-time monitoring of caching efficiency and performance optimization.
+### 🖥️ Remote & Advanced Access
+*   **VirtUI Remote Viewer:** A custom-built, native graphical viewer for VNC/SPICE consoles with support for USB redirection, real-time log monitoring, and snapshot management.
+*   **Secure Web Console:** Integrated `noVNC` support via websockify for browser-based access, even over SSH tunnels.
+*   **Tmux Integration:** Multitasking mastery by seamlessly launching text consoles in separate Tmux windows.
+*   **Command Line Interface:** Power users can leverage `vmanager_cmd`, a dedicated shell-like CLI for rapid management and automated pipelines.
 
 ## Comparison
 
 | Feature | VirtUI Manager | Virt-Manager | Virsh (CLI) | Cockpit |
-| :--- | :---: | :---: | :---: | :---: |
+| :--- | :--- | :--- | :--- | :--- |
 | **Interface** | TUI / GUI (GTK) | GUI (GTK) | CLI (Text) | Web UI |
 | **Remote via SSH** | ✅ Excellent | ⚠️ Slow (X11) | ✅ Excellent | ❌ Setup required |
 | **Headless Support** | ✅ Native | ❌ No | ✅ Native | ✅ Native |

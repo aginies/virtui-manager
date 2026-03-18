@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.1">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
     
     
       
@@ -158,6 +158,25 @@
   
   
     <li class="md-tabs__item">
+      <a href="https://aginies.github.io/virtui-manager/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Project Website
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
       <a href=".." class="md-tabs__link">
         
   
@@ -264,6 +283,33 @@
   
   
     <li class="md-nav__item">
+      <a href="https://aginies.github.io/virtui-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Project Website
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href=".." class="md-nav__link">
         
   
@@ -309,10 +355,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
         
           
-          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
             
   
   
@@ -330,8 +376,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
-          <label class="md-nav__title" for="__nav_2">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -795,6 +841,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#boot-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boot Selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial Console
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#snapshot-management" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -974,10 +1042,10 @@
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
             
   
   
@@ -995,8 +1063,8 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
-          <label class="md-nav__title" for="__nav_3">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
             <span class="md-nav__icon md-icon"></span>
             
   
@@ -1231,6 +1299,28 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#boot-selection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Boot Selection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serial-console" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serial Console
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#snapshot-management" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1313,15 +1403,17 @@
 <h1 id="virtui-remote-viewer">VirtUI Remote Viewer<a class="headerlink" href="#virtui-remote-viewer" title="Permanent link">&para;</a></h1>
 <p>The <strong>VirtUI Remote Viewer</strong> is a custom-built, high-performance graphical console integrated directly into VirtUI Manager. It provides a seamless way to interact with your Virtual Machines without needing external tools like <code>virt-viewer</code> or <code>virt-manager</code>.</p>
 <p>It supports both <strong>VNC</strong> and <strong>SPICE</strong> protocols and offers advanced features like USB redirection and snapshot management directly from the viewer window.</p>
+<p><img alt="VirtUI Remote Viewer Interface" src="../images/vr.jpg" /></p>
 <h2 id="interface-overview">Interface Overview<a class="headerlink" href="#interface-overview" title="Permanent link">&para;</a></h2>
 <p>The viewer is designed to be intuitive, with a toolbar at the top and a tabbed interface for advanced controls.</p>
 <h3 id="main-toolbar">Main Toolbar<a class="headerlink" href="#main-toolbar" title="Permanent link">&para;</a></h3>
 <p>The header bar provides quick access to essential functions:</p>
 <ul>
 <li><strong>Settings Menu:</strong> Configure display scaling, smoothing, compression, and view-only mode.</li>
-<li><strong>Power Menu:</strong> Quickly Start, Pause, Resume, Shutdown, or Force Off the VM.</li>
+<li><strong>Boot Menu:</strong> Select the first boot device for the next VM start (e.g., Hard Disk, CD-ROM, Network).</li>
+<li><strong>Power Menu:</strong> Quickly Start, Pause, Resume, Hibernate, Shutdown, Reboot, or Force Off the VM.</li>
 <li><strong>Send Keys:</strong> Send special key combinations like <code>Ctrl+Alt+Del</code> or <code>Ctrl+Alt+F1</code> directly to the guest.</li>
-<li><strong>Clipboard:</strong> Push/Pull text to and from the guest clipboard.</li>
+<li><strong>Clipboard:</strong> Type host clipboard content into the guest or manage push/pull operations.</li>
 <li><strong>Screenshot:</strong> Capture the current state of the VM display to a file.</li>
 <li><strong>Fullscreen:</strong> Toggle fullscreen mode for an immersive experience.</li>
 <li><strong>Logs &amp; Events:</strong> Toggle the visibility of the logs and events panel.</li>
@@ -1336,6 +1428,17 @@
 <li><strong>Lossy Compression:</strong> Use JPEG compression to reduce bandwidth usage (useful for slow connections).</li>
 <li><strong>Color Depth:</strong> Adjust the color depth (8-bit, 16-bit, 24-bit) to balance quality and performance.</li>
 </ul>
+<h3 id="boot-selection">Boot Selection<a class="headerlink" href="#boot-selection" title="Permanent link">&para;</a></h3>
+<p>The <strong>Boot Menu</strong> (floppy disk icon) allows you to temporarily override the boot order for the next startup. This is particularly useful when you need to boot from an installation ISO or a network source without permanently changing the VM configuration.</p>
+<p><img alt="Boot Device Selection" src="../images/vr_first_boot.jpg" /></p>
+<h3 id="serial-console">Serial Console<a class="headerlink" href="#serial-console" title="Permanent link">&para;</a></h3>
+<p>The <strong>Console</strong> tab provides a persistent text-based interface to the VM's serial port. This is an essential tool for:</p>
+<ul>
+<li><strong>Kernel Debugging:</strong> Monitor early boot messages before the graphical display is active.</li>
+<li><strong>Headless Access:</strong> Manage Linux servers that don't have a graphical environment installed.</li>
+<li><strong>Troubleshooting:</strong> Access the system when the network or graphical stack is unresponsive.</li>
+</ul>
+<p>The console includes built-in help for configuring your Guest OS to properly redirect output to the serial port.</p>
 <h3 id="snapshot-management">Snapshot Management<a class="headerlink" href="#snapshot-management" title="Permanent link">&para;</a></h3>
 <p>The <strong>Snapshots</strong> tab allows you to manage VM snapshots without leaving the viewer.</p>
 <ul>

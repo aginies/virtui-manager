@@ -50,10 +50,11 @@ your-target-path /mnt/my_host_share virtiofs defaults,nofail 0 0
 ### Mounting in a Windows Guest
 
 **1. Install Drivers:**
-You must install the VirtIO-FS drivers in the Windows guest. These are included in the **"VirtIO-Win Guest Tools"** package, which you can typically download as an ISO file.
-- Download the latest stable `virtio-win.iso` from the [Fedora VirtIO-Win project](https://github.com/virtio-win/virtio-win-pkg-scripts/blob/master/README.md).
-- Attach the ISO to your VM as a CD-ROM.
-- Open the CD-ROM in Windows and run the `virtio-win-guest-tools.exe` installer, ensuring the **"VirtIO-FS"** feature is selected.
+You must install the VirtIO-FS drivers in the Windows guest. These are included in the **"VirtIO-Win Guest Tools"** package or the **"Virtual Machine Driver Pack (VMDP)"**.
+- **Option A (SUSE VMDP):** Use the [Virtual Machine Driver Pack (VMDP)](https://github.com/SUSE/vmdp) for a comprehensive set of optimized drivers.
+- **Option B (Fedora):** Download the latest stable `virtio-win.iso` from the [Fedora VirtIO-Win project](https://github.com/virtio-win/virtio-win-pkg-scripts/blob/master/README.md).
+- Attach the chosen ISO to your VM as a CD-ROM.
+- Open the CD-ROM in Windows and run the installer, ensuring the **"VirtIO-FS"** feature is selected.
 
 **2. Access the Share:**
 After installation and a reboot, the VirtIO-FS service will start. The shared folder will automatically appear as a network drive in **This PC** (or My Computer). The drive will be named after the **Target Path (mount tag)** you set.
