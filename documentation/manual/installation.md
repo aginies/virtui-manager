@@ -103,6 +103,9 @@ VirtUI Manager supports unattended installations using predefined templates for 
 - The VM will boot directly into the unattended installation process
 - Installation progress can be monitored through the remote viewer console
 
+!!! note "Arch Linux Auto-Installation"
+    During Arch Linux automated installation, if the process hangs while "waiting for system to be online", you must open another console with **`Alt+Ctrl+F2`**, login as **`root`** (no password), and type: `systemctl start network-online`. You can then return to the installer with **`Alt+Ctrl+F1`**.
+
 ## Starting the Installation
 
 1.  Review your settings.
