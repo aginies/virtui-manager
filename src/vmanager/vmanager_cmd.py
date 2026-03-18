@@ -461,6 +461,140 @@ class VManagerCMD(cmd.Cmd):
         clean_text = strip_ansi_codes(text)
         return len(clean_text)
 
+    def _select_choice(
+        self,
+        prompt,
+        options,
+        choices_provided=None,
+        choices_used=None,
+        display_func=None,
+        value_func=None,
+        auto_select=True,
+    ):
+        """Generic choice selector with numerical and string matching support.
+
+        Args:
+            prompt: Prompt string to display (e.g. "Select VM Type")
+            options: List of objects to choose from
+            choices_provided: List of pre-filled choices (unattended mode)
+            choices_used: List to record final choices (for command generation)
+            display_func: Optional lambda to extract display string from option
+            value_func: Optional lambda to extract return value from option
+            auto_select: If True and only one option exists, select it automatically
+
+        Returns:
+            The selected option (or result of value_func)
+        """
+        if not options:
+            return None
+
+        # Helper to get display/value
+        get_display = display_func if display_func else lambda x: str(x)
+        get_value = value_func if value_func else lambda x: x
+
+        # 1. Check for auto-selection
+        if auto_select and len(options) == 1 and not choices_provided:
+            selected = options[0]
+            print(f"{prompt}: {get_display(selected)} (automatically selected)")
+            if choices_used is not None:
+                # Record as index '1' for consistency in generated command
+                choices_used.append("1")
+            return get_value(selected)
+
+        # 2. Check for unattended choice
+        if choices_provided:
+            val = choices_provided.pop(0)
+            print(f"{prompt} [1-{len(options)}]: {val}")
+
+            # Try numerical matching first
+            try:
+                idx = int(val) - 1
+                if 0 <= idx < len(options):
+                    if choices_used is not None:
+                        choices_used.append(shlex.quote(val))
+                    return get_value(options[idx])
+            except ValueError:
+                pass
+
+            # Try string matching (exact or prefix)
+            val_lower = val.lower()
+            for i, opt in enumerate(options):
+                opt_display = get_display(opt).lower()
+                if val_lower == opt_display or opt_display.startswith(val_lower):
+                    if choices_used is not None:
+                        # Record the index for the generated command
+                        choices_used.append(str(i + 1))
+                    return get_value(opt)
+
+            # If no match found in unattended mode, we might need to fallback or error
+            # For now, record the raw value and try to return it if nothing else matched
+            if choices_used is not None:
+                choices_used.append(shlex.quote(val))
+            return val
+
+        # 3. Interactive selection
+        print(f"\n{prompt}:")
+        for i, opt in enumerate(options):
+            print(f"  {i + 1}. {get_display(opt)}")
+
+        while True:
+            try:
+                choice = input(f"{prompt} [1-{len(options)}]: ").strip()
+            except EOFError:
+                return None
+
+            if not choice:
+                # Default to 1 if enter is pressed
+                choice = "1"
+
+            # Try numerical matching
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(options):
+                    if choices_used is not None:
+                        choices_used.append(str(idx + 1))
+                    return get_value(options[idx])
+            except ValueError:
+                pass
+
+            # Try string matching
+            choice_lower = choice.lower()
+            matches = []
+            for i, opt in enumerate(options):
+                opt_display = get_display(opt).lower()
+                if choice_lower == opt_display:  # Exact match
+                    matches = [(i, opt)]
+                    break
+                if opt_display.startswith(choice_lower):  # Prefix match
+                    matches.append((i, opt))
+
+            if len(matches) == 1:
+                idx, selected = matches[0]
+                if choices_used is not None:
+                    choices_used.append(str(idx + 1))
+                return get_value(selected)
+            elif len(matches) > 1:
+                print(
+                    f"Ambiguous input '{choice}'. Multiple matches: "
+                    + ", ".join([get_display(m[1]) for m in matches])
+                )
+            else:
+                print(f"Invalid selection: '{choice}'")
+
+    def _get_input(self, prompt, choices_provided=None, choices_used=None):
+        """Helper to get input from unattended choices or interactive prompt."""
+        if choices_provided:
+            val = choices_provided.pop(0)
+            print(f"{prompt}{val}")
+        else:
+            try:
+                val = input(prompt).strip()
+            except EOFError:
+                val = ""
+        if choices_used is not None:
+            choices_used.append(shlex.quote(val) if val else '""')
+        return val
+
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
         Usage: virsh [server_name]"""
@@ -743,7 +877,7 @@ class VManagerCMD(cmd.Cmd):
             return text
 
         # For colored text, we need to be more careful about truncation
-        if "\033" in text or "\x1B" in text:
+        if "\033" in text or "\x1b" in text:
             # Simple approach: remove ANSI codes, truncate, then we'll lose colors
             # A more sophisticated approach would preserve color codes
             clean_text = strip_ansi_codes(text)
@@ -969,7 +1103,7 @@ class VManagerCMD(cmd.Cmd):
     def do_connect(self, args):
         """Connect to one or more servers or URIs.
         Usage: connect <server_name_or_uri_1> [<server_name_or_uri_2> ...] | all
-        
+
         Example:
           connect local
           connect qemu:///system
@@ -985,7 +1119,6 @@ class VManagerCMD(cmd.Cmd):
 
         if "all" in targets_to_connect:
             targets_to_connect = self.server_names
-
 
         for target in targets_to_connect:
             # Check if it's already connected
@@ -1010,7 +1143,9 @@ class VManagerCMD(cmd.Cmd):
                     server_name = target
                     uri = server_info["uri"]
                 else:
-                    print(f"Error: '{target}' is not a configured server name and does not look like a URI.")
+                    print(
+                        f"Error: '{target}' is not a configured server name and does not look like a URI."
+                    )
                     continue
 
             # Ensure we have a color for this server
@@ -1020,9 +1155,7 @@ class VManagerCMD(cmd.Cmd):
                 ]
 
             try:
-                self._safe_print(
-                    f"Connecting to {server_name} at {self._sanitize_message(uri)}..."
-                )
+                self._safe_print(f"Connecting to {server_name} at {self._sanitize_message(uri)}...")
                 conn = self.vm_service.connect(uri)
                 if conn:
                     self.active_connections[server_name] = conn
@@ -1041,7 +1174,7 @@ class VManagerCMD(cmd.Cmd):
         # Include both configured server names and active connection names
         all_possible = set(self.server_names) | set(self.active_connections.keys())
         all_possible.add("all")
-        
+
         if not text:
             completions = sorted(list(all_possible))
         else:
@@ -3322,11 +3455,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         return []
 
-
     def do_installvm(self, args):
         """Install a new Virtual Machine interactively.
         Usage: installvm [--dryrun|--show] <vm_name> [choice1 choice2 ...]
-        
+
         Options:
           --dryrun   Show a summary of actions and the automated command without provisioning.
           --show     Show a summary of actions and the automated command without provisioning.
@@ -3351,181 +3483,136 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         choices_provided = arg_list[:]
         choices_used = []
 
-        def get_input(prompt_text):
-            if choices_provided:
-                val = choices_provided.pop(0)
-                print(f"{prompt_text}{val}")
-            else:
-                try:
-                    val = input(prompt_text).strip()
-                except EOFError:
-                    val = ""
-            choices_used.append(shlex.quote(val) if val else '""')
-            return val
-
         # 1. Select Server
-        target_server = None
-        if len(self.active_connections) == 1:
-            target_server = list(self.active_connections.keys())[0]
-        else:
-            print("Multiple active connections. Select server:")
-            servers = list(self.active_connections.keys())
-            for i, name in enumerate(servers):
-                print(f"  {i + 1}. {name}")
-            try:
-                choice = get_input("Select server (number): ")
-                idx = int(choice) - 1
-                if 0 <= idx < len(servers):
-                    target_server = servers[idx]
-                else:
-                    print("Invalid selection.")
-                    return
-            except ValueError:
-                print("Invalid input.")
-                return
+        target_server = self._select_choice(
+            "Select Server",
+            list(self.active_connections.keys()),
+            choices_provided=choices_provided,
+            choices_used=choices_used,
+            auto_select=True,
+        )
+        if not target_server:
+            return
 
         conn = self.active_connections[target_server]
         provisioner = VMProvisioner(conn)
 
         # 2. Select VM Type
-        print("\nSelect VM Type:")
-        vm_types = [t for t in VMType]
-        for i, t in enumerate(vm_types):
-            print(f"  {i + 1}. {t.name} ({t.value})")
-        try:
-            choice = get_input(f"Select VM Type [1-{len(vm_types)}]: ")
-            idx = int(choice) - 1
-            if 0 <= idx < len(vm_types):
-                selected_vm_type = vm_types[idx]
-            else:
-                print("Invalid selection.")
-                return
-        except ValueError:
-            print("Invalid input.")
+        selected_vm_type = self._select_choice(
+            "Select VM Type",
+            [t for t in VMType],
+            choices_provided=choices_provided,
+            choices_used=choices_used,
+            display_func=lambda t: f"{t.name} ({t.value})",
+            auto_select=False,
+        )
+        if not selected_vm_type:
             return
 
         # 3. Select Distribution
-        print("\nSelect Distribution:")
         registry = provisioner.provider_registry
-        os_types = registry.get_supported_os_types()
-        for i, os_t in enumerate(os_types):
-            print(f"  {i + 1}. {os_t.value}")
-        try:
-            choice = get_input(f"Select Distribution [1-{len(os_types)}]: ")
-            idx = int(choice) - 1
-            if 0 <= idx < len(os_types):
-                selected_os_type = os_types[idx]
-            else:
-                print("Invalid selection.")
-                return
-        except ValueError:
-            print("Invalid input.")
+        selected_os_type = self._select_choice(
+            "Select Distribution",
+            registry.get_supported_os_types(),
+            choices_provided=choices_provided,
+            choices_used=choices_used,
+            display_func=lambda os_t: os_t.value,
+            auto_select=False,
+        )
+        if not selected_os_type:
             return
 
         # 4. Select Version
         provider = registry.get_provider(selected_os_type)
         versions = provider.get_supported_versions()
-        print(f"\nSelect Version for {selected_os_type.value}:")
-        for i, v in enumerate(versions):
-            print(f"  {i + 1}. {v.display_name}")
-        try:
-            choice = get_input(f"Select Version [1-{len(versions)}]: ")
-            idx = int(choice) - 1
-            if 0 <= idx < len(versions):
-                selected_version = versions[idx]
-            else:
-                print("Invalid selection.")
-                return
-        except ValueError:
-            print("Invalid input.")
+        selected_version = self._select_choice(
+            f"Select Version for {selected_os_type.value}",
+            versions,
+            choices_provided=choices_provided,
+            choices_used=choices_used,
+            display_func=lambda v: v.display_name,
+            auto_select=False,
+        )
+        if not selected_version:
             return
 
         # 5. Select ISO
         print(f"\nFetching available ISOs for {selected_version.display_name}...")
         iso_list = provider.get_iso_list(selected_version.display_name)
-        iso_url = ""
-        if iso_list:
-            print("\nSelect ISO Image:")
-            for i, iso in enumerate(iso_list):
-                name = iso.get('name', iso.get('url'))
-                date = iso.get('date', '')
-                size = iso.get('size', 'Unknown')
-                label = f"{name}"
-                if date:
-                    label += f" ({date})"
-                print(f"  {i + 1}. {label} [Size: {size}]")
-            print(f"  {len(iso_list) + 1}. Custom URL/Path")
-            try:
-                choice = get_input(f"Select ISO [1-{len(iso_list)+1}]: ")
-                idx = int(choice) - 1
-                if 0 <= idx < len(iso_list):
-                    iso_url = iso_list[idx]["url"]
-                elif idx == len(iso_list):
-                    iso_url = get_input("Enter custom ISO URL or absolute path: ")
-                else:
-                    print("Invalid selection.")
-                    return
-            except ValueError:
-                print("Invalid input.")
-                return
+        iso_options = iso_list + ["Custom URL/Path"]
+
+        def iso_display(iso):
+            if isinstance(iso, str):
+                return iso
+            name = iso.get("name", iso.get("url"))
+            date = iso.get("date", "")
+            size = iso.get("size", "Unknown")
+            label = f"{name}"
+            if date:
+                label += f" ({date})"
+            return f"{label} [Size: {size}]"
+
+        selected_iso_obj = self._select_choice(
+            "Select ISO Image",
+            iso_options,
+            choices_provided=choices_provided,
+            choices_used=choices_used,
+            display_func=iso_display,
+            auto_select=False,
+        )
+
+        if not selected_iso_obj:
+            return
+
+        if selected_iso_obj == "Custom URL/Path":
+            iso_url = self._get_input(
+                "Enter custom ISO URL or absolute path: ", choices_provided, choices_used
+            )
+        elif isinstance(selected_iso_obj, dict):
+            iso_url = selected_iso_obj["url"]
         else:
-            iso_url = get_input("No ISOs found. Enter custom ISO URL or absolute path: ")
+            iso_url = selected_iso_obj
 
         if not iso_url:
             print("Valid ISO URL or path is required.")
             return
 
         # 6. Select Network
-        print("\nSelect Network:")
-        try:
-            networks = list_networks(conn)
-            active_networks = [n for n in networks if n["active"]]
-            if not active_networks:
-                print("No active networks found. Defaulting to 'default'.")
-                selected_network = "default"
-            else:
-                for i, net in enumerate(active_networks):
-                    print(f"  {i + 1}. {net['name']} (Mode: {net['mode']})")
-                
-                choice = get_input(f"Select Network [1-{len(active_networks)}] (default: 1): ")
-                if not choice:
-                    selected_network = active_networks[0]["name"]
-                else:
-                    idx = int(choice) - 1
-                    if 0 <= idx < len(active_networks):
-                        selected_network = active_networks[idx]["name"]
-                    else:
-                        print("Invalid selection. Defaulting to 'default'.")
-                        selected_network = "default"
-        except Exception as e:
-            print(f"Error fetching networks: {e}. Defaulting to 'default'.")
+        active_networks = [n for n in list_networks(conn) if n["active"]]
+        if not active_networks:
+            print("No active networks found. Defaulting to 'default'.")
+            selected_network = "default"
+            choices_used.append("default")
+        else:
+            selected_network = self._select_choice(
+                "Select Network",
+                active_networks,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda n: f"{n['name']} (Mode: {n['mode']})",
+                value_func=lambda n: n["name"],
+                auto_select=True,
+            )
+
+        if not selected_network:
             selected_network = "default"
 
         # 7. Select Storage Pool
-        print("\nSelect Storage Pool:")
-        try:
-            pools_info = list_storage_pools(conn)
-            if not pools_info:
-                print("No active storage pools found.")
-                return
-            for i, pool in enumerate(pools_info):
-                capacity = pool['capacity']
-                allocation = pool['allocation']
-                usage_pct = (allocation / capacity * 100) if capacity > 0 else 0
-                print(f"  {i + 1}. {pool['name']} (Capacity: {capacity // (1024**3)} GiB, Used: {usage_pct:.1f}%)")
-            
-            choice = get_input(f"Select Pool [1-{len(pools_info)}] (default: 1): ")
-            if not choice:
-                selected_pool = pools_info[0]["name"]
-            else:
-                idx = int(choice) - 1
-                if 0 <= idx < len(pools_info):
-                    selected_pool = pools_info[idx]["name"]
-                else:
-                    print("Invalid selection.")
-                    return
-        except Exception as e:
-            print(f"Error fetching storage pools: {e}")
+        pools_info = list_storage_pools(conn)
+        if not pools_info:
+            print("No active storage pools found.")
+            return
+
+        selected_pool = self._select_choice(
+            "Select Storage Pool",
+            pools_info,
+            choices_provided=choices_provided,
+            choices_used=choices_used,
+            display_func=lambda p: f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation']/p['capacity']*100) if p['capacity']>0 else 0:.1f}%)",
+            value_func=lambda p: p["name"],
+            auto_select=True,
+        )
+        if not selected_pool:
             return
 
         # 7. Automated Installation
@@ -3536,11 +3623,23 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             all_templates = template_mgr.get_all_templates()
             os_lower = selected_os_type.value.lower()
             if "ubuntu" in os_lower:
-                templates = [t for t in all_templates if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()]
+                templates = [
+                    t
+                    for t in all_templates
+                    if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()
+                ]
             elif "suse" in os_lower or "sles" in os_lower:
-                templates = [t for t in all_templates if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()]
+                templates = [
+                    t
+                    for t in all_templates
+                    if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()
+                ]
             elif "fedora" in os_lower:
-                templates = [t for t in all_templates if "kickstart" in t["filename"].lower() or "ks" in t["filename"].lower()]
+                templates = [
+                    t
+                    for t in all_templates
+                    if "kickstart" in t["filename"].lower() or "ks" in t["filename"].lower()
+                ]
             elif "arch" in os_lower:
                 templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
             elif "alpine" in os_lower:
@@ -3549,48 +3648,58 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print(f"Warning: Could not fetch templates: {e}")
 
         if templates:
-            use_auto = get_input("\nDo you want to use automated installation? (yes/no) [no]: ").lower()
-            if use_auto in ["y", "yes"]:
-                print("\nSelect Template:")
-                for i, t in enumerate(templates):
-                    print(f"  {i + 1}. {t['display_name']} - {t['description']}")
-                try:
-                    choice = get_input(f"Select Template [1-{len(templates)}]: ")
-                    idx = int(choice) - 1
-                    if 0 <= idx < len(templates):
-                        selected_template = templates[idx]["filename"]
-                        
-                        prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
-                        scc_config = self.config.get("SUSE_SCC", {})
-                        
-                        if not prefill.get("root_password") or not prefill.get("user_password"):
-                            print("\033[1;33mWarning: Automated installation passwords are not set in configuration!\033[0m")
-                            print("Using empty passwords. Please update AUTO_INSTALL_PRE_FILL in your config file.")
-                        else:
-                            print("\nUsing Automated Installation Credentials from configuration.")
+            use_auto = self._select_choice(
+                "Do you want to use automated installation?",
+                ["no", "yes"],
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                auto_select=False,
+            )
 
-                        auto_config = {
-                            "template_name": selected_template,
-                            "root_password": prefill.get("root_password", ""),
-                            "hostname": prefill.get("hostname", vm_name),
-                            "username": prefill.get("username", "admin"),
-                            "user_password": prefill.get("user_password", ""),
-                            "keyboard": prefill.get("keyboard", "us"),
-                            "language": prefill.get("language", "English (US)"),
-                            "scc_email": scc_config.get("scc_email", ""),
-                            "scc_reg_code": scc_config.get("scc_reg_code", ""),
-                            "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
-                            "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
-                            "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
-                            "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
-                            "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
-                            "scc_product_arch": scc_config.get("scc_product_arch", ""),
-                        }
+            if use_auto == "yes":
+                selected_template_obj = self._select_choice(
+                    "Select Template",
+                    templates,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=lambda t: f"{t['display_name']} - {t['description']}",
+                    auto_select=False,
+                )
+
+                if selected_template_obj:
+                    selected_template = selected_template_obj["filename"]
+
+                    prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
+                    scc_config = self.config.get("SUSE_SCC", {})
+
+                    if not prefill.get("root_password") or not prefill.get("user_password"):
+                        print(
+                            "\033[1;33mWarning: Automated installation passwords are not set in configuration!\033[0m"
+                        )
+                        print(
+                            "Using empty passwords. Please update AUTO_INSTALL_PRE_FILL in your config file."
+                        )
                     else:
-                        print("Invalid selection.")
-                        return
-                except ValueError:
-                    print("Invalid input.")
+                        print("\nUsing Automated Installation Credentials from configuration.")
+
+                    auto_config = {
+                        "template_name": selected_template,
+                        "root_password": prefill.get("root_password", ""),
+                        "hostname": prefill.get("hostname", vm_name),
+                        "username": prefill.get("username", "admin"),
+                        "user_password": prefill.get("user_password", ""),
+                        "keyboard": prefill.get("keyboard", "us"),
+                        "language": prefill.get("language", "English (US)"),
+                        "scc_email": scc_config.get("scc_email", ""),
+                        "scc_reg_code": scc_config.get("scc_reg_code", ""),
+                        "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
+                        "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
+                        "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
+                        "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
+                        "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
+                        "scc_product_arch": scc_config.get("scc_product_arch", ""),
+                    }
+                else:
                     return
 
         if is_dryrun:
@@ -3634,7 +3743,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 configure_before_install=False,
                 automation_config=auto_config,
                 progress_callback=cli_progress_callback,
-                network_name=selected_network
+                network_name=selected_network,
             )
             if domain:
                 print(f"\nSuccessfully provisioned VM '{vm_name}'.")
@@ -3642,6 +3751,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"VM '{vm_name}' started.")
         except Exception as e:
             print(f"\nFailed to provision VM: {e}")
+
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
