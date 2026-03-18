@@ -1073,7 +1073,7 @@ class VMProvisioner:
                     "mem_backing": "memfd",  # memfd/shared
                     "watchdog": True,
                     "on_poweroff": "restart",
-                    "on_reboot": "destroy",
+                    "on_reboot": "restart",
                     "on_crash": "restart",
                 }
             )
@@ -1270,13 +1270,33 @@ class VMProvisioner:
                     # OpenSUSE AutoYaST automation (XML format)
                     # Add netsetup=dhcp to ensure network is configured
                     cmdline = f"autoyast={auto_url} netsetup=dhcp"
-            elif os_type == OSType.ARCHLINUX:
-                # Manual Arch Linux UEFI boot needs these parameters even without automation
-                cmdline = "archisobasedir=arch archisodevice=/dev/sr0"
+            else:
+                # Default cmdline for direct kernel boot without automation
+                if os_type == OSType.UBUNTU:
+                    cmdline = "boot=casper"
+                elif os_type == OSType.DEBIAN:
+                    cmdline = "boot=live"
+                elif os_type == OSType.FEDORA:
+                    cmdline = "inst.stage2"
+                elif os_type == OSType.OPENSUSE:
+                    cmdline = "install=cd:/"
+                elif os_type == OSType.ARCHLINUX:
+                    cmdline = "archisobasedir=arch archisodevice=/dev/sr0"
+                elif os_type == OSType.ALPINE:
+                    ver = os_version if os_version else "v3.23"
+                    if not ver.startswith("v"):
+                        ver = f"v{ver}"
+                    cmdline = f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main ip=dhcp"
+                else:
+                    # Fallback for other Linux distros
+                    cmdline = "quiet"
+
+            if serial_console:
+                if cmdline:
+                    cmdline += " "
+                cmdline += "console=tty0 console=ttyS0,115200"
 
             if cmdline:
-                if serial_console:
-                    cmdline += " console=tty0 console=ttyS0,115200"
                 xml += f"    <cmdline>{cmdline}</cmdline>\n"
             xml += "  </os>"
         # Standard UEFI/BIOS boot
