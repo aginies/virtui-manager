@@ -845,9 +845,6 @@ def get_latest_machine_types(conn: libvirt.virConnect, arch: str = "x86_64") -> 
 
         return defaults
 
-    except ET.ParseError as e:
-        logging.error(f"Error parsing capabilities XML for machine types: {e}")
-        return defaults
-    except libvirt.libvirtError as e:
-        logging.error(f"Error getting machine types: {e}")
+    except Exception as e:
+        logging.error(f"Error detecting latest machine types: {e}")
         return defaults
