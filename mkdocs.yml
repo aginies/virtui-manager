@@ -54,6 +54,7 @@ markdown_extensions:
       permalink: true
 
 nav:
+  - Project Website: https://aginies.github.io/virtui-manager/
   - Home: index.md
   - Manual:
     - Introduction: introduction.md
