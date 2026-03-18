@@ -31,7 +31,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_tumbleweed_product_name(self):
         """Test that Tumbleweed version maps to 'Tumbleweed' product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="tumbleweed",
             display_name="openSUSE Tumbleweed",
             architecture="x86_64",
@@ -43,7 +43,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_slowroll_product_name(self):
         """Test that Slowroll version maps to 'Slowroll' product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="slowroll",
             display_name="openSUSE Slowroll",
             architecture="x86_64",
@@ -55,7 +55,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_leap_16_product_name(self):
         """Test that Leap 16.x version maps to 'Leap 16.0' product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="leap-16.0",
             display_name="openSUSE Leap 16.0",
             architecture="x86_64",
@@ -67,7 +67,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_microos_product_name(self):
         """Test that MicroOS version maps to 'openSUSE Micro OS' product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="microos",
             display_name="openSUSE MicroOS",
             architecture="x86_64",
@@ -79,7 +79,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_leap_15_fallback_to_tumbleweed(self):
         """Test that Leap 15.x maps to openSUSE_Leap"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="leap-15.6",
             display_name="openSUSE Leap 15.6",
             architecture="x86_64",
@@ -91,7 +91,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_unknown_version_fallback(self):
         """Test that unknown versions fall back to Tumbleweed with warning"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="unknown-distro",
             display_name="Unknown Distribution",
             architecture="x86_64",
@@ -110,7 +110,7 @@ class TestOpenSUSEAgamaProductMapping(unittest.TestCase):
     def test_case_insensitive_matching(self):
         """Test that version matching is case-insensitive"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="TUMBLEWEED",
             display_name="openSUSE Tumbleweed",
             architecture="x86_64",
@@ -138,7 +138,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_agama_basic_template_tumbleweed(self):
         """Test generating agama-basic.json with Tumbleweed product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="tumbleweed",
             display_name="openSUSE Tumbleweed",
             architecture="x86_64",
@@ -175,7 +175,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_agama_template_slowroll(self):
         """Test generating Agama template with Slowroll product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="slowroll",
             display_name="openSUSE Slowroll",
             architecture="x86_64",
@@ -200,7 +200,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_agama_template_leap_16(self):
         """Test generating Agama template with Leap 16.0 product"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="leap-16.0",
             display_name="openSUSE Leap 16.0",
             architecture="x86_64",
@@ -225,7 +225,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_all_agama_templates_have_product(self):
         """Test that all Agama templates get the product ID set"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="tumbleweed",
             display_name="openSUSE Tumbleweed",
             architecture="x86_64",
@@ -276,7 +276,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_agama_json_is_valid(self):
         """Test that generated Agama JSON is valid and parseable"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="tumbleweed",
             display_name="openSUSE Tumbleweed",
             architecture="x86_64",
@@ -308,7 +308,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_product_name_logging(self):
         """Test that product name setting is logged"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="slowroll",
             display_name="openSUSE Slowroll",
             architecture="x86_64",
@@ -334,7 +334,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_autoyast_template_unaffected(self):
         """Test that AutoYaST templates are not affected by product name logic"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="leap-15.6",
             display_name="openSUSE Leap 15.6",
             architecture="x86_64",
@@ -366,7 +366,7 @@ class TestOpenSUSEAgamaTemplateGeneration(unittest.TestCase):
     def test_manual_product_override(self):
         """Test that manually provided product name is not overridden"""
         version = OSVersion(
-            os_type=OSType.LINUX,
+            os_type=OSType.OPENSUSE,
             version_id="tumbleweed",
             display_name="openSUSE Tumbleweed",
             architecture="x86_64",
