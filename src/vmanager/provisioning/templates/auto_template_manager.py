@@ -101,6 +101,9 @@ class AutoYaSTTemplateManager:
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
                         continue  # Skip skeleton template
 
+                    if template_file.name == "archinstall-user-credentials.json":
+                        continue  # Skip helper file for arch Linux credentials
+
                     template_name = template_file.stem
                     display_name, description = self._get_builtin_template_info(template_name)
 

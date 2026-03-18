@@ -279,6 +279,6 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Installation complete! Rebooting..."
-#reboot
+reboot
 """
         return setup_script_content
