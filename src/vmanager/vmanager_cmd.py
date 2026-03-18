@@ -1156,7 +1156,6 @@ class VManagerCMD(cmd.Cmd):
         vms_to_select_names = set()
         invalid_inputs = []
 
-        # Reset selection
         self.selected_vms = {}
 
         for arg in arg_list:
@@ -1759,7 +1758,9 @@ class VManagerCMD(cmd.Cmd):
         clone_storage = clone_storage_input != "no"
 
         def log_to_console(message):
-            print(f"  -> {message.strip()}")
+            columns, _ = shutil.get_terminal_size()
+            sys.stdout.write(f"\r  -> {message.strip()}".ljust(columns - 1))
+            sys.stdout.flush()
 
         for i in range(1, num_clones + 1):
             if num_clones > 1:
@@ -1771,13 +1772,13 @@ class VManagerCMD(cmd.Cmd):
             try:
                 conn.lookupByName(current_new_name)
                 print(
-                    f"Error: A VM with the name '{current_new_name}' already exists on server '{original_vm_server_name}'. Skipping."
+                    f"\nError: A VM with the name '{current_new_name}' already exists on server '{original_vm_server_name}'. Skipping."
                 )
                 continue
             except libvirt.libvirtError as e:
                 if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
                     print(
-                        f"An error occurred while checking for existing VM '{current_new_name}': {e}"
+                        f"\nAn error occurred while checking for existing VM '{current_new_name}': {e}"
                     )
                     continue
 
@@ -1791,13 +1792,13 @@ class VManagerCMD(cmd.Cmd):
                     clone_storage=clone_storage,
                     log_callback=log_to_console,
                 )
-                print(f"Successfully cloned '{original_vm_name}' to '{current_new_name}'.")
+                print(f"\nSuccessfully cloned '{original_vm_name}' to '{current_new_name}'.")
 
             except libvirt.libvirtError as e:
-                self._safe_print(f"Error cloning VM '{current_new_name}': {e}")
+                self._safe_print(f"\nError cloning VM '{current_new_name}': {e}")
             except Exception as e:
                 self._safe_print(
-                    f"An unexpected error occurred during cloning '{current_new_name}': {e}"
+                    f"\nAn unexpected error occurred during cloning '{current_new_name}': {e}"
                 )
 
     def complete_clone_vm(self, text, line, begidx, endidx):
@@ -3121,7 +3122,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print("Error: Invalid number. Usage is !NUMBER (e.g., !15)")
                 return
 
-            # Get the command from history
             try:
                 history_cmd = readline.get_history_item(history_number)
                 if not history_cmd:
@@ -3413,12 +3413,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         # 5. Select ISO
+        print(f"\nFetching available ISOs for {selected_version.display_name}...")
         iso_list = provider.get_iso_list(selected_version.display_name)
         iso_url = ""
         if iso_list:
             print("\nSelect ISO Image:")
             for i, iso in enumerate(iso_list):
-                print(f"  {i + 1}. {iso.get('name', iso.get('url'))} ({iso.get('size', 'Unknown')})")
+                name = iso.get('name', iso.get('url'))
+                date = iso.get('date', '')
+                size = iso.get('size', 'Unknown')
+                label = f"{name}"
+                if date:
+                    label += f" ({date})"
+                print(f"  {i + 1}. {label} [Size: {size}]")
             print(f"  {len(iso_list) + 1}. Custom URL/Path")
             try:
                 choice = input(f"Select ISO [1-{len(iso_list)+1}]: ")
@@ -3440,7 +3447,33 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print("Valid ISO URL or path is required.")
             return
 
-        # 6. Select Storage Pool
+        # 6. Select Network
+        print("\nSelect Network:")
+        try:
+            networks = list_networks(conn)
+            active_networks = [n for n in networks if n["active"]]
+            if not active_networks:
+                print("No active networks found. Defaulting to 'default'.")
+                selected_network = "default"
+            else:
+                for i, net in enumerate(active_networks):
+                    print(f"  {i + 1}. {net['name']} (Mode: {net['mode']})")
+                
+                choice = input(f"Select Network [1-{len(active_networks)}] (default: 1): ").strip()
+                if not choice:
+                    selected_network = active_networks[0]["name"]
+                else:
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(active_networks):
+                        selected_network = active_networks[idx]["name"]
+                    else:
+                        print("Invalid selection. Defaulting to 'default'.")
+                        selected_network = "default"
+        except Exception as e:
+            print(f"Error fetching networks: {e}. Defaulting to 'default'.")
+            selected_network = "default"
+
+        # 7. Select Storage Pool
         print("\nSelect Storage Pool:")
         try:
             pools_info = list_storage_pools(conn)
@@ -3561,7 +3594,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         # 8. Provisioning
         def cli_progress_callback(stage, percent):
-            print(f"[{percent}%] {stage}")
+            columns, _ = shutil.get_terminal_size()
+            # Use carriage return to overwrite the same line
+            sys.stdout.write(f"\r[{percent}%] {stage}".ljust(columns - 1))
+            sys.stdout.flush()
+            if percent >= 100:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
 
         print(f"\nProvisioning VM '{vm_name}' on server '{target_server}'...")
         try:
@@ -3573,14 +3612,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 use_virt_install=False,
                 configure_before_install=False,
                 automation_config=auto_config,
-                progress_callback=cli_progress_callback
+                progress_callback=cli_progress_callback,
+                network_name=selected_network
             )
             if domain:
-                print(f"Successfully provisioned VM '{vm_name}'.")
+                print(f"\nSuccessfully provisioned VM '{vm_name}'.")
                 start_vm(domain)
                 print(f"VM '{vm_name}' started.")
         except Exception as e:
-            print(f"Failed to provision VM: {e}")
+            print(f"\nFailed to provision VM: {e}")
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
