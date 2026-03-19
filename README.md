@@ -16,7 +16,7 @@ Managing virtual machines in a terminal environment has never been easier or mor
 - **GUI-based solutions** are heavy with X dependencies, making them unsuitable for headless servers or low-bandwidth connections
 - **Command-line tools** lack the intuitive interface needed for complex VM management tasks
 - **Cockpit Machine** is feature incomplete, and needs a lot of depencies. It is not multi hypervisor oriented
-- **Complex Deployment** as there is nothing to manage easily auto-installation of Virtual Machine with registration process and auto installation
+- **Complex Deployment** no tools to easily manage auto-installation of Virtual Machine with registration process
 
 ### Why VirtUI Manager is Different
 
@@ -30,8 +30,8 @@ VirtUI Manager solves these challenges with:
 - **Migration Support**: Live and offline VM migration capabilities and custom migration
 - **Bulk Operations**: Execute commands across multiple VMs at once (including configuration)
 - **Web Console Access**: Integrated VNC support with novnc over ssh tunnel for remote server
-- **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, etc...
-- **Auto Installation**: Support auto installation for Debian, Ubuntu, Fedora, Archlinux (WIP), Alpine, OpenSUSE and SLES (with SCC registration)
+- **CMD line interface**: improved command line to manage VMs: multi hypervisors, VMs selection, clone operation, bulk command, install VM, etc...
+- **Auto Installation**: Support auto installation for Debian, Ubuntu, Fedora, Archlinux, Alpine, OpenSUSE and SLES (with SCC registration)
 
 ## Documentation
 
@@ -75,7 +75,7 @@ Possible User config parameters:
 
 ## AI Assist
 
-AI assistance is used to improve coding efficiency by automating boilerplate, suggesting relevant code completions, and quickly detecting bugs.
+AI assistance is used to improve coding efficiency by automating boilerplate, suggesting relevant code completions, quickly detecting bugs, update the documentation, write test cases.
 
 ## License
 
