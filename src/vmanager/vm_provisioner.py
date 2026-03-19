@@ -1205,7 +1205,7 @@ class VMProvisioner:
         # --- XML Construction ---
         # UUID generation handled by libvirt if omitted
         xml = f"""
-<domain type='kvm'>
+<domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
   <name>{vm_name}</name>
   <memory unit='KiB'>{memory_mb * 1024}</memory>
   <currentMemory unit='KiB'>{memory_mb * 1024}</currentMemory>
@@ -1217,7 +1217,15 @@ class VMProvisioner:
             xml += f"""
   <os{os_firmware}>
     <type arch='x86_64' machine='{settings["machine"]}' >hvm</type>
-    <kernel>{kernel_path}</kernel>
+"""
+            # Explicitly disable secure boot if UEFI is used but secure_boot is False
+            # Only for specific distros that have issues with it (Arch, Debian, Alpine)
+            if settings["boot_uefi"] and not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                xml += """    <firmware>
+      <feature enabled='no' name='secure-boot'/>
+    </firmware>
+"""
+            xml += f"""    <kernel>{kernel_path}</kernel>
     <initrd>{initrd_path}</initrd>
 """
             cmdline = ""
@@ -1320,7 +1328,14 @@ class VMProvisioner:
                 xml += f"""
   <os firmware='efi'>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
-    <loader readonly='yes' secure='{secure_attr}' type='pflash'/>
+"""
+                # Explicitly disable secure boot if requested OS has issues with it
+                if not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                    xml += """    <firmware>
+      <feature enabled='no' name='secure-boot'/>
+    </firmware>
+"""
+                xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'/>
 """
                 if nvram_path:
                     xml += f"    <nvram format='qcow2'>{nvram_path}</nvram>\n"
@@ -1472,6 +1487,16 @@ class VMProvisioner:
             if settings.get("sev"):
                 xml += "    <locked/>\n"  # Often needed for SEV
             xml += "  </memoryBacking>\n"
+
+# DEBUG OVMF issue
+#        xml += """
+#  <qemu:commandline>
+#    <qemu:arg value='-global'/>
+#    <qemu:arg value='isa-debugcon.iobase=0x402'/>
+#    <qemu:arg value='-debugcon'/>
+#    <qemu:arg value='file:/tmp/debug.log'/>
+#  </qemu:commandline>
+#"""
         xml += "</domain>"
         return xml
 
