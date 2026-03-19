@@ -3232,14 +3232,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     print(f"\n--- Host Info: {server_name} ---")
                     print(f"CPU Model: {info.get('model')}")
                     print(
-                        f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes,"
-                        "{info.get('sockets')} sockets, {info.get('cores')} cores,"
-                        "{info.get('threads')} threads)"
+                        f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes, "
+                        f"{info.get('sockets')} sockets, {info.get('cores')} cores, "
+                        f"{info.get('threads')} threads)"
                     )
                     print(f"CPU Speed: {info.get('mhz')} MHz")
                     print(
-                        f"Memory: {info.get('total_memory')} GiB total,"
-                        "{info.get('free_memory')} MiB free"
+                        f"Memory: {info.get('total_memory')} GiB total, "
+                        f"{info.get('free_memory')} MiB free"
                     )
             except Exception as e:
                 print(f"Error retrieving host info for {server_name}: {e}")
