@@ -22,7 +22,7 @@ import sys
 
 import libvirt
 
-from .config import get_log_path, load_config
+from .config import get_log_path, load_config, save_config
 from .constants import AppInfo, ServerPallette
 from .libvirt_utils import get_host_resources, get_network_info
 from .network_manager import (
@@ -54,6 +54,16 @@ from .vm_queries import get_vm_snapshots, get_domain_info_dict
 from .vm_service import VMService
 from .pipeline import PipelineExecutor, PipelineMode
 from .backup_manager import BackupManager, BackupType, BackupOptions, RetentionPolicy
+from .provisioning.provider_registry import get_registry
+from .provisioning.os_provider import OSType
+from .vm_provisioner import VMProvisioner, VMType
+from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
+
+
+class InterruptionRequested(Exception):
+    """Exception raised when a user wants to cancel an interactive process."""
+
+    pass
 
 
 class CLILogger:
@@ -179,6 +189,7 @@ class VManagerCMD(cmd.Cmd):
                 "hibernate",
                 "delete",
                 "clone_vm",
+                "installvm",
                 "view",
             ],
             "Snapshots": ["snapshot_list", "snapshot_create", "snapshot_delete", "snapshot_revert"],
@@ -456,6 +467,145 @@ class VManagerCMD(cmd.Cmd):
         clean_text = strip_ansi_codes(text)
         return len(clean_text)
 
+    def _select_choice(
+        self,
+        prompt,
+        options,
+        choices_provided=None,
+        choices_used=None,
+        display_func=None,
+        value_func=None,
+        auto_select=True,
+    ):
+        """Generic choice selector with numerical and string matching support.
+
+        Args:
+            prompt: Prompt string to display (e.g. "Select VM Type")
+            options: List of objects to choose from
+            choices_provided: List of pre-filled choices (unattended mode)
+            choices_used: List to record final choices (for command generation)
+            display_func: Optional lambda to extract display string from option
+            value_func: Optional lambda to extract return value from option
+            auto_select: If True and only one option exists, select it automatically
+
+        Returns:
+            The selected option (or result of value_func)
+        """
+        if not options:
+            return None
+
+        # Helper to get display/value
+        get_display = display_func if display_func else lambda x: str(x)
+        get_value = value_func if value_func else lambda x: x
+
+        # 1. Check for auto-selection
+        if auto_select and len(options) == 1 and not choices_provided:
+            selected = options[0]
+            print(f"{prompt}: {get_display(selected)} (automatically selected)")
+            if choices_used is not None:
+                # Record as index '1' for consistency in generated command
+                choices_used.append("1")
+            return get_value(selected)
+
+        # 2. Check for unattended choice
+        if choices_provided:
+            val = choices_provided.pop(0)
+            print(f"{prompt} [1-{len(options)}]: {val}")
+
+            # Try numerical matching first
+            try:
+                idx = int(val) - 1
+                if 0 <= idx < len(options):
+                    if choices_used is not None:
+                        choices_used.append(shlex.quote(val))
+                    return get_value(options[idx])
+            except ValueError:
+                pass
+
+            # Try string matching (exact or prefix)
+            val_lower = val.lower()
+            for i, opt in enumerate(options):
+                opt_display = get_display(opt).lower()
+                if val_lower == opt_display or opt_display.startswith(val_lower):
+                    if choices_used is not None:
+                        # Record the index for the generated command
+                        choices_used.append(str(i + 1))
+                    return get_value(opt)
+
+            # If no match found in unattended mode, we might need to fallback or error
+            # For now, record the raw value and try to return it if nothing else matched
+            if choices_used is not None:
+                choices_used.append(shlex.quote(val))
+            return val
+
+        # 3. Interactive selection
+        print(f"\n{prompt}:")
+        for i, opt in enumerate(options):
+            print(f"  {i + 1}. {get_display(opt)}")
+
+        while True:
+            try:
+                choice = input(f"{prompt} [1-{len(options)}]: ").strip()
+            except EOFError:
+                return None
+
+            if choice.lower() in ["exit", "quit"]:
+                raise InterruptionRequested()
+
+            if not choice:
+                # Default to 1 if enter is pressed
+                choice = "1"
+
+            # Try numerical matching
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(options):
+                    if choices_used is not None:
+                        choices_used.append(str(idx + 1))
+                    return get_value(options[idx])
+            except ValueError:
+                pass
+
+            # Try string matching
+            choice_lower = choice.lower()
+            matches = []
+            for i, opt in enumerate(options):
+                opt_display = get_display(opt).lower()
+                if choice_lower == opt_display:  # Exact match
+                    matches = [(i, opt)]
+                    break
+                if opt_display.startswith(choice_lower):  # Prefix match
+                    matches.append((i, opt))
+
+            if len(matches) == 1:
+                idx, selected = matches[0]
+                if choices_used is not None:
+                    choices_used.append(str(idx + 1))
+                return get_value(selected)
+            elif len(matches) > 1:
+                print(
+                    f"Ambiguous input '{choice}'. Multiple matches: "
+                    + ", ".join([get_display(m[1]) for m in matches])
+                )
+            else:
+                print(f"Invalid selection: '{choice}'")
+
+    def _get_input(self, prompt, choices_provided=None, choices_used=None):
+        """Helper to get input from unattended choices or interactive prompt."""
+        if choices_provided:
+            val = choices_provided.pop(0)
+            print(f"{prompt}{val}")
+        else:
+            try:
+                val = input(prompt).strip()
+                if val.lower() in ["exit", "quit"]:
+                    raise InterruptionRequested()
+            except EOFError:
+                val = ""
+        if choices_used is not None:
+            choices_used.append(shlex.quote(val) if val else '""')
+        return val
+
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
         Usage: virsh [server_name]"""
@@ -486,7 +636,7 @@ class VManagerCMD(cmd.Cmd):
                 print(f"  {i + 1}. {name}")
 
             try:
-                choice = input("Select server (number): ")
+                choice = self._get_input("Select server (number): ")
                 idx = int(choice) - 1
                 if 0 <= idx < len(servers):
                     target_server = servers[idx]
@@ -495,6 +645,8 @@ class VManagerCMD(cmd.Cmd):
                     return
             except ValueError:
                 print("Invalid input.")
+                return
+            except InterruptionRequested:
                 return
 
         if target_server:
@@ -738,7 +890,7 @@ class VManagerCMD(cmd.Cmd):
             return text
 
         # For colored text, we need to be more careful about truncation
-        if "\033" in text or "\x1B" in text:
+        if "\033" in text or "\x1b" in text:
             # Simple approach: remove ANSI codes, truncate, then we'll lose colors
             # A more sophisticated approach would preserve color codes
             clean_text = strip_ansi_codes(text)
@@ -897,7 +1049,7 @@ class VManagerCMD(cmd.Cmd):
             print(f"  {i + 1}. {server_name}")
 
         try:
-            choice = input("Select server (number): ")
+            choice = self._get_input("Select server (number): ")
             idx = int(choice) - 1
             if 0 <= idx < len(found_vms):
                 return found_vms[idx]
@@ -906,6 +1058,8 @@ class VManagerCMD(cmd.Cmd):
                 return None, None
         except (ValueError, IndexError):
             print("Invalid input.")
+            return None, None
+        except InterruptionRequested:
             return None, None
 
     def _get_vms_to_operate(self, args):
@@ -964,7 +1118,7 @@ class VManagerCMD(cmd.Cmd):
     def do_connect(self, args):
         """Connect to one or more servers or URIs.
         Usage: connect <server_name_or_uri_1> [<server_name_or_uri_2> ...] | all
-        
+
         Example:
           connect local
           connect qemu:///system
@@ -980,7 +1134,6 @@ class VManagerCMD(cmd.Cmd):
 
         if "all" in targets_to_connect:
             targets_to_connect = self.server_names
-
 
         for target in targets_to_connect:
             # Check if it's already connected
@@ -1005,7 +1158,9 @@ class VManagerCMD(cmd.Cmd):
                     server_name = target
                     uri = server_info["uri"]
                 else:
-                    print(f"Error: '{target}' is not a configured server name and does not look like a URI.")
+                    print(
+                        f"Error: '{target}' is not a configured server name and does not look like a URI."
+                    )
                     continue
 
             # Ensure we have a color for this server
@@ -1015,9 +1170,7 @@ class VManagerCMD(cmd.Cmd):
                 ]
 
             try:
-                self._safe_print(
-                    f"Connecting to {server_name} at {self._sanitize_message(uri)}..."
-                )
+                self._safe_print(f"Connecting to {server_name} at {self._sanitize_message(uri)}...")
                 conn = self.vm_service.connect(uri)
                 if conn:
                     self.active_connections[server_name] = conn
@@ -1036,7 +1189,7 @@ class VManagerCMD(cmd.Cmd):
         # Include both configured server names and active connection names
         all_possible = set(self.server_names) | set(self.active_connections.keys())
         all_possible.add("all")
-        
+
         if not text:
             completions = sorted(list(all_possible))
         else:
@@ -1151,7 +1304,6 @@ class VManagerCMD(cmd.Cmd):
         vms_to_select_names = set()
         invalid_inputs = []
 
-        # Reset selection
         self.selected_vms = {}
 
         for arg in arg_list:
@@ -1660,23 +1812,27 @@ class VManagerCMD(cmd.Cmd):
             return
 
         vm_list_str = ", ".join(all_vm_names)
-        confirm_vm_delete = input(
-            f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): "
-        ).lower()
-
-        if confirm_vm_delete != "yes":
-            print("VM deletion cancelled.")
-            return
-
-        delete_storage_confirmed = False
-        if force_storage_delete:
-            delete_storage_confirmed = True
-        else:
-            confirm_storage = input(
-                "Do you want to delete associated storage for all selected VMs? (yes/no): "
+        try:
+            confirm_vm_delete = self._get_input(
+                f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): "
             ).lower()
-            if confirm_storage == "yes":
+
+            if confirm_vm_delete != "yes":
+                print("VM deletion cancelled.")
+                return
+
+            delete_storage_confirmed = False
+            if force_storage_delete:
                 delete_storage_confirmed = True
+            else:
+                confirm_storage = self._get_input(
+                    "Do you want to delete associated storage for all selected VMs? (yes/no): "
+                ).lower()
+                if confirm_storage == "yes":
+                    delete_storage_confirmed = True
+        except InterruptionRequested:
+            print("\nDeletion cancelled.")
+            return
 
         for server_name, vm_list in vms_to_delete.items():
             print(f"\n--- Deleting VMs on {server_name} ---")
@@ -1729,32 +1885,42 @@ class VManagerCMD(cmd.Cmd):
 
         print(f"Found VM '{original_vm_name}' on server '{original_vm_server_name}'.")
 
-        # Start asking questions
-        new_vm_base_name = input(f"Enter the new VM name [clone_of_{original_vm_name}]: ").strip()
-        if not new_vm_base_name:
-            new_vm_base_name = f"clone_of_{original_vm_name}"
-
         try:
-            num_clones_str = input("How many VM to create? [1]: ").strip()
-            num_clones = int(num_clones_str) if num_clones_str else 1
-            if num_clones < 1:
-                print("Error: Number of VMs must be at least 1.")
+            # Start asking questions
+            new_vm_base_name = self._get_input(
+                f"Enter the new VM name [clone_of_{original_vm_name}]: "
+            )
+            if not new_vm_base_name:
+                new_vm_base_name = f"clone_of_{original_vm_name}"
+
+            try:
+                num_clones_str = self._get_input("How many VM to create? [1]: ")
+                num_clones = int(num_clones_str) if num_clones_str else 1
+                if num_clones < 1:
+                    print("Error: Number of VMs must be at least 1.")
+                    return
+            except ValueError:
+                print("Error: Invalid number.")
                 return
-        except ValueError:
-            print("Error: Invalid number.")
+
+            postfix = ""
+            if num_clones > 1:
+                postfix = self._get_input("Enter postfix name (e.g. '-') [-]: ")
+                if not postfix:
+                    postfix = "-"
+
+            clone_storage_input = (
+                self._get_input("Clone also the storage? (yes/no) [yes]: ").strip().lower()
+            )
+            clone_storage = clone_storage_input != "no"
+        except InterruptionRequested:
+            print("\nCloning cancelled.")
             return
 
-        postfix = ""
-        if num_clones > 1:
-            postfix = input("Enter postfix name (e.g. '-') [-]: ").strip()
-            if not postfix:
-                postfix = "-"
-
-        clone_storage_input = input("Clone also the storage? (yes/no) [yes]: ").strip().lower()
-        clone_storage = clone_storage_input != "no"
-
         def log_to_console(message):
-            print(f"  -> {message.strip()}")
+            columns, _ = shutil.get_terminal_size()
+            sys.stdout.write(f"\r  -> {message.strip()}".ljust(columns - 1))
+            sys.stdout.flush()
 
         for i in range(1, num_clones + 1):
             if num_clones > 1:
@@ -1766,13 +1932,13 @@ class VManagerCMD(cmd.Cmd):
             try:
                 conn.lookupByName(current_new_name)
                 print(
-                    f"Error: A VM with the name '{current_new_name}' already exists on server '{original_vm_server_name}'. Skipping."
+                    f"\nError: A VM with the name '{current_new_name}' already exists on server '{original_vm_server_name}'. Skipping."
                 )
                 continue
             except libvirt.libvirtError as e:
                 if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
                     print(
-                        f"An error occurred while checking for existing VM '{current_new_name}': {e}"
+                        f"\nAn error occurred while checking for existing VM '{current_new_name}': {e}"
                     )
                     continue
 
@@ -1786,13 +1952,13 @@ class VManagerCMD(cmd.Cmd):
                     clone_storage=clone_storage,
                     log_callback=log_to_console,
                 )
-                print(f"Successfully cloned '{original_vm_name}' to '{current_new_name}'.")
+                print(f"\nSuccessfully cloned '{original_vm_name}' to '{current_new_name}'.")
 
             except libvirt.libvirtError as e:
-                self._safe_print(f"Error cloning VM '{current_new_name}': {e}")
+                self._safe_print(f"\nError cloning VM '{current_new_name}': {e}")
             except Exception as e:
                 self._safe_print(
-                    f"An unexpected error occurred during cloning '{current_new_name}': {e}"
+                    f"\nAn unexpected error occurred during cloning '{current_new_name}': {e}"
                 )
 
     def complete_clone_vm(self, text, line, begidx, endidx):
@@ -2440,10 +2606,13 @@ class VManagerCMD(cmd.Cmd):
                 print("   Current VM state will be lost!")
 
                 try:
-                    response = input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    response = self._get_input("\nDo you want to continue? (yes/no): ").lower().strip()
                     if response not in ["yes", "y"]:
                         print("Restore cancelled.")
                         return
+                except InterruptionRequested:
+                    print("\nRestore cancelled.")
+                    return
                 except KeyboardInterrupt:
                     print("\nRestore cancelled.")
                     return
@@ -2699,9 +2868,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         vm_display_name = domain.name()
-        confirm = input(
-            f"Are you sure you want to delete snapshot '{snapshot_name}' for VM '{vm_display_name}'? (yes/no): "
-        ).lower()
+        try:
+            confirm = self._get_input(
+                f"Are you sure you want to delete snapshot '{snapshot_name}' for VM '{vm_display_name}'? (yes/no): "
+            ).lower()
+        except InterruptionRequested:
+            print("\nDeletion cancelled.")
+            return
+
         if confirm != "yes":
             print("Deletion cancelled.")
             return
@@ -2729,9 +2903,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         vm_display_name = domain.name()
-        confirm = input(
-            f"Are you sure you want to revert VM '{vm_display_name}' to snapshot '{snapshot_name}'? (yes/no): "
-        ).lower()
+        try:
+            confirm = self._get_input(
+                f"Are you sure you want to revert VM '{vm_display_name}' to snapshot '{snapshot_name}'? (yes/no): "
+            ).lower()
+        except InterruptionRequested:
+            print("\nRevert cancelled.")
+            return
+
         if confirm != "yes":
             print("Revert cancelled.")
             return
@@ -2834,7 +3013,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"  {i + 1}. {name}")
 
             try:
-                choice_str = input(
+                choice_str = self._get_input(
                     f"Select server to {operation_verb} network '{net_name}' on (number): "
                 )
                 idx = int(choice_str) - 1
@@ -2845,6 +3024,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     return None, None
             except (ValueError, IndexError):
                 print("Invalid input.")
+                return None, None
+            except InterruptionRequested:
                 return None, None
 
         if target_server_name:
@@ -2931,9 +3112,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if not conn:
             return
 
-        confirm = input(
-            f"Are you sure you want to delete network '{net_name}' from server '{target_server_name}'? This cannot be undone. (yes/no): "
-        ).lower()
+        try:
+            confirm = self._get_input(
+                f"Are you sure you want to delete network '{net_name}' from server '{target_server_name}'? This cannot be undone. (yes/no): "
+            ).lower()
+        except InterruptionRequested:
+            print("\nOperation cancelled.")
+            return
+
         if confirm != "yes":
             print("Operation cancelled.")
             return
@@ -3046,14 +3232,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     print(f"\n--- Host Info: {server_name} ---")
                     print(f"CPU Model: {info.get('model')}")
                     print(
-                        f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes,"
-                        "{info.get('sockets')} sockets, {info.get('cores')} cores,"
-                        "{info.get('threads')} threads)"
+                        f"CPUs: {info.get('total_cpus')} ({info.get('nodes')} nodes, "
+                        f"{info.get('sockets')} sockets, {info.get('cores')} cores, "
+                        f"{info.get('threads')} threads)"
                     )
                     print(f"CPU Speed: {info.get('mhz')} MHz")
                     print(
-                        f"Memory: {info.get('total_memory')} GiB total,"
-                        "{info.get('free_memory')} MiB free"
+                        f"Memory: {info.get('total_memory')} GiB total, "
+                        f"{info.get('free_memory')} MiB free"
                     )
             except Exception as e:
                 print(f"Error retrieving host info for {server_name}: {e}")
@@ -3116,7 +3302,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print("Error: Invalid number. Usage is !NUMBER (e.g., !15)")
                 return
 
-            # Get the command from history
             try:
                 history_cmd = readline.get_history_item(history_number)
                 if not history_cmd:
@@ -3167,7 +3352,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"  Error: {error}")
             return
 
-        context = self.pipeline_executor.execute_pipeline(pipeline_str, mode)
+        try:
+            context = self.pipeline_executor.execute_pipeline(pipeline_str, mode)
+        except InterruptionRequested:
+            print("\nPipeline execution cancelled.")
+            return
+
         self._display_pipeline_results(context, mode)
 
         if context.selected_vms:
@@ -3316,6 +3506,308 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     return [t for t in wait_times if t.startswith(current_words[1])]
 
         return []
+
+    def do_installvm(self, args):
+        """Install a new Virtual Machine interactively.
+        Usage: installvm [--dryrun|--show] <vm_name> [choice1 choice2 ...]
+
+        Options:
+          --dryrun   Show a summary of actions and the automated command without provisioning.
+          --show     Show a summary of actions and the automated command without provisioning.
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = shlex.split(args)
+        is_dryrun = "--dryrun" in arg_list or "--show" in arg_list
+        if "--dryrun" in arg_list:
+            arg_list.remove("--dryrun")
+        if "--show" in arg_list:
+            arg_list.remove("--show")
+
+        if not arg_list:
+            print("Usage: installvm [--dryrun|--show] <vm_name> [choices...]")
+            return
+
+        vm_name = arg_list.pop(0)
+
+        choices_provided = arg_list[:]
+        choices_used = []
+
+        try:
+            # 1. Select Server
+            target_server = self._select_choice(
+                "Select Server",
+                list(self.active_connections.keys()),
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                auto_select=True,
+            )
+            if not target_server:
+                return
+
+            conn = self.active_connections[target_server]
+            provisioner = VMProvisioner(conn)
+
+            # 2. Select VM Type
+            selected_vm_type = self._select_choice(
+                "Select VM Type",
+                [t for t in VMType],
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda t: f"{t.name} ({t.value})",
+                auto_select=False,
+            )
+            if not selected_vm_type:
+                return
+
+            # 3. Select Distribution
+            registry = provisioner.provider_registry
+            selected_os_type = self._select_choice(
+                "Select Distribution",
+                registry.get_supported_os_types(),
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda os_t: os_t.value,
+                auto_select=False,
+            )
+            if not selected_os_type:
+                return
+
+            # 4. Select Version
+            provider = registry.get_provider(selected_os_type)
+            versions = provider.get_supported_versions()
+            selected_version = self._select_choice(
+                f"Select Version for {selected_os_type.value}",
+                versions,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda v: v.display_name,
+                auto_select=False,
+            )
+            if not selected_version:
+                return
+
+            # 5. Select ISO
+            print(f"\nFetching available ISOs for {selected_version.display_name}...")
+            iso_list = provider.get_iso_list(selected_version.display_name)
+            iso_options = iso_list + ["Custom URL/Path"]
+
+            def iso_display(iso):
+                if isinstance(iso, str):
+                    return iso
+                name = iso.get("name", iso.get("url"))
+                date = iso.get("date", "")
+                size = iso.get("size", "Unknown")
+                label = f"{name}"
+                if date:
+                    label += f" ({date})"
+                return f"{label} [Size: {size}]"
+
+            selected_iso_obj = self._select_choice(
+                "Select ISO Image",
+                iso_options,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=iso_display,
+                auto_select=False,
+            )
+
+            if not selected_iso_obj:
+                return
+
+            if selected_iso_obj == "Custom URL/Path":
+                iso_url = self._get_input(
+                    "Enter custom ISO URL or absolute path: ", choices_provided, choices_used
+                )
+            elif isinstance(selected_iso_obj, dict):
+                iso_url = selected_iso_obj["url"]
+            else:
+                iso_url = selected_iso_obj
+
+            if not iso_url:
+                print("Valid ISO URL or path is required.")
+                return
+
+            # 6. Select Network
+            active_networks = [n for n in list_networks(conn) if n["active"]]
+            if not active_networks:
+                print("No active networks found. Defaulting to 'default'.")
+                selected_network = "default"
+                choices_used.append("default")
+            else:
+                selected_network = self._select_choice(
+                    "Select Network",
+                    active_networks,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=lambda n: f"{n['name']} (Mode: {n['mode']})",
+                    value_func=lambda n: n["name"],
+                    auto_select=True,
+                )
+
+            if not selected_network:
+                selected_network = "default"
+
+            # 7. Select Storage Pool
+            pools_info = list_storage_pools(conn)
+            if not pools_info:
+                print("No active storage pools found.")
+                return
+
+            selected_pool = self._select_choice(
+                "Select Storage Pool",
+                pools_info,
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                display_func=lambda p: f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation']/p['capacity']*100) if p['capacity']>0 else 0:.1f}%)",
+                value_func=lambda p: p["name"],
+                auto_select=True,
+            )
+            if not selected_pool:
+                return
+
+            # 7. Automated Installation
+            auto_config = None
+            templates = []
+            try:
+                template_mgr = AutoYaSTTemplateManager(provisioner)
+                all_templates = template_mgr.get_all_templates()
+                os_lower = selected_os_type.value.lower()
+                if "ubuntu" in os_lower:
+                    templates = [
+                        t
+                        for t in all_templates
+                        if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()
+                    ]
+                elif "suse" in os_lower or "sles" in os_lower:
+                    templates = [
+                        t
+                        for t in all_templates
+                        if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()
+                    ]
+                elif "fedora" in os_lower:
+                    templates = [
+                        t
+                        for t in all_templates
+                        if "kickstart" in t["filename"].lower() or "ks" in t["filename"].lower()
+                    ]
+                elif "arch" in os_lower:
+                    templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
+                elif "alpine" in os_lower:
+                    templates = [t for t in all_templates if "alpine" in t["filename"].lower()]
+            except Exception as e:
+                print(f"Warning: Could not fetch templates: {e}")
+
+            if templates:
+                use_auto = self._select_choice(
+                    "Do you want to use automated installation?",
+                    ["no", "yes"],
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    auto_select=False,
+                )
+
+                if use_auto == "yes":
+                    selected_template_obj = self._select_choice(
+                        "Select Template",
+                        templates,
+                        choices_provided=choices_provided,
+                        choices_used=choices_used,
+                        display_func=lambda t: f"{t['display_name']} - {t['description']}",
+                        auto_select=False,
+                    )
+
+                    if selected_template_obj:
+                        selected_template = selected_template_obj["filename"]
+
+                        prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
+                        scc_config = self.config.get("SUSE_SCC", {})
+
+                        if not prefill.get("root_password") or not prefill.get("user_password"):
+                            print(
+                                "\033[1;33mWarning: Automated installation passwords are not set in configuration!\033[0m"
+                            )
+                            print(
+                                "Using empty passwords. Please update AUTO_INSTALL_PRE_FILL in your config file."
+                            )
+                        else:
+                            print("\nUsing Automated Installation Credentials from configuration.")
+
+                        auto_config = {
+                            "template_name": selected_template,
+                            "root_password": prefill.get("root_password", ""),
+                            "hostname": prefill.get("hostname", vm_name),
+                            "username": prefill.get("username", "admin"),
+                            "user_password": prefill.get("user_password", ""),
+                            "keyboard": prefill.get("keyboard", "us"),
+                            "language": prefill.get("language", "English (US)"),
+                            "scc_email": scc_config.get("scc_email", ""),
+                            "scc_reg_code": scc_config.get("scc_reg_code", ""),
+                            "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
+                            "scc_hpc_reg_code": scc_config.get("scc_hpc_reg_code", ""),
+                            "scc_ha_reg_code": scc_config.get("scc_ha_reg_code", ""),
+                            "scc_ltss_reg_code": scc_config.get("scc_ltss_reg_code", ""),
+                            "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
+                            "scc_product_arch": scc_config.get("scc_product_arch", ""),
+                        }
+                    else:
+                        return
+
+        except InterruptionRequested:
+            print("\nInstallation cancelled.")
+            return
+
+        if is_dryrun:
+            cmd = f"installvm {shlex.quote(vm_name)} " + " ".join(choices_used)
+            print("\n--- Summary of Actions ---")
+            print(f"VM Name: {vm_name}")
+            if target_server:
+                print(f"Server: {target_server}")
+            print(f"VM Type: {selected_vm_type.name}")
+            print(f"Distribution: {selected_os_type.value}")
+            print(f"Version: {selected_version.display_name}")
+            print(f"ISO: {iso_url}")
+            print(f"Network: {selected_network}")
+            print(f"Storage Pool: {selected_pool}")
+            if auto_config:
+                print(f"Automated Install: Yes (Template: {selected_template})")
+            else:
+                print("Automated Install: No")
+            print("\nCommand to run this unattended:")
+            print(cmd)
+            return
+
+        # 8. Provisioning
+        def cli_progress_callback(stage, percent):
+            columns, _ = shutil.get_terminal_size()
+            # Use carriage return to overwrite the same line
+            sys.stdout.write(f"\r[{percent}%] {stage}".ljust(columns - 1))
+            sys.stdout.flush()
+            if percent >= 100:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+
+        print(f"\nProvisioning VM '{vm_name}' on server '{target_server}'...")
+        try:
+            domain = provisioner.provision_vm(
+                vm_name=vm_name,
+                vm_type=selected_vm_type,
+                iso_url=iso_url,
+                storage_pool_name=selected_pool,
+                use_virt_install=False,
+                configure_before_install=False,
+                automation_config=auto_config,
+                progress_callback=cli_progress_callback,
+                network_name=selected_network,
+            )
+            if domain:
+                print(f"\nSuccessfully provisioned VM '{vm_name}'.")
+                start_vm(domain)
+                print(f"VM '{vm_name}' started.")
+        except Exception as e:
+            print(f"\nFailed to provision VM: {e}")
 
 
 def main():

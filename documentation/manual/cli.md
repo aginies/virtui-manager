@@ -63,6 +63,10 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`view`**: Launches the graphical viewer (Spice or VNC) for the target VMs.
 *   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
 *   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
+*   **`installvm [--dryrun|--show] <vm_name> [choice1 choice2 ...]`**: Installs a new Virtual Machine. It can be used interactively or unattended by providing numerical choices as positional arguments.
+    *   `--dryrun` / `--show`: Displays a summary of the selected configuration and the command required to run it unattended, without performing the actual installation.
+    *   *Note*: Automated installation credentials (passwords, keyboard layout, etc.) are pulled directly from the `AUTO_INSTALL_PRE_FILL` section of your configuration.
+
 
 ```bash
 (ryzen7) status 161sles:0379866b-77e0-43c4-a6de-f1f9f33c79b9:ryzen7
@@ -93,6 +97,96 @@ VM Name                        Status          vCPUs   Memory (MiB)
     - /home/VM_images/SLES-16.0-Online-x86_64-GM.install.iso (sata, enabled, cdrom)
   Graphics:
     - spice, port: 5900 (autoport)
+```
+
+```bash
+(ryzen7) installvm --show fed43 3 4 1 1 2 2 yes 1
+
+Select VM Type:
+  1. SECURE (Secure VM)
+  2. COMPUTATION (Computation)
+  3. DESKTOP (Desktop (Linux))
+  4. WDESKTOP (Windows)
+  5. WLDESKTOP (Windows Legacy)
+  6. SERVER (Server)
+Select VM Type [1-6]: 3
+
+Select Distribution:
+  1. openSUSE
+  2. Ubuntu
+  3. Debian
+  4. Fedora
+  5. Arch Linux
+  6. Alpine Linux
+  7. Generic / Custom ISO
+Select Distribution [1-7]: 4
+
+Select Version for Fedora:
+  1. Fedora 43
+  2. Fedora 42
+  3. Fedora 41
+Select Version [1-3]: 1
+
+Fetching available ISOs for Fedora 43...
+
+Select ISO Image:
+  1. [Server] Fedora-Server-netinst-x86_64-43-1.6.iso (2025-10-23 03:26) [Size: 1128 MB]
+  2. [Server] Fedora-Server-dvd-x86_64-43-1.6.iso (2025-10-23 03:43) [Size: 3323 MB]
+  3. [Workstation] Fedora-Workstation-Live-43-1.6.x86_64.iso (2025-10-23 04:17) [Size: 2615 MB]
+  4. [Spins] Fedora-i3-Live-43-1.6.x86_64.iso (2025-10-23 04:04) [Size: 2240 MB]
+  5. [Spins] Fedora-Xfce-Live-43-1.6.x86_64.iso (2025-10-23 04:13) [Size: 2686 MB]
+  6. [Spins] Fedora-Sway-Live-x86_64-43-1.6.iso (2025-10-23 04:09) [Size: 1970 MB]
+  7. [Spins] Fedora-SoaS-Live-43-1.6.x86_64.iso (2025-10-23 04:04) [Size: 2128 MB]
+  8. [Spins] Fedora-MiracleWM-Live-43-1.6.x86_64.iso (2025-10-23 04:07) [Size: 2278 MB]
+  9. [Spins] Fedora-MATE_Compiz-Live-x86_64-43-1.6.iso (2025-10-23 04:13) [Size: 2819 MB]
+  10. [Spins] Fedora-LXQt-Live-43-1.6.x86_64.iso (2025-10-23 04:10) [Size: 2198 MB]
+  11. [Spins] Fedora-LXDE-Live-x86_64-43-1.6.iso (2025-10-23 04:07) [Size: 2084 MB]
+  12. [Spins] Fedora-KDE-Mobile-Live-43-1.6.x86_64.iso (2025-10-23 04:10) [Size: 2519 MB]
+  13. [Spins] Fedora-Cinnamon-Live-x86_64-43-1.6.iso (2025-10-23 04:16) [Size: 2837 MB]
+  14. [Spins] Fedora-COSMIC-Live-43-1.6.x86_64.iso (2025-10-23 04:13) [Size: 2893 MB]
+  15. [Spins] Fedora-Budgie-Live-43-1.6.x86_64.iso (2025-10-23 04:16) [Size: 2804 MB]
+  16. Custom URL/Path
+Select ISO [1-16]: 1
+
+Select Network:
+  1. testing (Mode: nat)
+  2. default (Mode: nat)
+Select Network [1-2] (default: 1): 2
+
+Select Storage Pool:
+  1. nvram (Capacity: 58 GiB, Used: 83.0%)
+  2. VM_images (Capacity: 870 GiB, Used: 97.8%)
+  3. NFStmp (Capacity: 0 GiB, Used: 0.0%)
+  4. ISO (Capacity: 870 GiB, Used: 97.3%)
+  5. win (Capacity: 0 GiB, Used: 0.0%)
+  6. default (Capacity: 58 GiB, Used: 83.0%)
+Select Pool [1-6] (default: 1): 2
+
+Do you want to use automated installation? (yes/no) [no]: yes
+
+Select Template:
+  1. Basic Server (Kickstart) - Basic Fedora server installation with essential packages
+  2. Desktop Workstation (Kickstart) - Fedora Workstation with GNOME desktop environment
+  3. Development Workstation (Kickstart) - Fedora Workstation with development tools and libraries
+  4. Full Server (Kickstart) - Fedora Server product environment
+  5. Minimal System (Kickstart) - Minimal Fedora installation with only core packages
+Select Template [1-5]: 1
+
+Using Automated Installation Credentials from configuration.
+
+--- Summary of Actions ---
+VM Name: fed43
+Server: ryzen7
+VM Type: DESKTOP
+Distribution: Fedora
+Version: Fedora 43
+ISO: https://download.fedoraproject.org/pub/fedora/linux/releases/43/Server/x86_64/iso/Fedora-Server-netinst-x86_64-43-1.6.iso
+Network: default
+Storage Pool: VM_images
+Automated Install: Yes (Template: kickstart-basic.cfg)
+
+Command to run this unattended:
+installvm fed43 3 4 1 1 2 2 yes 1
 ```
 
 ## Network Management
@@ -286,7 +380,7 @@ Snapshot 'pre-update' created for 'web-01'.
 |----------|----------|
 | Connection | `connect`, `disconnect`, `host_info`, `virsh` |
 | VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `show_selection` |
-| VM Operations | `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `view` |
+| VM Operations | `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `installvm`, `view` |
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `net_autostart` |

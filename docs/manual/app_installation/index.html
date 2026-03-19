@@ -521,6 +521,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#flatpak-installation-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak installation (recommended)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flatpak installation (recommended)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flatpak-local-rebuild-and-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak local rebuild and install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#opensuse-sle-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -543,43 +571,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#flatpak-installation" class="md-nav__link">
+  <a href="#nix-package-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Flatpak installation
+        Nix Package (experimental)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Flatpak installation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#flatpak-local-rebuild-and-install" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Flatpak local rebuild and install
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nix-package" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Nix Package
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Nix Package">
+    <nav class="md-nav" aria-label="Nix Package (experimental)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1415,6 +1415,34 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#flatpak-installation-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak installation (recommended)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flatpak installation (recommended)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#flatpak-local-rebuild-and-install" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flatpak local rebuild and install
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#opensuse-sle-installation" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1437,43 +1465,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#flatpak-installation" class="md-nav__link">
+  <a href="#nix-package-experimental" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Flatpak installation
+        Nix Package (experimental)
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Flatpak installation">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#flatpak-local-rebuild-and-install" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Flatpak local rebuild and install
-      
-    </span>
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#nix-package" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Nix Package
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Nix Package">
+    <nav class="md-nav" aria-label="Nix Package (experimental)">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1687,8 +1687,28 @@
 <li><code>netifaces</code>: Network interface discovery</li>
 <li><code>websockify</code>: (Optional) Required for web console support</li>
 </ul>
+<h2 id="flatpak-installation-recommended">Flatpak installation (recommended)<a class="headerlink" href="#flatpak-installation-recommended" title="Permanent link">&para;</a></h2>
+<p>This is the simple way to get the <strong>virtui-manager</strong> working easily. Even if this application do not requires lot of dependencies, on old ditribution this could be complex to get everything available. Moreover this application has been developed on top of a rolling release openSUSE Slowroll, so with up to dates packages. Flatpak container is also providing up to date packages.</p>
+<p>Why not on flathub website? Flathub doesn't accept anymore <strong>console</strong> application. Even this one is providing a <strong>Terminal GTK</strong> wrapper this app is not really a candidate for Flathub.</p>
+<p>Github.com has been setup to build a flatpak app, so everything is built on <a href="https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml">github</a>, a platform you can trust. </p>
+<p>TO install, download the flaptpak file, and install it on your system, for Version 2.4.8:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>wget<span class="w"> </span>https://github.com/aginies/virtui-manager/releases/download/2.4.8/virtui-manager.flatpak
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>flatpak<span class="w"> </span>install<span class="w"> </span>virtui-manager.flatpak
+</code></pre></div>
+<p>To run it, use <strong>flatpak run</strong> or search for the <strong>VirtUI Manager</strong> app.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>flatpak<span class="w"> </span>run<span class="w"> </span>io.github.aginies.virtui-manager
+</code></pre></div></p>
+<h3 id="flatpak-local-rebuild-and-install">Flatpak local rebuild and install<a class="headerlink" href="#flatpak-local-rebuild-and-install" title="Permanent link">&para;</a></h3>
+<p>Go to <code>flathub</code> directory and just do:
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install
+</code></pre></div></p>
+<p>This will install the application on your system.</p>
 <h2 id="opensuse-sle-installation">OpenSUSE / SLE Installation<a class="headerlink" href="#opensuse-sle-installation" title="Permanent link">&para;</a></h2>
-<p>VirtUI Manager is available as a package in the <a href="https://build.opensuse.org/package/show/Virtualization/virtui-manager">Virtualization</a> repository. Choose the right repository, go to it and download packages and install them.</p>
+<p>VirtUI Manager is available as a package in the <a href="https://build.opensuse.org/package/show/Virtualization/virtui-manager">Virtualization</a> repository. Choose the right repository, go to it and download packages and install them. It is also available on openSUSE:Factory.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Packages have been tested on Slowroll and Tumbleweed product only. In case of issue use Flatpak container.</p>
+</div>
 <ul>
 <li>Repository:</li>
 <li><a href="https://download.opensuse.org/repositories/Virtualization/15.6/noarch/">15.6 repo</a></li>
@@ -1697,10 +1717,10 @@
 <li><a href="https://download.opensuse.org/repositories/Virtualization/openSUSE_Slowroll/noarch/">Slowroll</a></li>
 <li><a href="https://download.opensuse.org/repositories/Virtualization/openSUSE_Tumbleweed/">Tumbleweed</a></li>
 <li>Search for <strong>virtui</strong></li>
-<li>Download the rpm packages: <strong>virtui-manager</strong>, <strong>virtui-manager-doc</strong>, <strong>virtui-remote-viewer</strong></li>
+<li>Download the rpm packages: <strong>virtui-manager</strong>, <strong>virtui-manager-doc</strong>, <strong>virtui-remote-viewer</strong>, <strong>virtui-manager-lang</strong></li>
 <li>install the packages with zypper.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>virtui-*.rpm
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>virtui-*.rpm
 </code></pre></div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
@@ -1708,23 +1728,10 @@
 </div>
 <h2 id="generic-virtual-environment-pip">Generic / Virtual Environment (Pip)<a class="headerlink" href="#generic-virtual-environment-pip" title="Permanent link">&para;</a></h2>
 <p>If your distribution doesn't package these libraries or you prefer a virtual environment:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pip3<span class="w"> </span>install<span class="w"> </span>virtui-manager
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>pip3<span class="w"> </span>install<span class="w"> </span>virtui-manager
 </code></pre></div>
 <p>Now <strong>virtui-manager</strong>, <strong>virtui-manager-cmd</strong>, <strong>virtui-remote-cmd</strong>, <strong>virtui-gui</strong> will be available from Command line.</p>
-<h2 id="flatpak-installation">Flatpak installation<a class="headerlink" href="#flatpak-installation" title="Permanent link">&para;</a></h2>
-<p>Flatpak doesn't accept anymore <strong>console</strong> application. Even this one is providing a <strong>Terminal GTK</strong> wrapper this app is not really a candidate for flathub.
-As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on <a href="https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml">github</a>. Download the flaptpak file, and install it on your system, for Version 2.0.0:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>wget<span class="w"> </span>https://github.com/aginies/virtui-manager/releases/download/2.0.0/virtui-manager.flatpak
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>flatpak<span class="w"> </span>install<span class="w"> </span>virtui-manager.flatpak
-</code></pre></div>
-<p>To run it, use <strong>flatpak run</strong> or search for the <strong>VirtUI Manager</strong> app.
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>flatpak<span class="w"> </span>run<span class="w"> </span>io.github.aginies.virtui-manager
-</code></pre></div></p>
-<h3 id="flatpak-local-rebuild-and-install">Flatpak local rebuild and install<a class="headerlink" href="#flatpak-local-rebuild-and-install" title="Permanent link">&para;</a></h3>
-<p>Go to <code>flathub</code> directory and jsut do:
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>build<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>make<span class="w"> </span>install
-</code></pre></div></p>
-<h2 id="nix-package">Nix Package<a class="headerlink" href="#nix-package" title="Permanent link">&para;</a></h2>
+<h2 id="nix-package-experimental">Nix Package (experimental)<a class="headerlink" href="#nix-package-experimental" title="Permanent link">&para;</a></h2>
 <p>This project includes comprehensive Nix package definitions for easy installation and development. The Nix files are located in the <code>nix/</code> directory.</p>
 <h3 id="prerequisites_1">Prerequisites<a class="headerlink" href="#prerequisites_1" title="Permanent link">&para;</a></h3>
 <p>Ensure you have Nix installed with flakes enabled. Add the following to your Nix configuration (<code>~/.config/nix/nix.conf</code> or <code>/etc/nix/nix.conf</code>):</p>
@@ -1837,7 +1844,8 @@ As some user prefer container enviroment, github as been setup to build a flatpa
 </code></pre></div>
 <h3 id="opensuse-sle-zypper">openSUSE / SLE (Zypper)<a class="headerlink" href="#opensuse-sle-zypper" title="Permanent link">&para;</a></h3>
 <p>To install dependencies manually from official repositories (this is done automatically when installing the package):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py<span class="w"> </span>7zip<span class="w"> </span>tmux<span class="w"> </span>python3-packaging<span class="w"> </span>python3-netifaces<span class="w"> </span>python3-requests<span class="w"> </span>python3-websockify
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a>sudo<span class="w"> </span>zypper<span class="w"> </span><span class="k">in</span><span class="w"> </span>libvirt-python<span class="w"> </span>python3-textual<span class="w"> </span>python3-PyYAML<span class="w"> </span>python3-markdown-it-py<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">    </span>7zip<span class="w"> </span>tmux<span class="w"> </span>python3-packaging<span class="w"> </span>python3-netifaces<span class="w"> </span>python3-requests<span class="w"> </span>python3-websockify
 </code></pre></div>
 
 

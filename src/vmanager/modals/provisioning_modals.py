@@ -15,6 +15,7 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
+from ..network_manager import list_networks
 from ..storage_manager import list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
@@ -175,9 +176,24 @@ class InstallVMModal(BaseModal[str | None]):
                     disabled=True,
                 )
 
-            with Vertical(id="pool-selection"):
-                yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+            # Get Networks
+            networks = list_networks(self.conn)
+            active_networks = [(n["name"], n["name"]) for n in networks if n["active"]]
+            default_network = (
+                "default"
+                if any(n[0] == "default" for n in active_networks)
+                else (active_networks[0][1] if active_networks else None)
+            )
+
+            with Horizontal(id="pool-network-selection"):
+                with Vertical(id="pool-selection"):
+                    yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
+                    yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+                with Vertical(id="network-selection"):
+                    yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
+                    yield Select(
+                        active_networks, value=default_network, id="network", allow_blank=False
+                    )
 
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
                 with Horizontal(id="expert-mode"):
@@ -1168,6 +1184,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         vm_type = self.query_one("#vm-type", Select).value
         pool_name = self.query_one("#pool", Select).value
+        network_name = self.query_one("#network", Select).value
         distro = self.query_one("#distro", Select).value
         use_virt_install = self.query_one("#use-virt-install-checkbox", Checkbox).value
         serial_console = self.query_one("#automation-serial-console", Checkbox).value
@@ -1289,6 +1306,7 @@ class InstallVMModal(BaseModal[str | None]):
             serial_console,
             configure_before_install,
             automation_template_id,
+            network_name,
         )
 
     @work(exclusive=True, thread=True)
@@ -1311,6 +1329,7 @@ class InstallVMModal(BaseModal[str | None]):
         serial_console,
         configure_before_install,
         automation_template_id,
+        network_name,
     ):
         p_bar = self.query_one("#progress-bar", ProgressBar)
         status_lbl = self.query_one("#status-label", Label)
@@ -1517,6 +1536,7 @@ class InstallVMModal(BaseModal[str | None]):
                     ),
                     progress_callback=progress_cb,
                     automation_config=automation_config,
+                    network_name=network_name,
                 )
             finally:
                 self.app.call_from_thread(self.app.vm_service.resume_global_updates)

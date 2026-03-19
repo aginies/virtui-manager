@@ -31,10 +31,42 @@ VirtUI Manager requires the following Python libraries:
 *   `netifaces`: Network interface discovery
 *   `websockify`: (Optional) Required for web console support
 
+## Flatpak installation (recommended)
+
+This is the simple way to get the **virtui-manager** working easily. Even if this application do not requires lot of dependencies, on old ditribution this could be complex to get everything available. Moreover this application has been developed on top of a rolling release openSUSE Slowroll, so with up to dates packages. Flatpak container is also providing up to date packages.
+
+Why not on flathub website? Flathub doesn't accept anymore **console** application. Even this one is providing a **Terminal GTK** wrapper this app is not really a candidate for Flathub.
+
+Github.com has been setup to build a flatpak app, so everything is built on [github](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml), a platform you can trust. 
+
+TO install, download the flaptpak file, and install it on your system, for Version 2.4.8:
+
+```bash
+wget https://github.com/aginies/virtui-manager/releases/download/2.4.8/virtui-manager.flatpak
+flatpak install virtui-manager.flatpak
+```
+
+To run it, use **flatpak run** or search for the **VirtUI Manager** app.
+```bash
+flatpak run io.github.aginies.virtui-manager
+```
+
+### Flatpak local rebuild and install
+
+Go to `flathub` directory and just do:
+```bash
+make build && make install
+```
+
+This will install the application on your system.
+
 
 ## OpenSUSE / SLE Installation
 
-VirtUI Manager is available as a package in the [Virtualization](https://build.opensuse.org/package/show/Virtualization/virtui-manager) repository. Choose the right repository, go to it and download packages and install them.
+VirtUI Manager is available as a package in the [Virtualization](https://build.opensuse.org/package/show/Virtualization/virtui-manager) repository. Choose the right repository, go to it and download packages and install them. It is also available on openSUSE:Factory.
+
+!!! note
+    Packages have been tested on Slowroll and Tumbleweed product only. In case of issue use Flatpak container.
 
 * Repository:
   * [15.6 repo](https://download.opensuse.org/repositories/Virtualization/15.6/noarch/)
@@ -43,7 +75,7 @@ VirtUI Manager is available as a package in the [Virtualization](https://build.o
   * [Slowroll](https://download.opensuse.org/repositories/Virtualization/openSUSE_Slowroll/noarch/)
   * [Tumbleweed](https://download.opensuse.org/repositories/Virtualization/openSUSE_Tumbleweed/)
 * Search for **virtui**
-* Download the rpm packages: **virtui-manager**, **virtui-manager-doc**, **virtui-remote-viewer**
+* Download the rpm packages: **virtui-manager**, **virtui-manager-doc**, **virtui-remote-viewer**, **virtui-manager-lang**
 * install the packages with zypper.
 
 ```bash
@@ -63,29 +95,8 @@ pip3 install virtui-manager
 
 Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd**, **virtui-gui** will be available from Command line.
 
-## Flatpak installation
 
-Flatpak doesn't accept anymore **console** application. Even this one is providing a **Terminal GTK** wrapper this app is not really a candidate for flathub.
-As some user prefer container enviroment, github as been setup to build a flatpak app, so everything is built on [github](https://github.com/aginies/virtui-manager/actions/workflows/flatpak.yml). Download the flaptpak file, and install it on your system, for Version 2.0.0:
-
-```bash
-wget https://github.com/aginies/virtui-manager/releases/download/2.0.0/virtui-manager.flatpak
-flatpak install virtui-manager.flatpak
-```
-
-To run it, use **flatpak run** or search for the **VirtUI Manager** app.
-```bash
-flatpak run io.github.aginies.virtui-manager
-```
-
-### Flatpak local rebuild and install
-
-Go to `flathub` directory and jsut do:
-```bash
-make build && make install
-```
-
-## Nix Package
+## Nix Package (experimental)
 
 This project includes comprehensive Nix package definitions for easy installation and development. The Nix files are located in the `nix/` directory.
 
@@ -225,5 +236,6 @@ python3 virtui_dev.py
 To install dependencies manually from official repositories (this is done automatically when installing the package):
 
 ```bash
-sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py 7zip tmux python3-packaging python3-netifaces python3-requests python3-websockify
+sudo zypper in libvirt-python python3-textual python3-PyYAML python3-markdown-it-py \
+    7zip tmux python3-packaging python3-netifaces python3-requests python3-websockify
 ```
