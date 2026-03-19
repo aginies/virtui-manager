@@ -39,6 +39,11 @@ class DebianProvider(OSProvider):
         """Return the OS type for Debian."""
         return OSType.DEBIAN
 
+    @property
+    def preferred_boot_uefi(self) -> bool:
+        """Debian handles BIOS/UEFI well, but BIOS is safer for automated installations in some environments."""
+        return False
+
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Debian versions."""
         versions = []

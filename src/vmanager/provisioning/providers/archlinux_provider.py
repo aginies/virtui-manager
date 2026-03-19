@@ -38,6 +38,11 @@ class ArchLinuxProvider(OSProvider):
         """Return the OS type for Arch Linux."""
         return OSType.ARCHLINUX
 
+    @property
+    def preferred_boot_uefi(self) -> bool:
+        """Arch Linux ISOs often have issues with UEFI/Secure Boot in some environments."""
+        return False
+
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Arch Linux versions (Rolling)."""
         versions = []
