@@ -345,6 +345,7 @@ class VMManagerTUI(App):
         self.r_viewer = None
         self.host_stats = HostStats(self.vm_service, self.get_server_color)
         self._hide_stats_timer = None
+        self._recent_notifications = {}
         # Register signal handlers for graceful shutdown
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)
