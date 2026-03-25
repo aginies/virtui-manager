@@ -1339,6 +1339,40 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
 
 
 @log_function_call
+def set_direct_kernel_boot(
+    domain: libvirt.virDomain, kernel: str = None, initrd: str = None, cmdline: str = None
+):
+    """Sets direct kernel boot parameters for a VM."""
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change direct kernel boot settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    os_elem = root.find("os")
+    if os_elem is None:
+        os_elem = ET.SubElement(root, "os")
+
+    for tag in ["kernel", "initrd", "cmdline"]:
+        elem = os_elem.find(tag)
+        if elem is not None:
+            os_elem.remove(elem)
+
+    if kernel:
+        k_elem = ET.SubElement(os_elem, "kernel")
+        k_elem.text = kernel
+    if initrd:
+        i_elem = ET.SubElement(os_elem, "initrd")
+        i_elem.text = initrd
+    if cmdline:
+        c_elem = ET.SubElement(os_elem, "cmdline")
+        c_elem.text = cmdline
+
+    new_xml = ET.tostring(root, encoding="unicode")
+    domain.connect().defineXML(new_xml)
+
+
+@log_function_call
 def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str]):
     """Sets the boot configuration for a VM."""
     invalidate_cache(get_internal_id(domain))

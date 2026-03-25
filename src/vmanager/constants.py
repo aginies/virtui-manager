@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "2.4.8"
+    version = "2.4.9"
     author = "Antoine Ginies"
 
 
@@ -467,6 +467,10 @@ class StaticText:  # pylint: disable=too-few-public-methods
     EXPORT_READONLY_MOUNT = _("Export filesystem as readonly mount")
     WEBCONSOLE_LOCAL_RUN = _("Web console will run locally.")
     ENABLE_BOOT_MENU = _("Enable boot menu")
+    DIRECT_KERNEL_BOOT = _("Direct kernel boot")
+    KERNEL_PATH = _("Kernel path")
+    INITRD_PATH = _("Initrd path")
+    KERNEL_ARGS = _("Kernel arguments")
     WEB_CONSOLE_NOVNC = _("Web Console (novnc)")
     HOST_RESOURCE_DASHBOARD = _("Host Resource Dashboard")
     HOST_DETAILS = _("Host Details")
@@ -1259,6 +1263,7 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     )
     INPUT_SANITIZED_TEMPLATE = _("Input sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]")
     BOOT_ORDER_SAVED_SUCCESSFULLY = _("Boot order saved successfully.")
+    DIRECT_KERNEL_BOOT_SAVED = _("Direct kernel boot settings saved.")
     GRAPHICS_SETTINGS_APPLIED_SUCCESSFULLY = _("Graphics settings applied successfully")
     RNG_SETTINGS_APPLIED_SUCCESSFULLY = _("RNG settings applied successfully. Device: {rng_device}")
     TPM_SETTINGS_APPLIED_SUCCESSFULLY = _("TPM settings applied successfully")

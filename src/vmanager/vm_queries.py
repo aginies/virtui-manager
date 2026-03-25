@@ -855,6 +855,22 @@ def get_vm_sound_model(root: ET.Element) -> str | None:
     return None
 
 
+def get_direct_kernel_boot(root: ET.Element) -> dict:
+    """Extracts direct kernel boot information from VM XML."""
+    if root is None:
+        return {}
+
+    os_elem = root.find("os")
+    if os_elem is None:
+        return {}
+
+    kernel = os_elem.findtext("kernel")
+    initrd = os_elem.findtext("initrd")
+    cmdline = os_elem.findtext("cmdline")
+
+    return {"kernel": kernel, "initrd": initrd, "cmdline": cmdline}
+
+
 def get_vm_video_info(root: ET.Element) -> dict:
     """
     Extracts video model and 3D acceleration info from a VM's XML definition.

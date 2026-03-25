@@ -78,6 +78,7 @@ from ..vm_actions import (
     remove_vm_watchdog,
     set_boot_info,
     set_cpu_model,
+    set_direct_kernel_boot,
     set_disk_properties,
     set_machine_type,
     set_memory,
@@ -96,6 +97,7 @@ from ..vm_actions import (
 from ..vm_queries import (
     get_attached_pci_devices,
     get_attached_usb_devices,
+    get_direct_kernel_boot,
     get_serial_devices,
     get_supported_machine_types,
     get_vm_cputune,
@@ -124,7 +126,7 @@ from .howto_disk_modal import HowToDiskModal
 from .howto_virtiofs_modal import HowToVirtIOFSModal
 from .input_modals import AddChannelModal, AddInputDeviceModal
 from .network_modals import AddEditNetworkInterfaceModal
-from .utils_modals import ConfirmationDialog, ProgressModal
+from .utils_modals import ConfirmationDialog, FileSelectionModal, ProgressModal
 from .virtiofs_modals import AddEditVirtIOFSModal
 
 BootDevice = namedtuple("BootDevice", ["type", "id", "description", "boot_order_idx"])
@@ -192,6 +194,7 @@ class VMDetailModal(ModalScreen):
         self.watchdog_info = get_vm_watchdog_info(root)
         self.cputune_info = get_vm_cputune(root)
         self.numatune_info = get_vm_numatune(root)
+        self.direct_kernel_boot = get_direct_kernel_boot(root)
         self.host_numa_nodes = get_host_numa_nodes(self.conn)
 
     def _run_bulk_operation(
@@ -318,6 +321,15 @@ class VMDetailModal(ModalScreen):
             try:
                 self.query_one("#boot-menu-enable", Checkbox).value = boot_menu_enabled
                 self._populate_boot_lists()
+                
+                # Direct kernel boot
+                dkb_enabled = bool(self.direct_kernel_boot.get("kernel"))
+                self.query_one("#direct-kernel-boot-enable", Checkbox).value = dkb_enabled
+                self.query_one("#kernel-path-input", Input).value = self.direct_kernel_boot.get("kernel") or ""
+                self.query_one("#initrd-path-input", Input).value = self.direct_kernel_boot.get("initrd") or ""
+                self.query_one("#kernel-args-input", Input).value = self.direct_kernel_boot.get("cmdline") or ""
+                self._update_dkb_state(dkb_enabled)
+
                 self.query_one("#boot-up", Button).disabled = True
                 self.query_one("#boot-down", Button).disabled = True
                 self.query_one("#boot-add", Button).disabled = True
@@ -588,6 +600,46 @@ class VMDetailModal(ModalScreen):
                 if new_idx != -1:
                     boot_list.index = new_idx
 
+    @on(Checkbox.Changed, "#direct-kernel-boot-enable")
+    def on_dkb_changed(self, event: Checkbox.Changed) -> None:
+        self._update_dkb_state(event.value)
+
+    def _update_dkb_state(self, enabled: bool) -> None:
+        """Update the state of direct kernel boot inputs."""
+        try:
+            kernel_input = self.query_one("#kernel-path-input", Input)
+            initrd_input = self.query_one("#initrd-path-input", Input)
+            kernel_args_input = self.query_one("#kernel-args-input", Input)
+            browse_kernel_btn = self.query_one("#browse-kernel-btn", Button)
+            browse_initrd_btn = self.query_one("#browse-initrd-btn", Button)
+
+            is_stopped = self.is_vm_stopped
+            kernel_input.disabled = not enabled or not is_stopped
+            initrd_input.disabled = not enabled or not is_stopped
+            kernel_args_input.disabled = not enabled or not is_stopped
+            browse_kernel_btn.disabled = not enabled or not is_stopped
+            browse_initrd_btn.disabled = not enabled or not is_stopped
+        except Exception:
+            pass
+
+    @on(Button.Pressed, "#browse-kernel-btn")
+    def on_browse_kernel(self, event: Button.Pressed) -> None:
+        def on_file_selected(path: str | None) -> None:
+            if path:
+                self.query_one("#kernel-path-input", Input).value = path
+
+        current_path = self.query_one("#kernel-path-input", Input).value
+        self.app.push_screen(FileSelectionModal(current_path), on_file_selected)
+
+    @on(Button.Pressed, "#browse-initrd-btn")
+    def on_browse_initrd(self, event: Button.Pressed) -> None:
+        def on_file_selected(path: str | None) -> None:
+            if path:
+                self.query_one("#initrd-path-input", Input).value = path
+
+        current_path = self.query_one("#initrd-path-input", Input).value
+        self.app.push_screen(FileSelectionModal(current_path), on_file_selected)
+
     @on(Button.Pressed, "#save-boot-order")
     def on_save_boot_order(self, event: Button.Pressed) -> None:
         boot_list = self.query_one("#boot-order-list", ListView)
@@ -595,11 +647,24 @@ class VMDetailModal(ModalScreen):
 
         menu_enabled = self.query_one("#boot-menu-enable", Checkbox).value
 
+        # Direct kernel boot settings
+        dkb_enabled = self.query_one("#direct-kernel-boot-enable", Checkbox).value
+        kernel = None
+        initrd = None
+        cmdline = None
+
+        if dkb_enabled:
+            kernel = self.query_one("#kernel-path-input", Input).value
+            initrd = self.query_one("#initrd-path-input", Input).value
+            cmdline = self.query_one("#kernel-args-input", Input).value
+
         try:
             set_boot_info(self.domain, menu_enabled, new_boot_order)
+            set_direct_kernel_boot(self.domain, kernel, initrd, cmdline)
             self._invalidate_cache()
-            self.app.show_success_message(SuccessMessages.BOOT_ORDER_SAVED_SUCCESSFULLY)
+            self.app.show_success_message(SuccessMessages.DIRECT_KERNEL_BOOT_SAVED)
             self.boot_order = new_boot_order
+            self.direct_kernel_boot = {"kernel": kernel, "initrd": initrd, "cmdline": cmdline}
         except libvirt.libvirtError as e:
             self.app.show_error_message(
                 ErrorMessages.ERROR_SAVING_BOOT_ORDER_TEMPLATE.format(error=e)
@@ -1909,7 +1974,7 @@ class VMDetailModal(ModalScreen):
                                 )
 
                     with TabPane("Boot", id="detail-boot-tab"):
-                        with Vertical():
+                        with VerticalScroll(classes="info-details"):
                             yield Checkbox(
                                 StaticText.ENABLE_BOOT_MENU,
                                 id="boot-menu-enable",
@@ -1950,6 +2015,35 @@ class VMDetailModal(ModalScreen):
                                 disabled=not self.is_vm_stopped,
                                 variant="primary",
                             )
+
+                            yield Static(classes="button-separator")
+
+                            # Direct Kernel Boot
+                            yield Checkbox(
+                                StaticText.DIRECT_KERNEL_BOOT,
+                                id="direct-kernel-boot-enable",
+                                disabled=not self.is_vm_stopped,
+                            )
+                            with Vertical(id="dkb-container"):
+                                with Horizontal():
+                                    yield Label(StaticText.KERNEL_PATH, classes="dkb-label")
+                                    yield Input(id="kernel-path-input", disabled=True)
+                                    yield Button(
+                                        ButtonLabels.BROWSE,
+                                        id="browse-kernel-btn",
+                                        disabled=not self.is_vm_stopped,
+                                    )
+                                with Horizontal():
+                                    yield Label(StaticText.INITRD_PATH, classes="dkb-label")
+                                    yield Input(id="initrd-path-input", disabled=True)
+                                    yield Button(
+                                        ButtonLabels.BROWSE,
+                                        id="browse-initrd-btn",
+                                        disabled=not self.is_vm_stopped,
+                                    )
+                                with Horizontal():
+                                    yield Label(StaticText.KERNEL_ARGS, classes="dkb-label")
+                                    yield Input(id="kernel-args-input", disabled=True)
 
                     with TabPane("Disks", id="detail-disk-tab"):
                         with ScrollableContainer(classes="info-details"):
