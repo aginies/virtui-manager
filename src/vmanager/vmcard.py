@@ -2531,6 +2531,8 @@ class VMCard(Static):
                         def on_detail_modal_dismissed(_=None):
                             self.post_message(VmCardUpdateRequest(self.internal_id))
                             self._perform_tooltip_update()
+                            # Restart stats updates
+                            self.update_stats()
 
                         self.app.push_screen(
                             VMDetailModal(

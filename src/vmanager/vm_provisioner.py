@@ -1177,6 +1177,7 @@ class VMProvisioner:
         graphics_type: str = "spice",
         os_version: str | None = None,
         network_name: str = "default",
+        ovmf_debug: bool = False,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
@@ -1488,15 +1489,16 @@ class VMProvisioner:
                 xml += "    <locked/>\n"  # Often needed for SEV
             xml += "  </memoryBacking>\n"
 
-# DEBUG OVMF issue
-#        xml += """
-#  <qemu:commandline>
-#    <qemu:arg value='-global'/>
-#    <qemu:arg value='isa-debugcon.iobase=0x402'/>
-#    <qemu:arg value='-debugcon'/>
-#    <qemu:arg value='file:/tmp/debug.log'/>
-#  </qemu:commandline>
-#"""
+        if ovmf_debug:
+            # DEBUG OVMF issue
+            xml += """
+  <qemu:commandline>
+    <qemu:arg value='-global'/>
+    <qemu:arg value='isa-debugcon.iobase=0x402'/>
+    <qemu:arg value='-debugcon'/>
+    <qemu:arg value='file:/tmp/debug.log'/>
+  </qemu:commandline>
+"""
         xml += "</domain>"
         return xml
 
@@ -2286,6 +2288,7 @@ class VMProvisioner:
         progress_callback: Optional[Callable[[str, int], None]] = None,
         automation_config: Optional[Dict[str, Any]] = None,
         network_name: str = "default",
+        ovmf_debug: bool = False,
     ) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -2952,6 +2955,7 @@ class VMProvisioner:
                     graphics_type=graphics_type,
                     os_version=os_version,
                     network_name=network_name,
+                    ovmf_debug=ovmf_debug,
                 )
 
             # Define the VM
@@ -3180,9 +3184,10 @@ class VMProvisioner:
                 graphics_type=graphics_type,
                 os_version=os_version,
                 network_name=network_name,
+                ovmf_debug=ovmf_debug,
                 )
-            # Define and Start VM
-            report(StaticText.PROVISIONING_STARTING_VM, 90)
+
+            report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 90)
             dom = self.conn.defineXML(xml_desc)
             dom.create()
 

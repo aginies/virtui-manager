@@ -133,6 +133,18 @@ def _get_disabled_disks_elem(root: ET.Element) -> ET.Element:
     return _get_metadata_elem(root, "disabled-disks")
 
 
+def _get_dkb_metadata_elem(root: ET.Element) -> ET.Element:
+    """Get the direct kernel boot metadata element.
+
+    Args:
+        root: The XML root element
+
+    Returns:
+        The dkb metadata element
+    """
+    return _get_metadata_elem(root, "dkb-params")
+
+
 def _get_backing_chain_elem(root: ET.Element) -> ET.Element:
     """Get the backing chain metadata element.
 

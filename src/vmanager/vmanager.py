@@ -1619,6 +1619,18 @@ class VMManagerTUI(App):
                             VMDetailModal,  # Import here to avoid circular dep if any
                         )
 
+                        def on_bulk_edit_closed(_=None):
+                            # Restart background updates for all affected VMs
+                            for d in selected_domains:
+                                try:
+                                    uuid = get_internal_id(d)
+                                    card = self.vm_card_pool.active_cards.get(uuid)
+                                    if card:
+                                        card.update_stats()
+                                except Exception:
+                                    pass
+                            self.refresh_vm_list()
+
                         self.push_screen(
                             VMDetailModal(
                                 vm_name=vm_info["name"],
@@ -1627,7 +1639,8 @@ class VMManagerTUI(App):
                                 conn=conn,
                                 invalidate_cache_callback=self.vm_service.invalidate_vm_state_cache,
                                 selected_domains=selected_domains,
-                            )
+                            ),
+                            on_bulk_edit_closed,
                         )
                         # Clear selection after launching modal
                         self.selected_vm_uuids.clear()
