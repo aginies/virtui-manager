@@ -15,6 +15,7 @@ from .libvirt_utils import (
     _find_vol_by_path,
     _get_backing_chain_elem,
     _get_disabled_disks_elem,
+    _get_dkb_metadata_elem,
     get_host_domain_capabilities,
     get_overlay_backing_path,
 )
@@ -853,6 +854,49 @@ def get_vm_sound_model(root: ET.Element) -> str | None:
     except Exception:
         pass
     return None
+
+
+def get_ovmf_debug(root: ET.Element) -> bool:
+    """Detects if OVMF debug is enabled in the VM XML."""
+    if root is None:
+        return False
+
+    # Define QEMU namespace
+    qemu_ns = {"qemu": "http://libvirt.org/schemas/domain/qemu/1.0"}
+
+    commandline = root.find("qemu:commandline", qemu_ns)
+    if commandline is None:
+        return False
+
+    # Check for specific arguments
+    args = [arg.get("value") for arg in commandline.findall("qemu:arg", qemu_ns)]
+    expected_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
+
+    # If all expected args are present, consider it enabled
+    return all(arg in args for arg in expected_args)
+
+
+def get_direct_kernel_boot(root: ET.Element) -> dict:
+    """Extracts direct kernel boot information from VM XML, including metadata."""
+    if root is None:
+        return {}
+
+    os_elem = root.find("os")
+    kernel = os_elem.findtext("kernel") if os_elem is not None else None
+    initrd = os_elem.findtext("initrd") if os_elem is not None else None
+    cmdline = os_elem.findtext("cmdline") if os_elem is not None else None
+
+    enabled = bool(kernel)
+
+    # If not in <os>, check metadata
+    if not kernel:
+        dkb_meta = _get_dkb_metadata_elem(root)
+        if dkb_meta is not None:
+            kernel = dkb_meta.get("kernel")
+            initrd = dkb_meta.get("initrd")
+            cmdline = dkb_meta.get("cmdline")
+
+    return {"kernel": kernel, "initrd": initrd, "cmdline": cmdline, "enabled": enabled}
 
 
 def get_vm_video_info(root: ET.Element) -> dict:

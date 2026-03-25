@@ -78,9 +78,11 @@ from ..vm_actions import (
     remove_vm_watchdog,
     set_boot_info,
     set_cpu_model,
+    set_direct_kernel_boot,
     set_disk_properties,
     set_machine_type,
     set_memory,
+    set_ovmf_debug,
     set_shared_memory,
     set_uefi_file,
     set_vcpu,
@@ -96,6 +98,8 @@ from ..vm_actions import (
 from ..vm_queries import (
     get_attached_pci_devices,
     get_attached_usb_devices,
+    get_direct_kernel_boot,
+    get_ovmf_debug,
     get_serial_devices,
     get_supported_machine_types,
     get_vm_cputune,
@@ -124,7 +128,7 @@ from .howto_disk_modal import HowToDiskModal
 from .howto_virtiofs_modal import HowToVirtIOFSModal
 from .input_modals import AddChannelModal, AddInputDeviceModal
 from .network_modals import AddEditNetworkInterfaceModal
-from .utils_modals import ConfirmationDialog, ProgressModal
+from .utils_modals import ConfirmationDialog, FileSelectionModal, ProgressModal
 from .virtiofs_modals import AddEditVirtIOFSModal
 
 BootDevice = namedtuple("BootDevice", ["type", "id", "description", "boot_order_idx"])
@@ -172,6 +176,7 @@ class VMDetailModal(ModalScreen):
         self.uefi_path_map = {}
         self.uefi_firmware_map = {}
         self.vm_service = self.app.vm_service
+        self.internal_id = self.vm_service._get_internal_id(self.domain, self.conn)
         self.xml_desc = self.vm_service._get_domain_xml(self.domain)
 
         root = None
@@ -192,6 +197,8 @@ class VMDetailModal(ModalScreen):
         self.watchdog_info = get_vm_watchdog_info(root)
         self.cputune_info = get_vm_cputune(root)
         self.numatune_info = get_vm_numatune(root)
+        self.direct_kernel_boot = get_direct_kernel_boot(root)
+        self.ovmf_debug = get_ovmf_debug(root)
         self.host_numa_nodes = get_host_numa_nodes(self.conn)
 
     def _run_bulk_operation(
@@ -298,6 +305,24 @@ class VMDetailModal(ModalScreen):
         return self.domain.isActive()
 
     def on_mount(self) -> None:
+        # Stop background workers for the target VM(s) to prevent UI freezes
+        # during XML modifications.
+        target_uuids = []
+        if self.is_bulk and self.selected_domains:
+            for domain in self.selected_domains:
+                try:
+                    target_uuids.append(self.vm_service._get_internal_id(domain))
+                except Exception:
+                    pass
+        else:
+            target_uuids.append(self.internal_id)
+
+        for uuid in target_uuids:
+            card = self.app.vm_card_pool.active_cards.get(uuid)
+            if card:
+                # This stops timers and cancels all workers associated with the card
+                card.stop_background_activities()
+
         try:
             all_networks_info = list_networks(self.conn)
             self.available_networks = [net["name"] for net in all_networks_info]
@@ -318,6 +343,17 @@ class VMDetailModal(ModalScreen):
             try:
                 self.query_one("#boot-menu-enable", Checkbox).value = boot_menu_enabled
                 self._populate_boot_lists()
+                
+                # Direct kernel boot
+                dkb_enabled = self.direct_kernel_boot.get("enabled", False)
+                self.query_one("#direct-kernel-boot-enable", Checkbox).value = dkb_enabled
+                self.query_one("#kernel-path-input", Input).value = self.direct_kernel_boot.get("kernel") or ""
+                self.query_one("#initrd-path-input", Input).value = self.direct_kernel_boot.get("initrd") or ""
+                self.query_one("#kernel-args-input", Input).value = self.direct_kernel_boot.get("cmdline") or ""
+                self._update_dkb_state(dkb_enabled)
+                
+                self.query_one("#ovmf-debug-enable", Checkbox).value = self.ovmf_debug
+
                 self.query_one("#boot-up", Button).disabled = True
                 self.query_one("#boot-down", Button).disabled = True
                 self.query_one("#boot-add", Button).disabled = True
@@ -588,18 +624,76 @@ class VMDetailModal(ModalScreen):
                 if new_idx != -1:
                     boot_list.index = new_idx
 
-    @on(Button.Pressed, "#save-boot-order")
-    def on_save_boot_order(self, event: Button.Pressed) -> None:
+    @on(Checkbox.Changed, "#direct-kernel-boot-enable")
+    def on_dkb_changed(self, event: Checkbox.Changed) -> None:
+        self._update_dkb_state(event.value)
+
+    def _update_dkb_state(self, enabled: bool) -> None:
+        """Update the state of direct kernel boot inputs."""
+        try:
+            kernel_input = self.query_one("#kernel-path-input", Input)
+            initrd_input = self.query_one("#initrd-path-input", Input)
+            kernel_args_input = self.query_one("#kernel-args-input", Input)
+            browse_kernel_btn = self.query_one("#browse-kernel-btn", Button)
+            browse_initrd_btn = self.query_one("#browse-initrd-btn", Button)
+
+            is_stopped = self.is_vm_stopped
+            kernel_input.disabled = not enabled or not is_stopped
+            initrd_input.disabled = not enabled or not is_stopped
+            kernel_args_input.disabled = not enabled or not is_stopped
+            browse_kernel_btn.disabled = not enabled or not is_stopped
+            browse_initrd_btn.disabled = not enabled or not is_stopped
+        except Exception:
+            pass
+
+    @on(Button.Pressed, "#browse-kernel-btn")
+    def on_browse_kernel(self, event: Button.Pressed) -> None:
+        def on_file_selected(path: str | None) -> None:
+            if path:
+                self.query_one("#kernel-path-input", Input).value = path
+
+        current_path = self.query_one("#kernel-path-input", Input).value
+        self.app.push_screen(FileSelectionModal(current_path), on_file_selected)
+
+    @on(Button.Pressed, "#browse-initrd-btn")
+    def on_browse_initrd(self, event: Button.Pressed) -> None:
+        def on_file_selected(path: str | None) -> None:
+            if path:
+                self.query_one("#initrd-path-input", Input).value = path
+
+        current_path = self.query_one("#initrd-path-input", Input).value
+        self.app.push_screen(FileSelectionModal(current_path), on_file_selected)
+
+    @on(Button.Pressed, "#save-boot-params")
+    def on_save_boot_params(self, event: Button.Pressed) -> None:
         boot_list = self.query_one("#boot-order-list", ListView)
         new_boot_order = [item.data.id for item in boot_list.children]
 
         menu_enabled = self.query_one("#boot-menu-enable", Checkbox).value
 
+        # Direct kernel boot settings
+        dkb_enabled = self.query_one("#direct-kernel-boot-enable", Checkbox).value
+        kernel = self.query_one("#kernel-path-input", Input).value
+        initrd = self.query_one("#initrd-path-input", Input).value
+        cmdline = self.query_one("#kernel-args-input", Input).value
+
+        # OVMF Debug settings
+        ovmf_debug_enabled = self.query_one("#ovmf-debug-enable", Checkbox).value
+
         try:
             set_boot_info(self.domain, menu_enabled, new_boot_order)
+            set_direct_kernel_boot(self.domain, dkb_enabled, kernel, initrd, cmdline)
+            set_ovmf_debug(self.domain, ovmf_debug_enabled)
             self._invalidate_cache()
-            self.app.show_success_message(SuccessMessages.BOOT_ORDER_SAVED_SUCCESSFULLY)
+            self.app.show_success_message(SuccessMessages.DIRECT_KERNEL_BOOT_SAVED)
             self.boot_order = new_boot_order
+            self.direct_kernel_boot = {
+                "kernel": kernel,
+                "initrd": initrd,
+                "cmdline": cmdline,
+                "enabled": dkb_enabled,
+            }
+            self.ovmf_debug = ovmf_debug_enabled
         except libvirt.libvirtError as e:
             self.app.show_error_message(
                 ErrorMessages.ERROR_SAVING_BOOT_ORDER_TEMPLATE.format(error=e)
@@ -1909,7 +2003,7 @@ class VMDetailModal(ModalScreen):
                                 )
 
                     with TabPane("Boot", id="detail-boot-tab"):
-                        with Vertical():
+                        with VerticalScroll(classes="info-details"):
                             yield Checkbox(
                                 StaticText.ENABLE_BOOT_MENU,
                                 id="boot-menu-enable",
@@ -1944,9 +2038,47 @@ class VMDetailModal(ModalScreen):
                                     yield ListView(
                                         id="available-devices-list", classes="boot-list-container"
                                     )
+                            # Direct Kernel Boot
+                            yield Checkbox(
+                                StaticText.DIRECT_KERNEL_BOOT,
+                                id="direct-kernel-boot-enable",
+                                disabled=not self.is_vm_stopped,
+                            )
+                            with Vertical(id="dkb-container"):
+                                with Horizontal():
+                                    yield Label(StaticText.KERNEL_PATH, classes="dkb-label")
+                                    yield Input(id="kernel-path-input", disabled=True)
+                                    yield Button(
+                                        ButtonLabels.BROWSE,
+                                        id="browse-kernel-btn",
+                                        disabled=not self.is_vm_stopped,
+                                    )
+                                with Horizontal():
+                                    yield Label(StaticText.INITRD_PATH, classes="dkb-label")
+                                    yield Input(id="initrd-path-input", disabled=True)
+                                    yield Button(
+                                        ButtonLabels.BROWSE,
+                                        id="browse-initrd-btn",
+                                        disabled=not self.is_vm_stopped,
+                                    )
+                                with Horizontal():
+                                    yield Label(StaticText.KERNEL_ARGS, classes="dkb-label")
+                                    yield Input(id="kernel-args-input", disabled=True)
+
+                            yield Static(classes="button-separator")
+
+                            # OVMF Debug
+                            yield Checkbox(
+                                StaticText.OVMF_DEBUG,
+                                id="ovmf-debug-enable",
+                                disabled=not self.is_vm_stopped,
+                            )
+
+                            yield Static(classes="button-separator")
+
                             yield Button(
-                                ButtonLabels.SAVE_BOOT_ORDER,
-                                id="save-boot-order",
+                                ButtonLabels.SAVE_BOOT_PARAMETERS,
+                                id="save-boot-params",
                                 disabled=not self.is_vm_stopped,
                                 variant="primary",
                             )

@@ -458,6 +458,33 @@ Toast.-inprogress {
     height: 1;
 }
 
+/* --- Direct Kernel Boot --- */
+#dkb-container {
+    padding: 0 1;
+    margin: 1 0;
+    height: auto;
+}
+
+.dkb-label {
+    width: 20;
+    content-align: right middle;
+    margin-right: 1;
+}
+
+#dkb-container Horizontal {
+    height: 3;
+}
+
+#dkb-container Input {
+    width: 1fr;
+    margin: 0 1;
+}
+
+#dkb-container Button {
+    width: 15;
+    height: 3;
+}
+
 /* --- Utility & Common Component Styles --- */
 
 .section-title {

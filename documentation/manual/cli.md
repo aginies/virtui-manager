@@ -100,7 +100,7 @@ VM Name                        Status          vCPUs   Memory (MiB)
 ```
 
 ```bash
-(ryzen7) installvm --show fed43 3 4 1 1 2 2 yes 1
+(ryzen7) installvm --show fed43
 
 Select VM Type:
   1. SECURE (Secure VM)

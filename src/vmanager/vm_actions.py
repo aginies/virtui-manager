@@ -16,6 +16,7 @@ from .libvirt_utils import (
     _find_vol_by_path,
     _get_backing_chain_elem,
     _get_disabled_disks_elem,
+    _get_dkb_metadata_elem,
     get_host_domain_capabilities,
     get_internal_id,
     get_overlay_backing_path,
@@ -1336,6 +1337,105 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
 
     conn = domain.connect()
     conn.defineXML(new_xml)
+
+
+@log_function_call
+def set_ovmf_debug(domain: libvirt.virDomain, enable: bool):
+    """Enable or disable OVMF debug output for a VM."""
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change OVMF debug settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    
+    # Define QEMU namespace
+    qemu_ns = "http://libvirt.org/schemas/domain/qemu/1.0"
+    ET.register_namespace('qemu', qemu_ns)
+    qemu_tag = f"{{{qemu_ns}}}commandline"
+    arg_tag = f"{{{qemu_ns}}}arg"
+
+    commandline = root.find(qemu_tag)
+
+    if enable:
+        if commandline is None:
+            commandline = ET.SubElement(root, qemu_tag)
+        
+        # Check if already present to avoid duplicates
+        existing_args = [arg.get("value") for arg in commandline.findall(arg_tag)]
+        debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
+        
+        for arg_val in debug_args:
+            if arg_val not in existing_args:
+                ET.SubElement(commandline, arg_tag, value=arg_val)
+    else:
+        if commandline is not None:
+            # Remove specific debug arguments
+            debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
+            for arg in commandline.findall(arg_tag):
+                if arg.get("value") in debug_args:
+                    commandline.remove(arg)
+            
+            # If commandline is empty, remove it
+            if not list(commandline):
+                root.remove(commandline)
+
+    new_xml = ET.tostring(root, encoding="unicode")
+    domain.connect().defineXML(new_xml)
+
+
+@log_function_call
+def set_direct_kernel_boot(
+    domain: libvirt.virDomain,
+    enabled: bool,
+    kernel: str = None,
+    initrd: str = None,
+    cmdline: str = None,
+):
+    """Sets direct kernel boot parameters for a VM, saving to metadata."""
+    invalidate_cache(get_internal_id(domain))
+    if domain.isActive():
+        raise libvirt.libvirtError("VM must be stopped to change direct kernel boot settings.")
+
+    xml_desc = domain.XMLDesc(0)
+    root = ET.fromstring(xml_desc)
+    os_elem = root.find("os")
+    if os_elem is None:
+        os_elem = ET.SubElement(root, "os")
+
+    dkb_meta = _get_dkb_metadata_elem(root)
+
+    # Always save to metadata if we have values
+    if kernel:
+        dkb_meta.set("kernel", kernel)
+    if initrd:
+        dkb_meta.set("initrd", initrd)
+    elif "initrd" in dkb_meta.attrib:
+        del dkb_meta.attrib["initrd"]
+    if cmdline:
+        dkb_meta.set("cmdline", cmdline)
+    elif "cmdline" in dkb_meta.attrib:
+        del dkb_meta.attrib["cmdline"]
+
+    # Remove existing from <os>
+    for tag in ["kernel", "initrd", "cmdline"]:
+        elem = os_elem.find(tag)
+        if elem is not None:
+            os_elem.remove(elem)
+
+    # If enabled, add to <os>
+    if enabled and kernel:
+        k_elem = ET.SubElement(os_elem, "kernel")
+        k_elem.text = kernel
+        if initrd:
+            i_elem = ET.SubElement(os_elem, "initrd")
+            i_elem.text = initrd
+        if cmdline:
+            c_elem = ET.SubElement(os_elem, "cmdline")
+            c_elem.text = cmdline
+
+    new_xml = ET.tostring(root, encoding="unicode")
+    domain.connect().defineXML(new_xml)
 
 
 @log_function_call
