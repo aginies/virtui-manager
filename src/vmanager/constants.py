@@ -400,7 +400,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     USE_NETWORK_NAME_FOR_DNS = _("Use Network Name for DNS")
     CUSTOM_DNS_DOMAIN = _("Custom DNS Domain")
     NETWORK_DETAILS = _("Network Details")
-    UNDEFINE_SOURCE_VM = _("Undefine source VM")
+    UNDEFINE_SOURCE_VM = _("Delete VM from source host")
     EDIT_DISK_TITLE = _("Edit Disk: {path}")
     MOVE_VOLUME_TITLE = _("Move Volume: {volume_name}")
     MIGRATE_VMS_TITLE = _("[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
@@ -620,6 +620,7 @@ Specify the NUMA nodes to use.
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
+    UNDEFINE_SOURCE_VM_TOOLTIP = _("Delete the VM from the source host after migration.")
 
     # Expert Mode and Automated Installation Tooltips
     AUTOMATION_TEMPLATE_TOOLTIP = _(
@@ -1137,6 +1138,9 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     FAILED_TO_SAVE_CONFIGURATION = _("Failed to save configuration")
     ERROR_SAVING_AUTOFILL_CONFIGURATION = _("Error saving auto-fill configuration")
     ERROR_OPENING_AUTOFILL_CONFIGURATION = _("Error opening auto-fill configuration")
+    INVALID_SERVER_URI_TEMPLATE = _(
+        "Invalid URI '{uri}'.\nURI must start with 'qemu:///' or 'qemu+ssh://'."
+    )
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods

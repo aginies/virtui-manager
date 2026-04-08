@@ -53,11 +53,9 @@ def execute_custom_migration(
 
     xml_updated = False
 
-    # Remove UUID to ensure a new one is generated
-    uuid_elem = root.find("uuid")
-    if uuid_elem is not None:
-        root.remove(uuid_elem)
-        xml_updated = True
+    # Keep the original UUID — removing it would cause libvirt to assign a new one,
+    # which breaks snapshot redefinition because snapshot XML embeds the original UUID
+    # inside its <domain> element and libvirt validates they match on REDEFINE.
 
     path_mapping = {}
 
@@ -187,7 +185,8 @@ def execute_custom_migration(
 
     if xml_updated:
         log("Updating VM configuration on destination...")
-        # Undefine to allow new UUID generation
+        # Undefine then redefine with updated disk paths.
+        # The UUID is preserved in the XML so snapshots remain valid.
         try:
             dest_vm.undefine()
         except libvirt.libvirtError:
@@ -206,27 +205,45 @@ def execute_custom_migration(
             # Sort snapshots by creation time (oldest first) to ensure parent snapshots exist
             snapshots.sort(key=lambda x: x.get("creation_time", ""), reverse=False)
 
+            # Get the destination VM's UUID so we can keep snapshot metadata consistent.
+            # Snapshot XML embeds a <domain> element with a <uuid>; libvirt requires it to
+            # match the VM's current UUID when using VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE.
+            dest_vm_uuid = dest_vm.UUIDString()
+
             for snap_info in snapshots:
                 snap_name = snap_info["name"]
                 log(f"Migrating snapshot '{snap_name}'...")
 
                 try:
-                    # Get secure XML to include security driver info if needed, though secure=0 is usually enough for metadata
                     snapshot_obj = snap_info["snapshot_object"]
                     snap_xml = snapshot_obj.getXMLDesc(libvirt.VIR_DOMAIN_SNAPSHOT_XML_SECURE)
 
-                    if path_mapping:
-                        snap_root = ET.fromstring(snap_xml)
-                        # The snapshot XML contains a <domain> element which describes the VM state
-                        domain_elem = snap_root.find("domain")
-                        if domain_elem is not None:
-                            snap_xml_updated = False
+                    snap_root = ET.fromstring(snap_xml)
+                    snap_xml_updated = False
+
+                    # The snapshot XML contains a <domain> element which describes the VM state
+                    # at the time of the snapshot. Update its UUID and disk paths.
+                    domain_elem = snap_root.find("domain")
+                    if domain_elem is not None:
+                        # Sync UUID: snapshot's embedded domain UUID must match the destination VM.
+                        snap_uuid_elem = domain_elem.find("uuid")
+                        if snap_uuid_elem is not None:
+                            if snap_uuid_elem.text != dest_vm_uuid:
+                                snap_uuid_elem.text = dest_vm_uuid
+                                snap_xml_updated = True
+                        else:
+                            # UUID element missing — insert it so libvirt can validate.
+                            new_uuid_elem = ET.SubElement(domain_elem, "uuid")
+                            new_uuid_elem.text = dest_vm_uuid
+                            snap_xml_updated = True
+
+                        # Update disk paths if volumes were moved to new locations.
+                        if path_mapping:
                             for disk in domain_elem.findall(".//devices/disk"):
                                 source = disk.find("source")
                                 if source is not None:
                                     old_file = source.get("file")
                                     old_dev = source.get("dev")
-
                                     if old_file and old_file in path_mapping:
                                         source.set("file", path_mapping[old_file])
                                         snap_xml_updated = True
@@ -234,8 +251,8 @@ def execute_custom_migration(
                                         source.set("dev", path_mapping[old_dev])
                                         snap_xml_updated = True
 
-                            if snap_xml_updated:
-                                snap_xml = ET.tostring(snap_root, encoding="unicode")
+                    if snap_xml_updated:
+                        snap_xml = ET.tostring(snap_root, encoding="unicode")
 
                     # Redefine on destination
                     dest_vm.snapshotCreateXML(snap_xml, libvirt.VIR_DOMAIN_SNAPSHOT_CREATE_REDEFINE)
@@ -243,7 +260,8 @@ def execute_custom_migration(
 
                 except libvirt.libvirtError as e:
                     log(f"[red]ERROR: Failed to migrate snapshot '{snap_name}': {e}[/]")
-                    # Continue with other snapshots? If parent fails, children might fail.
+                    # Continue with other snapshots — but note: if a parent snapshot fails,
+                    # its children will also fail since they reference the parent by name.
 
     except Exception as e:
         log(f"[yellow]Warning: Error preparing for snapshot migration: {e}[/]")

@@ -58,8 +58,14 @@ class MigrationModal(ModalScreen):
 
         dest_servers = []
         for uri, conn in self.connections.items():
-            if uri == source_uri:
-                continue
+            # Compare libvirt-reported URIs (not configured keys) to handle FQDN vs short name
+            # differences between what was configured and what libvirt actually resolves.
+            try:
+                if conn.getURI() == source_uri:
+                    continue
+            except libvirt.libvirtError:
+                if uri == source_uri:
+                    continue
 
             if source_hostname:
                 try:
@@ -137,6 +143,13 @@ class MigrationModal(ModalScreen):
                         StaticText.CUSTOM_MIGRATION,
                         id="custom",
                         tooltip=StaticText.USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP,
+                        value=False,
+                    )
+                with Horizontal(classes="checkbox-container"):
+                    yield Checkbox(
+                        StaticText.UNDEFINE_SOURCE_VM,
+                        id="undefine-source",
+                        tooltip=StaticText.UNDEFINE_SOURCE_VM_TOOLTIP,
                         value=False,
                     )
                 yield Static(StaticText.COMPATIBILITY_CHECK_RESULTS)
@@ -368,6 +381,7 @@ class MigrationModal(ModalScreen):
         tunnelled = self.query_one("#tunnelled", Checkbox).value
 
         custom_migration = self.query_one("#custom", Checkbox).value
+        undefine_source = self.query_one("#undefine-source", Checkbox).value
 
         for vm in self.vms_to_migrate:
             write_log(StaticText.MIGRATING_VM_HEADER_TEMPLATE.format(vm_name=vm.name()))
@@ -437,6 +451,28 @@ class MigrationModal(ModalScreen):
                     # Pass self.dest_uri as the uri argument to ensure correct port/transport is used
                     vm.migrate(self.dest_conn, flags, None, self.dest_uri, 0)
                 else:  # Offline migration
+                    # Guard: source and destination must not be the same host.
+                    # This can happen if the destination list filtering in compose() missed
+                    # the source due to URI string differences (configured key vs libvirt-reported).
+                    same_host = False
+                    try:
+                        src_host = vm.connect().getHostname()
+                        dst_host = self.dest_conn.getHostname()
+                        if src_host == dst_host:
+                            same_host = True
+                    except libvirt.libvirtError:
+                        pass  # getHostname() may fail; proceed and let libvirt decide.
+
+                    if same_host:
+                        write_log(
+                            StaticText.MIGRATION_FAILED_TEMPLATE.format(
+                                vm_name=vm.name(),
+                                error=f"Attempt to migrate guest to the same host '{src_host}'",
+                            )
+                        )
+                        self.app.call_from_thread(progress_bar.advance, 1)
+                        continue
+
                     flags = libvirt.VIR_MIGRATE_OFFLINE | libvirt.VIR_MIGRATE_PEER2PEER
                     if persistent:
                         flags |= libvirt.VIR_MIGRATE_PERSIST_DEST
@@ -453,7 +489,7 @@ class MigrationModal(ModalScreen):
 
                 write_log(StaticText.MIGRATION_SUCCESS_TEMPLATE.format(vm_name=vm.name()))
 
-                if persistent:
+                if undefine_source:
                     try:
                         vm.undefine()
                         write_log(StaticText.UNDEFINE_SUCCESS_TEMPLATE.format(vm_name=vm.name()))
@@ -479,6 +515,7 @@ class MigrationModal(ModalScreen):
             self.query_one("#persistent").disabled = True
             self.query_one("#compress").disabled = True
             self.query_one("#tunnelled").disabled = True
+            self.query_one("#undefine-source").disabled = True
             self.query_one("#close").disabled = False
 
         write_log(StaticText.MIGRATION_PROCESS_FINISHED)

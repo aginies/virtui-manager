@@ -2361,7 +2361,7 @@ def delete_vm(
 
             for disk_info in disks_to_delete:
                 disk_path = disk_info.get("path")
-                if not disk_path or not disk_info.get("status") == "enabled":
+                if not disk_path:
                     continue
 
                 log(f"Attempting to delete volume: {disk_path}")

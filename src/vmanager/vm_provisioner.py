@@ -892,7 +892,7 @@ class VMProvisioner:
                         f"Converting NVRAM template to {nvram_format} using qemu-img (pflash={has_pflash})."
                     )
                     # Create temporary files for conversion
-                    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_in:
+                    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False, dir="/var/tmp") as tmp_in:
                         try:
                             tmp_in.write(received_data)
                             tmp_in.flush()

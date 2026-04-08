@@ -1198,7 +1198,7 @@ def copy_volume_across_hosts(
     try:
         if new_backing_path:
             # We need to rebase, so we must download to a temp file
-            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(delete=False, dir="/var/tmp") as tmp:
                 tmp_file = tmp.name
             log_and_callback(f"Using temporary file for rebase: {tmp_file}")
 
