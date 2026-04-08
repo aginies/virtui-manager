@@ -13,7 +13,7 @@ class TestConstants(unittest.TestCase):
         """Test AppInfo constants."""
         self.assertEqual(AppInfo.name, "virtui-manager")
         self.assertEqual(AppInfo.namecase, "VirtUI Manager")
-        self.assertEqual(AppInfo.version, "2.5.0")
+        self.assertEqual(AppInfo.version, "2.5.1")
 
     def test_vm_action(self):
         """Test VmAction constants."""
