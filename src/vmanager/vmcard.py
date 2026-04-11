@@ -2396,6 +2396,7 @@ class VMCard(Static):
                             log_callback(f"Successfully cloned VM '{self.name}' to '{new_name}'")
                         except Exception as e:
                             failed_clones.append(new_name)
+                            logging.exception("Clone failed for %s -> %s", self.name, new_name)
                             log_callback(f"ERROR: Error cloning VM {self.name} to {new_name}: {e}")
                         finally:
                             app.call_from_thread(

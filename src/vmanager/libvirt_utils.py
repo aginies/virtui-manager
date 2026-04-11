@@ -51,36 +51,36 @@ def _find_vol_by_path(
     Returns:
         Tuple of (volume, pool) or (None, None) if not found
     """
+    # Primary: storageVolLookupByPath queries libvirt directly without relying on
+    # pool volume caches, so it works even when a pool hasn't been refreshed.
     try:
-        # Get only active pools first (faster)
-        active_pool_names = conn.listStoragePools()
-
-        # Check active pools first (most common case)
-        for pool_name in active_pool_names:
+        vol = conn.storageVolLookupByPath(vol_path)
+        # Found the volume — now identify which pool owns it.
+        for pool_name in conn.listStoragePools():
             try:
                 pool = conn.storagePoolLookupByName(pool_name)
-                # listAllVolumes returns a list of virStorageVol objects
+                pool.storageVolLookupByName(vol.name())
+                return vol, pool
+            except libvirt.libvirtError:
+                continue
+    except Exception:
+        # Catch-all: storageVolLookupByPath may not exist in very old libvirt
+        # Python bindings, or may raise a non-libvirtError on some platforms.
+        pass
+
+    # Fallback: iterate active pool volume caches.
+    try:
+        for pool_name in conn.listStoragePools():
+            try:
+                pool = conn.storagePoolLookupByName(pool_name)
                 for vol in pool.listAllVolumes():
                     if vol and vol.path() == vol_path:
                         return vol, pool
             except libvirt.libvirtError:
                 continue
-
-        # Only check inactive pools if needed (rare case)
-        inactive_pool_names = conn.listDefinedStoragePools()
-        for pool_name in inactive_pool_names:
-            try:
-                pool = conn.storagePoolLookupByName(pool_name)
-                # Only activate if we need to check volumes
-                if pool.isActive():
-                    for vol in pool.listAllVolumes():
-                        if vol and vol.path() == vol_path:
-                            return vol, pool
-            except libvirt.libvirtError:
-                continue
-
-    except libvirt.libvirtError:
+    except Exception:
         pass
+
     return None, None
 
 
