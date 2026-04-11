@@ -2,7 +2,7 @@
 
 pkgs.python3Packages.buildPythonApplication {
   pname = "virtui-manager";
-  version = "2.5.1";
+  version = "2.5.2";
 
   src = ../.;
 
