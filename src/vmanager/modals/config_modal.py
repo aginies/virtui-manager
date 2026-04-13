@@ -79,7 +79,7 @@ class ConfigModal(BaseModal[None]):
                     viewers.append(("virt-viewer", "virt-viewer"))
 
                 current_viewer = self.config.get("REMOTE_VIEWER")
-                if current_viewer not in [v[1] for v in viewers]:
+                if not current_viewer or current_viewer not in [v[1] for v in viewers]:
                     current_viewer = Select.BLANK
 
                 if not viewers:
