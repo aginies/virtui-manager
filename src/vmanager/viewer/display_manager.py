@@ -658,6 +658,9 @@ class DisplayManager:
 
     def on_vnc_connected(self, vnc):
         """Handle VNC connected event."""
+        # Re-apply smoothing after connection — GtkVnc may reset display properties
+        # during the protocol handshake, so we ensure it is set to the configured value.
+        self.vnc_display.set_smoothing(self.settings.smoothing_enabled)
         if self.verbose:
             print("VNC Connected")
 
