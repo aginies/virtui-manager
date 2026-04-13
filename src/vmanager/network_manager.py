@@ -15,6 +15,77 @@ from .libvirt_utils import get_host_domain_capabilities
 from .utils import log_function_call
 
 
+def ensure_default_network(conn: libvirt.virConnect) -> libvirt.virNetwork | None:
+    """
+    Ensures a default network exists and is active.
+    If no networks exist, creates a 'default' NAT network.
+    If 'default' network exists but is inactive, starts it.
+    """
+    if not conn:
+        return None
+
+    try:
+        # Check if 'default' network exists
+        try:
+            net = conn.networkLookupByName("default")
+            if not net.isActive():
+                logging.info("Default network 'default' exists but is inactive. Starting it...")
+                net.create()
+            return net
+        except libvirt.libvirtError as e:
+            if e.get_error_code() != libvirt.VIR_ERR_NO_NETWORK:
+                raise
+
+        # Check if any other networks exist and are active
+        networks = conn.listAllNetworks()
+        if networks:
+            active_nets = [n for n in networks if n.isActive()]
+            if active_nets:
+                return active_nets[0]
+            
+            # If no networks are active, try to start the first one
+            try:
+                networks[0].create()
+                return networks[0]
+            except libvirt.libvirtError:
+                pass # Fallback to creating 'default' if we can't start existing one
+
+        # No networks present or couldn't start existing ones, create 'default'
+        name = "default"
+        logging.info(f"Creating default NAT network '{name}'...")
+        
+        # Standard libvirt default network XML
+        xml = f"""
+<network>
+  <name>{name}</name>
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <mac address='{generate_mac_address()}'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.254'/>
+    </dhcp>
+  </ip>
+</network>
+"""
+        net = conn.networkDefineXML(xml)
+        net.create()
+        net.setAutostart(True)
+        logging.info(f"Default network '{name}' created and started.")
+        return net
+
+    except libvirt.libvirtError as e:
+        logging.error(f"Failed to ensure default network: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error ensuring default network: {e}")
+        return None
+
+
 @lru_cache(maxsize=16)
 def list_networks(conn):
     """

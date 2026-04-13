@@ -675,7 +675,7 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                         (StaticText.KEYBOARD_ITALIAN, "it"),
                         (StaticText.KEYBOARD_UK_ENGLISH, "uk"),
                     ]
-                    current_keyboard = self.prefill_config.get("keyboard", "us")
+                    current_keyboard = self.prefill_config.get("keyboard") or "us"
                     yield Select(
                         options=keyboard_options,
                         value=current_keyboard,
@@ -694,7 +694,7 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                         (StaticText.LANGUAGE_VALUE_ITALIAN, StaticText.LANGUAGE_VALUE_ITALIAN),
                         (StaticText.LANGUAGE_VALUE_ENGLISH_UK, StaticText.LANGUAGE_VALUE_ENGLISH_UK),
                     ]
-                    current_language = self.prefill_config.get("language", "English (US)")
+                    current_language = self.prefill_config.get("language") or "English (US)"
                     yield Select(
                         options=language_options,
                         value=current_language,
@@ -778,7 +778,7 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                     ("s390x", "s390x"),
                     ("ppc64le", "ppc64le"),
                 ]
-                current_arch = self.scc_config.get("scc_product_arch", "x86_64")
+                current_arch = self.scc_config.get("scc_product_arch") or "x86_64"
                 yield Select(
                     options=arch_options,
                     value=current_arch,

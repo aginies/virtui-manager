@@ -15,7 +15,7 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
-from ..network_manager import list_networks
+from ..network_manager import ensure_default_network, list_networks
 from ..storage_manager import ensure_default_pool, list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
@@ -370,8 +370,8 @@ class InstallVMModal(BaseModal[str | None]):
         if storage_pool_select.value and storage_pool_select.value != Select.BLANK:
             self.fetch_pool_isos(storage_pool_select.value)
 
-        # Check if we need to create a default pool if none exist
-        self._check_and_ensure_pools()
+        # Check if we need to create a default pool and network if none exist
+        self._check_and_ensure_resources()
 
         # Hide virt-install checkbox if not available
         # ALWAYS HIDE FOR NOW
@@ -385,15 +385,48 @@ class InstallVMModal(BaseModal[str | None]):
         #    use_virt_install_checkbox.styles.display = "block"
 
     @work(exclusive=True, thread=True)
-    def _check_and_ensure_pools(self):
-        """Ensures a default storage pool exists if no pools are present."""
+    def _check_and_ensure_resources(self):
+        """Ensures default storage pool and network exist and are active."""
         try:
+            # 1. Check/Ensure Pool
             pool = ensure_default_pool(self.conn)
             if pool:
                 # Refresh storage pool lists in the UI
                 self.app.call_from_thread(self._refresh_pool_selectors)
+            
+            # 2. Check/Ensure Network
+            net = ensure_default_network(self.conn)
+            if net:
+                # Refresh network lists in the UI
+                self.app.call_from_thread(self._refresh_network_selectors)
+                
         except Exception as e:
-            logging.error(f"Failed to ensure default pool in background: {e}")
+            logging.error(f"Failed to ensure default resources in background: {e}")
+
+    def _refresh_network_selectors(self):
+        """Refresh network select widget with new data."""
+        try:
+            networks = list_networks(self.conn)
+            active_networks = [(n["name"], n["name"]) for n in networks if n["active"]]
+
+            if not active_networks:
+                return
+
+            # Update the network select
+            network_select = self.query_one("#network", Select)
+            network_select.set_options(active_networks)
+            if network_select.value == Select.BLANK:
+                # Select 'default' or the first one if we just created it
+                default_network = (
+                    "default"
+                    if any(n[0] == "default" for n in active_networks)
+                    else (active_networks[0][1] if active_networks else Select.BLANK)
+                )
+                network_select.value = default_network
+
+            self._check_form_validity()
+        except Exception as e:
+            logging.error(f"Error refreshing network selectors: {e}")
 
     def _refresh_pool_selectors(self):
         """Refresh storage pool select widgets with new data."""

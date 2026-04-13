@@ -66,7 +66,7 @@ class ConfigModal(BaseModal[None]):
                         ("ERROR", "ERROR"),
                         ("CRITICAL", "CRITICAL"),
                     ],
-                    value=self.config.get("LOG_LEVEL", "INFO"),
+                    value=self.config.get("LOG_LEVEL") or "INFO",
                     id="log-level-select",
                     prompt=StaticText.LOG_LEVEL_PROMPT,
                 )
