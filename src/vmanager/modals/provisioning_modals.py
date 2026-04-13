@@ -56,7 +56,7 @@ class InstallVMModal(BaseModal[str | None]):
         default_pool = (
             "default"
             if any(p[0] == "default" for p in active_pools)
-            else (active_pools[0][1] if active_pools else None)
+            else (active_pools[0][1] if active_pools else Select.BLANK)
         )
 
         with ScrollableContainer(id="install-dialog"):
@@ -166,7 +166,7 @@ class InstallVMModal(BaseModal[str | None]):
                     prompt=StaticText.SELECT_POOL_PROMPT,
                     id="storage-pool-select",
                     allow_blank=True if not active_pools else False,
-                    value=active_pools[0][1] if active_pools else None,
+                    value=active_pools[0][1] if active_pools else Select.BLANK,
                 )
                 yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
                 yield Select(
@@ -182,17 +182,17 @@ class InstallVMModal(BaseModal[str | None]):
             default_network = (
                 "default"
                 if any(n[0] == "default" for n in active_networks)
-                else (active_networks[0][1] if active_networks else None)
+                else (active_networks[0][1] if active_networks else Select.BLANK)
             )
 
             with Horizontal(id="pool-network-selection"):
                 with Vertical(id="pool-selection"):
                     yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                    yield Select(active_pools, value=default_pool, id="pool", allow_blank=True if not active_pools else False)
+                    yield Select(active_pools, value=default_pool if default_pool else Select.BLANK, id="pool", allow_blank=True if not active_pools else False)
                 with Vertical(id="network-selection"):
                     yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
                     yield Select(
-                        active_networks, value=default_network, id="network", allow_blank=True if not active_networks else False
+                        active_networks, value=default_network if default_network else Select.BLANK, id="network", allow_blank=True if not active_networks else False
                     )
 
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
