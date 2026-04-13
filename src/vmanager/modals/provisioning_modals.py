@@ -165,7 +165,7 @@ class InstallVMModal(BaseModal[str | None]):
                     active_pools,
                     prompt=StaticText.SELECT_POOL_PROMPT,
                     id="storage-pool-select",
-                    allow_blank=False,
+                    allow_blank=True if not active_pools else False,
                     value=active_pools[0][1] if active_pools else None,
                 )
                 yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
@@ -188,11 +188,11 @@ class InstallVMModal(BaseModal[str | None]):
             with Horizontal(id="pool-network-selection"):
                 with Vertical(id="pool-selection"):
                     yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                    yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+                    yield Select(active_pools, value=default_pool, id="pool", allow_blank=True if not active_pools else False)
                 with Vertical(id="network-selection"):
                     yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
                     yield Select(
-                        active_networks, value=default_network, id="network", allow_blank=False
+                        active_networks, value=default_network, id="network", allow_blank=True if not active_networks else False
                     )
 
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
@@ -367,7 +367,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Populate initial storage pool volumes if "From Storage Pool" is default
         storage_pool_select = self.query_one("#storage-pool-select", Select)
-        if storage_pool_select.value:
+        if storage_pool_select.value and storage_pool_select.value != Select.BLANK:
             self.fetch_pool_isos(storage_pool_select.value)
 
         # Hide virt-install checkbox if not available
