@@ -283,6 +283,58 @@ def calculate_qcow2_cache_sizes(
     return l2_cache_size, refcount_cache_size
 
 
+def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | None:
+    """
+    Ensures a default storage pool exists and is active.
+    If no pools exist, creates a 'default' pool pointing to /var/lib/libvirt/images.
+    """
+    if not conn:
+        return None
+
+    try:
+        # Check if any pools exist
+        pools = conn.listAllStoragePools(0)
+        if pools:
+            return None
+
+        # No pools present, create 'default'
+        name = "default"
+        pool_type = "dir"
+        target = "/var/lib/libvirt/images"
+
+        logging.info(f"No storage pools found. Creating default pool '{name}' at {target}...")
+        
+        xml = f"""
+        <pool type='{pool_type}'>
+            <name>{name}</name>
+            <target>
+                <path>{target}</path>
+            </target>
+        </pool>
+        """
+        pool = conn.storagePoolDefineXML(xml, 0)
+        
+        try:
+            pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+        except libvirt.libvirtError:
+            try:
+                pool.build(0)
+            except libvirt.libvirtError:
+                pass # Already exists or cannot build
+
+        pool.create(0)
+        pool.setAutostart(1)
+        logging.info(f"Default storage pool '{name}' created and started.")
+        return pool
+
+    except libvirt.libvirtError as e:
+        logging.error(f"Failed to ensure default storage pool: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error ensuring default storage pool: {e}")
+        return None
+
+
 def create_storage_pool(
     conn, name, pool_type, target, source_host=None, source_path=None, source_format=None
 ):

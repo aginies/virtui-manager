@@ -16,7 +16,7 @@ from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..network_manager import list_networks
-from ..storage_manager import list_storage_pools
+from ..storage_manager import ensure_default_pool, list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..provisioning.os_provider import OSType
@@ -370,6 +370,9 @@ class InstallVMModal(BaseModal[str | None]):
         if storage_pool_select.value and storage_pool_select.value != Select.BLANK:
             self.fetch_pool_isos(storage_pool_select.value)
 
+        # Check if we need to create a default pool if none exist
+        self._check_and_ensure_pools()
+
         # Hide virt-install checkbox if not available
         # ALWAYS HIDE FOR NOW
         use_virt_install_checkbox = self.query_one("#use-virt-install-checkbox", Checkbox)
@@ -380,6 +383,50 @@ class InstallVMModal(BaseModal[str | None]):
         #    use_virt_install_checkbox.styles.display = "none"
         # else:
         #    use_virt_install_checkbox.styles.display = "block"
+
+    @work(exclusive=True, thread=True)
+    def _check_and_ensure_pools(self):
+        """Ensures a default storage pool exists if no pools are present."""
+        try:
+            pool = ensure_default_pool(self.conn)
+            if pool:
+                # Refresh storage pool lists in the UI
+                self.app.call_from_thread(self._refresh_pool_selectors)
+        except Exception as e:
+            logging.error(f"Failed to ensure default pool in background: {e}")
+
+    def _refresh_pool_selectors(self):
+        """Refresh storage pool select widgets with new data."""
+        try:
+            pools = list_storage_pools(self.conn)
+            active_pools = [(p["name"], p["name"]) for p in pools if p["status"] == "active"]
+
+            if not active_pools:
+                return
+
+            # Update the main pool select
+            pool_select = self.query_one("#pool", Select)
+            pool_select.set_options(active_pools)
+            if pool_select.value == Select.BLANK:
+                # Select 'default' or the first one if we just created it
+                default_pool = (
+                    "default"
+                    if any(p[0] == "default" for p in active_pools)
+                    else (active_pools[0][1] if active_pools else Select.BLANK)
+                )
+                pool_select.value = default_pool
+
+            # Update storage-pool-select (for ISOs)
+            storage_pool_select = self.query_one("#storage-pool-select", Select)
+            storage_pool_select.set_options(active_pools)
+            if storage_pool_select.value == Select.BLANK:
+                storage_pool_select.value = active_pools[0][1]
+                # Also trigger fetching isos for it
+                self.fetch_pool_isos(storage_pool_select.value)
+
+            self._check_form_validity()
+        except Exception as e:
+            logging.error(f"Error refreshing pool selectors: {e}")
 
     def _update_expert_defaults(self, vm_type, distro=None):
         mem = 4
