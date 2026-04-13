@@ -620,7 +620,6 @@ def get_host_numa_nodes(conn: libvirt.virConnect) -> int:
     return 1
 
 
-@lru_cache(maxsize=4)
 def get_host_usb_devices(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     """Gets all USB devices from the host.
 
