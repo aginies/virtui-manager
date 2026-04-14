@@ -80,7 +80,7 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
             mac_address = interface_select.value
             new_network = network_select.value
 
-            if mac_address is Select.BLANK or new_network is Select.BLANK:
+            if mac_address is Select.NULL or new_network is Select.NULL:
                 self.app.show_error_message(ErrorMessages.PLEASE_SELECT_INTERFACE_AND_NETWORK)
                 return
 
@@ -473,7 +473,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                     quality_select = self.query_one("#quality-select", Select)
                     new_quality_value = quality_select.value
                     if (
-                        new_quality_value is not Select.BLANK
+                        new_quality_value is not Select.NULL
                         and self.config.get("VNC_QUALITY") != new_quality_value
                     ):
                         self.config["VNC_QUALITY"] = new_quality_value
@@ -482,7 +482,7 @@ class WebConsoleConfigDialog(BaseDialog[bool]):
                     compression_select = self.query_one("#compression-select", Select)
                     new_compression_value = compression_select.value
                     if (
-                        new_compression_value is not Select.BLANK
+                        new_compression_value is not Select.NULL
                         and self.config.get("VNC_COMPRESSION") != new_compression_value
                     ):
                         self.config["VNC_COMPRESSION"] = new_compression_value

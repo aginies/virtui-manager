@@ -102,7 +102,7 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
             new_network = network_select.value
             new_model = model_select.value
 
-            if new_network is Select.BLANK:
+            if new_network is Select.NULL:
                 self.app.show_error_message(ErrorMessages.SELECT_NETWORK)
                 return
 
@@ -316,7 +316,7 @@ class AddEditNetworkModal(BaseModal[None]):
             typenet = "nat" if typenet_id == "type-network-nat" else "route"
             forward_select = self.query_one("#net-forward-input", Select)
             forward = forward_select.value
-            if forward is Select.BLANK:
+            if forward is Select.NULL:
                 forward = None
             ip = self.query_one("#net-ip-input", Input).value
             dhcp = self.query_one("#dhcp-checkbox", Checkbox).value

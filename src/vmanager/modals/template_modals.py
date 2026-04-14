@@ -104,7 +104,7 @@ class TemplateNameModal(BaseModal[dict | None]):
         description_input = self.query_one("#template-description-input", Input)
 
         name = name_input.value.strip()
-        os_name = os_select.value if os_select.value != Select.BLANK else "Generic"
+        os_name = os_select.value if os_select.value != Select.NULL else "Generic"
         description = description_input.value.strip()
 
         if not name:
@@ -825,9 +825,9 @@ class AutoFillConfigModal(BaseModal[dict | None]):
                 prefill_config["username"] = username.strip()
             if user_password.strip():
                 prefill_config["user_password"] = user_password.strip()
-            if keyboard and keyboard != Select.BLANK:
+            if keyboard and keyboard != Select.NULL:
                 prefill_config["keyboard"] = keyboard
-            if language and language != Select.BLANK:
+            if language and language != Select.NULL:
                 prefill_config["language"] = language
 
             # Build the SUSE_SCC configuration
@@ -847,7 +847,7 @@ class AutoFillConfigModal(BaseModal[dict | None]):
             if scc_lpatching_reg_code.strip():
                 scc_config["scc_lpatching_reg_code"] = scc_lpatching_reg_code.strip()
 
-            if scc_arch and scc_arch != Select.BLANK:
+            if scc_arch and scc_arch != Select.NULL:
                 scc_config["scc_product_arch"] = scc_arch
 
             # Update the main configuration

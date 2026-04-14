@@ -56,7 +56,7 @@ class InstallVMModal(BaseModal[str | None]):
         default_pool = (
             "default"
             if any(p[0] == "default" for p in active_pools)
-            else (active_pools[0][1] if active_pools else Select.BLANK)
+            else (active_pools[0][1] if active_pools else Select.NULL)
         )
 
         with ScrollableContainer(id="install-dialog"):
@@ -166,7 +166,7 @@ class InstallVMModal(BaseModal[str | None]):
                     prompt=StaticText.SELECT_POOL_PROMPT,
                     id="storage-pool-select",
                     allow_blank=True if not active_pools else False,
-                    value=active_pools[0][1] if active_pools else Select.BLANK,
+                    value=active_pools[0][1] if active_pools else Select.NULL,
                 )
                 yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
                 yield Select(
@@ -182,17 +182,17 @@ class InstallVMModal(BaseModal[str | None]):
             default_network = (
                 "default"
                 if any(n[0] == "default" for n in active_networks)
-                else (active_networks[0][1] if active_networks else Select.BLANK)
+                else (active_networks[0][1] if active_networks else Select.NULL)
             )
 
             with Horizontal(id="pool-network-selection"):
                 with Vertical(id="pool-selection"):
                     yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                    yield Select(active_pools, value=default_pool if default_pool else Select.BLANK, id="pool", allow_blank=True if not active_pools else False)
+                    yield Select(active_pools, value=default_pool if default_pool else Select.NULL, id="pool", allow_blank=True if not active_pools else False)
                 with Vertical(id="network-selection"):
                     yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
                     yield Select(
-                        active_networks, value=default_network if default_network else Select.BLANK, id="network", allow_blank=True if not active_networks else False
+                        active_networks, value=default_network if default_network else Select.NULL, id="network", allow_blank=True if not active_networks else False
                     )
 
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
@@ -367,7 +367,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Populate initial storage pool volumes if "From Storage Pool" is default
         storage_pool_select = self.query_one("#storage-pool-select", Select)
-        if storage_pool_select.value and storage_pool_select.value != Select.BLANK:
+        if storage_pool_select.value and storage_pool_select.value != Select.NULL:
             self.fetch_pool_isos(storage_pool_select.value)
 
         # Check if we need to create a default pool and network if none exist
@@ -415,12 +415,12 @@ class InstallVMModal(BaseModal[str | None]):
             # Update the network select
             network_select = self.query_one("#network", Select)
             network_select.set_options(active_networks)
-            if network_select.value == Select.BLANK:
+            if network_select.value == Select.NULL:
                 # Select 'default' or the first one if we just created it
                 default_network = (
                     "default"
                     if any(n[0] == "default" for n in active_networks)
-                    else (active_networks[0][1] if active_networks else Select.BLANK)
+                    else (active_networks[0][1] if active_networks else Select.NULL)
                 )
                 network_select.value = default_network
 
@@ -440,19 +440,19 @@ class InstallVMModal(BaseModal[str | None]):
             # Update the main pool select
             pool_select = self.query_one("#pool", Select)
             pool_select.set_options(active_pools)
-            if pool_select.value == Select.BLANK:
+            if pool_select.value == Select.NULL:
                 # Select 'default' or the first one if we just created it
                 default_pool = (
                     "default"
                     if any(p[0] == "default" for p in active_pools)
-                    else (active_pools[0][1] if active_pools else Select.BLANK)
+                    else (active_pools[0][1] if active_pools else Select.NULL)
                 )
                 pool_select.value = default_pool
 
             # Update storage-pool-select (for ISOs)
             storage_pool_select = self.query_one("#storage-pool-select", Select)
             storage_pool_select.set_options(active_pools)
-            if storage_pool_select.value == Select.BLANK:
+            if storage_pool_select.value == Select.NULL:
                 storage_pool_select.value = active_pools[0][1]
                 # Also trigger fetching isos for it
                 self.fetch_pool_isos(storage_pool_select.value)
@@ -556,7 +556,7 @@ class InstallVMModal(BaseModal[str | None]):
             self.query_one("#pool-iso-container").styles.display = "block"
             # Trigger fetching volumes for the currently selected storage pool
             pool_select = self.query_one("#storage-pool-select", Select)
-            if pool_select.value and pool_select.value != Select.BLANK:
+            if pool_select.value and pool_select.value != Select.NULL:
                 self.fetch_pool_isos(pool_select.value)
             else:
                 # If no pool is selected, clear the ISO volume select and keep it disabled
@@ -587,7 +587,7 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#storage-pool-select")
     def on_storage_pool_selected(self, event: Select.Changed):
         """Handles when a storage pool is selected for ISO volumes."""
-        if event.value and event.value != Select.BLANK:
+        if event.value and event.value != Select.NULL:
             self.fetch_pool_isos(event.value)
         else:
             # No pool selected, clear volumes and disable the volume select
@@ -1048,7 +1048,7 @@ class InstallVMModal(BaseModal[str | None]):
         template_id = event.value
 
         # Enable/disable user configuration fields based on template selection
-        should_enable = template_id and template_id != Select.BLANK
+        should_enable = template_id and template_id != Select.NULL
 
         # Update all automation user config fields
         try:
@@ -1174,10 +1174,10 @@ class InstallVMModal(BaseModal[str | None]):
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
             iso_volume = self.query_one("#iso-volume-select", Select).value
-            valid_iso = iso_volume and iso_volume != Select.BLANK
+            valid_iso = iso_volume and iso_volume != Select.NULL
         else:
             iso = self.query_one("#iso-select", Select).value
-            valid_iso = iso and iso != Select.BLANK
+            valid_iso = iso and iso != Select.NULL
 
         btn = self.query_one("#install-btn", Button)
         if name and valid_iso:
@@ -1273,7 +1273,7 @@ class InstallVMModal(BaseModal[str | None]):
         ).value
 
         # Validate storage pool
-        if not pool_name or pool_name == Select.BLANK:
+        if not pool_name or pool_name == Select.NULL:
             self.app.show_error_message(ErrorMessages.PLEASE_SELECT_VALID_STORAGE_POOL)
             return
 
@@ -1296,7 +1296,7 @@ class InstallVMModal(BaseModal[str | None]):
                 checksum = self.query_one("#checksum-input", Input).value.strip()
         elif distro == "pool_volumes":
             iso_url = self.query_one("#iso-volume-select", Select).value
-            if not iso_url or iso_url == Select.BLANK:
+            if not iso_url or iso_url == Select.NULL:
                 self.app.show_error_message(ErrorMessages.SELECT_VALID_ISO_VOLUME)
                 return
             # Validate that the volume path exists and is accessible
@@ -1325,7 +1325,7 @@ class InstallVMModal(BaseModal[str | None]):
         automation_template_id = None
         try:
             template_select = self.query_one("#automation-template-select", Select)
-            if template_select.value and template_select.value != Select.BLANK:
+            if template_select.value and template_select.value != Select.NULL:
                 automation_template_id = template_select.value
         except Exception:
             # Template selection widget may not exist or may not be visible
