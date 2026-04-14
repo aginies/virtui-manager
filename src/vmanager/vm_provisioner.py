@@ -1221,14 +1221,14 @@ class VMProvisioner:
 """
             # Always specify QCOW2 NVRAM format so libvirt doesn't create a raw NVRAM file,
             # which would break internal snapshot support for pflash-based firmware.
-            if settings["boot_uefi"]:
-                if loader_path and nvram_path:
-                    secure_attr = "yes" if settings.get("secure_boot") else "no"
-                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
-    <nvram format='qcow2'>{nvram_path}</nvram>
-"""
-                else:
-                    xml += "    <nvram format='qcow2'/>\n"
+#            if settings["boot_uefi"]:
+#                if loader_path and nvram_path:
+#                    secure_attr = "yes" if settings.get("secure_boot") else "no"
+#                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
+#    <nvram format='qcow2'>{nvram_path}</nvram>
+#"""
+#                else:
+#                    xml += "    <nvram format='qcow2'/>\n"
             xml += f"""    <kernel>{kernel_path}</kernel>
     <initrd>{initrd_path}</initrd>
 """
