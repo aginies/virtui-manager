@@ -3828,7 +3828,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 vm_type=selected_vm_type,
                 iso_url=iso_url,
                 storage_pool_name=selected_pool,
-                use_virt_install=False,
                 configure_before_install=False,
                 automation_config=auto_config,
                 progress_callback=cli_progress_callback,

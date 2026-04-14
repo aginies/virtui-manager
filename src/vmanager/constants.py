@@ -706,13 +706,9 @@ Specify the NUMA nodes to use.
     LANGUAGE_TOOLTIP = _("System language for the installation")
     KEYBOARD_LABEL = _("Keyboard Layout")
     KEYBOARD_TOOLTIP = _("Keyboard layout for the system")
-    USE_VIRT_INSTALL_TOOLTIP = _(
-        "Use virt-install command-line tool. Uncheck to use XML-based creation."
-    )
     SERIAL_CONSOLE_TOOLTIP = _("Adds console=tty0 console=ttyS0,115200 to kernel args")
     CPUS_LABEL = _("CPUs")
     NONE_OPTION = _("None")
-    USE_VIRT_INSTALL_LABEL = _("Use virt-install")
     REDIRECT_CONSOLE_SERIAL_LABEL = _("Redirect console to serial (ttyS0)")
     # VM Provisioner Progress Messages
     PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
@@ -725,7 +721,6 @@ Specify the NUMA nodes to use.
     PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
     PROVISIONING_DEFINING_VM = _("Defining VM")
     PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
-    PROVISIONING_CONFIGURING_VM_VIRT_INSTALL = _("Configuring VM (virt-install)")
     PROVISIONING_WAITING_FOR_VM = _("Waiting for VM")
     PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
     PROVISIONING_STARTING_VM = _("Starting VM")

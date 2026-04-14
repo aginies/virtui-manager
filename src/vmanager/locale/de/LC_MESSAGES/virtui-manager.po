@@ -2274,12 +2274,6 @@ msgstr "Ziel-Server auswählen:"
 msgid "Keyboard layout for the system"
 msgstr "Tastaturbelegung für das System"
 
-#: constants.py:709
-msgid "Use virt-install command-line tool. Uncheck to use XML-based creation."
-msgstr ""
-"Verwenden Sie das virt-install Kommandozeilenwerkzeug. Deaktivieren für XML-"
-"basierte Erstellung."
-
 #: constants.py:711
 msgid "Adds console=tty0 console=ttyS0,115200 to kernel args"
 msgstr "Fügt console=tty0 console=ttyS0,115200 zu Kernel-Argumenten hinzu"
@@ -2292,10 +2286,6 @@ msgstr " CPUs"
 #: constants.py:713
 msgid "None"
 msgstr "Keine"
-
-#: constants.py:714
-msgid "Use virt-install"
-msgstr "virt-install verwenden"
 
 #: constants.py:715
 msgid "Redirect console to serial (ttyS0)"
@@ -2344,11 +2334,6 @@ msgstr "Laufende VMs"
 #: constants.py:726
 msgid "Provisioning Complete (Configuration Mode)"
 msgstr "Bereitstellung abgeschlossen (Konfigurationsmodus)"
-
-#: constants.py:727
-#, fuzzy
-msgid "Configuring VM (virt-install)"
-msgstr "Vor Installation konfigurieren"
 
 #: constants.py:728
 msgid "Waiting for VM"

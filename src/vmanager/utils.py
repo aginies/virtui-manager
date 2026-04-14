@@ -1109,18 +1109,3 @@ def setup_logging():
     setup_cache_monitoring(enable=False)
 
 
-def get_virt_install_version() -> str | None:
-    """
-    Checks if virt-install is available on the system and returns its version.
-    Returns None if virt-install is not found or its version cannot be determined.
-    """
-    if shutil.which("virt-install") is None:
-        return None
-    try:
-        result = subprocess.run(
-            ["virt-install", "--version"], check=True, capture_output=True, text=True
-        )
-        return result.stdout.strip()
-    except Exception as e:
-        logging.warning(f"Could not determine virt-install version: {e}")
-        return None

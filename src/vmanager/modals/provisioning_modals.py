@@ -330,15 +330,6 @@ class InstallVMModal(BaseModal[str | None]):
                     disabled=True,
                 )
 
-            with Vertical():
-                with Horizontal():
-                    yield Checkbox(
-                        StaticText.USE_VIRT_INSTALL_LABEL,
-                        id="use-virt-install-checkbox",
-                        value=False,
-                        tooltip=StaticText.USE_VIRT_INSTALL_TOOLTIP,
-                    )
-
             yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
                 id="configure-before-install-checkbox",
@@ -372,17 +363,6 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Check if we need to create a default pool and network if none exist
         self._check_and_ensure_resources()
-
-        # Hide virt-install checkbox if not available
-        # ALWAYS HIDE FOR NOW
-        use_virt_install_checkbox = self.query_one("#use-virt-install-checkbox", Checkbox)
-        use_virt_install_checkbox.value = False
-        use_virt_install_checkbox.styles.display = "none"
-        # if not self.provisioner.check_virt_install():
-        #    use_virt_install_checkbox.value = False
-        #    use_virt_install_checkbox.styles.display = "none"
-        # else:
-        #    use_virt_install_checkbox.styles.display = "block"
 
     @work(exclusive=True, thread=True)
     def _check_and_ensure_resources(self):
@@ -1266,7 +1246,6 @@ class InstallVMModal(BaseModal[str | None]):
         pool_name = self.query_one("#pool", Select).value
         network_name = self.query_one("#network", Select).value
         distro = self.query_one("#distro", Select).value
-        use_virt_install = self.query_one("#use-virt-install-checkbox", Checkbox).value
         serial_console = self.query_one("#automation-serial-console", Checkbox).value
         configure_before_install = self.query_one(
             "#configure-before-install-checkbox", Checkbox
@@ -1382,7 +1361,6 @@ class InstallVMModal(BaseModal[str | None]):
             disk_format,
             graphics_type,
             boot_uefi,
-            use_virt_install,
             serial_console,
             configure_before_install,
             automation_template_id,
@@ -1405,7 +1383,6 @@ class InstallVMModal(BaseModal[str | None]):
         disk_format,
         graphics_type,
         boot_uefi,
-        use_virt_install,
         serial_console,
         configure_before_install,
         automation_template_id,
@@ -1609,7 +1586,6 @@ class InstallVMModal(BaseModal[str | None]):
                     disk_format=disk_format,
                     graphics_type=graphics_type,
                     boot_uefi=boot_uefi,
-                    use_virt_install=use_virt_install,
                     configure_before_install=configure_before_install,
                     show_config_modal_callback=(
                         show_config_modal if configure_before_install else None
