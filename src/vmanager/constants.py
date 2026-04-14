@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "2.5.4"
+    version = "2.5.5"
     author = "Antoine Ginies"
 
 

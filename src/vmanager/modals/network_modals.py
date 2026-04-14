@@ -11,7 +11,12 @@ from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSe
 from textual.widgets.text_area import LanguageDoesNotExist
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
-from ..network_manager import create_network, get_existing_subnets, get_host_network_interfaces
+from ..network_manager import (
+    create_network,
+    get_existing_subnets,
+    get_host_network_interfaces,
+    suggest_free_subnet,
+)
 from .base_modals import BaseDialog, BaseModal
 from .input_modals import _sanitize_domain_name, _sanitize_input
 
@@ -162,11 +167,20 @@ class AddEditNetworkModal(BaseModal[None]):
             domain_name = self.network_info.get("domain_name", "")
             if domain_name and domain_name != name_val:
                 use_custom_domain = True
-        else:  # For create mode
-            ip_val = "192.168.11.0/24"
+        else:  # For create mode — auto-suggest a free subnet
+            ip_val = suggest_free_subnet(self.conn) or "192.168.100.0/24"
             dhcp_val = True
-            dhcp_start_val = "192.168.11.10"
-            dhcp_end_val = "192.168.11.30"
+            try:
+                net = ipaddress.ip_network(ip_val, strict=False)
+                hosts = list(net.hosts())
+                dhcp_start_val = str(hosts[9]) if len(hosts) > 9 else str(hosts[0])
+                dhcp_end_val = str(hosts[29]) if len(hosts) > 29 else str(hosts[-1])
+            except ValueError:
+                dhcp_start_val = ""
+                dhcp_end_val = ""
+
+        # Forward interface row is only relevant for routed mode
+        forward_iface_hidden = "hidden" if forward_mode == "nat" else ""
 
         with Vertical(id="create-network-dialog"):
             yield Label(title, id="create-network-title")
@@ -190,13 +204,15 @@ class AddEditNetworkModal(BaseModal[None]):
                             id="type-network-routed",
                             value=(forward_mode == "route"),
                         )
-                    yield Select(
-                        [(StaticText.LOADING_LABEL, "")],
-                        prompt=StaticText.SELECT_FORWARD_INTERFACE_PROMPT,
-                        id="net-forward-input",
-                        classes="net-forward-input",
-                        disabled=True,
-                    )
+                    with Vertical(id="forward-iface-row", classes=forward_iface_hidden):
+                        yield Select(
+                            [(StaticText.LOADING_LABEL, "")],
+                            prompt=StaticText.SELECT_FORWARD_INTERFACE_PROMPT,
+                            id="net-forward-input",
+                            classes="net-forward-input",
+                            allow_blank=True,
+                            disabled=True,
+                        )
                     yield Input(
                         placeholder=StaticText.IPV4_NETWORK_EXAMPLE, id="net-ip-input", value=ip_val
                     )
@@ -255,6 +271,13 @@ class AddEditNetworkModal(BaseModal[None]):
         """Worker to fetch host network interfaces."""
         try:
             host_interfaces = get_host_network_interfaces()
+            # Exclude libvirt-managed virtual bridges (virbr*, vnet*) — they are not
+            # meaningful as forward targets; only physical/external bridges are useful.
+            host_interfaces = [
+                (name, ip)
+                for name, ip in host_interfaces
+                if not name.startswith("virbr") and not name.startswith("vnet")
+            ]
             options = [(f"{name} ({ip})" if ip else name, name) for name, ip in host_interfaces]
             if not options:
                 options = [(StaticText.NO_INTERFACES_FOUND_LABEL, "")]
@@ -286,6 +309,36 @@ class AddEditNetworkModal(BaseModal[None]):
                 self.app.show_error_message,
                 ErrorMessages.ERROR_GETTING_HOST_INTERFACES_TEMPLATE.format(error=e),
             )
+
+    @on(RadioSet.Changed, "#type-network")
+    def on_type_network_changed(self, event: RadioSet.Changed) -> None:
+        """Show/hide forward interface row based on network type.
+
+        For NAT mode, libvirt handles routing automatically — no forward interface needed.
+        For Routed mode, the interface must be specified.
+        """
+        forward_row = self.query_one("#forward-iface-row")
+        if event.pressed.id == "type-network-routed":
+            forward_row.remove_class("hidden")
+        else:
+            forward_row.add_class("hidden")
+
+    @on(Input.Changed, "#net-ip-input")
+    def on_ip_input_changed(self, event: Input.Changed) -> None:
+        """Auto-fill DHCP start/end when user enters a valid IP network."""
+        if self.is_edit:
+            return
+        try:
+            net = ipaddress.ip_network(event.value.strip(), strict=False)
+            hosts = list(net.hosts())
+            if len(hosts) < 2:
+                return
+            dhcp_start = str(hosts[9]) if len(hosts) > 9 else str(hosts[0])
+            dhcp_end = str(hosts[29]) if len(hosts) > 29 else str(hosts[-1])
+            self.query_one("#dhcp-start-input", Input).value = dhcp_start
+            self.query_one("#dhcp-end-input", Input).value = dhcp_end
+        except ValueError:
+            pass  # Not a valid network yet — ignore
 
     @on(Checkbox.Changed, "#dhcp-checkbox")
     def on_dhcp_checkbox_changed(self, event: Checkbox.Changed) -> None:

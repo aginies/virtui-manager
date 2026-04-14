@@ -114,6 +114,42 @@ def list_networks(conn):
     return networks
 
 
+def _next_bridge_name(conn) -> str:
+    """
+    Returns the next available 'virbrN' bridge name by inspecting existing
+    libvirt network definitions and live network interfaces.
+    """
+    used: set[int] = set()
+
+    # Check bridge names already declared in libvirt network XML
+    for net in conn.listAllNetworks():
+        try:
+            root = ET.fromstring(net.XMLDesc(0))
+            bridge_elem = root.find("bridge")
+            if bridge_elem is not None:
+                bname = bridge_elem.get("name", "")
+                if bname.startswith("virbr"):
+                    try:
+                        used.add(int(bname[5:]))
+                    except ValueError:
+                        pass
+        except Exception:
+            pass
+
+    # Also check live interfaces (handles interfaces not yet in libvirt config)
+    for iface in netifaces.interfaces():
+        if iface.startswith("virbr"):
+            try:
+                used.add(int(iface[5:]))
+            except ValueError:
+                pass
+
+    i = 0
+    while i in used:
+        i += 1
+    return f"virbr{i}"
+
+
 def create_network(
     conn,
     name,
@@ -134,6 +170,7 @@ def create_network(
 
     net = ipaddress.ip_network(ip_network)
     generated_mac = generate_mac_address()
+    bridge_name = _next_bridge_name(conn)
     uuid_str = f"<uuid>{uuid}</uuid>" if uuid else ""
     nat_xml = ""
     if typenet == "nat":
@@ -151,7 +188,7 @@ def create_network(
   {uuid_str}
   <forward mode='{typenet}' {xml_forward_dev}>{nat_xml}
   </forward>
-  <bridge name='{name}' stp='on' delay='0'/>
+  <bridge name='{bridge_name}' stp='on' delay='0'/>
   <mac address='{generated_mac}'/>
   <domain name='{domain_name}'/>
   <ip address='{net.network_address + 1}' netmask='{net.netmask}'>
@@ -316,6 +353,23 @@ def get_existing_subnets(
         except libvirt.libvirtError:
             continue  # Ignore networks we can't get XML for
     return subnets
+
+
+def suggest_free_subnet(conn: libvirt.virConnect, prefix_len: int = 24) -> str:
+    """
+    Suggests a free IPv4 subnet (not overlapping with existing libvirt networks).
+    Scans common private /24 ranges in 192.168.x.0 and 10.x.0.0 space.
+    Returns a CIDR string like '192.168.100.0/24', or '' if none found.
+    """
+    existing = get_existing_subnets(conn)
+    candidates = (
+        [ipaddress.ip_network(f"192.168.{i}.0/{prefix_len}") for i in range(1, 255)]
+        + [ipaddress.ip_network(f"10.0.{i}.0/{prefix_len}") for i in range(1, 255)]
+    )
+    for candidate in candidates:
+        if not any(candidate.overlaps(s) for s in existing):
+            return str(candidate)
+    return ""
 
 
 @lru_cache(maxsize=32)
