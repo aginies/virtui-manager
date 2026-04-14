@@ -259,9 +259,8 @@ class AddEditNetworkModal(BaseModal[None]):
             if not options:
                 options = [(StaticText.NO_INTERFACES_FOUND_LABEL, "")]
 
-            select = self.query_one("#net-forward-input", Select)
-
             def update_select():
+                select = self.query_one("#net-forward-input", Select)
                 select.set_options(options)
                 select.disabled = False
                 select.prompt = StaticText.SELECT_FORWARD_INTERFACE_PROMPT

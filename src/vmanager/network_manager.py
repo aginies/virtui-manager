@@ -6,6 +6,7 @@ import ipaddress
 import logging
 import secrets
 import subprocess
+import netifaces
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 
@@ -252,35 +253,16 @@ def get_host_network_interfaces():
     Returns a list of tuples: (interface_name, ip_address)
     """
     try:
-        result = subprocess.run(
-            ["ip", "-o", "link", "show"], capture_output=True, text=True, check=True
-        )
         interfaces = []
-        for line in result.stdout.splitlines():
-            parts = line.split(": ")
-            if len(parts) > 1:
-                interface_name = parts[1].split("@")[0]
-                if interface_name != "lo":
-                    ip_address = ""
-                    # Get IPv4 address for the interface
-                    ip_result = subprocess.run(
-                        ["ip", "-o", "-4", "addr", "show", interface_name],
-                        capture_output=True,
-                        text=True,
-                        check=False,  # Do not raise error if interface has no IP
-                    )
-                    if ip_result.returncode == 0:
-                        ip_parts = ip_result.stdout.split()
-                        if len(ip_parts) > 3:
-                            ip_address = ip_parts[3].split("/")[0]  # Extract IP before the /
-
-                    interfaces.append((interface_name, ip_address))
+        for name in netifaces.interfaces():
+            if name == "lo":
+                continue
+            addrs = netifaces.ifaddresses(name)
+            ip_address = addrs.get(netifaces.AF_INET, [{}])[0].get("addr", "")
+            interfaces.append((name, ip_address))
         return interfaces
-    except subprocess.CalledProcessError as e:
-        print(f"Error getting network interfaces: {e}")
-        return []
-    except FileNotFoundError:
-        print("Error: 'ip' command not found. Please ensure iproute2 is installed.")
+    except Exception as e:
+        logging.error(f"Error getting network interfaces: {e}")
         return []
 
 
