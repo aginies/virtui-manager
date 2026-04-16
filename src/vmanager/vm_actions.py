@@ -1986,17 +1986,18 @@ def set_vm_watchdog(
     domain: libvirt.virDomain, watchdog_model: str = "i6300esb", action: str = "reset"
 ):
     """
-    Sets Watchdog configuration for a VM.
+    Sets the Watchdog device on a VM, replacing any existing one.
+    QEMU only supports a single watchdog device.
     The VM must be stopped.
 
     Args:
         domain: libvirt domain object
-        watchdog_model: Watchdog model (e.g., 'i6300esb', 'pcie-vpd')
+        watchdog_model: Watchdog model (e.g., 'i6300esb', 'ib700', 'diag288')
         action: Action to take when watchdog is triggered (e.g., 'reset', 'shutdown', 'poweroff')
     """
     invalidate_cache(get_internal_id(domain))
     if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change Watchdog settings.")
+        raise libvirt.libvirtError("VM must be stopped to set Watchdog device.")
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
@@ -2005,12 +2006,11 @@ def set_vm_watchdog(
     if devices is None:
         devices = ET.SubElement(root, "devices")
 
-    # Remove existing Watchdog elements
-    existing_watchdog_elements = devices.findall("./watchdog")
-    for elem in existing_watchdog_elements:
+    # Remove existing watchdog (QEMU supports only one)
+    for elem in devices.findall("./watchdog"):
         devices.remove(elem)
 
-    # Create new Watchdog element
+    # Add new Watchdog element
     ET.SubElement(devices, "watchdog", model=watchdog_model, action=action)
 
     new_xml = ET.tostring(root, encoding="unicode")
@@ -2018,28 +2018,38 @@ def set_vm_watchdog(
 
 
 @log_function_call
-def remove_vm_watchdog(domain: libvirt.virDomain):
+def remove_vm_watchdog(domain: libvirt.virDomain, model: str = None, action: str = None):
     """
-    Removes Watchdog configuration from a VM.
+    Removes a specific Watchdog device from a VM, identified by model and action.
+    If model and action are None, removes all watchdog devices.
     The VM must be stopped.
     """
     if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to remove Watchdog settings.")
+        raise libvirt.libvirtError("VM must be stopped to remove Watchdog device.")
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
 
     devices = root.find("devices")
     if devices is None:
-        return  # No devices, so no watchdog
+        return
 
-    # Remove existing Watchdog elements
-    existing_watchdog_elements = devices.findall("./watchdog")
-    if not existing_watchdog_elements:
+    existing = devices.findall("./watchdog")
+    if not existing:
         raise ValueError("No watchdog device found to remove.")
 
-    for elem in existing_watchdog_elements:
-        devices.remove(elem)
+    removed = False
+    for elem in existing:
+        if model is None and action is None:
+            devices.remove(elem)
+            removed = True
+        elif elem.get("model") == model and elem.get("action", "reset") == action:
+            devices.remove(elem)
+            removed = True
+            break
+
+    if not removed:
+        raise ValueError(f"No watchdog device with model='{model}' action='{action}' found.")
 
     new_xml = ET.tostring(root, encoding="unicode")
     domain.connect().defineXML(new_xml)
@@ -3127,7 +3137,80 @@ def detach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
   </source>
 </hostdev>
 """
-    flags = libvirt.VIR_DOMAIN_AFFECT_LIVE | libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+    domain.detachDeviceFlags(xml, flags)
+
+    invalidate_cache(get_internal_id(domain))
+
+
+def _parse_pci_address(pci_address: str) -> tuple[str, str, str, str]:
+    """
+    Parse a PCI address string like '0000:03:00.0' into hex components.
+    Returns (domain, bus, slot, function) as hex strings like ('0x0000', '0x03', '0x00', '0x0').
+    """
+    domain_str, bus_str, devfn = pci_address.split(":")
+    slot_str, func_str = devfn.split(".")
+    return (
+        f"0x{domain_str}",
+        f"0x{bus_str}",
+        f"0x{slot_str}",
+        f"0x{func_str}",
+    )
+
+
+def attach_pci_device(domain: libvirt.virDomain, pci_address: str):
+    """
+    Attaches a host PCI device to the specified VM.
+    The device is identified by its PCI address (e.g., '0000:03:00.0').
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    pci_domain, bus, slot, function = _parse_pci_address(pci_address)
+
+    device_xml = f"""
+<hostdev mode='subsystem' type='pci' managed='yes'>
+  <source>
+    <address domain='{pci_domain}' bus='{bus}' slot='{slot}' function='{function}'/>
+  </source>
+</hostdev>
+"""
+    invalidate_cache(get_internal_id(domain))
+
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
+
+    try:
+        domain.attachDeviceFlags(device_xml, flags)
+    except libvirt.libvirtError as e:
+        msg = f"Failed to attach PCI device {pci_address}: {e}"
+        logging.error(msg)
+        raise libvirt.libvirtError(msg) from e
+
+
+def detach_pci_device(domain: libvirt.virDomain, pci_address: str):
+    """
+    Detaches a host PCI device from the specified VM.
+    The device is identified by its PCI address (e.g., '0000:03:00.0').
+    """
+    if not domain:
+        raise ValueError("Invalid domain object.")
+
+    pci_domain, bus, slot, function = _parse_pci_address(pci_address)
+
+    xml = f"""
+<hostdev mode='subsystem' type='pci' managed='yes'>
+  <source>
+    <address domain='{pci_domain}' bus='{bus}' slot='{slot}' function='{function}'/>
+  </source>
+</hostdev>
+"""
+    flags = libvirt.VIR_DOMAIN_AFFECT_CONFIG
+    if domain.isActive():
+        flags |= libvirt.VIR_DOMAIN_AFFECT_LIVE
     domain.detachDeviceFlags(xml, flags)
 
     invalidate_cache(get_internal_id(domain))

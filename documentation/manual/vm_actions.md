@@ -103,6 +103,8 @@ Hover over the VM name to see a comprehensive tooltip with detailed information 
 
 This tab provides advanced storage management features for version control and testing, as well as VM state persistence.
 
+![State Management Actions](images/actions2.png)
+
 ### Hibernate VM
 Saving a VM (also known as "Managed Save") stops the VM and writes its entire memory state to a file on disk. It acts like hibernation on a physical computer.
 
@@ -145,6 +147,8 @@ Overlays (or "Linked Clones" for a single disk) allow you to create a temporary 
 ## Other Tab
 
 This tab contains administrative actions for the VM lifecycle.
+
+![Other Administrative Actions](images/actions3.png)
 
 *   **Delete:**
     *   Permanently deletes the virtual machine. You will be prompted to choose whether to delete the associated storage (disk images) or keep them.

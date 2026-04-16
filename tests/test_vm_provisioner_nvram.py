@@ -58,24 +58,13 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
 
     @patch("vmanager.vm_provisioner.get_uefi_files")
     @patch("vmanager.vm_provisioner.select_best_firmware")
-    @patch("vmanager.vm_provisioner.subprocess.run")
-    @patch("vmanager.vm_provisioner.tempfile.NamedTemporaryFile")
-    @patch("vmanager.vm_provisioner.os.remove")
-    @patch("vmanager.vm_provisioner.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open, read_data=b"mock_nvram_content")
-    def test_setup_uefi_nvram_conversion_qcow2(
+    def test_setup_uefi_nvram_creates_raw_format(
         self,
-        mock_file,
-        mock_exists,
-        mock_remove,
-        mock_tempfile,
-        mock_run,
         mock_select_fw,
         mock_get_uefi,
     ):
-        """Test that NVRAM is always created in QCOW2 format"""
+        """Test that NVRAM is created in raw format without qemu-img conversion"""
         self._setup_common_mocks(mock_get_uefi, mock_select_fw)
-        mock_exists.return_value = True  # Simulate file exists for removal
 
         fw = Firmware()
         fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
@@ -83,41 +72,29 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
         fw.interfaces = ["pflash"]
         mock_select_fw.return_value = fw
 
-        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.qcow2"
-
-        mock_temp = MagicMock()
-        mock_temp.name = "/tmp/temp_input.raw"
-        mock_tempfile.return_value.__enter__.return_value = mock_temp
+        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.fd"
 
         loader, nvram = self.provisioner._setup_uefi_nvram(
             "testvm", "default", VMType.DESKTOP, support_snapshots=True
         )
 
-        self.assertEqual(nvram, "/path/to/testvm_VARS.qcow2")
-        self.assertTrue(mock_run.called)
-        args = mock_run.call_args[0][0]
-        self.assertIn("qcow2", args)
+        self.assertEqual(loader, "/usr/share/OVMF/OVMF_CODE.fd")
+        self.assertEqual(nvram, "/path/to/testvm_VARS.fd")
+        # Verify volume was created in target pool
+        self.mock_target_pool.createXML.assert_called_once()
+        # Verify the volume XML uses raw format
+        vol_xml = self.mock_target_pool.createXML.call_args[0][0]
+        self.assertIn("raw", vol_xml)
 
     @patch("vmanager.vm_provisioner.get_uefi_files")
     @patch("vmanager.vm_provisioner.select_best_firmware")
-    @patch("vmanager.vm_provisioner.subprocess.run")
-    @patch("vmanager.vm_provisioner.tempfile.NamedTemporaryFile")
-    @patch("vmanager.vm_provisioner.os.remove")
-    @patch("vmanager.vm_provisioner.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open, read_data=b"mock_nvram_content")
-    def test_setup_uefi_nvram_qcow2_always_used(
+    def test_setup_uefi_nvram_raw_regardless_of_snapshots(
         self,
-        mock_file,
-        mock_exists,
-        mock_remove,
-        mock_tempfile,
-        mock_run,
         mock_select_fw,
         mock_get_uefi,
     ):
-        """Test that NVRAM is always created in QCOW2 format even when support_snapshots=False"""
+        """Test that NVRAM is created in raw format regardless of support_snapshots flag"""
         self._setup_common_mocks(mock_get_uefi, mock_select_fw)
-        mock_exists.return_value = True
 
         fw = Firmware()
         fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
@@ -125,21 +102,17 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
         fw.interfaces = ["pflash"]
         mock_select_fw.return_value = fw
 
-        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.qcow2"
-
-        mock_temp = MagicMock()
-        mock_temp.name = "/tmp/temp_input.raw"
-        mock_tempfile.return_value.__enter__.return_value = mock_temp
+        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.fd"
 
         loader, nvram = self.provisioner._setup_uefi_nvram(
             "testvm", "default", VMType.DESKTOP, support_snapshots=False
         )
 
-        # Even with support_snapshots=False, NVRAM should be QCOW2
-        self.assertEqual(nvram, "/path/to/testvm_VARS.qcow2")
-        self.assertTrue(mock_run.called)
-        args = mock_run.call_args[0][0]
-        self.assertIn("qcow2", args)
+        # NVRAM should use raw format (no qemu-img conversion)
+        self.assertEqual(nvram, "/path/to/testvm_VARS.fd")
+        self.mock_target_pool.createXML.assert_called_once()
+        vol_xml = self.mock_target_pool.createXML.call_args[0][0]
+        self.assertIn("raw", vol_xml)
 
     @patch("vmanager.vm_provisioner.get_uefi_files")
     @patch("vmanager.vm_provisioner.select_best_firmware")
@@ -214,24 +187,13 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
 
     @patch("vmanager.vm_provisioner.get_uefi_files")
     @patch("vmanager.vm_provisioner.select_best_firmware")
-    @patch("vmanager.vm_provisioner.subprocess.run")
-    @patch("vmanager.vm_provisioner.tempfile.NamedTemporaryFile")
-    @patch("vmanager.vm_provisioner.os.remove")
-    @patch("vmanager.vm_provisioner.os.path.exists")
-    @patch("builtins.open", new_callable=mock_open, read_data=b"mock_converted_content")
-    def test_setup_uefi_nvram_conversion_nopflash(
+    def test_setup_uefi_nvram_nopflash_uses_raw(
         self,
-        mock_file,
-        mock_exists,
-        mock_remove,
-        mock_tempfile,
-        mock_run,
         mock_select_fw,
         mock_get_uefi,
     ):
-        """Test NVRAM conversion for non-pflash firmware still uses QCOW2"""
+        """Test NVRAM for non-pflash firmware uses raw format without conversion"""
         self._setup_common_mocks(mock_get_uefi, mock_select_fw)
-        mock_exists.return_value = True
 
         fw = Firmware()
         fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
@@ -239,21 +201,17 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
         fw.interfaces = ["uefi"]  # Not pflash
         mock_select_fw.return_value = fw
 
-        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.qcow2"
-
-        mock_temp = MagicMock()
-        mock_temp.name = "/tmp/temp_input.raw"
-        mock_tempfile.return_value.__enter__.return_value = mock_temp
+        self.mock_target_vol.path.return_value = "/path/to/testvm_VARS.fd"
 
         loader, nvram = self.provisioner._setup_uefi_nvram(
             "testvm", "default", VMType.DESKTOP, support_snapshots=False
         )
 
-        # Should still convert to QCOW2
-        self.assertEqual(nvram, "/path/to/testvm_VARS.qcow2")
-        self.assertTrue(mock_run.called)
-        args = mock_run.call_args[0][0]
-        self.assertIn("qcow2", args)
+        # Should use raw format regardless of interface type
+        self.assertEqual(nvram, "/path/to/testvm_VARS.fd")
+        self.mock_target_pool.createXML.assert_called_once()
+        vol_xml = self.mock_target_pool.createXML.call_args[0][0]
+        self.assertIn("raw", vol_xml)
 
     @patch("vmanager.vm_provisioner.get_uefi_files")
     @patch("vmanager.vm_provisioner.select_best_firmware")

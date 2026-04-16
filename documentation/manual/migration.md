@@ -53,9 +53,7 @@ When "Custom migration" is enabled, VirtUI Manager attempts to:
 
 1.  **Analyze Disks:** Identifies all disks attached to the VM.
 2.  **Create Storage:** If the destination storage pool exists but the volume doesn't, it can create the necessary empty volumes on the destination.
-3.  **Handle Overlays:**  It has logic to handle qcow2 backing chains, ensuring the base images exist on the destination.
-
-![Migration Progress](images/migration4.jpg)
+3. **Handle Overlays:**  It has logic to handle qcow2 backing chains, ensuring the base images exist on the destination.
 
 ## Performing the Migration
 

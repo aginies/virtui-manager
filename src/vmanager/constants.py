@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "2.5.5"
+    version = "3.0.0"
     author = "Antoine Ginies"
 
 
@@ -144,7 +144,8 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     APPLY_RNG_SETTINGS = _("Apply RNG Settings")
     ADD_PTY_CONSOLE = _("Add PTY Console")
     REMOVE_CONSOLE = _("Remove Console")
-    APPLY_WATCHDOG_SETTINGS = _("Apply Watchdog Settings")
+    ADD_WATCHDOG = _("Add Watchdog")
+    EDIT_WATCHDOG = _("Edit Watchdog")
     REMOVE_WATCHDOG = _("Remove Watchdog")
     ADD_INPUT = _("Add Input")
     REMOVE_INPUT = _("Remove Input")
@@ -1139,7 +1140,8 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     RNG_DEVICE_PATH_EMPTY = _("RNG device path cannot be empty.")
     TPM_VM_MUST_BE_STOPPED = _("VM must be stopped to apply TPM settings.")
     DEVICE_PATH_REQUIRED_FOR_PASSTHROUGH_TPM = _("Device path is required for passthrough TPM.")
-    PCI_PASSTHROUGH_NOT_IMPLEMENTED = _("PCI passthrough not implemented yet.")
+    ERROR_ATTACHING_PCI_DEVICE_TEMPLATE = _("Error attaching PCI device: {error}")
+    ERROR_DETACHING_PCI_DEVICE_TEMPLATE = _("Error detaching PCI device: {error}")
     ADD_CHANNEL_NO_TARGET_NAME = _("Selected channel has no target name.")
     ERROR_ADDING_CHANNEL_TEMPLATE = _("Error adding channel: {error}")
     ERROR_REMOVING_CHANNEL_TEMPLATE = _("Error removing channel: {error}")
@@ -1307,6 +1309,8 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     TPM_SETTINGS_APPLIED_SUCCESSFULLY = _("TPM settings applied successfully")
     USB_DEVICE_ATTACHED_TEMPLATE = _("Attached USB device: {description}")
     USB_DEVICE_DETACHED_TEMPLATE = _("Detached USB device: {description}")
+    PCI_DEVICE_ATTACHED_TEMPLATE = _("Attached PCI device: {description}")
+    PCI_DEVICE_DETACHED_TEMPLATE = _("Detached PCI device: {description}")
     CHANNEL_ADDED_SUCCESSFULLY = _("Channel added successfully.")
     CHANNEL_REMOVED_SUCCESSFULLY_TEMPLATE = _("Channel '{target_name}' removed successfully.")
     SPICE_DEVICES_REMOVED_SUCCESS = _("Removed associated SPICE devices")
@@ -1337,6 +1341,42 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
         "Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}"
     )
     AUTOFILL_AND_SCC_CONFIGURATION_UPDATED = _("Auto-fill and SCC configuration updated")
+
+
+class VMDetailConstants:  # pylint: disable=too-few-public-methods
+    """Constants for VM detail modal hardcoded values."""
+
+    TPM_MODELS = [("None", "none"), ("tpm-crb", "tpm-crb"), ("tpm-tis", "tpm-tis")]
+    TPM_TYPES = [("Emulated", "emulated"), ("Passthrough", "passthrough")]
+
+    WATCHDOG_MODELS = [
+        ("None", "none"),
+        ("i6300esb", "i6300esb"),
+        ("ib700", "ib700"),
+        ("diag288", "diag288"),
+    ]
+    WATCHDOG_ACTIONS = [
+        ("Reset", "reset"),
+        ("Shutdown", "shutdown"),
+        ("Poweroff", "poweroff"),
+        ("Pause", "pause"),
+        ("None", "none"),
+        ("Dump", "dump"),
+        ("Inject-NMI", "inject-nmi"),
+    ]
+
+    INPUT_DEVICE_TYPES = ["mouse", "tablet", "keyboard"]
+    INPUT_DEVICE_BUSES = ["usb", "ps2", "virtio"]
+
+    GRAPHICS_TYPES = [("VNC", "vnc"), ("Spice", "spice"), ("None", "")]
+    GRAPHICS_LISTEN_TYPES = [("Address", "address"), ("None", "none")]
+    GRAPHICS_LOCALHOST = "127.0.0.1"
+    GRAPHICS_ALL_INTERFACES = "0.0.0.0"
+
+    VIDEO_MODELS_FALLBACK = [
+        "default", "virtio", "qxl", "vga", "cirrus", "bochs", "ramfb", "none"
+    ]
+    SOUND_MODELS_FALLBACK = ["none", "ich6", "ich9", "ac97", "sb16", "usb"]
 
 
 class ProgressMessages:  # pylint: disable=too-few-public-methods

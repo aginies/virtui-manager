@@ -1008,28 +1008,27 @@ def get_vm_rng_info(root: ET.Element) -> dict:
     return rng_info
 
 
-def get_vm_watchdog_info(root: ET.Element) -> dict:
+def get_vm_watchdog_info(root: ET.Element) -> list[dict]:
     """
     Extracts Watchdog information from a VM's XML definition.
-    Returns a dictionary with Watchdog details.
+    Returns a list of dictionaries with Watchdog details.
     """
-    watchdog_info = {"model": None, "action": None}
+    watchdog_devices = []
     if root is None:
-        return watchdog_info
+        return watchdog_devices
 
     try:
         devices = root.find("devices")
-
         if devices is not None:
-            watchdog_elem = devices.find("./watchdog")
-            if watchdog_elem is not None:
-                watchdog_info["model"] = watchdog_elem.get("model")
-                watchdog_info["action"] = watchdog_elem.get("action")
-
+            for watchdog_elem in devices.findall("./watchdog"):
+                watchdog_devices.append({
+                    "model": watchdog_elem.get("model", "unknown"),
+                    "action": watchdog_elem.get("action", "reset"),
+                })
     except Exception:
-        pass
+        logging.debug("Failed to parse watchdog info from XML")
 
-    return watchdog_info
+    return watchdog_devices
 
 
 def get_vm_input_info(root: ET.Element) -> list[dict]:
