@@ -749,11 +749,11 @@ class VMProvisioner:
         2. Identifying the code/vars pair from the firmware metadata.
         3. Cloning the vars template to the target pool.
 
-        Note: NVRAM is always created in QCOW2 format to support snapshots.
+        Note: NVRAM is created in raw format to avoid conversion errors
+        with libvirt nvram templates that do not support format conversion.
 
         Args:
             support_snapshots: Deprecated parameter, kept for backward compatibility.
-                              NVRAM is always created in QCOW2 format.
             os_type: The OS type being provisioned.
 
         Returns: (loader_path, nvram_path)
@@ -828,18 +828,15 @@ class VMProvisioner:
             if not target_pool:
                 target_pool = self.conn.storagePoolLookupByName(target_pool_name)
 
-            # Always use QCOW2 format for NVRAM to support snapshots
-            nvram_format = "qcow2"
-            nvram_name = f"{vm_name}_VARS.qcow2"
+            # Use raw format for NVRAM to avoid conversion errors with nvram templates
+            nvram_format = "raw"
+            nvram_name = f"{vm_name}_VARS.fd"
 
             nvram_path = None
 
-            # Check if we need conversion
-            # We need conversion if:
-            # 1. The firmware interface is not pflash (legacy reason)
-            # 2. OR we are requesting qcow2 format (source templates are almost always raw)
+            # No conversion needed for raw format — just copy the template as-is
             has_pflash = "pflash" in candidate_fw.interfaces
-            needs_conversion = (not has_pflash) or (nvram_format == "qcow2")
+            needs_conversion = False
 
             logging.info(
                 f"Selected firmware: loader='{loader_path}', nvram_template='{vars_template_path}'"
@@ -928,7 +925,7 @@ class VMProvisioner:
                 # Upload data to the new volume
                 stream_up = self.conn.newStream(0)
                 target_vol.upload(stream_up, 0, len(received_data))
-                stream_up.send(received_data)
+                stream_up.send(bytes(received_data))
                 stream_up.finish()
 
                 nvram_path = target_vol.path()
@@ -1233,7 +1230,7 @@ class VMProvisioner:
                 if use_manual_firmware:
                     secure_attr = "yes" if settings.get("secure_boot") else "no"
                     xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
-    <nvram format='qcow2'>{nvram_path}</nvram>
+    <nvram>{nvram_path}</nvram>
 """
                 else:
                     # Autoselection: let libvirt handle NVRAM, no format specified to avoid conversion errors
@@ -1338,7 +1335,7 @@ class VMProvisioner:
   <os>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
     <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
-    <nvram format='qcow2'>{nvram_path}</nvram>
+    <nvram>{nvram_path}</nvram>
   </os>
 """
             else:
@@ -2252,9 +2249,8 @@ class VMProvisioner:
 
         if boot_uefi:
             report(StaticText.PROVISIONING_SETTING_UP_UEFI_FIRMWARE, 75)
-            # Always pre-create a QCOW2 NVRAM volume so that internal snapshots work.
-            # libvirt / virt-install may default to raw format when left to decide on
-            # their own, which breaks snapshot support for pflash-based firmware.
+            # Pre-create a raw NVRAM volume from the firmware template.
+            # Using raw format avoids conversion errors with nvram templates.
             loader_path, nvram_path = self._setup_uefi_nvram(
                 vm_name, storage_pool_name, vm_type, os_type=os_type
             )
