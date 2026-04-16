@@ -856,6 +856,10 @@ class SparklineLabels:  # pylint: disable=too-few-public-methods
     NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
     VCPU = _("{cpu} VCPU")
     MEMORY_GB = _("{mem} Gb")
+    IDLE_CPU = _("-- VCPU")
+    IDLE_MEM = _("-- Gb")
+    IDLE_DISK = _("Disk --")
+    IDLE_NET = _("Net --")
 
 
 class ErrorMessages:  # pylint: disable=too-few-public-methods
