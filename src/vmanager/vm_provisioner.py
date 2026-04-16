@@ -1207,28 +1207,38 @@ class VMProvisioner:
 """
         # Kernel-based boot for direct boot (automated or manual Arch/Debian UEFI)
         if kernel_path and initrd_path:
-            os_firmware = " firmware='efi'" if settings["boot_uefi"] else ""
+            # Determine if we use manual firmware selection or autoselection
+            use_manual_firmware = settings["boot_uefi"] and loader_path and nvram_path
+            
+            # Use firmware='efi' ONLY for autoselection.
+            os_firmware = ""
+            if settings["boot_uefi"] and not use_manual_firmware:
+                os_firmware = " firmware='efi'"
+
             xml += f"""
   <os{os_firmware}>
     <type arch='x86_64' machine='{settings["machine"]}' >hvm</type>
 """
-            # Explicitly disable secure boot if UEFI is used but secure_boot is False
-            # Only for specific distros that have issues with it (Arch, Debian, Alpine)
-            if settings["boot_uefi"] and not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
-                xml += """    <firmware>
+            # Feature-based autoselection: only used when firmware='efi' is present.
+            if settings["boot_uefi"] and not use_manual_firmware:
+                # Explicitly disable secure boot if UEFI is used but secure_boot is False
+                # Only for specific distros that have issues with it (Arch, Debian, Alpine)
+                if not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                    xml += """    <firmware>
       <feature enabled='no' name='secure-boot'/>
     </firmware>
 """
-            # Always specify QCOW2 NVRAM format so libvirt doesn't create a raw NVRAM file,
-            # which would break internal snapshot support for pflash-based firmware.
-#            if settings["boot_uefi"]:
-#                if loader_path and nvram_path:
-#                    secure_attr = "yes" if settings.get("secure_boot") else "no"
-#                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
-#    <nvram format='qcow2'>{nvram_path}</nvram>
-#"""
-#                else:
-#                    xml += "    <nvram format='qcow2'/>\n"
+            # Handle loader and nvram tags
+            if settings["boot_uefi"]:
+                if use_manual_firmware:
+                    secure_attr = "yes" if settings.get("secure_boot") else "no"
+                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
+    <nvram format='qcow2'>{nvram_path}</nvram>
+"""
+                else:
+                    # Autoselection: let libvirt handle NVRAM, no format specified to avoid conversion errors
+                    xml += "    <nvram/>\n"
+
             xml += f"""    <kernel>{kernel_path}</kernel>
     <initrd>{initrd_path}</initrd>
 """
@@ -1319,8 +1329,11 @@ class VMProvisioner:
             xml += "  </os>"
         # Standard UEFI/BIOS boot
         elif settings["boot_uefi"]:
+            use_manual_firmware = loader_path and nvram_path
             secure_attr = "yes" if settings.get("secure_boot") else "no"
-            if loader_path and nvram_path:
+
+            if use_manual_firmware:
+                # Manual firmware selection: no firmware attribute or sub-element
                 xml += f"""
   <os>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
@@ -1329,22 +1342,22 @@ class VMProvisioner:
   </os>
 """
             else:
+                # Autoselection: use firmware='efi' attribute and optional features
+                os_firmware = " firmware='efi'"
+                has_firmware_subelement = not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]
+
                 xml += f"""
-  <os firmware='efi'>
+  <os{os_firmware}>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
 """
                 # Explicitly disable secure boot if requested OS has issues with it
-                if not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                if has_firmware_subelement:
                     xml += """    <firmware>
       <feature enabled='no' name='secure-boot'/>
     </firmware>
 """
-                xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'/>
-"""
-                if nvram_path:
-                    xml += f"    <nvram format='qcow2'>{nvram_path}</nvram>\n"
-                else:
-                    xml += "    <nvram format='qcow2'/>\n"
+                # For autoselection, let libvirt handle NVRAM without specifying format
+                xml += "    <nvram/>\n"
                 xml += """
   </os>
 """

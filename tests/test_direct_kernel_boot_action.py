@@ -9,6 +9,7 @@ from src.vmanager.vm_queries import get_direct_kernel_boot
 def test_set_and_get_direct_kernel_boot():
     # Mock domain
     domain = MagicMock(spec=libvirt.virDomain)
+    domain.isActive.return_value = False
     conn = MagicMock(spec=libvirt.virConnect)
     domain.connect.return_value = conn
     
