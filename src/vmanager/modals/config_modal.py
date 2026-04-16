@@ -66,7 +66,7 @@ class ConfigModal(BaseModal[None]):
                         ("ERROR", "ERROR"),
                         ("CRITICAL", "CRITICAL"),
                     ],
-                    value=self.config.get("LOG_LEVEL", "INFO"),
+                    value=self.config.get("LOG_LEVEL") or "INFO",
                     id="log-level-select",
                     prompt=StaticText.LOG_LEVEL_PROMPT,
                 )
@@ -79,8 +79,8 @@ class ConfigModal(BaseModal[None]):
                     viewers.append(("virt-viewer", "virt-viewer"))
 
                 current_viewer = self.config.get("REMOTE_VIEWER")
-                if current_viewer not in [v[1] for v in viewers]:
-                    current_viewer = Select.BLANK
+                if not current_viewer or current_viewer not in [v[1] for v in viewers]:
+                    current_viewer = Select.NULL
 
                 if not viewers:
                     yield Label(StaticText.NO_REMOTE_VIEWERS_FOUND)
@@ -183,7 +183,7 @@ class ConfigModal(BaseModal[None]):
 
                 try:
                     viewer_select = self.query_one("#remote-viewer-select", Select)
-                    if viewer_select.value != Select.BLANK:
+                    if viewer_select.value != Select.NULL:
                         self.config["REMOTE_VIEWER"] = viewer_select.value
                     else:
                         self.config["REMOTE_VIEWER"] = None

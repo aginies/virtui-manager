@@ -666,38 +666,42 @@ class VMDetailModal(ModalScreen):
 
     @on(Button.Pressed, "#save-boot-params")
     def on_save_boot_params(self, event: Button.Pressed) -> None:
+        # Collect all values from UI widgets on the main thread before entering the worker
         boot_list = self.query_one("#boot-order-list", ListView)
         new_boot_order = [item.data.id for item in boot_list.children]
-
         menu_enabled = self.query_one("#boot-menu-enable", Checkbox).value
-
-        # Direct kernel boot settings
         dkb_enabled = self.query_one("#direct-kernel-boot-enable", Checkbox).value
         kernel = self.query_one("#kernel-path-input", Input).value
         initrd = self.query_one("#initrd-path-input", Input).value
         cmdline = self.query_one("#kernel-args-input", Input).value
-
-        # OVMF Debug settings
         ovmf_debug_enabled = self.query_one("#ovmf-debug-enable", Checkbox).value
 
-        try:
-            set_boot_info(self.domain, menu_enabled, new_boot_order)
-            set_direct_kernel_boot(self.domain, dkb_enabled, kernel, initrd, cmdline)
-            set_ovmf_debug(self.domain, ovmf_debug_enabled)
-            self._invalidate_cache()
-            self.app.show_success_message(SuccessMessages.DIRECT_KERNEL_BOOT_SAVED)
-            self.boot_order = new_boot_order
-            self.direct_kernel_boot = {
-                "kernel": kernel,
-                "initrd": initrd,
-                "cmdline": cmdline,
-                "enabled": dkb_enabled,
-            }
-            self.ovmf_debug = ovmf_debug_enabled
-        except libvirt.libvirtError as e:
-            self.app.show_error_message(
-                ErrorMessages.ERROR_SAVING_BOOT_ORDER_TEMPLATE.format(error=e)
-            )
+        def worker():
+            try:
+                set_boot_info(self.domain, menu_enabled, new_boot_order)
+                set_direct_kernel_boot(self.domain, dkb_enabled, kernel, initrd, cmdline)
+                set_ovmf_debug(self.domain, ovmf_debug_enabled)
+                self._invalidate_cache()
+
+                def on_success():
+                    self.app.show_success_message(SuccessMessages.DIRECT_KERNEL_BOOT_SAVED)
+                    self.boot_order = new_boot_order
+                    self.direct_kernel_boot = {
+                        "kernel": kernel,
+                        "initrd": initrd,
+                        "cmdline": cmdline,
+                        "enabled": dkb_enabled,
+                    }
+                    self.ovmf_debug = ovmf_debug_enabled
+
+                self.app.call_from_thread(on_success)
+            except libvirt.libvirtError as e:
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    ErrorMessages.ERROR_SAVING_BOOT_ORDER_TEMPLATE.format(error=e),
+                )
+
+        self.app.worker_manager.run(worker, name="save_boot_params_worker")
 
     def _get_bootable_devices(self) -> list[BootDevice]:
         """Gathers all disks and network interfaces as bootable devices."""

@@ -29,7 +29,6 @@ import yaml
 import netifaces
 
 import libvirt
-from packaging.version import parse as parse_version
 
 from .auto_http_server import AutoHTTPServer
 from .config import load_config
@@ -49,7 +48,6 @@ from .storage_manager import create_volume
 from .vm_actions import strip_installation_assets, get_vm_boot_files, delete_boot_files
 from .utils import (
     get_ssh_host_from_uri,
-    get_virt_install_version,
     manage_firewalld_port,
 )
 
@@ -68,11 +66,6 @@ class VMProvisioner:
         self.conn = conn
         self.host_arch = get_host_architecture(conn)
         self.logger = logging.getLogger(__name__)
-        self.virt_install_version = get_virt_install_version()
-        if self.virt_install_version:
-            self.logger.info(f"Found virt-install version: {self.virt_install_version}")
-        else:
-            self.logger.warning("virt-install not found or version could not be determined.")
 
         # Initialize provider registry and register OS providers
         self.provider_registry = ProviderRegistry()
@@ -892,7 +885,7 @@ class VMProvisioner:
                         f"Converting NVRAM template to {nvram_format} using qemu-img (pflash={has_pflash})."
                     )
                     # Create temporary files for conversion
-                    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False) as tmp_in:
+                    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False, dir="/var/tmp") as tmp_in:
                         try:
                             tmp_in.write(received_data)
                             tmp_in.flush()
@@ -1214,18 +1207,38 @@ class VMProvisioner:
 """
         # Kernel-based boot for direct boot (automated or manual Arch/Debian UEFI)
         if kernel_path and initrd_path:
-            os_firmware = " firmware='efi'" if settings["boot_uefi"] else ""
+            # Determine if we use manual firmware selection or autoselection
+            use_manual_firmware = settings["boot_uefi"] and loader_path and nvram_path
+            
+            # Use firmware='efi' ONLY for autoselection.
+            os_firmware = ""
+            if settings["boot_uefi"] and not use_manual_firmware:
+                os_firmware = " firmware='efi'"
+
             xml += f"""
   <os{os_firmware}>
     <type arch='x86_64' machine='{settings["machine"]}' >hvm</type>
 """
-            # Explicitly disable secure boot if UEFI is used but secure_boot is False
-            # Only for specific distros that have issues with it (Arch, Debian, Alpine)
-            if settings["boot_uefi"] and not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
-                xml += """    <firmware>
+            # Feature-based autoselection: only used when firmware='efi' is present.
+            if settings["boot_uefi"] and not use_manual_firmware:
+                # Explicitly disable secure boot if UEFI is used but secure_boot is False
+                # Only for specific distros that have issues with it (Arch, Debian, Alpine)
+                if not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                    xml += """    <firmware>
       <feature enabled='no' name='secure-boot'/>
     </firmware>
 """
+            # Handle loader and nvram tags
+            if settings["boot_uefi"]:
+                if use_manual_firmware:
+                    secure_attr = "yes" if settings.get("secure_boot") else "no"
+                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
+    <nvram format='qcow2'>{nvram_path}</nvram>
+"""
+                else:
+                    # Autoselection: let libvirt handle NVRAM, no format specified to avoid conversion errors
+                    xml += "    <nvram/>\n"
+
             xml += f"""    <kernel>{kernel_path}</kernel>
     <initrd>{initrd_path}</initrd>
 """
@@ -1316,8 +1329,11 @@ class VMProvisioner:
             xml += "  </os>"
         # Standard UEFI/BIOS boot
         elif settings["boot_uefi"]:
+            use_manual_firmware = loader_path and nvram_path
             secure_attr = "yes" if settings.get("secure_boot") else "no"
-            if loader_path and nvram_path:
+
+            if use_manual_firmware:
+                # Manual firmware selection: no firmware attribute or sub-element
                 xml += f"""
   <os>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
@@ -1326,22 +1342,22 @@ class VMProvisioner:
   </os>
 """
             else:
+                # Autoselection: use firmware='efi' attribute and optional features
+                os_firmware = " firmware='efi'"
+                has_firmware_subelement = not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]
+
                 xml += f"""
-  <os firmware='efi'>
+  <os{os_firmware}>
     <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
 """
                 # Explicitly disable secure boot if requested OS has issues with it
-                if not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                if has_firmware_subelement:
                     xml += """    <firmware>
       <feature enabled='no' name='secure-boot'/>
     </firmware>
 """
-                xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'/>
-"""
-                if nvram_path:
-                    xml += f"    <nvram format='qcow2'>{nvram_path}</nvram>\n"
-                else:
-                    xml += "    <nvram format='qcow2'/>\n"
+                # For autoselection, let libvirt handle NVRAM without specifying format
+                xml += "    <nvram/>\n"
                 xml += """
   </os>
 """
@@ -1501,10 +1517,6 @@ class VMProvisioner:
 """
         xml += "</domain>"
         return xml
-
-    def check_virt_install(self) -> bool:
-        """Checks if virt-install is available on the system."""
-        return shutil.which("virt-install") is not None
 
     def _get_host_ip_for_vms(self) -> str:
         """
@@ -1947,241 +1959,6 @@ class VMProvisioner:
             f"Failed to extract Alpine Linux kernel/initrd from ISO. Last error: {last_error}"
         )
 
-    def _run_virt_install(
-        self,
-        vm_name: str,
-        settings: Dict[str, Any],
-        disk_path: str,
-        iso_path: str,
-        storage_pool_name: str,
-        memory_mb: int,
-        vcpu: int,
-        loader_path: str | None,
-        nvram_path: str | None,
-        print_xml: bool = False,
-        floppy_image_path: str | None = None,
-        auto_url: str | None = None,
-        is_remote_connection: bool = False,
-        serial_console: bool = False,
-        os_type: OSType = OSType.OPENSUSE,
-        kernel_path: str | None = None,
-        initrd_path: str | None = None,
-        os_version: str | None = None,
-        network_name: str = "default",
-    ) -> str | None:
-        """
-        Executes virt-install to create the VM using the provided settings.
-        If print_xml is True, it returns the generated XML instead of creating the VM.
-        """
-        # settings is already passed as an argument, no need to re-fetch it
-        cmd = ["virt-install"]
-        cmd.extend(["--connect", self.conn.getURI()])
-        cmd.extend(["--name", vm_name])
-        cmd.extend(["--memory", str(memory_mb)])
-        cmd.extend(["--vcpus", str(vcpu)])
-        if print_xml:
-            cmd.append("--print-xml")
-
-        # OS info
-        cmd.extend(["--osinfo", "detect=on,name=generic"])
-
-        # Disk
-        disk_opt = f"path={disk_path},bus={settings['disk_bus']},format={settings['disk_format']},cache={settings['disk_cache']}"
-        cmd.extend(["--disk", disk_opt])
-
-        # Check virt-install version for vol=pool/vol support
-        can_use_vol_location = False
-        if self.virt_install_version:
-            try:
-                if parse_version(self.virt_install_version) >= parse_version("1.4.0"):
-                    can_use_vol_location = True
-            except Exception as e:
-                self.logger.warning(
-                    f"Error parsing virt-install version '{self.virt_install_version}': {e}"
-                )
-
-        # ISO
-        if auto_url or kernel_path:
-            if is_remote_connection:
-                if not can_use_vol_location:
-                    raise Exception(
-                        "Remote Auto with virt-install requires virt-install >= 1.4.0 "
-                        "for --location vol=... syntax. Please upgrade virt-install on the client "
-                        "or disable 'Use virt-install' in the provisioning dialog."
-                    )
-                # For remote Auto, use vol=pool/volname for --location
-                iso_vol_name = os.path.basename(iso_path)
-                location_arg = f"vol={storage_pool_name}/{iso_vol_name}"
-                cmd.extend(["--location", location_arg])
-                logging.info(f"Using remote ISO location for virt-install: {location_arg}")
-
-                # Explicitly add the ISO as a CD-ROM device so it's visible to the installer
-                cmd.extend(["--disk", f"vol={storage_pool_name}/{iso_vol_name},device=cdrom"])
-            else:
-                # For local Auto or manual kernel boot, use --location with the local path
-                cmd.extend(["--location", iso_path])
-
-                # Explicitly add the ISO as a CD-ROM device
-                cmd.extend(["--disk", f"path={iso_path},device=cdrom"])
-
-            # If we have explicit kernel/initrd (e.g. for Arch/Debian manual UEFI)
-            if kernel_path and initrd_path:
-                cmd.extend(["--install", f"kernel={kernel_path},initrd={initrd_path}"])
-        else:
-            # For non-Auto, use --cdrom
-            cmd.extend(["--cdrom", iso_path])
-
-        # Network
-        cmd.extend(["--network", f"{network_name},model={settings['network_model']}"])
-
-        # Graphics
-        cmd.extend(["--graphics", f"{settings['graphics_type']},port=-1,listen=0.0.0.0"])
-
-        # Video
-        cmd.extend(["--video", settings["video"]])
-
-        # Sound
-        if settings.get("sound_model") and settings["sound_model"] != "none":
-            cmd.extend(["--sound", f"model={settings['sound_model']}"])
-
-        # Console
-        cmd.extend(["--console", "pty,target.type=serial"])
-
-        # Channels (Guest Agent, SPICE Agent, etc)
-        for channel_name in settings.get("virtio_channels", []):
-            channel_type = "spicevmc" if channel_name == "com.redhat.spice.0" else "unix"
-            cmd.extend(["--channel", f"{channel_type},target.type=virtio,name={channel_name}"])
-
-        # Machine
-        cmd.extend(["--machine", settings["machine"]])
-
-        # Boot / Firmware
-        boot_opts = []
-        if auto_url or kernel_path:
-            boot_opts.append("hd,cdrom,menu=on")
-        else:
-            boot_opts.append("cdrom,hd,menu=on")
-
-        if settings["boot_uefi"]:
-            secure_val = "on" if settings.get("secure_boot") else "off"
-            if loader_path and nvram_path:
-                # Explicit paths
-                cmd.extend(
-                    [
-                        "--boot",
-                        f"{boot_opts[0]},loader={loader_path},loader.readonly=yes,loader.type=pflash,loader.secure={secure_val},nvram={nvram_path},nvram.templateFormat=qcow2",
-                    ]
-                )
-            else:
-                # Auto
-                cmd.extend(["--boot", f"{boot_opts[0]},uefi,uefi.secure={secure_val}"])
-        else:
-            cmd.extend(["--boot", boot_opts[0]])
-
-        # Features
-        if settings["sev"]:
-            sev_caps = self._get_sev_capabilities()
-            cmd.extend(
-                [
-                    "--launchSecurity",
-                    f"sev,cbitpos={sev_caps['cbitpos']},reducedPhysBits={sev_caps['reducedPhysBits']},policy={sev_caps['policy']}",
-                ]
-            )
-
-        if settings["tpm"]:
-            cmd.extend(["--tpm", "model=tpm-crb,backend.type=emulator,backend.version=2.0"])
-
-        if settings["watchdog"]:
-            cmd.extend(["--watchdog", "model=i6300esb,action=poweroff"])
-
-        # PM
-        if settings["suspend_to_mem"] == "on" or settings["suspend_to_disk"] == "on":
-            pm_opts = []
-            if settings["suspend_to_mem"] == "on":
-                pm_opts.append("suspend_to_mem=on")
-            if settings["suspend_to_disk"] == "on":
-                pm_opts.append("suspend_to_disk=on")
-            cmd.extend(["--pm", ",".join(pm_opts)])
-
-        # Automation file injection
-        extra_args = ""
-        if auto_url:
-            # HTTP-based automation (uses --extra-args with --location)
-            if "archinstall-setup-" in auto_url and auto_url.endswith(".sh"):
-                # Arch Linux archinstall automation with setup script
-                extra_args = f"script={auto_url} ip=::::arch-installer:eth0:dhcp archisobasedir=arch archisodevice=/dev/sr0"
-            elif auto_url.endswith(".json"):
-                # Agama (openSUSE) automation
-                # Multiple flags to disable SSL verification and allow insecure HTTP
-                extra_args = f"inst.auto={auto_url} inst.insecure=1 inst.auto_insecure=1 ssl_verify=no"
-            elif auto_url.endswith("/") or "user-data" in auto_url:
-                # Ubuntu autoinstall automation (cloud-init based)
-                extra_args = f"ip=dhcp cloud-config-url={auto_url}user-data autoinstall ds=nocloud-net;s={auto_url}"
-            elif "ks-" in auto_url and auto_url.endswith(".cfg"):
-                # Fedora kickstart automation
-                extra_args = f"inst.ks={auto_url}"
-            elif "alpine-" in auto_url and (".apkovl.tar.gz" in auto_url or ".txt" in auto_url):
-                # Alpine Linux automation (apkovl or answers)
-                ver = os_version if os_version else "v3.23"
-                if not ver.startswith("v"):
-                    ver = f"v{ver}"
-
-                extra_args = (
-                    f"alpine_repo=http://dl-cdn.alpinelinux.org/alpine/{ver}/main "
-                    f"apkovl={auto_url} "
-                    f"ip=dhcp "
-                )
-
-                if "alpine-answers-" in auto_url:
-                    # Add noninteractive flag for answers file installations
-                    extra_args += "setup_alpine_noninteractive=1 "
-
-            elif auto_url.endswith(".cfg"):
-                if os_type in [OSType.UBUNTU, OSType.DEBIAN]:
-                    # Ubuntu/Debian preseed automation
-                    extra_args = f"auto=true preseed/url={auto_url}"
-                else:
-                    # Default to AutoYaST for other distros
-                    extra_args = f"autoyast={auto_url} netsetup=dhcp"
-            else:
-                # OpenSUSE AutoYaST automation (XML format)
-                # Add netsetup=dhcp to ensure network is configured
-                extra_args = f"autoyast={auto_url} netsetup=dhcp"
-
-        elif kernel_path and os_type == OSType.ARCHLINUX:
-            # Manual Arch Linux UEFI boot needs these parameters even without automation
-            extra_args = "archisobasedir=arch archisodevice=/dev/sr0"
-
-        if extra_args:
-            if serial_console:
-                extra_args += " console=tty0 console=ttyS0,115200"
-            cmd.extend(["--extra-args", extra_args])
-            logging.info(f"Using extra-args: {extra_args}")
-        elif floppy_image_path:
-            # Legacy floppy-based approach (fallback for non-auto_url installs)
-            cmd.extend(["--disk", f"path={floppy_image_path},device=floppy"])
-            logging.info(f"Using floppy-based Auto: {floppy_image_path}")
-
-        cmd.extend(["--noautoconsole"])
-
-        logging.info(f"Running: {(' '.join(cmd))}")
-        try:
-            result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-            if print_xml:
-                return result.stdout
-            if result.stdout:
-                logging.info(f"virt-install stdout: {result.stdout.strip()}")
-            if result.stderr:
-                logging.warning(f"virt-install stderr: {result.stderr.strip()}")
-        except subprocess.CalledProcessError as e:
-            logging.error(f"virt-install command failed with exit code {e.returncode}")
-            logging.error(f"virt-install stdout: {e.stdout.strip()}")
-            logging.error(f"virt-install stderr: {e.stderr.strip()}")
-            raise Exception(f"virt-install failed: {e.stderr.strip()}") from e
-        except Exception as e:
-            logging.error(f"An unexpected error occurred while running virt-install: {e}")
-            raise
-
     def _detect_opensuse_version_from_iso(self, iso_url: str) -> Optional[OSVersion]:
         """
         Detect OpenSUSE version from ISO URL or filename.
@@ -2282,7 +2059,6 @@ class VMProvisioner:
         disk_format: str | None = None,
         graphics_type: str = "spice",
         boot_uefi: bool | None = None,
-        use_virt_install: bool = True,
         configure_before_install: bool = False,
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
@@ -2304,7 +2080,6 @@ class VMProvisioner:
             disk_format: Disk format (e.g., qcow2).
             graphics_type: Graphics type (e.g., spice, vnc).
             boot_uefi: Whether to use UEFI boot.
-            use_virt_install: If True, uses virt-install CLI tool.
             configure_before_install: If True, defines VM and shows details modal before starting.
             show_config_modal_callback: Optional callback to show configuration modal. Takes (domain) as parameters.
         """
@@ -2475,12 +2250,11 @@ class VMProvisioner:
         loader_path = None
         nvram_path = None
 
-        is_virt_install_available = use_virt_install and self.check_virt_install()
-
-        if boot_uefi and not is_virt_install_available:
+        if boot_uefi:
             report(StaticText.PROVISIONING_SETTING_UP_UEFI_FIRMWARE, 75)
-            # Only setup NVRAM if we are not using virt-install
-            # virt-install --boot uefi will handle this automatically if we don't pass paths
+            # Always pre-create a QCOW2 NVRAM volume so that internal snapshots work.
+            # libvirt / virt-install may default to raw format when left to decide on
+            # their own, which breaks snapshot support for pflash-based firmware.
             loader_path, nvram_path = self._setup_uefi_nvram(
                 vm_name, storage_pool_name, vm_type, os_type=os_type
             )
@@ -2907,56 +2681,30 @@ class VMProvisioner:
                     )
 
             # Generate the XML configuration that would be used
-            if is_virt_install_available:
-                settings = self._get_vm_settings(
-                    vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type,
-                    is_auto_install=bool(auto_url)
-                )
-                xml_desc = self._run_virt_install(
-                    vm_name,
-                    settings,
-                    disk_path,
-                    iso_path,
-                    storage_pool_name,
-                    memory_mb,
-                    vcpu,
-                    loader_path,
-                    nvram_path,
-                    print_xml=True,
-                    auto_url=auto_url,
-                    is_remote_connection=is_remote,
-                    serial_console=serial_console,
-                    os_type=os_type,
-                    kernel_path=kernel_path,
-                    initrd_path=initrd_path,
-                    os_version=os_version,
-                    network_name=network_name,
-                )
-            else:
-                xml_desc = self.generate_xml(
-                    vm_name,
-                    vm_type,
-                    disk_path,
-                    iso_path,
-                    memory_mb,
-                    vcpu,
-                    disk_format,
-                    loader_path=loader_path,
-                    nvram_path=nvram_path,
-                    boot_uefi=boot_uefi,
-                    automation_file_path=str(automation_file_path)
-                    if automation_file_path
-                    else None,
-                    auto_url=auto_url,
-                    kernel_path=kernel_path,
-                    initrd_path=initrd_path,
-                    serial_console=serial_console,
-                    os_type=os_type,
-                    graphics_type=graphics_type,
-                    os_version=os_version,
-                    network_name=network_name,
-                    ovmf_debug=ovmf_debug,
-                )
+            xml_desc = self.generate_xml(
+                vm_name,
+                vm_type,
+                disk_path,
+                iso_path,
+                memory_mb,
+                vcpu,
+                disk_format,
+                loader_path=loader_path,
+                nvram_path=nvram_path,
+                boot_uefi=boot_uefi,
+                automation_file_path=str(automation_file_path)
+                if automation_file_path
+                else None,
+                auto_url=auto_url,
+                kernel_path=kernel_path,
+                initrd_path=initrd_path,
+                serial_console=serial_console,
+                os_type=os_type,
+                graphics_type=graphics_type,
+                os_version=os_version,
+                network_name=network_name,
+                ovmf_debug=ovmf_debug,
+            )
 
             # Define the VM
             report(StaticText.PROVISIONING_DEFINING_VM, 85)
@@ -2981,230 +2729,157 @@ class VMProvisioner:
             return dom
 
         # Continue with normal VM creation
-        if is_virt_install_available:
-            report(StaticText.PROVISIONING_CONFIGURING_VM_VIRT_INSTALL, 80)
+        # For XML-based provisioning, we need to handle asset uploads to ensure permissions
+        kernel_path, initrd_path = None, None
+        final_automation_path = None  # This will be the path on the storage pool
 
-            # Handle manual kernel extraction for Arch/Debian UEFI even with virt-install
-            kernel_path, initrd_path = None, None
-            if use_direct_kernel_boot:
-                try:
-                    local_iso_path = _determine_iso_path(iso_url)
-                    if os_type == OSType.ARCHLINUX:
-                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
-                            local_iso_path
-                        )
-                    elif os_type == OSType.DEBIAN:
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_debian_iso_kernel_initrd(local_iso_path)
-                        )
-                    elif os_type == OSType.UBUNTU:
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
-                        )
-                    elif os_type == OSType.FEDORA:
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_fedora_iso_kernel_initrd(local_iso_path)
-                        )
-                    elif os_type == OSType.ALPINE:
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_alpine_iso_kernel_initrd(local_iso_path)
-                        )
-                    else:
-                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
-                            local_iso_path, self.host_arch
-                        )
+        if use_direct_kernel_boot:
+            try:
+                # Preferred method: kernel extraction for cmdline boot
+                local_iso_path = _determine_iso_path(iso_url)
 
-                    report("Uploading kernel and initrd", 81)
-                    kernel_path = self.upload_file(
-                        local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
+                if os_type == OSType.UBUNTU:
+                    # Use Ubuntu-specific kernel extraction (casper/ directory)
+                    local_kernel_path, local_initrd_path = (
+                        self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
                     )
-                    initrd_path = self.upload_file(
-                        local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
+                elif os_type == OSType.DEBIAN:
+                    # Use Debian-specific kernel extraction (install.amd/ directory)
+                    local_kernel_path, local_initrd_path = (
+                        self._extract_debian_iso_kernel_initrd(local_iso_path)
                     )
-                except Exception as e:
-                    self.logger.warning(
-                        f"Failed to extract/upload kernel/initrd for direct boot: {e}"
+                elif os_type == OSType.FEDORA:
+                    # Use Fedora-specific kernel extraction (images/pxeboot/ directory)
+                    local_kernel_path, local_initrd_path = (
+                        self._extract_fedora_iso_kernel_initrd(local_iso_path)
                     )
-
-            settings = self._get_vm_settings(
-                vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type,
-                is_auto_install=bool(auto_url)
-            )
-            self._run_virt_install(
-                vm_name,
-                settings,
-                disk_path,
-                iso_path,
-                storage_pool_name,
-                memory_mb,
-                vcpu,
-                loader_path,
-                nvram_path,
-                auto_url=auto_url,
-                is_remote_connection=is_remote,
-                serial_console=serial_console,
-                os_type=os_type,
-                kernel_path=kernel_path,
-                initrd_path=initrd_path,
-                os_version=os_version,
-                network_name=network_name,
-            )
-
-            report(StaticText.PROVISIONING_WAITING_FOR_VM, 95)
-            # Fetch the domain object
-            dom = self.conn.lookupByName(vm_name)
-        else:
-            # For XML-based provisioning, we need to handle asset uploads to ensure permissions
-            kernel_path, initrd_path = None, None
-            final_automation_path = None  # This will be the path on the storage pool
-
-            if use_direct_kernel_boot:
-                try:
-                    # Preferred method: kernel extraction for cmdline boot
-                    local_iso_path = _determine_iso_path(iso_url)
-
-                    if os_type == OSType.UBUNTU:
-                        # Use Ubuntu-specific kernel extraction (casper/ directory)
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
-                        )
-                    elif os_type == OSType.DEBIAN:
-                        # Use Debian-specific kernel extraction (install.amd/ directory)
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_debian_iso_kernel_initrd(local_iso_path)
-                        )
-                    elif os_type == OSType.FEDORA:
-                        # Use Fedora-specific kernel extraction (images/pxeboot/ directory)
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_fedora_iso_kernel_initrd(local_iso_path)
-                        )
-                    elif os_type == OSType.ARCHLINUX:
-                        # Use Arch Linux-specific kernel extraction (arch/boot/x86_64/ directory)
-                        local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
-                            local_iso_path
-                        )
-                    elif os_type == OSType.ALPINE:
-                        # Use Alpine Linux-specific kernel extraction (boot/ directory)
-                        local_kernel_path, local_initrd_path = (
-                            self._extract_alpine_iso_kernel_initrd(local_iso_path)
-                        )
-                    else:
-                        # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
-                        local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
-                            local_iso_path, self.host_arch
-                        )
-
-                    report("Uploading kernel and initrd", 81)
-                    kernel_path = self.upload_file(
-                        local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
+                elif os_type == OSType.ARCHLINUX:
+                    # Use Arch Linux-specific kernel extraction (arch/boot/x86_64/ directory)
+                    local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
+                        local_iso_path
                     )
-                    initrd_path = self.upload_file(
-                        local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
+                elif os_type == OSType.ALPINE:
+                    # Use Alpine Linux-specific kernel extraction (boot/ directory)
+                    local_kernel_path, local_initrd_path = (
+                        self._extract_alpine_iso_kernel_initrd(local_iso_path)
                     )
-                    self.logger.info(f"Kernel/initrd uploaded to storage pool for direct boot.")
-
-                except Exception as e:
-                    self.logger.error(
-                        f"Failed to use kernel extraction for direct boot: {e}. "
-                        "Falling back to other methods if possible."
-                    )
-                    kernel_path, initrd_path = None, None  # Ensure fallback logic triggers
-
-            # Fallback to floppy method if kernel extraction fails
-            # OpenSUSE and Alpine use floppy for automation delivery
-            if not kernel_path and automation_file_path:
-                # Check if this is an OpenSUSE or Alpine (not Debian, Ubuntu, or Arch)
-                is_floppy_capable = os_type in [OSType.OPENSUSE, OSType.ALPINE]
-                is_other_distro = os_type not in [
-                    OSType.DEBIAN,
-                    OSType.UBUNTU,
-                    OSType.ARCHLINUX,
-                    OSType.ALPINE,
-                    OSType.FEDORA,
-                ]
-                # Any distro that is not explicitly excluded OR is known floppy-capable
-                should_use_floppy = is_other_distro or is_floppy_capable
-
-                if should_use_floppy:
-                    # Create floppy for OpenSUSE/AutoYaST or Alpine/answers
-                    try:
-                        # Determine internal filename for floppy
-                        internal_filename = "autoinst.xml"
-                        if os_type == OSType.ALPINE:
-                            # Alpine looks for <hostname>.apkovl.tar.gz
-                            # Default hostname is localhost
-                            internal_filename = "localhost.apkovl.tar.gz"
-
-                        floppy_image_path = self._create_automation_floppy_image(
-                            automation_file_path,
-                            Path(os.path.dirname(automation_file_path)),
-                            internal_filename=internal_filename,
-                        )
-                        report("Uploading automation floppy image", 82)
-                        automation_vol_name = f"{vm_name}-automation.img"
-                        final_automation_path = self.upload_file(
-                            floppy_image_path, storage_pool_name, volume_name=automation_vol_name
-                        )
-                    except Exception as e:
-                        self.logger.error(
-                            f"Could not create or upload floppy image for Auto Install: {e}"
-                        )
-                        # Re-raise the exception to stop provisioning a broken VM
-                        raise e
                 else:
-                    # For Debian/Ubuntu/Arch/Alpine without kernel extraction, kernel boot is required
-                    self.logger.error(
-                        f"{os_type.name} direct boot requires kernel extraction. "
-                        f"Floppy-based installation is not supported for {os_type.name}."
-                    )
-                    raise Exception(
-                        f"Failed to extract kernel/initrd for {os_type.name} installation. "
-                        "Please ensure 7z (p7zip-full) is installed."
+                    # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
+                    local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
+                        local_iso_path, self.host_arch
                     )
 
-            # Generate XML
-            report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 85)
-            xml_desc = self.generate_xml(
-                vm_name,
-                vm_type,
-                disk_path,
-                iso_path,
-                memory_mb,
-                vcpu,
-                disk_format,
-                loader_path=loader_path,
-                nvram_path=nvram_path,
-                boot_uefi=boot_uefi,
-                automation_file_path=final_automation_path,
-                auto_url=auto_url,
-                kernel_path=kernel_path,
-                initrd_path=initrd_path,
-                serial_console=serial_console,
-                os_type=os_type,
-                graphics_type=graphics_type,
-                os_version=os_version,
-                network_name=network_name,
-                ovmf_debug=ovmf_debug,
+                report("Uploading kernel and initrd", 81)
+                kernel_path = self.upload_file(
+                    local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
                 )
-
-            report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 90)
-            dom = self.conn.defineXML(xml_desc)
-            dom.create()
-
-            # After starting the VM for installation, immediately strip the persistent
-            # configuration of installation assets (kernel/initrd/cmdline/floppy)
-            # so that it's ready for the first boot from disk after installation completes.
-            if kernel_path or final_automation_path:
-                self.logger.info(
-                    f"Cleaning installation assets from persistent configuration for {vm_name}."
+                initrd_path = self.upload_file(
+                    local_initrd_path, storage_pool_name, f"{vm_name}-initrd"
                 )
+                self.logger.info(f"Kernel/initrd uploaded to storage pool for direct boot.")
+
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to use kernel extraction for direct boot: {e}. "
+                    "Falling back to other methods if possible."
+                )
+                kernel_path, initrd_path = None, None  # Ensure fallback logic triggers
+
+        # Fallback to floppy method if kernel extraction fails
+        # OpenSUSE and Alpine use floppy for automation delivery
+        if not kernel_path and automation_file_path:
+            # Check if this is an OpenSUSE or Alpine (not Debian, Ubuntu, or Arch)
+            is_floppy_capable = os_type in [OSType.OPENSUSE, OSType.ALPINE]
+            is_other_distro = os_type not in [
+                OSType.DEBIAN,
+                OSType.UBUNTU,
+                OSType.ARCHLINUX,
+                OSType.ALPINE,
+                OSType.FEDORA,
+            ]
+            # Any distro that is not explicitly excluded OR is known floppy-capable
+            should_use_floppy = is_other_distro or is_floppy_capable
+
+            if should_use_floppy:
+                # Create floppy for OpenSUSE/AutoYaST or Alpine/answers
                 try:
-                    # Capture boot files before stripping them from XML
-                    root = ET.fromstring(dom.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE))
-                    boot_files = get_vm_boot_files(root)
-                    strip_installation_assets(dom)
+                    # Determine internal filename for floppy
+                    internal_filename = "autoinst.xml"
+                    if os_type == OSType.ALPINE:
+                        # Alpine looks for <hostname>.apkovl.tar.gz
+                        # Default hostname is localhost
+                        internal_filename = "localhost.apkovl.tar.gz"
+
+                    floppy_image_path = self._create_automation_floppy_image(
+                        automation_file_path,
+                        Path(os.path.dirname(automation_file_path)),
+                        internal_filename=internal_filename,
+                    )
+                    report("Uploading automation floppy image", 82)
+                    automation_vol_name = f"{vm_name}-automation.img"
+                    final_automation_path = self.upload_file(
+                        floppy_image_path, storage_pool_name, volume_name=automation_vol_name
+                    )
                 except Exception as e:
-                    self.logger.warning(f"Failed to strip installation assets: {e}")
+                    self.logger.error(
+                        f"Could not create or upload floppy image for Auto Install: {e}"
+                    )
+                    # Re-raise the exception to stop provisioning a broken VM
+                    raise e
+            else:
+                # For Debian/Ubuntu/Arch/Alpine without kernel extraction, kernel boot is required
+                self.logger.error(
+                    f"{os_type.name} direct boot requires kernel extraction. "
+                    f"Floppy-based installation is not supported for {os_type.name}."
+                )
+                raise Exception(
+                    f"Failed to extract kernel/initrd for {os_type.name} installation. "
+                    "Please ensure 7z (p7zip-full) is installed."
+                )
+
+        # Generate XML
+        report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 85)
+        xml_desc = self.generate_xml(
+            vm_name,
+            vm_type,
+            disk_path,
+            iso_path,
+            memory_mb,
+            vcpu,
+            disk_format,
+            loader_path=loader_path,
+            nvram_path=nvram_path,
+            boot_uefi=boot_uefi,
+            automation_file_path=final_automation_path,
+            auto_url=auto_url,
+            kernel_path=kernel_path,
+            initrd_path=initrd_path,
+            serial_console=serial_console,
+            os_type=os_type,
+            graphics_type=graphics_type,
+            os_version=os_version,
+            network_name=network_name,
+            ovmf_debug=ovmf_debug,
+        )
+
+        report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 90)
+        dom = self.conn.defineXML(xml_desc)
+        dom.create()
+
+        # After starting the VM for installation, immediately strip the persistent
+        # configuration of installation assets (kernel/initrd/cmdline/floppy)
+        # so that it's ready for the first boot from disk after installation completes.
+        if kernel_path or final_automation_path:
+            self.logger.info(
+                f"Cleaning installation assets from persistent configuration for {vm_name}."
+            )
+            try:
+                # Capture boot files before stripping them from XML
+                root = ET.fromstring(dom.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE))
+                boot_files = get_vm_boot_files(root)
+                strip_installation_assets(dom)
+            except Exception as e:
+                self.logger.warning(f"Failed to strip installation assets: {e}")
 
         # Clean up HTTP server after VM creation (keep it running during installation)
         # Note: The HTTP server will continue serving during the OS installation

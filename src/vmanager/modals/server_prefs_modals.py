@@ -6,6 +6,7 @@ Main interface
 import os
 
 import libvirt
+from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -364,7 +365,10 @@ class ServerPrefModal(BaseModal[None]):
                 pool_name = pool_data["name"]
                 status = pool_data["status"]
                 autostart = "autostart" if pool_data["autostart"] else StaticText.NO_AUTOSTART_LABEL
-                label = f"{pool_name} [{status}, {autostart}]"
+                label = Text.assemble(
+                    (pool_name, "bold"),
+                    (f" [{status}, {autostart}]", "dim"),
+                )
                 pool_node = tree.root.add(label, data=pool_data)
                 pool_node.data["type"] = "pool"
                 # Add a dummy node to make the pool node expandable
@@ -378,7 +382,10 @@ class ServerPrefModal(BaseModal[None]):
             except libvirt.libvirtError:
                 # Handle cases where pool might be listed but inaccessible (e.g. NFS down)
                 pool_name = pool_data.get("name", "Unknown")
-                label = f"{pool_name}{StaticText.POOL_UNAVAILABLE_SUFFIX}"
+                label = Text.assemble(
+                    (pool_name, "bold"),
+                    (StaticText.POOL_UNAVAILABLE_SUFFIX, "bold red"),
+                )
                 pool_node = tree.root.add(label, data=pool_data)
                 pool_node.data["type"] = "pool"
                 pool_node.add_leaf(StaticText.POOL_UNAVAILABLE_LABEL)
@@ -407,12 +414,22 @@ class ServerPrefModal(BaseModal[None]):
         self.networks_list = list_networks(self.conn)
 
         for net in self.networks_list:
-            vms_str = ", ".join(network_usage.get(net["name"], [])) or StaticText.NOT_IN_USE
-            active_str = "✔️" if net["active"] else "❌"
-            autostart_str = "✔️" if net["autostart"] else "❌"
+            vm_list = network_usage.get(net["name"], [])
+            vms_text = (
+                Text(", ".join(vm_list), style="italic magenta")
+                if vm_list
+                else Text(StaticText.NOT_IN_USE, style="dim")
+            )
+            active_text = Text("✔", style="bold green") if net["active"] else Text("✘", style="bold red")
+            autostart_text = Text("✔", style="bold green") if net["autostart"] else Text("✘", style="bold red")
 
             table.add_row(
-                net["name"], net["mode"], active_str, autostart_str, vms_str, key=net["name"]
+                Text(net["name"], style="bold"),
+                net["mode"],
+                active_text,
+                autostart_text,
+                vms_text,
+                key=net["name"],
             )
 
     @on(Tree.NodeExpanded)
@@ -436,13 +453,16 @@ class ServerPrefModal(BaseModal[None]):
                     capacity_gb = round(vol_data["capacity"] / (1024**3), 2)
 
                     vm_names = self.path_to_vm_list.get(vol_path, [])
-                    usage_info = (
-                        StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names))
-                        if vm_names
-                        else ""
-                    )
+                    parts = [
+                        (vol_name, "bold"),
+                        (StaticText.VOLUME_SIZE_TEMPLATE.format(size=capacity_gb), "yellow"),
+                    ]
+                    if vm_names:
+                        parts.append(
+                            (StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names)), "italic magenta")
+                        )
 
-                    label = f"{vol_name}{StaticText.VOLUME_SIZE_TEMPLATE.format(size=capacity_gb)}{usage_info}"
+                    label = Text.assemble(*parts)
                     child_node = node.add(label, data=vol_data)
                     child_node.data["type"] = "volume"
                     child_node.allow_expand = False

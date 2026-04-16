@@ -108,6 +108,7 @@ def save_config(config):
     os.makedirs(config_path.parent, exist_ok=True)
     with open(config_path, "w", encoding="utf-8") as f:
         yaml.dump(config, f, default_flow_style=False)
+    return True
 
 
 def get_user_templates_dir():

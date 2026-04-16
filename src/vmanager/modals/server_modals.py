@@ -15,6 +15,12 @@ from ..vmcard import ConfirmationDialog
 from .base_modals import BaseModal
 from .howto_ssh_modal import HowToSSHModal
 
+VALID_URI_PREFIXES = ("qemu:///", "qemu+ssh://")
+
+
+def _is_valid_server_uri(uri: str) -> bool:
+    return uri.startswith(VALID_URI_PREFIXES)
+
 
 class ConnectionModal(BaseModal[str | None]):
     def compose(self) -> ComposeResult:
@@ -65,10 +71,16 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
             name_input = self.query_one("#server-name-input", Input)
             uri_input = self.query_one("#server-uri-input", Input)
             autoconnect_checkbox = self.query_one("#autoconnect-checkbox", Checkbox)
+            uri = uri_input.value.strip()
+            if not _is_valid_server_uri(uri):
+                self.app.show_error_message(
+                    ErrorMessages.INVALID_SERVER_URI_TEMPLATE.format(uri=uri)
+                )
+                return
             self.dismiss(
                 (
                     name_input.value,
-                    uri_input.value,
+                    uri,
                     autoconnect_checkbox.value,
                 )
             )
@@ -105,7 +117,13 @@ class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
             name_input = self.query_one("#server-name-input", Input)
             uri_input = self.query_one("#server-uri-input", Input)
             autoconnect_checkbox = self.query_one("#autoconnect-checkbox", Checkbox)
-            self.dismiss((name_input.value, uri_input.value, autoconnect_checkbox.value))
+            uri = uri_input.value.strip()
+            if not _is_valid_server_uri(uri):
+                self.app.show_error_message(
+                    ErrorMessages.INVALID_SERVER_URI_TEMPLATE.format(uri=uri)
+                )
+                return
+            self.dismiss((name_input.value, uri, autoconnect_checkbox.value))
         elif event.button.id == "cancel-btn":
             self.dismiss(None)
 

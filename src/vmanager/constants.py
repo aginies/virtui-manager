@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "2.5.0"
+    version = "2.5.5"
     author = "Antoine Ginies"
 
 
@@ -400,7 +400,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     USE_NETWORK_NAME_FOR_DNS = _("Use Network Name for DNS")
     CUSTOM_DNS_DOMAIN = _("Custom DNS Domain")
     NETWORK_DETAILS = _("Network Details")
-    UNDEFINE_SOURCE_VM = _("Undefine source VM")
+    UNDEFINE_SOURCE_VM = _("Delete VM from source host")
     EDIT_DISK_TITLE = _("Edit Disk: {path}")
     MOVE_VOLUME_TITLE = _("Move Volume: {volume_name}")
     MIGRATE_VMS_TITLE = _("[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
@@ -620,6 +620,7 @@ Specify the NUMA nodes to use.
     COMPRESS_DATA_DURING_MIGRATION_TOOLTIP = _("Compress migration data to save bandwidth.")
     TUNNEL_MIGRATION_DATA_TOOLTIP = _("Tunnel migration data through the libvirt connection.")
     USE_CUSTOM_MIGRATION_WORKFLOW_TOOLTIP = _("Use a custom workflow for migration.")
+    UNDEFINE_SOURCE_VM_TOOLTIP = _("Delete the VM from the source host after migration.")
 
     # Expert Mode and Automated Installation Tooltips
     AUTOMATION_TEMPLATE_TOOLTIP = _(
@@ -705,13 +706,9 @@ Specify the NUMA nodes to use.
     LANGUAGE_TOOLTIP = _("System language for the installation")
     KEYBOARD_LABEL = _("Keyboard Layout")
     KEYBOARD_TOOLTIP = _("Keyboard layout for the system")
-    USE_VIRT_INSTALL_TOOLTIP = _(
-        "Use virt-install command-line tool. Uncheck to use XML-based creation."
-    )
     SERIAL_CONSOLE_TOOLTIP = _("Adds console=tty0 console=ttyS0,115200 to kernel args")
     CPUS_LABEL = _("CPUs")
     NONE_OPTION = _("None")
-    USE_VIRT_INSTALL_LABEL = _("Use virt-install")
     REDIRECT_CONSOLE_SERIAL_LABEL = _("Redirect console to serial (ttyS0)")
     # VM Provisioner Progress Messages
     PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
@@ -724,7 +721,6 @@ Specify the NUMA nodes to use.
     PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
     PROVISIONING_DEFINING_VM = _("Defining VM")
     PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
-    PROVISIONING_CONFIGURING_VM_VIRT_INSTALL = _("Configuring VM (virt-install)")
     PROVISIONING_WAITING_FOR_VM = _("Waiting for VM")
     PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
     PROVISIONING_STARTING_VM = _("Starting VM")
@@ -1137,6 +1133,9 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     FAILED_TO_SAVE_CONFIGURATION = _("Failed to save configuration")
     ERROR_SAVING_AUTOFILL_CONFIGURATION = _("Error saving auto-fill configuration")
     ERROR_OPENING_AUTOFILL_CONFIGURATION = _("Error opening auto-fill configuration")
+    INVALID_SERVER_URI_TEMPLATE = _(
+        "Invalid URI '{uri}'.\nURI must start with 'qemu:///' or 'qemu+ssh://'."
+    )
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods

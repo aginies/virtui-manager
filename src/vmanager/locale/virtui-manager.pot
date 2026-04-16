@@ -6,9 +6,9 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: VirtUI Manager 2.4.9\n"
+"Project-Id-Version: VirtUI Manager 2.5.0\n"
 "Report-Msgid-Bugs-To: https://github.com/aginies/virtui-manager/issues\n"
-"POT-Creation-Date: 2026-03-25 14:43+0100\n"
+"POT-Creation-Date: 2026-03-25 15:18+0100\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2115,10 +2115,6 @@ msgstr ""
 msgid "Keyboard layout for the system"
 msgstr ""
 
-#: constants.py:709
-msgid "Use virt-install command-line tool. Uncheck to use XML-based creation."
-msgstr ""
-
 #: constants.py:711
 msgid "Adds console=tty0 console=ttyS0,115200 to kernel args"
 msgstr ""
@@ -2129,10 +2125,6 @@ msgstr ""
 
 #: constants.py:713
 msgid "None"
-msgstr ""
-
-#: constants.py:714
-msgid "Use virt-install"
 msgstr ""
 
 #: constants.py:715
@@ -2179,10 +2171,6 @@ msgstr ""
 
 #: constants.py:726
 msgid "Provisioning Complete (Configuration Mode)"
-msgstr ""
-
-#: constants.py:727
-msgid "Configuring VM (virt-install)"
 msgstr ""
 
 #: constants.py:728

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "virtui-manager"
-version = "2.5.0"
+version = "2.5.5"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
 authors = [
@@ -35,7 +35,7 @@ classifiers = [
 
 dependencies = [
     "libvirt-python>=6.0.0",
-    "textual>=0.40.0",
+    "textual>=8.0.0",
     "PyYAML>=5.4.0",
     "markdown-it-py>=3.0.0",
     "packaging",

@@ -283,6 +283,83 @@ def calculate_qcow2_cache_sizes(
     return l2_cache_size, refcount_cache_size
 
 
+def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | None:
+    """
+    Ensures a default storage pool exists and is active.
+    If no pools exist, creates a 'default' pool pointing to /var/lib/libvirt/images.
+    If 'default' pool exists but is inactive, starts it.
+    """
+    if not conn:
+        return None
+
+    try:
+        # Check if 'default' pool exists
+        try:
+            pool = conn.storagePoolLookupByName("default")
+            if not pool.isActive():
+                logging.info("Default storage pool 'default' exists but is inactive. Starting it...")
+                pool.create(0)
+            return pool
+        except libvirt.libvirtError as e:
+            if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_POOL:
+                raise
+
+        # Check if any other pools exist
+        pools = conn.listAllStoragePools(0)
+        if pools:
+            # At least one pool exists, and it's not 'default' (or we would have found it above)
+            # If any pool is active, we are good.
+            active_pools = [p for p in pools if p.isActive()]
+            if active_pools:
+                return active_pools[0]
+            
+            # If no pools are active, try to start the first one
+            try:
+                pools[0].create(0)
+                return pools[0]
+            except libvirt.libvirtError:
+                pass # Fallback to creating 'default' if we can't start existing one
+
+        # No pools present or couldn't start existing ones, create 'default'
+        name = "default"
+        pool_type = "dir"
+        target = "/var/lib/libvirt/images"
+
+        # Try to define and create it
+        logging.info(f"Creating default pool '{name}' at {target}...")
+        
+        xml = f"""
+        <pool type='{pool_type}'>
+            <name>{name}</name>
+            <target>
+                <path>{target}</path>
+            </target>
+        </pool>
+        """
+        pool = conn.storagePoolDefineXML(xml, 0)
+        
+        # Try to build it (creates the directory if missing)
+        try:
+            pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+        except libvirt.libvirtError:
+            try:
+                pool.build(0)
+            except libvirt.libvirtError:
+                pass # Already exists or cannot build
+
+        pool.create(0)
+        pool.setAutostart(1)
+        logging.info(f"Default storage pool '{name}' created and started.")
+        return pool
+
+    except libvirt.libvirtError as e:
+        logging.error(f"Failed to ensure default storage pool: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error ensuring default storage pool: {e}")
+        return None
+
+
 def create_storage_pool(
     conn, name, pool_type, target, source_host=None, source_path=None, source_format=None
 ):
@@ -1198,7 +1275,7 @@ def copy_volume_across_hosts(
     try:
         if new_backing_path:
             # We need to rebase, so we must download to a temp file
-            with tempfile.NamedTemporaryFile(delete=False) as tmp:
+            with tempfile.NamedTemporaryFile(delete=False, dir="/var/tmp") as tmp:
                 tmp_file = tmp.name
             log_and_callback(f"Using temporary file for rebase: {tmp_file}")
 

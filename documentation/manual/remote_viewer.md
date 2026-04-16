@@ -32,7 +32,7 @@ The header bar provides quick access to essential functions:
 You can customize the viewing experience to match your network conditions and preferences:
 
 *   **Scaling:** Resize the guest display to fit the window.
-*   **Smoothing:** Enable interpolation for better image quality when scaled.
+*   **Smoothing:** Interpolation is enabled by default for better image quality when scaled.
 *   **Lossy Compression:** Use JPEG compression to reduce bandwidth usage (useful for slow connections).
 *   **Color Depth:** Adjust the color depth (8-bit, 16-bit, 24-bit) to balance quality and performance.
 

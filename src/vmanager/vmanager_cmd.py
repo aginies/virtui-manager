@@ -116,14 +116,13 @@ class VManagerCMD(cmd.Cmd):
     """VManager command-line interface."""
 
     prompt = "(" + AppInfo.name + ") "
-    preintro = f"""Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.
+    intro = f"""Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.
 
 {AppInfo.namecase}  Copyright (C) {datetime.datetime.now().year}  {AppInfo.author}
     This program comes with ABSOLUTELY NO WARRANTY; for details type 'about'.
     This is free software, and you are welcome to redistribute it
     under certain conditions; type 'about' for details.
 """
-    print(f"{preintro}")
 
     def __init__(self, vm_service=None):
         super().__init__()
@@ -833,7 +832,7 @@ class VManagerCMD(cmd.Cmd):
                         for vm in all_selected_vms:
                             if self._get_display_width(vm) > max_vm_width:
                                 # Truncate individual VM name
-                                truncated = self._wrap_text(vm, max_vm_width)
+                                truncated = self._truncate_text(vm, max_vm_width)
                                 shown_vms.append(truncated)
                             else:
                                 shown_vms.append(vm)
@@ -895,7 +894,7 @@ class VManagerCMD(cmd.Cmd):
             # A more sophisticated approach would preserve color codes
             clean_text = strip_ansi_codes(text)
             if len(clean_text) <= max_width - len(suffix):
-                return clean_text[: max_width - len(suffix)] + suffix
+                return clean_text
             else:
                 return clean_text[: max_width - len(suffix)] + suffix
         else:
@@ -1358,6 +1357,39 @@ class VManagerCMD(cmd.Cmd):
                 print(f"  on {server}: {', '.join(vms)}")
         else:
             print("No VMs selected.")
+
+        self._update_prompt()
+
+    def do_unselect_vm(self, args):
+        """Deselect one or more VMs from the current selection.
+        Usage: unselect_vm <vm_name_1> [vm_name_2] ...
+               unselect_vm all"""
+        if not self.selected_vms:
+            print("No VMs are currently selected.")
+            return
+
+        arg_list = args.split()
+        if not arg_list:
+            print("Usage: unselect_vm <vm_name_1> [vm_name_2] ... or unselect_vm all")
+            return
+
+        if "all" in arg_list:
+            self.selected_vms.clear()
+            print("All VMs deselected.")
+            self._update_prompt()
+            return
+
+        for vm_name in arg_list:
+            found = False
+            for server_name in list(self.selected_vms.keys()):
+                if vm_name in self.selected_vms[server_name]:
+                    self.selected_vms[server_name].remove(vm_name)
+                    if not self.selected_vms[server_name]:
+                        del self.selected_vms[server_name]
+                    print(f"Deselected '{vm_name}' from server '{server_name}'.")
+                    found = True
+            if not found:
+                print(f"VM '{vm_name}' was not in the current selection.")
 
         self._update_prompt()
 
@@ -2745,7 +2777,7 @@ Dry-run testing:
 
     def do_about(self, args):
         """Display GPL license and copyright information."""
-        current_year = datetime.now().year
+        current_year = datetime.datetime.now().year
         about_text = f"""
 {AppInfo.namecase} {AppInfo.version}
 
@@ -3796,7 +3828,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 vm_type=selected_vm_type,
                 iso_url=iso_url,
                 storage_pool_name=selected_pool,
-                use_virt_install=False,
                 configure_before_install=False,
                 automation_config=auto_config,
                 progress_callback=cli_progress_callback,

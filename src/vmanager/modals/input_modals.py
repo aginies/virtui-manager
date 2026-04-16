@@ -68,8 +68,8 @@ class AddInputDeviceModal(BaseModal[None]):
         type_select = self.query_one("#input-type-select", Select)
         bus_select = self.query_one("#input-bus-select", Select)
 
-        is_type_selected = type_select.value != Select.BLANK
-        is_bus_selected = bus_select.value != Select.BLANK
+        is_type_selected = type_select.value != Select.NULL
+        is_bus_selected = bus_select.value != Select.NULL
 
         self.query_one("#add-input", Button).disabled = not (is_type_selected and is_bus_selected)
 
@@ -102,7 +102,7 @@ class AddChannelModal(BaseModal[dict | None]):
                 [],
                 id="target-preset-select",
                 prompt=StaticText.TARGET_PRESET_PROMPT,
-                value=Select.BLANK,
+                value=Select.NULL,
             )
             yield Label(StaticText.TARGET_NAME)
             yield Input(placeholder=StaticText.TARGET_NAME_PLACEHOLDER, id="target-name-input")
@@ -136,7 +136,7 @@ class AddChannelModal(BaseModal[dict | None]):
             default_val = "org.qemu.guest_agent.0"
 
         preset_select.set_options(options)
-        preset_select.value = Select.BLANK
+        preset_select.value = Select.NULL
         target_input.value = default_val
 
     @on(Select.Changed, "#channel-type-select")
@@ -145,7 +145,7 @@ class AddChannelModal(BaseModal[dict | None]):
 
     @on(Select.Changed, "#target-preset-select")
     def on_target_preset_changed(self, event: Select.Changed) -> None:
-        if event.value and event.value != Select.BLANK:
+        if event.value and event.value != Select.NULL:
             self.query_one("#target-name-input", Input).value = event.value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

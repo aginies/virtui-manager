@@ -327,10 +327,11 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
             os_type=OSType.ALPINE,
         )
 
-        # Check that it contains UEFI loader with secure='no'
-        self.assertIn("secure='no'", xml)
-        self.assertIn("<loader", xml)
+        # Check that it contains UEFI firmware autoselection with secure-boot disabled
+        self.assertIn("<firmware>", xml)
+        self.assertIn("<feature enabled='no' name='secure-boot'/>", xml)
         self.assertIn("firmware='efi'", xml)
+        self.assertNotIn("<loader", xml)
         # Check that SEV/TPM are NOT present (since we disabled them for Alpine)
         self.assertNotIn("<launchSecurity", xml)
         self.assertNotIn("<tpm", xml)
@@ -346,10 +347,11 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
             os_type=OSType.ARCHLINUX,
         )
 
-        # Check that it contains UEFI loader with secure='no'
-        self.assertIn("secure='no'", xml)
-        self.assertIn("<loader", xml)
+        # Check that it contains UEFI firmware autoselection with secure-boot disabled
+        self.assertIn("<firmware>", xml)
+        self.assertIn("<feature enabled='no' name='secure-boot'/>", xml)
         self.assertIn("firmware='efi'", xml)
+        self.assertNotIn("<loader", xml)
         # Check that SEV/TPM are NOT present (since we disabled them for Arch)
         self.assertNotIn("<launchSecurity", xml)
         self.assertNotIn("<tpm", xml)
@@ -373,14 +375,11 @@ class TestVMProvisionerNVRAM(unittest.TestCase):
             "vmanager.vm_provisioner.manage_firewalld_port"
         ) as mock_firewall, patch("vmanager.vm_provisioner.uuid.uuid4") as mock_uuid, patch(
             "vmanager.vm_provisioner.Path"
-        ) as mock_path_class, patch.object(
-            self.provisioner, "check_virt_install"
-        ) as mock_check_virt, patch(
+        ) as mock_path_class, patch(
             "vmanager.vm_provisioner.tarfile.is_tarfile"
         ) as mock_is_tarfile, patch(
             "builtins.open", mock_open(read_data='KEYMAPOPTS="us us"\nHOSTNAMEOPTS="alpinetest"')
         ):
-            mock_check_virt.return_value = False
             mock_is_tarfile.return_value = True  # Mock tarfile validation
             temp_dir_path = "/tmp/virtui_automation_test"
             mock_mkdtemp.return_value = temp_dir_path

@@ -112,13 +112,18 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                         continue
 
             if not original_vol or not original_pool:
-                logging.info(
-                    "Skipping cloning for non-volume disk source: %s",
-                    ET.tostring(source_elem, encoding="unicode").strip(),
-                )
+                src_str = ET.tostring(source_elem, encoding="unicode").strip()
+                msg_skip = f"WARNING: disk not found in any storage pool, skipping clone: {src_str}"
+                logging.warning(msg_skip)
+                if log_callback:
+                    log_callback(msg_skip)
                 continue
 
-            original_vol_xml = original_vol.XMLDesc(0)
+            try:
+                original_vol_xml = original_vol.XMLDesc(0)
+            except Exception as e:
+                logging.exception("Failed to get XMLDesc for volume '%s': %s", original_vol.name(), e)
+                raise
             vol_root = ET.fromstring(original_vol_xml)
 
             _, vol_name_ext = os.path.splitext(original_vol.name())
@@ -131,18 +136,31 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                 vol_name_ext = ".qcow2"
 
             new_vol_name = f"{new_vm_name}_{secrets.token_hex(4)}{vol_name_ext}"
-            vol_root.find("name").text = new_vol_name
 
-            # Libvirt will handle capacity, allocation, and backing store when cloning.
-            # Clear old path/key info for the new volume
-            if vol_root.find("key") is not None:
-                vol_root.remove(vol_root.find("key"))
+            # Build a minimal volume XML for createXMLFrom.
+            # Passing the full XMLDesc output causes failures on many libvirt versions because
+            # it includes read-only fields (key, path, physical, timestamps, backingStore)
+            # that libvirt either rejects or misinterprets for the new-volume definition.
+            capacity_elem = vol_root.find("capacity")
+            capacity_xml = (
+                ET.tostring(capacity_elem, encoding="unicode")
+                if capacity_elem is not None
+                else "<capacity unit='bytes'>0</capacity>"
+            )
+            format_type = "qcow2"
             target_elem = vol_root.find("target")
             if target_elem is not None:
-                if target_elem.find("path") is not None:
-                    target_elem.remove(target_elem.find("path"))
+                fmt = target_elem.find("format")
+                if fmt is not None:
+                    format_type = fmt.get("type", "qcow2")
 
-            new_vol_xml = ET.tostring(vol_root, encoding="unicode")
+            new_vol_xml = (
+                f"<volume>"
+                f"<name>{new_vol_name}</name>"
+                f"{capacity_xml}"
+                f"<target><format type='{format_type}'/></target>"
+                f"</volume>"
+            )
 
             # Clone the volume using libvirt's storage pool API
             try:
@@ -152,6 +170,12 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                     log_callback(msg)
                 # Flag 0 indicates a full (deep) clone
                 new_vol = original_pool.createXMLFrom(new_vol_xml, original_vol, 0)
+                # Refresh the pool so defineXML can resolve the newly created volume
+                # by pool+name reference without a "volume not found" error.
+                try:
+                    original_pool.refresh(0)
+                except libvirt.libvirtError as refresh_err:
+                    logging.warning("Pool refresh after clone failed (non-fatal): %s", refresh_err)
             except libvirt.libvirtError as e:
                 raise libvirt.libvirtError(
                     f"Failed to perform a full clone of volume '{original_vol.name()}': {e}"
@@ -168,8 +192,6 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
         if nvram_elem is not None:
             nvram_path = nvram_elem.text
             if nvram_path:
-                from .libvirt_utils import _find_vol_by_path
-
                 nvram_vol, nvram_pool = _find_vol_by_path(clone_conn, nvram_path)
                 if nvram_vol and nvram_pool:
                     try:
@@ -2361,7 +2383,7 @@ def delete_vm(
 
             for disk_info in disks_to_delete:
                 disk_path = disk_info.get("path")
-                if not disk_path or not disk_info.get("status") == "enabled":
+                if not disk_path:
                     continue
 
                 log(f"Attempting to delete volume: {disk_path}")

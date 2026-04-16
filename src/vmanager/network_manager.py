@@ -6,6 +6,7 @@ import ipaddress
 import logging
 import secrets
 import subprocess
+import netifaces
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 
@@ -13,6 +14,77 @@ import libvirt
 
 from .libvirt_utils import get_host_domain_capabilities
 from .utils import log_function_call
+
+
+def ensure_default_network(conn: libvirt.virConnect) -> libvirt.virNetwork | None:
+    """
+    Ensures a default network exists and is active.
+    If no networks exist, creates a 'default' NAT network.
+    If 'default' network exists but is inactive, starts it.
+    """
+    if not conn:
+        return None
+
+    try:
+        # Check if 'default' network exists
+        try:
+            net = conn.networkLookupByName("default")
+            if not net.isActive():
+                logging.info("Default network 'default' exists but is inactive. Starting it...")
+                net.create()
+            return net
+        except libvirt.libvirtError as e:
+            if e.get_error_code() != libvirt.VIR_ERR_NO_NETWORK:
+                raise
+
+        # Check if any other networks exist and are active
+        networks = conn.listAllNetworks()
+        if networks:
+            active_nets = [n for n in networks if n.isActive()]
+            if active_nets:
+                return active_nets[0]
+            
+            # If no networks are active, try to start the first one
+            try:
+                networks[0].create()
+                return networks[0]
+            except libvirt.libvirtError:
+                pass # Fallback to creating 'default' if we can't start existing one
+
+        # No networks present or couldn't start existing ones, create 'default'
+        name = "default"
+        logging.info(f"Creating default NAT network '{name}'...")
+        
+        # Standard libvirt default network XML
+        xml = f"""
+<network>
+  <name>{name}</name>
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <mac address='{generate_mac_address()}'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.254'/>
+    </dhcp>
+  </ip>
+</network>
+"""
+        net = conn.networkDefineXML(xml)
+        net.create()
+        net.setAutostart(True)
+        logging.info(f"Default network '{name}' created and started.")
+        return net
+
+    except libvirt.libvirtError as e:
+        logging.error(f"Failed to ensure default network: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error ensuring default network: {e}")
+        return None
 
 
 @lru_cache(maxsize=16)
@@ -42,6 +114,42 @@ def list_networks(conn):
     return networks
 
 
+def _next_bridge_name(conn) -> str:
+    """
+    Returns the next available 'virbrN' bridge name by inspecting existing
+    libvirt network definitions and live network interfaces.
+    """
+    used: set[int] = set()
+
+    # Check bridge names already declared in libvirt network XML
+    for net in conn.listAllNetworks():
+        try:
+            root = ET.fromstring(net.XMLDesc(0))
+            bridge_elem = root.find("bridge")
+            if bridge_elem is not None:
+                bname = bridge_elem.get("name", "")
+                if bname.startswith("virbr"):
+                    try:
+                        used.add(int(bname[5:]))
+                    except ValueError:
+                        pass
+        except Exception:
+            pass
+
+    # Also check live interfaces (handles interfaces not yet in libvirt config)
+    for iface in netifaces.interfaces():
+        if iface.startswith("virbr"):
+            try:
+                used.add(int(iface[5:]))
+            except ValueError:
+                pass
+
+    i = 0
+    while i in used:
+        i += 1
+    return f"virbr{i}"
+
+
 def create_network(
     conn,
     name,
@@ -62,6 +170,7 @@ def create_network(
 
     net = ipaddress.ip_network(ip_network)
     generated_mac = generate_mac_address()
+    bridge_name = _next_bridge_name(conn)
     uuid_str = f"<uuid>{uuid}</uuid>" if uuid else ""
     nat_xml = ""
     if typenet == "nat":
@@ -79,7 +188,7 @@ def create_network(
   {uuid_str}
   <forward mode='{typenet}' {xml_forward_dev}>{nat_xml}
   </forward>
-  <bridge name='{name}' stp='on' delay='0'/>
+  <bridge name='{bridge_name}' stp='on' delay='0'/>
   <mac address='{generated_mac}'/>
   <domain name='{domain_name}'/>
   <ip address='{net.network_address + 1}' netmask='{net.netmask}'>
@@ -181,35 +290,16 @@ def get_host_network_interfaces():
     Returns a list of tuples: (interface_name, ip_address)
     """
     try:
-        result = subprocess.run(
-            ["ip", "-o", "link", "show"], capture_output=True, text=True, check=True
-        )
         interfaces = []
-        for line in result.stdout.splitlines():
-            parts = line.split(": ")
-            if len(parts) > 1:
-                interface_name = parts[1].split("@")[0]
-                if interface_name != "lo":
-                    ip_address = ""
-                    # Get IPv4 address for the interface
-                    ip_result = subprocess.run(
-                        ["ip", "-o", "-4", "addr", "show", interface_name],
-                        capture_output=True,
-                        text=True,
-                        check=False,  # Do not raise error if interface has no IP
-                    )
-                    if ip_result.returncode == 0:
-                        ip_parts = ip_result.stdout.split()
-                        if len(ip_parts) > 3:
-                            ip_address = ip_parts[3].split("/")[0]  # Extract IP before the /
-
-                    interfaces.append((interface_name, ip_address))
+        for name in netifaces.interfaces():
+            if name == "lo":
+                continue
+            addrs = netifaces.ifaddresses(name)
+            ip_address = addrs.get(netifaces.AF_INET, [{}])[0].get("addr", "")
+            interfaces.append((name, ip_address))
         return interfaces
-    except subprocess.CalledProcessError as e:
-        print(f"Error getting network interfaces: {e}")
-        return []
-    except FileNotFoundError:
-        print("Error: 'ip' command not found. Please ensure iproute2 is installed.")
+    except Exception as e:
+        logging.error(f"Error getting network interfaces: {e}")
         return []
 
 
@@ -263,6 +353,23 @@ def get_existing_subnets(
         except libvirt.libvirtError:
             continue  # Ignore networks we can't get XML for
     return subnets
+
+
+def suggest_free_subnet(conn: libvirt.virConnect, prefix_len: int = 24) -> str:
+    """
+    Suggests a free IPv4 subnet (not overlapping with existing libvirt networks).
+    Scans common private /24 ranges in 192.168.x.0 and 10.x.0.0 space.
+    Returns a CIDR string like '192.168.100.0/24', or '' if none found.
+    """
+    existing = get_existing_subnets(conn)
+    candidates = (
+        [ipaddress.ip_network(f"192.168.{i}.0/{prefix_len}") for i in range(1, 255)]
+        + [ipaddress.ip_network(f"10.0.{i}.0/{prefix_len}") for i in range(1, 255)]
+    )
+    for candidate in candidates:
+        if not any(candidate.overlaps(s) for s in existing):
+            return str(candidate)
+    return ""
 
 
 @lru_cache(maxsize=32)

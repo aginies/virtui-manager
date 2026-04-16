@@ -15,8 +15,8 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
-from ..network_manager import list_networks
-from ..storage_manager import list_storage_pools
+from ..network_manager import ensure_default_network, list_networks
+from ..storage_manager import ensure_default_pool, list_storage_pools
 from ..utils import remote_viewer_cmd
 from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
 from ..provisioning.os_provider import OSType
@@ -56,7 +56,7 @@ class InstallVMModal(BaseModal[str | None]):
         default_pool = (
             "default"
             if any(p[0] == "default" for p in active_pools)
-            else (active_pools[0][1] if active_pools else None)
+            else (active_pools[0][1] if active_pools else Select.NULL)
         )
 
         with ScrollableContainer(id="install-dialog"):
@@ -165,8 +165,8 @@ class InstallVMModal(BaseModal[str | None]):
                     active_pools,
                     prompt=StaticText.SELECT_POOL_PROMPT,
                     id="storage-pool-select",
-                    allow_blank=False,
-                    value=active_pools[0][1] if active_pools else None,
+                    allow_blank=True if not active_pools else False,
+                    value=active_pools[0][1] if active_pools else Select.NULL,
                 )
                 yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
                 yield Select(
@@ -182,17 +182,17 @@ class InstallVMModal(BaseModal[str | None]):
             default_network = (
                 "default"
                 if any(n[0] == "default" for n in active_networks)
-                else (active_networks[0][1] if active_networks else None)
+                else (active_networks[0][1] if active_networks else Select.NULL)
             )
 
             with Horizontal(id="pool-network-selection"):
                 with Vertical(id="pool-selection"):
                     yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                    yield Select(active_pools, value=default_pool, id="pool", allow_blank=False)
+                    yield Select(active_pools, value=default_pool if default_pool else Select.NULL, id="pool", allow_blank=True if not active_pools else False)
                 with Vertical(id="network-selection"):
                     yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
                     yield Select(
-                        active_networks, value=default_network, id="network", allow_blank=False
+                        active_networks, value=default_network if default_network else Select.NULL, id="network", allow_blank=True if not active_networks else False
                     )
 
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
@@ -330,15 +330,6 @@ class InstallVMModal(BaseModal[str | None]):
                     disabled=True,
                 )
 
-            with Vertical():
-                with Horizontal():
-                    yield Checkbox(
-                        StaticText.USE_VIRT_INSTALL_LABEL,
-                        id="use-virt-install-checkbox",
-                        value=False,
-                        tooltip=StaticText.USE_VIRT_INSTALL_TOOLTIP,
-                    )
-
             yield Checkbox(
                 StaticText.CONFIGURE_BEFORE_INSTALL,
                 id="configure-before-install-checkbox",
@@ -367,19 +358,88 @@ class InstallVMModal(BaseModal[str | None]):
 
         # Populate initial storage pool volumes if "From Storage Pool" is default
         storage_pool_select = self.query_one("#storage-pool-select", Select)
-        if storage_pool_select.value:
+        if storage_pool_select.value and storage_pool_select.value != Select.NULL:
             self.fetch_pool_isos(storage_pool_select.value)
 
-        # Hide virt-install checkbox if not available
-        # ALWAYS HIDE FOR NOW
-        use_virt_install_checkbox = self.query_one("#use-virt-install-checkbox", Checkbox)
-        use_virt_install_checkbox.value = False
-        use_virt_install_checkbox.styles.display = "none"
-        # if not self.provisioner.check_virt_install():
-        #    use_virt_install_checkbox.value = False
-        #    use_virt_install_checkbox.styles.display = "none"
-        # else:
-        #    use_virt_install_checkbox.styles.display = "block"
+        # Check if we need to create a default pool and network if none exist
+        self._check_and_ensure_resources()
+
+    @work(exclusive=True, thread=True)
+    def _check_and_ensure_resources(self):
+        """Ensures default storage pool and network exist and are active."""
+        try:
+            # 1. Check/Ensure Pool
+            pool = ensure_default_pool(self.conn)
+            if pool:
+                # Refresh storage pool lists in the UI
+                self.app.call_from_thread(self._refresh_pool_selectors)
+            
+            # 2. Check/Ensure Network
+            net = ensure_default_network(self.conn)
+            if net:
+                # Refresh network lists in the UI
+                self.app.call_from_thread(self._refresh_network_selectors)
+                
+        except Exception as e:
+            logging.error(f"Failed to ensure default resources in background: {e}")
+
+    def _refresh_network_selectors(self):
+        """Refresh network select widget with new data."""
+        try:
+            networks = list_networks(self.conn)
+            active_networks = [(n["name"], n["name"]) for n in networks if n["active"]]
+
+            if not active_networks:
+                return
+
+            # Update the network select
+            network_select = self.query_one("#network", Select)
+            network_select.set_options(active_networks)
+            if network_select.value == Select.NULL:
+                # Select 'default' or the first one if we just created it
+                default_network = (
+                    "default"
+                    if any(n[0] == "default" for n in active_networks)
+                    else (active_networks[0][1] if active_networks else Select.NULL)
+                )
+                network_select.value = default_network
+
+            self._check_form_validity()
+        except Exception as e:
+            logging.error(f"Error refreshing network selectors: {e}")
+
+    def _refresh_pool_selectors(self):
+        """Refresh storage pool select widgets with new data."""
+        try:
+            pools = list_storage_pools(self.conn)
+            active_pools = [(p["name"], p["name"]) for p in pools if p["status"] == "active"]
+
+            if not active_pools:
+                return
+
+            # Update the main pool select
+            pool_select = self.query_one("#pool", Select)
+            pool_select.set_options(active_pools)
+            if pool_select.value == Select.NULL:
+                # Select 'default' or the first one if we just created it
+                default_pool = (
+                    "default"
+                    if any(p[0] == "default" for p in active_pools)
+                    else (active_pools[0][1] if active_pools else Select.NULL)
+                )
+                pool_select.value = default_pool
+
+            # Update storage-pool-select (for ISOs)
+            storage_pool_select = self.query_one("#storage-pool-select", Select)
+            storage_pool_select.set_options(active_pools)
+            if storage_pool_select.value == Select.NULL:
+                storage_pool_select.value = active_pools[0][1]
+                # Also trigger fetching isos for it
+                self.fetch_pool_isos(storage_pool_select.value)
+
+            self._check_form_validity()
+        except Exception as e:
+            logging.error(f"Error refreshing pool selectors: {e}")
 
     def _update_expert_defaults(self, vm_type, distro=None):
         mem = 4
@@ -476,7 +536,7 @@ class InstallVMModal(BaseModal[str | None]):
             self.query_one("#pool-iso-container").styles.display = "block"
             # Trigger fetching volumes for the currently selected storage pool
             pool_select = self.query_one("#storage-pool-select", Select)
-            if pool_select.value and pool_select.value != Select.BLANK:
+            if pool_select.value and pool_select.value != Select.NULL:
                 self.fetch_pool_isos(pool_select.value)
             else:
                 # If no pool is selected, clear the ISO volume select and keep it disabled
@@ -507,7 +567,7 @@ class InstallVMModal(BaseModal[str | None]):
     @on(Select.Changed, "#storage-pool-select")
     def on_storage_pool_selected(self, event: Select.Changed):
         """Handles when a storage pool is selected for ISO volumes."""
-        if event.value and event.value != Select.BLANK:
+        if event.value and event.value != Select.NULL:
             self.fetch_pool_isos(event.value)
         else:
             # No pool selected, clear volumes and disable the volume select
@@ -968,7 +1028,7 @@ class InstallVMModal(BaseModal[str | None]):
         template_id = event.value
 
         # Enable/disable user configuration fields based on template selection
-        should_enable = template_id and template_id != Select.BLANK
+        should_enable = template_id and template_id != Select.NULL
 
         # Update all automation user config fields
         try:
@@ -1094,10 +1154,10 @@ class InstallVMModal(BaseModal[str | None]):
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
             iso_volume = self.query_one("#iso-volume-select", Select).value
-            valid_iso = iso_volume and iso_volume != Select.BLANK
+            valid_iso = iso_volume and iso_volume != Select.NULL
         else:
             iso = self.query_one("#iso-select", Select).value
-            valid_iso = iso and iso != Select.BLANK
+            valid_iso = iso and iso != Select.NULL
 
         btn = self.query_one("#install-btn", Button)
         if name and valid_iso:
@@ -1186,14 +1246,13 @@ class InstallVMModal(BaseModal[str | None]):
         pool_name = self.query_one("#pool", Select).value
         network_name = self.query_one("#network", Select).value
         distro = self.query_one("#distro", Select).value
-        use_virt_install = self.query_one("#use-virt-install-checkbox", Checkbox).value
         serial_console = self.query_one("#automation-serial-console", Checkbox).value
         configure_before_install = self.query_one(
             "#configure-before-install-checkbox", Checkbox
         ).value
 
         # Validate storage pool
-        if not pool_name or pool_name == Select.BLANK:
+        if not pool_name or pool_name == Select.NULL:
             self.app.show_error_message(ErrorMessages.PLEASE_SELECT_VALID_STORAGE_POOL)
             return
 
@@ -1216,7 +1275,7 @@ class InstallVMModal(BaseModal[str | None]):
                 checksum = self.query_one("#checksum-input", Input).value.strip()
         elif distro == "pool_volumes":
             iso_url = self.query_one("#iso-volume-select", Select).value
-            if not iso_url or iso_url == Select.BLANK:
+            if not iso_url or iso_url == Select.NULL:
                 self.app.show_error_message(ErrorMessages.SELECT_VALID_ISO_VOLUME)
                 return
             # Validate that the volume path exists and is accessible
@@ -1245,7 +1304,7 @@ class InstallVMModal(BaseModal[str | None]):
         automation_template_id = None
         try:
             template_select = self.query_one("#automation-template-select", Select)
-            if template_select.value and template_select.value != Select.BLANK:
+            if template_select.value and template_select.value != Select.NULL:
                 automation_template_id = template_select.value
         except Exception:
             # Template selection widget may not exist or may not be visible
@@ -1302,7 +1361,6 @@ class InstallVMModal(BaseModal[str | None]):
             disk_format,
             graphics_type,
             boot_uefi,
-            use_virt_install,
             serial_console,
             configure_before_install,
             automation_template_id,
@@ -1325,7 +1383,6 @@ class InstallVMModal(BaseModal[str | None]):
         disk_format,
         graphics_type,
         boot_uefi,
-        use_virt_install,
         serial_console,
         configure_before_install,
         automation_template_id,
@@ -1529,7 +1586,6 @@ class InstallVMModal(BaseModal[str | None]):
                     disk_format=disk_format,
                     graphics_type=graphics_type,
                     boot_uefi=boot_uefi,
-                    use_virt_install=use_virt_install,
                     configure_before_install=configure_before_install,
                     show_config_modal_callback=(
                         show_config_modal if configure_before_install else None
