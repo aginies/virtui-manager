@@ -19,13 +19,14 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.events import Click
 from textual.reactive import reactive
-from textual.widgets import Button, Checkbox, Collapsible, Sparkline, Static, TabbedContent, TabPane
+from textual.widgets import Button, Checkbox, Sparkline, Static, TabbedContent, TabPane
 
 from .constants import (
     ButtonLabels,
     DialogMessages,
     ErrorMessages,
     ProgressMessages,
+    QBarIcons,
     SparklineLabels,
     StaticText,
     StatusText,
@@ -53,6 +54,7 @@ from .modals.vmcard_dialog import (
     RenameVMDialog,
     SelectSnapshotDialog,
     SnapshotNameDialog,
+    VMActionsModal,
     WebConsoleConfigDialog,
 )
 from .modals.vmdetails_modals import VMDetailModal
@@ -63,6 +65,7 @@ from .utils import (
     generate_tooltip_markdown,
     remote_viewer_cmd,
     is_remote_connection,
+    terminal_supports_emoji,
 )
 from .vm_actions import (
     clone_vm,
@@ -300,7 +303,8 @@ class VMCard(Static):
                 logging.warning(f"Error getting webconsole status for {self.internal_id}: {e}")
 
         # Update status indicator text
-        new_indicator = " 🌐" if webc_is_running else ""
+        icons = QBarIcons.EMOJI if terminal_supports_emoji() else QBarIcons.ASCII
+        new_indicator = f" {icons['webc']}" if webc_is_running else ""
         if self.webc_status_indicator != new_indicator:
             self.webc_status_indicator = new_indicator
 
@@ -329,19 +333,6 @@ class VMCard(Static):
             status_widget.update(status_text)
 
     def compose(self):
-        self.ui["btn_quick_start"] = Button("▶", id="start", variant="success", classes="btn-small")
-        self.ui["btn_quick_start"].tooltip = StaticText.START_VMS
-        self.ui["btn_quick_view"] = Button("👁", id="connect", classes="btn-small")
-        self.ui["btn_quick_view"].tooltip = StaticText.REMOTE_VIEWER
-        self.ui["btn_quick_resume"] = Button(
-            "⏯", id="resume", variant="success", classes="btn-small"
-        )
-        self.ui["btn_quick_resume"].tooltip = ButtonLabels.RESUME
-        self.ui["btn_quick_stop"] = Button(
-            "■", id="shutdown", variant="primary", classes="btn-small"
-        )
-        self.ui["btn_quick_stop"].tooltip = ButtonLabels.SHUTDOWN
-
         self.ui["checkbox"] = Checkbox(
             "",
             id="vm-select-checkbox",
@@ -351,6 +342,31 @@ class VMCard(Static):
         )
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
+
+        # Quick action buttons — use ASCII fallback on limited terminals
+        icons = QBarIcons.EMOJI if terminal_supports_emoji() else QBarIcons.ASCII
+        self.ui["qb_start"] = Button(icons["start"], id="qb-start", classes="btn-qbar")
+        self.ui["qb_start"].tooltip = StaticText.START_VMS
+        self.ui["qb_shutdown"] = Button(icons["shutdown"], id="qb-shutdown", classes="btn-qbar")
+        self.ui["qb_shutdown"].tooltip = ButtonLabels.SHUTDOWN
+        self.ui["qb_stop"] = Button(icons["stop"], id="qb-stop", classes="btn-qbar")
+        self.ui["qb_stop"].tooltip = ButtonLabels.FORCE_OFF
+        self.ui["qb_pause"] = Button(icons["pause"], id="qb-pause", classes="btn-qbar")
+        self.ui["qb_pause"].tooltip = ButtonLabels.PAUSE
+        self.ui["qb_resume"] = Button(icons["resume"], id="qb-resume", classes="btn-qbar")
+        self.ui["qb_resume"].tooltip = ButtonLabels.RESUME
+        self.ui["qb_connect"] = Button(icons["connect"], id="qb-connect", classes="btn-qbar")
+        self.ui["qb_connect"].tooltip = ButtonLabels.CONNECT
+        self.ui["qb_snapshot"] = Button(icons["snapshot"], id="qb-snapshot", classes="btn-qbar")
+        self.ui["qb_snapshot"].tooltip = ButtonLabels.SNAPSHOT
+        self.ui["qb_hibernate"] = Button(icons["hibernate"], id="qb-hibernate", classes="btn-qbar")
+        self.ui["qb_hibernate"].tooltip = ButtonLabels.HIBERNATE_VM
+        self.ui["qb_migration"] = Button(icons["migration"], id="qb-migration", classes="btn-qbar")
+        self.ui["qb_migration"].tooltip = ButtonLabels.MIGRATION
+        self.ui["qb_xml"] = Button(icons["xml"], id="qb-xml", classes="btn-qbar")
+        self.ui["qb_xml"].tooltip = ButtonLabels.VIEW_XML
+        self.ui["actions_button"] = Button(icons["actions"], id="open-actions-btn", classes="btn-qbar")
+        self.ui["actions_button"].tooltip = StaticText.ACTIONS
 
         # Create all sparkline components
         self.ui["cpu_label"] = Static("", classes="sparkline-label")
@@ -398,34 +414,41 @@ class VMCard(Static):
             id="sparklines-container-group",
         )
 
-        self.ui["collapsible"] = Collapsible(title=StaticText.ACTIONS, id="actions-collapsible")
-
         with Vertical(id="info-container"):
             with Horizontal(id="vm-header-row"):
                 yield self.ui["checkbox"]
                 with Vertical():
                     yield self.ui["vmname"]
                     yield self.ui["status"]
-                with Horizontal(classes="quick-actions"):
-                    with Vertical():
-                        yield self.ui["btn_quick_resume"]
-                        yield self.ui["btn_quick_stop"]
-                        yield self.ui["btn_quick_start"]
-                        yield self.ui["btn_quick_view"]
-
+            with Horizontal(id="quick-action-bar"):
+                yield self.ui["qb_start"]
+                yield self.ui["qb_shutdown"]
+                yield self.ui["qb_stop"]
+                yield self.ui["qb_pause"]
+                yield self.ui["qb_resume"]
+                yield self.ui["qb_connect"]
+                yield self.ui["qb_snapshot"]
+                yield self.ui["qb_hibernate"]
+                yield self.ui["qb_migration"]
+                yield self.ui["qb_xml"]
+                yield self.ui["actions_button"]
             yield self.ui["sparklines_container"]
-            yield self.ui["collapsible"]
 
-    @on(Collapsible.Expanded, "#actions-collapsible")
-    async def on_collapsible_expanded(self, event: Collapsible.Expanded) -> None:
-        if not self.query(VMCardActions):
-            actions_view = VMCardActions()
-            await self.ui["collapsible"].mount(actions_view)
-            self.update_button_layout()
+    def _open_actions_modal(self) -> None:
+        """Open the VM actions modal."""
+        def on_action_result(action_id: str | None) -> None:
+            if action_id:
+                self._dispatch_action(action_id)
 
-    @on(Collapsible.Collapsed, "#actions-collapsible")
-    async def on_collapsible_collapsed(self, event: Collapsible.Collapsed) -> None:
-        self._cleanup_actions()
+        self.app.push_screen(
+            VMActionsModal(
+                vm_name=self.name,
+                vm_status=self.status,
+                vm=self.vm,
+                r_viewer_available=self.app.r_viewer_available,
+            ),
+            on_action_result,
+        )
 
     def _cleanup_actions(self):
         for child in self.query(VMCardActions):
@@ -546,7 +569,7 @@ class VMCard(Static):
 
         sparklines_container = self.ui.get("sparklines_container")
         if sparklines_container:
-            sparklines_container.display = is_active
+            sparklines_container.display = True
 
         # Toggle individual rows
         for widget in self.query(".resources-sparkline"):
@@ -554,14 +577,15 @@ class VMCard(Static):
         for widget in self.query(".io-sparkline"):
             widget.display = not is_resources_mode
 
-        # If the VM is active, update the data for the newly visible sparklines
-        if is_active:
-            self.update_sparkline_data()
+        # Update sparkline data (shows idle state when not active)
+        self.update_sparkline_data()
 
     def update_sparkline_data(self) -> None:
         """Updates the labels and data of the sparklines based on the current view mode."""
         if not self.is_mounted or not self.display or self.compact_view:
             return
+
+        is_active = self.status in (StatusText.RUNNING, StatusText.PAUSED)
 
         uuid = self.internal_id
         storage = {}
@@ -575,23 +599,29 @@ class VMCard(Static):
             mem_sparkline = self.ui.get("mem_sparkline")
 
             if all([cpu_label, mem_label, cpu_sparkline, mem_sparkline]):
-                if self.cpu > 0:
-                    cpu_text = SparklineLabels.VCPU.format(cpu=self.cpu)
+                if is_active:
+                    if self.cpu > 0:
+                        cpu_text = SparklineLabels.VCPU.format(cpu=self.cpu)
+                    else:
+                        cpu_text = SparklineLabels.VCPU.split("}", 1)[1].strip()
+
+                    if self.memory > 0:
+                        mem_gb = round(self.memory / 1024, 1)
+                        mem_text = SparklineLabels.MEMORY_GB.format(mem=mem_gb)
+                    else:
+                        mem_text = SparklineLabels.MEMORY_GB.split("}", 1)[1].strip()
+
+                    cpu_label.update(cpu_text)
+                    mem_label.update(mem_text)
+
+                    with self.app.vm_service._sparkline_lock:
+                        cpu_sparkline.data = list(storage.get("cpu", []))
+                        mem_sparkline.data = list(storage.get("mem", []))
                 else:
-                    cpu_text = SparklineLabels.VCPU.split("}", 1)[1].strip()
-
-                if self.memory > 0:
-                    mem_gb = round(self.memory / 1024, 1)
-                    mem_text = SparklineLabels.MEMORY_GB.format(mem=mem_gb)
-                else:
-                    mem_text = SparklineLabels.MEMORY_GB.split("}", 1)[1].strip()
-
-                cpu_label.update(cpu_text)
-                mem_label.update(mem_text)
-
-                with self.app.vm_service._sparkline_lock:
-                    cpu_sparkline.data = list(storage.get("cpu", []))
-                    mem_sparkline.data = list(storage.get("mem", []))
+                    cpu_label.update(SparklineLabels.IDLE_CPU)
+                    mem_label.update(SparklineLabels.IDLE_MEM)
+                    cpu_sparkline.data = []
+                    mem_sparkline.data = []
         else:  # io mode
             disk_label = self.ui.get("disk_label")
             net_label = self.ui.get("net_label")
@@ -599,19 +629,25 @@ class VMCard(Static):
             net_sparkline = self.ui.get("net_sparkline")
 
             if all([disk_label, net_label, disk_sparkline, net_sparkline]):
-                disk_read_mb = self.latest_disk_read / 1024
-                disk_write_mb = self.latest_disk_write / 1024
-                net_rx_mb = self.latest_net_rx / 1024
-                net_tx_mb = self.latest_net_tx / 1024
+                if is_active:
+                    disk_read_mb = self.latest_disk_read / 1024
+                    disk_write_mb = self.latest_disk_write / 1024
+                    net_rx_mb = self.latest_net_rx / 1024
+                    net_tx_mb = self.latest_net_tx / 1024
 
-                disk_text = SparklineLabels.DISK_RW.format(read=disk_read_mb, write=disk_write_mb)
-                net_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
+                    disk_text = SparklineLabels.DISK_RW.format(read=disk_read_mb, write=disk_write_mb)
+                    net_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
 
-                disk_label.update(disk_text)
-                net_label.update(net_text)
-                with self.app.vm_service._sparkline_lock:
-                    disk_sparkline.data = list(storage.get("disk", []))
-                    net_sparkline.data = list(storage.get("net", []))
+                    disk_label.update(disk_text)
+                    net_label.update(net_text)
+                    with self.app.vm_service._sparkline_lock:
+                        disk_sparkline.data = list(storage.get("disk", []))
+                        net_sparkline.data = list(storage.get("net", []))
+                else:
+                    disk_label.update(SparklineLabels.IDLE_DISK)
+                    net_label.update(SparklineLabels.IDLE_NET)
+                    disk_sparkline.data = []
+                    net_sparkline.data = []
 
     def watch_name(self, value: str) -> None:
         """Called when name changes."""
@@ -662,7 +698,7 @@ class VMCard(Static):
         if old_value != new_value:
             # Reset heavy state UI elements
             # Don't set "Updating Data..." - let it show default title until data is fetched
-            # This prevents stuck "Updating Data..." when collapsible is collapsed during navigation
+            # Reset heavy state UI elements
             self.update_snapshot_tab_title(0)  # Show default "State Management" title
             self.update_button_layout()
             self.update_stats()
@@ -674,39 +710,24 @@ class VMCard(Static):
             return
 
         sparklines = self.ui.get("sparklines_container")
-        collapsible = self.ui.get("collapsible")
         vmname = self.ui.get("vmname")
         vmstatus = self.ui.get("status")
         checkbox = self.ui.get("checkbox")
 
+        # Find the quick action bar container
+        qbar_results = self.query("#quick-action-bar") if self.is_mounted else []
+        qbar = qbar_results[0] if qbar_results else None
+
         if value:
             if sparklines and sparklines.is_mounted:
                 sparklines.display = False
-            if collapsible and collapsible.is_mounted:
-                collapsible.collapsed = True
-                collapsible.remove()
-            # if checkbox and checkbox.is_mounted:
-            #    checkbox.display = False
+            if qbar and qbar.is_mounted:
+                qbar.display = False
         else:
-            try:
-                info_container = self.query_one("#info-container")
-                if collapsible:
-                    # Check if collapsible is already a child of info_container to avoid double mounting
-                    if collapsible not in info_container.children:
-                        info_container.mount(collapsible)
-                if sparklines:
-                    sparklines.display = True
-                # if checkbox:
-                #    checkbox.display = True
-
-            except NoMatches:
-                # This can happen if the card is not fully initialized or structures changed
-                logging.warning(
-                    f"Could not find #info-container on VMCard {self.name} when switching to detailed view."
-                )
-            except Exception as e:
-                # Catch-all for potential mounting errors (e.g. already mounted elsewhere?)
-                logging.warning(f"Error restoring collapsible in detailed view: {e}")
+            if sparklines:
+                sparklines.display = True
+            if qbar:
+                qbar.display = True
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
@@ -722,7 +743,7 @@ class VMCard(Static):
             if checkbox:
                 checkbox.styles.width = "2"
         else:  # Detailed view
-            self.styles.height = 14
+            self.styles.height = 9
             self.styles.width = 41
             if vmname:
                 vmname.styles.content_align = ("center", "middle")
@@ -802,11 +823,6 @@ class VMCard(Static):
                 self._cancel_all_workers()
             except Exception:
                 pass
-
-        # Reset collapsible state for next mount
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            collapsible.collapsed = True
 
         self._cleanup_actions()
 
@@ -1095,30 +1111,7 @@ class VMCard(Static):
         self._update_fast_buttons()
         self._update_webc_status()
 
-        # Only fetch heavy data if actions are actually visible and mounted
-        # This prevents blocking libvirt calls during rapid page changes
-        if self.query("#rename-button"):
-            # Check if collapsible is expanded before fetching heavy data
-            collapsible = self.ui.get("collapsible")
-            if collapsible and not collapsible.collapsed and self.is_mounted:
-                # Cancel any existing timers to avoid duplicate fetches
-                for timer in self._actions_update_timers:
-                    try:
-                        if timer:
-                            timer.stop()
-                    except Exception:
-                        pass  # Timer may already be stopped or completed
-                self._actions_update_timers.clear()
-
-                # Cancel any existing worker to avoid duplicate fetches
-                self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
-
-                # Use 200ms delay to debounce rapid updates during page navigation
-                # This reduces worker thread spam when navigating between pages
-                # Timers will be cancelled if the card is reused for another VM (page switch)
-                timer1 = self.app.set_timer(0.2, lambda: self._refresh_snapshot_tab_if_visible())
-                timer2 = self.app.set_timer(0.2, lambda: self._schedule_actions_state_worker())
-                self._actions_update_timers.extend([timer1, timer2])
+        # Actions are now in a modal — no heavy data fetching needed on the card
 
     def _update_fast_buttons(self):
         """Updates buttons that rely on cached/fast state."""
@@ -1129,13 +1122,20 @@ class VMCard(Static):
         is_pmsuspended = self.status == StatusText.PMSUSPENDED
         is_blocked = self.status == StatusText.BLOCKED
 
-        if not self.ui.get("btn_quick_start"):
+        if not self.ui.get("qb_start"):
             return
 
-        self.ui["btn_quick_start"].display = is_stopped
-        self.ui["btn_quick_stop"].display = is_running or is_blocked
-        self.ui["btn_quick_view"].display = True
-        self.ui["btn_quick_resume"].display = is_paused or is_pmsuspended
+        # Quick actions grid visibility
+        self.ui["qb_start"].display = is_stopped
+        self.ui["qb_shutdown"].display = is_running or is_blocked
+        self.ui["qb_stop"].display = is_running or is_paused or is_pmsuspended or is_blocked
+        self.ui["qb_pause"].display = is_running
+        self.ui["qb_resume"].display = is_paused or is_pmsuspended
+        self.ui["qb_connect"].display = self.app.r_viewer_available
+        self.ui["qb_snapshot"].display = not is_loading
+        self.ui["qb_hibernate"].display = is_running or is_blocked
+        self.ui["qb_migration"].display = not is_loading
+        self.ui["qb_xml"].display = not is_loading
 
         if not self.query("#rename-button"):
             return
@@ -1171,34 +1171,23 @@ class VMCard(Static):
             xml_button.display = not is_loading
 
     def _refresh_snapshot_tab_if_visible(self):
-        """Only refresh snapshot tab if card is still mounted and collapsible is expanded."""
+        """Only refresh snapshot tab if card is still mounted and actions are visible."""
         if not self.is_mounted:
             return
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            self._refresh_snapshot_tab_async()
+        # Actions are now in a modal — no snapshot tab on the card
+        return
 
     def _schedule_actions_state_worker(self):
-        """Only schedule actions state worker if card is still mounted and collapsible is expanded."""
+        """Only schedule actions state worker if card is still mounted and actions are visible."""
         if not self.is_mounted:
             return
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            self.app.worker_manager.run(
-                self._fetch_actions_state_worker,
-                name=f"actions_state_{self.internal_id}",
-                exclusive=True,
-            )
+        # Actions are now in a modal — no actions state on the card
+        return
 
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
-            # Check if card is still mounted and collapsible is still expanded
-            # This prevents workers from running after card reuse during page navigation
             if not self.is_mounted:
-                return
-            collapsible = self.ui.get("collapsible")
-            if not collapsible or collapsible.collapsed:
                 return
 
             if self.vm is None:
@@ -1362,12 +1351,29 @@ class VMCard(Static):
         """Handle actions from the VMCardActions component."""
         self._dispatch_action(event.action_id)
 
+    # Map quick action grid button IDs to action IDs
+    QB_ACTION_MAP = {
+        "qb-start": "start",
+        "qb-shutdown": "shutdown",
+        "qb-stop": "stop",
+        "qb-pause": "pause",
+        "qb-resume": "resume",
+        "qb-connect": "connect",
+        "qb-snapshot": "snapshot_take",
+        "qb-hibernate": "hibernate",
+        "qb-migration": "migration",
+        "qb-xml": "xml",
+    }
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses for quick actions directly on the card."""
-        # Only handle quick buttons here.
-        # Buttons in VMCardActions are handled via VMActionButtonPressed.
-        if event.button.id in ("start", "connect", "resume", "shutdown"):
-            self._dispatch_action(event.button.id)
+        if event.button.id == "open-actions-btn":
+            self._open_actions_modal()
+            return
+        # Handle quick action grid buttons
+        if event.button.id in self.QB_ACTION_MAP:
+            self._dispatch_action(self.QB_ACTION_MAP[event.button.id])
+            return
 
     def _dispatch_action(self, action_id: str) -> None:
         """Dispatch action based on ID."""
@@ -2142,12 +2148,7 @@ class VMCard(Static):
 
         def fetch_and_update():
             try:
-                # Check if card is still mounted and collapsible is still expanded
-                # This prevents workers from running after card reuse during page navigation
                 if not self.is_mounted:
-                    return
-                collapsible = self.ui.get("collapsible")
-                if not collapsible or collapsible.collapsed:
                     return
 
                 if not self.vm:
@@ -2229,11 +2230,6 @@ class VMCard(Static):
     def _handle_delete_button(self) -> None:
         """Handles the delete button press."""
         logging.info(f"Attempting to delete VM: {self.name}")
-
-        # Collapse the actions collapsible if it's open
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            collapsible.collapsed = True
 
         def on_confirm(result: tuple[bool, bool]) -> None:
             confirmed, delete_storage = result

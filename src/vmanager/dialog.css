@@ -88,6 +88,21 @@ HowToSSHModal > #howto-ssh-dialog {
   border: round $primary;
   height: auto;
 }
+
+VMActionsModal {
+  align: center middle;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+VMActionsModal > #vm-actions-modal {
+  width: 46;
+  height: auto;
+  max-height: 11;
+  padding: 0 0;
+  border: round $primary;
+  background: $surface;
+}
+
 ConfigModal > #config-dialog, {
   border: round $primary;
   align: center middle;

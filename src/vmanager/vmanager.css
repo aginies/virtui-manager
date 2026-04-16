@@ -270,7 +270,7 @@ Toast.-inprogress {
     height: 80;
     width: 85;
     max-height: 90vh;
-    grid-rows: 14;
+    grid-rows: 9;
     grid-gutter: 0 1;
     layout: grid;
     overflow: auto;

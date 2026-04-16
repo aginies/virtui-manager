@@ -8,6 +8,7 @@ import re
 import shutil
 import socket
 import subprocess
+import sys
 from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
@@ -601,6 +602,32 @@ def is_tmux_available() -> bool:
     except (OSError, AttributeError) as e:
         logging.error("Error checking tmux availability: %s", e)
         return False
+
+
+@lru_cache(maxsize=1)
+def terminal_supports_emoji() -> bool:
+    """Check if the terminal likely supports emoji/unicode icons."""
+    term = os.environ.get("TERM", "").lower()
+
+    # Known limited terminals
+    limited_terms = {"linux", "vt100", "vt102", "vt220", "vt320", "dumb", "cons25"}
+    if term in limited_terms:
+        return False
+
+    # xterm without unicode indication
+    if term == "xterm" and "UTF" not in os.environ.get("LANG", "").upper():
+        return False
+
+    # Check encoding — use __stdout__ as Textual may redirect sys.stdout
+    encoding = (
+        getattr(sys.__stdout__, "encoding", "")
+        or os.environ.get("LANG", "")
+        or ""
+    )
+    if "UTF" not in encoding.upper():
+        return False
+
+    return True
 
 
 def is_inside_tmux() -> bool:
