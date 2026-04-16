@@ -1,6 +1,6 @@
 app-id: io.github.aginies.virtui-manager
 runtime: org.freedesktop.Platform
-runtime-version: '24.08'
+runtime-version: '25.08'
 sdk: org.freedesktop.Sdk
 command: virtui-gui
 finish-args:
@@ -27,14 +27,14 @@ finish-args:
   - --filesystem=~/.ssh
   - --socket=ssh-auth
   - --env=PATH=/app/bin:/usr/bin:/app/lib/extensions/bin
-  - --env=PYTHONPATH=/app/lib/python3.12/site-packages
+  - --env=PYTHONPATH=/app/lib/python3.13/site-packages
   - --env=EDITOR=/app/bin/vim
   - --own-name=io.github.aginies.virtui-manager
   - --socket=pulseaudio
 
 build-options:
   env:
-    PYTHONPATH: /app/lib/python3.12/site-packages
+    PYTHONPATH: /app/lib/python3.13/site-packages
 
 modules:
   - python3-requirements.yaml
@@ -353,7 +353,7 @@ modules:
     buildsystem: simple
     build-commands:
       - pip3 install --prefix=/app --no-deps --no-build-isolation .
-      - cp -r src/vmanager/appdocs /app/lib/python3.12/site-packages/vmanager/
+      - cp -r src/vmanager/appdocs /app/lib/python3.13/site-packages/vmanager/
       - install -Dm644 flathub/io.github.aginies.virtui-manager.desktop /app/share/applications/io.github.aginies.virtui-manager.desktop
       - install -Dm644 flathub/io.github.aginies.virtui-manager.metainfo.xml /app/share/metainfo/io.github.aginies.virtui-manager.metainfo.xml
       - install -Dm644 documentation/manual/images/icon-400.png /app/share/icons/hicolor/512x512/apps/io.github.aginies.virtui-manager.png

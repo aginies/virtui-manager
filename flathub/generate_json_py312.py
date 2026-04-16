@@ -14,7 +14,6 @@ packages = [
     "markdown-it-py",
     "mdit-py-plugins",
     "mdurl",
-    "netifaces",
     "numpy",
     "packaging",
     "platformdirs",
@@ -38,11 +37,13 @@ packages = [
 modules = []
 
 def get_best_wheel(pkg_name, data):
-    # Priority list for Python 3.12 on Linux x86_64
+    # Priority list for Python 3.13 on Linux x86_64
     priorities = [
+        "cp313-cp313-manylinux",
+        "cp313-abi3-manylinux",
         "cp312-cp312-manylinux",
         "cp312-abi3-manylinux",
-        "cp311-abi3-manylinux", # abi3 is compatible
+        "cp311-abi3-manylinux",
         "abi3-manylinux",
         "py3-none-any",
         "py2.py3-none-any"
@@ -71,9 +72,9 @@ def get_best_wheel(pkg_name, data):
             if priority in fn:
                 return w
                 
-    # Fallback: try just 'cp312' if not found above
+    # Fallback: try just 'cp313' or 'cp312' if not found above
     for w in wheels:
-        if "cp312" in w['filename'] and "manylinux" in w['filename']:
+        if ("cp313" in w['filename'] or "cp312" in w['filename']) and "manylinux" in w['filename']:
             return w
 
     return None
