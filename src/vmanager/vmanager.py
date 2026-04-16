@@ -22,7 +22,6 @@ from textual.containers import Horizontal, Vertical
 from textual.reactive import reactive
 from textual.widgets import (
     Button,
-    Collapsible,
     Footer,
     Header,
     Label,
@@ -439,7 +438,6 @@ class VMManagerTUI(App):
     def watch_bulk_operation_in_progress(self, in_progress: bool) -> None:
         """
         Called when bulk_operation_in_progress changes.
-        Disables or enables the collapsible 'Actions' button on all VM cards.
         """
         if in_progress:
             self._previous_compact_view = self.compact_view
@@ -447,18 +445,6 @@ class VMManagerTUI(App):
         else:
             if hasattr(self, "_previous_compact_view"):
                 self.compact_view = self._previous_compact_view
-
-        for card in self.vm_card_pool.active_cards.values():
-            if card.is_mounted:
-                try:
-                    collapsible = card.query_one("#actions-collapsible", Collapsible)
-                    # dont disable for now
-                    # collapsible.disabled = in_progress
-                    if in_progress:
-                        collapsible.collapsed = True
-                except Exception:
-                    # This can happen if the card is being removed from the DOM
-                    pass
 
     def get_server_color(self, uri: str) -> str:
         """Assigns and returns a consistent color for a given server URI."""
@@ -782,9 +768,9 @@ class VMManagerTUI(App):
             cols = 2
             container_width = 84
 
-        rows = 2  # Default to 2 rows
+        rows = 3  # Default to 3 rows (card height 9)
         if height > 42:
-            rows = 3
+            rows = 4
 
         if self.compact_view:
             rows *= 3
@@ -903,7 +889,7 @@ class VMManagerTUI(App):
             if value:
                 vms_container.styles.grid_rows = "4"
             else:
-                vms_container.styles.grid_rows = "14"
+                vms_container.styles.grid_rows = "9"
         self._update_layout_for_size()
 
     @on(Button.Pressed, "#select_server_button")
@@ -1009,12 +995,8 @@ class VMManagerTUI(App):
             self.handle_select_server_result(new_active_uris)
 
     def _collapse_all_action_collapsibles(self) -> None:
-        """Collapses all 'Actions' collapsibles across all visible VM cards."""
-        for card_id, card in self.vm_card_pool.active_cards.items():
-            collapsible = card.ui.get("collapsible")
-            if collapsible and not collapsible.collapsed:
-                collapsible.collapsed = True
-                logging.debug(f"Collapsed actions for VM: {card.name} (ID: {card.internal_id})")
+        """No-op: Actions are now in a modal, not collapsible."""
+        pass
 
     def _remove_vms_for_uri(self, uri: str) -> None:
         """Removes all VM cards associated with the given URI."""

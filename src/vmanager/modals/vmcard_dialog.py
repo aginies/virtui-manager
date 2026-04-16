@@ -4,15 +4,121 @@ Dialog box for VMcard
 
 from datetime import datetime
 
+from textual import on
 from textual.app import ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
-from textual.widgets import Button, Checkbox, DataTable, Input, Label, Markdown, Select, Switch
+from textual.widgets import Button, Checkbox, DataTable, Input, Label, Markdown, Select, Static, Switch
 
 from ..config import load_config, save_config
-from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
+from ..constants import ButtonLabels, ErrorMessages, StaticText, StatusText, SuccessMessages
+from ..events import VMActionButtonPressed
 from ..vm_queries import is_qemu_agent_running
+from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 from .utils_modals import BaseDialog
+
+
+class VMActionsModal(BaseModal[str | None]):
+    """Modal that shows VM action buttons (replaces the collapsible on VMCard)."""
+
+    BINDINGS = [("escape", "cancel_modal", "Cancel")]
+
+    def __init__(self, vm_name: str, vm_status: str, vm=None, r_viewer_available: bool = True) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+        self.vm_status = vm_status
+        self.vm = vm
+        self.r_viewer_available = r_viewer_available
+
+    def on_click(self, event) -> None:
+        """Dismiss when clicking outside the modal dialog."""
+        if self.query_one("#vm-actions-modal").region.contains_point(event.screen_offset):
+            return
+        self.dismiss(None)
+
+    def compose(self) -> ComposeResult:
+        from ..vmcard import VMCardActions
+
+        actions = VMCardActions(id="modal-actions")
+        actions.display = False  # Hidden until button visibility is applied
+
+        with Vertical(id="vm-actions-modal"):
+            yield Label(f" {self.vm_name} ", id="vm-actions-title")
+            yield Static(classes="button-separator")
+            yield actions
+
+    def on_mount(self) -> None:
+        """Schedule button visibility update after children are composed."""
+        self.set_timer(0.1, self._apply_button_visibility)
+
+    def _apply_button_visibility(self) -> None:
+        """Apply button visibility based on VM status and state."""
+        from ..vm_queries import get_vm_snapshots, has_overlays
+
+        is_loading = self.vm_status == StatusText.LOADING
+        is_stopped = self.vm_status == StatusText.STOPPED
+        is_running = self.vm_status == StatusText.RUNNING
+        is_paused = self.vm_status == StatusText.PAUSED
+        is_pmsuspended = self.vm_status == StatusText.PMSUSPENDED
+        is_blocked = self.vm_status == StatusText.BLOCKED
+
+        def update(selector, visible):
+            for w in self.query(selector):
+                w.display = visible
+
+        # Manage tab buttons
+        update("#start", is_stopped)
+        update("#shutdown", is_running or is_blocked)
+        update("#hibernate", is_running or is_blocked)
+        update("#stop", is_running or is_paused or is_pmsuspended or is_blocked)
+        update("#pause", is_running)
+        update("#resume", is_paused or is_pmsuspended)
+        update("#connect", self.r_viewer_available)
+        update("#web_console", is_running or is_paused or is_blocked)
+
+        # Other tab buttons
+        update("#delete", is_running or is_paused or is_stopped or is_pmsuspended or is_blocked)
+        update("#clone", is_stopped)
+        update("#migration", not is_loading)
+        update("#rename-button", is_stopped)
+        update("#configure-button", not is_loading)
+        update("#snap_overlay_help", not is_loading)
+        update("#snapshot_take", not is_loading)
+
+        # XML button label
+        for xml_button in self.query("#xml"):
+            xml_button.label = ButtonLabels.EDIT_XML if is_stopped else ButtonLabels.VIEW_XML
+            xml_button.display = not is_loading
+
+        # State Management tab: fetch snapshot/overlay state from the VM
+        has_snapshots = False
+        has_overlay_disks = False
+        if self.vm:
+            try:
+                snapshot_count = self.vm.snapshotNum(0)
+                has_snapshots = snapshot_count > 0
+            except Exception:
+                pass
+            try:
+                has_overlay_disks = has_overlays(self.vm)
+            except Exception:
+                pass
+
+        update("#snapshot_restore", has_snapshots and not is_running and not is_loading and not is_blocked)
+        update("#snapshot_delete", has_snapshots)
+        update("#commit_disk", (is_running or is_blocked) and has_overlay_disks)
+        update("#discard_overlay", is_stopped and has_overlay_disks)
+        update("#create_overlay", is_stopped and not has_overlay_disks)
+
+        # Show the actions now that visibility is correct
+        for w in self.query("#modal-actions"):
+            w.display = True
+
+    @on(VMActionButtonPressed)
+    def handle_action(self, event: VMActionButtonPressed) -> None:
+        """Catch the action event from VMCardActions and dismiss with the action ID."""
+        event.stop()
+        self.dismiss(event.action_id)
 
 
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):

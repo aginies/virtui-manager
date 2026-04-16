@@ -19,7 +19,7 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.events import Click
 from textual.reactive import reactive
-from textual.widgets import Button, Checkbox, Collapsible, Sparkline, Static, TabbedContent, TabPane
+from textual.widgets import Button, Checkbox, Sparkline, Static, TabbedContent, TabPane
 
 from .constants import (
     ButtonLabels,
@@ -53,6 +53,7 @@ from .modals.vmcard_dialog import (
     RenameVMDialog,
     SelectSnapshotDialog,
     SnapshotNameDialog,
+    VMActionsModal,
     WebConsoleConfigDialog,
 )
 from .modals.vmdetails_modals import VMDetailModal
@@ -398,7 +399,9 @@ class VMCard(Static):
             id="sparklines-container-group",
         )
 
-        self.ui["collapsible"] = Collapsible(title=StaticText.ACTIONS, id="actions-collapsible")
+        self.ui["actions_button"] = Button(
+            StaticText.ACTIONS, id="open-actions-btn", variant="default", classes="actions-modal-btn"
+        )
 
         with Vertical(id="info-container"):
             with Horizontal(id="vm-header-row"):
@@ -414,18 +417,23 @@ class VMCard(Static):
                         yield self.ui["btn_quick_view"]
 
             yield self.ui["sparklines_container"]
-            yield self.ui["collapsible"]
+            yield self.ui["actions_button"]
 
-    @on(Collapsible.Expanded, "#actions-collapsible")
-    async def on_collapsible_expanded(self, event: Collapsible.Expanded) -> None:
-        if not self.query(VMCardActions):
-            actions_view = VMCardActions()
-            await self.ui["collapsible"].mount(actions_view)
-            self.update_button_layout()
+    def _open_actions_modal(self) -> None:
+        """Open the VM actions modal."""
+        def on_action_result(action_id: str | None) -> None:
+            if action_id:
+                self._dispatch_action(action_id)
 
-    @on(Collapsible.Collapsed, "#actions-collapsible")
-    async def on_collapsible_collapsed(self, event: Collapsible.Collapsed) -> None:
-        self._cleanup_actions()
+        self.app.push_screen(
+            VMActionsModal(
+                vm_name=self.name,
+                vm_status=self.status,
+                vm=self.vm,
+                r_viewer_available=self.app.r_viewer_available,
+            ),
+            on_action_result,
+        )
 
     def _cleanup_actions(self):
         for child in self.query(VMCardActions):
@@ -662,7 +670,7 @@ class VMCard(Static):
         if old_value != new_value:
             # Reset heavy state UI elements
             # Don't set "Updating Data..." - let it show default title until data is fetched
-            # This prevents stuck "Updating Data..." when collapsible is collapsed during navigation
+            # Reset heavy state UI elements
             self.update_snapshot_tab_title(0)  # Show default "State Management" title
             self.update_button_layout()
             self.update_stats()
@@ -674,7 +682,7 @@ class VMCard(Static):
             return
 
         sparklines = self.ui.get("sparklines_container")
-        collapsible = self.ui.get("collapsible")
+        actions_button = self.ui.get("actions_button")
         vmname = self.ui.get("vmname")
         vmstatus = self.ui.get("status")
         checkbox = self.ui.get("checkbox")
@@ -682,31 +690,13 @@ class VMCard(Static):
         if value:
             if sparklines and sparklines.is_mounted:
                 sparklines.display = False
-            if collapsible and collapsible.is_mounted:
-                collapsible.collapsed = True
-                collapsible.remove()
-            # if checkbox and checkbox.is_mounted:
-            #    checkbox.display = False
+            if actions_button and actions_button.is_mounted:
+                actions_button.display = False
         else:
-            try:
-                info_container = self.query_one("#info-container")
-                if collapsible:
-                    # Check if collapsible is already a child of info_container to avoid double mounting
-                    if collapsible not in info_container.children:
-                        info_container.mount(collapsible)
-                if sparklines:
-                    sparklines.display = True
-                # if checkbox:
-                #    checkbox.display = True
-
-            except NoMatches:
-                # This can happen if the card is not fully initialized or structures changed
-                logging.warning(
-                    f"Could not find #info-container on VMCard {self.name} when switching to detailed view."
-                )
-            except Exception as e:
-                # Catch-all for potential mounting errors (e.g. already mounted elsewhere?)
-                logging.warning(f"Error restoring collapsible in detailed view: {e}")
+            if sparklines:
+                sparklines.display = True
+            if actions_button:
+                actions_button.display = True
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
@@ -722,7 +712,7 @@ class VMCard(Static):
             if checkbox:
                 checkbox.styles.width = "2"
         else:  # Detailed view
-            self.styles.height = 14
+            self.styles.height = 9
             self.styles.width = 41
             if vmname:
                 vmname.styles.content_align = ("center", "middle")
@@ -802,11 +792,6 @@ class VMCard(Static):
                 self._cancel_all_workers()
             except Exception:
                 pass
-
-        # Reset collapsible state for next mount
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            collapsible.collapsed = True
 
         self._cleanup_actions()
 
@@ -1095,30 +1080,7 @@ class VMCard(Static):
         self._update_fast_buttons()
         self._update_webc_status()
 
-        # Only fetch heavy data if actions are actually visible and mounted
-        # This prevents blocking libvirt calls during rapid page changes
-        if self.query("#rename-button"):
-            # Check if collapsible is expanded before fetching heavy data
-            collapsible = self.ui.get("collapsible")
-            if collapsible and not collapsible.collapsed and self.is_mounted:
-                # Cancel any existing timers to avoid duplicate fetches
-                for timer in self._actions_update_timers:
-                    try:
-                        if timer:
-                            timer.stop()
-                    except Exception:
-                        pass  # Timer may already be stopped or completed
-                self._actions_update_timers.clear()
-
-                # Cancel any existing worker to avoid duplicate fetches
-                self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
-
-                # Use 200ms delay to debounce rapid updates during page navigation
-                # This reduces worker thread spam when navigating between pages
-                # Timers will be cancelled if the card is reused for another VM (page switch)
-                timer1 = self.app.set_timer(0.2, lambda: self._refresh_snapshot_tab_if_visible())
-                timer2 = self.app.set_timer(0.2, lambda: self._schedule_actions_state_worker())
-                self._actions_update_timers.extend([timer1, timer2])
+        # Actions are now in a modal — no heavy data fetching needed on the card
 
     def _update_fast_buttons(self):
         """Updates buttons that rely on cached/fast state."""
@@ -1171,34 +1133,23 @@ class VMCard(Static):
             xml_button.display = not is_loading
 
     def _refresh_snapshot_tab_if_visible(self):
-        """Only refresh snapshot tab if card is still mounted and collapsible is expanded."""
+        """Only refresh snapshot tab if card is still mounted and actions are visible."""
         if not self.is_mounted:
             return
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            self._refresh_snapshot_tab_async()
+        # Actions are now in a modal — no snapshot tab on the card
+        return
 
     def _schedule_actions_state_worker(self):
-        """Only schedule actions state worker if card is still mounted and collapsible is expanded."""
+        """Only schedule actions state worker if card is still mounted and actions are visible."""
         if not self.is_mounted:
             return
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            self.app.worker_manager.run(
-                self._fetch_actions_state_worker,
-                name=f"actions_state_{self.internal_id}",
-                exclusive=True,
-            )
+        # Actions are now in a modal — no actions state on the card
+        return
 
     def _fetch_actions_state_worker(self):
         """Worker to fetch heavy state for actions."""
         try:
-            # Check if card is still mounted and collapsible is still expanded
-            # This prevents workers from running after card reuse during page navigation
             if not self.is_mounted:
-                return
-            collapsible = self.ui.get("collapsible")
-            if not collapsible or collapsible.collapsed:
                 return
 
             if self.vm is None:
@@ -1364,6 +1315,9 @@ class VMCard(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button presses for quick actions directly on the card."""
+        if event.button.id == "open-actions-btn":
+            self._open_actions_modal()
+            return
         # Only handle quick buttons here.
         # Buttons in VMCardActions are handled via VMActionButtonPressed.
         if event.button.id in ("start", "connect", "resume", "shutdown"):
@@ -2142,12 +2096,7 @@ class VMCard(Static):
 
         def fetch_and_update():
             try:
-                # Check if card is still mounted and collapsible is still expanded
-                # This prevents workers from running after card reuse during page navigation
                 if not self.is_mounted:
-                    return
-                collapsible = self.ui.get("collapsible")
-                if not collapsible or collapsible.collapsed:
                     return
 
                 if not self.vm:
@@ -2229,11 +2178,6 @@ class VMCard(Static):
     def _handle_delete_button(self) -> None:
         """Handles the delete button press."""
         logging.info(f"Attempting to delete VM: {self.name}")
-
-        # Collapse the actions collapsible if it's open
-        collapsible = self.ui.get("collapsible")
-        if collapsible and not collapsible.collapsed:
-            collapsible.collapsed = True
 
         def on_confirm(result: tuple[bool, bool]) -> None:
             confirmed, delete_storage = result

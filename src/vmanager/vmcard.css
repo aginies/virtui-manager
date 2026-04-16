@@ -7,7 +7,7 @@ VMCard {
   text-align: center;
   margin: 0;
   width: 43;
-  height: 14;
+  height: 9;
 }
 
 #vmname {
@@ -22,7 +22,7 @@ VMCard {
   background: $background;
   color: white;
   width: 41;
-  height: 14;
+  height: 9;
 }
 
 #dialog Select {
@@ -153,11 +153,21 @@ Button {
   height: 2;
   border: none;
 }
-#actions-collapsible {
-  height: auto;
-  border: none;
-  margin: 0 0;
-  padding: 0 0;
+.actions-modal-btn {
+  height: 1;
+  margin: 0 1;
+  width: 100%;
+}
+
+#vm-actions-title {
+  text-style: bold;
+  text-align: center;
+  width: 100%;
+  height: 1;
+  background: $primary;
+  color: $text;
+  margin: 0;
+  padding: 0;
 }
 
 .name-box {
