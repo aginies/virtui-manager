@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
     
     
       
@@ -593,6 +593,45 @@
     <span class="md-ellipsis">
       
         Key Information Available
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-preferences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server Preferences
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Server Preferences">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#network-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#storage-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage Management
       
     </span>
   </a>
@@ -1248,6 +1287,45 @@
   
 </li>
       
+        <li class="md-nav__item">
+  <a href="#server-preferences" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Server Preferences
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Server Preferences">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#network-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#storage-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage Management
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
     </ul>
   
 </nav>
@@ -1302,6 +1380,41 @@
 <li><strong>Migration Features:</strong> supported migration schemes (e.g., <code>live</code>, <code>rdma</code>).</li>
 <li><strong>Topology:</strong> NUMA nodes and cache hierarchy.</li>
 <li><strong>Guest Support:</strong> Lists all guest architectures (e.g., <code>x86_64</code>, <code>i686</code>) and machine types supported by this KVM installation.</li>
+</ul>
+<h2 id="server-preferences">Server Preferences<a class="headerlink" href="#server-preferences" title="Permanent link">&para;</a></h2>
+<p>VirtUI Manager allows you to manage host-level resources like storage pools and virtual networks through the <strong>Server Preferences</strong> modal.</p>
+<p>To access these settings, select a VM belonging to the server you want to manage, and choose <strong>Server Preferences</strong> (or use the configured shortcut).</p>
+<h3 id="network-management">Network Management<a class="headerlink" href="#network-management" title="Permanent link">&para;</a></h3>
+<p>The <strong>Network</strong> tab provides a comprehensive view of all virtual networks defined on the host.</p>
+<p><img alt="Server Network Management" src="../images/server_network.png" /></p>
+<ul>
+<li><strong>Network List:</strong> Shows the network name, mode (e.g., <code>nat</code>, <code>route</code>, <code>bridge</code>), active status, and autostart configuration.</li>
+<li><strong>Usage Tracking:</strong> Displays which VMs are currently using each network.</li>
+<li><strong>Controls:</strong><ul>
+<li><strong>De/Active:</strong> Toggle the operational status of the selected network.</li>
+<li><strong>Autostart:</strong> Enable or disable automatic starting of the network when the host boots.</li>
+<li><strong>Add/Edit/Delete:</strong> Full lifecycle management for virtual networks.</li>
+</ul>
+</li>
+</ul>
+<h3 id="storage-management">Storage Management<a class="headerlink" href="#storage-management" title="Permanent link">&para;</a></h3>
+<p>The <strong>Storage</strong> tab allows you to manage Libvirt storage pools and their volumes.</p>
+<p><img alt="Server Storage Management" src="../images/server_storage.png" /></p>
+<ul>
+<li><strong>Pool Hierarchy:</strong> A tree-based view of all storage pools (e.g., directory, LVM, iSCSI) and the volumes (disk images) they contain.</li>
+<li><strong>Volume Details:</strong> Displays the file name, size, and which VM is currently using the volume.</li>
+<li><strong>Pool Lifecycle:</strong><ul>
+<li><strong>Activate/Deactivate:</strong> Control the state of storage pools.</li>
+<li><strong>Autostart:</strong> Configure pools to start automatically.</li>
+<li><strong>Add/Delete Pool:</strong> Create or remove storage definitions.</li>
+</ul>
+</li>
+<li><strong>Volume Operations:</strong><ul>
+<li><strong>New Volume:</strong> Create new disk images within a pool.</li>
+<li><strong>Attach Vol:</strong> Directly attach a volume to a virtual machine.</li>
+<li><strong>XML Management:</strong> View or edit the raw XML configuration for pools and volumes.</li>
+</ul>
+</li>
 </ul>
 
 

@@ -40,3 +40,39 @@ To open the capabilities viewer, press **`h`** while in the main window.
 *   **Migration Features:** supported migration schemes (e.g., `live`, `rdma`).
 *   **Topology:** NUMA nodes and cache hierarchy.
 *   **Guest Support:** Lists all guest architectures (e.g., `x86_64`, `i686`) and machine types supported by this KVM installation.
+
+## Server Preferences
+
+VirtUI Manager allows you to manage host-level resources like storage pools and virtual networks through the **Server Preferences** modal.
+
+To access these settings, select a VM belonging to the server you want to manage, and choose **Server Preferences** (or use the configured shortcut).
+
+### Network Management
+
+The **Network** tab provides a comprehensive view of all virtual networks defined on the host.
+
+![Server Network Management](images/server_network.png)
+
+*   **Network List:** Shows the network name, mode (e.g., `nat`, `route`, `bridge`), active status, and autostart configuration.
+*   **Usage Tracking:** Displays which VMs are currently using each network.
+*   **Controls:**
+    *   **De/Active:** Toggle the operational status of the selected network.
+    *   **Autostart:** Enable or disable automatic starting of the network when the host boots.
+    *   **Add/Edit/Delete:** Full lifecycle management for virtual networks.
+
+### Storage Management
+
+The **Storage** tab allows you to manage Libvirt storage pools and their volumes.
+
+![Server Storage Management](images/server_storage.png)
+
+*   **Pool Hierarchy:** A tree-based view of all storage pools (e.g., directory, LVM, iSCSI) and the volumes (disk images) they contain.
+*   **Volume Details:** Displays the file name, size, and which VM is currently using the volume.
+*   **Pool Lifecycle:**
+    *   **Activate/Deactivate:** Control the state of storage pools.
+    *   **Autostart:** Configure pools to start automatically.
+    *   **Add/Delete Pool:** Create or remove storage definitions.
+*   **Volume Operations:**
+    *   **New Volume:** Create new disk images within a pool.
+    *   **Attach Vol:** Directly attach a volume to a virtual machine.
+    *   **XML Management:** View or edit the raw XML configuration for pools and volumes.
