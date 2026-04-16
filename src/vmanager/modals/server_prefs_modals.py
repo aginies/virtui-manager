@@ -414,12 +414,22 @@ class ServerPrefModal(BaseModal[None]):
         self.networks_list = list_networks(self.conn)
 
         for net in self.networks_list:
-            vms_str = ", ".join(network_usage.get(net["name"], [])) or StaticText.NOT_IN_USE
-            active_str = "✔️" if net["active"] else "❌"
-            autostart_str = "✔️" if net["autostart"] else "❌"
+            vm_list = network_usage.get(net["name"], [])
+            vms_text = (
+                Text(", ".join(vm_list), style="italic magenta")
+                if vm_list
+                else Text(StaticText.NOT_IN_USE, style="dim")
+            )
+            active_text = Text("✔", style="bold green") if net["active"] else Text("✘", style="bold red")
+            autostart_text = Text("✔", style="bold green") if net["autostart"] else Text("✘", style="bold red")
 
             table.add_row(
-                net["name"], net["mode"], active_str, autostart_str, vms_str, key=net["name"]
+                Text(net["name"], style="bold"),
+                net["mode"],
+                active_text,
+                autostart_text,
+                vms_text,
+                key=net["name"],
             )
 
     @on(Tree.NodeExpanded)
