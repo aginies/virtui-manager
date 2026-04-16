@@ -227,6 +227,39 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     EDIT_XML_OF_THE_SELECTED_POOL = _("Edit XML of the selected pool.")
 
 
+class QBarIcons:  # pylint: disable=too-few-public-methods
+    """Quick action bar icons - emoji and ASCII fallbacks."""
+
+    EMOJI = {
+        "start": "▶",
+        "shutdown": "■",
+        "stop": "⚡",
+        "pause": "⏸",
+        "resume": "⏯",
+        "connect": "👁",
+        "snapshot": "📷",
+        "hibernate": "💤",
+        "migration": "🔄",
+        "xml": "📄",
+        "actions": "⋯",
+        "webc": "🌐",
+    }
+    ASCII = {
+        "start": ">",
+        "shutdown": "#",
+        "stop": "!",
+        "pause": "||",
+        "resume": ">>",
+        "connect": "@",
+        "snapshot": "S",
+        "hibernate": "Z",
+        "migration": "M",
+        "xml": "X",
+        "actions": "+",
+        "webc": "[W]",
+    }
+
+
 class BindingDescriptions:  # pylint: disable=too-few-public-methods
     """Descriptions for app bindings"""
 

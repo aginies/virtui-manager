@@ -26,6 +26,7 @@ from .constants import (
     DialogMessages,
     ErrorMessages,
     ProgressMessages,
+    QBarIcons,
     SparklineLabels,
     StaticText,
     StatusText,
@@ -64,6 +65,7 @@ from .utils import (
     generate_tooltip_markdown,
     remote_viewer_cmd,
     is_remote_connection,
+    terminal_supports_emoji,
 )
 from .vm_actions import (
     clone_vm,
@@ -301,7 +303,8 @@ class VMCard(Static):
                 logging.warning(f"Error getting webconsole status for {self.internal_id}: {e}")
 
         # Update status indicator text
-        new_indicator = " 🌐" if webc_is_running else ""
+        icons = QBarIcons.EMOJI if terminal_supports_emoji() else QBarIcons.ASCII
+        new_indicator = f" {icons['webc']}" if webc_is_running else ""
         if self.webc_status_indicator != new_indicator:
             self.webc_status_indicator = new_indicator
 
@@ -340,28 +343,29 @@ class VMCard(Static):
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
         self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
 
-        # Quick action buttons
-        self.ui["qb_start"] = Button("▶", id="qb-start", classes="btn-qbar")
+        # Quick action buttons — use ASCII fallback on limited terminals
+        icons = QBarIcons.EMOJI if terminal_supports_emoji() else QBarIcons.ASCII
+        self.ui["qb_start"] = Button(icons["start"], id="qb-start", classes="btn-qbar")
         self.ui["qb_start"].tooltip = StaticText.START_VMS
-        self.ui["qb_shutdown"] = Button("■", id="qb-shutdown", classes="btn-qbar")
+        self.ui["qb_shutdown"] = Button(icons["shutdown"], id="qb-shutdown", classes="btn-qbar")
         self.ui["qb_shutdown"].tooltip = ButtonLabels.SHUTDOWN
-        self.ui["qb_stop"] = Button("⚡", id="qb-stop", classes="btn-qbar")
+        self.ui["qb_stop"] = Button(icons["stop"], id="qb-stop", classes="btn-qbar")
         self.ui["qb_stop"].tooltip = ButtonLabels.FORCE_OFF
-        self.ui["qb_pause"] = Button("⏸", id="qb-pause", classes="btn-qbar")
+        self.ui["qb_pause"] = Button(icons["pause"], id="qb-pause", classes="btn-qbar")
         self.ui["qb_pause"].tooltip = ButtonLabels.PAUSE
-        self.ui["qb_resume"] = Button("⏯", id="qb-resume", classes="btn-qbar")
+        self.ui["qb_resume"] = Button(icons["resume"], id="qb-resume", classes="btn-qbar")
         self.ui["qb_resume"].tooltip = ButtonLabels.RESUME
-        self.ui["qb_connect"] = Button("👁", id="qb-connect", classes="btn-qbar")
+        self.ui["qb_connect"] = Button(icons["connect"], id="qb-connect", classes="btn-qbar")
         self.ui["qb_connect"].tooltip = ButtonLabels.CONNECT
-        self.ui["qb_snapshot"] = Button("📷", id="qb-snapshot", classes="btn-qbar")
+        self.ui["qb_snapshot"] = Button(icons["snapshot"], id="qb-snapshot", classes="btn-qbar")
         self.ui["qb_snapshot"].tooltip = ButtonLabels.SNAPSHOT
-        self.ui["qb_hibernate"] = Button("💤", id="qb-hibernate", classes="btn-qbar")
+        self.ui["qb_hibernate"] = Button(icons["hibernate"], id="qb-hibernate", classes="btn-qbar")
         self.ui["qb_hibernate"].tooltip = ButtonLabels.HIBERNATE_VM
-        self.ui["qb_migration"] = Button("🔄", id="qb-migration", classes="btn-qbar")
+        self.ui["qb_migration"] = Button(icons["migration"], id="qb-migration", classes="btn-qbar")
         self.ui["qb_migration"].tooltip = ButtonLabels.MIGRATION
-        self.ui["qb_xml"] = Button("📄", id="qb-xml", classes="btn-qbar")
+        self.ui["qb_xml"] = Button(icons["xml"], id="qb-xml", classes="btn-qbar")
         self.ui["qb_xml"].tooltip = ButtonLabels.VIEW_XML
-        self.ui["actions_button"] = Button("⋯", id="open-actions-btn", classes="btn-qbar")
+        self.ui["actions_button"] = Button(icons["actions"], id="open-actions-btn", classes="btn-qbar")
         self.ui["actions_button"].tooltip = StaticText.ACTIONS
 
         # Create all sparkline components

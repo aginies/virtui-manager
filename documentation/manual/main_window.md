@@ -32,6 +32,13 @@ The core view displaying your virtual machines.
     *   **Navigation:** Use **Arrow Keys** to move focus.
     *   **Pagination:** Use **Left/Right** buttons or keys (when focused) to navigate pages of VMs.
 
+!!! tip "Icon Display Issues"
+    The VM card quick action bar uses emoji icons by default. If your terminal does not render them correctly (e.g., broken or missing characters), you can force ASCII fallback by setting the `TERM` environment variable before launching the application:
+
+    ```bash
+    TERM=linux virtui-manager
+    ```
+
 ### Filtering & Search (`f`)
 
 Press **`f`** or click the **Filter VM** button to narrow down the list.
