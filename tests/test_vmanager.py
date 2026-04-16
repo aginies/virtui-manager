@@ -1567,33 +1567,9 @@ class TestVMManagerHelpers(unittest.TestCase):
         self.assertEqual(len(connections), 0)
         self.app.show_error_message.assert_called_once()
 
-    def test_collapse_all_action_collapsibles(self):
-        """Test that _collapse_all_action_collapsibles collapses all."""
-        mock_collapsible = MagicMock()
-        mock_collapsible.collapsed = False
-
-        mock_card = MagicMock()
-        mock_card.ui = {"collapsible": mock_collapsible}
-        mock_card.name = "test-vm"
-        mock_card.internal_id = "uuid-123"
-
-        self.app.vm_card_pool = MagicMock()
-        self.app.vm_card_pool.active_cards = {"uuid-123": mock_card}
-
-        self.app._collapse_all_action_collapsibles()
-
-        self.assertTrue(mock_collapsible.collapsed)
-
-    def test_collapse_all_action_collapsibles_handles_missing_collapsible(self):
-        """Test that _collapse_all_action_collapsibles handles missing collapsible."""
-        mock_card = MagicMock()
-        mock_card.ui = {}  # No collapsible
-
-        self.app.vm_card_pool = MagicMock()
-        self.app.vm_card_pool.active_cards = {"uuid-123": mock_card}
-
-        # Should not raise
-        self.app._collapse_all_action_collapsibles()
+    def test_collapse_all_action_collapsibles_is_noop(self):
+        """Test that _collapse_all_action_collapsibles is a safe no-op (actions are in a modal now)."""
+        self.app._collapse_all_action_collapsibles()  # Should not raise
 
     def test_remove_vms_for_uri_releases_cards(self):
         """Test that _remove_vms_for_uri releases VM cards for the given URI."""
