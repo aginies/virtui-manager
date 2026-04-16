@@ -36,6 +36,7 @@ from ..constants import (
     ErrorMessages,
     StaticText,
     SuccessMessages,
+    VMDetailConstants,
     WarningMessages,
 )
 from ..firmware_manager import get_host_sev_capabilities, get_uefi_files
@@ -179,12 +180,7 @@ class VMDetailModal(ModalScreen):
         self.internal_id = self.vm_service._get_internal_id(self.domain, self.conn)
         self.xml_desc = self.vm_service._get_domain_xml(self.domain)
 
-        root = None
-        if self.xml_desc:
-            try:
-                root = ET.fromstring(self.xml_desc)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
 
         self.vm_info["sound_model"] = get_vm_sound_model(root)
         video_info = get_vm_video_info(root)
@@ -271,6 +267,17 @@ class VMDetailModal(ModalScreen):
 
         self.app.worker_manager.run(worker_func, name="bulk_edit_worker")
 
+    def _get_xml_root(self, domain=None):
+        """Safely parse domain XML into an ElementTree root element."""
+        domain = domain or self.domain
+        xml = self.vm_service._get_domain_xml(domain)
+        if not xml:
+            return None
+        try:
+            return ET.fromstring(xml)
+        except ET.ParseError:
+            return None
+
     def _invalidate_cache(self):
         """Invalidates the VM cache if a callback is provided."""
         if self.invalidate_cache_callback:
@@ -281,7 +288,7 @@ class VMDetailModal(ModalScreen):
                         internal_id = self.vm_service._get_internal_id(domain)
                         self.invalidate_cache_callback(internal_id)
                     except Exception:
-                        pass  # Ignore if we can't invalidate one
+                        logging.debug("Could not invalidate cache for a domain in bulk")
             else:
                 internal_id = self.vm_service._get_internal_id(self.domain, self.conn)
                 self.invalidate_cache_callback(internal_id)
@@ -313,7 +320,7 @@ class VMDetailModal(ModalScreen):
                 try:
                     target_uuids.append(self.vm_service._get_internal_id(domain))
                 except Exception:
-                    pass
+                    logging.debug("Could not get internal ID for domain in bulk")
         else:
             target_uuids.append(self.internal_id)
 
@@ -335,7 +342,7 @@ class VMDetailModal(ModalScreen):
         try:
             self.query_one("#detail2-vm").add_class("hidden")
         except Exception:
-            pass  # Might not exist or failed to query
+            logging.debug("detail2-vm widget not available during mount")
 
         if not self.is_bulk:
             # Populate Boot tab
@@ -359,7 +366,7 @@ class VMDetailModal(ModalScreen):
                 self.query_one("#boot-add", Button).disabled = True
                 self.query_one("#boot-remove", Button).disabled = True
             except Exception:
-                pass
+                logging.debug("Boot tab widgets not available during mount")
 
         # SEV capabilities
         firmware_type = self.vm_info["firmware"].get("type", "BIOS")
@@ -374,6 +381,7 @@ class VMDetailModal(ModalScreen):
                 sev_checkbox.disabled = not self.vm_info.get("status") == "Stopped"
                 sev_es_checkbox.disabled = not self.vm_info.get("status") == "Stopped"
             except Exception:
+                logging.debug("SEV capabilities check failed, hiding checkboxes")
                 try:
                     # If getting caps failed, hide checkboxes if they exist
                     if self.query("#sev-checkbox"):
@@ -381,7 +389,7 @@ class VMDetailModal(ModalScreen):
                     if self.query("#sev-es-checkbox"):
                         self.query_one("#sev-es-checkbox", Checkbox).display = False
                 except Exception:
-                    pass
+                    logging.debug("SEV checkboxes not available")
 
             self._update_uefi_options()
 
@@ -393,10 +401,7 @@ class VMDetailModal(ModalScreen):
         self._update_tpm_ui()
 
         # Populate other tables only if they exist (which they might not in bulk mode)
-        try:
-            root = ET.fromstring(self.xml_desc)
-        except ET.ParseError:
-            root = None
+        root = self._get_xml_root()
 
         if not self.is_bulk:
             self.vm_info["disks"] = get_vm_disks_info(self.conn, root)
@@ -494,7 +499,7 @@ class VMDetailModal(ModalScreen):
                 shared_mem_enabled = self.query_one("#shared-memory-checkbox", Checkbox).value
                 self.query_one("#virtiofs-shared-mem-warning").display = not shared_mem_enabled
             except Exception:
-                pass
+                logging.debug("VirtIO-FS tab widgets not available")
 
     def _populate_boot_lists(self):
         """Populates the boot order and available devices lists."""
@@ -644,7 +649,7 @@ class VMDetailModal(ModalScreen):
             browse_kernel_btn.disabled = not enabled or not is_stopped
             browse_initrd_btn.disabled = not enabled or not is_stopped
         except Exception:
-            pass
+            logging.debug("Direct kernel boot widgets not available")
 
     @on(Button.Pressed, "#browse-kernel-btn")
     def on_browse_kernel(self, event: Button.Pressed) -> None:
@@ -752,23 +757,23 @@ class VMDetailModal(ModalScreen):
             graphics_type_select.value = self.graphics_info["type"]
             graphics_type_select.disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("Graphics type select widget not available")
 
         try:
             listen_type_select = self.query_one("#graphics-listen-type-select", Select)
             listen_type_select.value = self.graphics_info["listen_type"]
             listen_type_select.disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("Graphics listen type select widget not available")
 
         try:
             address_radioset = self.query_one("#graphics-address-radioset", RadioSet)
             if self.graphics_info["listen_type"] == "none":
                 address_radioset.disabled = True
-            elif self.graphics_info["address"] == "127.0.0.1":
+            elif self.graphics_info["address"] == VMDetailConstants.GRAPHICS_LOCALHOST:
                 address_radioset.set_pressed("graphics-address-localhost")
                 address_radioset.disabled = not self.is_vm_stopped
-            elif self.graphics_info["address"] == "0.0.0.0":
+            elif self.graphics_info["address"] == VMDetailConstants.GRAPHICS_ALL_INTERFACES:
                 address_radioset.set_pressed("graphics-address-all")
                 address_radioset.disabled = not self.is_vm_stopped
             else:
@@ -776,21 +781,21 @@ class VMDetailModal(ModalScreen):
                 address_radioset.disabled = not self.is_vm_stopped
 
         except Exception:
-            pass
+            logging.debug("Graphics address radioset widget not available")
 
         try:
             port_input = self.query_one("#graphics-port-input", Input)
             port_input.value = str(self.graphics_info["port"]) if self.graphics_info["port"] else ""
             port_input.disabled = not self.is_vm_stopped or self.graphics_info["autoport"]
         except Exception:
-            pass
+            logging.debug("Graphics port input widget not available")
 
         try:
             autoport_checkbox = self.query_one("#graphics-autoport-checkbox", Checkbox)
             autoport_checkbox.value = self.graphics_info["autoport"]
             autoport_checkbox.disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("Graphics autoport checkbox widget not available")
 
         try:
             password_enable_checkbox = self.query_one(
@@ -799,7 +804,7 @@ class VMDetailModal(ModalScreen):
             password_enable_checkbox.value = self.graphics_info["password_enabled"]
             password_enable_checkbox.disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("Graphics password enable checkbox widget not available")
 
         try:
             password_input = self.query_one("#graphics-password-input", Input)
@@ -812,12 +817,12 @@ class VMDetailModal(ModalScreen):
                 not self.is_vm_stopped or not self.graphics_info["password_enabled"]
             )
         except Exception:
-            pass
+            logging.debug("Graphics password input widget not available")
 
         try:
             self.query_one("#graphics-apply-btn", Button).disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("Graphics apply button widget not available")
 
     def _update_uefi_options(self) -> None:
         """Filters and updates the UEFI file selection list."""
@@ -891,7 +896,7 @@ class VMDetailModal(ModalScreen):
 
             uefi_select.tooltip = "\n".join(tooltip_parts) if tooltip_parts else None
         except Exception:
-            pass
+            logging.debug("UEFI tooltip update failed")
 
     @on(Select.Changed)
     def on_network_change(self, event: Select.Changed) -> None:
@@ -986,7 +991,7 @@ class VMDetailModal(ModalScreen):
                 try:
                     self.query_one("#firmware-path-label").update(msg_text)
                 except Exception:
-                    pass
+                    logging.debug("Firmware path label not available")
                 self.vm_info["firmware"]["path"] = new_uefi_path
 
         msg_template = SuccessMessages.VM_UEFI_FILE_SET_SUCCESS.format(
@@ -1180,14 +1185,14 @@ class VMDetailModal(ModalScreen):
     @on(RadioSet.Changed, "#graphics-address-radioset")
     def on_graphics_address_changed(self, event: RadioSet.Changed) -> None:
         if event.pressed.id == "graphics-address-localhost":
-            self.graphics_info["address"] = "127.0.0.1"
+            self.graphics_info["address"] = VMDetailConstants.GRAPHICS_LOCALHOST
         elif event.pressed.id == "graphics-address-all":
-            self.graphics_info["address"] = "0.0.0.0"
+            self.graphics_info["address"] = VMDetailConstants.GRAPHICS_ALL_INTERFACES
         else:
             # For "Hypervisor default", we'll send "0.0.0.0" as a generic default
             # but libvirt might interpret this differently depending on its config.
             # In the UI, it means "don't specify a particular address string".
-            self.graphics_info["address"] = "0.0.0.0"
+            self.graphics_info["address"] = VMDetailConstants.GRAPHICS_ALL_INTERFACES
         self._update_graphics_ui()
 
     @on(Checkbox.Changed, "#graphics-autoport-checkbox")
@@ -1231,9 +1236,9 @@ class VMDetailModal(ModalScreen):
         if listen_type == "address":
             address_radioset = self.query_one("#graphics-address-radioset", RadioSet)
             if address_radioset.pressed_button.id == "graphics-address-localhost":
-                address = "127.0.0.1"
+                address = VMDetailConstants.GRAPHICS_LOCALHOST
             else:
-                address = "0.0.0.0"
+                address = VMDetailConstants.GRAPHICS_ALL_INTERFACES
 
         autoport = self.query_one("#graphics-autoport-checkbox", Checkbox).value
         port_input = self.query_one("#graphics-port-input", Input)
@@ -1260,13 +1265,7 @@ class VMDetailModal(ModalScreen):
 
             def ui_update():
                 if not self.is_bulk:
-                    xml_content = self.vm_service._get_domain_xml(self.domain)
-                    root = None
-                    if xml_content:
-                        try:
-                            root = ET.fromstring(xml_content)
-                        except ET.ParseError:
-                            root = None
+                    root = self._get_xml_root()
                     self.graphics_info = get_vm_graphics_info(root)
                     self.original_graphics_info = self.graphics_info.copy()
                     self._update_graphics_ui()
@@ -1394,13 +1393,7 @@ class VMDetailModal(ModalScreen):
 
         def ui_update():
             if not self.is_bulk:
-                xml_content = self.vm_service._get_domain_xml(self.domain)
-                root = None
-                if xml_content:
-                    try:
-                        root = ET.fromstring(xml_content)
-                    except ET.ParseError:
-                        root = None
+                root = self._get_xml_root()
                 self.tpm_info = get_vm_tpm_info(root)  # Refresh info
                 self._update_tpm_ui()
 
@@ -1459,13 +1452,7 @@ class VMDetailModal(ModalScreen):
         attached_list.clear()
 
         host_devices = get_host_usb_devices(self.conn)
-        xml_content = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if xml_content:
-            try:
-                root = ET.fromstring(xml_content)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         attached_device_ids = get_attached_usb_devices(root)
 
         attached_ids_list = [(d["vendor_id"], d["product_id"]) for d in attached_device_ids]
@@ -1553,13 +1540,7 @@ class VMDetailModal(ModalScreen):
         attached_list.clear()
 
         host_devices = get_host_pci_devices(self.conn)
-        xml_content = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if xml_content:
-            try:
-                root = ET.fromstring(xml_content)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         attached_device_info = get_attached_pci_devices(root)
 
         attached_pci_addresses = [d["pci_address"] for d in attached_device_info]
@@ -1613,13 +1594,7 @@ class VMDetailModal(ModalScreen):
             serial_table.add_column("Device", key="device")
             serial_table.add_column("Details", key="details")
 
-        xml_content = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if xml_content:
-            try:
-                root = ET.fromstring(xml_content)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         self.serial_devices = get_serial_devices(root)
         for i, device in enumerate(self.serial_devices):
             row_key = f"{device['device']}-{device['port']}-{i}"
@@ -1643,13 +1618,7 @@ class VMDetailModal(ModalScreen):
             input_table.add_column("Type", key="type")
             input_table.add_column("Bus", key="bus")
 
-        xml_content = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if xml_content:
-            try:
-                root = ET.fromstring(xml_content)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         self.input_devices = get_vm_input_info(root)
         for i, device in enumerate(self.input_devices):
             row_key = f"{device['type']}-{device['bus']}-{i}"
@@ -1666,10 +1635,7 @@ class VMDetailModal(ModalScreen):
         self.xml_desc = self.vm_service._get_domain_xml(self.domain)
         logging.info(f"Updated XML for VM {self.vm_name}")
 
-        try:
-            root = ET.fromstring(self.xml_desc)
-        except ET.ParseError:
-            root = None
+        root = self._get_xml_root()
         inputs = get_vm_input_info(root)
         logging.info(f"Found {len(inputs)} input devices after update: {inputs}")
 
@@ -1718,13 +1684,7 @@ class VMDetailModal(ModalScreen):
 
     def _update_controller_table(self):
         """Refreshes the controller table."""
-        new_xml = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if new_xml:
-            try:
-                root = ET.fromstring(new_xml)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         self.vm_info["devices"] = get_vm_devices_info(root)
         self._populate_controller_table()
 
@@ -1772,13 +1732,7 @@ class VMDetailModal(ModalScreen):
 
     def _update_channel_table(self):
         """Refreshes the channel table."""
-        new_xml = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if new_xml:
-            try:
-                root = ET.fromstring(new_xml)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         self.vm_info["devices"] = get_vm_devices_info(root)
         self._populate_channel_table()
 
@@ -2258,16 +2212,7 @@ class VMDetailModal(ModalScreen):
 
                         # Fallback to hardcoded list if dynamic fetch fails or returns empty
                         if not video_models:
-                            video_models = [
-                                "default",
-                                "virtio",
-                                "qxl",
-                                "vga",
-                                "cirrus",
-                                "bochs",
-                                "ramfb",
-                                "none",
-                            ]
+                            video_models = list(VMDetailConstants.VIDEO_MODELS_FALLBACK)
 
                         # Ensure 'default' and 'none' are present, as they are special values
                         if "default" not in video_models:
@@ -2303,7 +2248,7 @@ class VMDetailModal(ModalScreen):
 
                         sound_models = self.app.config.get("sound_models", [])
                         if not sound_models:
-                            sound_models = ["none", "ich6", "ich9", "ac97", "sb16", "usb"]
+                            sound_models = list(VMDetailConstants.SOUND_MODELS_FALLBACK)
 
                         sound_model_options = [(model, model) for model in sound_models]
 
@@ -2324,14 +2269,14 @@ class VMDetailModal(ModalScreen):
                     with ScrollableContainer(classes="info-details"):
                         yield Label(StaticText.TYPE_LABEL)
                         yield Select(
-                            [("VNC", "vnc"), ("Spice", "spice"), ("None", "")],
+                            VMDetailConstants.GRAPHICS_TYPES,
                             value=self.graphics_info["type"],
                             id="graphics-type-select",
                             disabled=not self.is_vm_stopped,
                         )
                         yield Label(StaticText.LISTEN_TYPE)
                         yield Select(
-                            [("Address", "address"), ("None", "none")],
+                            VMDetailConstants.GRAPHICS_LISTEN_TYPES,
                             value=self.graphics_info["listen_type"],
                             id="graphics-listen-type-select",
                             disabled=not self.is_vm_stopped,
@@ -2345,17 +2290,20 @@ class VMDetailModal(ModalScreen):
                             yield RadioButton(
                                 StaticText.HYPERVISOR_DEFAULT,
                                 id="graphics-address-default",
-                                value=self.graphics_info["address"] not in ["127.0.0.1", "0.0.0.0"],
+                                value=self.graphics_info["address"] not in [
+                                    VMDetailConstants.GRAPHICS_LOCALHOST,
+                                    VMDetailConstants.GRAPHICS_ALL_INTERFACES,
+                                ],
                             )
                             yield RadioButton(
                                 StaticText.LOCALHOST_ONLY,
                                 id="graphics-address-localhost",
-                                value=self.graphics_info["address"] == "127.0.0.1",
+                                value=self.graphics_info["address"] == VMDetailConstants.GRAPHICS_LOCALHOST,
                             )
                             yield RadioButton(
                                 StaticText.ALL_INTERFACES,
                                 id="graphics-address-all",
-                                value=self.graphics_info["address"] == "0.0.0.0",
+                                value=self.graphics_info["address"] == VMDetailConstants.GRAPHICS_ALL_INTERFACES,
                             )
                         yield Checkbox(
                             StaticText.AUTO_PORT,
@@ -2414,7 +2362,7 @@ class VMDetailModal(ModalScreen):
                     with Vertical(classes="info-details"):
                         yield Label(StaticText.TPM_MODEL)
                         yield Select(
-                            [("None", "none"), ("tpm-crb", "tpm-crb"), ("tpm-tis", "tpm-tis")],
+                            VMDetailConstants.TPM_MODELS,
                             value=tpm_model,
                             id="tpm-model-select",
                             disabled=not self.is_vm_stopped,
@@ -2422,7 +2370,7 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Label(StaticText.TPM_TYPE)
                         yield Select(
-                            [("Emulated", "emulated"), ("Passthrough", "passthrough")],
+                            VMDetailConstants.TPM_TYPES,
                             value=tpm_type,
                             id="tpm-type-select",
                             disabled=not self.is_vm_stopped,
@@ -2498,12 +2446,7 @@ class VMDetailModal(ModalScreen):
                     with Vertical(classes="info-details"):
                         yield Label(StaticText.WATCHDOG_MODEL)
 
-                        watchdog_models = [
-                            ("None", "none"),
-                            ("i6300esb", "i6300esb"),
-                            ("ib700", "ib700"),
-                            ("diag288", "diag288"),
-                        ]
+                        watchdog_models = list(VMDetailConstants.WATCHDOG_MODELS)
 
                         # Add current model if not in list to prevent crash
                         known_models = [m[1] for m in watchdog_models]
@@ -2519,15 +2462,7 @@ class VMDetailModal(ModalScreen):
                         )
                         yield Label(StaticText.ACTION_LABEL)
                         yield Select(
-                            [
-                                ("Reset", "reset"),
-                                ("Shutdown", "shutdown"),
-                                ("Poweroff", "poweroff"),
-                                ("Pause", "pause"),
-                                ("None", "none"),
-                                ("Dump", "dump"),
-                                ("Inject-NMI", "inject-nmi"),
-                            ],
+                            VMDetailConstants.WATCHDOG_ACTIONS,
                             value=watchdog_action,
                             id="watchdog-action-select",
                             disabled=not self.is_vm_stopped,
@@ -2672,7 +2607,7 @@ class VMDetailModal(ModalScreen):
             )
             tpm_model_select.disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("TPM model select widget not available")
 
         # TPM Type
         try:
@@ -2682,7 +2617,7 @@ class VMDetailModal(ModalScreen):
             )
             tpm_type_select.disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("TPM type select widget not available")
 
         # Device Path (for passthrough)
         try:
@@ -2694,7 +2629,7 @@ class VMDetailModal(ModalScreen):
                 self.tpm_info[0].get("type") != "passthrough" if self.tpm_info else True
             )
         except Exception:
-            pass
+            logging.debug("TPM device path input widget not available")
 
         # Backend Type
         try:
@@ -2706,7 +2641,7 @@ class VMDetailModal(ModalScreen):
                 self.tpm_info[0].get("type") != "passthrough" if self.tpm_info else True
             )
         except Exception:
-            pass
+            logging.debug("TPM backend type input widget not available")
 
         # Backend Path
         try:
@@ -2718,13 +2653,13 @@ class VMDetailModal(ModalScreen):
                 self.tpm_info[0].get("type") != "passthrough" if self.tpm_info else True
             )
         except Exception:
-            pass
+            logging.debug("TPM backend path input widget not available")
 
         # Apply button
         try:
             self.query_one("#apply-tpm-btn", Button).disabled = not self.is_vm_stopped
         except Exception:
-            pass
+            logging.debug("TPM apply button widget not available")
 
     def _update_watchdog_ui(self) -> None:
         """Updates the UI elements for the Watchdog tab."""
@@ -2740,7 +2675,7 @@ class VMDetailModal(ModalScreen):
                 not self.is_vm_stopped or model == "none"
             )
         except Exception:
-            pass
+            logging.debug("Watchdog UI widgets not available")
 
     @on(Button.Pressed, "#apply-watchdog-btn")
     def on_watchdog_apply_button_pressed(self, event: Button.Pressed) -> None:
@@ -2763,13 +2698,7 @@ class VMDetailModal(ModalScreen):
 
         def ui_update():
             if not self.is_bulk:
-                xml_content = self.vm_service._get_domain_xml(self.domain)
-                root = None
-                if xml_content:
-                    try:
-                        root = ET.fromstring(xml_content)
-                    except ET.ParseError:
-                        root = None
+                root = self._get_xml_root()
                 self.watchdog_info = get_vm_watchdog_info(root)
                 self._update_watchdog_ui()
 
@@ -2816,14 +2745,64 @@ class VMDetailModal(ModalScreen):
             ConfirmationDialog("Are you sure you want to remove the watchdog device?"), on_confirm
         )
 
-    def _update_disk_list(self):
-        new_xml = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if new_xml:
+    def _add_controller(self, add_func, args, device_name):
+        """Generic handler for adding controllers (USB2, USB3, SCSI)."""
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+        errors = []
+        success_count = 0
+        for d in targets:
             try:
-                root = ET.fromstring(new_xml)
-            except ET.ParseError:
-                root = None
+                add_func(d, *args)
+                success_count += 1
+            except (libvirt.libvirtError, ValueError) as e:
+                errors.append(f"{d.name()}: {e}")
+        if success_count > 0:
+            self._invalidate_cache()
+            msg = f"{device_name} added successfully."
+            if self.is_bulk:
+                msg += f" (Applied to {success_count} VMs)"
+            self.app.show_success_message(msg)
+            if not self.is_bulk:
+                self._update_controller_table()
+        if errors:
+            self.app.show_error_message(f"Errors adding {device_name}: {'; '.join(errors)}")
+
+    def _disk_table_operation(self, operation_func, required_status, action_verb):
+        """Generic handler for disk remove/disable/enable operations."""
+        highlighted_index = self.query_one("#disks-table").cursor_row
+        if highlighted_index is None:
+            self.app.show_error_message("No disk selected.")
+            return
+
+        disks_info = self.vm_info.get("disks", [])
+        if highlighted_index >= len(disks_info):
+            self.app.show_error_message("Invalid selection.")
+            return
+
+        disk = disks_info[highlighted_index]
+        if disk["status"] != required_status:
+            self.app.show_error_message(f"Can only {action_verb} {required_status} disks.")
+            return
+
+        disk_path = disk["path"]
+
+        def on_confirm(confirmed: bool):
+            if confirmed:
+                try:
+                    operation_func(self.domain, disk_path)
+                    self._invalidate_cache()
+                    self.app.show_success_message(f"Disk {disk_path} {action_verb}d.")
+                    self._update_disk_list()
+                except Exception as e:
+                    self.app.show_error_message(f"Error {action_verb.rstrip('e')}ing disk: {e}")
+
+        self.app.push_screen(
+            ConfirmationDialog(f"Are you sure you want to {action_verb} disk:\n{disk_path}?"),
+            on_confirm,
+        )
+
+    def _update_disk_list(self):
+        root = self._get_xml_root()
         disks_info = get_vm_disks_info(self.conn, root)
         self.vm_info["disks"] = disks_info
         self._populate_disks_table()
@@ -2858,13 +2837,7 @@ class VMDetailModal(ModalScreen):
         virtiofs_table.clear()
 
         # Re-fetch VM info to get updated virtiofs list
-        new_xml = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if new_xml:
-            try:
-                root = ET.fromstring(new_xml)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         updated_devices = get_vm_devices_info(root)
         self.vm_info["devices"]["virtiofs"] = updated_devices.get("virtiofs", [])
 
@@ -2881,84 +2854,23 @@ class VMDetailModal(ModalScreen):
 
     def _update_networks_table(self):
         """Refreshes the networks table."""
-        new_xml = self.vm_service._get_domain_xml(self.domain)
-        root = None
-        if new_xml:
-            try:
-                root = ET.fromstring(new_xml)
-            except ET.ParseError:
-                root = None
+        root = self._get_xml_root()
         self.vm_info["networks"] = get_vm_networks_info(root)
         self.vm_info["detail_network"] = get_vm_network_ip(self.domain)
         self._populate_networks_table()
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "toggle-detail-button":
-            vm = self.query_one("#detail-vm")
-            vm2 = self.query_one("#detail2-vm")
-            vm.toggle_class("hidden")
-            vm2.toggle_class("hidden")
-        elif event.button.id == "close-btn":
-            self.dismiss()
+    # --- Button Handler Groups ---
 
-        elif event.button.id == "add-input-btn":
-
-            def add_input_callback(result):
-                if result:
-                    try:
-                        add_vm_input(self.domain, result["type"], result["bus"])
-                        self._invalidate_cache()
-                        self.app.show_success_message("Input device added successfully.")
-                        self._update_input_table()
-                    except (libvirt.libvirtError, ValueError) as e:
-                        self.app.show_error_message(f"Error adding input device: {e}")
-
-            available_types = ["mouse", "tablet", "keyboard"]
-            available_buses = ["usb", "ps2", "virtio"]
-            self.app.push_screen(
-                AddInputDeviceModal(
-                    available_types=available_types, available_buses=available_buses
-                ),
-                add_input_callback,
-            )
-
-        elif event.button.id == "remove-input-btn":
-            if self.selected_input_device:
-                message = f"Are you sure you want to remove the {self.selected_input_device['type']} on bus {self.selected_input_device['bus']}?"
-
-                def on_confirm(confirmed: bool) -> None:
-                    if confirmed:
-                        targets = self.selected_domains if self.is_bulk else [self.domain]
-                        device_type = self.selected_input_device["type"]
-                        device_bus = self.selected_input_device["bus"]
-
-                        def operation(d):
-                            remove_vm_input(d, device_type, device_bus)
-
-                        def ui_update():
-                            if not self.is_bulk:
-                                self._update_input_table()
-
-                        self._run_bulk_operation(
-                            targets,
-                            operation,
-                            "Input device removed successfully"
-                            + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
-                            "Error removing input device",
-                            ui_update,
-                        )
-
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
-
-        elif event.button.id == "detail_virtiofs_help":
+    def _handle_virtiofs_button(self, button_id):
+        """Handle VirtIO-FS related button presses."""
+        if button_id == "detail_virtiofs_help":
             self.app.push_screen(HowToVirtIOFSModal())
 
-        elif event.button.id == "add-virtiofs-btn":
+        elif button_id == "add-virtiofs-btn":
 
             def add_virtiofs_callback(result):
                 if result:
                     try:
-                        # VM must be stopped to add virtiofs
                         if self.is_vm_active:
                             self.app.show_error_message(
                                 "VM must be stopped to add VirtIO-FS mount."
@@ -2982,7 +2894,86 @@ class VMDetailModal(ModalScreen):
 
             self.app.push_screen(AddEditVirtIOFSModal(is_edit=False), add_virtiofs_callback)
 
-        elif event.button.id == "edit-network-interface-button":
+        elif button_id == "edit-virtiofs-btn":
+            if self.selected_virtiofs_info:
+                current_source = self.selected_virtiofs_info.get("source", "")
+                current_target = self.selected_virtiofs_info.get("target", "")
+                current_readonly = self.selected_virtiofs_info.get("readonly", False)
+
+                def edit_virtiofs_callback(result):
+                    if result:
+                        try:
+                            if self.is_vm_active:
+                                self.app.show_error_message(
+                                    "VM must be stopped to modify VirtIO-FS mount."
+                                )
+                                return
+                            if (
+                                result["source_path"] != current_source
+                                or result["target_path"] != current_target
+                                or result["readonly"] != current_readonly
+                            ):
+                                remove_virtiofs(self.domain, current_target)
+                                add_virtiofs(
+                                    self.domain,
+                                    result["source_path"],
+                                    result["target_path"],
+                                    result["readonly"],
+                                )
+                                self._invalidate_cache()
+                                self.app.show_success_message(
+                                    f"VirtIO-FS mount '{current_target}' updated to '{result['target_path']}'."
+                                )
+                                self._update_virtiofs_table()
+                            else:
+                                self.app.show_success_message(
+                                    "No changes detected for VirtIO-FS mount."
+                                )
+                        except libvirt.libvirtError as e:
+                            self.app.show_error_message(f"Error editing VirtIO-FS mount: {e}")
+                        except Exception as e:
+                            self.app.show_error_message(f"An unexpected error occurred: {e}")
+
+                self.app.push_screen(
+                    AddEditVirtIOFSModal(
+                        source_path=current_source,
+                        target_path=current_target,
+                        readonly=current_readonly,
+                        is_edit=True,
+                    ),
+                    edit_virtiofs_callback,
+                )
+            else:
+                self.app.show_error_message("No VirtIO-FS mount selected for editing.")
+
+        elif button_id == "delete-virtiofs-btn":
+            if self.selected_virtiofs_target:
+                message = f"Are you sure you want to delete VirtIO-FS mount:\n'{self.selected_virtiofs_target}'?\nVM must be stopped!"
+
+                def on_confirm(confirmed: bool) -> None:
+                    if confirmed:
+                        try:
+                            if self.is_vm_active:
+                                self.app.show_error_message(
+                                    "VM must be stopped to delete VirtIO-FS mount."
+                                )
+                                return
+                            remove_virtiofs(self.domain, self.selected_virtiofs_target)
+                            self._invalidate_cache()
+                            self.app.show_success_message(
+                                f"VirtIO-FS mount '{self.selected_virtiofs_target}' deleted successfully."
+                            )
+                            self._update_virtiofs_table()
+                        except libvirt.libvirtError as e:
+                            self.app.show_error_message(f"Error deleting VirtIO-FS mount: {e}")
+                        except Exception as e:
+                            self.app.show_error_message(f"An unexpected error occurred: {e}")
+
+                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+    def _handle_network_button(self, button_id):
+        """Handle network interface related button presses."""
+        if button_id == "edit-network-interface-button":
             if self.selected_network_interface:
                 interface_to_edit = next(
                     (
@@ -2998,7 +2989,6 @@ class VMDetailModal(ModalScreen):
                         if result:
                             new_network_name = result["network"]
                             new_model = result["model"]
-
                             original_network_name = interface_to_edit["network"]
                             original_model = interface_to_edit["model"]
                             original_mac = interface_to_edit["mac"]
@@ -3027,12 +3017,10 @@ class VMDetailModal(ModalScreen):
                                                 "VM must be stopped to modify network interfaces."
                                             )
                                             return
-
                                         remove_network_interface(self.domain, original_mac)
                                         add_network_interface(
                                             self.domain, new_network_name, new_model
                                         )
-
                                         self._invalidate_cache()
                                         self.app.show_success_message(
                                             f"Network interface '{original_mac}' modified successfully. A new MAC address may have been assigned."
@@ -3064,7 +3052,7 @@ class VMDetailModal(ModalScreen):
                         "Could not retrieve information for the selected network interface."
                     )
 
-        elif event.button.id == "add-network-interface-button":
+        elif button_id == "add-network-interface-button":
 
             def add_interface_callback(result):
                 if result:
@@ -3084,7 +3072,7 @@ class VMDetailModal(ModalScreen):
                 add_interface_callback,
             )
 
-        elif event.button.id == "remove-network-interface-button":
+        elif button_id == "remove-network-interface-button":
             if self.selected_network_interface:
                 message = f"Are you sure you want to remove network interface:\n'{self.selected_network_interface}'?"
 
@@ -3102,92 +3090,9 @@ class VMDetailModal(ModalScreen):
 
                 self.app.push_screen(ConfirmationDialog(message), on_confirm)
 
-        elif event.button.id == "edit-virtiofs-btn":
-            if self.selected_virtiofs_info:
-                current_source = self.selected_virtiofs_info.get("source", "")
-                current_target = self.selected_virtiofs_info.get("target", "")
-                current_readonly = self.selected_virtiofs_info.get("readonly", False)
-
-                def edit_virtiofs_callback(result):
-                    if result:
-                        try:
-                            # VM must be stopped to modify virtiofs
-                            if self.is_vm_active:
-                                self.app.show_error_message(
-                                    "VM must be stopped to modify VirtIO-FS mount."
-                                )
-                                return
-
-                            # Only proceed if there are actual changes
-                            if (
-                                result["source_path"] != current_source
-                                or result["target_path"] != current_target
-                                or result["readonly"] != current_readonly
-                            ):
-                                # Remove the old one
-                                remove_virtiofs(self.domain, current_target)
-                                # Add the new one
-                                add_virtiofs(
-                                    self.domain,
-                                    result["source_path"],
-                                    result["target_path"],
-                                    result["readonly"],
-                                )
-                                self._invalidate_cache()
-                                self.app.show_success_message(
-                                    f"VirtIO-FS mount '{current_target}' updated to '{result['target_path']}'."
-                                )
-                                self._update_virtiofs_table()
-                            else:
-                                self.app.show_success_message(
-                                    "No changes detected for VirtIO-FS mount."
-                                )
-
-                        except libvirt.libvirtError as e:
-                            self.app.show_error_message(f"Error editing VirtIO-FS mount: {e}")
-                        except Exception as e:
-                            self.app.show_error_message(f"An unexpected error occurred: {e}")
-
-                self.app.push_screen(
-                    AddEditVirtIOFSModal(
-                        source_path=current_source,
-                        target_path=current_target,
-                        readonly=current_readonly,
-                        is_edit=True,
-                    ),
-                    edit_virtiofs_callback,
-                )
-            else:
-                self.app.show_error_message("No VirtIO-FS mount selected for editing.")
-
-        elif event.button.id == "delete-virtiofs-btn":
-            if self.selected_virtiofs_target:
-                message = f"Are you sure you want to delete VirtIO-FS mount:\n'{self.selected_virtiofs_target}'?\nVM must be stopped!"
-
-                def on_confirm(confirmed: bool) -> None:
-                    if confirmed:
-                        try:
-                            # VM must be stopped to delete virtiofs
-                            if self.is_vm_active:
-                                self.app.show_error_message(
-                                    "VM must be stopped to delete VirtIO-FS mount."
-                                )
-                                return
-
-                            remove_virtiofs(self.domain, self.selected_virtiofs_target)
-                            self._invalidate_cache()
-                            self.app.show_success_message(
-                                f"VirtIO-FS mount '{self.selected_virtiofs_target}' deleted successfully."
-                            )
-                            self._update_virtiofs_table()
-                        except libvirt.libvirtError as e:
-                            self.app.show_error_message(f"Error deleting VirtIO-FS mount: {e}")
-                        except Exception as e:
-                            self.app.show_error_message(f"An unexpected error occurred: {e}")
-
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
-
-        elif event.button.id == "switch-to-bios":
+    def _handle_firmware_button(self, button_id):
+        """Handle firmware related button presses."""
+        if button_id == "switch-to-bios":
 
             def on_confirm_bios_switch(confirmed: bool):
                 if confirmed:
@@ -3208,10 +3113,9 @@ class VMDetailModal(ModalScreen):
                 on_confirm_bios_switch,
             )
 
-        elif event.button.id == "switch-to-uefi":
+        elif button_id == "switch-to-uefi":
             all_uefi_files = get_uefi_files(self.conn)
 
-            # Debug logging for firmware discovery
             logging.info(f"Retrieved {len(all_uefi_files)} total firmware configurations")
             for fw in all_uefi_files:
                 logging.debug(
@@ -3223,7 +3127,6 @@ class VMDetailModal(ModalScreen):
             arch_elem = xml_root.find(".//os/type")
             arch = arch_elem.get("arch") if arch_elem is not None else "x86_64"
 
-            # Filter for UEFI firmware specifically (not BIOS)
             uefi_for_arch = [
                 f for f in all_uefi_files if arch in f.architectures and "uefi" in f.interfaces
             ]
@@ -3233,7 +3136,6 @@ class VMDetailModal(ModalScreen):
                 logging.debug(f"Selected UEFI: {fw.executable}")
 
             if not uefi_for_arch:
-                # Additional debug info in error message
                 bios_count = sum(1 for f in all_uefi_files if "bios" in f.interfaces)
                 other_arch = [f.architectures for f in all_uefi_files if f.architectures != [arch]]
                 error_detail = (
@@ -3262,14 +3164,13 @@ class VMDetailModal(ModalScreen):
                 SelectDiskModal(uefi_paths, "Select UEFI Firmware"), on_uefi_file_selected
             )
 
-        elif event.button.id == "edit-machine-type":
+        elif button_id == "edit-machine-type":
             if not self.is_vm_stopped:
                 self.app.show_error_message("VM must be stopped to change machine type.")
                 return
 
             current_machine_type = self.vm_info["machine_type"]
             try:
-                # get_supported_machine_types expects a domain object
                 supported_machine_types = get_supported_machine_types(self.conn, self.domain)
             except libvirt.libvirtError as e:
                 self.app.show_error_message(f"Error getting supported machine types: {e}")
@@ -3280,11 +3181,9 @@ class VMDetailModal(ModalScreen):
                     return
 
                 original_machine_type = self.vm_info["machine_type"]
-
                 current_family = "-".join(original_machine_type.split("-")[:2])
                 new_family = "-".join(new_machine_type.split("-")[:2])
 
-                # Check if machine type family changes
                 if current_family != new_family:
                     message = (
                         f"Are you sure you want to change the machine type "
@@ -3313,7 +3212,6 @@ class VMDetailModal(ModalScreen):
                                         self.app.show_success_message,
                                         f"VM '{self.vm_name}' successfully migrated to machine type '{new_machine_type}'.",
                                     )
-                                    # Refresh VM info and close modal
                                     self.app.call_from_thread(self.dismiss)
                                 except libvirt.libvirtError as e:
                                     self.app.call_from_thread(
@@ -3340,7 +3238,7 @@ class VMDetailModal(ModalScreen):
                     self.app.show_success_message(
                         "Machine type is already set to the selected value."
                     )
-                else:  # Use existing set_machine_type for other changes
+                else:
                     try:
                         set_machine_type(self.domain, new_machine_type)
                         self._invalidate_cache()
@@ -3349,7 +3247,7 @@ class VMDetailModal(ModalScreen):
                         self.query_one("#machine-type-label").update(
                             f"Machine Type: {new_machine_type}"
                         )
-                        self.xml_desc = self.domain.XMLDesc(0)  # Refresh XML
+                        self.xml_desc = self.domain.XMLDesc(0)
                     except (libvirt.libvirtError, ValueError, Exception) as e:
                         self.app.show_error_message(f"Error setting machine type: {e}")
 
@@ -3358,7 +3256,9 @@ class VMDetailModal(ModalScreen):
                 on_machine_type_selected,
             )
 
-        elif event.button.id == "detail_add_disk":
+    def _handle_disk_button(self, button_id):
+        """Handle disk related button presses."""
+        if button_id == "detail_add_disk":
             all_pools = storage_manager.list_storage_pools(self.conn)
             active_pools = [p["name"] for p in all_pools if p["status"] == "active"]
 
@@ -3366,69 +3266,54 @@ class VMDetailModal(ModalScreen):
                 self.app.show_error_message(
                     "No active storage pools available to create a new disk."
                 )
-                # Allow proceeding if they want to attach an existing file not in a pool
-                # but for creation, it's a dead-end. We let the AddDiskModal handle the UX.
 
             def add_disk_callback(result: dict | None) -> None:
                 if not result:
                     return
-
                 try:
                     target_dev = None
-                    # Case 1: Create a new volume in a selected pool
                     if result.get("create"):
                         pool_name = result.get("pool")
-                        vol_name = result.get("disk_path")  # This holds the volume name
-
+                        vol_name = result.get("disk_path")
                         pool_obj = next(
                             (p["pool"] for p in all_pools if p["name"] == pool_name), None
                         )
-
                         if not pool_obj:
                             raise ValueError(f"Storage pool '{pool_name}' not found.")
-
-                        # Create the volume in the selected pool
                         storage_manager.create_volume(
                             pool_obj, vol_name, result["size_gb"], result["disk_format"]
                         )
                         self.app.show_success_message(
                             f"Volume '{vol_name}' created in pool '{pool_name}'."
                         )
-
-                        # Get the path of the newly created volume for attaching
                         new_vol = pool_obj.storageVolLookupByName(vol_name)
                         disk_path_to_attach = new_vol.path()
-
-                        # Attach the newly created volume to the VM
                         target_dev = add_disk(
                             self.domain,
                             disk_path_to_attach,
                             device_type=result["device_type"],
                             bus=result["bus"],
-                            create=False,  # Set to False as the volume is already created
+                            create=False,
                         )
-                    # Case 2: Attach an existing disk from a file path
                     else:
                         target_dev = add_disk(
                             self.domain,
                             result["disk_path"],
                             device_type=result["device_type"],
                             bus=result["bus"],
-                            create=False,  # It's an existing file
+                            create=False,
                         )
-
                     self._invalidate_cache()
                     self.app.show_success_message(f"Disk successfully added as {target_dev}.")
                     self._update_disk_list()
-
                 except (libvirt.libvirtError, ValueError, KeyError, Exception) as e:
                     self.app.show_error_message(f"Error adding disk: {e}")
 
             self.app.push_screen(AddDiskModal(pools=active_pools), add_disk_callback)
-        elif event.button.id == "detail_attach_disk":
+
+        elif button_id == "detail_attach_disk":
             all_pools = storage_manager.list_storage_pools(self.conn)
             active_pools = [p for p in all_pools if p["status"] == "active"]
-
             if not active_pools:
                 self.app.show_error_message("No active storage pools found.")
                 return
@@ -3436,17 +3321,14 @@ class VMDetailModal(ModalScreen):
             def select_pool_callback(pool_name: str | None) -> None:
                 if not pool_name:
                     return
-
                 selected_pool_obj = next(
                     (p["pool"] for p in active_pools if p["name"] == pool_name), None
                 )
                 if not selected_pool_obj:
                     self.app.show_error_message(f"Could not find pool object for {pool_name}")
                     return
-
                 all_volumes_in_pool = storage_manager.list_storage_volumes(selected_pool_obj)
                 all_volume_paths = [vol["volume"].path() for vol in all_volumes_in_pool]
-
                 if not all_volume_paths:
                     self.app.show_error_message(f"No volumes found in pool '{pool_name}'.")
                     return
@@ -3455,9 +3337,7 @@ class VMDetailModal(ModalScreen):
                     if disk_to_attach:
                         try:
                             target_dev = add_disk(
-                                self.domain,
-                                disk_to_attach,
-                                device_type="disk",
+                                self.domain, disk_to_attach, device_type="disk",
                             )
                             self._invalidate_cache()
                             self.app.show_success_message(f"Disk added as {target_dev}")
@@ -3477,226 +3357,18 @@ class VMDetailModal(ModalScreen):
                 select_pool_callback,
             )
 
-        elif event.button.id == "add-usb2-controller-btn":
-            targets = self.selected_domains if self.is_bulk else [self.domain]
-            errors = []
-            success_count = 0
-            for d in targets:
-                try:
-                    add_usb_device(d, "usb", "usb2")
-                    success_count += 1
-                except (libvirt.libvirtError, ValueError) as e:
-                    errors.append(f"{d.name()}: {e}")
-            if success_count > 0:
-                self._invalidate_cache()
-                msg = "USB 2.0 controller added successfully."
-                if self.is_bulk:
-                    msg += f" (Applied to {success_count} VMs)"
-                self.app.show_success_message(msg)
-                if not self.is_bulk:
-                    self._update_controller_table()
-            if errors:
-                self.app.show_error_message(
-                    f"Errors adding USB 2.0 controller: {'; '.join(errors)}"
-                )
+        elif button_id == "detail_remove_disk":
+            self._disk_table_operation(remove_disk, "enabled", "remove")
+        elif button_id == "detail_disable_disk":
+            self._disk_table_operation(disable_disk, "enabled", "disable")
+        elif button_id == "detail_enable_disk":
+            self._disk_table_operation(enable_disk, "disabled", "enable")
 
-        elif event.button.id == "add-usb3-controller-btn":
-            targets = self.selected_domains if self.is_bulk else [self.domain]
-            errors = []
-            success_count = 0
-            for d in targets:
-                try:
-                    add_usb_device(d, "usb", "usb3")
-                    success_count += 1
-                except (libvirt.libvirtError, ValueError) as e:
-                    errors.append(f"{d.name()}: {e}")
-            if success_count > 0:
-                self._invalidate_cache()
-                msg = "USB 3.0 controller added successfully."
-                if self.is_bulk:
-                    msg += f" (Applied to {success_count} VMs)"
-                self.app.show_success_message(msg)
-                if not self.is_bulk:
-                    self._update_controller_table()
-            if errors:
-                self.app.show_error_message(
-                    f"Errors adding USB 3.0 controller: {'; '.join(errors)}"
-                )
-
-        elif event.button.id == "add-scsi-controller-btn":
-            targets = self.selected_domains if self.is_bulk else [self.domain]
-            errors = []
-            success_count = 0
-            for d in targets:
-                try:
-                    add_scsi_controller(d, "virtio-scsi")
-                    success_count += 1
-                except (libvirt.libvirtError, ValueError) as e:
-                    errors.append(f"{d.name()}: {e}")
-            if success_count > 0:
-                self._invalidate_cache()
-                msg = "SCSI controller added successfully."
-                if self.is_bulk:
-                    msg += f" (Applied to {success_count} VMs)"
-                self.app.show_success_message(msg)
-                if not self.is_bulk:
-                    self._update_controller_table()
-            if errors:
-                self.app.show_error_message(f"Errors adding SCSI controller: {'; '.join(errors)}")
-
-        elif event.button.id == "remove-controller-btn":
-            if self.selected_controller:
-                message = f"Are you sure you want to remove the {self.selected_controller['type']} controller (model: {self.selected_controller['model']})?"
-                if self.is_bulk:
-                    message = f"Are you sure you want to remove the {self.selected_controller['type']} controller (model: {self.selected_controller['model']}) from ALL selected VMs?"
-
-                def on_confirm(confirmed: bool) -> None:
-                    if confirmed:
-                        targets = self.selected_domains if self.is_bulk else [self.domain]
-                        errors = []
-                        success_count = 0
-                        for d in targets:
-                            try:
-                                if self.selected_controller["type"] == "USB":
-                                    usb_model_arg = (
-                                        "usb2"
-                                        if "uhci" in self.selected_controller["model"]
-                                        else "usb3"
-                                    )
-                                    remove_usb_device(
-                                        d, usb_model_arg, self.selected_controller["index"]
-                                    )
-                                elif self.selected_controller["type"] == "SCSI":
-                                    remove_scsi_controller(
-                                        d,
-                                        self.selected_controller["model"],
-                                        self.selected_controller["index"],
-                                    )
-                                success_count += 1
-                            except (libvirt.libvirtError, ValueError) as e:
-                                errors.append(f"{d.name()}: {e}")
-
-                        if success_count > 0:
-                            self._invalidate_cache()
-                            msg = "Controller removed successfully."
-                            if self.is_bulk:
-                                msg += f" (Applied to {success_count} VMs)"
-                            self.app.show_success_message(msg)
-                            if not self.is_bulk:
-                                self._update_controller_table()
-                        if errors:
-                            self.app.show_error_message(
-                                f"Errors removing controller: {'; '.join(errors)}"
-                            )
-
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
-
-        elif event.button.id == "detail_remove_disk":
-            highlighted_index = self.query_one("#disks-table").cursor_row
-            if highlighted_index is None:
-                self.app.show_error_message("No disk selected.")
-                return
-
-            disks_info = self.vm_info.get("disks", [])
-            if highlighted_index >= len(disks_info):
-                self.app.show_error_message("Invalid selection.")
-                return
-
-            disk_to_remove = disks_info[highlighted_index]
-            if disk_to_remove["status"] != "enabled":
-                self.app.show_error_message("Can only remove enabled disks.")
-                return
-
-            disk_path = disk_to_remove["path"]
-
-            def on_confirm(confirmed: bool):
-                if confirmed:
-                    try:
-                        remove_disk(self.domain, disk_path)
-                        self._invalidate_cache()
-                        self.app.show_success_message(f"Disk {disk_path} removed.")
-                        self._update_disk_list()
-                    except Exception as e:
-                        self.app.show_error_message(f"Error removing disk: {e}")
-
-            self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to remove disk:\n{disk_path}"),
-                on_confirm,
-            )
-
-        elif event.button.id == "detail_disable_disk":
-            highlighted_index = self.query_one("#disks-table").cursor_row
-            if highlighted_index is None:
-                self.app.show_error_message("No disk selected.")
-                return
-
-            disks_info = self.vm_info.get("disks", [])
-            if highlighted_index >= len(disks_info):
-                self.app.show_error_message("Invalid selection.")
-                return
-
-            disk_to_disable = disks_info[highlighted_index]
-            if disk_to_disable["status"] != "enabled":
-                self.app.show_error_message("Can only disable enabled disks.")
-                return
-
-            disk_path = disk_to_disable["path"]
-
-            def on_confirm(confirmed: bool):
-                if confirmed:
-                    try:
-                        disable_disk(self.domain, disk_path)
-                        self._invalidate_cache()
-                        self.app.show_success_message(f"Disk {disk_path} disabled.")
-                        self._update_disk_list()
-                    except (libvirt.libvirtError, ValueError, Exception) as e:
-                        self.app.show_error_message(f"Error disabling disk: {e}")
-
-            self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to disable disk:\n{disk_path}"),
-                on_confirm,
-            )
-
-        elif event.button.id == "detail_enable_disk":
-            highlighted_index = self.query_one("#disks-table").cursor_row
-            if highlighted_index is None:
-                self.app.show_error_message("No disk selected.")
-                return
-
-            disks_info = self.vm_info.get("disks", [])
-            if highlighted_index >= len(disks_info):
-                self.app.show_error_message("Invalid selection.")
-                return
-
-            disk_to_enable = disks_info[highlighted_index]
-            if disk_to_enable["status"] != "disabled":
-                self.app.show_error_message("Can only enable disabled disks.")
-                return
-
-            disk_path = disk_to_enable["path"]
-
-            def on_confirm(confirmed: bool):
-                if confirmed:
-                    try:
-                        enable_disk(self.domain, disk_path)
-                        self._invalidate_cache()
-                        self.app.show_success_message(f"Disk {disk_path} enabled.")
-                        self._update_disk_list()
-                    except (libvirt.libvirtError, ValueError, Exception) as e:
-                        self.app.show_error_message(f"Error enabling disk: {e}")
-
-            self.app.push_screen(
-                ConfirmationDialog(f"Are you sure you want to enable disk:\n{disk_path}?"),
-                on_confirm,
-            )
-
-        elif event.button.id == "detail_edit_disk":
+        elif button_id == "detail_edit_disk":
             highlighted_index = self.query_one("#disks-table").cursor_row
             if highlighted_index is None:
                 self.app.show_error_message("No disk selected for editing.")
                 return
-
-            # Retrieve the disk details from the vm_info dictionary
             disks_info = self.vm_info.get("disks", [])
             if highlighted_index >= len(disks_info):
                 self.app.show_error_message("Invalid disk selection.")
@@ -3710,7 +3382,6 @@ class VMDetailModal(ModalScreen):
                     new_discard_mode = result.get("discard")
                     new_bus = result.get("bus")
                     new_device_type = result.get("device")
-
                     if (
                         new_cache_mode == selected_disk.get("cache_mode")
                         and new_discard_mode == selected_disk.get("discard_mode")
@@ -3719,15 +3390,12 @@ class VMDetailModal(ModalScreen):
                     ):
                         self.app.show_success_message("No changes detected for disk properties.")
                         return
-
                     try:
-                        # VM must be stopped to edit disk properties
                         if not self.is_vm_stopped:
                             self.app.show_error_message(
                                 ErrorMessages.DISK_VM_MUST_BE_STOPPED_TO_EDIT
                             )
                             return
-
                         disk_properties = {
                             "cache": new_cache_mode,
                             "discard": new_discard_mode,
@@ -3741,139 +3409,250 @@ class VMDetailModal(ModalScreen):
                         self.app.show_success_message(
                             f"Disk {os.path.basename(selected_disk.get('path'))} properties updated."
                         )
-                        self._update_disk_list()  # Refresh the disk list in the UI
+                        self._update_disk_list()
                     except libvirt.libvirtError as e:
                         self.app.show_error_message(f"Error editing disk properties: {e}")
                     except Exception as e:
                         self.app.show_error_message(f"An unexpected error occurred: {e}")
 
             self.app.push_screen(
-                EditDiskModal(
-                    disk_info=selected_disk,  # Pass the entire selected_disk dictionary
-                    is_stopped=self.is_vm_stopped,  # Pass the is_stopped boolean
-                ),
+                EditDiskModal(disk_info=selected_disk, is_stopped=self.is_vm_stopped),
                 edit_disk_callback,
             )
 
-        elif event.button.id == "detail_disk_help":
+        elif button_id == "detail_disk_help":
             self.app.push_screen(HowToDiskModal())
 
-        elif event.button.id == "edit-cpu":
+    # --- Button ID to handler group mapping ---
+    _VIRTIOFS_BUTTONS = {
+        "detail_virtiofs_help", "add-virtiofs-btn", "edit-virtiofs-btn", "delete-virtiofs-btn"
+    }
+    _NETWORK_BUTTONS = {
+        "edit-network-interface-button", "add-network-interface-button",
+        "remove-network-interface-button"
+    }
+    _FIRMWARE_BUTTONS = {"switch-to-bios", "switch-to-uefi", "edit-machine-type"}
+    _DISK_BUTTONS = {
+        "detail_add_disk", "detail_attach_disk", "detail_remove_disk",
+        "detail_disable_disk", "detail_enable_disk", "detail_edit_disk", "detail_disk_help"
+    }
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+
+        if button_id == "toggle-detail-button":
+            vm = self.query_one("#detail-vm")
+            vm2 = self.query_one("#detail2-vm")
+            vm.toggle_class("hidden")
+            vm2.toggle_class("hidden")
+        elif button_id == "close-btn":
+            self.dismiss()
+
+        elif button_id == "add-input-btn":
+
+            def add_input_callback(result):
+                if result:
+                    try:
+                        add_vm_input(self.domain, result["type"], result["bus"])
+                        self._invalidate_cache()
+                        self.app.show_success_message("Input device added successfully.")
+                        self._update_input_table()
+                    except (libvirt.libvirtError, ValueError) as e:
+                        self.app.show_error_message(f"Error adding input device: {e}")
+
+            self.app.push_screen(
+                AddInputDeviceModal(
+                    available_types=VMDetailConstants.INPUT_DEVICE_TYPES,
+                    available_buses=VMDetailConstants.INPUT_DEVICE_BUSES,
+                ),
+                add_input_callback,
+            )
+
+        elif button_id == "remove-input-btn":
+            if self.selected_input_device:
+                message = f"Are you sure you want to remove the {self.selected_input_device['type']} on bus {self.selected_input_device['bus']}?"
+
+                def on_confirm(confirmed: bool) -> None:
+                    if confirmed:
+                        targets = self.selected_domains if self.is_bulk else [self.domain]
+                        device_type = self.selected_input_device["type"]
+                        device_bus = self.selected_input_device["bus"]
+
+                        def operation(d):
+                            remove_vm_input(d, device_type, device_bus)
+
+                        def ui_update():
+                            if not self.is_bulk:
+                                self._update_input_table()
+
+                        self._run_bulk_operation(
+                            targets,
+                            operation,
+                            "Input device removed successfully"
+                            + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                            "Error removing input device",
+                            ui_update,
+                        )
+
+                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+        elif button_id in self._VIRTIOFS_BUTTONS:
+            self._handle_virtiofs_button(button_id)
+
+        elif button_id in self._NETWORK_BUTTONS:
+            self._handle_network_button(button_id)
+
+        elif button_id in self._FIRMWARE_BUTTONS:
+            self._handle_firmware_button(button_id)
+
+        elif button_id in self._DISK_BUTTONS:
+            self._handle_disk_button(button_id)
+
+        elif button_id == "add-usb2-controller-btn":
+            self._add_controller(add_usb_device, ("usb", "usb2"), "USB 2.0 controller")
+
+        elif button_id == "add-usb3-controller-btn":
+            self._add_controller(add_usb_device, ("usb", "usb3"), "USB 3.0 controller")
+
+        elif button_id == "add-scsi-controller-btn":
+            self._add_controller(add_scsi_controller, ("virtio-scsi",), "SCSI controller")
+
+        elif button_id == "remove-controller-btn":
+            if self.selected_controller:
+                controller = self.selected_controller
+                message = f"Are you sure you want to remove the {controller['type']} controller (model: {controller['model']})?"
+                if self.is_bulk:
+                    message = f"Are you sure you want to remove the {controller['type']} controller (model: {controller['model']}) from ALL selected VMs?"
+
+                def on_confirm(confirmed: bool) -> None:
+                    if confirmed:
+                        targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                        def operation(d):
+                            if controller["type"] == "USB":
+                                usb_model_arg = (
+                                    "usb2" if "uhci" in controller["model"] else "usb3"
+                                )
+                                remove_usb_device(d, usb_model_arg, controller["index"])
+                            elif controller["type"] == "SCSI":
+                                remove_scsi_controller(
+                                    d, controller["model"], controller["index"]
+                                )
+
+                        def ui_update():
+                            if not self.is_bulk:
+                                self._update_controller_table()
+
+                        self._run_bulk_operation(
+                            targets,
+                            operation,
+                            "Controller removed successfully"
+                            + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                            "Errors removing controller",
+                            ui_update,
+                        )
+
+                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+        elif button_id == "edit-cpu":
 
             def edit_cpu_callback(new_cpu_count):
                 if new_cpu_count is not None and new_cpu_count.isdigit():
                     targets = self.selected_domains if self.is_bulk else [self.domain]
-                    errors = []
-                    success_count = 0
-                    for d in targets:
-                        try:
-                            set_vcpu(d, int(new_cpu_count))
-                            success_count += 1
-                        except (libvirt.libvirtError, Exception) as e:
-                            errors.append(f"{d.name()}: {e}")
 
-                    if success_count > 0:
-                        self._invalidate_cache()
-                        msg = f"CPU count set to {new_cpu_count}"
-                        if self.is_bulk:
-                            msg += f" for {success_count} VMs"
-                        self.app.show_success_message(msg)
+                    def operation(d):
+                        set_vcpu(d, int(new_cpu_count))
 
-                        self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
-                        self.vm_info["cpu"] = int(new_cpu_count)
+                    def ui_update():
+                        if not self.is_bulk:
+                            self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
+                            self.vm_info["cpu"] = int(new_cpu_count)
 
-                    if errors:
-                        self.app.show_error_message(f"Errors setting CPU: {'; '.join(errors)}")
+                    self._run_bulk_operation(
+                        targets,
+                        operation,
+                        f"CPU count set to {new_cpu_count}"
+                        + (" for {count} VMs ({names})" if self.is_bulk else ""),
+                        "Errors setting CPU",
+                        ui_update,
+                    )
 
             self.app.push_screen(
                 EditCpuModal(current_cpu=str(self.vm_info.get("cpu", ""))), edit_cpu_callback
             )
 
-        elif event.button.id == "edit-memory":
+        elif button_id == "edit-memory":
 
             def edit_memory_callback(new_memory_size):
                 if new_memory_size is not None and new_memory_size.isdigit():
                     targets = self.selected_domains if self.is_bulk else [self.domain]
-                    errors = []
-                    success_count = 0
-                    for d in targets:
-                        try:
-                            set_memory(d, int(new_memory_size))
-                            success_count += 1
-                        except (libvirt.libvirtError, Exception) as e:
-                            errors.append(f"{d.name()}: {e}")
 
-                    if success_count > 0:
-                        self._invalidate_cache()
-                        msg = f"Memory size set to {new_memory_size} MB"
-                        if self.is_bulk:
-                            msg += f" for {success_count} VMs"
-                        self.app.show_success_message(msg)
+                    def operation(d):
+                        set_memory(d, int(new_memory_size))
 
-                        self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
-                        self.vm_info["memory"] = int(new_memory_size)
+                    def ui_update():
+                        if not self.is_bulk:
+                            self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
+                            self.vm_info["memory"] = int(new_memory_size)
 
-                    if errors:
-                        self.app.show_error_message(f"Errors setting memory: {'; '.join(errors)}")
+                    self._run_bulk_operation(
+                        targets,
+                        operation,
+                        f"Memory size set to {new_memory_size} MB"
+                        + (" for {count} VMs ({names})" if self.is_bulk else ""),
+                        "Errors setting memory",
+                        ui_update,
+                    )
 
             self.app.push_screen(
                 EditMemoryModal(current_memory=str(self.vm_info.get("memory", ""))),
                 edit_memory_callback,
             )
 
-        elif event.button.id == "add-serial-btn":
+        elif button_id == "add-serial-btn":
             targets = self.selected_domains if self.is_bulk else [self.domain]
-            errors = []
-            success_count = 0
-            for d in targets:
-                try:
-                    add_serial_console(d)
-                    success_count += 1
-                except (libvirt.libvirtError, ValueError) as e:
-                    errors.append(f"{d.name()}: {e}")
 
-            if success_count > 0:
-                self._invalidate_cache()
-                msg = "Serial console added successfully."
-                if self.is_bulk:
-                    msg += f" (Applied to {success_count} VMs)"
-                self.app.show_success_message(msg)
+            def serial_add_operation(d):
+                add_serial_console(d)
+
+            def serial_add_ui_update():
                 if not self.is_bulk:
                     self.xml_desc = self.domain.XMLDesc(0)
                     self._populate_serial_table()
 
-            if errors:
-                self.app.show_error_message(f"Errors adding serial console: {'; '.join(errors)}")
+            self._run_bulk_operation(
+                targets,
+                serial_add_operation,
+                "Serial console added successfully"
+                + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                "Errors adding serial console",
+                serial_add_ui_update,
+            )
 
-        elif event.button.id == "remove-serial-btn":
+        elif button_id == "remove-serial-btn":
             if self.selected_serial_port:
+                serial_port = self.selected_serial_port
 
                 def on_confirm_remove(confirmed: bool):
                     if confirmed:
                         targets = self.selected_domains if self.is_bulk else [self.domain]
-                        errors = []
-                        success_count = 0
-                        for d in targets:
-                            try:
-                                remove_serial_console(d, self.selected_serial_port)
-                                success_count += 1
-                            except (libvirt.libvirtError, ValueError) as e:
-                                errors.append(f"{d.name()}: {e}")
 
-                        if success_count > 0:
-                            self._invalidate_cache()
-                            msg = "Serial console removed successfully."
-                            if self.is_bulk:
-                                msg += f" (Applied to {success_count} VMs)"
-                            self.app.show_success_message(msg)
+                        def operation(d):
+                            remove_serial_console(d, serial_port)
+
+                        def ui_update():
                             if not self.is_bulk:
                                 self.xml_desc = self.domain.XMLDesc(0)
                                 self._populate_serial_table()
 
-                        if errors:
-                            self.app.show_error_message(
-                                f"Errors removing serial console: {'; '.join(errors)}"
-                            )
+                        self._run_bulk_operation(
+                            targets,
+                            operation,
+                            "Serial console removed successfully"
+                            + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                            "Errors removing serial console",
+                            ui_update,
+                        )
 
                 msg = (
                     f"Are you sure you want to remove console on port {self.selected_serial_port}?"

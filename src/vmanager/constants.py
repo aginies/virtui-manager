@@ -1339,6 +1339,42 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     AUTOFILL_AND_SCC_CONFIGURATION_UPDATED = _("Auto-fill and SCC configuration updated")
 
 
+class VMDetailConstants:  # pylint: disable=too-few-public-methods
+    """Constants for VM detail modal hardcoded values."""
+
+    TPM_MODELS = [("None", "none"), ("tpm-crb", "tpm-crb"), ("tpm-tis", "tpm-tis")]
+    TPM_TYPES = [("Emulated", "emulated"), ("Passthrough", "passthrough")]
+
+    WATCHDOG_MODELS = [
+        ("None", "none"),
+        ("i6300esb", "i6300esb"),
+        ("ib700", "ib700"),
+        ("diag288", "diag288"),
+    ]
+    WATCHDOG_ACTIONS = [
+        ("Reset", "reset"),
+        ("Shutdown", "shutdown"),
+        ("Poweroff", "poweroff"),
+        ("Pause", "pause"),
+        ("None", "none"),
+        ("Dump", "dump"),
+        ("Inject-NMI", "inject-nmi"),
+    ]
+
+    INPUT_DEVICE_TYPES = ["mouse", "tablet", "keyboard"]
+    INPUT_DEVICE_BUSES = ["usb", "ps2", "virtio"]
+
+    GRAPHICS_TYPES = [("VNC", "vnc"), ("Spice", "spice"), ("None", "")]
+    GRAPHICS_LISTEN_TYPES = [("Address", "address"), ("None", "none")]
+    GRAPHICS_LOCALHOST = "127.0.0.1"
+    GRAPHICS_ALL_INTERFACES = "0.0.0.0"
+
+    VIDEO_MODELS_FALLBACK = [
+        "default", "virtio", "qxl", "vga", "cirrus", "bochs", "ramfb", "none"
+    ]
+    SOUND_MODELS_FALLBACK = ["none", "ich6", "ich9", "ac97", "sb16", "usb"]
+
+
 class ProgressMessages:  # pylint: disable=too-few-public-methods
     """Constants for success messages"""
 
