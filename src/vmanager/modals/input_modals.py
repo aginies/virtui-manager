@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Input, Label, Select
 
-from ..constants import ButtonLabels, ErrorMessages, StaticText
+from ..constants import ButtonLabels, ErrorMessages, StaticText, VMDetailConstants
 from .base_modals import BaseModal
 
 
@@ -83,6 +83,62 @@ class AddInputDeviceModal(BaseModal[None]):
                 self.dismiss()
         else:
             self.dismiss()
+
+
+class AddWatchdogModal(BaseModal[dict | None]):
+    """A modal for adding or editing a watchdog device."""
+
+    def __init__(self, current_model: str = None, current_action: str = None):
+        super().__init__()
+        self.current_model = current_model
+        self.current_action = current_action
+        self.is_edit = current_model is not None
+
+    def compose(self) -> ComposeResult:
+        models = [(label, val) for label, val in VMDetailConstants.WATCHDOG_MODELS if val != "none"]
+        # Add current model if not in list
+        known = [m[1] for m in models]
+        if self.current_model and self.current_model not in known:
+            models.append((self.current_model, self.current_model))
+
+        btn_label = ButtonLabels.APPLY if self.is_edit else ButtonLabels.ADD
+        with Vertical(id="add-watchdog-container"):
+            yield Label(StaticText.WATCHDOG_MODEL)
+            yield Select(
+                models,
+                value=self.current_model if self.is_edit else Select.NULL,
+                prompt="Select model",
+                id="watchdog-model-select",
+            )
+            yield Label(StaticText.ACTION_LABEL)
+            yield Select(
+                VMDetailConstants.WATCHDOG_ACTIONS,
+                value=self.current_action if self.is_edit else Select.NULL,
+                prompt="Select action",
+                id="watchdog-action-select",
+            )
+            with Horizontal():
+                yield Button(btn_label, variant="primary", id="add-watchdog", disabled=not self.is_edit)
+                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-watchdog")
+
+    @on(Select.Changed)
+    def on_select_changed(self) -> None:
+        model_select = self.query_one("#watchdog-model-select", Select)
+        action_select = self.query_one("#watchdog-action-select", Select)
+        is_model_selected = model_select.value != Select.NULL
+        is_action_selected = action_select.value != Select.NULL
+        self.query_one("#add-watchdog", Button).disabled = not (is_model_selected and is_action_selected)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "add-watchdog":
+            model = self.query_one("#watchdog-model-select", Select).value
+            action = self.query_one("#watchdog-action-select", Select).value
+            if model and action:
+                self.dismiss({"model": model, "action": action})
+            else:
+                self.dismiss(None)
+        else:
+            self.dismiss(None)
 
 
 class AddChannelModal(BaseModal[dict | None]):

@@ -60,9 +60,11 @@ from ..vm_actions import (
     add_virtiofs,
     add_vm_channel,
     add_vm_input,
+    attach_pci_device,
     attach_usb_device,
     change_vm_network,
     check_for_other_spice_devices,
+    detach_pci_device,
     detach_usb_device,
     disable_disk,
     enable_disk,
@@ -127,7 +129,7 @@ from .cpu_mem_pc_modals import (
 from .disk_pool_modals import AddDiskModal, EditDiskModal, SelectDiskModal, SelectPoolModal
 from .howto_disk_modal import HowToDiskModal
 from .howto_virtiofs_modal import HowToVirtIOFSModal
-from .input_modals import AddChannelModal, AddInputDeviceModal
+from .input_modals import AddChannelModal, AddInputDeviceModal, AddWatchdogModal
 from .network_modals import AddEditNetworkInterfaceModal
 from .utils_modals import ConfirmationDialog, FileSelectionModal, ProgressModal
 from .virtiofs_modals import AddEditVirtIOFSModal
@@ -167,6 +169,8 @@ class VMDetailModal(ModalScreen):
         self.selected_network_interface = None
         self.serial_devices = []
         self.selected_serial_port = None
+        self.watchdog_devices = []
+        self.selected_watchdog = None
         self.input_devices = []
         self.selected_input_device = None
         self.selected_controller = None
@@ -410,6 +414,7 @@ class VMDetailModal(ModalScreen):
             self._populate_usb_lists()
             self._populate_pci_lists()
             self._populate_serial_table()
+            self._populate_watchdog_table()
             self._populate_input_table()
             self._populate_channel_table()
 
@@ -1580,11 +1585,51 @@ class VMDetailModal(ModalScreen):
 
     @on(Button.Pressed, "#attach-pci-btn")
     def on_attach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        self.app.show_error_message(ErrorMessages.PCI_PASSTHROUGH_NOT_IMPLEMENTED)
+        available_list = self.query_one("#available-pci-list", ListView)
+        if available_list.highlighted_child:
+            device_to_attach = available_list.highlighted_child.data
+            pci_address = device_to_attach.get("pci_address")
+            if not pci_address:
+                self.app.show_error_message("Cannot attach: device has no PCI address.")
+                return
+            try:
+                attach_pci_device(self.domain, pci_address)
+                self._invalidate_cache()
+                self.app.show_success_message(
+                    SuccessMessages.PCI_DEVICE_ATTACHED_TEMPLATE.format(
+                        description=device_to_attach["description"]
+                    )
+                )
+                self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+                self._populate_pci_lists()
+            except (libvirt.libvirtError, Exception) as e:
+                self.app.show_error_message(
+                    ErrorMessages.ERROR_ATTACHING_PCI_DEVICE_TEMPLATE.format(error=e)
+                )
 
     @on(Button.Pressed, "#detach-pci-btn")
     def on_detach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        self.app.show_error_message(ErrorMessages.PCI_PASSTHROUGH_NOT_IMPLEMENTED)
+        attached_list = self.query_one("#attached-pci-list", ListView)
+        if attached_list.highlighted_child:
+            device_to_detach = attached_list.highlighted_child.data
+            pci_address = device_to_detach.get("pci_address")
+            if not pci_address:
+                self.app.show_error_message("Cannot detach: device has no PCI address.")
+                return
+            try:
+                detach_pci_device(self.domain, pci_address)
+                self._invalidate_cache()
+                self.app.show_success_message(
+                    SuccessMessages.PCI_DEVICE_DETACHED_TEMPLATE.format(
+                        description=device_to_detach["description"]
+                    )
+                )
+                self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+                self._populate_pci_lists()
+            except libvirt.libvirtError as e:
+                self.app.show_error_message(
+                    ErrorMessages.ERROR_DETACHING_PCI_DEVICE_TEMPLATE.format(error=e)
+                )
 
     def _populate_serial_table(self):
         """Populates the serial devices table."""
@@ -2432,55 +2477,27 @@ class VMDetailModal(ModalScreen):
                                 disabled=True,
                             )
                 with TabPane("Watchdog", id="detail-watchdog-tab"):
-                    watchdog_model = (
-                        self.watchdog_info.get("model")
-                        if self.watchdog_info and self.watchdog_info.get("model")
-                        else "none"
-                    )
-                    watchdog_action = (
-                        self.watchdog_info.get("action")
-                        if self.watchdog_info and self.watchdog_info.get("action")
-                        else "reset"
-                    )
-
-                    with Vertical(classes="info-details"):
-                        yield Label(StaticText.WATCHDOG_MODEL)
-
-                        watchdog_models = list(VMDetailConstants.WATCHDOG_MODELS)
-
-                        # Add current model if not in list to prevent crash
-                        known_models = [m[1] for m in watchdog_models]
-                        if watchdog_model not in known_models:
-                            watchdog_models.append((watchdog_model, watchdog_model))
-
-                        yield Select(
-                            watchdog_models,
-                            value=watchdog_model,
-                            id="watchdog-model-select",
-                            disabled=not self.is_vm_stopped,
-                            allow_blank=False,
-                        )
-                        yield Label(StaticText.ACTION_LABEL)
-                        yield Select(
-                            VMDetailConstants.WATCHDOG_ACTIONS,
-                            value=watchdog_action,
-                            id="watchdog-action-select",
-                            disabled=not self.is_vm_stopped,
-                            allow_blank=False,
-                        )
+                    with ScrollableContainer(classes="info-details"):
+                        yield DataTable(id="watchdog-table", cursor_type="row")
                     with Vertical(classes="button-details"):
                         with Horizontal():
                             yield Button(
-                                ButtonLabels.APPLY_WATCHDOG_SETTINGS,
-                                id="apply-watchdog-btn",
+                                ButtonLabels.ADD_WATCHDOG,
+                                id="add-watchdog-btn",
                                 variant="primary",
                                 disabled=not self.is_vm_stopped,
+                            )
+                            yield Button(
+                                ButtonLabels.EDIT_WATCHDOG,
+                                id="edit-watchdog-btn",
+                                variant="primary",
+                                disabled=True,
                             )
                             yield Button(
                                 ButtonLabels.REMOVE_WATCHDOG,
                                 id="remove-watchdog-btn",
                                 variant="error",
-                                disabled=not self.is_vm_stopped or watchdog_model == "none",
+                                disabled=True,
                             )
 
                 if not self.is_bulk:
@@ -2661,54 +2678,102 @@ class VMDetailModal(ModalScreen):
         except Exception:
             logging.debug("TPM apply button widget not available")
 
-    def _update_watchdog_ui(self) -> None:
-        """Updates the UI elements for the Watchdog tab."""
-        try:
-            model = self.watchdog_info.get("model") if self.watchdog_info else "none"
-            action = self.watchdog_info.get("action") if self.watchdog_info else "reset"
+    def _populate_watchdog_table(self):
+        """Populates the watchdog devices table."""
+        watchdog_table = self.query_one("#watchdog-table", DataTable)
+        watchdog_table.clear()
+        if not watchdog_table.columns:
+            watchdog_table.add_column("Model", key="model")
+            watchdog_table.add_column("Action", key="action")
 
-            self.query_one("#watchdog-model-select", Select).value = model
-            self.query_one("#watchdog-action-select", Select).value = action
+        root = self._get_xml_root()
+        self.watchdog_devices = get_vm_watchdog_info(root)
+        for i, device in enumerate(self.watchdog_devices):
+            row_key = f"{device['model']}-{device['action']}-{i}"
+            watchdog_table.add_row(device["model"], device["action"], key=row_key)
 
-            self.query_one("#apply-watchdog-btn", Button).disabled = not self.is_vm_stopped
-            self.query_one("#remove-watchdog-btn", Button).disabled = (
-                not self.is_vm_stopped or model == "none"
-            )
-        except Exception:
-            logging.debug("Watchdog UI widgets not available")
+    @on(DataTable.RowSelected, "#watchdog-table")
+    def on_watchdog_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        row_index = event.cursor_row
+        if 0 <= row_index < len(self.watchdog_devices):
+            self.selected_watchdog = self.watchdog_devices[row_index]
+            self.query_one("#edit-watchdog-btn").disabled = not self.is_vm_stopped
+            self.query_one("#remove-watchdog-btn").disabled = not self.is_vm_stopped
+        else:
+            self.selected_watchdog = None
+            self.query_one("#edit-watchdog-btn").disabled = True
+            self.query_one("#remove-watchdog-btn").disabled = True
 
-    @on(Button.Pressed, "#apply-watchdog-btn")
-    def on_watchdog_apply_button_pressed(self, event: Button.Pressed) -> None:
+    @on(Button.Pressed, "#add-watchdog-btn")
+    def on_watchdog_add_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
-            self.app.show_error_message("VM must be stopped to apply Watchdog settings.")
+            self.app.show_error_message("VM must be stopped to add Watchdog device.")
             return
 
-        model = self.query_one("#watchdog-model-select", Select).value
-        action = self.query_one("#watchdog-action-select", Select).value
+        def add_watchdog_callback(result):
+            if result is None:
+                return
+            model = result["model"]
+            action = result["action"]
+            targets = self.selected_domains if self.is_bulk else [self.domain]
 
-        if model == "none":
-            # If none is selected, treat it as removal
-            self.on_watchdog_remove_button_pressed(event)
+            def operation(d):
+                set_vm_watchdog(d, model, action)
+
+            def ui_update():
+                if not self.is_bulk:
+                    self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+                    self._populate_watchdog_table()
+
+            self._run_bulk_operation(
+                targets,
+                operation,
+                f"Watchdog {model} ({action}) added successfully"
+                + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                "Error adding Watchdog device",
+                ui_update,
+            )
+
+        self.app.push_screen(AddWatchdogModal(), add_watchdog_callback)
+
+    @on(Button.Pressed, "#edit-watchdog-btn")
+    def on_watchdog_edit_button_pressed(self, event: Button.Pressed) -> None:
+        if not self.is_vm_stopped:
+            self.app.show_error_message("VM must be stopped to edit Watchdog device.")
             return
 
-        targets = self.selected_domains if self.is_bulk else [self.domain]
+        if not self.selected_watchdog:
+            return
 
-        def operation(d):
-            set_vm_watchdog(d, model, action)
+        current = self.selected_watchdog
 
-        def ui_update():
-            if not self.is_bulk:
-                root = self._get_xml_root()
-                self.watchdog_info = get_vm_watchdog_info(root)
-                self._update_watchdog_ui()
+        def edit_watchdog_callback(result):
+            if result is None:
+                return
+            model = result["model"]
+            action = result["action"]
+            targets = self.selected_domains if self.is_bulk else [self.domain]
 
-        self._run_bulk_operation(
-            targets,
-            operation,
-            "Watchdog settings applied successfully"
-            + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
-            "Error applying Watchdog settings",
-            ui_update,
+            def operation(d):
+                set_vm_watchdog(d, model, action)
+
+            def ui_update():
+                if not self.is_bulk:
+                    self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+                    self._populate_watchdog_table()
+
+            self._run_bulk_operation(
+                targets,
+                operation,
+                f"Watchdog updated to {model} ({action})"
+                + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                "Error updating Watchdog device",
+                ui_update,
+            )
+
+        self.app.push_screen(
+            AddWatchdogModal(current_model=current["model"], current_action=current["action"]),
+            edit_watchdog_callback,
         )
 
     @on(Button.Pressed, "#remove-watchdog-btn")
@@ -2717,33 +2782,38 @@ class VMDetailModal(ModalScreen):
             self.app.show_error_message("VM must be stopped to remove Watchdog.")
             return
 
+        if not self.selected_watchdog:
+            return
+
+        selected = self.selected_watchdog
+
         def on_confirm(confirmed: bool):
             if confirmed:
                 targets = self.selected_domains if self.is_bulk else [self.domain]
 
                 def operation(d):
-                    remove_vm_watchdog(d)
+                    remove_vm_watchdog(d, selected["model"], selected["action"])
 
                 def ui_update():
                     if not self.is_bulk:
-                        self.watchdog_info = {
-                            "model": "none",
-                            "action": "reset",
-                        }  # Reset to defaults
-                        self._update_watchdog_ui()
+                        self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+                        self._populate_watchdog_table()
+                        self.selected_watchdog = None
+                        self.query_one("#remove-watchdog-btn").disabled = True
 
                 self._run_bulk_operation(
                     targets,
                     operation,
-                    "Watchdog removed successfully"
+                    f"Watchdog {selected['model']} removed successfully"
                     + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
                     "Error removing Watchdog",
                     ui_update,
                 )
 
-        self.app.push_screen(
-            ConfirmationDialog("Are you sure you want to remove the watchdog device?"), on_confirm
-        )
+        msg = f"Remove watchdog device '{selected['model']}' ({selected['action']})?"
+        if self.is_bulk:
+            msg += " This will apply to ALL selected VMs."
+        self.app.push_screen(ConfirmationDialog(msg), on_confirm)
 
     def _add_controller(self, add_func, args, device_name):
         """Generic handler for adding controllers (USB2, USB3, SCSI)."""

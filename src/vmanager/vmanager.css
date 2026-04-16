@@ -114,12 +114,17 @@ Toast.-inprogress {
 #server-management-dialog {
     height: 20;
 }
-#add-input-container { 
+AddInputDeviceModal,
+AddWatchdogModal {
+    align: center middle;
+}
+
+#add-input-container,
+#add-watchdog-container {
     height: 13;
     width: 50%;
     border: round $primary;
     content-align: center middle;
-    align: center middle;
 }
 
 /* Default width for many dialogs */
@@ -252,7 +257,8 @@ Toast.-inprogress {
 #add-serial-btn,
 #add-input-btn,
 #remove-input-btn,
-#apply-watchdog-btn,
+#add-watchdog-btn,
+#edit-watchdog-btn,
 #remove-watchdog-btn,
 #filter-dialog Button {
     width: 50%;
