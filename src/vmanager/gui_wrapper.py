@@ -439,17 +439,25 @@ class VirtuiWrapper(Gtk.Window):
         terminal.connect("button-press-event", self.on_terminal_button_press)
         # Connect scroll event for zooming
         terminal.connect("scroll-event", self.on_terminal_scroll)
+        # When the terminal allocation changes, tell tmux to refresh so the
+        # TUI inside it receives the new dimensions immediately.
+        if session_name:
+            terminal.connect("size-allocate", self._on_terminal_size_allocate, session_name)
 
         # Pass the terminal itself as user_data to find which tab exited
         terminal.connect("child-exited", self.on_child_exited)
         if not fixed_title:
             terminal.connect("window-title-changed", self.on_window_title_changed)
 
-        # Add terminal to a ScrolledWindow to handle scrolling
-        scrolled_window = Gtk.ScrolledWindow()
-        scrolled_window.set_hexpand(True)
-        scrolled_window.set_vexpand(True)
-        scrolled_window.add(terminal)
+        # Wrap terminal in a box that expands to fill the tab.
+        # Do NOT use ScrolledWindow — it prevents the VTE terminal from
+        # resizing to match the window, so the child process never receives
+        # SIGWINCH and the TUI layout stays fixed.  VTE handles its own
+        # scrollback internally via set_scrollback_lines().
+        terminal_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
+        terminal_box.set_hexpand(True)
+        terminal_box.set_vexpand(True)
+        terminal_box.pack_start(terminal, True, True, 0)
 
         # Custom tab label with close button
         tab_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
@@ -463,12 +471,12 @@ class VirtuiWrapper(Gtk.Window):
         tab_box.pack_start(close_btn, False, False, 0)
         tab_box.show_all()
 
-        self.notebook.append_page(scrolled_window, tab_box)
-        self.notebook.set_tab_reorderable(scrolled_window, True)
+        self.notebook.append_page(terminal_box, tab_box)
+        self.notebook.set_tab_reorderable(terminal_box, True)
 
         # Store tab info
         self.tabs[terminal] = {
-            "page": scrolled_window,
+            "page": terminal_box,
             "label": label,
             "session_name": session_name,
             "allow_copy_paste": allow_copy_paste,
@@ -477,10 +485,26 @@ class VirtuiWrapper(Gtk.Window):
         self.spawn_process(terminal, command)
 
         # Ensure the new tab content is visible
-        scrolled_window.show_all()
+        terminal_box.show_all()
         # Switch to the new tab
         self.notebook.set_current_page(-1)
         return terminal
+
+    def _on_terminal_size_allocate(self, terminal, allocation, session_name):
+        """When a tmux-backed terminal resizes, tell tmux to refresh its client
+        so the inner TUI receives the updated dimensions promptly."""
+        if is_running_under_flatpak():
+            tmux_bin = "/app/bin/tmux"
+        else:
+            tmux_bin = "tmux"
+        try:
+            subprocess.Popen(
+                [tmux_bin, "refresh-client", "-t", session_name],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
 
     def on_terminal_scroll(self, widget, event):
         """Handle scroll events for zooming with Ctrl + Scroll."""
