@@ -1724,7 +1724,8 @@ class VMCard(Static):
                         self.app.show_success_message(SuccessMessages.NO_XML_CHANGES)
 
             self.app.push_screen(
-                XMLDisplayModal(original_xml, read_only=not is_stopped), handle_xml_modal_result
+                XMLDisplayModal(original_xml, read_only=not is_stopped, vm_name=self.name),
+                handle_xml_modal_result,
             )
         except libvirt.libvirtError as e:
             self.app.show_error_message(
