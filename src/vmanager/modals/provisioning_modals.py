@@ -484,6 +484,10 @@ class InstallVMModal(BaseModal[str | None]):
             mem = 4
             vcpu = 4
             disk_size = 30
+        elif vm_type == VMType.LOW_RESOURCE:
+            mem = 0.5
+            vcpu = 1
+            disk_size = 6
         elif vm_type == VMType.WDESKTOP:
             mem = 16
             vcpu = 8
