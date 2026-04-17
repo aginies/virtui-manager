@@ -56,6 +56,7 @@ class VMType(Enum):
     SECURE = StaticText.VM_TYPE_SECURE
     COMPUTATION = StaticText.VM_TYPE_COMPUTATION
     DESKTOP = StaticText.VM_TYPE_DESKTOP
+    LOW_RESOURCE = StaticText.VM_TYPE_LOW_RESOURCE
     WDESKTOP = StaticText.VM_TYPE_WDESKTOP
     WLDESKTOP = StaticText.VM_TYPE_WLDESKTOP
     SERVER = StaticText.VM_TYPE_SERVER
@@ -1082,6 +1083,22 @@ class VMProvisioner:
                     "suspend_to_mem": "on",
                     "suspend_to_disk": "on",
                     "mem_backing": "memfd",
+                    "sound_model": "ich9",
+                    "on_poweroff": "destroy",
+                    "on_reboot": "restart",
+                    "on_crash": "destroy",
+                }
+            )
+        elif vm_type == VMType.LOW_RESOURCE:
+            settings.update(
+                {
+                    "disk_cache": "none",
+                    "disk_format": "qcow2",
+                    "video": "virtio",
+                    "network_model": "virtio",
+                    "suspend_to_mem": "on",
+                    "suspend_to_disk": "on",
+                    "mem_backing": False,
                     "sound_model": "ich9",
                     "on_poweroff": "destroy",
                     "on_reboot": "restart",
@@ -2260,13 +2277,27 @@ class VMProvisioner:
 
         preallocation = (
             "metadata"
-            if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP]
+            if vm_type
+            in [
+                VMType.SECURE,
+                VMType.DESKTOP,
+                VMType.LOW_RESOURCE,
+                VMType.WDESKTOP,
+                VMType.WLDESKTOP,
+            ]
             else "off"
         )
         lazy_refcounts = True if vm_type in [VMType.SECURE, VMType.COMPUTATION] else False
         cluster_size = (
             "1024k"
-            if vm_type in [VMType.SECURE, VMType.DESKTOP, VMType.WDESKTOP, VMType.WLDESKTOP]
+            if vm_type
+            in [
+                VMType.SECURE,
+                VMType.DESKTOP,
+                VMType.LOW_RESOURCE,
+                VMType.WDESKTOP,
+                VMType.WLDESKTOP,
+            ]
             else None
         )
 
