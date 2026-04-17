@@ -43,7 +43,7 @@ from .disk_pool_modals import (
     MoveVolumeModal,
 )
 from .howto_network_modal import HowToNetworkModal
-from .network_modals import AddEditNetworkModal, NetworkXMLModal
+from .network_modals import AddEditNetworkModal
 from .utils_modals import ConfirmationDialog, ProgressModal
 from .xml_modals import XMLDisplayModal
 
@@ -529,7 +529,7 @@ class ServerPrefModal(BaseModal[None]):
 
         try:
             xml_content = target_obj.XMLDesc(0)
-            self.app.push_screen(XMLDisplayModal(xml_content, read_only=True))
+            self.app.push_screen(XMLDisplayModal(xml_content, read_only=True, vm_name=target_obj.name()))
         except libvirt.libvirtError as e:
             self.app.show_error_message(
                 ErrorMessages.ERROR_GETTING_XML_FOR_TYPE_TEMPLATE.format(
@@ -592,7 +592,9 @@ class ServerPrefModal(BaseModal[None]):
                         ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
                     )
 
-            self.app.push_screen(XMLDisplayModal(xml_content, read_only=False), on_xml_save)
+            self.app.push_screen(
+                XMLDisplayModal(xml_content, read_only=False, vm_name=pool.name()), on_xml_save
+            )
 
         warning_message = ErrorMessages.EDIT_POOL_XML_WARNING
         self.app.push_screen(ConfirmationDialog(warning_message), on_edit_confirm)
@@ -1076,7 +1078,7 @@ class ServerPrefModal(BaseModal[None]):
                     return
                 net = conn.networkLookupByName(network_name)
                 network_xml = net.XMLDesc(0)
-                self.app.push_screen(NetworkXMLModal(network_name, network_xml))
+                self.app.push_screen(XMLDisplayModal(network_xml, read_only=True, vm_name=network_name))
             except libvirt.libvirtError as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_GETTING_NETWORK_XML_TEMPLATE.format(error=e)
