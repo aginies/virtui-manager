@@ -769,7 +769,9 @@ class VMManagerTUI(App):
             container_width = 84
 
         rows = 3  # Default to 3 rows (card height 9)
-        if height > 42:
+        if height < 25:
+            rows = 2
+        elif height > 42:
             rows = 4
 
         if self.compact_view:
@@ -802,6 +804,10 @@ class VMManagerTUI(App):
                 )
             )
 
+        # Force a full compositor reflow — same mechanism as modal dismiss.
+        # refresh(layout=True) alone only marks for repaint; _refresh_layout
+        # recalculates widget positions/sizes through the compositor.
+        self.screen._refresh_layout(self.size)
         self.refresh_vm_list(force=True)
 
     def on_resize(self, event):
@@ -810,7 +816,7 @@ class VMManagerTUI(App):
             return
         if self._resize_timer:
             self._resize_timer.stop()
-        self._resize_timer = self.set_timer(0.5, self._update_layout_for_size)
+        self._resize_timer = self.set_timer(0.3, self._update_layout_for_size)
 
     def on_unload(self) -> None:
         """Called when the app is about to be unloaded."""
@@ -2002,6 +2008,9 @@ class VMManagerTUI(App):
                 # Mount any new cards
                 if cards_to_mount:
                     vms_container.mount(*cards_to_mount)
+
+                # Force layout refresh after card changes
+                vms_container.refresh(layout=True)
 
                 for card in vms_container.query(VMCard):
                     card.compact_view = self.compact_view

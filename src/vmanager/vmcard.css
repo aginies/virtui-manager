@@ -188,6 +188,6 @@ Button {
     height: 1;
     width: 100%;
     margin: 0 0 0 5;
-    padding: 0;
+    padding: 0 1 0 0;
 }
 
