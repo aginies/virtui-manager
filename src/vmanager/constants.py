@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.0.1"
+    version = "3.0.2"
     author = "Antoine Ginies"
 
 
@@ -154,6 +154,8 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     ADD_SCSI = _("Add SCSI")
     ATTACH_ARROW = _("Attach >")
     DETACH_ARROW = _("< Detach")
+    ATTACH_DOWN = _("Attach ↓")
+    DETACH_UP = _("↑ Detach")
     ADD_CHANNEL = _("Add Channel")
     REMOVE_CHANNEL = _("Remove Channel")
     OTHER_TABS = _("Other Tabs")
@@ -161,6 +163,7 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     CLONE = _("Clone")
     MIGRATION = _("Migration")
     VIEW_XML = _("View XML")
+    EXPORT = _("Export")
     RENAME = _("Rename")
     SELECT_SERVER = _("[b][#FFD700]S[/][/]elect Servers")
     MANAGE_SERVERS = _("Servers [b][#FFD700]L[/][/]ist")
@@ -433,7 +436,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     USE_CUSTOM_DNS_DOMAIN = _("Use Custom DNS Domain")
     USE_NETWORK_NAME_FOR_DNS = _("Use Network Name for DNS")
     CUSTOM_DNS_DOMAIN = _("Custom DNS Domain")
-    NETWORK_DETAILS = _("Network Details")
     UNDEFINE_SOURCE_VM = _("Delete VM from source host")
     EDIT_DISK_TITLE = _("Edit Disk: {path}")
     MOVE_VOLUME_TITLE = _("Move Volume: {volume_name}")
@@ -678,6 +680,7 @@ Specify the NUMA nodes to use.
     CANNOT_DELETE_BUILTIN_TEMPLATE = _("Built-in templates cannot be deleted")
     TEMPLATE_DELETED_SUCCESSFULLY = _("Template '{template_name}' deleted successfully")
     TEMPLATE_EXPORTED_TO = _("Template exported to {path}")
+    XML_EXPORTED_TO = _("XML exported to {path}")
     TEMPLATE_IMPORTED_SUCCESSFULLY = _("Template '{template_name}' imported successfully")
     CONFIGURE_AUTOMATION_PREFILL = _("Auto-fill")
     CONFIGURE_AUTOMATION_AND_SCC_TITLE = _("Configure Automated Installation & SCC")
@@ -764,6 +767,7 @@ Specify the NUMA nodes to use.
     VM_TYPE_SECURE = _("Secure VM")
     VM_TYPE_COMPUTATION = _("Computation")
     VM_TYPE_DESKTOP = _("Desktop (Linux)")
+    VM_TYPE_LOW_RESOURCE = _("Linux Low Resource")
     VM_TYPE_WDESKTOP = _("Windows")
     VM_TYPE_WLDESKTOP = _("Windows Legacy")
     VM_TYPE_SERVER = _("Server")
@@ -1004,6 +1008,7 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     FAILED_TO_CREATE_SSH_TUNNEL_GENERIC = _("Failed to create SSH tunnel...")
     PLEASE_SELECT_ACTION = _("Please select an action.")
     ERROR_SAVING_CONFIGURATION_TEMPLATE = _("Error saving configuration: {e}")
+    ERROR_EXPORTING_XML_TEMPLATE = _("Error exporting XML: {error}")
     VALIDATION_ERROR_TEMPLATE = _("Validation error: {error}")
     INVALID_FORMAT_TEMPLATE = _("Invalid format: {error}")
     INVALID_NODESET_SYNTAX_TEMPLATE = _("Invalid nodeset syntax: {nodeset}")

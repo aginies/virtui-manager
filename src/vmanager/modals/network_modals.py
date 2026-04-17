@@ -512,35 +512,3 @@ class AddEditNetworkModal(BaseModal[None]):
                     self.app.call_from_thread(self.app.show_error_message, err_msg)
 
             self.app.worker_manager.run(do_create_or_update_network, name=f"update_network_{name}")
-
-
-class NetworkXMLModal(BaseModal[None]):
-    """Modal screen to show detailed network information."""
-
-    def __init__(self, network_name: str, network_xml: str) -> None:
-        super().__init__()
-        self.network_name = network_name
-        self.network_xml = network_xml
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="network-detail-dialog"):
-            yield Label(
-                StaticText.NETWORK_DETAILS.format(network_name=self.network_name), id="title"
-            )
-            with ScrollableContainer():
-                text_area = TextArea(self.network_xml, read_only=True)
-                try:
-                    text_area.language = "xml"
-                except LanguageDoesNotExist:
-                    text_area.language = None
-                text_area.styles.height = "auto"
-                yield text_area
-            with Horizontal():
-                yield Button(
-                    ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-btn"
-                )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button press events."""
-        if event.button.id == "close-btn":
-            self.dismiss(None)

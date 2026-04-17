@@ -270,9 +270,33 @@ ChangeNetworkDialog > #dialog { height: 20; }
 InputModal > #input-modal-container { height: 16; }
 AddInputDeviceModal > #add-input-container { height: 16; }
 PasswordModal > #password-dialog { height: 12; }
-XMLDisplayModal > #xml-display-dialog, #xml-textarea, { 
-  width: 100%; 
-  height: 95%; 
+XMLDisplayModal > #xml-display-dialog {
+  width: 100%;
+  height: 95%;
+}
+
+#xml-textarea {
+  width: 100%;
+  height: 1fr;
+}
+
+#xml-buttons {
+  width: 100%;
+  height: auto;
+  align: center middle;
+}
+
+#xml-buttons Button {
+  width: 1fr;
+}
+
+#xml-display-title {
+  width: 100%;
+  text-align: center;
+  text-style: bold;
+  background: $primary;
+  color: $text;
+  padding: 0 1;
 }
 
 /* === CENTERED CONTENT === */

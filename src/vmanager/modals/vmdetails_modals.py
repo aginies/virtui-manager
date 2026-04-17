@@ -174,6 +174,9 @@ class VMDetailModal(ModalScreen):
         self.input_devices = []
         self.selected_input_device = None
         self.selected_controller = None
+        self._pci_available_devices = {}
+        self._pci_attached_devices = {}
+        self._pci_host_devices_by_addr = {}
         self.selected_channel = None
         self.boot_order = self.vm_info.get("boot", {}).get("order", [])
         self.all_bootable_devices = []  # Initialize the new reactive list
@@ -1323,6 +1326,10 @@ class VMDetailModal(ModalScreen):
             logging.info("No SPICE devices to remove, applying settings directly.")
             do_apply_graphics_settings()
 
+    @on(Input.Changed, "#rng-host-device")
+    def on_rng_input_changed(self, event: Input.Changed) -> None:
+        self.query_one("#apply-rng-btn", Button).disabled = not bool(event.value.strip())
+
     @on(Button.Pressed, "#apply-rng-btn")
     def on_rng_apply_button_pressed(self, event: Button.Pressed) -> None:
         if not self.is_vm_stopped:
@@ -1538,98 +1545,151 @@ class VMDetailModal(ModalScreen):
                 )
 
     def _populate_pci_lists(self):
-        """Populates the PCI device lists."""
-        available_list = self.query_one("#available-pci-list", ListView)
-        attached_list = self.query_one("#attached-pci-list", ListView)
-        available_list.clear()
-        attached_list.clear()
+        """Populates the PCI device tables with IOMMU group information."""
+        available_table = self.query_one("#available-pci-table", DataTable)
+        attached_table = self.query_one("#attached-pci-table", DataTable)
+        available_table.clear()
+        attached_table.clear()
+
+        if not available_table.columns:
+            available_table.add_columns("IOMMU", "Device", "Driver", "Address")
+        if not attached_table.columns:
+            attached_table.add_columns("IOMMU", "Device", "Address")
 
         host_devices = get_host_pci_devices(self.conn)
         root = self._get_xml_root()
         attached_device_info = get_attached_pci_devices(root)
 
         attached_pci_addresses = [d["pci_address"] for d in attached_device_info]
+        # Store device data keyed by row key for later retrieval
+        self._pci_available_devices = {}
+        self._pci_attached_devices = {}
+        # Build lookup of all host devices by address for IOMMU group display
+        self._pci_host_devices_by_addr = {d["pci_address"]: d for d in host_devices if d.get("pci_address")}
 
-        for dev in host_devices:
-            if dev["pci_address"] in attached_pci_addresses:
-                item = ListItem(Label(dev["description"]))
-                item.tooltip = dev["description"]
-                item.data = dev
-                attached_list.append(item)
-                attached_pci_addresses.remove(dev["pci_address"])  # Remove so it's not added twice
+        # Sort by IOMMU group for clear visual grouping
+        sorted_devices = sorted(host_devices, key=lambda d: (d.get("iommu_group", -1), d.get("pci_address", "")))
+
+        for dev in sorted_devices:
+            iommu = str(dev.get("iommu_group", "?"))
+            device_label = f"{dev['vendor_name']} {dev['product_name']}"
+            driver = dev.get("driver", "")
+            addr = dev.get("pci_address", "?")
+
+            if addr in attached_pci_addresses:
+                row_key = attached_table.add_row(iommu, device_label, addr, key=addr)
+                self._pci_attached_devices[addr] = dev
+                attached_pci_addresses.remove(addr)
             else:
-                item = ListItem(Label(dev["description"]))
-                item.tooltip = dev["description"]
-                item.data = dev
-                available_list.append(item)
+                row_key = available_table.add_row(iommu, device_label, driver, addr, key=addr)
+                self._pci_available_devices[addr] = dev
 
         # Add any attached devices that are no longer present on the host
         for pci_address in attached_pci_addresses:
-            description = f"Disconnected Device ({pci_address})"
-            item = ListItem(Label(description))
-            item.tooltip = description
-            item.data = {
+            attached_table.add_row("?", "Disconnected", pci_address, key=pci_address)
+            self._pci_attached_devices[pci_address] = {
                 "pci_address": pci_address,
-                "description": description,
+                "description": f"Disconnected Device ({pci_address})",
                 "disconnected": True,
             }
-            attached_list.append(item)
 
-    @on(ListView.Highlighted, "#available-pci-list")
-    def on_available_pci_list_highlighted(self, event: ListView.Highlighted) -> None:
-        self.query_one("#attach-pci-btn", Button).disabled = event.item is None
+        # Clear IOMMU detail on refresh
+        try:
+            self.query_one("#iommu-group-detail", Static).update("")
+        except Exception:
+            pass
 
-    @on(ListView.Highlighted, "#attached-pci-list")
-    def on_attached_pci_list_highlighted(self, event: ListView.Highlighted) -> None:
-        self.query_one("#detach-pci-btn", Button).disabled = event.item is None
+    def _show_iommu_group_detail(self, dev):
+        """Show IOMMU group members for the selected PCI device."""
+        try:
+            detail_widget = self.query_one("#iommu-group-detail", Static)
+        except Exception:
+            return
+
+        iommu_group = dev.get("iommu_group", -1)
+        group_devices = dev.get("iommu_group_devices", [])
+
+        if iommu_group < 0 or not group_devices:
+            detail_widget.update("")
+            return
+
+        lines = [f"IOMMU Group {iommu_group} ({len(group_devices)} device(s)):"]
+        for addr in group_devices:
+            peer = self._pci_host_devices_by_addr.get(addr)
+            if peer:
+                lines.append(f"  {addr}  {peer['vendor_name']} {peer['product_name']} [{peer.get('driver', '')}]")
+            else:
+                lines.append(f"  {addr}")
+        detail_widget.update("\n".join(lines))
+
+    @on(DataTable.RowHighlighted, "#available-pci-table")
+    def on_available_pci_table_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        self.query_one("#attach-pci-btn", Button).disabled = event.row_key is None
+        if event.row_key and str(event.row_key.value) in self._pci_available_devices:
+            self._show_iommu_group_detail(self._pci_available_devices[str(event.row_key.value)])
+
+    @on(DataTable.RowHighlighted, "#attached-pci-table")
+    def on_attached_pci_table_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        self.query_one("#detach-pci-btn", Button).disabled = event.row_key is None
+        if event.row_key and str(event.row_key.value) in self._pci_attached_devices:
+            self._show_iommu_group_detail(self._pci_attached_devices[str(event.row_key.value)])
+
+    def _get_selected_pci_address(self, table: DataTable) -> str | None:
+        """Get the PCI address (row key) of the currently selected row."""
+        if table.cursor_row is None or table.cursor_row >= table.row_count:
+            return None
+        row_key = table.ordered_rows[table.cursor_row].key
+        return str(row_key.value)
 
     @on(Button.Pressed, "#attach-pci-btn")
     def on_attach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        available_list = self.query_one("#available-pci-list", ListView)
-        if available_list.highlighted_child:
-            device_to_attach = available_list.highlighted_child.data
-            pci_address = device_to_attach.get("pci_address")
-            if not pci_address:
-                self.app.show_error_message("Cannot attach: device has no PCI address.")
-                return
-            try:
-                attach_pci_device(self.domain, pci_address)
-                self._invalidate_cache()
-                self.app.show_success_message(
-                    SuccessMessages.PCI_DEVICE_ATTACHED_TEMPLATE.format(
-                        description=device_to_attach["description"]
-                    )
+        available_table = self.query_one("#available-pci-table", DataTable)
+        pci_address = self._get_selected_pci_address(available_table)
+        if not pci_address:
+            return
+        device_to_attach = self._pci_available_devices.get(pci_address)
+        if not device_to_attach:
+            self.app.show_error_message("Cannot attach: device has no PCI address.")
+            return
+        try:
+            attach_pci_device(self.domain, pci_address)
+            self._invalidate_cache()
+            self.app.show_success_message(
+                SuccessMessages.PCI_DEVICE_ATTACHED_TEMPLATE.format(
+                    description=device_to_attach.get("description", pci_address)
                 )
-                self.xml_desc = self.vm_service._get_domain_xml(self.domain)
-                self._populate_pci_lists()
-            except (libvirt.libvirtError, Exception) as e:
-                self.app.show_error_message(
-                    ErrorMessages.ERROR_ATTACHING_PCI_DEVICE_TEMPLATE.format(error=e)
-                )
+            )
+            self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+            self._populate_pci_lists()
+        except (libvirt.libvirtError, Exception) as e:
+            self.app.show_error_message(
+                ErrorMessages.ERROR_ATTACHING_PCI_DEVICE_TEMPLATE.format(error=e)
+            )
 
     @on(Button.Pressed, "#detach-pci-btn")
     def on_detach_pci_button_pressed(self, event: Button.Pressed) -> None:
-        attached_list = self.query_one("#attached-pci-list", ListView)
-        if attached_list.highlighted_child:
-            device_to_detach = attached_list.highlighted_child.data
-            pci_address = device_to_detach.get("pci_address")
-            if not pci_address:
-                self.app.show_error_message("Cannot detach: device has no PCI address.")
-                return
-            try:
-                detach_pci_device(self.domain, pci_address)
-                self._invalidate_cache()
-                self.app.show_success_message(
-                    SuccessMessages.PCI_DEVICE_DETACHED_TEMPLATE.format(
-                        description=device_to_detach["description"]
-                    )
+        attached_table = self.query_one("#attached-pci-table", DataTable)
+        pci_address = self._get_selected_pci_address(attached_table)
+        if not pci_address:
+            return
+        device_to_detach = self._pci_attached_devices.get(pci_address)
+        if not device_to_detach:
+            self.app.show_error_message("Cannot detach: device has no PCI address.")
+            return
+        try:
+            detach_pci_device(self.domain, pci_address)
+            self._invalidate_cache()
+            self.app.show_success_message(
+                SuccessMessages.PCI_DEVICE_DETACHED_TEMPLATE.format(
+                    description=device_to_detach.get("description", pci_address)
                 )
-                self.xml_desc = self.vm_service._get_domain_xml(self.domain)
-                self._populate_pci_lists()
-            except libvirt.libvirtError as e:
-                self.app.show_error_message(
-                    ErrorMessages.ERROR_DETACHING_PCI_DEVICE_TEMPLATE.format(error=e)
-                )
+            )
+            self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+            self._populate_pci_lists()
+        except libvirt.libvirtError as e:
+            self.app.show_error_message(
+                ErrorMessages.ERROR_DETACHING_PCI_DEVICE_TEMPLATE.format(error=e)
+            )
 
     def _populate_serial_table(self):
         """Populates the serial devices table."""
@@ -2456,7 +2516,10 @@ class VMDetailModal(ModalScreen):
                         yield Label(StaticText.HOST_DEVICE)
                         yield Input(value=current_path, id="rng-host-device")
                         yield Button(
-                            ButtonLabels.APPLY_RNG_SETTINGS, id="apply-rng-btn", variant="primary"
+                            ButtonLabels.APPLY_RNG_SETTINGS,
+                            id="apply-rng-btn",
+                            variant="primary",
+                            disabled=not bool(current_path),
                         )
 
                 with TabPane("Serial", id="detail-serial-tab"):
@@ -2550,43 +2613,40 @@ class VMDetailModal(ModalScreen):
                             )
                 if not self.is_bulk:
                     with TabPane("USB Host", id="detail-usbhost-tab"):
-                        with Horizontal(classes="boot-manager"):
-                            with Vertical(classes="boot-main-container"):
-                                yield Label(StaticText.AVAILABLE_HOST_USB)
-                                yield ListView(
-                                    id="available-usb-list", classes="boot-list-container"
-                                )
-                            with Vertical(classes="boot-buttons-container"):
+                        with Vertical(id="usb-tab-layout"):
+                            yield Label(StaticText.AVAILABLE_HOST_USB)
+                            yield ListView(
+                                id="available-usb-list", classes="usb-list-container"
+                            )
+                            with Horizontal(id="usb-buttons-row"):
                                 yield Button(
-                                    ButtonLabels.ATTACH_ARROW, id="attach-usb-btn", disabled=True
+                                    ButtonLabels.ATTACH_DOWN, id="attach-usb-btn", disabled=True
                                 )
                                 yield Button(
-                                    ButtonLabels.DETACH_ARROW, id="detach-usb-btn", disabled=True
+                                    ButtonLabels.DETACH_UP, id="detach-usb-btn", disabled=True
                                 )
-                            with Vertical(classes="boot-main-container"):
-                                yield Label(StaticText.ATTACHED_TO_VM)
-                                yield ListView(
-                                    id="attached-usb-list", classes="boot-list-container"
-                                )
+                            yield Label(StaticText.ATTACHED_TO_VM)
+                            yield ListView(
+                                id="attached-usb-list", classes="usb-list-container"
+                            )
                     with TabPane("PCI Host", id="detail-PCIhost-tab"):
-                        with Horizontal(classes="boot-manager"):
-                            with Vertical(classes="boot-main-container"):
-                                yield Label(StaticText.AVAILABLE_HOST_PCI)
-                                yield ListView(
-                                    id="available-pci-list", classes="boot-list-container"
-                                )
-                            with Vertical(classes="boot-buttons-container"):
+                        with Vertical(id="pci-tab-layout"):
+                            yield Label(StaticText.AVAILABLE_HOST_PCI)
+                            yield DataTable(
+                                id="available-pci-table", cursor_type="row"
+                            )
+                            with Horizontal(id="pci-buttons-row"):
                                 yield Button(
-                                    ButtonLabels.ATTACH_ARROW, id="attach-pci-btn", disabled=True
+                                    ButtonLabels.ATTACH_DOWN, id="attach-pci-btn", disabled=True
                                 )
                                 yield Button(
-                                    ButtonLabels.DETACH_ARROW, id="detach-pci-btn", disabled=True
+                                    ButtonLabels.DETACH_UP, id="detach-pci-btn", disabled=True
                                 )
-                            with Vertical(classes="boot-main-container"):
-                                yield Label(StaticText.ATTACHED_TO_VM)
-                                yield ListView(
-                                    id="attached-pci-list", classes="boot-list-container"
-                                )
+                            yield Label(StaticText.ATTACHED_TO_VM)
+                            yield DataTable(
+                                id="attached-pci-table", cursor_type="row"
+                            )
+                            yield Static("", id="iommu-group-detail")
                 # with TabPane("PCIe", id="detail-pcie-tab"):
                 #    yield Label("PCIe")
                 # with TabPane("SATA", id="detail-sata-tab"):
