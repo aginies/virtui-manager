@@ -721,6 +721,32 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                         if all([domain, bus, slot, function]):
                             pci_address = f"{int(domain, 16):04x}:{int(bus, 16):02x}:{int(slot, 16):02x}.{int(function, 16)}"
 
+                    # Extract IOMMU group information
+                    iommu_group = -1
+                    iommu_group_devices = []
+                    iommu_elem = capability.find("iommuGroup")
+                    if iommu_elem is not None:
+                        try:
+                            iommu_group = int(iommu_elem.get("number", -1))
+                        except (ValueError, TypeError):
+                            iommu_group = -1
+                        for addr in iommu_elem.findall("address"):
+                            d = addr.get("domain", "0x0")
+                            b = addr.get("bus", "0x0")
+                            s = addr.get("slot", "0x0")
+                            f = addr.get("function", "0x0")
+                            try:
+                                addr_str = f"{int(d, 16):04x}:{int(b, 16):02x}:{int(s, 16):02x}.{int(f, 16)}"
+                                iommu_group_devices.append(addr_str)
+                            except (ValueError, TypeError):
+                                continue
+
+                    # Extract current driver
+                    driver_name = ""
+                    driver_elem = root.find("driver/name")
+                    if driver_elem is not None and driver_elem.text:
+                        driver_name = driver_elem.text.strip()
+
                     pci_devices.append(
                         {
                             "name": dev.name(),
@@ -729,6 +755,9 @@ def get_host_pci_devices(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                             "vendor_name": vendor_name,
                             "product_name": product_name,
                             "pci_address": pci_address,
+                            "iommu_group": iommu_group,
+                            "iommu_group_devices": iommu_group_devices,
+                            "driver": driver_name,
                             "description": (
                                 f"{vendor_name} - {product_name} ({pci_address})"
                                 if pci_address

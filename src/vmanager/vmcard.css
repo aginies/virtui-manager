@@ -93,7 +93,7 @@ VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab {
 #status.running, #status.stopped, #status.paused, #status.loading, #status.pmsuspended, #status.blocked { color: black; }
 #status.running { background: lightgreen; }
 #status.stopped { background: red; }
-#status.paused { background: yellow; }
+#status.paused { background: orange; }
 #status.pmsuspended { background: lightblue; }
 #status.blocked { background: orange; }
 #status.loading { background: grey; }
