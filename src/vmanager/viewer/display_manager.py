@@ -4,7 +4,6 @@ Display Manager
 Handles VNC and SPICE display protocol initialization and connection management.
 """
 
-import re
 import xml.etree.ElementTree as ET
 from typing import Optional, Tuple, Callable
 
@@ -202,20 +201,14 @@ class DisplayManager:
         return None, None, None, None
 
     def _setup_tunnel_if_needed(self, ssh_tunnel_manager, listen: str, port: str):
-        """Setup SSH tunnel if needed based on listen address."""
-        # If SSH tunnel is configured, setup tunnel for this specific port
-        if ssh_tunnel_manager and ssh_tunnel_manager.ssh_gateway:
-            remote_host = listen
-            if listen == "localhost" or listen == "0.0.0.0":
-                # Extract remote host from libvirt URI
-                match = re.search(
-                    r"qemu\+ssh://(?:[^@]+@)?([^/:]+)", ssh_tunnel_manager.ssh_gateway
-                )
-                if match:
-                    remote_host = match.group(1)
-
-            if remote_host:
-                ssh_tunnel_manager.start(remote_host, int(port))
+        """Setup SSH tunnel for the SPICE/VNC port on the remote host.
+        We always forward to `localhost` on the SSH gateway: this works whether
+        the graphics server is bound to 127.0.0.1, 0.0.0.0, or any address the
+        gateway can resolve as itself.
+        """
+        if not (ssh_tunnel_manager and ssh_tunnel_manager.ssh_gateway and port):
+            return
+        ssh_tunnel_manager.start("localhost", int(port))
 
     def init_display(
         self, domain=None, ssh_tunnel_manager=None, view_only_handler=None, grab_handler=None
@@ -532,8 +525,15 @@ class DisplayManager:
         self, host: str, port: int, password: Optional[str], ssh_tunnel_manager=None
     ) -> bool:
         """Connect to SPICE server."""
-        # Use tunneled connection if SSH tunnel is active
-        if ssh_tunnel_manager and ssh_tunnel_manager.is_active():
+        # Route through SSH tunnel whenever one is configured for this URI.
+        # `is_active()` is set asynchronously by the verifier and is typically
+        # still False at this point — checking it would skip the tunnel and
+        # fall through to a direct localhost connection that would fail.
+        if (
+            ssh_tunnel_manager
+            and ssh_tunnel_manager.ssh_gateway
+            and ssh_tunnel_manager.get_local_port()
+        ):
             host = "localhost"
             port = ssh_tunnel_manager.get_local_port()
             self.log(f"Using SSH tunnel: localhost:{port}")
@@ -555,8 +555,13 @@ class DisplayManager:
         force: bool = False,
     ) -> bool:
         """Connect to VNC server."""
-        # Use tunneled connection if SSH tunnel is active
-        if ssh_tunnel_manager and ssh_tunnel_manager.is_active():
+        # See _connect_spice — gate on tunnel configuration, not on the
+        # async-verified `is_active()` flag.
+        if (
+            ssh_tunnel_manager
+            and ssh_tunnel_manager.ssh_gateway
+            and ssh_tunnel_manager.get_local_port()
+        ):
             host = "localhost"
             port = ssh_tunnel_manager.get_local_port()
             self.log(f"Using SSH tunnel: localhost:{port}")

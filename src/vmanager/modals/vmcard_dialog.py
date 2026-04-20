@@ -23,12 +23,20 @@ class VMActionsModal(BaseModal[str | None]):
 
     BINDINGS = [("escape", "cancel_modal", "Cancel")]
 
-    def __init__(self, vm_name: str, vm_status: str, vm=None, r_viewer_available: bool = True) -> None:
+    def __init__(
+        self,
+        vm_name: str,
+        vm_status: str,
+        vm=None,
+        r_viewer_available: bool = True,
+        graphics_type: str | None = None,
+    ) -> None:
         super().__init__()
         self.vm_name = vm_name
         self.vm_status = vm_status
         self.vm = vm
         self.r_viewer_available = r_viewer_available
+        self.graphics_type = graphics_type
 
     def on_click(self, event) -> None:
         """Dismiss when clicking outside the modal dialog."""
@@ -74,7 +82,9 @@ class VMActionsModal(BaseModal[str | None]):
         update("#pause", is_running)
         update("#resume", is_paused or is_pmsuspended)
         update("#connect", self.r_viewer_available)
-        update("#web_console", is_running or is_paused or is_blocked)
+        # Web console is VNC-only (noVNC/websockify); hide for SPICE-only VMs.
+        is_vnc = self.graphics_type == "vnc"
+        update("#web_console", is_vnc and (is_running or is_paused or is_blocked))
 
         # Other tab buttons
         update("#delete", is_running or is_paused or is_stopped or is_pmsuspended or is_blocked)

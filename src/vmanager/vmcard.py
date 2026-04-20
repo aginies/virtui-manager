@@ -449,6 +449,7 @@ class VMCard(Static):
                 vm_status=self.status,
                 vm=self.vm,
                 r_viewer_available=self.app.r_viewer_available,
+                graphics_type=self.graphics_type,
             ),
             on_action_result,
         )
@@ -1635,7 +1636,6 @@ class VMCard(Static):
 
     def _handle_connect_button(self) -> None:
         """Handles the connect button press by running the remove virt viewer in a worker."""
-        logging.info(f"Attempting to connect to VM: {self.name}")
         if not hasattr(self, "conn") or not self.conn:
             self.app.show_error_message(ErrorMessages.CONNECTION_INFO_NOT_AVAILABLE)
             return
@@ -1643,7 +1643,11 @@ class VMCard(Static):
         def do_connect() -> None:
             try:
                 uri = self._get_uri()
+                server_display = extract_server_name_from_uri(uri) if uri else "unknown"
                 _, domain_name = self._get_vm_identity_info()
+                logging.info(
+                    f"Attempting to connect to VM: {self.name} on {server_display} ({uri})"
+                )
                 command = remote_viewer_cmd(uri, domain_name, self.app.r_viewer)
 
                 # env = os.environ.copy()
@@ -1657,10 +1661,12 @@ class VMCard(Static):
                         # env=env
                     )
                     logging.info(
-                        f"{self.app.r_viewer} started with PID {proc.pid} for {domain_name}"
+                        f"{self.app.r_viewer} started with PID {proc.pid} for "
+                        f"{domain_name} on {server_display} ({uri})"
                     )
                     self.app.show_quick_message(
-                        f"Remote viewer {self.app.r_viewer} started for {domain_name}"
+                        f"Remote viewer {self.app.r_viewer} started for "
+                        f"{domain_name} on {server_display}"
                     )
                 except Exception as e:
                     logging.error(f"Failed to spawn {self.app.r_viewer} for {domain_name}: {e}")
