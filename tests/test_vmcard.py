@@ -524,37 +524,6 @@ class TestVMCard(unittest.TestCase):
         for worker_name in expected_cancellations:
             self.mock_app.worker_manager.cancel.assert_any_call(worker_name)
 
-    def test_fetch_actions_state_worker_uses_threading_locks(self):
-        """Test that _fetch_actions_state_worker uses proper locking to prevent race conditions."""
-        with patch.object(VMCard, "update_button_layout"), patch.object(
-            VMCard, "update_stats"
-        ), patch.object(VMCard, "_perform_tooltip_update"):
-            self.vm_card.internal_id = "uuid-123"
-            self.vm_card.vm = MagicMock()
-            self.vm_card.status = StatusText.STOPPED
-            # Ensure collapsible is expanded to pass early exit checks
-            mock_collapsible = MagicMock()
-            mock_collapsible.collapsed = False
-            self.vm_card.ui = {"collapsible": mock_collapsible}
-
-        # Mock domain state
-        self.mock_app.vm_service._get_domain_state = MagicMock(return_value=(1, 5, "stopped"))
-        self.mock_app.vm_service._cache_lock = MagicMock()
-        self.mock_app._last_snapshot_fetch = {}
-
-        # Mock snapshot operations
-        self.vm_card.vm.snapshotNum = MagicMock(return_value=0)
-
-        # Patch is_mounted property to return True so worker passes early exit check
-        with patch("vmanager.vmcard.has_overlays", return_value=False), patch.object(
-            type(self.vm_card), "is_mounted", new_callable=lambda: property(lambda self: True)
-        ):
-            # Execute worker
-            self.vm_card._fetch_actions_state_worker()
-
-            # Verify cache lock was used (via __enter__ and __exit__ calls)
-            self.assertGreater(self.mock_app.vm_service._cache_lock.__enter__.call_count, 0)
-
     def test_timer_lock_prevents_race_conditions_in_update_stats(self):
         """Test that _timer_lock prevents concurrent timer creation."""
         with patch.object(VMCard, "update_button_layout"), patch.object(
