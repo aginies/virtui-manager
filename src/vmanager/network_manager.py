@@ -6,7 +6,6 @@ import ipaddress
 import logging
 import secrets
 import subprocess
-import netifaces
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 
@@ -136,13 +135,27 @@ def _next_bridge_name(conn) -> str:
         except Exception:
             pass
 
-    # Also check live interfaces (handles interfaces not yet in libvirt config)
-    for iface in netifaces.interfaces():
-        if iface.startswith("virbr"):
+    # Also check live interfaces on the host (handles interfaces not yet in
+    # libvirt config). Uses the libvirt nodedev API so it works on remote hosts.
+    try:
+        for dev in conn.listAllDevices(libvirt.VIR_CONNECT_LIST_NODE_DEVICES_CAP_NET):
             try:
-                used.add(int(iface[5:]))
-            except ValueError:
-                pass
+                cap = ET.fromstring(dev.XMLDesc(0)).find("capability[@type='net']")
+                if cap is None:
+                    continue
+                iface_elem = cap.find("interface")
+                if iface_elem is None or not iface_elem.text:
+                    continue
+                iface = iface_elem.text.strip()
+                if iface.startswith("virbr"):
+                    try:
+                        used.add(int(iface[5:]))
+                    except ValueError:
+                        pass
+            except libvirt.libvirtError:
+                continue
+    except libvirt.libvirtError:
+        pass
 
     i = 0
     while i in used:
@@ -284,23 +297,55 @@ def set_network_autostart(conn, network_name, autostart):
 
 
 @log_function_call
-def get_host_network_interfaces():
+def get_host_network_interfaces(conn: libvirt.virConnect) -> list[tuple[str, str]]:
     """
-    Retrieves a list of network interface names and their primary IPv4 addresses available on the host.
-    Returns a list of tuples: (interface_name, ip_address)
+    Retrieves network interface names and their primary IPv4 addresses from the
+    libvirt host pointed to by `conn` — works for both local and remote connections.
+
+    Returns a list of tuples: (interface_name, ip_address). The IP may be empty
+    if the libvirt 'interface' backend is unavailable or the interface has no
+    IPv4 address.
     """
+    if conn is None:
+        return []
+
+    interfaces: list[tuple[str, str]] = []
     try:
-        interfaces = []
-        for name in netifaces.interfaces():
+        devices = conn.listAllDevices(libvirt.VIR_CONNECT_LIST_NODE_DEVICES_CAP_NET)
+    except libvirt.libvirtError as e:
+        logging.error(f"Error listing host network devices: {e}")
+        return []
+
+    for dev in devices:
+        try:
+            root = ET.fromstring(dev.XMLDesc(0))
+            cap = root.find("capability[@type='net']")
+            if cap is None:
+                continue
+            iface_elem = cap.find("interface")
+            if iface_elem is None or not iface_elem.text:
+                continue
+            name = iface_elem.text.strip()
             if name == "lo":
                 continue
-            addrs = netifaces.ifaddresses(name)
-            ip_address = addrs.get(netifaces.AF_INET, [{}])[0].get("addr", "")
+
+            ip_address = ""
+            try:
+                iface_xml = conn.interfaceLookupByName(name).XMLDesc(0)
+                iface_root = ET.fromstring(iface_xml)
+                ip_elem = iface_root.find("protocol[@family='ipv4']/ip")
+                if ip_elem is not None:
+                    ip_address = ip_elem.get("address", "")
+            except libvirt.libvirtError:
+                # virInterface backend not available on this host — skip IP lookup
+                pass
+
             interfaces.append((name, ip_address))
-        return interfaces
-    except Exception as e:
-        logging.error(f"Error getting network interfaces: {e}")
-        return []
+        except libvirt.libvirtError as e:
+            logging.warning(f"Skipping host net device: {e}")
+            continue
+
+    return interfaces
 
 
 @log_function_call

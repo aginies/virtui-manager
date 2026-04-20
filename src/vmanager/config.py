@@ -67,7 +67,26 @@ def get_user_config_path():
     return get_config_paths()[0]
 
 
-def load_config():
+def deep_merge(base: dict, override: dict) -> dict:
+    """Recursively merge override dict into base dict.
+
+    Args:
+        base: The base configuration dictionary
+        override: The override configuration dictionary
+
+    Returns:
+        dict: A new dictionary with override values merged into base
+    """
+    result = copy.deepcopy(base)
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = copy.deepcopy(value) if isinstance(value, (dict, list)) else value
+    return result
+
+
+def load_config() -> dict:
     """
     Loads the configuration from the first found config file.
     If no config file is found, returns the default configuration.
@@ -86,10 +105,11 @@ def load_config():
         with open(config_path, encoding="utf-8") as f:
             user_config = yaml.safe_load(f) or {}
 
-    # Start with default config and update with user's config
+    # Start with default config and deep merge with user's config
     config = copy.deepcopy(DEFAULT_CONFIG)
     if user_config:
-        config.update(user_config)
+        config = deep_merge(config, user_config)
+
         # If user sets a value to null in yaml, it becomes None. Revert to default.
         for key, value in config.items():
             if value is None and key in DEFAULT_CONFIG:

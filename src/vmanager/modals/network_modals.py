@@ -268,9 +268,9 @@ class AddEditNetworkModal(BaseModal[None]):
         self.run_worker(self.populate_interfaces, thread=True)
 
     def populate_interfaces(self) -> None:
-        """Worker to fetch host network interfaces."""
+        """Worker to fetch host network interfaces from the remote libvirt host."""
         try:
-            host_interfaces = get_host_network_interfaces()
+            host_interfaces = get_host_network_interfaces(self.conn)
             # Exclude libvirt-managed virtual bridges (virbr*, vnet*) — they are not
             # meaningful as forward targets; only physical/external bridges are useful.
             host_interfaces = [
