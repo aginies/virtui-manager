@@ -6,7 +6,6 @@ import ipaddress
 import logging
 import secrets
 import subprocess
-import netifaces
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 
@@ -136,13 +135,27 @@ def _next_bridge_name(conn) -> str:
         except Exception:
             pass
 
-    # Also check live interfaces (handles interfaces not yet in libvirt config)
-    for iface in netifaces.interfaces():
-        if iface.startswith("virbr"):
+    # Also check live interfaces on the host (handles interfaces not yet in
+    # libvirt config). Uses the libvirt nodedev API so it works on remote hosts.
+    try:
+        for dev in conn.listAllDevices(libvirt.VIR_CONNECT_LIST_NODE_DEVICES_CAP_NET):
             try:
-                used.add(int(iface[5:]))
-            except ValueError:
-                pass
+                cap = ET.fromstring(dev.XMLDesc(0)).find("capability[@type='net']")
+                if cap is None:
+                    continue
+                iface_elem = cap.find("interface")
+                if iface_elem is None or not iface_elem.text:
+                    continue
+                iface = iface_elem.text.strip()
+                if iface.startswith("virbr"):
+                    try:
+                        used.add(int(iface[5:]))
+                    except ValueError:
+                        pass
+            except libvirt.libvirtError:
+                continue
+    except libvirt.libvirtError:
+        pass
 
     i = 0
     while i in used:
