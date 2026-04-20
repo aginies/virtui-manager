@@ -6,6 +6,7 @@ import logging
 import os
 import xml.etree.ElementTree as ET
 from collections import namedtuple
+from typing import Any
 
 import libvirt
 from textual import on
@@ -357,15 +358,21 @@ class VMDetailModal(ModalScreen):
             try:
                 self.query_one("#boot-menu-enable", Checkbox).value = boot_menu_enabled
                 self._populate_boot_lists()
-                
+
                 # Direct kernel boot
                 dkb_enabled = self.direct_kernel_boot.get("enabled", False)
                 self.query_one("#direct-kernel-boot-enable", Checkbox).value = dkb_enabled
-                self.query_one("#kernel-path-input", Input).value = self.direct_kernel_boot.get("kernel") or ""
-                self.query_one("#initrd-path-input", Input).value = self.direct_kernel_boot.get("initrd") or ""
-                self.query_one("#kernel-args-input", Input).value = self.direct_kernel_boot.get("cmdline") or ""
+                self.query_one("#kernel-path-input", Input).value = (
+                    self.direct_kernel_boot.get("kernel") or ""
+                )
+                self.query_one("#initrd-path-input", Input).value = (
+                    self.direct_kernel_boot.get("initrd") or ""
+                )
+                self.query_one("#kernel-args-input", Input).value = (
+                    self.direct_kernel_boot.get("cmdline") or ""
+                )
                 self._update_dkb_state(dkb_enabled)
-                
+
                 self.query_one("#ovmf-debug-enable", Checkbox).value = self.ovmf_debug
 
                 self.query_one("#boot-up", Button).disabled = True
@@ -1565,10 +1572,14 @@ class VMDetailModal(ModalScreen):
         self._pci_available_devices = {}
         self._pci_attached_devices = {}
         # Build lookup of all host devices by address for IOMMU group display
-        self._pci_host_devices_by_addr = {d["pci_address"]: d for d in host_devices if d.get("pci_address")}
+        self._pci_host_devices_by_addr = {
+            d["pci_address"]: d for d in host_devices if d.get("pci_address")
+        }
 
         # Sort by IOMMU group for clear visual grouping
-        sorted_devices = sorted(host_devices, key=lambda d: (d.get("iommu_group", -1), d.get("pci_address", "")))
+        sorted_devices = sorted(
+            host_devices, key=lambda d: (d.get("iommu_group", -1), d.get("pci_address", ""))
+        )
 
         for dev in sorted_devices:
             iommu = str(dev.get("iommu_group", "?"))
@@ -1617,7 +1628,9 @@ class VMDetailModal(ModalScreen):
         for addr in group_devices:
             peer = self._pci_host_devices_by_addr.get(addr)
             if peer:
-                lines.append(f"  {addr}  {peer['vendor_name']} {peer['product_name']} [{peer.get('driver', '')}]")
+                lines.append(
+                    f"  {addr}  {peer['vendor_name']} {peer['product_name']} [{peer.get('driver', '')}]"
+                )
             else:
                 lines.append(f"  {addr}")
         detail_widget.update("\n".join(lines))
@@ -2395,7 +2408,8 @@ class VMDetailModal(ModalScreen):
                             yield RadioButton(
                                 StaticText.HYPERVISOR_DEFAULT,
                                 id="graphics-address-default",
-                                value=self.graphics_info["address"] not in [
+                                value=self.graphics_info["address"]
+                                not in [
                                     VMDetailConstants.GRAPHICS_LOCALHOST,
                                     VMDetailConstants.GRAPHICS_ALL_INTERFACES,
                                 ],
@@ -2403,12 +2417,14 @@ class VMDetailModal(ModalScreen):
                             yield RadioButton(
                                 StaticText.LOCALHOST_ONLY,
                                 id="graphics-address-localhost",
-                                value=self.graphics_info["address"] == VMDetailConstants.GRAPHICS_LOCALHOST,
+                                value=self.graphics_info["address"]
+                                == VMDetailConstants.GRAPHICS_LOCALHOST,
                             )
                             yield RadioButton(
                                 StaticText.ALL_INTERFACES,
                                 id="graphics-address-all",
-                                value=self.graphics_info["address"] == VMDetailConstants.GRAPHICS_ALL_INTERFACES,
+                                value=self.graphics_info["address"]
+                                == VMDetailConstants.GRAPHICS_ALL_INTERFACES,
                             )
                         yield Checkbox(
                             StaticText.AUTO_PORT,
@@ -2615,9 +2631,7 @@ class VMDetailModal(ModalScreen):
                     with TabPane("USB Host", id="detail-usbhost-tab"):
                         with Vertical(id="usb-tab-layout"):
                             yield Label(StaticText.AVAILABLE_HOST_USB)
-                            yield ListView(
-                                id="available-usb-list", classes="usb-list-container"
-                            )
+                            yield ListView(id="available-usb-list", classes="usb-list-container")
                             with Horizontal(id="usb-buttons-row"):
                                 yield Button(
                                     ButtonLabels.ATTACH_DOWN, id="attach-usb-btn", disabled=True
@@ -2626,15 +2640,11 @@ class VMDetailModal(ModalScreen):
                                     ButtonLabels.DETACH_UP, id="detach-usb-btn", disabled=True
                                 )
                             yield Label(StaticText.ATTACHED_TO_VM)
-                            yield ListView(
-                                id="attached-usb-list", classes="usb-list-container"
-                            )
+                            yield ListView(id="attached-usb-list", classes="usb-list-container")
                     with TabPane("PCI Host", id="detail-PCIhost-tab"):
                         with Vertical(id="pci-tab-layout"):
                             yield Label(StaticText.AVAILABLE_HOST_PCI)
-                            yield DataTable(
-                                id="available-pci-table", cursor_type="row"
-                            )
+                            yield DataTable(id="available-pci-table", cursor_type="row")
                             with Horizontal(id="pci-buttons-row"):
                                 yield Button(
                                     ButtonLabels.ATTACH_DOWN, id="attach-pci-btn", disabled=True
@@ -2643,9 +2653,7 @@ class VMDetailModal(ModalScreen):
                                     ButtonLabels.DETACH_UP, id="detach-pci-btn", disabled=True
                                 )
                             yield Label(StaticText.ATTACHED_TO_VM)
-                            yield DataTable(
-                                id="attached-pci-table", cursor_type="row"
-                            )
+                            yield DataTable(id="attached-pci-table", cursor_type="row")
                             yield Static("", id="iommu-group-detail")
                 # with TabPane("PCIe", id="detail-pcie-tab"):
                 #    yield Label("PCIe")
@@ -3467,7 +3475,9 @@ class VMDetailModal(ModalScreen):
                     if disk_to_attach:
                         try:
                             target_dev = add_disk(
-                                self.domain, disk_to_attach, device_type="disk",
+                                self.domain,
+                                disk_to_attach,
+                                device_type="disk",
                             )
                             self._invalidate_cache()
                             self.app.show_success_message(f"Disk added as {target_dev}")
@@ -3555,241 +3565,266 @@ class VMDetailModal(ModalScreen):
 
     # --- Button ID to handler group mapping ---
     _VIRTIOFS_BUTTONS = {
-        "detail_virtiofs_help", "add-virtiofs-btn", "edit-virtiofs-btn", "delete-virtiofs-btn"
+        "detail_virtiofs_help",
+        "add-virtiofs-btn",
+        "edit-virtiofs-btn",
+        "delete-virtiofs-btn",
     }
     _NETWORK_BUTTONS = {
-        "edit-network-interface-button", "add-network-interface-button",
-        "remove-network-interface-button"
+        "edit-network-interface-button",
+        "add-network-interface-button",
+        "remove-network-interface-button",
     }
     _FIRMWARE_BUTTONS = {"switch-to-bios", "switch-to-uefi", "edit-machine-type"}
     _DISK_BUTTONS = {
-        "detail_add_disk", "detail_attach_disk", "detail_remove_disk",
-        "detail_disable_disk", "detail_enable_disk", "detail_edit_disk", "detail_disk_help"
+        "detail_add_disk",
+        "detail_attach_disk",
+        "detail_remove_disk",
+        "detail_disable_disk",
+        "detail_enable_disk",
+        "detail_edit_disk",
+        "detail_disk_help",
+    }
+
+    # --- Button dispatch table ---
+    _SINGLE_BUTTON_HANDLERS: dict[str, str] = {
+        "toggle-detail-button": "_handle_toggle_detail",
+        "close-btn": "_handle_close",
+        "add-input-btn": "_handle_add_input",
+        "remove-input-btn": "_handle_remove_input",
+        "add-usb2-controller-btn": "_handle_add_usb2_controller",
+        "add-usb3-controller-btn": "_handle_add_usb3_controller",
+        "add-scsi-controller-btn": "_handle_add_scsi_controller",
+        "remove-controller-btn": "_handle_remove_controller",
+        "edit-cpu": "_handle_edit_cpu",
+        "edit-memory": "_handle_edit_memory",
+        "add-serial-btn": "_handle_add_serial",
+        "remove-serial-btn": "_handle_remove_serial",
     }
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
 
-        if button_id == "toggle-detail-button":
-            vm = self.query_one("#detail-vm")
-            vm2 = self.query_one("#detail2-vm")
-            vm.toggle_class("hidden")
-            vm2.toggle_class("hidden")
-        elif button_id == "close-btn":
-            self.dismiss()
+        handler = self._SINGLE_BUTTON_HANDLERS.get(button_id)
+        if handler:
+            getattr(self, handler)(event)
+            return
 
-        elif button_id == "add-input-btn":
-
-            def add_input_callback(result):
-                if result:
-                    try:
-                        add_vm_input(self.domain, result["type"], result["bus"])
-                        self._invalidate_cache()
-                        self.app.show_success_message("Input device added successfully.")
-                        self._update_input_table()
-                    except (libvirt.libvirtError, ValueError) as e:
-                        self.app.show_error_message(f"Error adding input device: {e}")
-
-            self.app.push_screen(
-                AddInputDeviceModal(
-                    available_types=VMDetailConstants.INPUT_DEVICE_TYPES,
-                    available_buses=VMDetailConstants.INPUT_DEVICE_BUSES,
-                ),
-                add_input_callback,
-            )
-
-        elif button_id == "remove-input-btn":
-            if self.selected_input_device:
-                message = f"Are you sure you want to remove the {self.selected_input_device['type']} on bus {self.selected_input_device['bus']}?"
-
-                def on_confirm(confirmed: bool) -> None:
-                    if confirmed:
-                        targets = self.selected_domains if self.is_bulk else [self.domain]
-                        device_type = self.selected_input_device["type"]
-                        device_bus = self.selected_input_device["bus"]
-
-                        def operation(d):
-                            remove_vm_input(d, device_type, device_bus)
-
-                        def ui_update():
-                            if not self.is_bulk:
-                                self._update_input_table()
-
-                        self._run_bulk_operation(
-                            targets,
-                            operation,
-                            "Input device removed successfully"
-                            + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
-                            "Error removing input device",
-                            ui_update,
-                        )
-
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
-
-        elif button_id in self._VIRTIOFS_BUTTONS:
+        if button_id in self._VIRTIOFS_BUTTONS:
             self._handle_virtiofs_button(button_id)
-
         elif button_id in self._NETWORK_BUTTONS:
             self._handle_network_button(button_id)
-
         elif button_id in self._FIRMWARE_BUTTONS:
             self._handle_firmware_button(button_id)
-
         elif button_id in self._DISK_BUTTONS:
             self._handle_disk_button(button_id)
 
-        elif button_id == "add-usb2-controller-btn":
-            self._add_controller(add_usb_device, ("usb", "usb2"), "USB 2.0 controller")
+    def _handle_toggle_detail(self, event: Button.Pressed) -> None:
+        vm = self.query_one("#detail-vm")
+        vm2 = self.query_one("#detail2-vm")
+        vm.toggle_class("hidden")
+        vm2.toggle_class("hidden")
 
-        elif button_id == "add-usb3-controller-btn":
-            self._add_controller(add_usb_device, ("usb", "usb3"), "USB 3.0 controller")
+    def _handle_close(self, event: Button.Pressed) -> None:
+        self.dismiss()
 
-        elif button_id == "add-scsi-controller-btn":
-            self._add_controller(add_scsi_controller, ("virtio-scsi",), "SCSI controller")
+    def _handle_add_input(self, event: Button.Pressed) -> None:
+        def add_input_callback(result):
+            if result:
+                try:
+                    add_vm_input(self.domain, result["type"], result["bus"])
+                    self._invalidate_cache()
+                    self.app.show_success_message("Input device added successfully.")
+                    self._update_input_table()
+                except (libvirt.libvirtError, ValueError) as e:
+                    self.app.show_error_message(f"Error adding input device: {e}")
 
-        elif button_id == "remove-controller-btn":
-            if self.selected_controller:
-                controller = self.selected_controller
-                message = f"Are you sure you want to remove the {controller['type']} controller (model: {controller['model']})?"
-                if self.is_bulk:
-                    message = f"Are you sure you want to remove the {controller['type']} controller (model: {controller['model']}) from ALL selected VMs?"
+        self.app.push_screen(
+            AddInputDeviceModal(
+                available_types=VMDetailConstants.INPUT_DEVICE_TYPES,
+                available_buses=VMDetailConstants.INPUT_DEVICE_BUSES,
+            ),
+            add_input_callback,
+        )
 
-                def on_confirm(confirmed: bool) -> None:
-                    if confirmed:
-                        targets = self.selected_domains if self.is_bulk else [self.domain]
+    def _handle_remove_input(self, event: Button.Pressed) -> None:
+        if not self.selected_input_device:
+            return
 
-                        def operation(d):
-                            if controller["type"] == "USB":
-                                usb_model_arg = (
-                                    "usb2" if "uhci" in controller["model"] else "usb3"
-                                )
-                                remove_usb_device(d, usb_model_arg, controller["index"])
-                            elif controller["type"] == "SCSI":
-                                remove_scsi_controller(
-                                    d, controller["model"], controller["index"]
-                                )
+        message = f"Are you sure you want to remove the {self.selected_input_device['type']} on bus {self.selected_input_device['bus']}?"
 
-                        def ui_update():
-                            if not self.is_bulk:
-                                self._update_controller_table()
+        def on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+                device_type = self.selected_input_device["type"]
+                device_bus = self.selected_input_device["bus"]
 
-                        self._run_bulk_operation(
-                            targets,
-                            operation,
-                            "Controller removed successfully"
-                            + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
-                            "Errors removing controller",
-                            ui_update,
-                        )
+                def operation(d):
+                    remove_vm_input(d, device_type, device_bus)
 
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+                def ui_update():
+                    if not self.is_bulk:
+                        self._update_input_table()
 
-        elif button_id == "edit-cpu":
-
-            def edit_cpu_callback(new_cpu_count):
-                if new_cpu_count is not None and new_cpu_count.isdigit():
-                    targets = self.selected_domains if self.is_bulk else [self.domain]
-
-                    def operation(d):
-                        set_vcpu(d, int(new_cpu_count))
-
-                    def ui_update():
-                        if not self.is_bulk:
-                            self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
-                            self.vm_info["cpu"] = int(new_cpu_count)
-
-                    self._run_bulk_operation(
-                        targets,
-                        operation,
-                        f"CPU count set to {new_cpu_count}"
-                        + (" for {count} VMs ({names})" if self.is_bulk else ""),
-                        "Errors setting CPU",
-                        ui_update,
-                    )
-
-            self.app.push_screen(
-                EditCpuModal(current_cpu=str(self.vm_info.get("cpu", ""))), edit_cpu_callback
-            )
-
-        elif button_id == "edit-memory":
-
-            def edit_memory_callback(new_memory_size):
-                if new_memory_size is not None and new_memory_size.isdigit():
-                    targets = self.selected_domains if self.is_bulk else [self.domain]
-
-                    def operation(d):
-                        set_memory(d, int(new_memory_size))
-
-                    def ui_update():
-                        if not self.is_bulk:
-                            self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
-                            self.vm_info["memory"] = int(new_memory_size)
-
-                    self._run_bulk_operation(
-                        targets,
-                        operation,
-                        f"Memory size set to {new_memory_size} MB"
-                        + (" for {count} VMs ({names})" if self.is_bulk else ""),
-                        "Errors setting memory",
-                        ui_update,
-                    )
-
-            self.app.push_screen(
-                EditMemoryModal(current_memory=str(self.vm_info.get("memory", ""))),
-                edit_memory_callback,
-            )
-
-        elif button_id == "add-serial-btn":
-            targets = self.selected_domains if self.is_bulk else [self.domain]
-
-            def serial_add_operation(d):
-                add_serial_console(d)
-
-            def serial_add_ui_update():
-                if not self.is_bulk:
-                    self.xml_desc = self.domain.XMLDesc(0)
-                    self._populate_serial_table()
-
-            self._run_bulk_operation(
-                targets,
-                serial_add_operation,
-                "Serial console added successfully"
-                + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
-                "Errors adding serial console",
-                serial_add_ui_update,
-            )
-
-        elif button_id == "remove-serial-btn":
-            if self.selected_serial_port:
-                serial_port = self.selected_serial_port
-
-                def on_confirm_remove(confirmed: bool):
-                    if confirmed:
-                        targets = self.selected_domains if self.is_bulk else [self.domain]
-
-                        def operation(d):
-                            remove_serial_console(d, serial_port)
-
-                        def ui_update():
-                            if not self.is_bulk:
-                                self.xml_desc = self.domain.XMLDesc(0)
-                                self._populate_serial_table()
-
-                        self._run_bulk_operation(
-                            targets,
-                            operation,
-                            "Serial console removed successfully"
-                            + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
-                            "Errors removing serial console",
-                            ui_update,
-                        )
-
-                msg = (
-                    f"Are you sure you want to remove console on port {self.selected_serial_port}?"
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    "Input device removed successfully"
+                    + (" (from {count} VMs ({names}))" if self.is_bulk else ""),
+                    "Error removing input device",
+                    ui_update,
                 )
-                if self.is_bulk:
-                    msg = f"Are you sure you want to remove console on port {self.selected_serial_port} from ALL selected VMs?"
-                self.app.push_screen(ConfirmationDialog(msg), on_confirm_remove)
+
+        self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+    def _handle_add_usb2_controller(self, event: Button.Pressed) -> None:
+        self._add_controller(add_usb_device, ("usb", "usb2"), "USB 2.0 controller")
+
+    def _handle_add_usb3_controller(self, event: Button.Pressed) -> None:
+        self._add_controller(add_usb_device, ("usb", "usb3"), "USB 3.0 controller")
+
+    def _handle_add_scsi_controller(self, event: Button.Pressed) -> None:
+        self._add_controller(add_scsi_controller, ("virtio-scsi",), "SCSI controller")
+
+    def _handle_remove_controller(self, event: Button.Pressed) -> None:
+        if not self.selected_controller:
+            return
+
+        controller = self.selected_controller
+        message = f"Are you sure you want to remove the {controller['type']} controller (model: {controller['model']})?"
+        if self.is_bulk:
+            message = f"Are you sure you want to remove the {controller['type']} controller (model: {controller['model']}) from ALL selected VMs?"
+
+        def on_confirm(confirmed: bool) -> None:
+            if confirmed:
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                def operation(d):
+                    if controller["type"] == "USB":
+                        usb_model_arg = "usb2" if "uhci" in controller["model"] else "usb3"
+                        remove_usb_device(d, usb_model_arg, controller["index"])
+                    elif controller["type"] == "SCSI":
+                        remove_scsi_controller(d, controller["model"], controller["index"])
+
+                def ui_update():
+                    if not self.is_bulk:
+                        self._update_controller_table()
+
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    "Controller removed successfully"
+                    + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                    "Errors removing controller",
+                    ui_update,
+                )
+
+        self.app.push_screen(ConfirmationDialog(message), on_confirm)
+
+    def _handle_edit_cpu(self, event: Button.Pressed) -> None:
+        def edit_cpu_callback(new_cpu_count: Any) -> None:
+            if new_cpu_count is not None and str(new_cpu_count).isdigit():
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                def operation(d):
+                    set_vcpu(d, int(new_cpu_count))
+
+                def ui_update():
+                    if not self.is_bulk:
+                        self.query_one("#cpu-label").update(f"CPU: {new_cpu_count}")
+                        self.vm_info["cpu"] = int(new_cpu_count)
+
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    f"CPU count set to {new_cpu_count}"
+                    + (" for {count} VMs ({names})" if self.is_bulk else ""),
+                    "Errors setting CPU",
+                    ui_update,
+                )
+
+        self.app.push_screen(
+            EditCpuModal(current_cpu=str(self.vm_info.get("cpu", ""))), edit_cpu_callback
+        )
+
+    def _handle_edit_memory(self, event: Button.Pressed) -> None:
+        def edit_memory_callback(new_memory_size: Any) -> None:
+            if new_memory_size is not None and str(new_memory_size).isdigit():
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                def operation(d):
+                    set_memory(d, int(new_memory_size))
+
+                def ui_update():
+                    if not self.is_bulk:
+                        self.query_one("#memory-label").update(f"Memory: {new_memory_size} MB")
+                        self.vm_info["memory"] = int(new_memory_size)
+
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    f"Memory size set to {new_memory_size} MB"
+                    + (" for {count} VMs ({names})" if self.is_bulk else ""),
+                    "Errors setting memory",
+                    ui_update,
+                )
+
+        self.app.push_screen(
+            EditMemoryModal(current_memory=str(self.vm_info.get("memory", ""))),
+            edit_memory_callback,
+        )
+
+    def _handle_add_serial(self, event: Button.Pressed) -> None:
+        targets = self.selected_domains if self.is_bulk else [self.domain]
+
+        def serial_add_operation(d):
+            add_serial_console(d)
+
+        def serial_add_ui_update():
+            if not self.is_bulk:
+                self.xml_desc = self.domain.XMLDesc(0)
+                self._populate_serial_table()
+
+        self._run_bulk_operation(
+            targets,
+            serial_add_operation,
+            "Serial console added successfully"
+            + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+            "Errors adding serial console",
+            serial_add_ui_update,
+        )
+
+    def _handle_remove_serial(self, event: Button.Pressed) -> None:
+        if not self.selected_serial_port:
+            return
+
+        serial_port = self.selected_serial_port
+
+        def on_confirm_remove(confirmed: bool):
+            if confirmed:
+                targets = self.selected_domains if self.is_bulk else [self.domain]
+
+                def operation(d):
+                    remove_serial_console(d, serial_port)
+
+                def ui_update():
+                    if not self.is_bulk:
+                        self.xml_desc = self.domain.XMLDesc(0)
+                        self._populate_serial_table()
+
+                self._run_bulk_operation(
+                    targets,
+                    operation,
+                    "Serial console removed successfully"
+                    + (" (Applied to {count} VMs ({names}))" if self.is_bulk else ""),
+                    "Errors removing serial console",
+                    ui_update,
+                )
+
+        msg = f"Are you sure you want to remove console on port {serial_port}?"
+        if self.is_bulk:
+            msg = f"Are you sure you want to remove console on port {serial_port} from ALL selected VMs?"
+        self.app.push_screen(ConfirmationDialog(msg), on_confirm_remove)
 
     @on(Button.Pressed, "#edit-cputune")
     def on_edit_cputune_pressed(self, event: Button.Pressed) -> None:

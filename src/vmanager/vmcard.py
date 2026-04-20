@@ -365,7 +365,9 @@ class VMCard(Static):
         self.ui["qb_migration"].tooltip = ButtonLabels.MIGRATION
         self.ui["qb_xml"] = Button(icons["xml"], id="qb-xml", classes="btn-qbar")
         self.ui["qb_xml"].tooltip = ButtonLabels.VIEW_XML
-        self.ui["actions_button"] = Button(icons["actions"], id="open-actions-btn", classes="btn-qbar")
+        self.ui["actions_button"] = Button(
+            icons["actions"], id="open-actions-btn", classes="btn-qbar"
+        )
         self.ui["actions_button"].tooltip = StaticText.ACTIONS
 
         # Create all sparkline components
@@ -436,6 +438,7 @@ class VMCard(Static):
 
     def _open_actions_modal(self) -> None:
         """Open the VM actions modal."""
+
         def on_action_result(action_id: str | None) -> None:
             if action_id:
                 self._dispatch_action(action_id)
@@ -635,7 +638,9 @@ class VMCard(Static):
                     net_rx_mb = self.latest_net_rx / 1024
                     net_tx_mb = self.latest_net_tx / 1024
 
-                    disk_text = SparklineLabels.DISK_RW.format(read=disk_read_mb, write=disk_write_mb)
+                    disk_text = SparklineLabels.DISK_RW.format(
+                        read=disk_read_mb, write=disk_write_mb
+                    )
                     net_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
 
                     disk_label.update(disk_text)
@@ -1169,115 +1174,6 @@ class VMCard(Static):
             else:
                 xml_button.label = ButtonLabels.VIEW_XML
             xml_button.display = not is_loading
-
-    def _refresh_snapshot_tab_if_visible(self):
-        """Only refresh snapshot tab if card is still mounted and actions are visible."""
-        if not self.is_mounted:
-            return
-        # Actions are now in a modal — no snapshot tab on the card
-        return
-
-    def _schedule_actions_state_worker(self):
-        """Only schedule actions state worker if card is still mounted and actions are visible."""
-        if not self.is_mounted:
-            return
-        # Actions are now in a modal — no actions state on the card
-        return
-
-    def _fetch_actions_state_worker(self):
-        """Worker to fetch heavy state for actions."""
-        try:
-            if not self.is_mounted:
-                return
-
-            if self.vm is None:
-                return
-
-            snapshot_summary = {"count": 0, "latest": None}
-            has_overlay = False
-            domain_missing = False
-            state_tuple = self.app.vm_service._get_domain_state(self.vm)
-            if not state_tuple:
-                return
-
-            last_fetch_key = f"snapshot_fetch_{self.internal_id}"
-
-            # Use vm_service._cache_lock for thread-safe access to _last_snapshot_fetch
-            # This prevents race conditions when multiple workers access the cache concurrently
-            with self.app.vm_service._cache_lock:
-                if hasattr(self.app, "_last_snapshot_fetch"):
-                    cached_data = self.app._last_snapshot_fetch.get(last_fetch_key)
-                    # dict format for caching data
-                    if isinstance(cached_data, dict):
-                        last_fetch = cached_data.get("time", 0)
-                        if time.time() - last_fetch < 2:
-                            # Use cached data and update UI immediately
-                            snapshot_summary = cached_data.get(
-                                "snapshot_summary", {"count": 0, "latest": None}
-                            )
-                            has_overlay = cached_data.get("has_overlay", False)
-                            try:
-                                self.app.call_from_thread(
-                                    self._update_slow_buttons, snapshot_summary, has_overlay
-                                )
-                            except RuntimeError:
-                                self._update_slow_buttons(snapshot_summary, has_overlay)
-                            return
-                    elif isinstance(cached_data, (int, float)):
-                        if time.time() - cached_data < 2:
-                            return
-
-            # Fetch snapshot data outside the lock to avoid holding it during
-            # potentially slow libvirt operations
-            try:
-                if self.vm and not domain_missing:
-                    # Optimization: only fetch full details if there are snapshots
-                    if self.vm.snapshotNum(0) > 0:
-                        snapshots = get_vm_snapshots(self.vm)
-                        if snapshots:
-                            snapshot_summary["count"] = len(snapshots)
-                            latest = snapshots[0]
-                            snapshot_summary["latest"] = {
-                                "name": latest["name"],
-                                "time": latest["creation_time"],
-                            }
-            except Exception:
-                pass
-
-            try:
-                if self.vm and not domain_missing:
-                    has_overlay = has_overlays(self.vm)
-            except Exception:
-                pass
-
-            if domain_missing:
-                try:
-                    self.app.call_from_thread(self.app.refresh_vm_list)
-                except RuntimeError:
-                    self.app.refresh_vm_list()
-                return
-
-            # Record fetch time and data with thread-safe access
-            with self.app.vm_service._cache_lock:
-                if not hasattr(self.app, "_last_snapshot_fetch"):
-                    self.app._last_snapshot_fetch = {}
-
-                self.app._last_snapshot_fetch[last_fetch_key] = {
-                    "time": time.time(),
-                    "snapshot_summary": snapshot_summary,
-                    "has_overlay": has_overlay,
-                }
-
-            def update_ui():
-                self._update_slow_buttons(snapshot_summary, has_overlay)
-
-            try:
-                self.app.call_from_thread(update_ui)
-            except RuntimeError:
-                update_ui()
-
-        except Exception as e:
-            logging.error(f"Error in actions state worker for {self.name}: {e}")
 
     def _update_slow_buttons(self, snapshot_summary: dict, has_overlay: bool):
         """Updates buttons that rely on heavy state."""

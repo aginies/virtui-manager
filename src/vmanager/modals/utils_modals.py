@@ -1,5 +1,5 @@
 """
-Usefull Modal screen
+Useful Modal screens
 """
 
 import logging
@@ -70,7 +70,9 @@ def _should_skip_notification(app, message: str, threshold: float = 2.0) -> bool
     # Cleanup old entries if the dictionary grows too large
     if len(app._recent_notifications) > 50:
         app._recent_notifications = {
-            msg: ts for msg, ts in app._recent_notifications.items() if current_time - ts < threshold
+            msg: ts
+            for msg, ts in app._recent_notifications.items()
+            if current_time - ts < threshold
         }
 
     return False
@@ -89,7 +91,7 @@ def show_success_message(app, message: str):
     logging.info(message)
     if _should_skip_notification(app, message):
         return
-    app.notify(_sanitize_message(message), timeout=10, title="Info")
+    app.notify(_sanitize_message(message), timeout=10, title="Success")
 
 
 def show_in_progress_message(app, message: str):
@@ -143,7 +145,7 @@ class DirectorySelectionModal(BaseModal[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="directory-selection-dialog"):
             yield Label(StaticText.SELECT_A_DIRECTORY)
-            yield SafeDirectoryTree(self.start_path, id="dir-tree")
+            yield SafeDirectoryTree(self.start_path, id="tree")
             with Horizontal():
                 yield Button(ButtonLabels.SELECT, variant="primary", id="select-btn", disabled=True)
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
@@ -171,7 +173,9 @@ class FileSelectionModal(BaseModal[str | None]):
         start_dir = (
             path
             if path and os.path.isdir(path)
-            else os.path.dirname(path) if path else os.path.expanduser("/")
+            else os.path.dirname(path)
+            if path
+            else os.path.expanduser("/")
         )
         if not os.path.isdir(start_dir):
             start_dir = os.path.expanduser("/")
@@ -181,7 +185,7 @@ class FileSelectionModal(BaseModal[str | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="file-selection-dialog", classes="file-selection-dialog"):
             yield Label(StaticText.SELECT_A_FILE)
-            yield SafeDirectoryTree(self.start_path, id="file-tree")
+            yield SafeDirectoryTree(self.start_path, id="tree")
             with Horizontal():
                 yield Button(ButtonLabels.SELECT, variant="primary", id="select-btn", disabled=True)
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
@@ -201,10 +205,14 @@ class FileSelectionModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class LoadingModal(BaseModal[None]):
-    """A modal screen that displays a loading indicator."""
+class NoDismissModal(BaseModal):
+    """Base class that prevents users from dismissing the modal with keyboard shortcuts."""
 
-    BINDINGS = []  # Override BaseModal's bindings to prevent user dismissal with escape
+    BINDINGS = []
+
+
+class LoadingModal(NoDismissModal):
+    """A modal screen that displays a loading indicator."""
 
     def __init__(self, message: str = "Loading...") -> None:
         super().__init__()
@@ -216,10 +224,8 @@ class LoadingModal(BaseModal[None]):
             yield LoadingIndicator()
 
 
-class ProgressModal(BaseModal[None]):
+class ProgressModal(NoDismissModal):
     """A modal that shows a progress bar and logs for a long-running task."""
-
-    BINDINGS = []
 
     def __init__(self, title: str = "Working...") -> None:
         super().__init__()
