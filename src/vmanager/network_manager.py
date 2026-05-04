@@ -176,15 +176,37 @@ def create_network(
     uuid=None,
 ):
     """
-    Creates a new NAT/Routed network.
+    Creates a new NAT/Routed/Bridge network.
+
+    For 'bridge' mode, libvirt does not manage IP/DHCP/NAT — the host bridge
+    handles all routing — so those parameters are ignored and `forward_dev`
+    must be the name of an existing host bridge (it becomes both the forward
+    target and the network's `<bridge name=...>`).
     """
     if not conn:
         raise ValueError("Invalid libvirt connection.")
 
+    uuid_str = f"<uuid>{uuid}</uuid>" if uuid else ""
+
+    if typenet == "bridge":
+        if not forward_dev:
+            raise ValueError("Bridge mode requires an existing host bridge name.")
+        xml = f"""
+<network>
+  <name>{name}</name>
+  {uuid_str}
+  <forward mode='bridge'/>
+  <bridge name='{forward_dev}'/>
+</network>
+"""
+        net = conn.networkDefineXML(xml)
+        net.create()
+        net.setAutostart(True)
+        return
+
     net = ipaddress.ip_network(ip_network)
     generated_mac = generate_mac_address()
     bridge_name = _next_bridge_name(conn)
-    uuid_str = f"<uuid>{uuid}</uuid>" if uuid else ""
     nat_xml = ""
     if typenet == "nat":
         nat_xml = """
@@ -346,6 +368,66 @@ def get_host_network_interfaces(conn: libvirt.virConnect) -> list[tuple[str, str
             continue
 
     return interfaces
+
+
+@log_function_call
+def get_host_bridges(conn: libvirt.virConnect) -> list[str]:
+    """
+    Returns the names of bridge interfaces present on the libvirt host.
+
+    Detection is best-effort:
+    - virInterface backend (netcf) is queried for authoritative `type='bridge'`
+      confirmation when available.
+    - Many setups (NetworkManager-managed bridges, bridges without an IP, hosts
+      where netcf isn't installed) won't surface via that backend, so any
+      device whose name matches typical bridge naming (`br*`, `bridge*`) is
+      also included — independent of whether the backend confirms it.
+
+    Always excludes loopback, libvirt-managed `virbr*`, and VM-side `vnet*`
+    interfaces.
+    """
+    if conn is None:
+        return []
+
+    try:
+        devices = conn.listAllDevices(libvirt.VIR_CONNECT_LIST_NODE_DEVICES_CAP_NET)
+    except libvirt.libvirtError as e:
+        logging.error(f"Error listing host network devices: {e}")
+        return []
+
+    bridges: set[str] = set()
+    for dev in devices:
+        try:
+            root = ET.fromstring(dev.XMLDesc(0))
+            cap = root.find("capability[@type='net']")
+            if cap is None:
+                continue
+            iface_elem = cap.find("interface")
+            if iface_elem is None or not iface_elem.text:
+                continue
+            name = iface_elem.text.strip()
+            if name == "lo" or name.startswith("vnet") or name.startswith("virbr"):
+                continue
+
+            # Authoritative: ask the libvirt interface backend.
+            try:
+                iface_xml = conn.interfaceLookupByName(name).XMLDesc(0)
+                iface_root = ET.fromstring(iface_xml)
+                if iface_root.get("type") == "bridge":
+                    bridges.add(name)
+                    continue
+            except libvirt.libvirtError:
+                pass  # backend may not see this interface — fall through
+
+            # Heuristic fallback by name. Catches bridges the netcf backend
+            # doesn't know about (typical for NM-managed or no-IP bridges).
+            if name.startswith("br") or name.startswith("bridge"):
+                bridges.add(name)
+        except libvirt.libvirtError as e:
+            logging.warning(f"Skipping host net device: {e}")
+            continue
+
+    return sorted(bridges)
 
 
 @log_function_call

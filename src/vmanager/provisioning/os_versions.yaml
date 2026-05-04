@@ -1,0 +1,83 @@
+# OS Versions Configuration
+# This file contains the list of supported OS versions for each provider.
+
+alpine:
+  - version_id: "3.23"
+    display_name: "Alpine Linux 3.23"
+  - version_id: "3.22"
+    display_name: "Alpine Linux 3.22"
+  - version_id: "3.21"
+    display_name: "Alpine Linux 3.21"
+
+archlinux:
+  - version_id: "latest"
+    display_name: "Latest Release (Rolling)"
+
+debian:
+  - version_id: "13"
+    display_name: "13 (Trixie)"
+    architecture: "amd64"
+  - version_id: "12"
+    display_name: "12 (Bookworm)"
+    architecture: "amd64"
+  - version_id: "11"
+    display_name: "11 (Bullseye)"
+    architecture: "amd64"
+  - version_id: "10"
+    display_name: "10 (Buster)"
+    architecture: "amd64"
+  - version_id: "testing"
+    display_name: "Testing"
+    architecture: "amd64"
+  - version_id: "unstable"
+    display_name: "Unstable (Sid)"
+    architecture: "amd64"
+
+fedora:
+  - version_id: "44"
+    display_name: "Fedora 44"
+  - version_id: "43"
+    display_name: "Fedora 43"
+  - version_id: "42"
+    display_name: "Fedora 42"
+  - version_id: "41"
+    display_name: "Fedora 41"
+
+opensuse:
+  - version_id: "leap-16.1"
+    display_name: "openSUSE Leap 16.1"
+  - version_id: "leap-16.0"
+    display_name: "openSUSE Leap 16.0"
+  - version_id: "leap-15.6"
+    display_name: "openSUSE Leap 15.6"
+  - version_id: "tumbleweed"
+    display_name: "openSUSE Tumbleweed"
+  - version_id: "slowroll"
+    display_name: "openSUSE Slowroll"
+
+ubuntu:
+  - version_id: "26.04"
+    display_name: "26.04 LTS (Resolute Raccoon)"
+    architecture: "amd64"
+  - version_id: "24.04"
+    display_name: "24.04 LTS (Noble Numbat)"
+    architecture: "amd64"
+  - version_id: "22.04"
+    display_name: "22.04 LTS (Jammy Jellyfish)"
+    architecture: "amd64"
+  - version_id: "20.04"
+    display_name: "20.04 LTS (Focal Fossa)"
+    architecture: "amd64"
+  - version_id: "25.10"
+    display_name: "25.10 (Questing Quokka)"
+    architecture: "amd64"
+  - version_id: "24.10"
+    display_name: "24.10 (Oracular Oriole)"
+    architecture: "amd64"
+  - version_id: "23.10"
+    display_name: "23.10 (Mantic Minotaur)"
+    architecture: "amd64"
+
+generic:
+  - version_id: "custom"
+    display_name: "Custom ISO (Generic)"

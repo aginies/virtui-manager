@@ -322,7 +322,7 @@ def custom_migrate_vm(
         dest_conn.defineXML(xml_desc)
         log("VM defined successfully on the destination.")
     except libvirt.libvirtError as e:
-        if e.get_error_code() == 9:  # VIR_ERR_DOMAIN_EXIST
+        if e.get_error_code() == libvirt.VIR_ERR_DOM_EXIST:
             log(f"VM '{domain.name()}' already exists on the destination. It will be overwritten.")
             # Undefine existing VM first
             existing_dest_vm = dest_conn.lookupByName(domain.name())
@@ -334,6 +334,16 @@ def custom_migrate_vm(
             dest_conn.defineXML(xml_desc)
             log("Existing VM on destination has been updated.")
         else:
+            err_msg = (e.get_error_message() or "").lower()
+            if "efi" in err_msg or "firmware" in err_msg or "loader" in err_msg:
+                log(
+                    f"[red]Destination host cannot resolve the VM's EFI firmware.[/] "
+                    f"The source XML references a <loader>/<nvram> path that does not "
+                    f"exist on the destination. Install a compatible OVMF package "
+                    f"(e.g. edk2-ovmf, ovmf) on the destination, or edit the source "
+                    f"VM to use <firmware type='efi'/> autodetection before retrying. "
+                    f"Original libvirt error: {e}"
+                )
             raise
 
     # 2. Analyze storage and propose move actions

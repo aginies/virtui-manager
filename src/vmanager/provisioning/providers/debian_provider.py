@@ -46,27 +46,7 @@ class DebianProvider(OSProvider):
 
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Debian versions."""
-        versions = []
-        distributions = [
-            ("13", "13 (Trixie)"),
-            ("12", "12 (Bookworm)"),
-            ("11", "11 (Bullseye)"),
-            ("10", "10 (Buster)"),
-            ("testing", "Testing"),
-            ("unstable", "Unstable (Sid)"),
-        ]
-
-        for version_id, display_name in distributions:
-            versions.append(
-                OSVersion(
-                    os_type=OSType.DEBIAN,
-                    version_id=version_id,
-                    display_name=display_name,
-                    architecture="amd64",
-                )
-            )
-
-        return versions
+        return self._get_versions_from_config("debian", default_arch="amd64")
 
     def get_iso_sources(self, version: OSVersion) -> List[str]:
         """Get ISO download sources for Debian version."""
@@ -90,7 +70,8 @@ class DebianProvider(OSProvider):
         try:
             if version is None:
                 # Default to latest stable
-                version = "12 (Bookworm)"
+                supported = self.get_supported_versions()
+                version = supported[1].display_name if len(supported) > 1 else "12 (Bookworm)"
 
             # Extract version number from the display name
             version_number = self._extract_version_number(version)

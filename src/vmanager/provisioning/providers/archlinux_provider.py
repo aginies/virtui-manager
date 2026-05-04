@@ -45,18 +45,7 @@ class ArchLinuxProvider(OSProvider):
 
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Arch Linux versions (Rolling)."""
-        versions = []
-        # Since it's rolling, we just provide generic labels
-        # but the ISO fetcher will get the actual dated ISOs
-        versions.append(
-            OSVersion(
-                os_type=OSType.ARCHLINUX,
-                version_id="latest",
-                display_name="Latest Release (Rolling)",
-                architecture=self.host_arch,
-            )
-        )
-        return versions
+        return self._get_versions_from_config("archlinux", default_arch=self.host_arch)
 
     def get_iso_sources(self, version: OSVersion) -> List[str]:
         """Get ISO download sources for Arch Linux."""

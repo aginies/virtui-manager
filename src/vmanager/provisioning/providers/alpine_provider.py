@@ -48,17 +48,7 @@ class AlpineProvider(OSProvider):
 
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Alpine Linux versions."""
-        versions = []
-        for ver in ["3.23", "3.22", "3.21"]:
-            versions.append(
-                OSVersion(
-                    os_type=OSType.ALPINE,
-                    version_id=ver,
-                    display_name=f"Alpine Linux {ver}",
-                    architecture=self.host_arch,
-                )
-            )
-        return versions
+        return self._get_versions_from_config("alpine", default_arch=self.host_arch)
 
     def get_iso_sources(self, version: OSVersion) -> List[str]:
         """Get ISO download sources for Alpine Linux."""
@@ -68,7 +58,8 @@ class AlpineProvider(OSProvider):
     def get_iso_list(self, version: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get list of available Alpine Linux ISOs."""
         if version is None:
-            version = "3.23"
+            supported = self.get_supported_versions()
+            version = supported[0].version_id if supported else "3.23"
         
         # Handle if full display name is passed
         if " " in version:

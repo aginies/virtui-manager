@@ -210,6 +210,10 @@ class NoDismissModal(BaseModal):
 
     BINDINGS = []
 
+    def on_click(self, event) -> None:
+        """Prevent dismissal by clicking outside."""
+        pass
+
 
 class LoadingModal(NoDismissModal):
     """A modal screen that displays a loading indicator."""

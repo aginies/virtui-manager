@@ -34,7 +34,7 @@ class DisplaySettings:
 
     def __init__(
         self,
-        scaling_enabled: bool = False,
+        scaling_enabled: bool = True,
         smoothing_enabled: bool = True,
         lossy_encoding_enabled: bool = False,
         view_only_enabled: bool = False,

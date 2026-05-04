@@ -16,6 +16,7 @@ from ..os_provider import OSProvider, OSType, OSVersion, hash_password
 class FedoraDistro(Enum):
     """Fedora distribution types."""
 
+    FEDORA_44 = "44"
     FEDORA_43 = "43"
     FEDORA_42 = "42"
     FEDORA_41 = "41"
@@ -40,18 +41,7 @@ class FedoraProvider(OSProvider):
 
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported Fedora versions."""
-        versions = []
-        # Support latest 3 major versions
-        for ver in ["43", "42", "41"]:
-            versions.append(
-                OSVersion(
-                    os_type=OSType.FEDORA,
-                    version_id=ver,
-                    display_name=f"Fedora {ver}",
-                    architecture=self.host_arch,
-                )
-            )
-        return versions
+        return self._get_versions_from_config("fedora", default_arch=self.host_arch)
 
     def get_iso_sources(self, version: OSVersion) -> List[str]:
         """Get ISO download sources for a Fedora version."""
@@ -68,7 +58,8 @@ class FedoraProvider(OSProvider):
     def get_iso_list(self, version: Optional[str] = None) -> List[Dict[str, Any]]:
         """Get list of available Fedora ISOs for multiple variants."""
         if version is None:
-            version = "43"
+            supported = self.get_supported_versions()
+            version = supported[0].version_id if supported else "44"
         
         # Handle if full display name is passed
         if " " in version:

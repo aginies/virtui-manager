@@ -36,6 +36,7 @@ class DisplayHandler:
         fs_button: Gtk.ToggleButton,
         connect_display_callback: Callable,
         save_state_callback: Callable,
+        settings: Optional[object] = None,
         log_callback: Optional[Callable[[str], None]] = None,
         notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None,
         error_dialog_callback: Optional[Callable[[str], None]] = None,
@@ -53,6 +54,7 @@ class DisplayHandler:
             fs_button: Fullscreen toggle button
             connect_display_callback: Callback to reconnect display
             save_state_callback: Callback to save application state
+            settings: DisplaySettings object
             log_callback: Function to call for logging
             notification_callback: Function to call for notifications
             error_dialog_callback: Function to call for error dialogs
@@ -66,6 +68,7 @@ class DisplayHandler:
         self.fs_button = fs_button
         self.connect_display = connect_display_callback
         self.save_state = save_state_callback
+        self.settings = settings
         self.verbose = verbose
 
         self.log = log_callback if log_callback else lambda msg: None
@@ -184,89 +187,82 @@ class DisplayHandler:
             self.window.unfullscreen()
         self.save_state()
 
-    def on_scaling_toggled(self, button, scaling_enabled_ref):
+    def on_scaling_toggled(self, button):
         """
         Handle scaling toggle.
 
         Args:
             button: Toggle button
-            scaling_enabled_ref: List containing [scaling_enabled] (mutable reference)
         """
-        scaling_enabled_ref[0] = button.get_active()
+        enabled = button.get_active()
+        if self.settings:
+            self.settings.scaling_enabled = enabled
+
         if self.protocol == "vnc" and self.vnc_display:
-            self.vnc_display.set_scaling(scaling_enabled_ref[0])
+            self.vnc_display.set_scaling(enabled)
         elif self.protocol == "spice" and self.display_widget:
-            self.display_widget.set_property("scaling", scaling_enabled_ref[0])
+            self.display_widget.set_property("scaling", enabled)
         self.save_state()
 
-    def on_smoothing_toggled(self, button, smoothing_enabled_ref):
+    def on_smoothing_toggled(self, button):
         """
         Handle smoothing toggle.
 
         Args:
             button: Toggle button
-            smoothing_enabled_ref: List containing [smoothing_enabled] (mutable reference)
         """
-        smoothing_enabled_ref[0] = button.get_active()
+        enabled = button.get_active()
+        if self.settings:
+            self.settings.smoothing_enabled = enabled
+
         if self.protocol == "vnc" and self.vnc_display:
-            self.vnc_display.set_smoothing(smoothing_enabled_ref[0])
+            self.vnc_display.set_smoothing(enabled)
         self.save_state()
 
-    def on_lossy_toggled(self, button, lossy_enabled_ref):
+    def on_lossy_toggled(self, button):
         """
         Handle lossy encoding toggle.
 
         Args:
             button: Toggle button
-            lossy_enabled_ref: List containing [lossy_encoding_enabled] (mutable reference)
         """
-        lossy_enabled_ref[0] = button.get_active()
+        enabled = button.get_active()
+        if self.settings:
+            self.settings.lossy_encoding_enabled = enabled
+
         if self.protocol == "vnc" and self.vnc_display:
-            self.vnc_display.set_lossy_encoding(lossy_enabled_ref[0])
+            self.vnc_display.set_lossy_encoding(enabled)
         self.save_state()
 
-    def on_view_only_toggled(self, button, view_only_ref):
+    def on_view_only_toggled(self, button):
         """
         Handle view-only mode toggle.
 
         Args:
             button: Toggle button
-            view_only_ref: List containing [view_only_enabled] (mutable reference)
         """
-        view_only_ref[0] = button.get_active()
+        enabled = button.get_active()
+        if self.settings:
+            self.settings.view_only_enabled = enabled
+
         if self.protocol == "vnc" and self.vnc_display:
-            self.vnc_display.set_read_only(view_only_ref[0])
+            self.vnc_display.set_read_only(enabled)
         self.save_state()
 
-    def on_depth_changed(self, combo, vnc_depth_ref, apply_vnc_depth_callback):
+    def on_depth_changed(self, combo, apply_vnc_depth_callback):
         """
         Handle VNC color depth change.
 
         Args:
             combo: ComboBox widget
-            vnc_depth_ref: List containing [vnc_depth] (mutable reference)
             apply_vnc_depth_callback: Callback to apply depth setting
         """
         depth_str = combo.get_active_id()
         if depth_str:
-            vnc_depth_ref[0] = int(depth_str)
+            depth = int(depth_str)
+            if self.settings:
+                self.settings.vnc_depth = depth
 
-            # Ensure the underlying settings object used by the display
-            # manager sees the updated depth before applying/reconnecting.
-            # This keeps _apply_vnc_depth() and any persisted state in sync
-            # with the user's selection.
-            if hasattr(self, "settings"):
-                try:
-                    self.settings.vnc_depth = vnc_depth_ref[0]
-                except Exception:
-                    # Fallback: ignore if settings object does not allow assignment
-                    pass
-            if hasattr(self, "display_manager") and hasattr(self.display_manager, "settings"):
-                try:
-                    self.display_manager.settings.vnc_depth = vnc_depth_ref[0]
-                except Exception:
-                    # Fallback: ignore if display_manager settings does not allow assignment
-                    pass
             if self.protocol == "vnc" and self.vnc_display:
                 apply_vnc_depth_callback()
                 if self.vnc_display.is_open():

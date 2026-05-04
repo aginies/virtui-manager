@@ -14,6 +14,7 @@ import ssl
 import subprocess
 import string
 import urllib.request
+import yaml
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -72,6 +73,29 @@ class AutomationConfig:
     variables: Dict[str, Any]
     supports_custom_user: bool = True
     supports_network_config: bool = True
+
+
+_cached_os_versions = None
+
+
+def load_os_versions() -> Dict[str, Any]:
+    """Load OS versions from the YAML configuration file."""
+    global _cached_os_versions
+    if _cached_os_versions is not None:
+        return _cached_os_versions
+
+    yaml_path = Path(__file__).parent / "os_versions.yaml"
+    if not yaml_path.exists():
+        logging.error(f"OS versions configuration not found at {yaml_path}")
+        return {}
+
+    try:
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            _cached_os_versions = yaml.safe_load(f)
+        return _cached_os_versions
+    except Exception as e:
+        logging.error(f"Error loading OS versions from {yaml_path}: {e}")
+        return {}
 
 
 def hash_password(plaintext_password: str) -> str:
@@ -171,6 +195,26 @@ class OSProvider(ABC):
     ) -> Path:
         """Generate automation file (unattend.xml, preseed, etc.) for unattended install."""
         pass
+
+    def _get_versions_from_config(
+        self, os_key: str, default_arch: str = "x86_64"
+    ) -> List[OSVersion]:
+        """Helper to get versions from the centralized YAML configuration."""
+        data = load_os_versions()
+        versions_data = data.get(os_key, [])
+
+        versions = []
+        for v in versions_data:
+            versions.append(
+                OSVersion(
+                    os_type=self.os_type,
+                    version_id=v["version_id"],
+                    display_name=v["display_name"],
+                    architecture=v.get("architecture", default_arch),
+                    is_evaluation=v.get("is_evaluation", False),
+                )
+            )
+        return versions
 
     @property
     def preferred_boot_uefi(self) -> bool:

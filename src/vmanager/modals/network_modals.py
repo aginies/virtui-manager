@@ -14,6 +14,7 @@ from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..network_manager import (
     create_network,
     get_existing_subnets,
+    get_host_bridges,
     get_host_network_interfaces,
     suggest_free_subnet,
 )
@@ -179,13 +180,16 @@ class AddEditNetworkModal(BaseModal[None]):
                 dhcp_start_val = ""
                 dhcp_end_val = ""
 
-        # Forward interface row is only relevant for routed mode
-        forward_iface_hidden = "hidden" if forward_mode == "nat" else ""
+        # The forward-interface row is shown for routed mode; bridge mode uses
+        # its own row that lists host bridges. NAT mode hides both.
+        forward_iface_hidden = "" if forward_mode == "route" else "hidden"
+        bridge_row_hidden = "" if forward_mode == "bridge" else "hidden"
+        ip_section_hidden = "hidden" if forward_mode == "bridge" else ""
 
         with Vertical(id="create-network-dialog"):
             yield Label(title, id="create-network-title")
 
-            with ScrollableContainer():
+            with ScrollableContainer(id="create-network-scroll"):
                 with Vertical(id="create-network-form"):
                     yield Input(
                         placeholder=StaticText.NETWORK_NAME_PLACEHOLDER,
@@ -204,6 +208,11 @@ class AddEditNetworkModal(BaseModal[None]):
                             id="type-network-routed",
                             value=(forward_mode == "route"),
                         )
+                        yield RadioButton(
+                            StaticText.BRIDGE_NETWORK,
+                            id="type-network-bridge",
+                            value=(forward_mode == "bridge"),
+                        )
                     with Vertical(id="forward-iface-row", classes=forward_iface_hidden):
                         yield Select(
                             [(StaticText.LOADING_LABEL, "")],
@@ -213,11 +222,24 @@ class AddEditNetworkModal(BaseModal[None]):
                             allow_blank=True,
                             disabled=True,
                         )
-                    yield Input(
-                        placeholder=StaticText.IPV4_NETWORK_EXAMPLE, id="net-ip-input", value=ip_val
-                    )
-                    yield Checkbox(StaticText.ENABLE_DHCPV4, id="dhcp-checkbox", value=dhcp_val)
-                    with Vertical(id="dhcp-inputs-horizontal"):
+                    with Vertical(id="bridge-row", classes=bridge_row_hidden):
+                        yield Select(
+                            [(StaticText.LOADING_LABEL, "")],
+                            prompt=StaticText.SELECT_BRIDGE_PROMPT,
+                            id="net-bridge-input",
+                            classes="net-forward-input",
+                            allow_blank=True,
+                            disabled=True,
+                        )
+                    with Vertical(id="ip-section", classes=ip_section_hidden):
+                        yield Input(
+                            placeholder=StaticText.IPV4_NETWORK_EXAMPLE,
+                            id="net-ip-input",
+                            value=ip_val,
+                        )
+                        yield Checkbox(
+                            StaticText.ENABLE_DHCPV4, id="dhcp-checkbox", value=dhcp_val
+                        )
                         dhcp_options_classes = "" if dhcp_val else "hidden"
                         with Horizontal(id="dhcp-options", classes=dhcp_options_classes):
                             yield Input(
@@ -232,40 +254,44 @@ class AddEditNetworkModal(BaseModal[None]):
                                 classes="dhcp-input",
                                 value=dhcp_end_val,
                             )
-                    with RadioSet(id="dns-domain-radioset", classes="dns-domain-radioset"):
-                        yield RadioButton(
-                            StaticText.USE_NETWORK_NAME_FOR_DNS,
-                            id="dns-use-net-name",
-                            value=not use_custom_domain,
-                        )
-                        yield RadioButton(
-                            StaticText.USE_CUSTOM_DNS_DOMAIN,
-                            id="dns-use-custom",
-                            value=use_custom_domain,
+                        with RadioSet(id="dns-domain-radioset", classes="dns-domain-radioset"):
+                            yield RadioButton(
+                                StaticText.USE_NETWORK_NAME_FOR_DNS,
+                                id="dns-use-net-name",
+                                value=not use_custom_domain,
+                            )
+                            yield RadioButton(
+                                StaticText.USE_CUSTOM_DNS_DOMAIN,
+                                id="dns-use-custom",
+                                value=use_custom_domain,
+                            )
+
+                        custom_domain_classes = "hidden" if not use_custom_domain else ""
+                        yield Input(
+                            placeholder=StaticText.CUSTOM_DNS_DOMAIN,
+                            id="dns-custom-domain-input",
+                            value=domain_name,
+                            classes=custom_domain_classes,
                         )
 
-                    custom_domain_classes = "hidden" if not use_custom_domain else ""
-                    yield Input(
-                        placeholder=StaticText.CUSTOM_DNS_DOMAIN,
-                        id="dns-custom-domain-input",
-                        value=domain_name,
-                        classes=custom_domain_classes,
-                    )
-                    with Vertical(id="network-create-close-horizontal"):
-                        with Horizontal(classes="action-buttons"):
-                            yield Button(
-                                button_label,
-                                variant="primary",
-                                id="create-net-btn",
-                                classes="create-net-btn",
-                            )
-            yield Button(
-                ButtonLabels.CLOSE, variant="default", id="close-btn", classes="close-button"
-            )
+            with Horizontal(id="network-modal-buttons"):
+                yield Button(
+                    button_label,
+                    variant="primary",
+                    id="create-net-btn",
+                    classes="create-net-btn",
+                )
+                yield Button(
+                    ButtonLabels.CLOSE,
+                    variant="default",
+                    id="close-btn",
+                    classes="close-button",
+                )
 
     def on_mount(self) -> None:
         """Called when the modal is mounted to populate network interfaces."""
         self.run_worker(self.populate_interfaces, thread=True)
+        self.run_worker(self.populate_bridges, thread=True)
 
     def populate_interfaces(self) -> None:
         """Worker to fetch host network interfaces from the remote libvirt host."""
@@ -310,18 +336,56 @@ class AddEditNetworkModal(BaseModal[None]):
                 ErrorMessages.ERROR_GETTING_HOST_INTERFACES_TEMPLATE.format(error=e),
             )
 
+    def populate_bridges(self) -> None:
+        """Worker to fetch host bridge interfaces from the remote libvirt host."""
+        try:
+            bridges = get_host_bridges(self.conn)
+            options = [(name, name) for name in bridges]
+            if not options:
+                options = [(StaticText.NO_BRIDGES_FOUND_LABEL, "")]
+
+            def update_select():
+                select = self.query_one("#net-bridge-input", Select)
+                select.set_options(options)
+                select.disabled = not bridges
+                select.prompt = StaticText.SELECT_BRIDGE_PROMPT
+                if self.is_edit and self.network_info:
+                    bridge_name = self.network_info.get("bridge_name")
+                    if bridge_name and bridge_name in bridges:
+                        select.value = bridge_name
+
+            self.app.call_from_thread(update_select)
+        except OSError as e:
+            self.app.call_from_thread(
+                self.app.show_error_message,
+                ErrorMessages.ERROR_GETTING_HOST_INTERFACES_TEMPLATE.format(error=e),
+            )
+
     @on(RadioSet.Changed, "#type-network")
     def on_type_network_changed(self, event: RadioSet.Changed) -> None:
-        """Show/hide forward interface row based on network type.
+        """Show/hide rows based on selected network type.
 
-        For NAT mode, libvirt handles routing automatically — no forward interface needed.
-        For Routed mode, the interface must be specified.
+        - NAT: libvirt handles routing — no interface or bridge selection needed.
+        - Routed: requires a forward interface on the host.
+        - Bridge: requires an existing host bridge; libvirt does not manage IP/DHCP.
         """
         forward_row = self.query_one("#forward-iface-row")
-        if event.pressed.id == "type-network-routed":
+        bridge_row = self.query_one("#bridge-row")
+        ip_section = self.query_one("#ip-section")
+
+        pressed = event.pressed.id
+        if pressed == "type-network-routed":
             forward_row.remove_class("hidden")
+            bridge_row.add_class("hidden")
+            ip_section.remove_class("hidden")
+        elif pressed == "type-network-bridge":
+            forward_row.add_class("hidden")
+            bridge_row.remove_class("hidden")
+            ip_section.add_class("hidden")
         else:
             forward_row.add_class("hidden")
+            bridge_row.add_class("hidden")
+            ip_section.remove_class("hidden")
 
     @on(Input.Changed, "#net-ip-input")
     def on_ip_input_changed(self, event: Input.Changed) -> None:
@@ -365,17 +429,12 @@ class AddEditNetworkModal(BaseModal[None]):
         elif event.button.id == "create-net-btn":
             name_raw = self.query_one("#net-name-input", Input).value
             typenet_id = self.query_one("#type-network", RadioSet).pressed_button.id
-            typenet = "nat" if typenet_id == "type-network-nat" else "route"
-            forward_select = self.query_one("#net-forward-input", Select)
-            forward = forward_select.value
-            if forward is Select.NULL:
-                forward = None
-            ip = self.query_one("#net-ip-input", Input).value
-            dhcp = self.query_one("#dhcp-checkbox", Checkbox).value
-            dhcp_start = self.query_one("#dhcp-start-input", Input).value
-            dhcp_end = self.query_one("#dhcp-end-input", Input).value
-
-            domain_radio = self.query_one("#dns-domain-radioset", RadioSet).pressed_button.id
+            if typenet_id == "type-network-nat":
+                typenet = "nat"
+            elif typenet_id == "type-network-bridge":
+                typenet = "bridge"
+            else:
+                typenet = "route"
 
             try:
                 name, name_modified = _sanitize_input(name_raw)
@@ -391,52 +450,80 @@ class AddEditNetworkModal(BaseModal[None]):
                 )
                 return
 
-            domain_name_raw = self.query_one("#dns-custom-domain-input", Input).value
-            domain_name = name  # Default to sanitized network name
-            if domain_radio == "dns-use-custom":
-                try:
-                    domain_name, domain_name_modified = _sanitize_domain_name(domain_name_raw)
-                    if domain_name_modified:
-                        self.app.show_success_message(
-                            SuccessMessages.INPUT_SANITIZED.format(
-                                original_input=domain_name_raw, sanitized_input=domain_name
-                            )
-                        )
-                except ValueError as e:
-                    self.app.show_error_message(
-                        ErrorMessages.INVALID_CUSTOM_DNS_DOMAIN_TEMPLATE.format(error=e)
-                    )
-                    return
-
             if not name:
                 self.app.show_error_message(ErrorMessages.NETWORK_NAME_REQUIRED)
                 return
 
-            if ip:
-                try:
-                    ip_network = ipaddress.ip_network(ip, strict=False)
-                    ip = str(ip_network)  # Use the canonical network address string
-                    if dhcp:
-                        dhcp_start_ip = ipaddress.ip_address(dhcp_start)
-                        dhcp_end_ip = ipaddress.ip_address(dhcp_end)
-                        if dhcp_start_ip not in ip_network or dhcp_end_ip not in ip_network:
-                            self.app.show_error_message(
-                                ErrorMessages.DHCP_IPS_NOT_IN_NETWORK_TEMPLATE.format(
-                                    network=ip_network
+            # Bridge mode is special: libvirt doesn't manage IP/DHCP/DNS — only
+            # the bridge name matters. Skip all IP/DHCP plumbing.
+            if typenet == "bridge":
+                bridge_select = self.query_one("#net-bridge-input", Select)
+                bridge = bridge_select.value
+                if bridge is Select.NULL or not bridge:
+                    self.app.show_error_message(ErrorMessages.BRIDGE_REQUIRED)
+                    return
+                forward = bridge
+                ip = ""
+                dhcp = False
+                dhcp_start = ""
+                dhcp_end = ""
+                domain_name = ""
+            else:
+                forward_select = self.query_one("#net-forward-input", Select)
+                forward = forward_select.value
+                if forward is Select.NULL:
+                    forward = None
+                ip = self.query_one("#net-ip-input", Input).value
+                dhcp = self.query_one("#dhcp-checkbox", Checkbox).value
+                dhcp_start = self.query_one("#dhcp-start-input", Input).value
+                dhcp_end = self.query_one("#dhcp-end-input", Input).value
+
+                domain_radio = self.query_one("#dns-domain-radioset", RadioSet).pressed_button.id
+                domain_name_raw = self.query_one("#dns-custom-domain-input", Input).value
+                domain_name = name  # Default to sanitized network name
+                if domain_radio == "dns-use-custom":
+                    try:
+                        domain_name, domain_name_modified = _sanitize_domain_name(domain_name_raw)
+                        if domain_name_modified:
+                            self.app.show_success_message(
+                                SuccessMessages.INPUT_SANITIZED.format(
+                                    original_input=domain_name_raw, sanitized_input=domain_name
                                 )
                             )
-                            return
-                        if dhcp_start_ip >= dhcp_end_ip:
-                            self.app.show_error_message(ErrorMessages.DHCP_START_BEFORE_END)
-                            return
-                except ValueError as e:
-                    self.app.show_error_message(
-                        ErrorMessages.INVALID_IP_OR_NETWORK_TEMPLATE.format(error=e)
-                    )
+                    except ValueError as e:
+                        self.app.show_error_message(
+                            ErrorMessages.INVALID_CUSTOM_DNS_DOMAIN_TEMPLATE.format(error=e)
+                        )
+                        return
+
+                if ip:
+                    try:
+                        ip_network = ipaddress.ip_network(ip, strict=False)
+                        ip = str(ip_network)  # Use the canonical network address string
+                        if dhcp:
+                            dhcp_start_ip = ipaddress.ip_address(dhcp_start)
+                            dhcp_end_ip = ipaddress.ip_address(dhcp_end)
+                            if (
+                                dhcp_start_ip not in ip_network
+                                or dhcp_end_ip not in ip_network
+                            ):
+                                self.app.show_error_message(
+                                    ErrorMessages.DHCP_IPS_NOT_IN_NETWORK_TEMPLATE.format(
+                                        network=ip_network
+                                    )
+                                )
+                                return
+                            if dhcp_start_ip >= dhcp_end_ip:
+                                self.app.show_error_message(ErrorMessages.DHCP_START_BEFORE_END)
+                                return
+                    except ValueError as e:
+                        self.app.show_error_message(
+                            ErrorMessages.INVALID_IP_OR_NETWORK_TEMPLATE.format(error=e)
+                        )
+                        return
+                elif dhcp:
+                    self.app.show_error_message(ErrorMessages.DHCP_REQUIRES_IP)
                     return
-            elif dhcp:
-                self.app.show_error_message(ErrorMessages.DHCP_REQUIRES_IP)
-                return
 
             def do_create_or_update_network():
                 try:

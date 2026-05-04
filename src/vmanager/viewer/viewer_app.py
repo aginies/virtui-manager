@@ -284,7 +284,7 @@ class RemoteViewer(Gtk.Application):
 
         # Create display settings from loaded state
         display_settings = DisplaySettings(
-            scaling_enabled=state.get("scaling", False),
+            scaling_enabled=state.get("scaling", True),
             smoothing_enabled=state.get("smoothing", True),
             lossy_encoding_enabled=state.get("lossy_encoding", False),
             view_only_enabled=state.get("view_only", False),
@@ -429,13 +429,6 @@ class RemoteViewer(Gtk.Application):
         These are lightweight wrapper methods that will delegate to handler instances
         once they're created.
         """
-        # Use lists for mutable references (Python closure workaround)
-        scaling_ref = [display_settings.scaling_enabled]
-        smoothing_ref = [display_settings.smoothing_enabled]
-        lossy_ref = [display_settings.lossy_encoding_enabled]
-        view_only_ref = [display_settings.view_only_enabled]
-        depth_ref = [display_settings.vnc_depth]
-
         return {
             # Power handlers
             "on_power_start": lambda btn, pop: self.power_handler.on_start(btn, pop)
@@ -478,26 +471,20 @@ class RemoteViewer(Gtk.Application):
             "on_fs_button_toggled": lambda btn: self.display_handler.on_fullscreen_toggled(btn)
             if self.display_handler
             else None,
-            "on_scaling_toggled": lambda btn: self.display_handler.on_scaling_toggled(
-                btn, scaling_ref
-            )
+            "on_scaling_toggled": lambda btn: self.display_handler.on_scaling_toggled(btn)
             if self.display_handler
             else None,
-            "on_smoothing_toggled": lambda btn: self.display_handler.on_smoothing_toggled(
-                btn, smoothing_ref
-            )
+            "on_smoothing_toggled": lambda btn: self.display_handler.on_smoothing_toggled(btn)
             if self.display_handler
             else None,
-            "on_lossy_toggled": lambda btn: self.display_handler.on_lossy_toggled(btn, lossy_ref)
+            "on_lossy_toggled": lambda btn: self.display_handler.on_lossy_toggled(btn)
             if self.display_handler
             else None,
-            "on_view_only_toggled": lambda btn: self.display_handler.on_view_only_toggled(
-                btn, view_only_ref
-            )
+            "on_view_only_toggled": lambda btn: self.display_handler.on_view_only_toggled(btn)
             if self.display_handler
             else None,
             "on_depth_changed": lambda combo: self.display_handler.on_depth_changed(
-                combo, depth_ref, self._apply_vnc_depth
+                combo, self._apply_vnc_depth
             )
             if self.display_handler
             else None,
@@ -575,6 +562,7 @@ class RemoteViewer(Gtk.Application):
             fs_button=self.window_builder.get_fullscreen_button(),
             connect_display_callback=self._connect_display,
             save_state_callback=self._save_state,
+            settings=display_settings,
             log_callback=self._log_message,
             notification_callback=self._show_notification,
             error_dialog_callback=self._show_error_dialog,
@@ -716,39 +704,17 @@ class RemoteViewer(Gtk.Application):
 
         # Prefer current UI/handler state when available, fall back to manager settings.
         fullscreen = self.display_handler.is_fullscreen if self.display_handler else False
-        scaling = getattr(
-            self.display_handler,
-            "scaling_enabled",
-            self.display_manager.settings.scaling_enabled,
-        )
-        smoothing = getattr(
-            self.display_handler,
-            "smoothing_enabled",
-            self.display_manager.settings.smoothing_enabled,
-        )
-        lossy_encoding = getattr(
-            self.display_handler,
-            "lossy_encoding_enabled",
-            self.display_manager.settings.lossy_encoding_enabled,
-        )
-        view_only = getattr(
-            self.display_handler,
-            "view_only_enabled",
-            self.display_manager.settings.view_only_enabled,
-        )
-        vnc_depth = getattr(
-            self.display_handler,
-            "vnc_depth",
-            self.display_manager.settings.vnc_depth,
-        )
+
+        # Use settings from display manager directly as they are now updated by handlers
+        s = self.display_manager.settings
 
         state = {
             "fullscreen": fullscreen,
-            "scaling": scaling,
-            "smoothing": smoothing,
-            "lossy_encoding": lossy_encoding,
-            "view_only": view_only,
-            "vnc_depth": vnc_depth,
+            "scaling": s.scaling_enabled,
+            "smoothing": s.smoothing_enabled,
+            "lossy_encoding": s.lossy_encoding_enabled,
+            "view_only": s.view_only_enabled,
+            "vnc_depth": s.vnc_depth,
         }
         self.config_manager.save_state(state)
 

@@ -26,13 +26,7 @@ class GenericProvider(OSProvider):
 
     def get_supported_versions(self) -> List[OSVersion]:
         """Get list of supported generic versions."""
-        return [
-            OSVersion(
-                os_type=OSType.GENERIC,
-                version_id="custom",
-                display_name="Custom ISO (Generic)",
-            )
-        ]
+        return self._get_versions_from_config("generic")
 
     def get_iso_list(self, version: Optional[str] = None) -> List[Dict[str, Any]]:
         """Return empty list, as user will provide path/URL."""

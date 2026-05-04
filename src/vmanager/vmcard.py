@@ -2328,10 +2328,10 @@ class VMCard(Static):
 
         # def on_confirm(confirmed: bool) -> None:
         #    if confirmed:
-        #        self.app.push_screen(AdvancedCloneDialog(), handle_clone_results)
+        #        self.app.push_screen(AdvancedCloneDialog(self.name), handle_clone_results)
 
         # self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
-        self.app.push_screen(AdvancedCloneDialog(), handle_clone_results)
+        self.app.push_screen(AdvancedCloneDialog(self.name), handle_clone_results)
 
     def _handle_rename_button(self) -> None:
         """Handles the rename button press."""

@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.0.3"
+    version = "3.0.4"
     author = "Antoine Ginies"
 
 
@@ -429,6 +429,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     ALL_INTERFACES = _("All interfaces")
     NAT_NETWORK = _("NAT Network")
     ROUTED_NETWORK = _("Routed Network")
+    BRIDGE_NETWORK = _("Bridge Network")
     IPV4_NETWORK_EXAMPLE = _("e.g., 192.168.1.0/24")
     DHCP_START_EXAMPLE = _("e.g., 192.168.1.10")
     DHCP_END_EXAMPLE = _("e.g., 192.168.1.200")
@@ -576,7 +577,9 @@ class StaticText:  # pylint: disable=too-few-public-methods
     NETWORK_NAME_PLACEHOLDER = _("Network Name (e.g., nat_net)")
     LOADING_LABEL = _("Loading...")
     SELECT_FORWARD_INTERFACE_PROMPT = _("Select Forward Interface")
+    SELECT_BRIDGE_PROMPT = _("Select Host Bridge")
     NO_INTERFACES_FOUND_LABEL = _("No interfaces found")
+    NO_BRIDGES_FOUND_LABEL = _("No host bridges found")
     VCPU_COUNT_EXAMPLE = _("e.g., 2")
     MEMORY_SIZE_EXAMPLE = _("e.g., 2048")
     CPU_PINNING_EXAMPLE = _("e.g., 0:0-1; 1:2-3")
@@ -1036,6 +1039,7 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     INVALID_NETWORK_NAME_TEMPLATE = _("Invalid Network Name: {error}")
     INVALID_CUSTOM_DNS_DOMAIN_TEMPLATE = _("Invalid Custom DNS Domain: {error}")
     NETWORK_NAME_REQUIRED = _("Network Name cannot be empty.")
+    BRIDGE_REQUIRED = _("A host bridge must be selected for bridge mode.")
     DHCP_IPS_NOT_IN_NETWORK_TEMPLATE = _("DHCP IPs are not in the network {network}")
     DHCP_START_BEFORE_END = _("DHCP start IP must be before the end IP.")
     INVALID_IP_OR_NETWORK_TEMPLATE = _("Invalid IP address or network: {error}")

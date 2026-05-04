@@ -38,12 +38,6 @@ class VMActionsModal(BaseModal[str | None]):
         self.r_viewer_available = r_viewer_available
         self.graphics_type = graphics_type
 
-    def on_click(self, event) -> None:
-        """Dismiss when clicking outside the modal dialog."""
-        if self.query_one("#vm-actions-modal").region.contains_point(event.screen_offset):
-            return
-        self.dismiss(None)
-
     def compose(self) -> ComposeResult:
         from ..vmcard import VMCardActions
 
@@ -208,8 +202,12 @@ class ChangeNetworkDialog(BaseDialog[dict | None]):
 class AdvancedCloneDialog(BaseDialog[dict | None]):
     """A dialog to ask for a new VM name and number of clones."""
 
+    def __init__(self, vm_name: str) -> None:
+        super().__init__()
+        self.vm_name = vm_name
+
     def compose(self):
-        yield Grid(
+        grid = Grid(
             Label(StaticText.ENTER_BASE_NAME),
             Input(placeholder="new_vm_base_name", id="base_name_input", restrict=r"[a-zA-Z0-9_-]*"),
             Label(StaticText.SUFFIX_FOR_CLONE_NAMES),
@@ -226,6 +224,8 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             Button(ButtonLabels.CANCEL, variant="error", id="cancel"),
             id="clone-dialog",
         )
+        grid.border_title = f"Advanced Clone: {self.vm_name}"
+        yield grid
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "clone":
