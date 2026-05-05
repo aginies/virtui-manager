@@ -329,16 +329,17 @@ class VMService:
 
                 try:
                     _, vm_name = self.get_vm_identity(domain, conn, known_uri=uri)
+                    server_name = extract_server_name_from_uri(uri)
 
                     final_msg = None
                     if event_msg:
-                        final_msg = f"VM [b]{vm_name}[/b] {event_msg}"
+                        final_msg = f"VM [b]{vm_name}[/b] on [b]{server_name}[/b]: {event_msg}"
                     elif event == libvirt.VIR_DOMAIN_EVENT_DEFINED:
                         # Use detail to differentiate? 0=Added, 1=Updated
                         action_str = "Configuration Updated" if detail == 1 else "Defined"
-                        final_msg = f"VM [b]{vm_name}[/b] {action_str}"
+                        final_msg = f"VM [b]{vm_name}[/b] on [b]{server_name}[/b]: {action_str}"
                     elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
-                        final_msg = f"VM [b]{vm_name}[/b] Undefined (Deleted)"
+                        final_msg = f"VM [b]{vm_name}[/b] on [b]{server_name}[/b]: Undefined (Deleted)"
 
                     if final_msg:
                         clean_msg = final_msg.replace("[b]", "").replace("[/b]", "")

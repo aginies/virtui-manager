@@ -2195,7 +2195,9 @@ class VMCard(Static):
 
             self.app.worker_manager.run(do_delete, name=f"delete_{internal_id}")
 
-        self.app.push_screen(DeleteVMConfirmationDialog(self.name), on_confirm)
+        uri = self._get_uri()
+        server_name = extract_server_name_from_uri(uri)
+        self.app.push_screen(DeleteVMConfirmationDialog(self.name, server_name), on_confirm)
 
     def _handle_clone_button(self) -> None:
         """Handles the clone button press."""

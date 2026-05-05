@@ -260,6 +260,9 @@ class MigrationModal(ModalScreen):
                 if pool["warning"]:
                     write_log(StaticText.POOL_WARNING_TEMPLATE.format(warning=pool["warning"]))
 
+        # Check if custom migration is selected
+        is_custom = self.query_one("#custom", Checkbox).value
+
         for i, vm in enumerate(self.vms_to_migrate):
             try:
                 write_log(StaticText.CHECKING_VM_HEADER_TEMPLATE.format(vm_name=vm.name()))
@@ -295,7 +298,9 @@ class MigrationModal(ModalScreen):
 
                 # --- VM Compatibility ---
                 write_log(StaticText.VM_COMPATIBILITY_HEADER)
-                vm_issues = check_vm_migration_compatibility(vm, self.dest_conn, self.is_live)
+                vm_issues = check_vm_migration_compatibility(
+                    vm, self.dest_conn, self.is_live, check_snapshots=not is_custom
+                )
 
                 vm_errors = [issue for issue in vm_issues if issue["severity"] == "ERROR"]
                 for issue in vm_errors:

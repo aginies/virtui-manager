@@ -128,14 +128,17 @@ class VMActionsModal(BaseModal[str | None]):
 class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     """A dialog to confirm VM deletion with an option to delete storage."""
 
-    def __init__(self, vm_name: str) -> None:
+    def __init__(self, vm_name: str, server_name: str) -> None:
         super().__init__()
         self.vm_name = vm_name
+        self.server_name = server_name
 
     def compose(self):
-        yield Vertical(
+        v = Vertical(
             Markdown(
-                StaticText.DELETE_VM_CONFIRMATION_TEMPLATE.format(vm_name=self.vm_name),
+                StaticText.DELETE_VM_CONFIRMATION_TEMPLATE.format(
+                    vm_name=self.vm_name, server_name=self.server_name
+                ),
                 id="question",
             ),
             Checkbox(StaticText.DELETE_STORAGE_VOLUMES, id="delete-storage-checkbox", value=True),
@@ -147,6 +150,8 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
             ),
             id="delete-vm-dialog",
         )
+        v.border_title = f"Delete VM: {self.vm_name} ({self.server_name})"
+        yield v
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "yes":

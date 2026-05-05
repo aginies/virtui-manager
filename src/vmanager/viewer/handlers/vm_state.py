@@ -12,6 +12,8 @@ import libvirt
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+from ...utils import extract_server_name_from_uri
+
 
 class VMStateHandler:
     """
@@ -166,14 +168,15 @@ class VMStateHandler:
         try:
             if dom.UUIDString() != self.original_domain_uuid:
                 return
+            server_name = extract_server_name_from_uri(self.conn.getURI())
         except libvirt.libvirtError:
             return
 
         if event == libvirt.VIR_DOMAIN_EVENT_STARTED:
-            self.log("VM lifecycle event: Started")
+            self.log(f"VM lifecycle event on {server_name}: Started")
             if self.verbose:
-                print("Domain started event received")
-            self.notify("VM started", Gtk.MessageType.INFO)
+                print(f"Domain started event received from {server_name}")
+            self.notify(f"VM started on {server_name}", Gtk.MessageType.INFO)
 
             # Cancel shutdown check if running (we know VM is started)
             if self.shutdown_check_timeout_id:
@@ -192,22 +195,22 @@ class VMStateHandler:
                 GLib.timeout_add(1000, do_start_reconnect)
 
         elif event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
-            self.log("VM lifecycle event: Stopped")
+            self.log(f"VM lifecycle event on {server_name}: Stopped")
             if self.verbose:
-                print("Domain stopped event received")
-            self.notify("VM stopped", Gtk.MessageType.ERROR)
+                print(f"Domain stopped event received from {server_name}")
+            self.notify(f"VM stopped on {server_name}", Gtk.MessageType.ERROR)
 
         elif event == libvirt.VIR_DOMAIN_EVENT_SUSPENDED:
-            self.log("VM lifecycle event: Suspended/Paused")
+            self.log(f"VM lifecycle event on {server_name}: Suspended/Paused")
             if self.verbose:
-                print("Domain suspended event received")
-            self.notify("VM paused", Gtk.MessageType.WARNING)
+                print(f"Domain suspended event received from {server_name}")
+            self.notify(f"VM paused on {server_name}", Gtk.MessageType.WARNING)
 
         elif event == libvirt.VIR_DOMAIN_EVENT_RESUMED:
-            self.log("VM lifecycle event: Resumed")
+            self.log(f"VM lifecycle event on {server_name}: Resumed")
             if self.verbose:
-                print("Domain resumed event received")
-            self.notify("VM resumed", Gtk.MessageType.INFO)
+                print(f"Domain resumed event received from {server_name}")
+            self.notify(f"VM resumed on {server_name}", Gtk.MessageType.INFO)
             # Note: Do NOT reconnect on RESUME - the connection should still be active
 
     def reboot_callback(self, conn, dom, opaque):
@@ -222,12 +225,13 @@ class VMStateHandler:
         try:
             if dom.UUIDString() != self.original_domain_uuid:
                 return
+            server_name = extract_server_name_from_uri(self.conn.getURI())
         except libvirt.libvirtError:
             return
 
-        self.log("VM reboot event received")
+        self.log(f"VM reboot event received from {server_name}")
         if self.verbose:
-            print("Domain reboot event received")
+            print(f"Domain reboot event received from {server_name}")
 
     def register_events(self):
         """Register libvirt domain event callbacks."""

@@ -16,7 +16,7 @@ from .libvirt_utils import (
 )
 from .storage_manager import copy_volume_across_hosts
 from .utils import extract_server_name_from_uri
-from .vm_queries import get_vm_disks_info, get_vm_snapshots
+from .vm_queries import get_vm_disks_info, get_vm_snapshots, has_overlays
 
 
 def execute_custom_migration(
@@ -306,6 +306,12 @@ def custom_migrate_vm(
     """
     if domain.isActive():
         raise libvirt.libvirtError("VM must be stopped for custom migration.")
+
+    # Check for overlays (migration is NOT supported if overlays exist)
+    if has_overlays(domain):
+        raise libvirt.libvirtError(
+            f"VM '{domain.name()}' has active disk overlays. Migration is NOT supported for VMs with overlays. Please commit or discard overlays before migrating."
+        )
 
     def log(message):
         if log_callback:

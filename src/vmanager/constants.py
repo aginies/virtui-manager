@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.0.4"
+    version = "3.1.0"
     author = "Antoine Ginies"
 
 
@@ -776,7 +776,7 @@ Specify the NUMA nodes to use.
     VM_TYPE_SERVER = _("Server")
 
     # vmcard_dialog.py strings
-    DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}'?")
+    DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}' on server '{server_name}'?")
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
     SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
     WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")

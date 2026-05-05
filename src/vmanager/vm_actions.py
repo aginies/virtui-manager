@@ -25,7 +25,7 @@ from .network_manager import list_networks
 from .storage_manager import create_overlay_volume
 from .utils import log_function_call
 from .vm_cache import invalidate_cache
-from .vm_queries import _get_domain_root, get_vm_disks_info, get_vm_snapshots, get_vm_tpm_info
+from .vm_queries import _get_domain_root, get_vm_disks_info, get_vm_snapshots, get_vm_tpm_info, has_overlays
 
 
 def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
@@ -2714,13 +2714,49 @@ def check_server_migration_compatibility(
 
 @log_function_call
 def check_vm_migration_compatibility(
-    domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool
+    domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool, check_snapshots: bool = False
 ):
     """
     Checks if a VM is compatible for migration to a destination host.
     Returns a list of issues, where each issue is a dict with 'severity' and 'message'.
     """
     issues = []
+
+    # Check for overlays (migration is NOT supported if overlays exist)
+    try:
+        if has_overlays(domain):
+            issues.append(
+                {
+                    "severity": "ERROR",
+                    "message": f"VM '{domain.name()}' has active disk overlays. Migration is NOT supported for VMs with overlays. Please commit or discard overlays before migrating.",
+                }
+            )
+    except Exception as e:
+        issues.append(
+            {
+                "severity": "WARNING",
+                "message": f"Could not check for disk overlays: {e}",
+            }
+        )
+
+    # Check for snapshots if requested (regular migration often fails with internal snapshots)
+    if check_snapshots:
+        try:
+            snapshots = get_vm_snapshots(domain)
+            if snapshots:
+                issues.append(
+                    {
+                        "severity": "ERROR",
+                        "message": f"VM '{domain.name()}' has {len(snapshots)} snapshots. Standard migration does not support internal snapshots. Use 'Custom Migration' instead.",
+                    }
+                )
+        except libvirt.libvirtError as e:
+            issues.append(
+                {
+                    "severity": "WARNING",
+                    "message": f"Could not check for snapshots: {e}",
+                }
+            )
 
     # Check for name collision
     try:
