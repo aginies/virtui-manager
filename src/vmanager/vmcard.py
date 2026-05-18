@@ -44,7 +44,7 @@ from .events import (
     VMSelectionChanged,
 )
 from .modals.disk_pool_modals import SelectDiskModal
-from .modals.howto_overlay_modal import HowToOverlayModal
+from .modals.howto_modals import HowToModal
 from .modals.input_modals import InputModal, _sanitize_input
 from .modals.migration_modals import MigrationModal
 from .modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal
@@ -1307,7 +1307,7 @@ class VMCard(Static):
 
     def _handle_overlay_help(self) -> None:
         """Handles the overlay help button press."""
-        self.app.push_screen(HowToOverlayModal())
+        self.app.push_screen(HowToModal("overlay"))
 
     def _handle_create_overlay(self) -> None:
         """Handles the create overlay button press."""

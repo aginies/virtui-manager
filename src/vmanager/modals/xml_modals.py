@@ -6,16 +6,27 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from xml.dom.minidom import parseString
 
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+
 from textual.widgets import Button, Label, TextArea
 from textual.widgets.text_area import LanguageDoesNotExist
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
 from .utils_modals import DirectorySelectionModal
+
+
+def _format_xml(xml_text: str) -> str:
+    """Pretty-print XML content, returning it as-is if parsing fails."""
+    try:
+        dom = parseString(xml_text.encode("utf-8"))
+        return dom.toprettyxml(indent="  ", encoding=None).decode("utf-8")
+    except Exception:
+        return xml_text
 
 
 class XMLDisplayModal(BaseModal[str | None]):
@@ -41,7 +52,15 @@ class XMLDisplayModal(BaseModal[str | None]):
             try:
                 text_area.language = "xml"
             except LanguageDoesNotExist:
-                text_area.language = None
+                logging.warning(
+                    "XML language not available in this Textual build; falling back to plain text."
+                )
+                # Try a basic built-in language for theme/line-number support
+                try:
+                    text_area.language = "text"
+                except LanguageDoesNotExist:
+                    pass
+            self.text_area = text_area
             yield text_area
             with Horizontal(id="xml-buttons"):
                 if not self.read_only:
@@ -76,8 +95,9 @@ class XMLDisplayModal(BaseModal[str | None]):
                     export_path = Path(path) / f"{name}_{count}.xml"
                     count += 1
 
+                formatted = _format_xml(self.text_area.text)
                 with open(export_path, "w", encoding="utf-8") as f:
-                    f.write(self.query_one("#xml-textarea", TextArea).text)
+                    f.write(formatted)
 
                 self.app.notify(StaticText.XML_EXPORTED_TO.format(path=export_path))
             except Exception as e:

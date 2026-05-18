@@ -42,7 +42,7 @@ from .disk_pool_modals import (
     CreateVolumeModal,
     MoveVolumeModal,
 )
-from .howto_network_modal import HowToNetworkModal
+from .howto_modals import HowToModal
 from .network_modals import AddEditNetworkModal
 from .utils_modals import ConfirmationDialog, ProgressModal
 from .xml_modals import XMLDisplayModal
@@ -1162,4 +1162,4 @@ class ServerPrefModal(BaseModal[None]):
             self.app.push_screen(ConfirmationDialog(confirm_message), on_confirm)
 
         elif event.button.id == "help-net-btn":
-            self.app.push_screen(HowToNetworkModal())
+            self.app.push_screen(HowToModal("network"))

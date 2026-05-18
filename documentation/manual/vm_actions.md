@@ -154,10 +154,16 @@ This tab contains administrative actions for the VM lifecycle.
     *   Permanently deletes the virtual machine. You will be prompted to choose whether to delete the associated storage (disk images) or keep them.
 
 *   **Clone:**
-    *   Creates a duplicate of the VM.
-    *   **Linked Clone:** Clones the definition but shares the disk image (saves space, fast).
-    *   **Full Clone:** Copies the entire disk image (slower, fully independent).
-    *   *Visible when the VM is Stopped.*
+     *   Creates a duplicate of the VM. Opens an advanced dialog where you can configure:
+
+         1.  **Base Name:** The name for the new VM(s). Spaces are automatically sanitized to hyphens.
+         2.  **Suffix (optional):** A suffix appended to each clone's name, allowing multiple clones from a single operation (e.g., `clone-vm_1`, `clone-vm_2`). Required when creating more than one clone.
+         3.  **Number of Clones:** How many copies to create at once.
+         4.  **Do Not Clone Storage (Linked Clone):** When *unchecked* (default), a full deep copy of the disk images is created — the new VMs are fully independent but use more storage and take longer. When *checked*, only the VM definition is cloned while sharing the original disk image (a linked clone) — fast and space-efficient, but changes to the base disk will affect all clones.
+         5.  **NVRAM Clone:** The NVRAM file (for UEFI variables) is always cloned alongside the full storage copy for proper VM independence.
+
+     *   If cloning fails for some VMs in a batch operation, you'll see which succeeded and which failed.
+     *   *Visible when the VM is Stopped.*
 
 *   **Migration:**
     *   Moves the VM to another server managed by VirtUI Manager.

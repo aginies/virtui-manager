@@ -13,7 +13,7 @@ from ..config import save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..vmcard import ConfirmationDialog
 from .base_modals import BaseModal
-from .howto_ssh_modal import HowToSSHModal
+from .howto_modals import HowToModal
 
 VALID_URI_PREFIXES = ("qemu:///", "qemu+ssh://")
 
@@ -295,7 +295,7 @@ class ServerManagementModal(BaseModal[str | None]):
             self.app.push_screen(ConnectionModal(), connection_callback)
 
         elif event.button.id == "ssh-help-btn":
-            self.app.push_screen(HowToSSHModal())
+            self.app.push_screen(HowToModal("ssh"))
 
     def action_close_modal(self) -> None:
         """Close the modal."""

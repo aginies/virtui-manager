@@ -128,8 +128,7 @@ from .cpu_mem_pc_modals import (
     SelectMachineTypeModal,
 )
 from .disk_pool_modals import AddDiskModal, EditDiskModal, SelectDiskModal, SelectPoolModal
-from .howto_disk_modal import HowToDiskModal
-from .howto_virtiofs_modal import HowToVirtIOFSModal
+from .howto_modals import HowToModal
 from .input_modals import AddChannelModal, AddInputDeviceModal, AddWatchdogModal
 from .network_modals import AddEditNetworkInterfaceModal
 from .utils_modals import ConfirmationDialog, FileSelectionModal, ProgressModal
@@ -3002,7 +3001,7 @@ class VMDetailModal(ModalScreen):
     def _handle_virtiofs_button(self, button_id):
         """Handle VirtIO-FS related button presses."""
         if button_id == "detail_virtiofs_help":
-            self.app.push_screen(HowToVirtIOFSModal())
+            self.app.push_screen(HowToModal("virtiofs"))
 
         elif button_id == "add-virtiofs-btn":
 
@@ -3561,7 +3560,7 @@ class VMDetailModal(ModalScreen):
             )
 
         elif button_id == "detail_disk_help":
-            self.app.push_screen(HowToDiskModal())
+            self.app.push_screen(HowToModal("disk"))
 
     # --- Button ID to handler group mapping ---
     _VIRTIOFS_BUTTONS = {

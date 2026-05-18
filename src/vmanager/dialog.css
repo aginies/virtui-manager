@@ -29,11 +29,7 @@ AddInputDeviceModal,
 PasswordModal,
 FileSelectionModal,
 ConfigModal,
-HowToNetworkModal,
 CustomMigrationModal,
-HowToOverlayModal,
-HowToVirtIOFSModal,
-HowToDiskModal,
 AboutModal,
 WebConsoleConfigDialog,
 LoadingModal,
@@ -44,8 +40,7 @@ AddChannelModal,
 EditNumaTuneModal,
 AutoFillConfigModal,
 InfoModal,
-EditCpuTuneModal,
-HowToSSHModal {
+EditCpuTuneModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
 }
@@ -69,18 +64,14 @@ PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
 InstallVMModal > #install-dialog,
-HowToOverlayModal > #howto-overlay-dialog,
-HowToNetworkModal > #howto-network-dialog,
+HowToModal > #howto-dialog,
 WebConsoleConfigDialog > #webconsole-config-dialog,
-HowToDiskModal > #howto-disk-dialog,
-HowToVirtIOFSModal > #howto-virtiofs-dialog,
 EditNumaTuneModal > #edit-numatune-dialog,
 EditCpuTuneModal > #edit-cpu-tune-dialog,
 AddChannelModal > #add-channel-container,
 InfoModal > #info-modal-dialog,
 AutoFillConfigModal > #autofill-config-dialog,
-VMTypeInfoModal > #howto-vmtype-dialog,
-HowToSSHModal > #howto-ssh-dialog {
+VMTypeInfoModal > #howto-vmtype-dialog {
   width: 60;
   padding: 1;
   content-align: center middle;
@@ -251,12 +242,9 @@ SelectOneServerModal > #select-one-server-container, {
 }
 FileSelectionModal > #file-selection-dialog,
 ConfigModal #config-dialog,
-HowToOverlayModal #howto-overlay-dialog,
-HowToDiskModal > #howto-disk-dialog,
-HowToVirtIOFSModal #howto-virtiofs-dialog,
-HowToNetworkModal #howto-network-dialog,
+HowToModal #howto-dialog,
 InfoModal #info-modal-dialog,
-HowToSSHModal #howto-ssh-dialog {
+VMTypeInfoModal #howto-vmtype-dialog {
     width: 85;
     height: 95%;
 }
