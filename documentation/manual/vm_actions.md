@@ -47,25 +47,25 @@ This tab contains the most common power management and connectivity controls.
     *   Sends an ACPI shutdown signal to the guest operating system, requesting a graceful shutdown.
     *   *Visible when the VM is Running.*
 
-*   **Force Off:**
-    *   Forcefully terminates the VM process. This is equivalent to pulling the power plug and may cause data loss.
-    *   *Visible when the VM is Running or Paused.*
+  *   **Force Off:**
+     *   Forcefully terminates the VM process. This is equivalent to pulling the power plug and may cause data loss.
+     *   *Visible when the VM is Running, Paused, Suspended, or Blocked.*
 
 *   **Pause:**
     *   Pauses the execution of the VM, freezing its state in memory.
     *   *Visible when the VM is Running.*
 
-*   **Resume:**
-    *   Resumes execution of a paused VM.
-    *   *Visible when the VM is Paused.*
+  *   **Resume:**
+     *   Resumes execution of a paused VM.
+     *   *Visible when the VM is Paused or Suspended.*
 
 *   **Configure:**
     *   Opens a detailed view of the VM's hardware configuration (CPU, Memory, Disks, Networks, etc.).
 
 *   **Web Console / Show Console:**
-    *   **Web Console:** Configures and starts a secure noVNC session, allowing you to access the VM's display via a web browser. Useful for remote access without a dedicated client.
-    *   **Show Console:** appears when a session is active; clicking it opens the browser or reconnects.
-    *   **Status Indicator:** Shows "(WebC On)" next to the VM status when a web console session is active.
+     *   **Web Console:** Configures and starts a secure noVNC session, allowing you to access the VM's display via a web browser. Useful for remote access without a dedicated client. *Note: Web Console only works with VNC graphics (not SPICE).*
+     *   **Show Console:** appears when a session is active; clicking it opens the browser or reconnects.
+     *   **Status Indicator:** Shows "(WebC On)" next to the VM status when a web console session is active.
 
 *   **Text Console:**
     *   Opens a direct serial console (`virsh console`) to the VM in a new **tmux** window.
@@ -119,9 +119,9 @@ Snapshots save the state of the virtual machine (disk and memory) at a specific 
     *   Creates a new snapshot. You can provide a name and description.
     *   *Visible when the VM is Running or Paused.*
 
-*   **Restore Snapshot:**
-    *   Reverts the VM to a selected snapshot state.
-    *   *Visible when the VM is Stopped.*
+ *   **Restore Snapshot:**
+     *   Reverts the VM to a selected snapshot state.
+     *   *Visible when the VM is not running or blocked (i.e., stopped, paused, or suspended) and has snapshots.*
 
 *   **Del Snapshot:**
     *   Permanently deletes a selected snapshot.
@@ -150,8 +150,9 @@ This tab contains administrative actions for the VM lifecycle.
 
 ![Other Administrative Actions](images/actions3.png)
 
-*   **Delete:**
-    *   Permanently deletes the virtual machine. You will be prompted to choose whether to delete the associated storage (disk images) or keep them.
+ *   **Delete:**
+     *   Permanently deletes the virtual machine. You will be prompted to choose whether to delete the associated storage (disk images) or keep them.
+     *   *Visible in all VM states.*
 
 *   **Clone:**
      *   Creates a duplicate of the VM. Opens an advanced dialog where you can configure:
@@ -170,8 +171,7 @@ This tab contains administrative actions for the VM lifecycle.
     *   Requires SSH connectivity between hosts.
 
 *   **View XML / Edit XML:**
-    *   **View XML:** Displays the raw Libvirt XML configuration for inspection. (*Visible when Running*)
-    *   **Edit XML:** Opens an editor to manually modify the VM's XML configuration. (*Visible when Stopped*)
+     *   A single toggle button that displays "Edit XML" when the VM is Stopped (opens an editor to manually modify the VM's XML configuration) and "View XML" when the VM is Running (displays the raw Libvirt XML configuration for inspection).
 
 *   **Rename:**
     *   Changes the name of the virtual machine.

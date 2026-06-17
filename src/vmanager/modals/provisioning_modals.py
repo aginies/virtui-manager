@@ -18,13 +18,8 @@ from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManag
 from ..network_manager import ensure_default_network, list_networks
 from ..storage_manager import ensure_default_pool, list_storage_pools
 from ..utils import remote_viewer_cmd
-from ..vm_provisioner import OpenSUSEDistro, VMProvisioner, VMType
-from ..provisioning.os_provider import OSType
-from ..provisioning.providers.alpine_provider import AlpineDistro
-from ..provisioning.providers.archlinux_provider import ArchLinuxDistro
-from ..provisioning.providers.debian_provider import DebianDistro
-from ..provisioning.providers.fedora_provider import FedoraDistro
-from ..provisioning.providers.ubuntu_provider import UbuntuDistro
+from ..vm_provisioner import VMProvisioner, VMType
+from ..provisioning.os_provider import OSType, OSVersion
 
 from ..vm_service import VMService
 from .base_modals import BaseModal
@@ -72,32 +67,32 @@ class InstallVMModal(BaseModal[str | None]):
                 )
                 yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            # Build distribution options - combine OpenSUSE, Ubuntu, and Debian distributions
+            # Build distribution options
             distro_options = []
 
-            # Add OpenSUSE distributions
-            for d in OpenSUSEDistro:
-                distro_options.append((f"openSUSE: {d.value}", d))
+            # Get all supported OS versions from the registry
+            supported_versions = self.provisioner.provider_registry.get_all_supported_versions()
 
-            # Add Ubuntu distributions
-            for d in UbuntuDistro:
-                distro_options.append((f"Ubuntu: {d.value}", d))
+            # Iterate through OS types and their versions
+            seen_labels = set()
+            for os_type, versions in supported_versions.items():
+                if os_type == OSType.GENERIC:
+                    continue  # We will add Generic Custom ISO separately
 
-            # Add Debian distributions
-            for d in DebianDistro:
-                distro_options.append((f"Debian: {d.value}", d))
-
-            # Add Fedora distributions
-            for d in FedoraDistro:
-                distro_options.append((f"Fedora: {d.value}", d))
-
-            # Add Arch Linux distributions
-            for d in ArchLinuxDistro:
-                distro_options.append((f"Arch Linux: {d.value}", d))
-
-            # Add Alpine Linux distributions
-            for d in AlpineDistro:
-                distro_options.append((f"Alpine Linux: {d.value}", d))
+                for version in versions:
+                    # Avoid redundant prefix (e.g., "openSUSE: openSUSE Leap" -> "openSUSE Leap")
+                    if version.display_name.lower().startswith(os_type.value.lower()):
+                        label = version.display_name
+                    else:
+                        label = f"{os_type.value}: {version.display_name}"
+                    
+                    # Ensure label uniqueness in the dropdown
+                    if label in seen_labels:
+                        # Append version_id to make it unique if necessary
+                        label = f"{label} ({version.version_id})"
+                    
+                    seen_labels.add(label)
+                    distro_options.append((label, version))
 
             # Add Generic Custom ISO option
             distro_options.append((StaticText.GENERIC_CUSTOM_ISO, "generic_custom"))
@@ -448,28 +443,16 @@ class InstallVMModal(BaseModal[str | None]):
         disk_format = "qcow2"
         boot_uefi = True
 
-        # Determine OS type and provider preference if available
-
+        # Determine OS type to set preferred boot mode
         os_type = None
-        if isinstance(distro, OpenSUSEDistro):
-            os_type = OSType.OPENSUSE
-        elif isinstance(distro, UbuntuDistro):
-            os_type = OSType.UBUNTU
-        elif isinstance(distro, DebianDistro):
-            os_type = OSType.DEBIAN
-        elif isinstance(distro, FedoraDistro):
-            os_type = OSType.FEDORA
-        elif isinstance(distro, ArchLinuxDistro):
-            os_type = OSType.ARCHLINUX
-        elif isinstance(distro, AlpineDistro):
-            os_type = OSType.ALPINE
+        if isinstance(distro, OSVersion):
+            os_type = distro.os_type
         elif distro == "generic_custom":
             os_type = OSType.GENERIC
 
-        if os_type:
-            provider = self.provisioner.provider_registry.get_provider(os_type)
-            if provider:
-                boot_uefi = provider.preferred_boot_uefi
+        if os_type and os_type != OSType.WINDOWS:
+            # Default to UEFI for most modern OSes
+            boot_uefi = True
 
         if vm_type == VMType.COMPUTATION:
             mem = 8
@@ -525,14 +508,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.query_one("#repo-iso-container").styles.display = "none"
         self.query_one("#pool-iso-container").styles.display = "none"
 
-        if event.value in [
-            OpenSUSEDistro.CUSTOM,
-            UbuntuDistro.CUSTOM,
-            DebianDistro.CUSTOM,
-            FedoraDistro.CUSTOM,
-            ArchLinuxDistro.CUSTOM,
-            "generic_custom",
-        ]:
+        if event.value == "generic_custom":
             self.query_one("#custom-iso-container").styles.display = "block"
         elif event.value == "pool_volumes":
             self.query_one("#repo-iso-container").styles.display = "none"
@@ -619,7 +595,8 @@ class InstallVMModal(BaseModal[str | None]):
                     iso_volume_select.value = iso_volumes_options[0][1]  # Select first
                     iso_volume_select.disabled = False
                 else:
-                    iso_volume_select.clear()
+                    iso_volume_select.set_options([(StaticText.NO_ISOS_AVAILABLE, "none")])
+                    iso_volume_select.value = "none"
                     iso_volume_select.disabled = True
                 self._update_iso_status("", False)
                 self._check_form_validity()
@@ -640,11 +617,16 @@ class InstallVMModal(BaseModal[str | None]):
             self.app.call_from_thread(lambda: setattr(iso_volume_select, "disabled", True))
 
     @work(exclusive=True, thread=True)
-    def fetch_isos(self, distro: OpenSUSEDistro | UbuntuDistro | DebianDistro | str):
+    def fetch_isos(self, distro: OSVersion | str):
         self.app.call_from_thread(self._update_iso_status, StaticText.FETCHING_ISO_LIST, True)
 
         try:
             isos = []
+            eol_warning = None
+
+            if isinstance(distro, OSVersion) and distro.eol_date:
+                eol_warning = StaticText.PRODUCT_EOL_WARNING.format(date=distro.eol_date)
+
             if distro == "cached":
                 isos = self.provisioner.get_cached_isos()
             else:
@@ -662,13 +644,28 @@ class InstallVMModal(BaseModal[str | None]):
 
             def update_select():
                 sel = self.query_one("#iso-select", Select)
-                sel.set_options(iso_options)
-                sel.disabled = False
+                status_lbl = self.query_one("#status-label", Label)
+
                 if iso_options:
+                    sel.set_options(iso_options)
+                    sel.disabled = False
                     sel.value = iso_options[0][1]  # Select first by default
+                    if eol_warning:
+                        status_lbl.update(f"[yellow]{eol_warning}[/yellow]")
+                        status_lbl.styles.display = "block"
+                    else:
+                        status_lbl.styles.display = "none"
                 else:
-                    sel.clear()  # No options, clear any previous value
-                self._update_iso_status("", False)
+                    sel.set_options([(StaticText.NO_ISOS_AVAILABLE, "none")])
+                    sel.value = "none"
+                    sel.disabled = True
+                    if eol_warning:
+                        status_lbl.update(f"[red]{StaticText.EOL_NO_ISO_FOUND}[/red]\n[yellow]{eol_warning}[/yellow]")
+                        status_lbl.styles.display = "block"
+                    else:
+                        status_lbl.styles.display = "none"
+                
+                self.query_one("#install-btn", Button).disabled = False
                 self._check_form_validity()  # Re-check validity after options change
 
             self.app.call_from_thread(update_select)
@@ -693,9 +690,7 @@ class InstallVMModal(BaseModal[str | None]):
         # Disable install while fetching
         self.query_one("#install-btn", Button).disabled = loading
 
-    def _populate_templates_for_distribution(
-        self, distro: OpenSUSEDistro | UbuntuDistro | DebianDistro | str
-    ):
+    def _populate_templates_for_distribution(self, distro: OSVersion | str):
         """
         Populate the template select widget based on the selected distribution.
 
@@ -713,267 +708,257 @@ class InstallVMModal(BaseModal[str | None]):
         all_templates = self.template_manager.get_all_templates()
 
         # Determine which templates to show based on distribution
-        if isinstance(distro, OpenSUSEDistro):
-            if distro == OpenSUSEDistro.LEAP:
-                # OpenSUSE Leap → ONLY AutoYaST templates
+        if isinstance(distro, OSVersion):
+            os_type = distro.os_type
+            if os_type == OSType.OPENSUSE:
+                # show both AutoYaST and Agama
                 show_autoyast = True
-                show_agama = False
-            elif distro == OpenSUSEDistro.SLOWROLL:
-                # OpenSUSE Slowroll → ONLY AutoYaST templates (Slowroll uses AutoYaST, not Agama)
-                show_autoyast = True
-                show_agama = False
-            elif distro == OpenSUSEDistro.TUMBLEWEED:
-                # OpenSUSE Tumbleweed → AutoYaST
-                show_autoyast = True
-                show_agama = False
-            elif distro == OpenSUSEDistro.STABLE:
-                # OpenSUSE Stable (Leap) → ONLY Agama templates
-                show_autoyast = False
                 show_agama = True
+
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    is_agama = filename.endswith(".json") or "(Agama)" in template["display_name"]
+                    is_autoyast = (
+                        filename.endswith(".xml") or "(AutoYaST)" in template["display_name"]
+                    )
+
+                    # Apply filtering based on distribution requirements
+                    should_include = False
+                    if show_autoyast and is_autoyast:
+                        should_include = True
+                    elif show_agama and is_agama:
+                        should_include = True
+
+                    if should_include:
+                        # Include built-in templates that match the filter
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        # For user templates, check if they're openSUSE/SLES related
+                        elif template["type"] == "user":
+                            if (
+                                "(openSUSE)" in template["display_name"]
+                                or "(SLES)" in template["display_name"]
+                                or "(Agama)" in template["display_name"]
+                                or "(AutoYaST)" in template["display_name"]
+                            ):
+                                filtered_templates.append(template)
+
+            elif os_type == OSType.UBUNTU:
+                # Ubuntu distributions → Show ONLY Ubuntu autoinstall (cloud-init) templates
+                # Preseed templates are excluded (reserved for future Debian support)
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    display_name = template.get("display_name", "")
+
+                    # Check for Ubuntu-specific autoinstall file patterns
+                    is_ubuntu_autoinstall = (
+                        filename.startswith("autoinstall")
+                        and filename.endswith(".yaml")
+                        or filename.startswith("autoinstall")
+                        and filename.endswith(".yml")
+                        or "autoinstall" in filename.lower()
+                        and (filename.endswith(".yaml") or filename.endswith(".yml"))
+                    )
+
+                    # Preseed templates are excluded for Ubuntu (will be used for Debian later)
+                    is_preseed = (
+                        filename.startswith("preseed")
+                        and filename.endswith(".cfg")
+                        or "preseed" in filename.lower()
+                        and filename.endswith(".cfg")
+                        or "(Preseed)" in display_name
+                    )
+
+                    # Also check display names for Ubuntu autoinstall markers
+                    is_ubuntu_autoinstall_template = (
+                        "(Ubuntu)" in display_name
+                        or "(Autoinstall)" in display_name
+                        or "(Cloud-init)" in display_name
+                    )
+
+                    # Include only autoinstall templates, exclude preseed
+                    should_include = (
+                        is_ubuntu_autoinstall or is_ubuntu_autoinstall_template
+                    ) and not is_preseed
+
+                    if should_include:
+                        # Include built-in Ubuntu autoinstall templates
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        # For user templates, check if they're Ubuntu autoinstall-related
+                        elif template["type"] == "user":
+                            if (
+                                "(Ubuntu)" in display_name
+                                or "(Autoinstall)" in display_name
+                                or "(Cloud-init)" in display_name
+                                or is_ubuntu_autoinstall
+                            ) and not is_preseed:
+                                filtered_templates.append(template)
+
+            elif os_type == OSType.DEBIAN:
+                # Debian distributions → Show ONLY Debian templates (preseed + cloud-init)
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    display_name = template.get("display_name", "")
+
+                    # Check for Debian-specific template patterns
+                    is_debian_preseed = (
+                        filename.startswith("preseed")
+                        and filename.endswith(".cfg")
+                        or "preseed" in filename.lower()
+                        and filename.endswith(".cfg")
+                    )
+
+                    is_debian_cloud_init = (
+                        filename.startswith("cloud-init")
+                        and (filename.endswith(".yaml") or filename.endswith(".yml"))
+                        or "cloud-init" in filename.lower()
+                        and (filename.endswith(".yaml") or filename.endswith(".yml"))
+                    )
+
+                    # Also check display names for Debian markers
+                    is_debian_template = (
+                        "(Debian)" in display_name
+                        or "(Preseed)" in display_name
+                        or "(Cloud-init)" in display_name
+                    )
+
+                    # Include Debian preseed and cloud-init templates
+                    should_include = is_debian_preseed or is_debian_cloud_init or is_debian_template
+
+                    if should_include:
+                        # Include built-in Debian templates
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        # For user templates, check if they're Debian-related
+                        elif template["type"] == "user":
+                            if (
+                                "(Debian)" in display_name
+                                or "(Preseed)" in display_name
+                                or "(Cloud-init)" in display_name
+                                or is_debian_preseed
+                                or is_debian_cloud_init
+                            ):
+                                filtered_templates.append(template)
+
+            elif os_type == OSType.FEDORA:
+                # Fedora distributions → Show ONLY Fedora templates (Kickstart)
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    display_name = template.get("display_name", "")
+
+                    # Check for Fedora-specific template patterns
+                    is_fedora_ks = (
+                        filename.startswith("kickstart")
+                        and filename.endswith(".cfg")
+                        or "kickstart" in filename.lower()
+                        and filename.endswith(".cfg")
+                        or filename.endswith(".ks")
+                    )
+
+                    # Also check display names for Fedora markers
+                    is_fedora_template = "(Fedora)" in display_name or "(Kickstart)" in display_name
+
+                    # Include Fedora kickstart templates
+                    should_include = is_fedora_ks or is_fedora_template
+
+                    if should_include:
+                        # Include built-in Fedora templates
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        # For user templates, check if they're Fedora-related
+                        elif template["type"] == "user":
+                            if (
+                                "(Fedora)" in display_name
+                                or "(Kickstart)" in display_name
+                                or is_fedora_ks
+                            ):
+                                filtered_templates.append(template)
+
+            elif os_type == OSType.ARCHLINUX:
+                # Arch Linux distributions → Show ONLY Arch Linux templates (archinstall)
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    display_name = template.get("display_name", "")
+
+                    # Check for Arch-specific template patterns
+                    is_arch_json = (
+                        filename.startswith("archinstall")
+                        and filename.endswith(".json")
+                        or "archinstall" in filename.lower()
+                        and filename.endswith(".json")
+                    )
+
+                    # Also check display names for Arch markers
+                    is_arch_template = (
+                        "(Arch Linux)" in display_name
+                        or "(Arch)" in display_name
+                        or "(archinstall)" in display_name
+                    )
+
+                    # Include Arch Linux archinstall templates
+                    should_include = is_arch_json or is_arch_template
+
+                    if should_include:
+                        # Include built-in Arch templates
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        # For user templates, check if they're Arch-related
+                        elif template["type"] == "user":
+                            if (
+                                "(Arch Linux)" in display_name
+                                or "(Arch)" in display_name
+                                or "(archinstall)" in display_name
+                                or is_arch_json
+                            ):
+                                filtered_templates.append(template)
+
+            elif os_type == OSType.ALPINE:
+                # Alpine Linux distributions → Show ONLY Alpine templates
+                filtered_templates = []
+                for template in all_templates:
+                    filename = template.get("filename", "")
+                    display_name = template.get("display_name", "")
+
+                    # Check for Alpine-specific template patterns
+                    is_alpine_txt = (
+                        filename.startswith("alpine-answers")
+                        and filename.endswith(".txt")
+                        or "alpine-answers" in filename.lower()
+                        and filename.endswith(".txt")
+                    )
+
+                    # Also check display names for Alpine markers
+                    is_alpine_template = (
+                        "(Alpine Linux)" in display_name
+                        or "(Alpine)" in display_name
+                        or "(alpine-answers)" in display_name.lower()
+                    )
+
+                    # Include Alpine templates
+                    should_include = is_alpine_txt or is_alpine_template
+
+                    if should_include:
+                        # Include built-in Alpine templates
+                        if template["type"] == "built-in":
+                            filtered_templates.append(template)
+                        # For user templates, check if they're Alpine-related
+                        elif template["type"] == "user":
+                            if (
+                                "(Alpine Linux)" in display_name
+                                or "(Alpine)" in display_name
+                                or "(alpine-answers)" in display_name.lower()
+                                or is_alpine_txt
+                            ):
+                                filtered_templates.append(template)
             else:
-                # Other OpenSUSE distributions → show all (fallback)
-                show_autoyast = True
-                show_agama = True
-
-            filtered_templates = []
-            for template in all_templates:
-                filename = template.get("filename", "")
-                is_agama = filename.endswith(".json") or "(Agama)" in template["display_name"]
-                is_autoyast = filename.endswith(".xml") or "(AutoYaST)" in template["display_name"]
-
-                # Apply filtering based on distribution requirements
-                should_include = False
-                if show_autoyast and is_autoyast:
-                    should_include = True
-                elif show_agama and is_agama:
-                    should_include = True
-
-                if should_include:
-                    # Include built-in templates that match the filter
-                    if template["type"] == "built-in":
-                        filtered_templates.append(template)
-                    # For user templates, check if they're openSUSE/SLES related
-                    elif template["type"] == "user":
-                        if (
-                            "(openSUSE)" in template["display_name"]
-                            or "(SLES)" in template["display_name"]
-                            or "(Agama)" in template["display_name"]
-                            or "(AutoYaST)" in template["display_name"]
-                        ):
-                            filtered_templates.append(template)
-
-        elif isinstance(distro, UbuntuDistro):
-            # Ubuntu distributions → Show ONLY Ubuntu autoinstall (cloud-init) templates
-            # Preseed templates are excluded (reserved for future Debian support)
-            filtered_templates = []
-            for template in all_templates:
-                filename = template.get("filename", "")
-                display_name = template.get("display_name", "")
-
-                # Check for Ubuntu-specific autoinstall file patterns
-                is_ubuntu_autoinstall = (
-                    filename.startswith("autoinstall")
-                    and filename.endswith(".yaml")
-                    or filename.startswith("autoinstall")
-                    and filename.endswith(".yml")
-                    or "autoinstall" in filename.lower()
-                    and (filename.endswith(".yaml") or filename.endswith(".yml"))
-                )
-
-                # Preseed templates are excluded for Ubuntu (will be used for Debian later)
-                is_preseed = (
-                    filename.startswith("preseed")
-                    and filename.endswith(".cfg")
-                    or "preseed" in filename.lower()
-                    and filename.endswith(".cfg")
-                    or "(Preseed)" in display_name
-                )
-
-                # Also check display names for Ubuntu autoinstall markers
-                is_ubuntu_autoinstall_template = (
-                    "(Ubuntu)" in display_name
-                    or "(Autoinstall)" in display_name
-                    or "(Cloud-init)" in display_name
-                )
-
-                # Include only autoinstall templates, exclude preseed
-                should_include = (
-                    is_ubuntu_autoinstall or is_ubuntu_autoinstall_template
-                ) and not is_preseed
-
-                if should_include:
-                    # Include built-in Ubuntu autoinstall templates
-                    if template["type"] == "built-in":
-                        filtered_templates.append(template)
-                    # For user templates, check if they're Ubuntu autoinstall-related
-                    elif template["type"] == "user":
-                        if (
-                            "(Ubuntu)" in display_name
-                            or "(Autoinstall)" in display_name
-                            or "(Cloud-init)" in display_name
-                            or is_ubuntu_autoinstall
-                        ) and not is_preseed:
-                            filtered_templates.append(template)
-
-        elif isinstance(distro, DebianDistro):
-            # Debian distributions → Show ONLY Debian templates (preseed + cloud-init)
-            filtered_templates = []
-            for template in all_templates:
-                filename = template.get("filename", "")
-                display_name = template.get("display_name", "")
-
-                # Check for Debian-specific template patterns
-                is_debian_preseed = (
-                    filename.startswith("preseed")
-                    and filename.endswith(".cfg")
-                    or "preseed" in filename.lower()
-                    and filename.endswith(".cfg")
-                )
-
-                is_debian_cloud_init = (
-                    filename.startswith("cloud-init")
-                    and (filename.endswith(".yaml") or filename.endswith(".yml"))
-                    or "cloud-init" in filename.lower()
-                    and (filename.endswith(".yaml") or filename.endswith(".yml"))
-                )
-
-                # Also check display names for Debian markers
-                is_debian_template = (
-                    "(Debian)" in display_name
-                    or "(Preseed)" in display_name
-                    or "(Cloud-init)" in display_name
-                )
-
-                # Include Debian preseed and cloud-init templates
-                should_include = is_debian_preseed or is_debian_cloud_init or is_debian_template
-
-                if should_include:
-                    # Include built-in Debian templates
-                    if template["type"] == "built-in":
-                        filtered_templates.append(template)
-                    # For user templates, check if they're Debian-related
-                    elif template["type"] == "user":
-                        if (
-                            "(Debian)" in display_name
-                            or "(Preseed)" in display_name
-                            or "(Cloud-init)" in display_name
-                            or is_debian_preseed
-                            or is_debian_cloud_init
-                        ):
-                            filtered_templates.append(template)
-
-        elif isinstance(distro, FedoraDistro):
-            # Fedora distributions → Show ONLY Fedora templates (Kickstart)
-            filtered_templates = []
-            for template in all_templates:
-                filename = template.get("filename", "")
-                display_name = template.get("display_name", "")
-
-                # Check for Fedora-specific template patterns
-                is_fedora_ks = (
-                    filename.startswith("kickstart")
-                    and filename.endswith(".cfg")
-                    or "kickstart" in filename.lower()
-                    and filename.endswith(".cfg")
-                    or filename.endswith(".ks")
-                )
-
-                # Also check display names for Fedora markers
-                is_fedora_template = "(Fedora)" in display_name or "(Kickstart)" in display_name
-
-                # Include Fedora kickstart templates
-                should_include = is_fedora_ks or is_fedora_template
-
-                if should_include:
-                    # Include built-in Fedora templates
-                    if template["type"] == "built-in":
-                        filtered_templates.append(template)
-                    # For user templates, check if they're Fedora-related
-                    elif template["type"] == "user":
-                        if (
-                            "(Fedora)" in display_name
-                            or "(Kickstart)" in display_name
-                            or is_fedora_ks
-                        ):
-                            filtered_templates.append(template)
-
-        elif isinstance(distro, ArchLinuxDistro):
-            # Arch Linux distributions → Show ONLY Arch Linux templates (archinstall)
-            filtered_templates = []
-            for template in all_templates:
-                filename = template.get("filename", "")
-                display_name = template.get("display_name", "")
-
-                # Check for Arch-specific template patterns
-                is_arch_json = (
-                    filename.startswith("archinstall")
-                    and filename.endswith(".json")
-                    or "archinstall" in filename.lower()
-                    and filename.endswith(".json")
-                )
-
-                # Also check display names for Arch markers
-                is_arch_template = (
-                    "(Arch Linux)" in display_name
-                    or "(Arch)" in display_name
-                    or "(archinstall)" in display_name
-                )
-
-                # Include Arch Linux archinstall templates
-                should_include = is_arch_json or is_arch_template
-
-                if should_include:
-                    # Include built-in Arch templates
-                    if template["type"] == "built-in":
-                        filtered_templates.append(template)
-                    # For user templates, check if they're Arch-related
-                    elif template["type"] == "user":
-                        if (
-                            "(Arch Linux)" in display_name
-                            or "(Arch)" in display_name
-                            or "(archinstall)" in display_name
-                            or is_arch_json
-                        ):
-                            filtered_templates.append(template)
-
-        elif isinstance(distro, AlpineDistro):
-            # Alpine Linux distributions → Show ONLY Alpine templates
-            filtered_templates = []
-            for template in all_templates:
-                filename = template.get("filename", "")
-                display_name = template.get("display_name", "")
-
-                # Check for Alpine-specific template patterns
-                is_alpine_txt = (
-                    filename.startswith("alpine-answers")
-                    and filename.endswith(".txt")
-                    or "alpine-answers" in filename.lower()
-                    and filename.endswith(".txt")
-                )
-
-                # Also check display names for Alpine markers
-                is_alpine_template = (
-                    "(Alpine Linux)" in display_name
-                    or "(Alpine)" in display_name
-                    or "(alpine-answers)" in display_name.lower()
-                )
-
-                # Include Alpine templates
-                should_include = is_alpine_txt or is_alpine_template
-
-                if should_include:
-                    # Include built-in Alpine templates
-                    if template["type"] == "built-in":
-                        filtered_templates.append(template)
-                    # For user templates, check if they're Alpine-related
-                    elif template["type"] == "user":
-                        if (
-                            "(Alpine Linux)" in display_name
-                            or "(Alpine)" in display_name
-                            or "(alpine-answers)" in display_name.lower()
-                            or is_alpine_txt
-                        ):
-                            filtered_templates.append(template)
+                # Default for other OS types: Show ALL templates
+                filtered_templates = all_templates
 
         elif isinstance(distro, str):
             if distro in ["cached", "pool_volumes", "generic_custom"]:
@@ -1050,7 +1035,7 @@ class InstallVMModal(BaseModal[str | None]):
 
             # Enforce UEFI for automated installations (except for Alpine Linux)
             distro = self.query_one("#distro", Select).value
-            is_alpine = isinstance(distro, AlpineDistro) or (
+            is_alpine = (isinstance(distro, OSVersion) and distro.os_type == OSType.ALPINE) or (
                 isinstance(distro, str) and "alpine" in distro.lower()
             )
 
@@ -1146,22 +1131,15 @@ class InstallVMModal(BaseModal[str | None]):
         distro = self.query_one("#distro", Select).value
 
         valid_iso = False
-        if distro in [
-            OpenSUSEDistro.CUSTOM,
-            UbuntuDistro.CUSTOM,
-            DebianDistro.CUSTOM,
-            FedoraDistro.CUSTOM,
-            ArchLinuxDistro.CUSTOM,
-            "generic_custom",
-        ]:
+        if distro == "generic_custom":
             path = self.query_one("#custom-iso-path", Input).value.strip()
             valid_iso = bool(path)  # Basic check, validation happens on install
         elif distro == "pool_volumes":
             iso_volume = self.query_one("#iso-volume-select", Select).value
-            valid_iso = iso_volume and iso_volume != Select.NULL
+            valid_iso = iso_volume and iso_volume != Select.NULL and iso_volume != "none"
         else:
             iso = self.query_one("#iso-select", Select).value
-            valid_iso = iso and iso != Select.NULL
+            valid_iso = iso and iso != Select.NULL and iso != "none"
 
         btn = self.query_one("#install-btn", Button)
         if name and valid_iso:
@@ -1265,14 +1243,7 @@ class InstallVMModal(BaseModal[str | None]):
         checksum = None
         validate = False
 
-        if distro in [
-            OpenSUSEDistro.CUSTOM,
-            UbuntuDistro.CUSTOM,
-            DebianDistro.CUSTOM,
-            FedoraDistro.CUSTOM,
-            ArchLinuxDistro.CUSTOM,
-            "generic_custom",
-        ]:
+        if distro == "generic_custom":
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:

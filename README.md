@@ -51,6 +51,7 @@ VirtUI Manager solves these challenges with:
 - **Remote Connection**: SSH access to libvirt server (ssh-agent recommended)
 - **Python 3.7+**
 - **libvirt** with Python bindings
+- **libosinfo** and **osinfo-db** for dynamic OS version discovery
 - **Python Dependencies**: see requirements.txt file
 - **Optional**: virt-viewer, novnc, websockify for enhanced functionality
 - **Tmux**: To edit file with pseudo terminal

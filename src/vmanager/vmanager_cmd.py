@@ -3608,8 +3608,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 return
 
             # 4. Select Version
-            provider = registry.get_provider(selected_os_type)
-            versions = provider.get_supported_versions()
+            versions = registry.get_supported_versions(selected_os_type)
             selected_version = self._select_choice(
                 f"Select Version for {selected_os_type.value}",
                 versions,
@@ -3623,7 +3622,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
             # 5. Select ISO
             print(f"\nFetching available ISOs for {selected_version.display_name}...")
-            iso_list = provider.get_iso_list(selected_version.display_name)
+            iso_list = provisioner.get_iso_list(selected_version)
             iso_options = iso_list + ["Custom URL/Path"]
 
             def iso_display(iso):

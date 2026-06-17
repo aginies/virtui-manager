@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.1.0"
+    version = "3.1.1"
     author = "Antoine Ginies"
 
 
@@ -152,8 +152,6 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     ADD_USB2 = _("Add USB2")
     ADD_USB3 = _("Add USB3")
     ADD_SCSI = _("Add SCSI")
-    ATTACH_ARROW = _("Attach >")
-    DETACH_ARROW = _("< Detach")
     ATTACH_DOWN = _("Attach ↓")
     DETACH_UP = _("↑ Detach")
     ADD_CHANNEL = _("Add Channel")
@@ -363,10 +361,13 @@ class StaticText:  # pylint: disable=too-few-public-methods
     SHA256_CHECKSUM_OPTIONAL_PLACEHOLDER = _("SHA256 Checksum (Optional)")
     SELECT_POOL_PROMPT = _("Select Pool...")
     SELECT_ISO_VOLUME_PROMPT = _("Select ISO Volume...")
+    PRODUCT_EOL_WARNING = _("WARNING: Product reached End of Life (EOL) on {date}.")
+    EOL_NO_ISO_FOUND = _("Product is EOL and no ISO images were found.")
     FETCHING_ISO_VOLUMES_FROM_TEMPLATE = _("Fetching ISO volumes from {pool_name}...")
     ERROR_FETCHING_VOLUMES = _("Error fetching volumes")
     FETCHING_ISO_LIST = _("Fetching ISO list...")
     ERROR_FETCHING_ISOS = _("Error fetching ISOs")
+    NO_ISOS_AVAILABLE = _("No ISOs available")
     VALIDATING_CHECKSUM = _("Validating Checksum...")
     CHECKSUM_VALIDATED = _("Checksum Validated")
     DOWNLOADING_ISO = _("Downloading ISO...")
@@ -490,7 +491,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     STATS_INTERVAL = _("Stats Interval (seconds)")
     LOG_FILE_PATH = _("Log File Path:")
     LOGGING_LEVEL = _("Logging Level:")
-    REMOTE_VIEWER = _("Remote Viewer")
     NO_REMOTE_VIEWERS_FOUND = _("No remote viewers found (virt-viewer or virtui-remote-viewer)")
     WEBSOCKIFY_PATH = _("Websockify Path:")
     NOVNC_PATH = _("noVNC Path:")
@@ -690,12 +690,6 @@ Specify the NUMA nodes to use.
     CONFIGURE_AUTOMATION_AND_SCC_SUBTITLE = _(
         "Set default values for automation fields and SUSE Customer Center registration"
     )
-    ROOT_PASSWORD_LABEL = _("Root Password")
-    ROOT_PASSWORD_PLACEHOLDER = _("Default root password")
-    USERNAME_LABEL = _("Username:")
-    USERNAME_PLACEHOLDER = _("Default username")
-    USER_PASSWORD_LABEL = _("User Password")
-    USER_PASSWORD_PLACEHOLDER = _("Default user password")
     KEYBOARD_LAYOUT_LABEL = _("Keyboard Layout")
     LANGUAGE_LABEL = _("Language")
     SUSE_SCC_CONFIGURATION_HEADER = _("SUSE Customer Center (SCC) Configuration")
@@ -761,9 +755,7 @@ Specify the NUMA nodes to use.
     PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
     PROVISIONING_DEFINING_VM = _("Defining VM")
     PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
-    PROVISIONING_WAITING_FOR_VM = _("Waiting for VM")
     PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
-    PROVISIONING_STARTING_VM = _("Starting VM")
     PROVISIONING_COMPLETE = _("Provisioning Complete")
 
     # VM Type constants
@@ -895,12 +887,12 @@ class SparklineLabels:  # pylint: disable=too-few-public-methods
 
     DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
     NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
-    VCPU = _("{cpu} VCPU")
-    MEMORY_GB = _("{mem} Gb")
-    IDLE_CPU = _("-- VCPU")
-    IDLE_MEM = _("-- Gb")
-    IDLE_DISK = _("Disk --")
-    IDLE_NET = _("Net --")
+    VCPU = ("{cpu} VCPU")
+    MEMORY_GB = ("{mem} Gb")
+    IDLE_CPU = ("-- VCPU")
+    IDLE_MEM = ("-- Gb")
+    IDLE_DISK = ("Disk --")
+    IDLE_NET = ("Net --")
 
 
 class ErrorMessages:  # pylint: disable=too-few-public-methods
@@ -1310,9 +1302,7 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
         "Base name sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]"
     )
     INPUT_SANITIZED_TEMPLATE = _("Input sanitized: [b]{original}[/b] changed to [b]{sanitized}[/b]")
-    BOOT_ORDER_SAVED_SUCCESSFULLY = _("Boot order saved successfully.")
     DIRECT_KERNEL_BOOT_SAVED = _("Direct kernel boot settings saved.")
-    OVMF_DEBUG_SET = _("OVMF Debug {state}")
     GRAPHICS_SETTINGS_APPLIED_SUCCESSFULLY = _("Graphics settings applied successfully")
     RNG_SETTINGS_APPLIED_SUCCESSFULLY = _("RNG settings applied successfully. Device: {rng_device}")
     TPM_SETTINGS_APPLIED_SUCCESSFULLY = _("TPM settings applied successfully")

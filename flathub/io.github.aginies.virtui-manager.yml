@@ -67,6 +67,13 @@ modules:
         url: https://github.com/libusb/libusb/releases/download/v1.0.27/libusb-1.0.27.tar.bz2
         sha256: ffaa41d741a8a3bee244ac8e54a72ea05bf2879663c098c82fc5757853441575
 
+  - name: gobject-introspection
+    buildsystem: meson
+    sources:
+      - type: archive
+        url: https://download.gnome.org/sources/gobject-introspection/1.82/gobject-introspection-1.82.0.tar.xz
+        sha256: 0f5a4c1908424bf26bc41e9361168c363685080fbdb87a196c891c8401ca2f09
+
   - name: pygobject
     buildsystem: meson
     sources:
@@ -348,6 +355,41 @@ modules:
       - type: archive
         url: https://files.pythonhosted.org/packages/a6/91/86a6eac449ddfae239e93ffc1918cf33fd9bab35c04d1e963b311e347a73/netifaces-0.11.0.tar.gz
         sha256: 043a79146eb2907edf439899f262b3dfe41717d34124298ed281139a8b93ca32
+
+  - name: osinfo-db-tools
+    buildsystem: meson
+    sources:
+      - type: git
+        url: https://gitlab.com/libosinfo/osinfo-db-tools.git
+        tag: v1.12.0
+        commit: e5564be303bfac49cc3490bd0fada342cd65566f
+
+  - name: osinfo-db
+    buildsystem: simple
+    builddir: true
+    build-commands:
+      - make
+      - osinfo-db-import --dir /app/share/osinfo/ osinfo-db-*.tar.xz
+    sources:
+      - type: git
+        url: https://gitlab.com/libosinfo/osinfo-db.git
+        tag: v20251212
+        commit: 70fe571c605541e7be76b50f430c1cd13959c5b9
+
+  - name: libosinfo
+    buildsystem: meson
+    config-opts:
+      - -Dwith-pci-ids-path=/app/share/hwdata/pci.ids
+      - -Dwith-usb-ids-path=/app/share/hwdata/usb.ids
+      - -Denable-introspection=enabled
+      - -Denable-tests=false
+      - -Denable-gtk-doc=false
+      - -Denable-vala=disabled
+      - -Dwerror=false
+    sources:
+      - type: git
+        url: https://gitlab.com/libosinfo/libosinfo.git
+        branch: main
 
   - name: virtui-manager
     buildsystem: simple

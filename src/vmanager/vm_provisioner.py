@@ -37,13 +37,8 @@ from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture, get_latest_machine_types
 from .provisioning.provider_registry import ProviderRegistry
 from .provisioning.os_provider import OSType, OSVersion
-from .provisioning.providers.alpine_provider import AlpineProvider, AlpineDistro
-from .provisioning.providers.archlinux_provider import ArchLinuxProvider, ArchLinuxDistro
-from .provisioning.providers.debian_provider import DebianProvider, DebianDistro
-from .provisioning.providers.fedora_provider import FedoraProvider, FedoraDistro
-from .provisioning.providers.generic_provider import GenericProvider
-from .provisioning.providers.opensuse_provider import OpenSUSEProvider, OpenSUSEDistro
-from .provisioning.providers.ubuntu_provider import UbuntuProvider, UbuntuDistro
+from .provisioning.libosinfo_manager import LibosinfoManager
+from .provisioning.automation_engine import AutomationEngine
 from .storage_manager import create_volume
 from .vm_actions import strip_installation_assets, get_vm_boot_files, delete_boot_files
 from .utils import (
@@ -68,106 +63,39 @@ class VMProvisioner:
         self.host_arch = get_host_architecture(conn)
         self.logger = logging.getLogger(__name__)
 
-        # Initialize provider registry and register OS providers
+        # Initialize managers
+        self.libosinfo_manager = LibosinfoManager(host_arch=self.host_arch)
+        self.automation_engine = AutomationEngine()
+
+        # Backward compatibility registry (to be deprecated)
         self.provider_registry = ProviderRegistry()
-        self._register_providers()
 
-    def _register_providers(self):
-        """Register available OS providers."""
-        try:
-            opensuse_provider = OpenSUSEProvider(host_arch=self.host_arch)
-            self.provider_registry.register_provider(opensuse_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register OpenSUSE provider: {e}")
-
-        try:
-            ubuntu_provider = UbuntuProvider()
-            self.provider_registry.register_provider(ubuntu_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register Ubuntu provider: {e}")
-
-        try:
-            debian_provider = DebianProvider()
-            self.provider_registry.register_provider(debian_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register Debian provider: {e}")
-
-        try:
-            fedora_provider = FedoraProvider(host_arch=self.host_arch)
-            self.provider_registry.register_provider(fedora_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register Fedora provider: {e}")
-
-        try:
-            arch_provider = ArchLinuxProvider(host_arch=self.host_arch)
-            self.provider_registry.register_provider(arch_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register Arch Linux provider: {e}")
-
-        try:
-            alpine_provider = AlpineProvider(host_arch=self.host_arch)
-            self.provider_registry.register_provider(alpine_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register Alpine provider: {e}")
-
-        try:
-            generic_provider = GenericProvider()
-            self.provider_registry.register_provider(generic_provider)
-        except Exception as e:
-            self.logger.warning(f"Failed to register Generic provider: {e}")
-
-    def get_provider(self, os_type_str: str):
-        """Get provider by OS type string."""
-        # Convert string to OSType enum
-        os_type_map = {
-            "linux": OSType.OPENSUSE,
-            "opensuse": OSType.OPENSUSE,
-            "ubuntu": OSType.UBUNTU,
-            "debian": OSType.DEBIAN,
-            "fedora": OSType.FEDORA,
-            "archlinux": OSType.ARCHLINUX,
-            "arch": OSType.ARCHLINUX,
-            "alpine": OSType.ALPINE,
-            "generic": OSType.GENERIC,
-            "custom": OSType.GENERIC,
-            "windows": OSType.WINDOWS,
-        }
-
-        os_type = os_type_map.get(os_type_str.lower())
-        if os_type:
-            return self.provider_registry.get_provider(os_type)
-
-        self.logger.warning(f"Unknown OS type: {os_type_str}")
-        return None
-
-    def get_iso_sources(self, os_type: str, version_id: str) -> List[str]:
+    def get_iso_sources(self, os_type: str | OSType, version_id: str) -> List[str]:
         """
         Get ISO download sources for a specific OS type and version.
-        Delegates to the appropriate provider.
+        Uses LibosinfoManager.
         """
-        provider = self.get_provider(os_type)
-        if not provider:
-            logging.warning(f"No provider available for OS type: {os_type}")
+        if isinstance(os_type, str):
+            # Try to convert string to OSType
+            for ot in OSType:
+                if ot.value.lower() == os_type.lower():
+                    os_type = ot
+                    break
+            else:
+                return []
+
+        # Find the version in libosinfo
+        version = self.provider_registry.find_version(os_type, version_id)
+        if not version:
             return []
 
-        # Find the version object for this provider
-        for version in provider.get_supported_versions():
-            if version.version_id == version_id:
-                return provider.get_iso_sources(version)
-
-        logging.warning(f"Version {version_id} not found for OS type {os_type}")
-        return []
+        isos = self.libosinfo_manager.get_iso_list(version)
+        return [iso["url"] for iso in isos]
 
     def get_cached_isos_for_provider(self, os_type: str) -> List[Dict[str, Any]]:
         """
-        Get cached ISOs for a specific provider.
-        Delegates to the appropriate provider if it supports caching.
+        Get cached ISOs for a specific provider. (Legacy)
         """
-        provider = self.get_provider(os_type)
-        if provider and hasattr(provider, "get_cached_isos"):
-            return provider.get_cached_isos()
-
-        logging.info(f"Provider for {os_type} does not support cached ISOs, returning empty list")
         return []
 
     def get_iso_list(self, distro) -> List[Dict[str, Any]]:
@@ -175,69 +103,19 @@ class VMProvisioner:
         Get list of ISOs for a distribution or custom repository.
 
         Args:
-            distro: Either an OpenSUSEDistro, UbuntuDistro, DebianDistro enum or a custom repository URL string
+            distro: Either an OSVersion object, or a custom repository URL string
 
         Returns:
             List of ISO dictionaries with 'name', 'url', and 'date' keys
         """
-        # Handle OpenSUSE distributions - delegate to provider
-        if isinstance(distro, OpenSUSEDistro):
-            provider = self.get_provider("opensuse")
-            if provider and hasattr(provider, "get_iso_list"):
-                return provider.get_iso_list(distro)
-            else:
-                logging.warning("OpenSUSE provider not available or doesn't support get_iso_list")
-                return []
-
-        # Handle Ubuntu distributions - delegate to provider
-        elif isinstance(distro, UbuntuDistro):
-            provider = self.get_provider("ubuntu")
-            if provider and hasattr(provider, "get_iso_list"):
-                return provider.get_iso_list(distro.value)  # Pass the string value
-            else:
-                logging.warning("Ubuntu provider not available or doesn't support get_iso_list")
-                return []
-
-        # Handle Debian distributions - delegate to provider
-        elif isinstance(distro, DebianDistro):
-            provider = self.get_provider("debian")
-            if provider and hasattr(provider, "get_iso_list"):
-                return provider.get_iso_list(distro.value)  # Pass the string value
-            else:
-                logging.warning("Debian provider not available or doesn't support get_iso_list")
-                return []
-
-        # Handle Fedora distributions - delegate to provider
-        elif isinstance(distro, FedoraDistro):
-            provider = self.get_provider("fedora")
-            if provider and hasattr(provider, "get_iso_list"):
-                return provider.get_iso_list(distro.value)  # Pass the string value
-            else:
-                logging.warning("Fedora provider not available or doesn't support get_iso_list")
-                return []
-
-        # Handle Arch Linux distributions - delegate to provider
-        elif isinstance(distro, ArchLinuxDistro):
-            provider = self.get_provider("archlinux")
-            if provider and hasattr(provider, "get_iso_list"):
-                return provider.get_iso_list(distro.value)  # Pass the string value
-            else:
-                logging.warning("Arch Linux provider not available or doesn't support get_iso_list")
-                return []
-
-        # Handle Alpine Linux distributions - delegate to provider
-        elif isinstance(distro, AlpineDistro):
-            provider = self.get_provider("alpine")
-            if provider and hasattr(provider, "get_iso_list"):
-                return provider.get_iso_list(distro.value)  # Pass the string value
-            else:
-                logging.warning(
-                    "Alpine Linux provider not available or doesn't support get_iso_list"
-                )
-                return []
+        # Handle OSVersion - use LibosinfoManager
+        if isinstance(distro, OSVersion):
+            return self.libosinfo_manager.get_iso_list(distro)
 
         # Handle custom repository URLs (strings)
         elif isinstance(distro, str):
+            if distro == "cached":
+                return self.get_cached_isos()
             return self.get_iso_list_from_url(distro)
 
         else:
@@ -265,15 +143,8 @@ class VMProvisioner:
     ) -> List[Dict[str, Any]]:
         """
         Get list of ISOs from a custom repository URL.
-        Delegates to the appropriate provider.
         """
-        provider = self.get_provider(os_type)
-        if provider and hasattr(provider, "get_iso_list_from_url"):
-            return provider.get_iso_list_from_url(url)
-
-        # Fallback: basic URL handling for providers that don't support it
-        self.logger.warning(f"Provider for {os_type} doesn't support custom repositories")
-        return []
+        return self.get_iso_list_from_url(url)
 
     def get_custom_repos(self) -> List[Dict[str, str]]:
         """
@@ -1189,10 +1060,10 @@ class VMProvisioner:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
         """
-        # If boot_uefi is None, use provider preference
+        # If boot_uefi is None, default to True for modern OSes
         if boot_uefi is None:
-            provider = self.provider_registry.get_provider(os_type)
-            boot_uefi = provider.preferred_boot_uefi if provider else True
+            # Most modern OSes supported by VirtUI prefer UEFI
+            boot_uefi = True
 
         # Determine if this is an auto-installation (has auto_url)
         is_auto_install = bool(auto_url)
@@ -2136,10 +2007,10 @@ class VMProvisioner:
             elif "opensuse" in iso_url_lower or "suse" in iso_url_lower:
                 os_type = OSType.OPENSUSE
 
-        # If boot_uefi is None, use provider preference
+        # If boot_uefi is None, default to True for modern OSes
         if boot_uefi is None:
-            provider = self.provider_registry.get_provider(os_type)
-            boot_uefi = provider.preferred_boot_uefi if provider else True
+            # Most modern OSes supported by VirtUI prefer UEFI
+            boot_uefi = True
 
         # Try to extract version for Alpine if possible
         if os_type == OSType.ALPINE:
@@ -2151,6 +2022,12 @@ class VMProvisioner:
                 match = re.search(r"alpine-(?:virt|standard|extended)-(\d+\.\d+)", iso_url)
                 if match:
                     os_version = match.group(1)
+        
+        # Try to detect OpenSUSE version for automation
+        if os_type == OSType.OPENSUSE:
+            detected = self._detect_opensuse_version_from_iso(iso_url)
+            if detected:
+                os_version = detected.version_id
 
         # Determine if we should use direct kernel boot (manual UEFI for Arch/Debian/Alpine or automation)
         use_direct_kernel_boot = bool(automation_config) or (
@@ -2349,39 +2226,14 @@ class VMProvisioner:
                 if is_alpine_template and not boot_uefi and template_name == "autoyast-basic.xml":
                     template_name = "alpine-answers-basic.txt"
 
-                if is_ubuntu_template:
-                    provider = self.get_provider("ubuntu")
-                elif is_debian_template:
-                    provider = self.get_provider("debian")
-                elif is_fedora_template:
-                    provider = self.get_provider("fedora")
-                elif is_arch_template:
-                    provider = self.get_provider("archlinux")
-                elif is_alpine_template:
-                    provider = self.get_provider("alpine")
-                else:
-                    provider = self.get_provider("opensuse")
-
-                if provider:
+                if automation_config:
                     # Create a temporary directory for automation file
                     temp_dir = Path(tempfile.mkdtemp(prefix=f"virtui_automation_{vm_name}_"))
 
-                    # Detect version from ISO URL if it's an OpenSUSE provider
-                    detected_version = None
-                    if provider == self.get_provider("opensuse"):
-                        detected_version = self._detect_opensuse_version_from_iso(iso_url)
-                        if detected_version:
-                            self.logger.info(
-                                f"Detected OpenSUSE version from ISO: {detected_version.version_id}"
-                            )
-                        else:
-                            self.logger.warning(
-                                f"Could not detect OpenSUSE version from ISO URL: {iso_url}"
-                            )
-
-                    # Generate automation file using the provider
-                    automation_file_path = provider.generate_automation_file(
-                        version=detected_version,
+                    # Generate automation file using the centralized engine
+                    automation_file_path = self.automation_engine.generate(
+                        os_type=os_type,
+                        version_id=os_version or "unknown",
                         vm_name=vm_name,
                         user_config=automation_config,
                         output_path=temp_dir,
@@ -2617,9 +2469,10 @@ class VMProvisioner:
                         creds_url = f"http://{host_ip}:{port}/{creds_filename}"
                         setup_script_url = f"http://{host_ip}:{port}/{setup_script_filename}"
 
-                        # Get the Arch Linux provider to generate the setup script
-                        arch_provider = self.provider_registry.get_provider(OSType.ARCHLINUX)
-                        setup_script_content = arch_provider.generate_setup_script(json_url, creds_url)
+                        # Generate the Arch Linux setup script using the automation engine
+                        setup_script_content = self.automation_engine.generate_arch_setup_script(
+                            json_url, creds_url
+                        )
 
                         setup_script_path = temp_dir / setup_script_filename
                         with open(setup_script_path, "w", encoding="utf-8") as f:

@@ -583,28 +583,6 @@ class AutoYaSTTemplateManager:
             result["error"] = f"Invalid XML: {xml_error}"
             return result
 
-        # Use provider for comprehensive validation if available
-        if self.provisioner:
-            try:
-                provider = self.provisioner.get_provider("opensuse")
-                if provider and hasattr(provider, "validate_template_content"):
-                    is_valid, errors = provider.validate_template_content(content)
-                    if not is_valid:
-                        serious = [
-                            e
-                            for e in errors
-                            if "invalid xml" in e.lower() or "missing required" in e.lower()
-                        ]
-                        if serious:
-                            result["valid"] = False
-                            result["error"] = serious[0]
-                        result["warnings"] = [e for e in errors if e not in serious]
-                    else:
-                        result["warnings"] = errors
-                    return result
-            except Exception as e:
-                self.logger.error(f"Error in comprehensive validation: {e}")
-
         # Fallback: basic checks
         result["warnings"] = self._basic_template_checks(content)
         return result

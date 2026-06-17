@@ -72,8 +72,8 @@ LOG_LEVEL: INFO
 
 # VNC/Console settings
 REMOTE_VIEWER: virtui-remote-viewer
-REMOTE_WEBCONSOLE: true
-VNC_QUALITY: 1
+REMOTE_WEBCONSOLE: false
+VNC_QUALITY: 0
 VNC_COMPRESSION: 9
 
 # Network and hardware model options

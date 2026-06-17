@@ -2,9 +2,10 @@ textual
 libvirt-python==10.0.0
 pyyaml
 markdown-it-py
-websockify
-pytest-cov
-packaging
-netifaces
-requests
 linkify-it-py
+websockify
+netifaces
+PyGObject
+# build and test
+packaging
+pytest-cov

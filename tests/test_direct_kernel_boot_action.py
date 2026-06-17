@@ -3,8 +3,14 @@ import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock
 import libvirt
 import pytest
-from src.vmanager.vm_actions import set_direct_kernel_boot
-from src.vmanager.vm_queries import get_direct_kernel_boot
+import sys
+import os
+
+# Add the src directory to the path
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+
+from vmanager.vm_actions import set_direct_kernel_boot
+from vmanager.vm_queries import get_direct_kernel_boot
 
 def test_set_and_get_direct_kernel_boot():
     # Mock domain
@@ -20,7 +26,7 @@ def test_set_and_get_direct_kernel_boot():
     # Mock get_internal_id to return a fixed ID
     with MagicMock() as mock_get_id:
         # We need to mock invalidate_cache and get_internal_id as they are used in set_direct_kernel_boot
-        import src.vmanager.vm_actions as vm_actions
+        from vmanager import vm_actions
         original_invalidate = vm_actions.invalidate_cache
         original_get_id = vm_actions.get_internal_id
         vm_actions.invalidate_cache = MagicMock()

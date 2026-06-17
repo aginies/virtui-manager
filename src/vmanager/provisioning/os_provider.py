@@ -4,6 +4,7 @@ OS Provider Interface for Multi-OS VM Provisioning
 This module defines the base interface that all OS providers must implement,
 along with common data structures for OS types and versions.
 """
+
 import base64
 import hashlib
 import logging
@@ -14,8 +15,6 @@ import ssl
 import subprocess
 import string
 import urllib.request
-import yaml
-from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime
@@ -23,7 +22,15 @@ from email.utils import parsedate_to_datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+
+import gi
+
+try:
+    gi.require_version("Libosinfo", "1.0")
+    from gi.repository import Libosinfo
+except (ImportError, ValueError) as e:
+    logging.error(f"Libosinfo not found. Dynamic OS version discovery will be disabled: {e}")
+    Libosinfo = None
 
 
 class OSType(Enum):
@@ -40,7 +47,7 @@ class OSType(Enum):
     GENERIC = "Generic / Custom ISO"
 
 
-@dataclass
+@dataclass(frozen=True)
 class OSVersion:
     """Represents a specific version of an operating system."""
 
@@ -49,20 +56,10 @@ class OSVersion:
     display_name: str  # e.g., "Windows 11", "Ubuntu 22.04 LTS"
     architecture: str = "x86_64"  # Default to x86_64
     is_evaluation: bool = False  # True for evaluation/trial versions
+    eol_date: Optional[str] = None  # End of Life date (if available)
 
     def __str__(self) -> str:
         return self.display_name
-
-
-@dataclass
-class DriverInfo:
-    """Information about required drivers for an OS."""
-
-    name: str
-    url: str
-    version: Optional[str] = None
-    description: Optional[str] = None
-    required: bool = True
 
 
 @dataclass
@@ -75,27 +72,24 @@ class AutomationConfig:
     supports_network_config: bool = True
 
 
-_cached_os_versions = None
+_osinfo_db = None
 
 
-def load_os_versions() -> Dict[str, Any]:
-    """Load OS versions from the YAML configuration file."""
-    global _cached_os_versions
-    if _cached_os_versions is not None:
-        return _cached_os_versions
+def get_osinfo_db() -> Optional["Libosinfo.Db"]:
+    """Load and cache the Libosinfo database."""
+    global _osinfo_db
+    if Libosinfo is None:
+        return None
 
-    yaml_path = Path(__file__).parent / "os_versions.yaml"
-    if not yaml_path.exists():
-        logging.error(f"OS versions configuration not found at {yaml_path}")
-        return {}
-
-    try:
-        with open(yaml_path, "r", encoding="utf-8") as f:
-            _cached_os_versions = yaml.safe_load(f)
-        return _cached_os_versions
-    except Exception as e:
-        logging.error(f"Error loading OS versions from {yaml_path}: {e}")
-        return {}
+    if _osinfo_db is None:
+        try:
+            loader = Libosinfo.Loader()
+            loader.process_default_path()
+            _osinfo_db = loader.get_db()
+        except Exception as e:
+            logging.error(f"Failed to load Libosinfo database: {e}")
+            return None
+    return _osinfo_db
 
 
 def hash_password(plaintext_password: str) -> str:
@@ -179,181 +173,3 @@ def hash_password(plaintext_password: str) -> str:
     )
     logging.error(error_msg)
     raise RuntimeError(error_msg)
-
-
-class OSProvider(ABC):
-    """Abstract base class for OS-specific provisioning providers."""
-
-    @abstractmethod
-    def generate_automation_file(
-        self,
-        version: Optional[OSVersion],
-        vm_name: str,
-        user_config: Dict[str, Any],
-        output_path: Path,
-        template_name: str | None = None,
-    ) -> Path:
-        """Generate automation file (unattend.xml, preseed, etc.) for unattended install."""
-        pass
-
-    def _get_versions_from_config(
-        self, os_key: str, default_arch: str = "x86_64"
-    ) -> List[OSVersion]:
-        """Helper to get versions from the centralized YAML configuration."""
-        data = load_os_versions()
-        versions_data = data.get(os_key, [])
-
-        versions = []
-        for v in versions_data:
-            versions.append(
-                OSVersion(
-                    os_type=self.os_type,
-                    version_id=v["version_id"],
-                    display_name=v["display_name"],
-                    architecture=v.get("architecture", default_arch),
-                    is_evaluation=v.get("is_evaluation", False),
-                )
-            )
-        return versions
-
-    @property
-    def preferred_boot_uefi(self) -> bool:
-        """Return the preferred boot mode (UEFI vs BIOS).
-        
-        Default is True (UEFI).
-        """
-        return True
-
-    def validate_iso(self, iso_path: Path, version: OSVersion) -> bool:
-        """Validate that an ISO file matches the expected OS version.
-
-        Default implementation just checks file existence.
-        Providers can override for specific validation logic.
-        """
-        return iso_path.exists() and iso_path.stat().st_size > 0
-
-    def _get_iso_details(self, url: str, arch: Optional[str] = None) -> Dict[str, Any]:
-        """Fetch details (Size, Last-Modified) for a given ISO URL."""
-        name = url.split("/")[-1].lstrip("./")
-        size_str = "Unknown"
-        date_str = ""
-
-        try:
-            # Use unverified context to be more compatible with various mirrors
-            context = ssl._create_unverified_context()
-            req = urllib.request.Request(url, method="HEAD")
-            with urllib.request.urlopen(req, context=context, timeout=5) as response:
-                # Size
-                content_length = response.getheader("Content-Length")
-                if content_length:
-                    size_mb = int(content_length) // (1024 * 1024)
-                    size_str = f"{size_mb} MB"
-
-                # Date
-                last_modified = response.getheader("Last-Modified")
-                if last_modified:
-                    try:
-                        dt = parsedate_to_datetime(last_modified)
-                        date_str = dt.strftime("%Y-%m-%d %H:%M")
-                    except Exception:
-                        date_str = last_modified
-        except Exception:
-            pass
-
-        return {"name": name, "url": url, "size": size_str, "date": date_str, "arch": arch}
-
-    def _get_local_iso_list(self, path: str, arch: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Lists ISO files from a local directory."""
-        if path.startswith("file://"):
-            path = path[7:]
-
-        results = []
-        try:
-            path_obj = Path(path)
-            if not path_obj.exists() or not path_obj.is_dir():
-                return []
-
-            for f in path_obj.glob("*.iso"):
-                try:
-                    stats = f.stat()
-                    dt_str = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M")
-                    results.append(
-                        {"name": f.name, "url": str(f.absolute()), "date": dt_str, "arch": arch}
-                    )
-                except Exception:
-                    continue
-
-            results.sort(key=lambda x: x["name"], reverse=True)
-        except Exception:
-            pass
-
-        return results
-
-    def get_iso_list_from_url(
-        self,
-        url: str,
-        name_prefix: str = "",
-        arch: Optional[str] = None,
-        filter_pattern: str = r'href="([^"]*\.iso)"',
-    ) -> List[Dict[str, Any]]:
-        """
-        Generic method to fetch ISO list from a directory listing URL or local path.
-
-        Args:
-            url: The URL or path to scrape for .iso links
-            name_prefix: Prefix to add to ISO names
-            arch: Architecture string to include in results
-            filter_pattern: Regex pattern to find ISO links in HTML
-
-        Returns:
-            List of ISO dictionaries
-        """
-        if url.startswith("/") or url.startswith("file://") or os.path.isdir(url):
-            results = self._get_local_iso_list(url, arch=arch)
-            if name_prefix:
-                for res in results:
-                    res["name"] = f"{name_prefix}{res['name']}"
-            return results
-
-        logging.info(f"Fetching ISO list from {url}")
-
-        try:
-            # Use unverified context for compatibility
-            context = ssl._create_unverified_context()
-            with urllib.request.urlopen(url, context=context, timeout=10) as response:
-                content = response.read().decode("utf-8")
-
-            # Parse HTML to find ISO files
-            links = re.findall(filter_pattern, content)
-            unique_urls = []
-            for link in links:
-                clean_link = link.lstrip("./")
-                if link.startswith("http"):
-                    full_url = link
-                else:
-                    base_url = url if url.endswith("/") else url + "/"
-                    full_url = base_url + clean_link
-
-                unique_urls.append(full_url)
-
-            unique_urls = sorted(list(set(unique_urls)), reverse=True)
-
-            # Fetch details in parallel for performance
-            results = []
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(self._get_iso_details, u, arch) for u in unique_urls]
-                for future in futures:
-                    try:
-                        res = future.result()
-                        if name_prefix:
-                            res["name"] = f"{name_prefix}{res['name']}"
-                        results.append(res)
-                    except Exception:
-                        continue
-
-            results.sort(key=lambda x: x["name"], reverse=True)
-            return results
-
-        except Exception as e:
-            logging.error(f"Error fetching ISO list from {url}: {e}")
-            return []

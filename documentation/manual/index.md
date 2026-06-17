@@ -25,6 +25,17 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [VirtUI Manager CMD](cli.md)
 - [Debugging and Statistics](debugging_and_statistics.md)
 
+## Advanced Operations
+- [Backup Management](backup_management.md)
+- [Command Pipelines](pipelines.md)
+
+## Provisioning
+- [Automated Installation Architecture](auto_install_architecture.md)
+- [UEFI Firmware & Secure Boot](uefi_firmware.md)
+
+## Remote Access
+- [Remote Viewer Architecture](viewer_architecture.md)
+
 ## How to Guide
 - [Managing VM Disks](appdocs/howto_disk.md)
 - [Understanding Network Configuration](appdocs/howto_network.md)

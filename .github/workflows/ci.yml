@@ -47,7 +47,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-dev pkg-config
+          sudo apt-get install -y libvirt-dev pkg-config libcairo2-dev libgirepository-2.0-dev
 
       - name: Install dependencies
         run: |
@@ -75,7 +75,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvirt-dev pkg-config
+          sudo apt-get install -y libvirt-dev pkg-config libcairo2-dev libgirepository-2.0-dev
 
       - name: Install dependencies
         run: |

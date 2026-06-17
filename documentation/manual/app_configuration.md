@@ -46,7 +46,7 @@ LOG_FILE_PATH: /home/aginies/.cache/virtui-manager/vm_manager.log
 LOG_LEVEL: INFO
 
 # Web Console (noVNC)
-REMOTE_WEBCONSOLE: true
+REMOTE_WEBCONSOLE: false
 novnc_path: /usr/share/webapps/novnc/
 websockify_path: /usr/bin/websockify
 WEBSOCKIFY_BUF_SIZE: 4096
@@ -306,7 +306,7 @@ custom_ISO_repo:
 
 *   **Stats Interval (seconds):**
     *   Determines how frequently the application updates VM status and statistics (CPU, Memory, I/O).
-    *   **Default:** `15` seconds.
+    *   **Default:** `5` seconds.
     *   **Tip:** Increasing this value can reduce the load on the host system, while decreasing it provides more real-time updates.
 
 ## Logging
@@ -346,15 +346,15 @@ These settings configure the built-in web-based remote console capabilities, use
     *   **Default:** `4096`
 *   **noVNC Path:**
     *   Path to the noVNC web assets (HTML/JS/CSS).
-    *   **Default:** `/usr/share/webapps/novnc/` (common on Arch/Manjaro) or `/usr/share/novnc/` (Debian/Ubuntu).
+    *   **Default:** `/usr/share/novnc/` (Debian/Ubuntu) or `/usr/share/webapps/novnc/` (Arch/Manjaro).
 *   **Websockify Port Range:**
-    *   Defines the range of local ports the application can use for WebSocket connections.
-    *   **Start:** Default `40000`
-    *   **End:** Default `40049`
+     *   Defines the range of local ports the application can use for WebSocket connections. Configured via two separate keys:
+     *   **WC_PORT_RANGE_START:** Default `40000`
+     *   **WC_PORT_RANGE_END:** Default `40050`
 *   **VNC Quality (0-9):**
     *   Sets the visual quality of the VNC stream.
     *   **Range:** 0 (Lowest) to 9 (Highest).
-    *   **Default:** `1` (Optimized for speed).
+    *   **Default:** `0` (Optimized for speed).
 *   **VNC Compression (0-9):**
     *   Sets the compression level for the VNC stream.
     *   **Range:** 0 (None) to 9 (Maximum).

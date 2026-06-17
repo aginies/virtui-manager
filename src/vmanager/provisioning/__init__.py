@@ -5,6 +5,8 @@ This package provides a pluggable architecture for provisioning VMs with differe
 operating systems including Windows, Ubuntu, Debian, and OpenSUSE.
 """
 
-from .os_provider import OSProvider, OSVersion, OSType
+from .os_provider import OSVersion, OSType
+from .libosinfo_manager import LibosinfoManager
+from .automation_engine import AutomationEngine
 
-__all__ = ["OSProvider", "OSVersion", "OSType",]
+__all__ = ["OSVersion", "OSType", "LibosinfoManager", "AutomationEngine"]
