@@ -173,8 +173,7 @@ class BackupManager:
         # Get VM disk information
         from .vm_queries import get_vm_disks_info, _get_domain_root
 
-        domain_xml = domain.XMLDesc(0)
-        root = _get_domain_root(domain_xml)
+        _, root = _get_domain_root(domain)
         disks = get_vm_disks_info(conn, root)
 
         if not disks:
@@ -287,24 +286,37 @@ class BackupManager:
 
         return processed_path, size, checksum
 
-    def _encrypt_file(self, input_path: str, output_path: str):
-        """Basic file encryption using OpenSSL."""
-        # This is a basic implementation - in production, use proper encryption libraries
-        key = self._get_encryption_key()
+    def _get_encryption_key(self) -> str:
+        """Get or generate encryption key."""
+        if self.encryption_key_file.exists():
+            with open(self.encryption_key_file, "r") as f:
+                return f.read().strip()
+        else:
+            import secrets
 
+            key = secrets.token_hex(32)
+            with open(self.encryption_key_file, "w") as f:
+                f.write(key)
+            os.chmod(self.encryption_key_file, 0o600)
+            return key
+
+    def _encrypt_file(self, input_path: str, output_path: str):
+        """Encrypt a file using OpenSSL with the stored encryption key."""
+        # Ensure key exists
+        self._get_encryption_key()
         try:
-            # Use openssl for basic encryption
             subprocess.run(
                 [
                     "openssl",
-                    "aes-256-cbc",
+                    "enc",
+                    "-aes-256-cbc",
                     "-salt",
                     "-in",
                     input_path,
                     "-out",
                     output_path,
-                    "-k",
-                    key,
+                    "-keyfile",
+                    str(self.encryption_key_file),
                 ],
                 check=True,
                 capture_output=True,
@@ -313,22 +325,6 @@ class BackupManager:
             raise Exception(f"Encryption failed: {e.stderr.decode()}")
         except FileNotFoundError:
             raise Exception("OpenSSL not found - encryption requires openssl to be installed")
-
-    def _get_encryption_key(self) -> str:
-        """Get or generate encryption key."""
-        if self.encryption_key_file.exists():
-            with open(self.encryption_key_file, "r") as f:
-                return f.read().strip()
-        else:
-            # Generate a new key
-            import secrets
-
-            key = secrets.token_hex(32)
-            with open(self.encryption_key_file, "w") as f:
-                f.write(key)
-            # Secure file permissions
-            os.chmod(self.encryption_key_file, 0o600)
-            return key
 
     def _calculate_checksum(self, file_path: str) -> str:
         """Calculate SHA256 checksum of a file."""
