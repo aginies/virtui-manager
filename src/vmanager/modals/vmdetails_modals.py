@@ -2,6 +2,7 @@
 Main interface
 """
 
+import re
 import logging
 import os
 import xml.etree.ElementTree as ET
@@ -131,7 +132,7 @@ from .disk_pool_modals import AddDiskModal, EditDiskModal, SelectDiskModal, Sele
 from .howto_modals import HowToModal
 from .input_modals import AddChannelModal, AddInputDeviceModal, AddWatchdogModal
 from .network_modals import AddEditNetworkInterfaceModal
-from .utils_modals import ConfirmationDialog, FileSelectionModal, ProgressModal
+from .utils_modals import _confirm_message, ConfirmationDialog, FileSelectionModal, ProgressModal
 from .virtiofs_modals import AddEditVirtIOFSModal
 
 BootDevice = namedtuple("BootDevice", ["type", "id", "description", "boot_order_idx"])
@@ -221,7 +222,10 @@ class VMDetailModal(ModalScreen):
                 return
             except Exception as e:
                 self.app.show_error_message(
-                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                            type=type(e).__name__,
+                            message=str(e)[:200]
+                        )
                 )
                 return
 
@@ -694,6 +698,18 @@ class VMDetailModal(ModalScreen):
         initrd = self.query_one("#initrd-path-input", Input).value
         cmdline = self.query_one("#kernel-args-input", Input).value
         ovmf_debug_enabled = self.query_one("#ovmf-debug-enable", Checkbox).value
+
+        # Validate kernel args
+        if cmdline:
+            for arg in cmdline.split():
+                if "=" in arg:
+                    key, _ = arg.split("=", 1)
+                    if not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_]*", key):
+                        self.app.show_error_message(f"Invalid kernel arg key: {key}")
+                        return
+                elif not re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_.-]*", arg):
+                    self.app.show_error_message(f"Invalid kernel arg: {arg}")
+                    return
 
         def worker():
             try:
@@ -1327,7 +1343,7 @@ class VMDetailModal(ModalScreen):
             if self.is_bulk:
                 msg = ErrorMessages.SPICE_REMOVAL_CONFIRMATION_BULK
 
-            self.app.push_screen(ConfirmationDialog(msg), on_confirm_spice_removal)
+            self.app.push_screen(ConfirmationDialog(_confirm_message(msg)), on_confirm_spice_removal)
         else:
             logging.info("No SPICE devices to remove, applying settings directly.")
             do_apply_graphics_settings()
@@ -1912,7 +1928,7 @@ class VMDetailModal(ModalScreen):
                             ErrorMessages.ERROR_REMOVING_CHANNEL_TEMPLATE.format(error=e)
                         )
 
-            self.app.push_screen(ConfirmationDialog(message), on_confirm)
+            self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
     def compose(self) -> ComposeResult:
         xml_root = ET.fromstring(self.xml_desc)
@@ -2880,7 +2896,7 @@ class VMDetailModal(ModalScreen):
         msg = f"Remove watchdog device '{selected['model']}' ({selected['action']})?"
         if self.is_bulk:
             msg += " This will apply to ALL selected VMs."
-        self.app.push_screen(ConfirmationDialog(msg), on_confirm)
+        self.app.push_screen(ConfirmationDialog(_confirm_message(msg)), on_confirm)
 
     def _add_controller(self, add_func, args, device_name):
         """Generic handler for adding controllers (USB2, USB3, SCSI)."""
@@ -2934,7 +2950,9 @@ class VMDetailModal(ModalScreen):
                     self.app.show_error_message(f"Error {action_verb.rstrip('e')}ing disk: {e}")
 
         self.app.push_screen(
-            ConfirmationDialog(f"Are you sure you want to {action_verb} disk:\n{disk_path}?"),
+            ConfirmationDialog(
+                _confirm_message(f"Are you sure you want to {action_verb} disk:\n{disk_path}?"),
+            ),
             on_confirm,
         )
 
@@ -3106,7 +3124,7 @@ class VMDetailModal(ModalScreen):
                         except Exception as e:
                             self.app.show_error_message(f"An unexpected error occurred: {e}")
 
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+                self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
     def _handle_network_button(self, button_id):
         """Handle network interface related button presses."""
@@ -3172,7 +3190,7 @@ class VMDetailModal(ModalScreen):
                                             f"An unexpected error occurred: {e}"
                                         )
 
-                            self.app.push_screen(ConfirmationDialog(message), on_confirm_edit)
+                            self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm_edit)
 
                     network_models = self.app.config.get("network_models", [])
                     self.app.push_screen(
@@ -3225,7 +3243,7 @@ class VMDetailModal(ModalScreen):
                         except (libvirt.libvirtError, ValueError) as e:
                             self.app.show_error_message(f"Error removing network interface: {e}")
 
-                self.app.push_screen(ConfirmationDialog(message), on_confirm)
+                self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
     def _handle_firmware_button(self, button_id):
         """Handle firmware related button presses."""
@@ -3370,7 +3388,7 @@ class VMDetailModal(ModalScreen):
                         else:
                             self.app.show_success_message("Machine type migration cancelled.")
 
-                    self.app.push_screen(ConfirmationDialog(message), on_confirm_migration)
+                    self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm_migration)
                 elif new_machine_type == current_machine_type:
                     self.app.show_success_message(
                         "Machine type is already set to the selected value."
@@ -3674,7 +3692,7 @@ class VMDetailModal(ModalScreen):
                     ui_update,
                 )
 
-        self.app.push_screen(ConfirmationDialog(message), on_confirm)
+        self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
     def _handle_add_usb2_controller(self, event: Button.Pressed) -> None:
         self._add_controller(add_usb_device, ("usb", "usb2"), "USB 2.0 controller")
@@ -3718,7 +3736,7 @@ class VMDetailModal(ModalScreen):
                     ui_update,
                 )
 
-        self.app.push_screen(ConfirmationDialog(message), on_confirm)
+        self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
     def _handle_edit_cpu(self, event: Button.Pressed) -> None:
         def edit_cpu_callback(new_cpu_count: Any) -> None:
@@ -3823,7 +3841,7 @@ class VMDetailModal(ModalScreen):
         msg = f"Are you sure you want to remove console on port {serial_port}?"
         if self.is_bulk:
             msg = f"Are you sure you want to remove console on port {serial_port} from ALL selected VMs?"
-        self.app.push_screen(ConfirmationDialog(msg), on_confirm_remove)
+        self.app.push_screen(ConfirmationDialog(_confirm_message(msg)), on_confirm_remove)
 
     @on(Button.Pressed, "#edit-cputune")
     def on_edit_cputune_pressed(self, event: Button.Pressed) -> None:

@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 import libvirt
 
 from .constants import AppCacheTimeout
+from .utils import sanitize_credentials
 import time
 
 
@@ -153,7 +154,7 @@ class ConnectionManager:
         Creates a new connection to the given URI with a timeout.
         """
         try:
-            logging.info("Opening new libvirt connection to %s", uri)
+            logging.info("Opening new libvirt connection to %s", sanitize_credentials(uri))
 
             def open_connection():
                 connect_uri = uri

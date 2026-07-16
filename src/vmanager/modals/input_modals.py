@@ -2,7 +2,12 @@
 Modals for input device configuration and all Input dialog
 """
 
+import os
 import re
+import xml.etree.ElementTree as ET
+
+import ipaddress
+from pathlib import Path
 
 from textual import on
 from textual.app import ComposeResult
@@ -261,3 +266,63 @@ def _sanitize_domain_name(input_string: str) -> tuple[str, bool]:
         was_modified = True
 
     return sanitized, was_modified
+
+
+def validate_integer_range(value: str, min_val: int, max_val: int, field_name: str = "Value") -> str:
+    """Validate integer input within range. Returns sanitized value or raises ValueError."""
+    try:
+        int_val = int(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"{field_name} must be an integer.")
+    if int_val < min_val or int_val > max_val:
+        raise ValueError(f"{field_name} must be between {min_val} and {max_val}.")
+    return str(int_val)
+
+
+def validate_mac_address(mac: str) -> str:
+    """Validate MAC address format. Returns uppercase MAC or raises ValueError."""
+    mac = mac.strip().upper()
+    if not re.fullmatch(r"([0-9A-F]{2}:){5}[0-9A-F]{2}", mac):
+        raise ValueError(f"Invalid MAC address format: {mac}")
+    return mac
+
+
+def validate_ip_or_cidr(value: str) -> str:
+    """Validate IP address or CIDR notation. Returns canonical form."""
+    if "/" in value:
+        return str(ipaddress.ip_network(value.strip(), strict=False))
+    else:
+        return str(ipaddress.ip_address(value.strip()))
+
+
+def validate_path_in_allowed_dirs(path: str, allowed_dirs: list[str] | None = None, conn=None) -> str:
+    """Resolve path and verify it's within allowed directories.
+    
+    If conn provided, dynamically add all active pool target paths.
+    """
+    if allowed_dirs is None:
+        allowed_dirs = ["/var/lib/libvirt", "/var/lib/libvirt/images", "/tmp"]
+    
+    # Add active storage pool target paths when conn provided
+    if conn is not None:
+        try:
+            pools = conn.listAllStoragePools(0)
+            for pool in pools:
+                try:
+                    if not pool.isActive():
+                        continue
+                    xml = ET.fromstring(pool.XMLDesc(0))
+                    target = xml.findtext("target/path")
+                    if target:
+                        allowed_dirs.append(target)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    
+    resolved = Path(path).resolve()
+    for allowed in allowed_dirs:
+        allowed_real = os.path.realpath(allowed)
+        if str(resolved) == allowed_real or str(resolved).startswith(allowed_real + os.sep):
+            return str(resolved)
+    raise ValueError(f"Path '{path}' is outside allowed directories.")

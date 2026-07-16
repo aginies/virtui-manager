@@ -23,7 +23,7 @@ from ..provisioning.os_provider import OSType, OSVersion
 
 from ..vm_service import VMService
 from .base_modals import BaseModal
-from .input_modals import _sanitize_domain_name
+from .input_modals import _sanitize_domain_name, validate_path_in_allowed_dirs
 from .template_modals import TemplateManagementModal
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
@@ -1245,6 +1245,7 @@ class InstallVMModal(BaseModal[str | None]):
 
         if distro == "generic_custom":
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
+            custom_path = validate_path_in_allowed_dirs(custom_path, conn=self.conn)
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:
                 checksum = self.query_one("#checksum-input", Input).value.strip()

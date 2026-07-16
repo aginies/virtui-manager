@@ -66,6 +66,7 @@ from .modals.server_prefs_modals import ServerPrefModal
 from .modals.template_modals import TemplateManagementModal
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .modals.utils_modals import (
+    _confirm_message,
     ConfirmationDialog,
     LoadingModal,
     show_error_message,
@@ -1641,7 +1642,7 @@ class VMManagerTUI(App):
                     self.app.show_error_message(ErrorMessages.BULK_EDIT_PREP_ERROR.format(error=e))
 
             warning_message = DialogMessages.CONFIRM_BULK_EDIT
-            self.app.push_screen(ConfirmationDialog(warning_message), on_confirm)
+            self.app.push_screen(ConfirmationDialog(_confirm_message(warning_message)), on_confirm)
             return
 
         # Handle 'Migrate' separately as it's a UI interaction

@@ -19,7 +19,7 @@ from ..network_manager import (
     suggest_free_subnet,
 )
 from .base_modals import BaseDialog, BaseModal
-from .input_modals import _sanitize_domain_name, _sanitize_input
+from .input_modals import _sanitize_domain_name, _sanitize_input, validate_mac_address, validate_ip_or_cidr
 
 
 class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
@@ -114,7 +114,15 @@ class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
 
             result = {"network": new_network, "model": new_model}
             if self.is_edit:
-                result["mac"] = self.query_one("#mac-input", Input).value
+                mac_raw = self.query_one("#mac-input", Input).value
+                if mac_raw:
+                    try:
+                        result["mac"] = validate_mac_address(mac_raw)
+                    except ValueError as e:
+                        self.app.show_error_message(str(e))
+                        return
+                else:
+                    result["mac"] = ""
 
             self.dismiss(result)
         else:
@@ -477,6 +485,24 @@ class AddEditNetworkModal(BaseModal[None]):
                 dhcp = self.query_one("#dhcp-checkbox", Checkbox).value
                 dhcp_start = self.query_one("#dhcp-start-input", Input).value
                 dhcp_end = self.query_one("#dhcp-end-input", Input).value
+
+                # Validate DHCP IPs even if DHCP disabled (user may have entered values)
+                if dhcp_start:
+                    try:
+                        validate_ip_or_cidr(dhcp_start)
+                    except ValueError:
+                        self.app.show_error_message(
+                            ErrorMessages.INVALID_IP_OR_NETWORK_TEMPLATE.format(error="DHCP start IP invalid")
+                        )
+                        return
+                if dhcp_end:
+                    try:
+                        validate_ip_or_cidr(dhcp_end)
+                    except ValueError:
+                        self.app.show_error_message(
+                            ErrorMessages.INVALID_IP_OR_NETWORK_TEMPLATE.format(error="DHCP end IP invalid")
+                        )
+                        return
 
                 domain_radio = self.query_one("#dns-domain-radioset", RadioSet).pressed_button.id
                 domain_name_raw = self.query_one("#dns-custom-domain-input", Input).value

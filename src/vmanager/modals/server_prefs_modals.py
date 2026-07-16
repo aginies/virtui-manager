@@ -44,7 +44,7 @@ from .disk_pool_modals import (
 )
 from .howto_modals import HowToModal
 from .network_modals import AddEditNetworkModal
-from .utils_modals import ConfirmationDialog, ProgressModal
+from .utils_modals import _confirm_message, ConfirmationDialog, ProgressModal
 from .xml_modals import XMLDisplayModal
 
 
@@ -589,7 +589,10 @@ class ServerPrefModal(BaseModal[None]):
                     )
                 except Exception as e:
                     self.app.show_error_message(
-                        ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                        ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                                    type=type(e).__name__,
+                                    message=str(e)[:200]
+                                )
                     )
 
             self.app.push_screen(
@@ -597,7 +600,7 @@ class ServerPrefModal(BaseModal[None]):
             )
 
         warning_message = ErrorMessages.EDIT_POOL_XML_WARNING
-        self.app.push_screen(ConfirmationDialog(warning_message), on_edit_confirm)
+        self.app.push_screen(ConfirmationDialog(_confirm_message(warning_message)), on_edit_confirm)
 
     @on(Button.Pressed, "#toggle-active-pool-btn")
     def on_toggle_active_pool_button_pressed(self, event: Button.Pressed) -> None:
@@ -748,8 +751,10 @@ class ServerPrefModal(BaseModal[None]):
 
             self.app.push_screen(
                 ConfirmationDialog(
-                    ErrorMessages.NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE.format(
-                        directory=volume_dir, pool_name=new_pool_name
+                    _confirm_message(
+                        ErrorMessages.NO_POOL_FOR_DIRECTORY_CONFIRM_TEMPLATE.format(
+                            directory=volume_dir, pool_name=new_pool_name
+                        )
                     )
                 ),
                 on_confirm_create,
@@ -792,12 +797,17 @@ class ServerPrefModal(BaseModal[None]):
                     self._load_storage_pools()  # Refresh the tree
                 except Exception as e:
                     self.app.show_error_message(
-                        ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                        ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                                    type=type(e).__name__,
+                                    message=str(e)[:200]
+                                )
                     )
 
         self.app.push_screen(
             ConfirmationDialog(
-                ErrorMessages.DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE.format(pool_name=pool_name)
+                _confirm_message(
+                    ErrorMessages.DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE.format(pool_name=pool_name)
+                )
             ),
             on_confirm,
         )
@@ -834,12 +844,17 @@ class ServerPrefModal(BaseModal[None]):
 
                 except Exception as e:
                     self.app.show_error_message(
-                        ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                        ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                                    type=type(e).__name__,
+                                    message=str(e)[:200]
+                                )
                     )
 
         self.app.push_screen(
             ConfirmationDialog(
-                DialogMessages.DELETE_VOLUME_CONFIRMATION_TEMPLATE.format(vol_name=vol_name)
+                _confirm_message(
+                    DialogMessages.DELETE_VOLUME_CONFIRMATION_TEMPLATE.format(vol_name=vol_name)
+                )
             ),
             on_confirm,
         )
@@ -1032,7 +1047,10 @@ class ServerPrefModal(BaseModal[None]):
                 self._load_networks()
             except Exception as e:
                 self.app.show_error_message(
-                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                                    type=type(e).__name__,
+                                    message=str(e)[:200]
+                                )
                 )
 
     @on(Button.Pressed, "#toggle-net-autostart-btn")
@@ -1058,7 +1076,10 @@ class ServerPrefModal(BaseModal[None]):
                 self._load_networks()
             except Exception as e:
                 self.app.show_error_message(
-                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                                    type=type(e).__name__,
+                                    message=str(e)[:200]
+                                )
                 )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1085,7 +1106,10 @@ class ServerPrefModal(BaseModal[None]):
                 )
             except Exception as e:
                 self.app.show_error_message(
-                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML.format(error=e)
+                    ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                                    type=type(e).__name__,
+                                    message=str(e)[:200]
+                                )
                 )
 
         elif event.button.id == "edit-net-btn":
@@ -1159,7 +1183,7 @@ class ServerPrefModal(BaseModal[None]):
                             )
                         )
 
-            self.app.push_screen(ConfirmationDialog(confirm_message), on_confirm)
+            self.app.push_screen(ConfirmationDialog(_confirm_message(confirm_message)), on_confirm)
 
         elif event.button.id == "help-net-btn":
             self.app.push_screen(HowToModal("network"))

@@ -93,7 +93,7 @@ If your distribution doesn't package these libraries or you prefer a virtual env
 pip3 install virtui-manager
 ```
 
-Now **virtui-manager**, **virtui-manager-cmd**, **virtui-remote-cmd**, **virtui-gui** will be available from Command line.
+Now **virtui-manager**, **virtui-manager-cmd**, **vmc**, **virtui-remote-cmd**, **virtui-gui** will be available from Command line.
 
 
 ## Nix Package (experimental)

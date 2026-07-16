@@ -101,6 +101,13 @@ Pipelines support multiple VM selection formats:
 | `wait <seconds>` | Pause pipeline execution for N seconds |
 | `view` | Launch remote viewer for selected VMs |
 | `info` | Display VM information for selected VMs |
+| `vm_info` | Alias for `info` |
+
+### Connection Commands
+
+| Command | Description |
+|---------|-------------|
+| `connect <server|uri> [server2|uri2 ...]` | Connect to one or more servers |
 
 ### Variable Expansion
 

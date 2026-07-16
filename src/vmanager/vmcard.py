@@ -47,7 +47,7 @@ from .modals.disk_pool_modals import SelectDiskModal
 from .modals.howto_modals import HowToModal
 from .modals.input_modals import InputModal, _sanitize_input
 from .modals.migration_modals import MigrationModal
-from .modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal
+from .modals.utils_modals import _confirm_message, ConfirmationDialog, LoadingModal, ProgressModal
 from .modals.vmcard_dialog import (
     AdvancedCloneDialog,
     DeleteVMConfirmationDialog,
@@ -1414,7 +1414,9 @@ class VMCard(Static):
 
                 self.app.push_screen(
                     ConfirmationDialog(
-                        DialogMessages.CONFIRM_DISCARD_CHANGES.format(target_disk=target_disk)
+                        _confirm_message(
+                            DialogMessages.CONFIRM_DISCARD_CHANGES.format(target_disk=target_disk)
+                        )
                     ),
                     on_confirm,
                 )
@@ -1477,7 +1479,9 @@ class VMCard(Static):
 
             self.app.push_screen(
                 ConfirmationDialog(
-                    DialogMessages.CONFIRM_MERGE_CHANGES.format(target_disk=target_disk)
+                    _confirm_message(
+                        DialogMessages.CONFIRM_MERGE_CHANGES.format(target_disk=target_disk)
+                    )
                 ),
                 on_confirm,
             )
@@ -1545,7 +1549,7 @@ class VMCard(Static):
                 self.post_message(VmActionRequest(self.internal_id, VmAction.FORCE_OFF))
 
         message = f"{ErrorMessages.HARD_STOP_WARNING}\nAre you sure you want to stop '{self.name}'?"
-        self.app.push_screen(ConfirmationDialog(message), on_confirm)
+        self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
     def _handle_pause_button(self) -> None:
         """Handles the pause button press."""
@@ -2022,8 +2026,10 @@ class VMCard(Static):
 
                         self.app.push_screen(
                             ConfirmationDialog(
-                                DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(
-                                    name=snapshot_name
+                                _confirm_message(
+                                    DialogMessages.DELETE_SNAPSHOT_CONFIRMATION.format(
+                                        name=snapshot_name
+                                    )
                                 )
                             ),
                             on_confirm,
@@ -2391,7 +2397,7 @@ class VMCard(Static):
                     self.app.show_success_message(SuccessMessages.VM_RENAME_CANCELLED)
 
             msg = f"Are you sure you want to rename VM {self.name} to {new_name}?\n\nWarning: This operation involves undefining and redefining the VM."
-            self.app.push_screen(ConfirmationDialog(msg), on_confirm_rename)
+            self.app.push_screen(ConfirmationDialog(_confirm_message(msg)), on_confirm_rename)
 
         self.app.push_screen(RenameVMDialog(current_name=self.name), handle_rename)
 

@@ -54,6 +54,11 @@ def _sanitize_message(message: str) -> str:
     return re.sub(r"\[(.*?)\]", replacer, message)
 
 
+def _confirm_message(prompt: str) -> str:
+    """Escape brackets for Rich/Markdown in confirmation dialogs."""
+    return _sanitize_message(prompt)
+
+
 def _should_skip_notification(app, message: str, threshold: float = 2.0) -> bool:
     """Checks if a notification should be skipped to avoid duplicate toasted messages."""
     if not hasattr(app, "_recent_notifications"):
@@ -270,7 +275,7 @@ class ConfirmationDialog(BaseDialog[bool]):
 
     def compose(self):
         yield Vertical(
-            Markdown(self.prompt, id="question"),
+            Markdown(_sanitize_message(self.prompt), id="question"),
             Horizontal(
                 Button(ButtonLabels.YES, variant="error", id="yes", classes="dialog-buttons"),
                 Button(ButtonLabels.NO, variant="primary", id="no", classes="dialog-buttons"),
@@ -301,7 +306,7 @@ class InfoModal(BaseModal[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="info-modal-dialog", classes="dialog"):
             yield Label(self._title, classes="dialog-title")
-            yield Markdown(self._message, classes="dialog-message")
+            yield Markdown(_sanitize_message(self._message), classes="dialog-message")
             with Horizontal(classes="dialog-buttons"):
                 yield Button(ButtonLabels.OK, variant="primary", id="ok-btn")
 

@@ -53,7 +53,7 @@ from .vm_actions import (
 from .vm_queries import get_vm_snapshots, get_domain_info_dict
 from .vm_service import VMService
 from .pipeline import PipelineExecutor, PipelineMode
-from .backup_manager import BackupManager, BackupType, BackupOptions, RetentionPolicy
+from .backup_manager import BackupManager, BackupType, BackupOptions
 from .provisioning.provider_registry import get_registry
 from .provisioning.os_provider import OSType
 from .vm_provisioner import VMProvisioner, VMType
@@ -126,6 +126,7 @@ class VManagerCMD(cmd.Cmd):
 
     def __init__(self, vm_service=None):
         super().__init__()
+        self.yes_mode = False
 
         # Setup logging
         try:
@@ -537,6 +538,14 @@ class VManagerCMD(cmd.Cmd):
                 choices_used.append(shlex.quote(val))
             return val
 
+        # 2b. Yes-mode: auto-select first option
+        if self.yes_mode:
+            selected = options[0]
+            print(f"{prompt}: {get_display(selected)} (auto-selected)")
+            if choices_used is not None:
+                choices_used.append("1")
+            return get_value(selected)
+
         # 3. Interactive selection
         print(f"\n{prompt}:")
         for i, opt in enumerate(options):
@@ -594,6 +603,11 @@ class VManagerCMD(cmd.Cmd):
         if choices_provided:
             val = choices_provided.pop(0)
             print(f"{prompt}{val}")
+        elif self.yes_mode:
+            val = ""
+            print(f"{prompt}{val}")
+            if choices_used is not None:
+                choices_used.append('""')
         else:
             try:
                 val = input(prompt).strip()
@@ -2149,13 +2163,12 @@ class VManagerCMD(cmd.Cmd):
 
     def do_backup_create(self, args):
         """Create a backup of one or more VMs.
-        Usage: backup_create <backup_name> [--type snapshot|overlay] [--compress] [--encrypt] [--verify] [--quiesce] [vm_name1] [vm_name2] ...
+        Usage: backup_create <backup_name> [--type snapshot|overlay] [--compress] [--encrypt] [--quiesce] [vm_name1] [vm_name2] ...
 
         Options:
           --type TYPE       Backup type: snapshot (default) or overlay
           --compress        Compress the backup
           --encrypt         Encrypt the backup
-          --verify          Verify backup integrity after creation
           --quiesce         Use guest agent to quiesce the filesystem
 
         Variable Expansion:
@@ -2164,7 +2177,7 @@ class VManagerCMD(cmd.Cmd):
 
         Examples:
           backup_create daily-$(date) --compress vm1 vm2
-          backup_create maintenance-$(date) --type overlay --verify
+          backup_create maintenance-$(date) --type overlay --quiesce
 
         If no VM names are provided, it will backup the selected VMs.
         """
@@ -2175,10 +2188,10 @@ class VManagerCMD(cmd.Cmd):
         arg_list = shlex.split(args)
         if not arg_list:
             print(
-                "Usage: backup_create <backup_name> [--type snapshot|overlay] [--compress] [--encrypt] [--verify] [--quiesce] [vm_name1] [vm_name2] ..."
+                "Usage: backup_create <backup_name> [--type snapshot|overlay] [--compress] [--encrypt] [--quiesce] [vm_name1] [vm_name2] ..."
             )
             print("       backup_create daily-$(date) --type snapshot --compress vm1 vm2")
-            print("       backup_create maintenance-$(date) --verify --quiesce")
+            print("       backup_create maintenance-$(date) --quiesce")
             print("Variables: $(date) = YYYYMMDD_HHMMSS, $(time) = HHMMSS")
             return
 
@@ -2189,7 +2202,6 @@ class VManagerCMD(cmd.Cmd):
         backup_type = BackupType.SNAPSHOT
         compress = False
         encrypt = False
-        verify = False
         quiesce = False
         vm_names = []
 
@@ -2214,8 +2226,6 @@ class VManagerCMD(cmd.Cmd):
                 compress = True
             elif arg == "--encrypt":
                 encrypt = True
-            elif arg == "--verify":
-                verify = True
             elif arg == "--quiesce":
                 quiesce = True
             elif not arg.startswith("--"):
@@ -2226,7 +2236,7 @@ class VManagerCMD(cmd.Cmd):
             i += 1
 
         # Create backup options
-        options = BackupOptions(compress=compress, encrypt=encrypt, verify=verify, quiesce=quiesce)
+        options = BackupOptions(compress=compress, encrypt=encrypt, quiesce=quiesce)
 
         # Determine VMs to backup
         if vm_names:
@@ -2262,8 +2272,6 @@ class VManagerCMD(cmd.Cmd):
                         print(f"  Size: {size_mb:.1f} MB")
                     if metadata.get("duration_seconds"):
                         print(f"  Duration: {metadata['duration_seconds']:.1f} seconds")
-                    if metadata.get("verification") and metadata["verification"].get("success"):
-                        print(f"  Verification: PASSED")
 
                 except libvirt.libvirtError as e:
                     self._safe_print(f"Error creating backup for VM '{vm_name}': {e}")
@@ -2275,7 +2283,7 @@ class VManagerCMD(cmd.Cmd):
         args = shlex.split(line[len("backup_create") :].strip())
 
         # Options
-        options = ["--type", "--compress", "--encrypt", "--verify", "--quiesce"]
+        options = ["--type", "--compress", "--encrypt", "--quiesce"]
 
         if text.startswith("--"):
             return [opt for opt in options if opt.startswith(text)]
@@ -2398,24 +2406,7 @@ class VManagerCMD(cmd.Cmd):
             options = status.get("options", {})
             print(f"Compressed: {'Yes' if options.get('compress') else 'No'}")
             print(f"Encrypted: {'Yes' if options.get('encrypt') else 'No'}")
-            print(f"Verified: {'Yes' if options.get('verify') else 'No'}")
             print(f"Quiesced: {'Yes' if options.get('quiesce') else 'No'}")
-
-            # Show verification details
-            verification = status.get("verification")
-            if verification:
-                print(f"\nVerification:")
-                print(f"  Success: {'Yes' if verification.get('success') else 'No'}")
-                print(f"  Verified at: {verification.get('verified_at', 'Unknown')}")
-
-                checks = verification.get("checks", [])
-                if checks:
-                    print(f"  Checks performed: {len(checks)}")
-                    for check in checks:
-                        check_status = "✓" if check.get("success") else "✗"
-                        print(
-                            f"    {check_status} {check.get('type', 'Unknown')}: {check.get('description', 'No description')}"
-                        )
 
         except Exception as e:
             print(f"Error getting backup status: {e}")
@@ -2500,8 +2491,6 @@ class VManagerCMD(cmd.Cmd):
             return
 
         try:
-            retention = RetentionPolicy(keep_count=keep_count, keep_days=keep_days)
-
             conn = self.active_connections[server_name]
 
             print(
@@ -2509,7 +2498,7 @@ class VManagerCMD(cmd.Cmd):
             )
 
             cleaned_backups = self.backup_manager.cleanup_old_backups(
-                vm_name, server_name, retention, backup_type, conn
+                vm_name, backup_type, conn, keep_count=keep_count, keep_days=keep_days
             )
 
             if cleaned_backups:
@@ -2552,10 +2541,9 @@ class VManagerCMD(cmd.Cmd):
 
     def do_backup_restore(self, args):
         """Restore a VM from a backup.
-        Usage: backup_restore <backup_name> [--no-verify] [--force]
+        Usage: backup_restore <backup_name> [--force]
 
         Options:
-          --no-verify       Skip backup verification before restore
           --force           Force restore without confirmation prompts
 
         The backup will be restored to its original VM. Each backup contains
@@ -2563,7 +2551,7 @@ class VManagerCMD(cmd.Cmd):
 
         Examples:
           backup_restore daily-20240115_vm1_server1
-          backup_restore maintenance-backup --no-verify --force
+          backup_restore maintenance-backup --force
         """
         if not self.active_connections:
             print("Not connected to any server. Use 'connect <server_name>'.")
@@ -2571,20 +2559,17 @@ class VManagerCMD(cmd.Cmd):
 
         arg_list = shlex.split(args)
         if not arg_list:
-            print("Usage: backup_restore <backup_name> [--no-verify] [--force]")
+            print("Usage: backup_restore <backup_name> [--force]")
             return
 
         backup_name = arg_list[0]
-        verify_before_restore = True
         force = False
 
         # Parse arguments
         i = 1
         while i < len(arg_list):
             arg = arg_list[i]
-            if arg == "--no-verify":
-                verify_before_restore = False
-            elif arg == "--force":
+            if arg == "--force":
                 force = True
             else:
                 print(f"Error: Unknown option '{arg}'")
@@ -2652,12 +2637,7 @@ class VManagerCMD(cmd.Cmd):
             # Perform the restore
             print(f"\nStarting restore of backup '{backup_name}'...")
 
-            if verify_before_restore:
-                print("Verifying backup integrity...")
-
-            restore_metadata = self.backup_manager.restore_backup(
-                domain, backup_name, verify_before_restore
-            )
+            restore_metadata = self.backup_manager.restore_backup(domain, backup_name)
 
             print(f"✅ Backup '{backup_name}' restored successfully!")
 
@@ -2665,13 +2645,6 @@ class VManagerCMD(cmd.Cmd):
             duration = restore_metadata.get("restore_duration_seconds", 0)
             print(f"   Duration: {duration:.1f} seconds")
             print(f"   Method: {restore_metadata.get('restore_method', 'unknown')}")
-
-            if restore_metadata.get("pre_restore_verification"):
-                verification = restore_metadata["pre_restore_verification"]
-                if verification.get("success"):
-                    print("   Pre-restore verification: PASSED")
-                else:
-                    print("   Pre-restore verification: FAILED (but restore continued)")
 
         except Exception as e:
             print(f"Error restoring backup '{backup_name}': {e}")
@@ -2681,7 +2654,7 @@ class VManagerCMD(cmd.Cmd):
         args = shlex.split(line[len("backup_restore") :].strip())
 
         # Options
-        options = ["--no-verify", "--force"]
+        options = ["--force"]
 
         if text.startswith("--"):
             return [opt for opt in options if opt.startswith(text)]
@@ -3842,7 +3815,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Virtui Manager CLI")
+    parser.add_argument(
+        "-c", "--command",
+        help="Execute a single command non-interactively and exit",
+    )
+    args = parser.parse_args()
+
+    # Show help if -c/--command passed with no value
+    if args.command is None and ("-c" in sys.argv or "--command" in sys.argv):
+        parser.print_help()
+        return
+
     cmd_app = VManagerCMD()
+    cmd_app.yes_mode = bool(args.command)
+
+    if args.command:
+        cmd_app.preloop()
+        cmd_app.onecmd(args.command)
+        return
+
     try:
         cmd_app.cmdloop()
     except KeyboardInterrupt:

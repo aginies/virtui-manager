@@ -21,7 +21,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import libvirt
-from .backup_manager import BackupManager
+from .backup_manager import BackupManager, BackupType, BackupOptions
 
 from .utils import remote_viewer_cmd
 from .vm_actions import (
@@ -756,7 +756,6 @@ class BackupCommand(PipelineCommand):
         backup_type = "snapshot"
         compress = False
         encrypt = False
-        verify = True
 
         # Parse options
         for arg in self.args[1:]:
@@ -768,8 +767,6 @@ class BackupCommand(PipelineCommand):
                 compress = True
             elif arg == "--encrypt":
                 encrypt = True
-            elif arg == "--no-verify":
-                verify = False
 
         # Determine VMs to backup
         vms_to_backup = {}
@@ -811,17 +808,13 @@ class BackupCommand(PipelineCommand):
                         generated_name = backup_name
 
                     # Map string to enum
-                    if backup_type.lower() == "snapshot":
-                        bt = BackupType.SNAPSHOT
-                    elif backup_type.lower() == "overlay":
+                    if backup_type.lower() == "overlay":
                         bt = BackupType.OVERLAY
-                    elif backup_type.lower() == "clone":
-                        bt = BackupType.CLONE
                     else:
                         bt = BackupType.SNAPSHOT
 
                     # Create backup options
-                    options = BackupOptions(compress=compress, encrypt=encrypt, verify=verify)
+                    options = BackupOptions(compress=compress, encrypt=encrypt)
 
                     # Create the backup
                     metadata = backup_manager.create_backup(domain, generated_name, bt, options)
@@ -883,16 +876,11 @@ class BackupCommand(PipelineCommand):
             return context
 
         # Map backup type
-        if backup_type.lower() == "snapshot":
-            bt = BackupType.SNAPSHOT
-        elif backup_type.lower() == "overlay":
+        if backup_type.lower() == "overlay":
             bt = BackupType.OVERLAY
-        elif backup_type.lower() == "clone":
-            bt = BackupType.CLONE
         else:
             bt = BackupType.SNAPSHOT
 
-        retention = RetentionPolicy(keep_count=keep_count)
         options = BackupOptions()
 
         scheduled_count = 0
@@ -904,7 +892,7 @@ class BackupCommand(PipelineCommand):
                         server_name=server_name,
                         backup_type=bt,
                         schedule_pattern=schedule_pattern,
-                        retention=retention,
+                        keep_count=keep_count,
                         options=options,
                     )
                     scheduled_count += 1
@@ -1043,6 +1031,30 @@ class BackupCommand(PipelineCommand):
             return f"backup {action}"
 
 
+class ConnectCommand(PipelineCommand):
+    """Pipeline command for connecting to servers."""
+
+    def validate(self, context: PipelineContext, vm_service, cli_instance) -> List[str]:
+        errors = []
+        if not self.args:
+            errors.append("connect command requires server name or URI")
+        return errors
+
+    def execute(self, context: PipelineContext, vm_service, cli_instance) -> PipelineContext:
+        """Execute connect command."""
+        for server in self.args:
+            try:
+                cli_instance.do_connect(server)
+            except Exception as e:
+                context.errors.append(f"Connect to '{server}' failed: {e}")
+        return context
+
+    def get_description(self, context: PipelineContext) -> str:
+        if self.args:
+            return f"Connect to: {', '.join(self.args)}"
+        return "Connect to server"
+
+
 class PipelineParser:
     """Parser for command pipelines."""
 
@@ -1061,6 +1073,8 @@ class PipelineParser:
             "wait": WaitCommand,
             "view": ViewCommand,
             "info": InfoCommand,
+            "vm_info": InfoCommand,
+            "connect": ConnectCommand,
         }
 
     def parse(self, pipeline_str: str) -> List[PipelineCommand]:
@@ -1267,6 +1281,10 @@ class PipelineExecutor:
         for i, command in enumerate(commands):
             print(f"{i + 1}. {command.get_description(context)}")
         print("=" * 31)
+
+        # Check if yes_mode is enabled via cli_instance
+        if self.cli_instance and getattr(self.cli_instance, "yes_mode", False):
+            return True
 
         response = input("Execute this pipeline? (yes/no): ").strip().lower()
         if response in ["exit", "quit"]:

@@ -12,6 +12,7 @@ from textual.widgets import Button, Checkbox, DataTable, Input, Label
 from ..config import save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..vmcard import ConfirmationDialog
+from .utils_modals import _confirm_message
 from .base_modals import BaseModal
 from .howto_modals import HowToModal
 
@@ -279,8 +280,10 @@ class ServerManagementModal(BaseModal[str | None]):
 
             self.app.push_screen(
                 ConfirmationDialog(
-                    ErrorMessages.DELETE_SERVER_CONFIRMATION_TEMPLATE.format(
-                        server_name=server_name_to_delete
+                    _confirm_message(
+                        ErrorMessages.DELETE_SERVER_CONFIRMATION_TEMPLATE.format(
+                            server_name=server_name_to_delete
+                        )
                     )
                 ),
                 on_confirm,

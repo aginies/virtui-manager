@@ -7,7 +7,20 @@ To launch the CLI mode:
 virtui-manager --cmd
 # OR
 virtui-manager-cmd
+# OR
+vmc
 ```
+
+## Quick Launch
+
+Run a single command non-interactively:
+```bash
+vmc -c "connect localhost"
+vmc -c "list_vms"
+vmc -c "select_vm web-01 | start"
+```
+
+`-c, --command <command>` — execute one command and exit. Prompts auto-select first option.
 
 ## Core Concepts
 

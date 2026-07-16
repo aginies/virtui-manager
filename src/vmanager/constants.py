@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.1.1"
+    version = "3.2.0"
     author = "Antoine Ginies"
 
 
@@ -1089,6 +1089,7 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ERROR_GETTING_XML_FOR_POOL_TEMPLATE = _("Error getting XML for pool: {error}")
     ERROR_UPDATING_POOL_XML_TEMPLATE = _("Error updating pool XML: {error}")
     UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML = _("An unexpected error occurred: {error}")
+    ERROR_TRUNCATED_TEMPLATE = _("Error ({type}): {message}")
     EDIT_POOL_XML_WARNING = _(
         "Editing a pool's XML definition is an advanced operation.\\n"
         "An invalid configuration may make its volumes inaccessible to VMs.\\n\\n"

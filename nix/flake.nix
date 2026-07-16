@@ -15,7 +15,7 @@
         packages = {
           virtui-manager = pkgs.python3Packages.buildPythonApplication {
             pname = "virtui-manager";
-            version = "3.1.1";
+            version = "3.2.0";
 
             src = ../.;
 
@@ -102,7 +102,7 @@
             # Wrap binaries to set GI_TYPELIB_PATH for GTK/GObject Introspection
             # and ensure runtime tools are in the PATH
             postFixup = ''
-              for prog in $out/bin/virtui-manager $out/bin/virtui-manager-cmd $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
+              for prog in $out/bin/virtui-manager $out/bin/virtui-manager-cmd $out/bin/vmc $out/bin/virtui-gui $out/bin/virtui-remote-viewer; do
                 if [ -f "$prog" ]; then
                   wrapProgram "$prog" \
                     --prefix PATH : "${pkgs.lib.makeBinPath [ pkgs.tmux pkgs.p7zip pkgs.qemu pkgs.libvirt ]}" \
