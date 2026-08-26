@@ -205,6 +205,69 @@ class TestVMProvisionerDownload(unittest.TestCase):
         self.assertTrue(mock_stream.finish.called)
         self.assertTrue(progress_cb.called)
 
+    @patch("vmanager.vm_provisioner.os.path.exists")
+    @patch("vmanager.vm_provisioner.os.path.getsize")
+    def test_upload_file_skips_when_volume_found_after_refresh(
+        self, mock_getsize, mock_exists
+    ):
+        """Volume on disk but unregistered: refresh finds it, upload skipped."""
+        mock_exists.return_value = True
+        mock_getsize.return_value = 12
+
+        mock_pool = MagicMock()
+        mock_pool.isActive.return_value = True
+        mock_vol = MagicMock()
+        mock_vol.path.return_value = "/var/lib/libvirt/images/test.iso"
+        mock_vol.info.return_value = {"type": 0, "capacity": 12, "allocation": 12, "physical": 12}
+        # First lookup fails, after refresh the volume is found
+        mock_pool.storageVolLookupByName.side_effect = [
+            libvirt.libvirtError("Not found"),
+            mock_vol,
+        ]
+        mock_pool.createXML = MagicMock()
+
+        self.mock_conn.storagePoolLookupByName.return_value = mock_pool
+
+        result = self.provisioner.upload_file("/local/path/test.iso", "default")
+
+        self.assertEqual(result, "/var/lib/libvirt/images/test.iso")
+        mock_pool.refresh.assert_called_once_with(0)
+        mock_pool.createXML.assert_not_called()
+        mock_vol.upload.assert_not_called()
+
+    @patch("builtins.open", new_callable=mock_open, read_data=b"file content")
+    @patch("vmanager.vm_provisioner.os.path.exists")
+    @patch("vmanager.vm_provisioner.os.path.getsize")
+    def test_upload_file_reuploads_on_size_mismatch(
+        self, mock_getsize, mock_exists, mock_file
+    ):
+        """Stale volume with wrong size is deleted and re-uploaded."""
+        mock_exists.return_value = True
+        mock_getsize.return_value = 12  # len(b"file content")
+
+        mock_pool = MagicMock()
+        mock_pool.isActive.return_value = True
+        mock_vol = MagicMock()
+        mock_vol.info.return_value = {"type": 0, "capacity": 999, "allocation": 999, "physical": 999}
+        mock_pool.storageVolLookupByName.side_effect = [
+            libvirt.libvirtError("Not found"),
+            mock_vol,
+        ]
+        mock_new_vol = MagicMock()
+        mock_new_vol.path.return_value = "/var/lib/libvirt/images/test.iso"
+        mock_pool.createXML.return_value = mock_new_vol
+
+        self.mock_conn.storagePoolLookupByName.return_value = mock_pool
+        self.mock_conn.getKeepAlive.return_value = [5, 5]
+        self.mock_conn.newStream.return_value = MagicMock()
+
+        result = self.provisioner.upload_file("/local/path/test.iso", "default")
+
+        self.assertEqual(result, "/var/lib/libvirt/images/test.iso")
+        mock_vol.delete.assert_called_once_with(0)
+        mock_pool.createXML.assert_called_once()
+        self.assertTrue(mock_new_vol.upload.called)
+
 if __name__ == "__main__":
     import sys
     unittest.main()

@@ -7,11 +7,11 @@ Verifies that:
 3. SECURE VMs keep on_reboot as "destroy" even after installation
 """
 
-import unittest
-import xml.etree.ElementTree as ET
-from unittest.mock import MagicMock, patch
 import os
 import sys
+import unittest
+import xml.etree.ElementTree as ET
+from unittest.mock import MagicMock
 
 # Add the source directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -188,6 +188,9 @@ class TestAutoInstallRebootHandling(unittest.TestCase):
         # Call strip_installation_assets
         strip_installation_assets(mock_domain)
 
+        # Verify the persistent (inactive) configuration was read
+        mock_domain.XMLDesc.assert_called_with(libvirt.VIR_DOMAIN_XML_INACTIVE)
+
         # Verify defineXML was called
         self.mock_conn.defineXML.assert_called_once()
 
@@ -258,6 +261,12 @@ class TestAutoInstallRebootHandling(unittest.TestCase):
         # Call strip_installation_assets
         strip_installation_assets(mock_domain)
 
+        # Verify the persistent (inactive) configuration was read
+        mock_domain.XMLDesc.assert_called_with(libvirt.VIR_DOMAIN_XML_INACTIVE)
+
+        # Verify defineXML was called
+        self.mock_conn.defineXML.assert_called_once()
+
         # Parse the new XML and verify changes
         root = ET.fromstring(new_xml)
 
@@ -312,13 +321,9 @@ class TestAutoInstallRebootHandling(unittest.TestCase):
         # Call strip_installation_assets on already-clean VM
         strip_installation_assets(mock_domain)
 
-        # Parse the new XML
-        root = ET.fromstring(new_xml)
-
-        # Verify on_reboot is still "restart"
-        on_reboot = root.find("on_reboot")
-        self.assertIsNotNone(on_reboot)
-        self.assertEqual(on_reboot.text, "restart")
+        # Nothing changed, so the domain must not be redefined
+        mock_domain.XMLDesc.assert_called_with(libvirt.VIR_DOMAIN_XML_INACTIVE)
+        self.mock_conn.defineXML.assert_not_called()
 
 
 if __name__ == "__main__":

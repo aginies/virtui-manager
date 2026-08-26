@@ -10,6 +10,7 @@ import uuid
 import xml.etree.ElementTree as ET
 
 import libvirt
+from typing import Callable
 
 from .libvirt_utils import (
     VIRTUI_MANAGER_NS,
@@ -26,6 +27,56 @@ from .storage_manager import create_overlay_volume
 from .utils import log_function_call
 from .vm_cache import invalidate_cache
 from .vm_queries import _get_domain_root, get_vm_disks_info, get_vm_snapshots, get_vm_tpm_info, has_overlays
+
+
+def _require_vm_stopped(domain: libvirt.virDomain, message: str):
+    """Validate domain and check VM is stopped, raise if running."""
+    if domain is None:
+        raise ValueError("Invalid domain object.")
+    if domain.isActive():
+        raise libvirt.libvirtError(message)
+
+
+def _get_or_create_devices(root: ET.Element, required: bool = True) -> ET.Element:
+    """Find <devices> element, create if missing, or raise if required and missing."""
+    devices = root.find("devices")
+    if devices is None:
+        if required:
+            raise ValueError("Could not find <devices> in VM XML.")
+        devices = ET.SubElement(root, "devices")
+    return devices
+
+
+def _modify_domain_xml(
+    domain: libvirt.virDomain,
+    modifier: Callable[[ET.Element], None],
+    *,
+    xml_flags: int = 0,
+    invalidate: bool = True,
+):
+    """Read domain XML, call modifier(root), write back.
+
+    Args:
+        domain: libvirt domain
+        modifier: callable that mutates the XML root element
+        xml_flags: flags passed to domain.XMLDesc (e.g. libvirt.VIR_DOMAIN_XML_INACTIVE)
+        invalidate: if True, calls invalidate_cache before modifications
+    """
+    if invalidate:
+        invalidate_cache(get_internal_id(domain))
+
+    xml_desc = domain.XMLDesc(xml_flags)
+    root = ET.fromstring(xml_desc)
+
+    xml_before = ET.tostring(root, encoding="unicode")
+
+    modifier(root)
+
+    xml_after = ET.tostring(root, encoding="unicode")
+    if xml_after == xml_before:
+        return
+
+    domain.connect().defineXML(xml_after)
 
 
 def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
@@ -253,11 +304,7 @@ def rename_vm(domain, new_name, delete_snapshots=False):
     If delete_snapshots is True, it will delete all snapshots before renaming.
     Handles NVRAM renaming if present.
     """
-    if not domain:
-        raise ValueError("Invalid domain object.")
-
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to be renamed.")
+    _require_vm_stopped(domain, "VM must be stopped to be renamed.")
 
     conn = domain.connect()
 
@@ -753,20 +800,15 @@ def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
     Removes a virtiofs filesystem from a VM.
     The VM must be stopped to remove a virtiofs device.
     """
-    if not domain:
-        raise ValueError("Invalid domain object.")
-    invalidate_cache(get_internal_id(domain))
+    _require_vm_stopped(domain, "VM must be stopped to remove a virtiofs device.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_remove_virtiofs(root, target_dir),
+    )
 
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to remove a virtiofs device.")
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-
-    devices = root.find("devices")
-    if devices is None:
-        raise ValueError("Could not find <devices> in VM XML.")
-
+def _do_remove_virtiofs(root: ET.Element, target_dir: str):
+    devices = _get_or_create_devices(root, required=True)
     virtiofs_to_remove = None
     for fs_elem in devices.findall("./filesystem[@type='mount']"):
         driver = fs_elem.find("driver")
@@ -781,32 +823,21 @@ def remove_virtiofs(domain: libvirt.virDomain, target_dir: str):
 
     devices.remove(virtiofs_to_remove)
 
-    new_xml = ET.tostring(root, encoding="unicode")
-
-    conn = domain.connect()
-    conn.defineXML(new_xml)
-
 
 def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, readonly: bool):
     """
     Adds a virtiofs filesystem to a VM.
     The VM must be stopped to add a virtiofs device.
     """
-    if not domain:
-        raise ValueError("Invalid domain object.")
-    invalidate_cache(get_internal_id(domain))
+    _require_vm_stopped(domain, "VM must be stopped to add a virtiofs device.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_add_virtiofs(root, source_path, target_path, readonly),
+    )
 
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to add a virtiofs device.")
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
-
-    # Create the new virtiofs XML element
+def _do_add_virtiofs(root: ET.Element, source_path: str, target_path: str, readonly: bool):
+    devices = _get_or_create_devices(root, required=False)
     fs_elem = ET.SubElement(devices, "filesystem", type="mount", accessmode="passthrough")
 
     ET.SubElement(fs_elem, "driver", type="virtiofs")
@@ -815,12 +846,6 @@ def add_virtiofs(domain: libvirt.virDomain, source_path: str, target_path: str, 
 
     if readonly:
         ET.SubElement(fs_elem, "readonly")
-
-    # Redefine the VM with the updated XML
-    new_xml = ET.tostring(root, encoding="unicode")
-
-    conn = domain.connect()
-    conn.defineXML(new_xml)
 
 
 def add_network_interface(domain: libvirt.virDomain, network: str, model: str):
@@ -919,17 +944,15 @@ def change_vm_network(
 
 def disable_disk(domain, disk_path):
     """Disables a disk by moving it to a metadata section in the XML."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to disable a disk.")
+    _require_vm_stopped(domain, "VM must be stopped to disable a disk.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_disable_disk(root, disk_path),
+    )
 
-    conn = domain.connect()
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        raise ValueError("Could not find <devices> in VM XML.")
+def _do_disable_disk(root: ET.Element, disk_path: str):
+    devices = _get_or_create_devices(root, required=True)
 
     disk_to_disable = None
     for disk in devices.findall("disk"):
@@ -952,20 +975,17 @@ def disable_disk(domain, disk_path):
     disabled_disks_elem = _get_disabled_disks_elem(root)
     disabled_disks_elem.append(disk_to_disable)
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    conn.defineXML(new_xml)
-
 
 def enable_disk(domain, disk_path):
     """Enables a disk by moving it from metadata back to devices."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to enable a disk.")
+    _require_vm_stopped(domain, "VM must be stopped to enable a disk.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_enable_disk(root, disk_path),
+    )
 
-    conn = domain.connect()
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
+def _do_enable_disk(root: ET.Element, disk_path: str):
     disabled_disks_elem = _get_disabled_disks_elem(root)
 
     disk_to_enable = None
@@ -986,13 +1006,8 @@ def enable_disk(domain, disk_path):
 
     disabled_disks_elem.remove(disk_to_enable)
 
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
+    devices = _get_or_create_devices(root, required=False)
     devices.append(disk_to_enable)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    conn.defineXML(new_xml)
 
 
 def set_vcpu(domain, vcpu_count: int):
@@ -1083,14 +1098,15 @@ def set_memory(domain, memory_mb: int):
 @log_function_call
 def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: dict):
     """Sets multiple driver properties for a specific disk."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change disk settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change disk settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_disk_properties(domain, root, disk_path, properties),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
+
+def _do_set_disk_properties(domain: libvirt.virDomain, root: ET.Element, disk_path: str, properties: dict):
     conn = domain.connect()
-
     disk_found = False
     for disk in root.findall(".//disk"):
         source = disk.find("source")
@@ -1138,25 +1154,20 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
     if not disk_found:
         raise ValueError(f"Disk with path '{disk_path}' not found.")
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    conn.defineXML(new_xml)
-
 
 def set_machine_type(domain, new_machine_type):
     """
     Sets the machine type for a VM.
     The VM must be stopped.
     """
-    if not domain:
-        raise ValueError("Invalid domain object.")
-    invalidate_cache(get_internal_id(domain))
+    _require_vm_stopped(domain, "VM must be stopped to change machine type.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_machine_type(root, new_machine_type),
+    )
 
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change machine type.")
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-
+def _do_set_machine_type(root: ET.Element, new_machine_type: str):
     type_elem = root.find(".//os/type")
     if type_elem is None:
         msg = "Could not find OS type element in VM XML."
@@ -1165,15 +1176,10 @@ def set_machine_type(domain, new_machine_type):
 
     current_machine_type = type_elem.get("machine", "")
 
-    # Do nothing if machine type is not actually changing
     if current_machine_type == new_machine_type:
         return
 
     type_elem.set("machine", new_machine_type)
-
-    new_xml_desc = ET.tostring(root, encoding="unicode")
-    conn = domain.connect()
-    conn.defineXML(new_xml_desc)
 
 
 @log_function_call
@@ -1183,12 +1189,8 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
     changes from i440fx to q35. This involves creating a temporary VM with modified XML,
     validating it, defining it, then undefining the original and renaming the new VM.
     """
-    if not domain:
-        raise ValueError("Invalid domain object.")
+    _require_vm_stopped(domain, "VM must be stopped to change machine type.")
     invalidate_cache(get_internal_id(domain))
-
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change machine type.")
 
     conn = domain.connect()
     original_vm_name = domain.name()
@@ -1317,32 +1319,31 @@ def migrate_vm_machine_type(domain: libvirt.virDomain, new_machine_type: str, lo
 
 def set_shared_memory(domain: libvirt.virDomain, enable: bool):
     """Enable or disable shared memory for a VM."""
-    invalidate_cache(get_internal_id(domain))
     if domain.isActive():
         raise ValueError("Cannot change shared memory setting on a running VM.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_shared_memory(root, enable),
+    )
 
-    xml_content = domain.XMLDesc(0)
-    root = ET.fromstring(xml_content)
 
+def _do_set_shared_memory(root: ET.Element, enable: bool):
     memory_backing = root.find("memoryBacking")
 
     if enable:
         if memory_backing is None:
             memory_backing = ET.SubElement(root, "memoryBacking")
 
-        # Ensure no conflicting access mode is set
         access_elem = memory_backing.find("access")
         if access_elem is not None and access_elem.get("mode") != "shared":
             memory_backing.remove(access_elem)
-            access_elem = None  # It's gone
+            access_elem = None
 
-        # Add it if it doesn't exist
         if access_elem is None:
             ET.SubElement(memory_backing, "access", mode="shared")
 
-    else:  # disable
+    else:
         if memory_backing is not None:
-            # Remove both possible shared memory indicators
             shared_elem = memory_backing.find("shared")
             if shared_elem is not None:
                 memory_backing.remove(shared_elem)
@@ -1351,27 +1352,21 @@ def set_shared_memory(domain: libvirt.virDomain, enable: bool):
             if access_elem is not None and access_elem.get("mode") == "shared":
                 memory_backing.remove(access_elem)
 
-            # If memoryBacking is now empty, and has no attributes, remove it.
             if not list(memory_backing) and not memory_backing.attrib:
                 root.remove(memory_backing)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-
-    conn = domain.connect()
-    conn.defineXML(new_xml)
 
 
 @log_function_call
 def set_ovmf_debug(domain: libvirt.virDomain, enable: bool):
     """Enable or disable OVMF debug output for a VM."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change OVMF debug settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change OVMF debug settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_ovmf_debug(root, enable),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-    
-    # Define QEMU namespace
+
+def _do_set_ovmf_debug(root: ET.Element, enable: bool):
     qemu_ns = "http://libvirt.org/schemas/domain/qemu/1.0"
     ET.register_namespace('qemu', qemu_ns)
     qemu_tag = f"{{{qemu_ns}}}commandline"
@@ -1382,28 +1377,22 @@ def set_ovmf_debug(domain: libvirt.virDomain, enable: bool):
     if enable:
         if commandline is None:
             commandline = ET.SubElement(root, qemu_tag)
-        
-        # Check if already present to avoid duplicates
+
         existing_args = [arg.get("value") for arg in commandline.findall(arg_tag)]
         debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
-        
+
         for arg_val in debug_args:
             if arg_val not in existing_args:
                 ET.SubElement(commandline, arg_tag, value=arg_val)
     else:
         if commandline is not None:
-            # Remove specific debug arguments
             debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
             for arg in commandline.findall(arg_tag):
                 if arg.get("value") in debug_args:
                     commandline.remove(arg)
-            
-            # If commandline is empty, remove it
+
             if not list(commandline):
                 root.remove(commandline)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
 
 
 @log_function_call
@@ -1415,19 +1404,22 @@ def set_direct_kernel_boot(
     cmdline: str = None,
 ):
     """Sets direct kernel boot parameters for a VM, saving to metadata."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change direct kernel boot settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change direct kernel boot settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_direct_kernel_boot(root, enabled, kernel, initrd, cmdline),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
+
+def _do_set_direct_kernel_boot(
+    root: ET.Element, enabled: bool, kernel: str = None, initrd: str = None, cmdline: str = None
+):
     os_elem = root.find("os")
     if os_elem is None:
         os_elem = ET.SubElement(root, "os")
 
     dkb_meta = _get_dkb_metadata_elem(root)
 
-    # Always save to metadata if we have values
     if kernel:
         dkb_meta.set("kernel", kernel)
     if initrd:
@@ -1439,13 +1431,11 @@ def set_direct_kernel_boot(
     elif "cmdline" in dkb_meta.attrib:
         del dkb_meta.attrib["cmdline"]
 
-    # Remove existing from <os>
     for tag in ["kernel", "initrd", "cmdline"]:
         elem = os_elem.find(tag)
         if elem is not None:
             os_elem.remove(elem)
 
-    # If enabled, add to <os>
     if enabled and kernel:
         k_elem = ET.SubElement(os_elem, "kernel")
         k_elem.text = kernel
@@ -1456,45 +1446,38 @@ def set_direct_kernel_boot(
             c_elem = ET.SubElement(os_elem, "cmdline")
             c_elem.text = cmdline
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-
 
 @log_function_call
 def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str]):
     """Sets the boot configuration for a VM."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change boot settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change boot settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_boot_info(domain, root, menu_enabled, order),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
+
+def _do_set_boot_info(domain: libvirt.virDomain, root: ET.Element, menu_enabled: bool, order: list[str]):
     conn = domain.connect()
     os_elem = root.find(".//os")
     if os_elem is None:
         os_elem = ET.SubElement(root, "os")
 
-    # Remove old <boot> elements under <os>
     for boot_elem in os_elem.findall("boot"):
         os_elem.remove(boot_elem)
 
-    # Remove old <boot> elements under devices
     for dev_node in root.findall(".//devices/*[boot]"):
         boot_elem = dev_node.find("boot")
         if boot_elem is not None:
             dev_node.remove(boot_elem)
 
-    # Set boot menu
     boot_menu_elem = os_elem.find("bootmenu")
     if boot_menu_elem is not None:
         os_elem.remove(boot_menu_elem)
     if menu_enabled:
         ET.SubElement(os_elem, "bootmenu", enable="yes")
 
-    # Set new boot order
     for i, device_id in enumerate(order, 1):
-        # Find the device and add a <boot order='...'> element
-        # Check disks first
         disk_found = False
         for disk_elem in root.findall(".//devices/disk"):
             source_elem = disk_elem.find("source")
@@ -1512,7 +1495,7 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
                         vol = pool.storageVolLookupByName(vol_name)
                         path = vol.path()
                     except libvirt.libvirtError:
-                        pass  # Could not resolve path, so it cannot match device_id
+                        pass
 
                 if path == device_id:
                     ET.SubElement(disk_elem, "boot", order=str(i))
@@ -1521,16 +1504,11 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
         if disk_found:
             continue
 
-        # Check interfaces
         for iface_elem in root.findall(".//devices/interface"):
             mac_elem = iface_elem.find("mac")
             if mac_elem is not None and mac_elem.get("address") == device_id:
                 ET.SubElement(iface_elem, "boot", order=str(i))
                 break
-
-    # Update the domain
-    new_xml = ET.tostring(root, encoding="unicode")
-    conn.defineXML(new_xml)
 
 
 def strip_installation_assets(domain: libvirt.virDomain):
@@ -1542,16 +1520,18 @@ def strip_installation_assets(domain: libvirt.virDomain):
     Also adjusts on_reboot from "destroy" to "restart" for auto-installation VMs,
     except for SECURE VMs (those with SEV enabled) which keep "destroy".
     """
-    if not domain:
+    if domain is None:
         raise ValueError("Invalid domain object.")
-    invalidate_cache(get_internal_id(domain))
+    # Use the inactive (persistent) XML: this function may run while the VM is
+    # active, and defineXML must update the persistent configuration only.
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_strip_installation_assets(domain, root),
+        xml_flags=libvirt.VIR_DOMAIN_XML_INACTIVE,
+    )
 
-    conn = domain.connect()
-    # Get inactive XML to modify the persistent configuration
-    xml_desc = domain.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE)
-    root = ET.fromstring(xml_desc)
 
-    # 1. Clean <os> section
+def _do_strip_installation_assets(domain: libvirt.virDomain, root: ET.Element):
     os_elem = root.find("os")
     if os_elem is not None:
         for tag in ["kernel", "initrd", "cmdline"]:
@@ -1559,23 +1539,17 @@ def strip_installation_assets(domain: libvirt.virDomain):
             if elem is not None:
                 os_elem.remove(elem)
 
-    # 2. Clean <devices> section (floppy)
     devices = root.find("devices")
     if devices is not None:
         for disk in devices.findall("disk"):
             if disk.get("device") == "floppy":
                 devices.remove(disk)
 
-    # 3. Adjust on_reboot behavior for auto-installation
-    # If on_reboot is currently "destroy" (set for auto-installation), change it to "restart"
-    # UNLESS this is a SECURE VM (has SEV enabled), which should keep "destroy"
     on_reboot_elem = root.find("on_reboot")
     if on_reboot_elem is not None and on_reboot_elem.text == "destroy":
-        # Check if this is a SECURE VM by looking for SEV
         is_secure_vm = root.find("launchSecurity[@type='sev']") is not None
 
         if not is_secure_vm:
-            # Change on_reboot to restart for non-SECURE VMs
             on_reboot_elem.text = "restart"
             logging.info(
                 f"Auto-installation complete for {domain.name()}: "
@@ -1586,35 +1560,28 @@ def strip_installation_assets(domain: libvirt.virDomain):
                 f"SECURE VM {domain.name()}: keeping on_reboot as 'destroy' (SEV enabled)"
             )
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    conn.defineXML(new_xml)
-
 
 def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bool | None = None):
     """Sets the video model and 3D acceleration for a VM."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change the video model.")
+    _require_vm_stopped(domain, "VM must be stopped to change the video model.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_video_model(root, model, accel3d),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        if model is None or model == "none":
-            return  # No devices and no model to set, so nothing to do.
-        devices = ET.SubElement(root, "devices")
-
-    video = devices.find("video")
-
-    # If model is being set to none, remove the entire video tag.
+def _do_set_vm_video_model(root: ET.Element, model: str | None, accel3d: bool | None = None):
     if model is None or model == "none":
+        devices = root.find("devices")
+        if devices is None:
+            return
+        video = devices.find("video")
         if video is not None:
             devices.remove(video)
-        new_xml = ET.tostring(root, encoding="unicode")
-        domain.connect().defineXML(new_xml)
         return
 
+    devices = _get_or_create_devices(root, required=False)
+    video = devices.find("video")
     if video is None:
         video = ET.SubElement(devices, "video")
 
@@ -1622,7 +1589,6 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
     if model_elem is None:
         model_elem = ET.SubElement(video, "model")
 
-    # Check for existing acceleration before clearing (correct location)
     existing_accel = False
     existing_accel_node = model_elem.find("acceleration")
     if existing_accel_node is not None and existing_accel_node.get("accel3d") == "yes":
@@ -1638,55 +1604,46 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
     elif model == "qxl":
         model_elem.set("vram", old_attribs.get("vram", "65536"))
         model_elem.set("ram", old_attribs.get("ram", "65536"))
-    else:  # vga, cirrus etc.
+    else:
         model_elem.set("vram", old_attribs.get("vram", "16384"))
 
-    # Handle 3D acceleration
     final_accel = accel3d if accel3d is not None else existing_accel
 
     if model in ["virtio", "qxl"] and final_accel:
         accel_elem = ET.SubElement(model_elem, "acceleration")
         accel_elem.set("accel3d", "yes")
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-
 
 def set_cpu_model(domain: libvirt.virDomain, cpu_model: str):
     """Sets the CPU model for a VM."""
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change the CPU model.")
+    _require_vm_stopped(domain, "VM must be stopped to change the CPU model.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_cpu_model(root, cpu_model),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    # Remove existing cpu element to rebuild it
+def _do_set_cpu_model(root: ET.Element, cpu_model: str):
     cpu = root.find(".//cpu")
     if cpu is not None:
         root.remove(cpu)
 
     if cpu_model == "default":
-        # Default usually means no specific CPU config, or let libvirt decide.
-        pass
+        return
+
+    cpu = ET.SubElement(root, "cpu")
+
+    if cpu_model == "host-passthrough":
+        cpu.set("mode", "host-passthrough")
+    elif cpu_model == "host-model":
+        cpu.set("mode", "host-model")
     else:
-        cpu = ET.SubElement(root, "cpu")
-
-        if cpu_model == "host-passthrough":
-            cpu.set("mode", "host-passthrough")
-        elif cpu_model == "host-model":
-            cpu.set("mode", "host-model")
-        else:
-            # Assume custom model
-            cpu.set("mode", "custom")
-            cpu.set("match", "exact")
-            cpu.set("check", "none")
-            model_elem = ET.SubElement(cpu, "model")
-            model_elem.set("fallback", "allow")
-            model_elem.text = cpu_model
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
+        cpu.set("mode", "custom")
+        cpu.set("match", "exact")
+        cpu.set("check", "none")
+        model_elem = ET.SubElement(cpu, "model")
+        model_elem.set("fallback", "allow")
+        model_elem.text = cpu_model
 
 
 @log_function_call
@@ -1699,28 +1656,25 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
     auto-select based on the loader path. This is necessary to avoid the
     "Unable to find 'efi' firmware that is compatible" error.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change UEFI firmware.")
+    _require_vm_stopped(domain, "VM must be stopped to change UEFI firmware.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_uefi_file(root, uefi_path, secure_boot),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
+def _do_set_uefi_file(root: ET.Element, uefi_path: str | None, secure_boot: bool):
     os_elem = root.find("os")
     if os_elem is None:
         raise ValueError("Could not find <os> element in VM XML.")
 
-    # Always remove firmware attribute to allow libvirt auto-selection
     if "firmware" in os_elem.attrib:
         del os_elem.attrib["firmware"]
 
-    # Always remove the firmware element (contains feature specifications)
-    # to allow libvirt to auto-select the appropriate firmware
     firmware_feature_elem = os_elem.find("firmware")
     if firmware_feature_elem is not None:
         os_elem.remove(firmware_feature_elem)
 
-    # Remove current loader and nvram
     loader_elem = os_elem.find("loader")
     if loader_elem is not None:
         os_elem.remove(loader_elem)
@@ -1729,24 +1683,17 @@ def set_uefi_file(domain: libvirt.virDomain, uefi_path: str | None, secure_boot:
     if nvram_elem is not None:
         os_elem.remove(nvram_elem)
 
-    if not uefi_path:  # Switching to BIOS
-        # Just remove the UEFI elements (already done above)
+    if not uefi_path:
         pass
-    else:  # Switching to UEFI
-        # Add loader with required attributes
+    else:
         loader_elem = ET.SubElement(os_elem, "loader", readonly="yes", type="pflash")
         loader_elem.text = uefi_path
 
         if secure_boot:
             loader_elem.set("secure", "yes")
 
-        # For NVRAM, derive the template path from the loader path
-        # Typically: /path/to/ovmf-x86_64-code.bin -> /path/to/ovmf-x86_64-vars.bin
         nvram_template = uefi_path.replace("-code.bin", "-vars.bin").replace(".bin", "_VARS.fd")
         nvram_elem = ET.SubElement(os_elem, "nvram", template=nvram_template)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
 
 
 def set_vm_sound_model(domain: libvirt.virDomain, model: str | None):
@@ -1754,33 +1701,28 @@ def set_vm_sound_model(domain: libvirt.virDomain, model: str | None):
     Sets the sound model for a VM. If model is None or 'none', the sound device is removed.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change the sound model.")
+    _require_vm_stopped(domain, "VM must be stopped to change the sound model.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_sound_model(root, model),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        if model is None or model == "none":
-            return
-        devices = ET.SubElement(root, "devices")
-
-    sound = devices.find("sound")
-
-    # If the desired model is None or 'none', remove the sound device.
+def _do_set_vm_sound_model(root: ET.Element, model: str | None):
     if model is None or model == "none":
+        devices = root.find("devices")
+        if devices is None:
+            return
+        sound = devices.find("sound")
         if sound is not None:
             devices.remove(sound)
-    else:
-        if sound is None:
-            sound = ET.SubElement(devices, "sound")
+        return
 
-        sound.set("model", model)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
+    devices = _get_or_create_devices(root, required=False)
+    sound = devices.find("sound")
+    if sound is None:
+        sound = ET.SubElement(devices, "sound")
+    sound.set("model", model)
 
 
 def set_vm_graphics(
@@ -1797,89 +1739,79 @@ def set_vm_graphics(
     Sets the graphics configuration (VNC/Spice) for a VM.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-
-    # Password validation and sanitization
     def _sanitize_password(pwd: str | None) -> str | None:
         if not pwd:
             return None
         pwd = pwd.strip()
-
-        # Validation
         if graphics_type == "vnc" and len(pwd) > 8:
             raise ValueError("VNC password cannot exceed 8 characters")
-
         if not pwd.isprintable() or any(c in pwd for c in "\n\r\t"):
             raise ValueError("Password contains invalid characters")
         return pwd
 
-    def _log_password_safe(password: str | None) -> str:
-        """Returns '[redacted]' instead of actual password for logs"""
-        return "[redacted]" if password else "none"
-
-    # Validate parameters
     if password_enabled and not password:
         raise ValueError("Password is required when password_enabled=True")
     password_safe = _sanitize_password(password)
 
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change graphics settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change graphics settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_graphics(
+            root, graphics_type, listen_type, address, port, autoport, password_enabled, password_safe
+        ),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
+def _do_set_vm_graphics(
+    root: ET.Element,
+    graphics_type: str | None,
+    listen_type: str,
+    address: str,
+    port: int | None,
+    autoport: bool,
+    password_enabled: bool,
+    password: str | None,
+):
+    devices = _get_or_create_devices(root, required=False)
 
-    # Remove existing graphics elements of other types or if no graphics type is specified
     existing_graphics_elements = devices.findall("graphics")
     for elem in existing_graphics_elements:
         logging.info("Removing previous graphics")
         devices.remove(elem)
 
     if graphics_type is None:
-        # If no graphics type is specified, all graphics elements are been removed
         logging.info("No more graphics")
-        pass
+        return
+
+    graphics_elem = ET.SubElement(devices, "graphics", type=graphics_type)
+
+    if autoport:
+        graphics_elem.set("autoport", "yes")
+        if "port" in graphics_elem.attrib:
+            del graphics_elem.attrib["port"]
     else:
-        graphics_elem = ET.SubElement(devices, "graphics", type=graphics_type)
+        if "autoport" in graphics_elem.attrib:
+            del graphics_elem.attrib["autoport"]
+        if port is not None:
+            graphics_elem.set("port", str(port))
+        elif "port" in graphics_elem.attrib:
+            del graphics_elem.attrib["port"]
 
-        # Set port and autoport
-        if autoport:
-            graphics_elem.set("autoport", "yes")
-            if "port" in graphics_elem.attrib:
-                del graphics_elem.attrib["port"]
+    listen_elem = graphics_elem.find("listen")
+    if listen_type == "address":
+        if listen_elem is None:
+            listen_elem = ET.SubElement(graphics_elem, "listen", type="address")
         else:
-            if "autoport" in graphics_elem.attrib:
-                del graphics_elem.attrib["autoport"]
-            if port is not None:
-                graphics_elem.set("port", str(port))
-            elif "port" in graphics_elem.attrib:
-                del graphics_elem.attrib[
-                    "port"
-                ]  # If autoport is off and no port provided, remove it
+            listen_elem.set("type", "address")
+        listen_elem.set("address", address)
+    else:
+        if listen_elem is not None:
+            graphics_elem.remove(listen_elem)
 
-        # Set listen address
-        listen_elem = graphics_elem.find("listen")
-        if listen_type == "address":
-            if listen_elem is None:
-                listen_elem = ET.SubElement(graphics_elem, "listen", type="address")
-            else:
-                listen_elem.set("type", "address")
-            listen_elem.set("address", address)
-        else:  # listen_type == 'none'
-            if listen_elem is not None:
-                graphics_elem.remove(listen_elem)
-
-        # Set password
-        if password_enabled and password_safe:
-            graphics_elem.set("passwd", password_safe)
-        elif "passwd" in graphics_elem.attrib:
-            del graphics_elem.attrib["passwd"]
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
+    if password_enabled and password:
+        graphics_elem.set("passwd", password)
+    elif "passwd" in graphics_elem.attrib:
+        del graphics_elem.attrib["passwd"]
 
 
 def set_vm_tpm(
@@ -1893,48 +1825,43 @@ def set_vm_tpm(
     """
     Sets TPM configuration for a VM. If tpm_model is None, removes the TPM device.
     The VM must be stopped.
-
-    Args:
-        domain: libvirt domain object
-        tpm_model: TPM model (e.g., 'tpm-crb', 'tpm-tis') or None to remove.
-        tpm_type: Type of TPM ('emulated' or 'passthrough')
-        device_path: Path to TPM device (required for passthrough)
-        backend_type: Backend type (e.g., 'emulator', 'passthrough')
-        backend_path: Path to backend device (required for passthrough')
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change TPM settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change TPM settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_tpm(root, tpm_model, tpm_type, device_path, backend_type, backend_path),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
+def _do_set_vm_tpm(
+    root: ET.Element,
+    tpm_model: str | None,
+    tpm_type: str = "emulated",
+    device_path: str = None,
+    backend_type: str = None,
+    backend_path: str = None,
+):
     devices = root.find("devices")
     if devices is None:
         if tpm_model is None:
-            return  # Nothing to do
+            return
         devices = ET.SubElement(root, "devices")
 
-    # Remove existing TPM elements
     existing_tpm_elements = devices.findall("./tpm")
     for elem in existing_tpm_elements:
         devices.remove(elem)
 
-    # If model is None, we are just removing the device.
-    if tpm_model is not None:
-        # Create new TPM element
-        tpm_elem = ET.SubElement(devices, "tpm", model=tpm_model)
+    if tpm_model is None:
+        return
 
-        if tpm_type == "passthrough":
-            backend_elem = ET.SubElement(tpm_elem, "backend", type="passthrough")
-            if device_path:
-                ET.SubElement(backend_elem, "device", path=device_path)
-        elif tpm_type == "emulated":
-            # For emulated TPM, add a backend of type 'emulator'
-            ET.SubElement(tpm_elem, "backend", type="emulator")
+    tpm_elem = ET.SubElement(devices, "tpm", model=tpm_model)
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
+    if tpm_type == "passthrough":
+        backend_elem = ET.SubElement(tpm_elem, "backend", type="passthrough")
+        if device_path:
+            ET.SubElement(backend_elem, "device", path=device_path)
+    elif tpm_type == "emulated":
+        ET.SubElement(tpm_elem, "backend", type="emulator")
 
 
 @log_function_call
@@ -1947,24 +1874,22 @@ def set_vm_rng(
     """
     Sets RNG (Random Number Generator) configuration for a VM.
     The VM must be stopped.
-
-    Args:
-        domain: libvirt domain object
-        rng_model: RNG model (e.g., 'virtio')
-        backend_model: Backend type (e.g., 'random', 'egd')
-        backend_path: Path to backend device/file
     """
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change RNG settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change RNG settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_rng(root, rng_model, backend_model, backend_path),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
+def _do_set_vm_rng(
+    root: ET.Element,
+    rng_model: str = "virtio",
+    backend_model: str = "random",
+    backend_path: str = "/dev/urandom",
+):
+    devices = _get_or_create_devices(root, required=False)
 
-    # Remove existing RNG elements
     existing_rng_elements = devices.findall("./rng")
     for elem in existing_rng_elements:
         devices.remove(elem)
@@ -1976,10 +1901,6 @@ def set_vm_rng(
     elif backend_path:
         ET.SubElement(backend_elem, "source", path=backend_path)
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-    invalidate_cache(get_internal_id(domain))
-
 
 @log_function_call
 def set_vm_watchdog(
@@ -1989,32 +1910,21 @@ def set_vm_watchdog(
     Sets the Watchdog device on a VM, replacing any existing one.
     QEMU only supports a single watchdog device.
     The VM must be stopped.
-
-    Args:
-        domain: libvirt domain object
-        watchdog_model: Watchdog model (e.g., 'i6300esb', 'ib700', 'diag288')
-        action: Action to take when watchdog is triggered (e.g., 'reset', 'shutdown', 'poweroff')
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to set Watchdog device.")
+    _require_vm_stopped(domain, "VM must be stopped to set Watchdog device.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_watchdog(root, watchdog_model, action),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
+def _do_set_vm_watchdog(root: ET.Element, watchdog_model: str, action: str):
+    devices = _get_or_create_devices(root, required=False)
 
-    # Remove existing watchdog (QEMU supports only one)
     for elem in devices.findall("./watchdog"):
         devices.remove(elem)
 
-    # Add new Watchdog element
     ET.SubElement(devices, "watchdog", model=watchdog_model, action=action)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
 
 
 @log_function_call
@@ -2024,12 +1934,14 @@ def remove_vm_watchdog(domain: libvirt.virDomain, model: str = None, action: str
     If model and action are None, removes all watchdog devices.
     The VM must be stopped.
     """
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to remove Watchdog device.")
+    _require_vm_stopped(domain, "VM must be stopped to remove Watchdog device.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_remove_vm_watchdog(root, model, action),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
+def _do_remove_vm_watchdog(root: ET.Element, model: str = None, action: str = None):
     devices = root.find("devices")
     if devices is None:
         return
@@ -2051,43 +1963,28 @@ def remove_vm_watchdog(domain: libvirt.virDomain, model: str = None, action: str
     if not removed:
         raise ValueError(f"No watchdog device with model='{model}' action='{action}' found.")
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-    invalidate_cache(get_internal_id(domain))
-
 
 @log_function_call
 def set_vm_input(domain: libvirt.virDomain, input_type: str = "tablet", input_bus: str = "usb"):
     """
     Sets Input (keyboard and mouse) configuration for a VM.
     The VM must be stopped.
-
-    Args:
-        domain: libvirt domain object
-        input_type: Input device type (e.g., 'mouse', 'keyboard', 'tablet')
-        input_bus: Bus type (e.g., 'usb', 'ps2', 'virtio')
     """
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change Input settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change Input settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_input(root, input_type, input_bus),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
+def _do_set_vm_input(root: ET.Element, input_type: str, input_bus: str):
+    devices = _get_or_create_devices(root, required=False)
 
-    # Remove existing input elements of the same type
     existing_input_elements = devices.findall(f'./input[@type="{input_type}"]')
     for elem in existing_input_elements:
         devices.remove(elem)
 
-    # Create new input element
     ET.SubElement(devices, "input", type=input_type, bus=input_bus)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-    invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
@@ -2096,20 +1993,16 @@ def add_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
     Adds an input device to a VM.
     The VM must be stopped.
     """
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to add an input device.")
+    _require_vm_stopped(domain, "VM must be stopped to add an input device.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_add_vm_input(root, input_type, input_bus),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
 
+def _do_add_vm_input(root: ET.Element, input_type: str, input_bus: str):
+    devices = _get_or_create_devices(root, required=False)
     ET.SubElement(devices, "input", type=input_type, bus=input_bus)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-    invalidate_cache(get_internal_id(domain))
 
 
 @log_function_call
@@ -2118,15 +2011,15 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
     Removes an input device from a VM.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to remove an input device.")
+    _require_vm_stopped(domain, "VM must be stopped to remove an input device.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_remove_vm_input(root, input_type, input_bus),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-    devices = root.find("devices")
-    if devices is None:
-        raise ValueError("Could not find <devices> in VM XML.")
+
+def _do_remove_vm_input(root: ET.Element, input_type: str, input_bus: str):
+    devices = _get_or_create_devices(root, required=True)
 
     input_to_remove = None
     for elem in devices.findall("input"):
@@ -2138,9 +2031,6 @@ def remove_vm_input(domain: libvirt.virDomain, input_type: str, input_bus: str):
         raise ValueError(f"Input device with type '{input_type}' and bus '{input_bus}' not found.")
 
     devices.remove(input_to_remove)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
 
 
 def start_vm(domain):
@@ -2561,12 +2451,14 @@ def remove_spice_devices(domain: libvirt.virDomain):
     Removes all SPICE-related devices and configurations from a VM's XML.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to remove SPICE devices.")
+    _require_vm_stopped(domain, "VM must be stopped to remove SPICE devices.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_remove_spice_devices(domain, root),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
+
+def _do_remove_spice_devices(domain: libvirt.virDomain, root: ET.Element):
     devices = root.find("devices")
     if not devices:
         return
@@ -2579,8 +2471,7 @@ def remove_spice_devices(domain: libvirt.virDomain):
         if channel.get("type") in ["spicevmc", "spiceport"]:
             devices.remove(channel)
             logging.info(
-                f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'."
-            )
+                f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'.")
 
     for redirdev in devices.findall("redirdev[@bus='usb']"):
         devices.remove(redirdev)
@@ -2591,25 +2482,18 @@ def remove_spice_devices(domain: libvirt.virDomain):
             devices.remove(audio)
             logging.info(f"Removed SPICE audio device from VM '{domain.name()}'.")
 
-    # Change qxl video model to virtio
     video_model = devices.find("video/model[@type='qxl']")
     if video_model is not None:
         video_model.set("type", "virtio")
         logging.info(f"Changed qxl video model to virtio for VM '{domain.name()}'.")
-        # Remove qxl-specific attributes if they exist
         for attr in ["vram", "ram", "vgamem"]:
             if attr in video_model.attrib:
                 del video_model.attrib[attr]
 
-    # After removing SPICE, it's good to add a default VNC graphics device if no other graphics device exists.
     if not devices.find("graphics"):
         logging.info("No graphics device found after removing SPICE. Adding default VNC graphics.")
         graphics_elem = ET.SubElement(devices, "graphics", type="vnc", port="-1", autoport="yes")
         ET.SubElement(graphics_elem, "listen", type="address")
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    conn = domain.connect()
-    conn.defineXML(new_xml)
 
 
 @log_function_call
@@ -3499,8 +3383,7 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
     Creates an overlay for the given disk and updates the VM to use it.
     The VM must be stopped.
     """
-    if domain.isActive():
-        raise Exception("VM must be stopped to create a manual overlay.")
+    _require_vm_stopped(domain, "VM must be stopped to create a manual overlay.")
 
     conn = domain.connect()
     vol, pool = _find_vol_by_path(conn, disk_path)
@@ -3603,8 +3486,7 @@ def discard_overlay(domain: libvirt.virDomain, disk_path: str):
     and deletes the overlay volume.
     The VM must be stopped.
     """
-    if domain.isActive():
-        raise Exception("VM must be stopped to discard overlay.")
+    _require_vm_stopped(domain, "VM must be stopped to discard overlay.")
 
     conn = domain.connect()
     vol, pool = _find_vol_by_path(conn, disk_path)
@@ -3709,15 +3591,21 @@ def add_vm_channel(
     Adds a channel device to a VM.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to add a channel.")
+    _require_vm_stopped(domain, "VM must be stopped to add a channel.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_add_vm_channel(root, channel_type, target_name, target_type, target_state),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-    devices = root.find("devices")
-    if devices is None:
-        devices = ET.SubElement(root, "devices")
+
+def _do_add_vm_channel(
+    root: ET.Element,
+    channel_type: str,
+    target_name: str,
+    target_type: str = "virtio",
+    target_state: str = None,
+):
+    devices = _get_or_create_devices(root, required=False)
 
     channel = ET.SubElement(devices, "channel", type=channel_type)
     target_attrs = {"type": target_type, "name": target_name}
@@ -3726,12 +3614,8 @@ def add_vm_channel(
 
     ET.SubElement(channel, "target", **target_attrs)
 
-    # For qemu-guest-agent (unix socket), we usually need a source too (bind)
     if channel_type == "unix":
         ET.SubElement(channel, "source", mode="bind")
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
 
 
 @log_function_call
@@ -3740,15 +3624,15 @@ def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
     Removes a channel device from a VM by its target name.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to remove a channel.")
+    _require_vm_stopped(domain, "VM must be stopped to remove a channel.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_remove_vm_channel(root, target_name),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
-    devices = root.find("devices")
-    if devices is None:
-        raise ValueError("Could not find <devices> in VM XML.")
+
+def _do_remove_vm_channel(root: ET.Element, target_name: str):
+    devices = _get_or_create_devices(root, required=True)
 
     channel_to_remove = None
     for channel in devices.findall("channel"):
@@ -3762,23 +3646,20 @@ def remove_vm_channel(domain: libvirt.virDomain, target_name: str):
 
     devices.remove(channel_to_remove)
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-
 
 def set_vm_cputune(domain: libvirt.virDomain, vcpupin_list: list[dict]):
     """
     Sets cputune configuration (vcpupin) for a VM.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change CPU Tune settings.")
+    _require_vm_stopped(domain, "VM must be stopped to change CPU Tune settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_cputune(root, vcpupin_list),
+    )
 
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
 
-    # Remove existing cputune
+def _do_set_vm_cputune(root: ET.Element, vcpupin_list: list[dict]):
     cputune = root.find("cputune")
     if cputune is not None:
         root.remove(cputune)
@@ -3788,22 +3669,20 @@ def set_vm_cputune(domain: libvirt.virDomain, vcpupin_list: list[dict]):
         for pin in vcpupin_list:
             ET.SubElement(cputune, "vcpupin", vcpu=str(pin["vcpu"]), cpuset=str(pin["cpuset"]))
 
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)
-
 
 def set_vm_numatune(domain: libvirt.virDomain, mode: str, nodeset: str):
     """
     Sets numatune configuration for a VM.
     The VM must be stopped.
     """
-    invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        raise libvirt.libvirtError("VM must be stopped to change NUMA Tune settings.")
-    xml_desc = domain.XMLDesc(0)
-    root = ET.fromstring(xml_desc)
+    _require_vm_stopped(domain, "VM must be stopped to change NUMA Tune settings.")
+    _modify_domain_xml(
+        domain,
+        lambda root: _do_set_vm_numatune(root, mode, nodeset),
+    )
 
-    # Remove existing numatune
+
+def _do_set_vm_numatune(root: ET.Element, mode: str, nodeset: str):
     numatune = root.find("numatune")
     if numatune is not None:
         root.remove(numatune)
@@ -3811,6 +3690,3 @@ def set_vm_numatune(domain: libvirt.virDomain, mode: str, nodeset: str):
     if mode and mode != "None":
         numatune = ET.SubElement(root, "numatune")
         ET.SubElement(numatune, "memory", mode=mode, nodeset=nodeset)
-
-    new_xml = ET.tostring(root, encoding="unicode")
-    domain.connect().defineXML(new_xml)

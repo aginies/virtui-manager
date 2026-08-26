@@ -473,16 +473,34 @@ class VMProvisioner:
             raise Exception(f"Storage pool {storage_pool_name} is not active.")
 
         # Check if volume already exists
+        vol = None
         try:
             vol = pool.storageVolLookupByName(volume_name)
-            logging.info(
-                f"Volume '{volume_name}' already exists in pool '{storage_pool_name}'. Skipping upload."
-            )
-            if progress_callback:
-                progress_callback(100)
-            return vol.path()
         except libvirt.libvirtError:
-            pass  # Volume does not exist, proceed to create
+            # The file may exist on disk but not be registered in the pool's
+            # volume list (e.g. leftover from a previous run). Pools cache
+            # their volume list, so refresh to re-scan and retry the lookup.
+            try:
+                pool.refresh(0)
+                vol = pool.storageVolLookupByName(volume_name)
+            except libvirt.libvirtError:
+                vol = None
+
+        if vol is not None:
+            vol_info = vol.info()
+            if vol_info["capacity"] == file_size:
+                logging.info(
+                    f"Volume '{volume_name}' already exists in pool '{storage_pool_name}'. Skipping upload."
+                )
+                if progress_callback:
+                    progress_callback(100)
+                return vol.path()
+            # Size mismatch: stale or partial file, remove it and re-upload
+            logging.warning(
+                f"Volume '{volume_name}' in pool '{storage_pool_name}' size "
+                f"{vol_info['capacity']} does not match local file size {file_size}. Re-uploading."
+            )
+            vol.delete(0)
 
         # Create volume
         vol_xml = f"""
