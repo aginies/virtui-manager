@@ -63,7 +63,6 @@ AddInputDeviceModal > #add-input-container,
 PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
-InstallVMModal > #install-dialog,
 HowToModal > #howto-dialog,
 WebConsoleConfigDialog > #webconsole-config-dialog,
 EditNumaTuneModal > #edit-numatune-dialog,
@@ -100,10 +99,10 @@ ConfigModal > #config-dialog, {
   width: 75;
 }
 
-InstallVMModal > #install-dialog Select,
-InstallVMModal > #vm-type Select,
-InstallVMModal > #distro Select,
-InstallVMModal > #automation-template-select Select,
+InstallVMModal #install-dialog Select,
+InstallVMModal #vm-type Select,
+InstallVMModal #distro Select,
+InstallVMModal #automation-template-select Select,
 WebConsoleConfigDialog > #webconsole-config-dialog Select,
 CustomMigrationModal Select {
   width: 75%;
@@ -135,10 +134,27 @@ InstallVMModal #expert-disk-format, {
   width: 100%;
 }
 /* === SPECIFIC HEIGHT === */
-AutoFillConfigModal > #autofill-config-dialog,
-InstallVMModal > #install-dialog {
+AutoFillConfigModal > #autofill-config-dialog {
   width: 90%;
   height: auto;
+}
+InstallVMModal > #install-modal-root {
+  width: 100%;
+  height: auto;
+  max-height: 95%;
+  border: round $primary;
+  padding: 1;
+}
+InstallVMModal #install-dialog {
+  width: 100%;
+  height: 1fr;
+  min-height: 10;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+InstallVMModal .buttons {
+  height: 3;
+  margin-top: 1;
 }
 InstallVMModal Label {
     margin-top: 0;
@@ -185,8 +201,8 @@ ConfirmationDialog > #dialog {
   height: 15; 
   border: $error; 
 }
-InstallVMModal > #custom-iso-container,
-InstallVMModal > #autoinstall-container,
+InstallVMModal #custom-iso-container,
+InstallVMModal #autoinstall-container,
 InstallVMModal #checksum-container {
   height: 8;
   margin-bottom: 1;

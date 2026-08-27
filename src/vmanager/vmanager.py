@@ -514,6 +514,17 @@ class VMManagerTUI(App):
         self.config["servers"] = list(new_servers)
         save_config(self.config)
 
+        new_autoconnect_uris = [
+            s["uri"] for s in new_servers if s.get("autoconnect", False)
+        ]
+
+        uris_to_connect = [uri for uri in new_autoconnect_uris if uri not in self.active_uris]
+        if uris_to_connect:
+            for uri in uris_to_connect:
+                self.connect_libvirt(uri)
+            self.active_uris = new_autoconnect_uris
+            self.refresh_vm_list()
+
     def on_mount(self) -> None:
         """Called when the app is mounted."""
         register_error_handler()

@@ -54,291 +54,292 @@ class InstallVMModal(BaseModal[str | None]):
             else (active_pools[0][1] if active_pools else Select.NULL)
         )
 
-        with ScrollableContainer(id="install-dialog"):
-            yield Label(StaticText.INSTALL_VM.format(uri=self.uri), classes="title")
-            yield Input(placeholder=StaticText.VM_NAME, id="vm-name")
+        with Vertical(id="install-modal-root"):
+            with ScrollableContainer(id="install-dialog"):
+                yield Label(StaticText.INSTALL_VM.format(uri=self.uri), classes="title")
+                yield Input(placeholder=StaticText.VM_NAME, id="vm-name")
 
-            with Horizontal(classes="label-row"):
-                yield Select(
-                    [(t.value, t) for t in VMType],
-                    value=VMType.DESKTOP,
-                    id="vm-type",
-                    allow_blank=False,
-                )
-                yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
+                with Horizontal(classes="label-row"):
+                    yield Select(
+                        [(t.value, t) for t in VMType],
+                        value=VMType.DESKTOP,
+                        id="vm-type",
+                        allow_blank=False,
+                    )
+                    yield Button(ButtonLabels.INFO, id="vm-type-info-btn", variant="primary")
 
-            # Build distribution options
-            distro_options = []
+                # Build distribution options
+                distro_options = []
 
-            # Get all supported OS versions from the registry
-            supported_versions = self.provisioner.provider_registry.get_all_supported_versions()
+                # Get all supported OS versions from the registry
+                supported_versions = self.provisioner.provider_registry.get_all_supported_versions()
 
-            # Iterate through OS types and their versions
-            seen_labels = set()
-            for os_type, versions in supported_versions.items():
-                if os_type == OSType.GENERIC:
-                    continue  # We will add Generic Custom ISO separately
+                # Iterate through OS types and their versions
+                seen_labels = set()
+                for os_type, versions in supported_versions.items():
+                    if os_type == OSType.GENERIC:
+                        continue  # We will add Generic Custom ISO separately
 
-                for version in versions:
-                    # Avoid redundant prefix (e.g., "openSUSE: openSUSE Leap" -> "openSUSE Leap")
-                    if version.display_name.lower().startswith(os_type.value.lower()):
-                        label = version.display_name
-                    else:
-                        label = f"{os_type.value}: {version.display_name}"
+                    for version in versions:
+                        # Avoid redundant prefix (e.g., "openSUSE: openSUSE Leap" -> "openSUSE Leap")
+                        if version.display_name.lower().startswith(os_type.value.lower()):
+                            label = version.display_name
+                        else:
+                            label = f"{os_type.value}: {version.display_name}"
                     
-                    # Ensure label uniqueness in the dropdown
-                    if label in seen_labels:
-                        # Append version_id to make it unique if necessary
-                        label = f"{label} ({version.version_id})"
+                        # Ensure label uniqueness in the dropdown
+                        if label in seen_labels:
+                            # Append version_id to make it unique if necessary
+                            label = f"{label} ({version.version_id})"
                     
-                    seen_labels.add(label)
-                    distro_options.append((label, version))
+                        seen_labels.add(label)
+                        distro_options.append((label, version))
 
-            # Add Generic Custom ISO option
-            distro_options.append((StaticText.GENERIC_CUSTOM_ISO, "generic_custom"))
+                # Add Generic Custom ISO option
+                distro_options.append((StaticText.GENERIC_CUSTOM_ISO, "generic_custom"))
 
-            distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
-            custom_repos = self.provisioner.get_custom_repos()
-            for repo in custom_repos:
-                # Use URI as value, Name as label
-                name = repo.get("name", repo["uri"])
-                uri = repo["uri"]
-                # Insert before CUSTOM option (last one usually)
-                distro_options.insert(-1, (name, uri))
+                distro_options.insert(0, (StaticText.CACHED_ISOS, "cached"))
+                custom_repos = self.provisioner.get_custom_repos()
+                for repo in custom_repos:
+                    # Use URI as value, Name as label
+                    name = repo.get("name", repo["uri"])
+                    uri = repo["uri"]
+                    # Insert before CUSTOM option (last one usually)
+                    distro_options.insert(-1, (name, uri))
 
-            # Add option to select from storage pool volumes
-            distro_options.insert(-1, (StaticText.FROM_STORAGE_POOL, "pool_volumes"))
+                # Add option to select from storage pool volumes
+                distro_options.insert(-1, (StaticText.FROM_STORAGE_POOL, "pool_volumes"))
 
-            yield Select(
-                distro_options, id="distro", allow_blank=True, prompt=StaticText.DISTRIBUTION
-            )
-
-            # Container for ISO selection (Repo)
-            with Vertical(id="repo-iso-container"):
-                yield Label(StaticText.ISO_IMAGE_REPO, classes="label")
-                config = load_config()
-                iso_path = Path(
-                    config.get(
-                        "ISO_DOWNLOAD_PATH", str(Path.home() / ".cache" / AppInfo.name / "isos")
-                    )
-                )
-                yield Label(
-                    StaticText.ISOS_DOWNLOAD_PATH.format(iso_path=iso_path),
-                    classes="info-text",
-                    id="iso-path-label",
-                )
                 yield Select(
-                    [], prompt=StaticText.SELECT_ISO_PROMPT, id="iso-select", disabled=True
+                    distro_options, id="distro", allow_blank=True, prompt=StaticText.DISTRIBUTION
                 )
 
-            # Container for Custom ISO
-            with Vertical(id="custom-iso-container"):
-                yield Label(StaticText.CUSTOM_ISO_LOCAL_PATH, classes="label")
-                with Horizontal(classes="input-row"):
-                    yield Input(
-                        placeholder="/path/to/local.iso or https://example.com/image.iso",
-                        id="custom-iso-path",
-                        classes="path-input",
+                # Container for ISO selection (Repo)
+                with Vertical(id="repo-iso-container"):
+                    yield Label(StaticText.ISO_IMAGE_REPO, classes="label")
+                    config = load_config()
+                    iso_path = Path(
+                        config.get(
+                            "ISO_DOWNLOAD_PATH", str(Path.home() / ".cache" / AppInfo.name / "isos")
+                        )
                     )
-                    yield Button(ButtonLabels.BROWSE, id="browse-iso-btn")
+                    yield Label(
+                        StaticText.ISOS_DOWNLOAD_PATH.format(iso_path=iso_path),
+                        classes="info-text",
+                        id="iso-path-label",
+                    )
+                    yield Select(
+                        [], prompt=StaticText.SELECT_ISO_PROMPT, id="iso-select", disabled=True
+                    )
 
-                with Vertical(id="checksum-container"):
-                    yield Checkbox(
-                        StaticText.VALIDATE_CHECKSUM, id="validate-checksum", value=False
+                # Container for Custom ISO
+                with Vertical(id="custom-iso-container"):
+                    yield Label(StaticText.CUSTOM_ISO_LOCAL_PATH, classes="label")
+                    with Horizontal(classes="input-row"):
+                        yield Input(
+                            placeholder="/path/to/local.iso or https://example.com/image.iso",
+                            id="custom-iso-path",
+                            classes="path-input",
+                        )
+                        yield Button(ButtonLabels.BROWSE, id="browse-iso-btn")
+
+                    with Vertical(id="checksum-container"):
+                        yield Checkbox(
+                            StaticText.VALIDATE_CHECKSUM, id="validate-checksum", value=False
+                        )
+                        yield Input(
+                            placeholder=StaticText.SHA256_CHECKSUM_OPTIONAL_PLACEHOLDER,
+                            id="checksum-input",
+                            disabled=True,
+                        )
+                        yield Label(StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text")
+
+                # Container for ISO selection from Storage Pools
+                with Vertical(id="pool-iso-container"):
+                    yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
+                    yield Select(
+                        active_pools,
+                        prompt=StaticText.SELECT_POOL_PROMPT,
+                        id="storage-pool-select",
+                        allow_blank=True if not active_pools else False,
+                        value=active_pools[0][1] if active_pools else Select.NULL,
                     )
-                    yield Input(
-                        placeholder=StaticText.SHA256_CHECKSUM_OPTIONAL_PLACEHOLDER,
-                        id="checksum-input",
+                    yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
+                    yield Select(
+                        [],
+                        prompt=StaticText.SELECT_ISO_VOLUME_PROMPT,
+                        id="iso-volume-select",
                         disabled=True,
                     )
-                    yield Label(StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text")
 
-            # Container for ISO selection from Storage Pools
-            with Vertical(id="pool-iso-container"):
-                yield Label(StaticText.SELECT_STORAGE_POOL, classes="label")
-                yield Select(
-                    active_pools,
-                    prompt=StaticText.SELECT_POOL_PROMPT,
-                    id="storage-pool-select",
-                    allow_blank=True if not active_pools else False,
-                    value=active_pools[0][1] if active_pools else Select.NULL,
-                )
-                yield Label(StaticText.SELECT_ISO_VOLUME, classes="label")
-                yield Select(
-                    [],
-                    prompt=StaticText.SELECT_ISO_VOLUME_PROMPT,
-                    id="iso-volume-select",
-                    disabled=True,
+                # Get Networks
+                networks = list_networks(self.conn)
+                active_networks = [(n["name"], n["name"]) for n in networks if n["active"]]
+                default_network = (
+                    "default"
+                    if any(n[0] == "default" for n in active_networks)
+                    else (active_networks[0][1] if active_networks else Select.NULL)
                 )
 
-            # Get Networks
-            networks = list_networks(self.conn)
-            active_networks = [(n["name"], n["name"]) for n in networks if n["active"]]
-            default_network = (
-                "default"
-                if any(n[0] == "default" for n in active_networks)
-                else (active_networks[0][1] if active_networks else Select.NULL)
-            )
+                with Horizontal(id="pool-network-selection"):
+                    with Vertical(id="pool-selection"):
+                        yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
+                        yield Select(active_pools, value=default_pool if default_pool else Select.NULL, id="pool", allow_blank=True if not active_pools else False)
+                    with Vertical(id="network-selection"):
+                        yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
+                        yield Select(
+                            active_networks, value=default_network if default_network else Select.NULL, id="network", allow_blank=True if not active_networks else False
+                        )
 
-            with Horizontal(id="pool-network-selection"):
-                with Vertical(id="pool-selection"):
-                    yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                    yield Select(active_pools, value=default_pool if default_pool else Select.NULL, id="pool", allow_blank=True if not active_pools else False)
-                with Vertical(id="network-selection"):
-                    yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
-                    yield Select(
-                        active_networks, value=default_network if default_network else Select.NULL, id="network", allow_blank=True if not active_networks else False
+                with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
+                    with Horizontal(id="expert-mode"):
+                        with Vertical(id="expert-mem"):
+                            yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
+                            yield Input("4", id="memory-input", type="number")
+                        with Vertical(id="expert-cpu"):
+                            yield Label(StaticText.CPUS_LABEL, classes="label")
+                            yield Input("2", id="cpu-input", type="integer")
+                        with Vertical(id="expert-graphics"):
+                            yield Label(StaticText.GRAPHICS_LABEL, classes="label")
+                            yield Select(
+                                [("Spice", "spice"), ("VNC", "vnc")],
+                                value="spice",
+                                id="graphics-type",
+                            )
+                        with Vertical(id="expert-disk-size"):
+                            yield Label(StaticText.DISK_SIZE_GB_LABEL, classes="label")
+                            yield Input("8", id="disk-size-input", type="integer")
+                        with Vertical(id="expert-disk-format"):
+                            yield Label(StaticText.DISK_FORMAT_LABEL, classes="label")
+                            yield Select(
+                                [("Qcow2", "qcow2"), ("Raw", "raw")],
+                                value="qcow2",
+                                id="disk-format",
+                            )
+                        with Vertical(id="expert-firmware"):
+                            yield Label(StaticText.FIRMWARE_LABEL, classes="label")
+                            yield Checkbox(
+                                "UEFI",
+                                id="boot-uefi-checkbox",
+                                value=True,
+                                tooltip=StaticText.LEGACY_BOOT_TOOLTIP,
+                            )
+
+                # Automated Installation Configuration
+                with Collapsible(
+                    title=StaticText.AUTOMATED_INSTALLATION_TITLE,
+                    id="automation-collapsible",
+                    collapsed=True,
+                ):
+                    # Template selection - "None" means no automation
+                    with Vertical(id="automation-template-container"):
+                        yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
+                        with Horizontal(classes="template-management-buttons"):
+                            yield Select(
+                                [(StaticText.NONE_OPTION, None)],  # Default: no automation
+                                value=None,
+                                id="automation-template-select",
+                                allow_blank=False,
+                                tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
+                            )
+                            # Template management button
+                            yield Button(
+                                StaticText.MANAGE_TEMPLATES_BUTTON,
+                                id="manage-templates-btn",
+                                classes="small-button",
+                            )
+                    # User configuration - only visible when a template is selected
+                    with Vertical(id="automation-user-config-wrapper"):
+                        with Horizontal(id="automation-user-config"):
+                            with Vertical(id="automation-user-left"):
+                                yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
+                                yield Input(
+                                    placeholder=StaticText.ROOT_PASSWORD_PLACEHOLDER,
+                                    id="automation-root-password",
+                                    password=True,
+                                    disabled=True,
+                                )
+                                yield Label(StaticText.USERNAME_LABEL, classes="label")
+                                yield Input(
+                                    placeholder=StaticText.USERNAME_PLACEHOLDER,
+                                    id="automation-username",
+                                    disabled=True,
+                                )
+                            with Vertical(id="automation-user-right"):
+                                yield Label(StaticText.HOSTNAME_LABEL, classes="label")
+                                yield Input(
+                                    placeholder=StaticText.HOSTNAME_PLACEHOLDER,
+                                    id="automation-hostname",
+                                    disabled=True,
+                                )
+                                yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
+                                yield Input(
+                                    placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
+                                    id="automation-user-password",
+                                    password=True,
+                                    disabled=True,
+                                )
+                            with Vertical():
+                                yield Label(StaticText.LANGUAGE_LABEL, classes="label")
+                                yield Select(
+                                    [
+                                        ("English (US)", "en_US"),
+                                        ("German", "de_DE"),
+                                        ("French", "fr_FR"),
+                                        ("Spanish", "es_ES"),
+                                        ("Italian", "it_IT"),
+                                        ("Portuguese (Brazil)", "pt_BR"),
+                                        ("Russian", "ru_RU"),
+                                        ("Japanese", "ja_JP"),
+                                        ("Chinese (Simplified)", "zh_CN"),
+                                    ],
+                                    value="en_US",
+                                    id="automation-language",
+                                    disabled=True,
+                                    tooltip=StaticText.LANGUAGE_TOOLTIP,
+                                )
+                                yield Label(StaticText.KEYBOARD_LABEL, classes="label")
+                                yield Select(
+                                    [
+                                        ("US", "us"),
+                                        ("German", "de"),
+                                        ("French", "fr"),
+                                        ("Spanish", "es"),
+                                        ("Italian", "it"),
+                                        ("Portuguese", "pt"),
+                                        ("Russian", "ru"),
+                                        ("Japanese", "jp"),
+                                        ("UK", "uk"),
+                                    ],
+                                    value="us",
+                                    id="automation-keyboard",
+                                    disabled=True,
+                                    tooltip=StaticText.KEYBOARD_TOOLTIP,
+                                )
+
+                    # Serial console option for automated installation
+                    yield Checkbox(
+                        StaticText.REDIRECT_CONSOLE_SERIAL_LABEL,
+                        id="automation-serial-console",
+                        value=False,
+                        tooltip=StaticText.SERIAL_CONSOLE_TOOLTIP,
+                        disabled=True,
                     )
 
-            with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
-                with Horizontal(id="expert-mode"):
-                    with Vertical(id="expert-mem"):
-                        yield Label(StaticText.MEMORY_GB_LABEL, classes="label")
-                        yield Input("4", id="memory-input", type="number")
-                    with Vertical(id="expert-cpu"):
-                        yield Label(StaticText.CPUS_LABEL, classes="label")
-                        yield Input("2", id="cpu-input", type="integer")
-                    with Vertical(id="expert-graphics"):
-                        yield Label(StaticText.GRAPHICS_LABEL, classes="label")
-                        yield Select(
-                            [("Spice", "spice"), ("VNC", "vnc")],
-                            value="spice",
-                            id="graphics-type",
-                        )
-                    with Vertical(id="expert-disk-size"):
-                        yield Label(StaticText.DISK_SIZE_GB_LABEL, classes="label")
-                        yield Input("8", id="disk-size-input", type="integer")
-                    with Vertical(id="expert-disk-format"):
-                        yield Label(StaticText.DISK_FORMAT_LABEL, classes="label")
-                        yield Select(
-                            [("Qcow2", "qcow2"), ("Raw", "raw")],
-                            value="qcow2",
-                            id="disk-format",
-                        )
-                    with Vertical(id="expert-firmware"):
-                        yield Label(StaticText.FIRMWARE_LABEL, classes="label")
-                        yield Checkbox(
-                            "UEFI",
-                            id="boot-uefi-checkbox",
-                            value=True,
-                            tooltip=StaticText.LEGACY_BOOT_TOOLTIP,
-                        )
-
-            # Automated Installation Configuration
-            with Collapsible(
-                title=StaticText.AUTOMATED_INSTALLATION_TITLE,
-                id="automation-collapsible",
-                collapsed=True,
-            ):
-                # Template selection - "None" means no automation
-                with Vertical(id="automation-template-container"):
-                    yield Label(StaticText.INSTALLATION_TEMPLATE_LABEL, classes="label")
-                    with Horizontal(classes="template-management-buttons"):
-                        yield Select(
-                            [(StaticText.NONE_OPTION, None)],  # Default: no automation
-                            value=None,
-                            id="automation-template-select",
-                            allow_blank=False,
-                            tooltip=StaticText.AUTOMATION_TEMPLATE_TOOLTIP,
-                        )
-                        # Template management button
-                        yield Button(
-                            StaticText.MANAGE_TEMPLATES_BUTTON,
-                            id="manage-templates-btn",
-                            classes="small-button",
-                        )
-                # User configuration - only visible when a template is selected
-                with Vertical(id="automation-user-config-wrapper"):
-                    with Horizontal(id="automation-user-config"):
-                        with Vertical(id="automation-user-left"):
-                            yield Label(StaticText.ROOT_PASSWORD_LABEL, classes="label")
-                            yield Input(
-                                placeholder=StaticText.ROOT_PASSWORD_PLACEHOLDER,
-                                id="automation-root-password",
-                                password=True,
-                                disabled=True,
-                            )
-                            yield Label(StaticText.USERNAME_LABEL, classes="label")
-                            yield Input(
-                                placeholder=StaticText.USERNAME_PLACEHOLDER,
-                                id="automation-username",
-                                disabled=True,
-                            )
-                        with Vertical(id="automation-user-right"):
-                            yield Label(StaticText.HOSTNAME_LABEL, classes="label")
-                            yield Input(
-                                placeholder=StaticText.HOSTNAME_PLACEHOLDER,
-                                id="automation-hostname",
-                                disabled=True,
-                            )
-                            yield Label(StaticText.USER_PASSWORD_LABEL, classes="label")
-                            yield Input(
-                                placeholder=StaticText.USER_PASSWORD_PLACEHOLDER,
-                                id="automation-user-password",
-                                password=True,
-                                disabled=True,
-                            )
-                        with Vertical():
-                            yield Label(StaticText.LANGUAGE_LABEL, classes="label")
-                            yield Select(
-                                [
-                                    ("English (US)", "en_US"),
-                                    ("German", "de_DE"),
-                                    ("French", "fr_FR"),
-                                    ("Spanish", "es_ES"),
-                                    ("Italian", "it_IT"),
-                                    ("Portuguese (Brazil)", "pt_BR"),
-                                    ("Russian", "ru_RU"),
-                                    ("Japanese", "ja_JP"),
-                                    ("Chinese (Simplified)", "zh_CN"),
-                                ],
-                                value="en_US",
-                                id="automation-language",
-                                disabled=True,
-                                tooltip=StaticText.LANGUAGE_TOOLTIP,
-                            )
-                            yield Label(StaticText.KEYBOARD_LABEL, classes="label")
-                            yield Select(
-                                [
-                                    ("US", "us"),
-                                    ("German", "de"),
-                                    ("French", "fr"),
-                                    ("Spanish", "es"),
-                                    ("Italian", "it"),
-                                    ("Portuguese", "pt"),
-                                    ("Russian", "ru"),
-                                    ("Japanese", "jp"),
-                                    ("UK", "uk"),
-                                ],
-                                value="us",
-                                id="automation-keyboard",
-                                disabled=True,
-                                tooltip=StaticText.KEYBOARD_TOOLTIP,
-                            )
-
-                # Serial console option for automated installation
                 yield Checkbox(
-                    StaticText.REDIRECT_CONSOLE_SERIAL_LABEL,
-                    id="automation-serial-console",
+                    StaticText.CONFIGURE_BEFORE_INSTALL,
+                    id="configure-before-install-checkbox",
                     value=False,
-                    tooltip=StaticText.SERIAL_CONSOLE_TOOLTIP,
-                    disabled=True,
+                    tooltip=StaticText.SHOW_VM_CONFIG_BEFORE_STARTING_TOOLTIP,
                 )
+                yield ProgressBar(total=100, show_eta=False, id="progress-bar")
+                yield Label(StaticText.EMPTY_LABEL, id="status-label")
 
-            yield Checkbox(
-                StaticText.CONFIGURE_BEFORE_INSTALL,
-                id="configure-before-install-checkbox",
-                value=False,
-                tooltip=StaticText.SHOW_VM_CONFIG_BEFORE_STARTING_TOOLTIP,
+        with Horizontal(classes="buttons"):
+            yield Button(
+                ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True
             )
-            yield ProgressBar(total=100, show_eta=False, id="progress-bar")
-            yield Label(StaticText.EMPTY_LABEL, id="status-label")
-
-            with Horizontal(classes="buttons"):
-                yield Button(
-                    ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True
-                )
-                yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
+            yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self):
         """Called when modal is mounted."""
@@ -1376,62 +1377,77 @@ class InstallVMModal(BaseModal[str | None]):
             downloaded_iso_path = None  # Track downloaded file for cleanup
 
             if custom_path:
-                # Check if it's an HTTP/HTTPS URL
-                if custom_path.startswith(("http://", "https://")):
-                    # Download ISO from URL
-                    progress_cb(StaticText.DOWNLOADING_ISO, 0)
-
-                    def download_progress(percent, speed):
-                        progress_cb(
-                            StaticText.DOWNLOADING_ISO_PROGRESS.format(
-                                progress=percent, speed=speed
-                            ),
-                            int(percent * 0.3),  # Use first 30% for download
-                        )
-
-                    try:
-                        downloaded_iso_path = self.provisioner.download_iso(
-                            custom_path, progress_callback=download_progress
-                        )
-                        custom_path = (
-                            downloaded_iso_path  # Use downloaded file for subsequent operations
-                        )
-                    except Exception as e:
-                        raise Exception(str(e))
-
-                else:
-                    # Validate local path exists
-                    if not os.path.exists(custom_path):
-                        raise Exception(
-                            ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(
-                                path=custom_path
-                            )
-                        )
-                    if not os.path.isfile(custom_path):
-                        raise Exception(
-                            ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
-                        )
-
-                # 1. Validate Checksum
-                if validate:
-                    if not checksum:
-                        raise Exception(ErrorMessages.CHECKSUM_MISSING)
-                    progress_cb(StaticText.VALIDATING_CHECKSUM, 30)
-                    if not self.provisioner.validate_iso(custom_path, checksum):
-                        raise Exception(ErrorMessages.CHECKSUM_VALIDATION_FAILED)
-                    progress_cb(StaticText.CHECKSUM_VALIDATED, 40)
-
-                # 2. Upload
-                progress_cb(StaticText.UPLOADING_ISO, 40)
-
-                def upload_progress(p):
+                # Check if ISO already exists in pool before downloading
+                iso_name = os.path.basename(custom_path.split("?")[0])
+                existing_path = self.provisioner.check_pool_volume(iso_name, pool_name)
+                if existing_path:
                     progress_cb(
-                        StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p), 40 + int(p * 0.4)
+                        StaticText.ISO_ALREADY_IN_POOL.format(
+                            name=iso_name, pool_name=pool_name
+                        ),
+                        80,
                     )
+                    final_iso_url = existing_path
+                else:
+                    # Check if it's an HTTP/HTTPS URL
+                    if custom_path.startswith(("http://", "https://")):
+                        # Download ISO from URL
+                        progress_cb(StaticText.DOWNLOADING_ISO, 0)
 
-                final_iso_url = self.provisioner.upload_iso(custom_path, pool_name, upload_progress)
-                if not final_iso_url:
-                    raise Exception(ErrorMessages.NO_ISO_URL_SPECIFIED)
+                        def download_progress(percent, speed):
+                            progress_cb(
+                                StaticText.DOWNLOADING_ISO_PROGRESS.format(
+                                    progress=percent, speed=speed
+                                ),
+                                int(percent * 0.3),  # Use first 30% for download
+                            )
+
+                        try:
+                            downloaded_iso_path = self.provisioner.download_iso(
+                                custom_path, progress_callback=download_progress
+                            )
+                            custom_path = (
+                                downloaded_iso_path  # Use downloaded file for subsequent operations
+                            )
+                        except Exception as e:
+                            raise Exception(str(e))
+
+                    else:
+                        # Validate local path exists
+                        if not os.path.exists(custom_path):
+                            raise Exception(
+                                ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(
+                                    path=custom_path
+                                )
+                            )
+                        if not os.path.isfile(custom_path):
+                            raise Exception(
+                                ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
+                            )
+
+                    # 1. Validate Checksum
+                    if validate:
+                        if not checksum:
+                            raise Exception(ErrorMessages.CHECKSUM_MISSING)
+                        progress_cb(StaticText.VALIDATING_CHECKSUM, 30)
+                        if not self.provisioner.validate_iso(custom_path, checksum):
+                            raise Exception(ErrorMessages.CHECKSUM_VALIDATION_FAILED)
+                        progress_cb(StaticText.CHECKSUM_VALIDATED, 40)
+
+                    # 2. Upload
+                    progress_cb(StaticText.UPLOADING_ISO, 40)
+
+                    def upload_progress(p):
+                        progress_cb(
+                            StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p),
+                            40 + int(p * 0.4),
+                        )
+
+                    final_iso_url = self.provisioner.upload_iso(
+                        custom_path, pool_name, upload_progress
+                    )
+                    if not final_iso_url:
+                        raise Exception(ErrorMessages.NO_ISO_URL_SPECIFIED)
 
             # 3. Provision
             # Suspend global updates to prevent UI freeze during heavy provisioning ops

@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.2.1"
+    version = "3.2.2"
     author = "Antoine Ginies"
 
 
@@ -374,6 +374,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     DOWNLOADING_ISO_PROGRESS = _("Downloading: {progress}% ({speed}/s)")
     UPLOADING_ISO = _("Uploading ISO...")
     UPLOADING_PROGRESS_TEMPLATE = _("Uploading: {progress}%")
+    ISO_ALREADY_IN_POOL = _("ISO '{name}' already available in pool '{pool_name}'")
     MEMORY_GB_LABEL = _(" Memory (GB)")
     DISK_SIZE_GB_LABEL = _(" Disk Size(GB)")
     DISK_FORMAT_LABEL = _(" Disk Format")

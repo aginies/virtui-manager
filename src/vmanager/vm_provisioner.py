@@ -579,6 +579,17 @@ class VMProvisioner:
                 except libvirt.libvirtError:
                     logging.warning("Could not restore original libvirt keepalive settings.")
 
+    def check_pool_volume(self, volume_name: str, storage_pool_name: str) -> str | None:
+        """Check if a volume with the given name exists in the pool. Returns path or None."""
+        try:
+            pool = self.conn.storagePoolLookupByName(storage_pool_name)
+            if not pool.isActive():
+                return None
+            vol = pool.storageVolLookupByName(volume_name)
+            return vol.path()
+        except libvirt.libvirtError:
+            return None
+
     def validate_iso(self, local_path: str, expected_checksum: str = None) -> bool:
         """
         Validates the integrity of a local ISO file using SHA256.
@@ -2147,13 +2158,27 @@ class VMProvisioner:
 
         # Upload ISO if needed
         if needs_iso_upload:
-            report(StaticText.UPLOADING_ISO, 55)
+            iso_name = os.path.basename(iso_path)
+            existing_path = self.check_pool_volume(iso_name, storage_pool_name)
+            if existing_path:
+                report(
+                    StaticText.ISO_ALREADY_IN_POOL.format(
+                        name=iso_name, pool_name=storage_pool_name
+                    ),
+                    75,
+                )
+                iso_path = existing_path
+            else:
+                report(StaticText.UPLOADING_ISO, 55)
 
-            def upload_progress(p):
-                report(StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p), 55 + int(p * 0.2))
+                def upload_progress(p):
+                    report(
+                        StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p),
+                        55 + int(p * 0.2),
+                    )
 
-            iso_path = self.upload_iso(iso_path, storage_pool_name, upload_progress)
-            logging.info(f"ISO uploaded to storage pool: {iso_path}")
+                iso_path = self.upload_iso(iso_path, storage_pool_name, upload_progress)
+                logging.info(f"ISO uploaded to storage pool: {iso_path}")
 
         # Setup NVRAM if UEFI
         loader_path = None
