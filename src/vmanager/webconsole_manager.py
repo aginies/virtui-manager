@@ -84,8 +84,9 @@ wp.websockify_init()
 
         # Create directory if it doesn't exist
         try:
-            config_dir.mkdir(parents=True, exist_ok=True)
-            logging.info(f"Webconsole keys directory ensured: {config_dir}")
+            if not config_dir.exists():
+                config_dir.mkdir(parents=True, exist_ok=True)
+                logging.info(f"Created webconsole keys directory: {config_dir}")
         except Exception as e:
             logging.error(f"Failed to create webconsole keys directory {config_dir}: {e}")
             return

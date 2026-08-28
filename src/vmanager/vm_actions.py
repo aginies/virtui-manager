@@ -4,6 +4,7 @@ Module for performing actions and modifications on virtual machines.
 
 import logging
 import os
+import shutil
 import secrets
 import time
 import uuid
@@ -238,14 +239,15 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             source_elem.set("pool", original_pool.name())
             source_elem.set("volume", new_vol.name())
 
-        # Clone NVRAM if present
+        # Clone NVRAM if present (full clone only; linked clone keeps shared NVRAM)
         nvram_elem = root.find(".//os/nvram")
-        if nvram_elem is not None:
+        if clone_storage and nvram_elem is not None:
             nvram_path = nvram_elem.text
             if nvram_path:
                 nvram_vol, nvram_pool = _find_vol_by_path(clone_conn, nvram_path)
-                if nvram_vol and nvram_pool:
-                    try:
+                new_nvram_path = None
+                try:
+                    if nvram_vol and nvram_pool:
                         nvram_vol_xml = nvram_vol.XMLDesc(0)
                         nvram_vol_root = ET.fromstring(nvram_vol_xml)
 
@@ -270,12 +272,29 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                         new_nvram_vol = nvram_pool.createXMLFrom(
                             new_nvram_vol_xml, nvram_vol, 0
                         )
-                        # Update XML with new NVRAM path
-                        nvram_elem.text = new_nvram_vol.path()
-                    except libvirt.libvirtError as e:
-                        logging.warning("Failed to clone NVRAM volume: %s", e)
+                        new_nvram_path = new_nvram_vol.path()
+                    elif os.path.isfile(nvram_path):
+                        # Fallback: NVRAM not in a storage pool, copy file directly
+                        _, nvram_ext = os.path.splitext(nvram_path)
+                        new_nvram_path = os.path.join(
+                            os.path.dirname(nvram_path),
+                            f"{new_vm_name}_VARS{nvram_ext}",
+                        )
+                        msg = f"Copying NVRAM file: {new_nvram_path}"
+                        logging.info(msg)
                         if log_callback:
-                            log_callback(f"Warning: Failed to clone NVRAM: {e}")
+                            log_callback(msg)
+                        shutil.copy2(nvram_path, new_nvram_path)
+                    else:
+                        raise libvirt.libvirtError(
+                            f"NVRAM file '{nvram_path}' not found in any storage pool "
+                            "and does not exist on disk"
+                        )
+                except libvirt.libvirtError as e:
+                    raise libvirt.libvirtError(
+                        f"Failed to clone NVRAM for VM '{new_vm_name}': {e}"
+                    )
+                nvram_elem.text = new_nvram_path
 
         new_xml = ET.tostring(root, encoding="unicode")
         msg_end = "Defining the VM..."
@@ -2233,7 +2252,10 @@ def delete_vm(
                     root = ET.fromstring(xml_desc)
                     if delete_storage:
                         # Pass delete_conn to resolve volumes
-                        disks_to_delete = get_vm_disks_info(delete_conn, root)
+                        disks_to_delete = [
+                            d for d in get_vm_disks_info(delete_conn, root)
+                            if d.get("device_type") != "cdrom"
+                        ]
                     
                     boot_files_to_delete = get_vm_boot_files(root)
                 except libvirt.libvirtError as e:

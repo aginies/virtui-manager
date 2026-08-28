@@ -17,7 +17,7 @@ from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, Succes
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..network_manager import ensure_default_network, list_networks
 from ..storage_manager import ensure_default_pool, list_storage_pools
-from ..utils import remote_viewer_cmd
+from ..utils import is_remote_connection, remote_viewer_cmd
 from ..vm_provisioner import VMProvisioner, VMType
 from ..provisioning.os_provider import OSType, OSVersion
 
@@ -40,6 +40,7 @@ class InstallVMModal(BaseModal[str | None]):
         self.vm_service = vm_service
         self.uri = uri
         self.conn = self.vm_service.connect(uri)
+        self.is_remote = is_remote_connection(self.conn.getURI()) if self.conn else False
         self.provisioner = VMProvisioner(self.conn)
         self.template_manager = AutoYaSTTemplateManager(self.provisioner)
         self.iso_list = []
@@ -1246,7 +1247,8 @@ class InstallVMModal(BaseModal[str | None]):
 
         if distro == "generic_custom":
             custom_path = self.query_one("#custom-iso-path", Input).value.strip()
-            custom_path = validate_path_in_allowed_dirs(custom_path, conn=self.conn)
+            if not self.is_remote:
+                custom_path = validate_path_in_allowed_dirs(custom_path, conn=self.conn)
             validate = self.query_one("#validate-checksum", Checkbox).value
             if validate:
                 checksum = self.query_one("#checksum-input", Input).value.strip()
@@ -1256,7 +1258,7 @@ class InstallVMModal(BaseModal[str | None]):
                 self.app.show_error_message(ErrorMessages.SELECT_VALID_ISO_VOLUME)
                 return
             # Validate that the volume path exists and is accessible
-            if not os.path.exists(iso_url):
+            if not self.is_remote and not os.path.exists(iso_url):
                 self.app.show_error_message(
                     ErrorMessages.ISO_VOLUME_NOT_FOUND_TEMPLATE.format(iso_url=iso_url)
                 )
@@ -1314,6 +1316,8 @@ class InstallVMModal(BaseModal[str | None]):
             return
 
         # Disable inputs
+        self.query_one("#automation-collapsible", Collapsible).collapsed = True
+        self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
         for widget in self.query("Input"):
             widget.disabled = True
         for widget in self.query("Select"):
@@ -1413,17 +1417,18 @@ class InstallVMModal(BaseModal[str | None]):
                             raise Exception(str(e))
 
                     else:
-                        # Validate local path exists
-                        if not os.path.exists(custom_path):
-                            raise Exception(
-                                ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(
-                                    path=custom_path
+                        # Validate local path exists (skip for remote connections)
+                        if not self.is_remote:
+                            if not os.path.exists(custom_path):
+                                raise Exception(
+                                    ErrorMessages.CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE.format(
+                                        path=custom_path
+                                    )
                                 )
-                            )
-                        if not os.path.isfile(custom_path):
-                            raise Exception(
-                                ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
-                            )
+                            if not os.path.isfile(custom_path):
+                                raise Exception(
+                                    ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
+                                )
 
                     # 1. Validate Checksum
                     if validate:

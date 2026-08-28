@@ -21,6 +21,7 @@ from vmanager.constants import StaticText
 class TestVMProvisionerDownload(unittest.TestCase):
     def setUp(self):
         self.mock_conn = MagicMock()
+        self.mock_conn.getURI.return_value = "qemu:///system"
         with patch("vmanager.vm_provisioner.get_host_architecture") as mock_get_arch:
             mock_get_arch.return_value = "x86_64"
             self.provisioner = VMProvisioner(self.mock_conn)

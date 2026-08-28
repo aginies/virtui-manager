@@ -35,6 +35,7 @@ from ..network_manager import (
 )
 from ..storage_manager import list_storage_volumes
 from ..vm_queries import get_all_network_usage, get_all_vm_disk_usage, get_all_vm_nvram_usage
+from ..utils import is_remote_connection
 from .base_modals import BaseModal
 from .disk_pool_modals import (
     AddPoolModal,
@@ -93,6 +94,7 @@ class ServerPrefModal(BaseModal[None]):
             )
             self.dismiss()
             return
+        self.is_remote = is_remote_connection(self.conn.getURI())
 
         # Get server hostname and update the title
         server_hostname = self.conn.getHostname()
@@ -701,7 +703,7 @@ class ServerPrefModal(BaseModal[None]):
                 return
 
             volume_path = result.get("path")
-            if not volume_path or not os.path.exists(volume_path):
+            if not volume_path or (not self.is_remote and not os.path.exists(volume_path)):
                 self.app.show_error_message(
                     ErrorMessages.INVALID_OR_NON_EXISTENT_PATH_TEMPLATE.format(path=volume_path)
                 )
@@ -760,7 +762,7 @@ class ServerPrefModal(BaseModal[None]):
                 on_confirm_create,
             )
 
-        self.app.push_screen(AttachVolumeModal(), on_attach)
+        self.app.push_screen(AttachVolumeModal(is_remote=self.is_remote), on_attach)
 
     @on(Button.Pressed, "#add-pool-btn")
     def on_add_pool_button_pressed(self, event: Button.Pressed) -> None:
@@ -769,7 +771,7 @@ class ServerPrefModal(BaseModal[None]):
                 storage_manager.list_storage_pools.cache_clear()
                 self._load_storage_pools()
 
-        self.app.push_screen(AddPoolModal(self.conn), on_create)
+        self.app.push_screen(AddPoolModal(self.conn, is_remote=self.is_remote), on_create)
 
     @on(Button.Pressed, "#del-pool-btn")
     def on_delete_pool_button_pressed(self, event: Button.Pressed) -> None:

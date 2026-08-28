@@ -53,6 +53,7 @@ from ..libvirt_utils import (
 from ..network_manager import (
     list_networks,
 )
+from ..utils import is_remote_connection
 from ..vm_actions import (
     add_disk,
     add_network_interface,
@@ -187,6 +188,7 @@ class VMDetailModal(ModalScreen):
         self.vm_service = self.app.vm_service
         self.internal_id = self.vm_service._get_internal_id(self.domain, self.conn)
         self.xml_desc = self.vm_service._get_domain_xml(self.domain)
+        self.is_remote = is_remote_connection(self.conn.getURI())
 
         root = self._get_xml_root()
 
@@ -424,8 +426,9 @@ class VMDetailModal(ModalScreen):
             self.vm_info["disks"] = get_vm_disks_info(self.conn, root)
             self._populate_disks_table()
             self._populate_networks_table()
-            self._populate_usb_lists()
-            self._populate_pci_lists()
+            if not self.is_remote:
+                self._populate_usb_lists()
+                self._populate_pci_lists()
             self._populate_serial_table()
             self._populate_watchdog_table()
             self._populate_input_table()
@@ -2206,6 +2209,7 @@ class VMDetailModal(ModalScreen):
                                     ButtonLabels.ADD_DISK,
                                     id="detail_add_disk",
                                     classes="detail-disks",
+                                    disabled=self.is_remote,
                                 )
                                 yield Button(
                                     ButtonLabels.ATTACH_EXISTING_DISK,
@@ -2643,7 +2647,7 @@ class VMDetailModal(ModalScreen):
                                 disabled=True,
                             )
                 if not self.is_bulk:
-                    with TabPane("USB Host", id="detail-usbhost-tab"):
+                    with TabPane("USB Host", id="detail-usbhost-tab", disabled=self.is_remote):
                         with Vertical(id="usb-tab-layout"):
                             yield Label(StaticText.AVAILABLE_HOST_USB)
                             yield ListView(id="available-usb-list", classes="usb-list-container")
@@ -2656,7 +2660,7 @@ class VMDetailModal(ModalScreen):
                                 )
                             yield Label(StaticText.ATTACHED_TO_VM)
                             yield ListView(id="attached-usb-list", classes="usb-list-container")
-                    with TabPane("PCI Host", id="detail-PCIhost-tab"):
+                    with TabPane("PCI Host", id="detail-PCIhost-tab", disabled=self.is_remote):
                         with Vertical(id="pci-tab-layout"):
                             yield Label(StaticText.AVAILABLE_HOST_PCI)
                             yield DataTable(id="available-pci-table", cursor_type="row")

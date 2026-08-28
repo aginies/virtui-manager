@@ -63,6 +63,7 @@ def _find_vol_by_path(
                 return vol, pool
             except libvirt.libvirtError:
                 continue
+        return vol, None
     except Exception:
         # Catch-all: storageVolLookupByPath may not exist in very old libvirt
         # Python bindings, or may raise a non-libvirtError on some platforms.

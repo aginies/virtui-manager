@@ -1051,6 +1051,63 @@ class TestVMActionsComplete(unittest.TestCase):
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    @patch("vmanager.vm_actions.get_vm_disks_info")
+    def test_delete_vm_skips_cdrom(
+        self, mock_get_disks, mock_find_vol, mock_invalidate_cache, mock_get_internal_id
+    ):
+        """Test delete_vm does not delete CD-ROM ISO files."""
+        from vmanager.vm_actions import delete_vm
+
+        xml_content = """<domain>
+          <name>test-vm</name>
+          <uuid>test-uuid</uuid>
+          <os><type arch="x86_64">hvm</type></os>
+          <devices>
+            <disk type="file" device="disk">
+              <source file="/var/lib/libvirt/images/test-vm.qcow2"/>
+              <target dev="vda" bus="virtio"/>
+            </disk>
+            <disk type="file" device="cdrom">
+              <source file="/var/lib/libvirt/images/install.iso"/>
+              <target dev="sda" bus="sata"/>
+            </disk>
+          </devices>
+        </domain>"""
+
+        mock_domain_del = MagicMock()
+        mock_domain_del.XMLDesc.return_value = xml_content
+        mock_domain_del.isActive.return_value = False
+
+        mock_conn = MagicMock()
+        mock_conn.lookupByUUIDString.return_value = mock_domain_del
+        mock_conn.listStoragePools.return_value = []
+
+        mock_disk_vol = MagicMock()
+        mock_iso_vol = MagicMock()
+        mock_pool = MagicMock()
+
+        def find_vol(conn, path):
+            if path == "/var/lib/libvirt/images/test-vm.qcow2":
+                return (mock_disk_vol, mock_pool)
+            if path == "/var/lib/libvirt/images/install.iso":
+                return (mock_iso_vol, mock_pool)
+            return (None, None)
+
+        mock_find_vol.side_effect = find_vol
+        mock_get_disks.return_value = [
+            {"path": "/var/lib/libvirt/images/test-vm.qcow2", "status": "enabled", "device_type": "disk"},
+            {"path": "/var/lib/libvirt/images/install.iso", "status": "enabled", "device_type": "cdrom"},
+        ]
+        mock_get_internal_id.return_value = "test-id"
+
+        delete_vm(self.mock_domain, delete_storage=True, conn=mock_conn)
+
+        mock_disk_vol.delete.assert_called_once_with(0)
+        mock_iso_vol.delete.assert_not_called()
+
+    @patch("vmanager.vm_actions.get_internal_id")
+    @patch("vmanager.vm_actions.invalidate_cache")
     def test_check_for_other_spice_devices(self, mock_invalidate_cache, mock_get_internal_id):
         """Test check_for_other_spice_devices function"""
         # Mock the domain object
@@ -1579,6 +1636,125 @@ class TestVMActionsComplete(unittest.TestCase):
         except Exception:
             # If there's an exception, we at least verify the function can be called
             self.assertTrue(True)
+
+
+class TestCloneVMNVRAM(unittest.TestCase):
+    def setUp(self):
+        self.mock_domain = MagicMock()
+        self.mock_conn = MagicMock()
+        self.mock_domain.connect.return_value = self.mock_conn
+        self.mock_domain.name.return_value = "orig-vm"
+        self.mock_domain.UUIDString.return_value = "orig-uuid"
+        self.mock_clone_conn = MagicMock()
+        self.mock_new_vm = MagicMock()
+        self.mock_new_vm.UUIDString.return_value = "new-uuid"
+        self.mock_clone_conn.defineXML.return_value = self.mock_new_vm
+        self.mock_conn.lookupByUUIDString.return_value = self.mock_new_vm
+
+    def _xml(self, nvram_path=None):
+        nvram = f"<nvram>{nvram_path}</nvram>" if nvram_path else ""
+        return f"""<domain>
+            <name>orig-vm</name>
+            <uuid>orig-uuid</uuid>
+            <os><type arch="x86_64">hvm</type>{nvram}</os>
+            <devices>
+                <disk type="file" device="disk">
+                    <source file="/var/lib/libvirt/images/orig-vm.qcow2"/>
+                    <target dev="vda" bus="virtio"/>
+                </disk>
+            </devices>
+        </domain>"""
+
+    @patch("vmanager.vm_actions.libvirt.open")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    def test_nvram_cloned_per_vm_pool(self, mock_find_vol, mock_libvirt_open):
+        """NVRAM in a storage pool is cloned and XML points to the new path."""
+        mock_libvirt_open.return_value = self.mock_clone_conn
+        nvram_path = "/var/lib/libvirt/nvram/orig-vm_VARS.fd"
+        self.mock_domain.XMLDesc.return_value = self._xml(nvram_path)
+        mock_nvram_vol = MagicMock()
+        mock_nvram_vol.name.return_value = "orig-vm_VARS.fd"
+        mock_nvram_vol.XMLDesc.return_value = (
+            "<volume><name>orig-vm_VARS.fd</name>"
+            "<capacity unit='bytes'>32768</capacity>"
+            "<target><path>/var/lib/libvirt/nvram/orig-vm_VARS.fd</path>"
+            "<format type='raw'/></target></volume>"
+        )
+        mock_nvram_pool = MagicMock()
+        new_vol = MagicMock()
+        new_vol.path.return_value = "/var/lib/libvirt/nvram/new-vm_VARS.fd"
+        mock_nvram_pool.createXMLFrom.return_value = new_vol
+
+        def find_vol_side_effect(conn, path):
+            if path == nvram_path:
+                return (mock_nvram_vol, mock_nvram_pool)
+            return (None, None)
+
+        mock_find_vol.side_effect = find_vol_side_effect
+
+        from vmanager.vm_actions import clone_vm
+
+        clone_vm(self.mock_domain, "new-vm", clone_storage=True)
+
+        mock_nvram_pool.createXMLFrom.assert_called_once()
+        defined_xml = self.mock_clone_conn.defineXML.call_args[0][0]
+        self.assertIn("/var/lib/libvirt/nvram/new-vm_VARS.fd", defined_xml)
+
+    @patch("vmanager.vm_actions.libvirt.open")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    def test_nvram_fallback_file_copy(self, mock_find_vol, mock_libvirt_open):
+        """NVRAM not in a pool is copied directly and XML updated."""
+        import os
+        import tempfile
+
+        mock_libvirt_open.return_value = self.mock_clone_conn
+        mock_find_vol.return_value = (None, None)
+        with tempfile.TemporaryDirectory() as td:
+            src = os.path.join(td, "orig-vm_VARS.fd")
+            with open(src, "wb") as f:
+                f.write(b"nvram-data")
+            self.mock_domain.XMLDesc.return_value = self._xml(src)
+
+            from vmanager.vm_actions import clone_vm
+
+            clone_vm(self.mock_domain, "new-vm", clone_storage=True)
+
+            defined_xml = self.mock_clone_conn.defineXML.call_args[0][0]
+            expected = os.path.join(td, "new-vm_VARS.fd")
+            self.assertIn(expected, defined_xml)
+            self.assertTrue(os.path.isfile(expected))
+
+    @patch("vmanager.vm_actions.libvirt.open")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    def test_linked_clone_keeps_nvram(self, mock_find_vol, mock_libvirt_open):
+        """Linked clone (clone_storage=False) keeps the shared NVRAM path."""
+        mock_libvirt_open.return_value = self.mock_clone_conn
+        self.mock_domain.XMLDesc.return_value = self._xml(
+            "/var/lib/libvirt/nvram/orig-vm_VARS.fd"
+        )
+        mock_find_vol.return_value = (None, None)
+
+        from vmanager.vm_actions import clone_vm
+
+        clone_vm(self.mock_domain, "new-vm", clone_storage=False)
+
+        defined_xml = self.mock_clone_conn.defineXML.call_args[0][0]
+        self.assertIn("/var/lib/libvirt/nvram/orig-vm_VARS.fd", defined_xml)
+
+    @patch("vmanager.vm_actions.libvirt.open")
+    @patch("vmanager.vm_actions._find_vol_by_path")
+    def test_nvram_clone_failure_raises(self, mock_find_vol, mock_libvirt_open):
+        """NVRAM missing from pool and disk aborts the clone."""
+        mock_libvirt_open.return_value = self.mock_clone_conn
+        self.mock_domain.XMLDesc.return_value = self._xml(
+            "/nonexistent/path/orig-vm_VARS.fd"
+        )
+        mock_find_vol.return_value = (None, None)
+
+        from vmanager.vm_actions import clone_vm
+
+        with self.assertRaises(Exception):
+            clone_vm(self.mock_domain, "new-vm", clone_storage=True)
 
 
 if __name__ == "__main__":

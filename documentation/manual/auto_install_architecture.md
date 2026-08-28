@@ -25,6 +25,12 @@ The `AutoHTTPServer` (in `auto_http_server.py`) is a lightweight HTTP server tha
 *   Is tracked globally in `_ACTIVE_SERVERS` and cleaned up via `atexit`.
 *   Provides `get_url(filename)` to construct HTTP URLs for served files.
 
+For **remote connections** (`qemu+ssh://`), a `RemoteAutoHTTPServer` is used instead.
+It pushes the automation files to the remote host via SSH and starts
+`python3 -m http.server` there, so the VM reaches the automation files on the
+hypervisor itself rather than on the machine running VirtUI Manager. It requires
+`python3` on the remote host and exposes the same `start`/`stop`/`get_url` interface.
+
 ```python
 # Example usage
 with AutoHTTPServer(serve_dir, port=0) as server:

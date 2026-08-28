@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.2.2"
+    version = "3.3.0"
     author = "Antoine Ginies"
 
 
@@ -937,6 +937,7 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     PREFERENCES_LAUNCH_ERROR = _("Error launching preferences: {error}")
     BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED = _("Could not retrieve names for selected VMs.")
     VM_CLONE_FAILED_TEMPLATE = _("Failed to clone to: {vm_names}")
+    NVRAM_CLONE_FAILED_TEMPLATE = _("Failed to clone NVRAM for VM '{vm_name}': {error}")
     NO_SUITABLE_DISKS_FOR_OVERLAY = _("No suitable disks found for overlay.")
     OVERLAY_NAME_EMPTY_AFTER_SANITIZATION = _(
         "Overlay volume name cannot be empty after sanitization."

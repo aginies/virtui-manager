@@ -88,6 +88,7 @@ class AutomationEngine:
 
         config = user_config.copy()
         config["vm_name"] = vm_name
+        config.setdefault("timezone", "UTC")
         
         is_autoinstall = "autoinstall" in template_name.lower() or template_name.endswith((".yaml", ".yml"))
         
@@ -117,6 +118,7 @@ class AutomationEngine:
         
         config = user_config.copy()
         config["vm_name"] = vm_name
+        config.setdefault("timezone", "UTC")
         
         template_path = self._find_template(template_name, [".cfg"])
         if not template_path:
@@ -136,6 +138,7 @@ class AutomationEngine:
         
         config = user_config.copy()
         config["vm_name"] = vm_name
+        config.setdefault("timezone", "UTC")
         
         # OpenSUSE often uses 'user_name' instead of 'username'
         if "username" in config and "user_name" not in config:
@@ -167,6 +170,7 @@ class AutomationEngine:
         
         config = user_config.copy()
         config["vm_name"] = vm_name
+        config.setdefault("timezone", "UTC")
         
         template_path = self._find_template(template_name, [".json"])
         if not template_path:
@@ -200,6 +204,7 @@ class AutomationEngine:
         
         config = user_config.copy()
         config["vm_name"] = vm_name
+        config.setdefault("timezone", "UTC")
         
         # Detect desktop from template name and install needed stuff
         desktop_cmd = ""

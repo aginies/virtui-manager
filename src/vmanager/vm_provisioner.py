@@ -2,12 +2,12 @@
 Library for VM creation and provisioning, supporting multiple Linux distributions.
 """
 
+import base64
 import hashlib
 import logging
 import os
 import re
 import shutil
-import socket
 import ssl
 import subprocess
 import tempfile
@@ -26,11 +26,10 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 import yaml
-import netifaces
 
 import libvirt
 
-from .auto_http_server import AutoHTTPServer
+from .auto_http_server import AutoHTTPServer, RemoteAutoHTTPServer
 from .config import load_config
 from .constants import AppInfo, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
@@ -44,6 +43,7 @@ from .vm_actions import strip_installation_assets, get_vm_boot_files, delete_boo
 from .utils import (
     get_ssh_host_from_uri,
     manage_firewalld_port,
+    run_command,
 )
 
 
@@ -461,7 +461,31 @@ class VMProvisioner:
         Uploads a local file to the specified storage pool.
         Returns the path of the uploaded volume on the server.
         """
+        uri = self.conn.getURI()
+        is_remote = uri and not ("qemu:///system" in uri or "qemu:///session" in uri)
+        ssh_host = get_ssh_host_from_uri(uri) if is_remote else None
+
         if not os.path.exists(local_path):
+            if is_remote:
+                # Path doesn't exist locally — could be a remote path.
+                # Verify it exists on the remote host before trusting it.
+                if ssh_host:
+                    check = run_command(
+                        ["test", "-f", local_path],
+                        remote_host=ssh_host,
+                        check=False,
+                        timeout=10,
+                    )
+                    if check.returncode != 0:
+                        raise FileNotFoundError(
+                            f"File not found locally or on remote host: {local_path}"
+                        )
+                else:
+                    raise FileNotFoundError(f"Local file not found: {local_path}")
+                logging.info(f"Using remote path {local_path} directly.")
+                if progress_callback:
+                    progress_callback(100)
+                return local_path
             raise FileNotFoundError(f"Local file not found: {local_path}")
 
         file_size = os.path.getsize(local_path)
@@ -596,7 +620,28 @@ class VMProvisioner:
         If expected_checksum is provided, returns True if matches, False otherwise.
         If not provided, returns True (just calculates and logs).
         """
+        uri = self.conn.getURI()
+        is_remote = uri and not ("qemu:///system" in uri or "qemu:///session" in uri)
+        ssh_host = get_ssh_host_from_uri(uri) if is_remote else None
+
         if not os.path.exists(local_path):
+            if is_remote:
+                if ssh_host:
+                    check = run_command(
+                        ["test", "-f", local_path],
+                        remote_host=ssh_host,
+                        check=False,
+                        timeout=10,
+                    )
+                    if check.returncode != 0:
+                        logging.warning(
+                            f"Remote ISO path {local_path} not found on remote host."
+                        )
+                        return False
+                else:
+                    return False
+                logging.info(f"Remote ISO path {local_path} exists, skipping local validation.")
+                return True
             return False
 
         sha256_hash = hashlib.sha256()
@@ -1432,50 +1477,49 @@ class VMProvisioner:
         xml += "</domain>"
         return xml
 
-    def _get_host_ip_for_vms(self) -> str:
+    def _get_host_ip_for_vms(self, network_name: str = "default") -> str:
         """
         Gets the host IP address that VMs can use to reach the host.
-        For local libvirt connections, this is typically the virbr0 bridge IP (usually 192.168.122.1).
-        For remote connections, we try to determine the best IP to use.
+        This is the IP of the libvirt network's bridge (e.g. virbr0 = 192.168.122.1),
+        which is reachable from VMs on that network. Works for both local and
+        remote connections by querying the network definition via libvirt.
         """
         try:
-            # For local connections, use the default libvirt bridge IP
-            uri = self.conn.getURI()
-            if "qemu:///system" in uri or "qemu:///session" in uri:
-                # Try to get virbr0 IP address
-                try:
-                    if "virbr0" in netifaces.interfaces():
-                        addrs = netifaces.ifaddresses("virbr0")
-                        if netifaces.AF_INET in addrs:
-                            return addrs[netifaces.AF_INET][0]["addr"]
-                except ImportError:
-                    # netifaces not available, use common default
-                    pass
-                except Exception as e:
-                    self.logger.warning(f"Failed to get virbr0 IP: {e}")
-
-                # Fall back to common default for local libvirt
-                return "192.168.122.1"
-
-            # For remote connections, try to get the host's primary IP
-            # Create a socket to determine which interface would be used to reach the internet
-            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            # Query the libvirt network definition for its IP address
             try:
-                # Connect to a public DNS server (doesn't actually send data)
-                s.connect(("8.8.8.8", 80))
-                ip = s.getsockname()[0]
-                return ip
-            finally:
-                s.close()
+                net = self.conn.networkLookupByName(network_name)
+                net_xml = net.getXMLDesc(0)
+                root = ET.fromstring(net_xml)
+                ip_elem = root.find("ip")
+                if ip_elem is not None and ip_elem.get("address"):
+                    return ip_elem.get("address")
+            except libvirt.libvirtError as e:
+                self.logger.warning(
+                    f"Failed to query network '{network_name}' IP: {e}"
+                )
+            except Exception as e:
+                self.logger.warning(f"Failed to parse network XML: {e}")
+
+            # Fall back to common default for libvirt NAT networks
+            return "192.168.122.1"
 
         except Exception as e:
             self.logger.warning(f"Failed to determine host IP, using 192.168.122.1: {e}")
             return "192.168.122.1"
 
     def _create_automation_floppy_image(
-        self, automation_file_path: str, output_dir: Path, internal_filename: str = "autoinst.xml"
+        self,
+        automation_file_path: str,
+        output_dir: Path,
+        internal_filename: str = "autoinst.xml",
+        remote_host: str | None = None,
     ) -> str:
         """Creates a FAT-formatted floppy image containing the automation file."""
+        if remote_host:
+            return self._create_automation_floppy_image_remote(
+                automation_file_path, remote_host, internal_filename
+            )
+
         floppy_image_path = output_dir / "automation.img"
 
         # Check for required tools
@@ -1523,15 +1567,91 @@ class VMProvisioner:
             self.logger.error(f"Failed to create floppy image: {stderr}")
             raise Exception(f"Failed to create automation floppy image: {stderr}") from e
 
-    def _extract_iso_kernel_initrd(self, iso_path: str, arch: str) -> tuple[str, str]:
-        """Extracts kernel and initrd from an openSUSE/SLES ISO."""
-        if not shutil.which("7z"):
-            raise Exception(
-                "XML-based Auto with kernel arguments requires '7z' (p7zip-full). "
-                "Please install it or use the virt-install method."
+    def _create_automation_floppy_image_remote(
+        self,
+        automation_file_path: str,
+        remote_host: str,
+        internal_filename: str = "autoinst.xml",
+    ) -> str:
+        """Creates a FAT-formatted floppy image on the remote host via SSH."""
+        remote_img = f"/tmp/automation-{uuid.uuid4().hex[:8]}.img"
+        remote_src = f"/tmp/autoinst-{uuid.uuid4().hex[:8]}.tmp"
+
+        try:
+            # Transfer automation file to remote via base64
+            with open(automation_file_path, "rb") as f:
+                b64_data = base64.b64encode(f.read()).decode("ascii")
+            run_command(
+                [f"echo '{b64_data}' | base64 -d > {remote_src}"],
+                remote_host=remote_host,
+                timeout=60,
             )
 
-        tmp_dir = tempfile.mkdtemp(prefix="virtui_iso_extract_")
+            # Create and format floppy image on remote
+            run_command(
+                ["dd", "if=/dev/zero", f"of={remote_img}", "bs=1k", "count=1440"],
+                remote_host=remote_host,
+                timeout=30,
+            )
+            run_command(
+                ["mkfs.vfat", remote_img],
+                remote_host=remote_host,
+                timeout=30,
+            )
+
+            # Copy file into floppy image
+            run_command(
+                ["mcopy", "-i", remote_img, remote_src, "::/"],
+                remote_host=remote_host,
+                timeout=30,
+            )
+
+            self.logger.info(f"Created remote automation floppy at {remote_img}")
+            return remote_img
+
+        except Exception as e:
+            # Cleanup remote temp files on failure
+            try:
+                run_command(
+                    ["rm", "-f", remote_img, remote_src],
+                    remote_host=remote_host,
+                    timeout=10,
+                )
+            except Exception:
+                pass
+            self.logger.error(f"Failed to create remote floppy image: {e}")
+            raise Exception(f"Failed to create remote automation floppy image: {e}") from e
+
+        finally:
+            # Cleanup source file (image stays for upload)
+            try:
+                run_command(["rm", "-f", remote_src], remote_host=remote_host, timeout=10)
+            except Exception:
+                pass
+
+    def _extract_iso_kernel_initrd(
+        self, iso_path: str, arch: str, remote_host: str | None = None
+    ) -> tuple[str, str]:
+        """Extracts kernel and initrd from an openSUSE/SLES ISO."""
+        if remote_host:
+            which_result = run_command(["which", "7z"], remote_host=remote_host, check=False)
+            if which_result.returncode != 0:
+                raise Exception(
+                    "XML-based Auto with kernel arguments requires '7z' (p7zip-full) on the remote host. "
+                    "Please install it or use the virt-install method."
+                )
+        else:
+            if not shutil.which("7z"):
+                raise Exception(
+                    "XML-based Auto with kernel arguments requires '7z' (p7zip-full). "
+                    "Please install it or use the virt-install method."
+                )
+
+        tmp_dir = (
+            f"/tmp/virtui_iso_extract_{uuid.uuid4().hex[:8]}"
+            if remote_host
+            else tempfile.mkdtemp(prefix="virtui_iso_extract_")
+        )
         kernel_path_in_iso = f"boot/{arch}/loader/linux"
         initrd_path_in_iso = f"boot/{arch}/loader/initrd"
 
@@ -1546,17 +1666,30 @@ class VMProvisioner:
                 f"-o{tmp_dir}",
                 "-y",  # Assume yes to all queries
             ]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if remote_host:
+                run_command(cmd, remote_host=remote_host, timeout=120)
+            else:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             extracted_kernel_path = os.path.join(tmp_dir, "boot", arch, "loader", "linux")
             extracted_initrd_path = os.path.join(tmp_dir, "boot", arch, "loader", "initrd")
 
-            if not os.path.exists(extracted_kernel_path) or not os.path.exists(
-                extracted_initrd_path
-            ):
-                raise FileNotFoundError(
-                    "Kernel or initrd not found in the ISO at the expected path."
-                )
+            if remote_host:
+                for check_path in [extracted_kernel_path, extracted_initrd_path]:
+                    check_result = run_command(
+                        ["test", "-f", check_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode != 0:
+                        raise FileNotFoundError(
+                            "Kernel or initrd not found in the ISO at the expected path."
+                        )
+            else:
+                if not os.path.exists(extracted_kernel_path) or not os.path.exists(
+                    extracted_initrd_path
+                ):
+                    raise FileNotFoundError(
+                        "Kernel or initrd not found in the ISO at the expected path."
+                    )
 
             self.logger.info(f"Kernel and initrd extracted to {tmp_dir}")
             return extracted_kernel_path, extracted_initrd_path
@@ -1565,18 +1698,38 @@ class VMProvisioner:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
-            shutil.rmtree(tmp_dir)
+            if remote_host:
+                try:
+                    run_command(["rm", "-rf", tmp_dir], remote_host=remote_host, timeout=10)
+                except Exception:
+                    pass
+            else:
+                shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract kernel/initrd from ISO: {stderr}") from e
 
-    def _extract_debian_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+    def _extract_debian_iso_kernel_initrd(
+        self, iso_path: str, remote_host: str | None = None
+    ) -> tuple[str, str]:
         """Extracts kernel and initrd from a Debian ISO (install.amd/ directory)."""
-        if not shutil.which("7z"):
-            raise Exception(
-                "Debian kernel extraction requires '7z' (p7zip-full). "
-                "Please install it or use the virt-install method."
-            )
+        if remote_host:
+            which_result = run_command(["which", "7z"], remote_host=remote_host, check=False)
+            if which_result.returncode != 0:
+                raise Exception(
+                    "Debian kernel extraction requires '7z' (p7zip-full) on the remote host. "
+                    "Please install it or use the virt-install method."
+                )
+        else:
+            if not shutil.which("7z"):
+                raise Exception(
+                    "Debian kernel extraction requires '7z' (p7zip-full). "
+                    "Please install it or use the virt-install method."
+                )
 
-        tmp_dir = tempfile.mkdtemp(prefix="virtui_debian_iso_extract_")
+        tmp_dir = (
+            f"/tmp/virtui_debian_iso_extract_{uuid.uuid4().hex[:8]}"
+            if remote_host
+            else tempfile.mkdtemp(prefix="virtui_debian_iso_extract_")
+        )
 
         # Debian kernel and initrd are in the install.amd/ directory
         kernel_candidates = ["install.amd/vmlinuz", "install.amd/linux"]
@@ -1593,48 +1746,100 @@ class VMProvisioner:
                 f"-o{tmp_dir}",
                 "-y",  # Assume yes to all queries
             ]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if remote_host:
+                run_command(cmd, remote_host=remote_host, timeout=120)
+            else:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             # Find the actual kernel and initrd files
             install_dir = os.path.join(tmp_dir, "install.amd")
-            if not os.path.exists(install_dir):
-                raise FileNotFoundError("install.amd/ directory not found in Debian ISO")
+            if remote_host:
+                check_result = run_command(
+                    ["test", "-d", install_dir], remote_host=remote_host, check=False
+                )
+                if check_result.returncode != 0:
+                    raise FileNotFoundError("install.amd/ directory not found in Debian ISO")
+            else:
+                if not os.path.exists(install_dir):
+                    raise FileNotFoundError("install.amd/ directory not found in Debian ISO")
 
             # Find kernel file
             kernel_path = None
-            for candidate in kernel_candidates:
-                full_path = os.path.join(tmp_dir, candidate)
-                if os.path.exists(full_path):
-                    kernel_path = full_path
-                    break
-
-            if not kernel_path:
-                # List available files for debugging
-                available_files = []
-                for file in os.listdir(install_dir):
-                    if "vmlinuz" in file or "linux" in file:
-                        available_files.append(f"install.amd/{file}")
-                raise FileNotFoundError(
-                    f"Debian kernel (vmlinuz/linux) not found in install.amd/. Available: {available_files}"
-                )
+            if remote_host:
+                for candidate in kernel_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    check_result = run_command(
+                        ["test", "-f", full_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode == 0:
+                        kernel_path = full_path
+                        break
+                if not kernel_path:
+                    ls_result = run_command(
+                        ["ls", install_dir], remote_host=remote_host, check=False
+                    )
+                    available_files = [
+                        f"install.amd/{f}"
+                        for f in ls_result.stdout.split()
+                        if "vmlinuz" in f or "linux" in f
+                    ]
+                    raise FileNotFoundError(
+                        f"Debian kernel (vmlinuz/linux) not found in install.amd/. Available: {available_files}"
+                    )
+            else:
+                for candidate in kernel_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    if os.path.exists(full_path):
+                        kernel_path = full_path
+                        break
+                if not kernel_path:
+                    # List available files for debugging
+                    available_files = []
+                    for file in os.listdir(install_dir):
+                        if "vmlinuz" in file or "linux" in file:
+                            available_files.append(f"install.amd/{file}")
+                    raise FileNotFoundError(
+                        f"Debian kernel (vmlinuz/linux) not found in install.amd/. Available: {available_files}"
+                    )
 
             # Find initrd file
             initrd_path = None
-            for candidate in initrd_candidates:
-                full_path = os.path.join(tmp_dir, candidate)
-                if os.path.exists(full_path):
-                    initrd_path = full_path
-                    break
-
-            if not initrd_path:
-                # List available files for debugging
-                available_files = []
-                for file in os.listdir(install_dir):
-                    if "initrd" in file:
-                        available_files.append(f"install.amd/{file}")
-                raise FileNotFoundError(
-                    f"Debian initrd not found in install.amd/. Available: {available_files}"
-                )
+            if remote_host:
+                for candidate in initrd_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    check_result = run_command(
+                        ["test", "-f", full_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode == 0:
+                        initrd_path = full_path
+                        break
+                if not initrd_path:
+                    ls_result = run_command(
+                        ["ls", install_dir], remote_host=remote_host, check=False
+                    )
+                    available_files = [
+                        f"install.amd/{f}"
+                        for f in ls_result.stdout.split()
+                        if "initrd" in f
+                    ]
+                    raise FileNotFoundError(
+                        f"Debian initrd not found in install.amd/. Available: {available_files}"
+                    )
+            else:
+                for candidate in initrd_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    if os.path.exists(full_path):
+                        initrd_path = full_path
+                        break
+                if not initrd_path:
+                    # List available files for debugging
+                    available_files = []
+                    for file in os.listdir(install_dir):
+                        if "initrd" in file:
+                            available_files.append(f"install.amd/{file}")
+                    raise FileNotFoundError(
+                        f"Debian initrd not found in install.amd/. Available: {available_files}"
+                    )
 
             self.logger.info(f"Debian kernel and initrd extracted to {tmp_dir}")
             self.logger.info(f"  Kernel: {kernel_path}")
@@ -1645,18 +1850,38 @@ class VMProvisioner:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract Debian kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
-            shutil.rmtree(tmp_dir)
+            if remote_host:
+                try:
+                    run_command(["rm", "-rf", tmp_dir], remote_host=remote_host, timeout=10)
+                except Exception:
+                    pass
+            else:
+                shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract Debian kernel/initrd from ISO: {stderr}") from e
 
-    def _extract_ubuntu_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+    def _extract_ubuntu_iso_kernel_initrd(
+        self, iso_path: str, remote_host: str | None = None
+    ) -> tuple[str, str]:
         """Extracts kernel and initrd from an Ubuntu ISO (casper/ directory)."""
-        if not shutil.which("7z"):
-            raise Exception(
-                "Ubuntu kernel extraction requires '7z' (p7zip-full). "
-                "Please install it or use the virt-install method."
-            )
+        if remote_host:
+            which_result = run_command(["which", "7z"], remote_host=remote_host, check=False)
+            if which_result.returncode != 0:
+                raise Exception(
+                    "Ubuntu kernel extraction requires '7z' (p7zip-full) on the remote host. "
+                    "Please install it or use the virt-install method."
+                )
+        else:
+            if not shutil.which("7z"):
+                raise Exception(
+                    "Ubuntu kernel extraction requires '7z' (p7zip-full). "
+                    "Please install it or use the virt-install method."
+                )
 
-        tmp_dir = tempfile.mkdtemp(prefix="virtui_ubuntu_iso_extract_")
+        tmp_dir = (
+            f"/tmp/virtui_ubuntu_iso_extract_{uuid.uuid4().hex[:8]}"
+            if remote_host
+            else tempfile.mkdtemp(prefix="virtui_ubuntu_iso_extract_")
+        )
 
         # Ubuntu kernel and initrd are in the casper/ directory
         # Try both common naming patterns
@@ -1674,48 +1899,96 @@ class VMProvisioner:
                 f"-o{tmp_dir}",
                 "-y",  # Assume yes to all queries
             ]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if remote_host:
+                run_command(cmd, remote_host=remote_host, timeout=120)
+            else:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             # Find the actual kernel and initrd files
             casper_dir = os.path.join(tmp_dir, "casper")
-            if not os.path.exists(casper_dir):
-                raise FileNotFoundError("casper/ directory not found in Ubuntu ISO")
+            if remote_host:
+                check_result = run_command(
+                    ["test", "-d", casper_dir], remote_host=remote_host, check=False
+                )
+                if check_result.returncode != 0:
+                    raise FileNotFoundError("casper/ directory not found in Ubuntu ISO")
+            else:
+                if not os.path.exists(casper_dir):
+                    raise FileNotFoundError("casper/ directory not found in Ubuntu ISO")
 
             # Find kernel file
             kernel_path = None
-            for candidate in kernel_candidates:
-                full_path = os.path.join(tmp_dir, candidate)
-                if os.path.exists(full_path):
-                    kernel_path = full_path
-                    break
-
-            if not kernel_path:
-                # List available files for debugging
-                available_files = []
-                for file in os.listdir(casper_dir):
-                    if file.startswith("vmlinuz"):
-                        available_files.append(f"casper/{file}")
-                raise FileNotFoundError(
-                    f"Ubuntu kernel (vmlinuz*) not found in casper/. Available: {available_files}"
-                )
+            if remote_host:
+                for candidate in kernel_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    check_result = run_command(
+                        ["test", "-f", full_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode == 0:
+                        kernel_path = full_path
+                        break
+                if not kernel_path:
+                    ls_result = run_command(
+                        ["ls", casper_dir], remote_host=remote_host, check=False
+                    )
+                    available_files = [
+                        f"casper/{f}" for f in ls_result.stdout.split() if f.startswith("vmlinuz")
+                    ]
+                    raise FileNotFoundError(
+                        f"Ubuntu kernel (vmlinuz*) not found in casper/. Available: {available_files}"
+                    )
+            else:
+                for candidate in kernel_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    if os.path.exists(full_path):
+                        kernel_path = full_path
+                        break
+                if not kernel_path:
+                    # List available files for debugging
+                    available_files = []
+                    for file in os.listdir(casper_dir):
+                        if file.startswith("vmlinuz"):
+                            available_files.append(f"casper/{file}")
+                    raise FileNotFoundError(
+                        f"Ubuntu kernel (vmlinuz*) not found in casper/. Available: {available_files}"
+                    )
 
             # Find initrd file
             initrd_path = None
-            for candidate in initrd_candidates:
-                full_path = os.path.join(tmp_dir, candidate)
-                if os.path.exists(full_path):
-                    initrd_path = full_path
-                    break
-
-            if not initrd_path:
-                # List available files for debugging
-                available_files = []
-                for file in os.listdir(casper_dir):
-                    if file.startswith("initrd"):
-                        available_files.append(f"casper/{file}")
-                raise FileNotFoundError(
-                    f"Ubuntu initrd not found in casper/. Available: {available_files}"
-                )
+            if remote_host:
+                for candidate in initrd_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    check_result = run_command(
+                        ["test", "-f", full_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode == 0:
+                        initrd_path = full_path
+                        break
+                if not initrd_path:
+                    ls_result = run_command(
+                        ["ls", casper_dir], remote_host=remote_host, check=False
+                    )
+                    available_files = [
+                        f"casper/{f}" for f in ls_result.stdout.split() if f.startswith("initrd")
+                    ]
+                    raise FileNotFoundError(
+                        f"Ubuntu initrd not found in casper/. Available: {available_files}"
+                    )
+            else:
+                for candidate in initrd_candidates:
+                    full_path = os.path.join(tmp_dir, candidate)
+                    if os.path.exists(full_path):
+                        initrd_path = full_path
+                        break
+                if not initrd_path:
+                    # List available files for debugging
+                    available_files = []
+                    for file in os.listdir(casper_dir):
+                        if file.startswith("initrd"):
+                            available_files.append(f"casper/{file}")
+                    raise FileNotFoundError(
+                        f"Ubuntu initrd not found in casper/. Available: {available_files}"
+                    )
 
             self.logger.info(f"Ubuntu kernel and initrd extracted to {tmp_dir}")
             self.logger.info(f"  Kernel: {kernel_path}")
@@ -1726,18 +1999,38 @@ class VMProvisioner:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
-            shutil.rmtree(tmp_dir)
+            if remote_host:
+                try:
+                    run_command(["rm", "-rf", tmp_dir], remote_host=remote_host, timeout=10)
+                except Exception:
+                    pass
+            else:
+                shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract Ubuntu kernel/initrd from ISO: {stderr}") from e
 
-    def _extract_fedora_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+    def _extract_fedora_iso_kernel_initrd(
+        self, iso_path: str, remote_host: str | None = None
+    ) -> tuple[str, str]:
         """Extracts kernel and initrd from a Fedora ISO (images/pxeboot/ directory)."""
-        if not shutil.which("7z"):
-            raise Exception(
-                "Fedora kernel extraction requires '7z' (p7zip-full). "
-                "Please install it or use the virt-install method."
-            )
+        if remote_host:
+            which_result = run_command(["which", "7z"], remote_host=remote_host, check=False)
+            if which_result.returncode != 0:
+                raise Exception(
+                    "Fedora kernel extraction requires '7z' (p7zip-full) on the remote host. "
+                    "Please install it or use the virt-install method."
+                )
+        else:
+            if not shutil.which("7z"):
+                raise Exception(
+                    "Fedora kernel extraction requires '7z' (p7zip-full). "
+                    "Please install it or use the virt-install method."
+                )
 
-        tmp_dir = tempfile.mkdtemp(prefix="virtui_fedora_iso_extract_")
+        tmp_dir = (
+            f"/tmp/virtui_fedora_iso_extract_{uuid.uuid4().hex[:8]}"
+            if remote_host
+            else tempfile.mkdtemp(prefix="virtui_fedora_iso_extract_")
+        )
 
         # Fedora kernel and initrd are in the images/pxeboot/ directory
         kernel_path_in_iso = "images/pxeboot/vmlinuz"
@@ -1754,17 +2047,30 @@ class VMProvisioner:
                 f"-o{tmp_dir}",
                 "-y",
             ]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if remote_host:
+                run_command(cmd, remote_host=remote_host, timeout=120)
+            else:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             extracted_kernel_path = os.path.join(tmp_dir, "images", "pxeboot", "vmlinuz")
             extracted_initrd_path = os.path.join(tmp_dir, "images", "pxeboot", "initrd.img")
 
-            if not os.path.exists(extracted_kernel_path) or not os.path.exists(
-                extracted_initrd_path
-            ):
-                raise FileNotFoundError(
-                    "Fedora kernel or initrd not found in the ISO at the expected path."
-                )
+            if remote_host:
+                for check_path in [extracted_kernel_path, extracted_initrd_path]:
+                    check_result = run_command(
+                        ["test", "-f", check_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode != 0:
+                        raise FileNotFoundError(
+                            "Fedora kernel or initrd not found in the ISO at the expected path."
+                        )
+            else:
+                if not os.path.exists(extracted_kernel_path) or not os.path.exists(
+                    extracted_initrd_path
+                ):
+                    raise FileNotFoundError(
+                        "Fedora kernel or initrd not found in the ISO at the expected path."
+                    )
 
             self.logger.info(f"Fedora kernel and initrd extracted to {tmp_dir}")
             return extracted_kernel_path, extracted_initrd_path
@@ -1773,18 +2079,38 @@ class VMProvisioner:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract Fedora kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
-            shutil.rmtree(tmp_dir)
+            if remote_host:
+                try:
+                    run_command(["rm", "-rf", tmp_dir], remote_host=remote_host, timeout=10)
+                except Exception:
+                    pass
+            else:
+                shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract Fedora kernel/initrd from ISO: {stderr}") from e
 
-    def _extract_arch_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+    def _extract_arch_iso_kernel_initrd(
+        self, iso_path: str, remote_host: str | None = None
+    ) -> tuple[str, str]:
         """Extracts kernel and initrd from an Arch Linux ISO (arch/boot/x86_64/ directory)."""
-        if not shutil.which("7z"):
-            raise Exception(
-                "Arch Linux kernel extraction requires '7z' (p7zip-full). "
-                "Please install it or use the virt-install method."
-            )
+        if remote_host:
+            which_result = run_command(["which", "7z"], remote_host=remote_host, check=False)
+            if which_result.returncode != 0:
+                raise Exception(
+                    "Arch Linux kernel extraction requires '7z' (p7zip-full) on the remote host. "
+                    "Please install it or use the virt-install method."
+                )
+        else:
+            if not shutil.which("7z"):
+                raise Exception(
+                    "Arch Linux kernel extraction requires '7z' (p7zip-full). "
+                    "Please install it or use the virt-install method."
+                )
 
-        tmp_dir = tempfile.mkdtemp(prefix="virtui_arch_iso_extract_")
+        tmp_dir = (
+            f"/tmp/virtui_arch_iso_extract_{uuid.uuid4().hex[:8]}"
+            if remote_host
+            else tempfile.mkdtemp(prefix="virtui_arch_iso_extract_")
+        )
 
         # Arch kernel and initrd are in the arch/boot/x86_64/ directory
         kernel_path_in_iso = "arch/boot/x86_64/vmlinuz-linux"
@@ -1801,19 +2127,32 @@ class VMProvisioner:
                 f"-o{tmp_dir}",
                 "-y",
             ]
-            subprocess.run(cmd, check=True, capture_output=True, text=True)
+            if remote_host:
+                run_command(cmd, remote_host=remote_host, timeout=120)
+            else:
+                subprocess.run(cmd, check=True, capture_output=True, text=True)
 
             extracted_kernel_path = os.path.join(tmp_dir, "arch", "boot", "x86_64", "vmlinuz-linux")
             extracted_initrd_path = os.path.join(
                 tmp_dir, "arch", "boot", "x86_64", "initramfs-linux.img"
             )
 
-            if not os.path.exists(extracted_kernel_path) or not os.path.exists(
-                extracted_initrd_path
-            ):
-                raise FileNotFoundError(
-                    "Arch Linux kernel or initrd not found in the ISO at the expected path."
-                )
+            if remote_host:
+                for check_path in [extracted_kernel_path, extracted_initrd_path]:
+                    check_result = run_command(
+                        ["test", "-f", check_path], remote_host=remote_host, check=False
+                    )
+                    if check_result.returncode != 0:
+                        raise FileNotFoundError(
+                            "Arch Linux kernel or initrd not found in the ISO at the expected path."
+                        )
+            else:
+                if not os.path.exists(extracted_kernel_path) or not os.path.exists(
+                    extracted_initrd_path
+                ):
+                    raise FileNotFoundError(
+                        "Arch Linux kernel or initrd not found in the ISO at the expected path."
+                    )
 
             self.logger.info(f"Arch Linux kernel and initrd extracted to {tmp_dir}")
             return extracted_kernel_path, extracted_initrd_path
@@ -1822,18 +2161,38 @@ class VMProvisioner:
             stderr = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
             self.logger.error(f"Failed to extract Arch Linux kernel/initrd from ISO: {stderr}")
             # Clean up temp dir on failure
-            shutil.rmtree(tmp_dir)
+            if remote_host:
+                try:
+                    run_command(["rm", "-rf", tmp_dir], remote_host=remote_host, timeout=10)
+                except Exception:
+                    pass
+            else:
+                shutil.rmtree(tmp_dir)
             raise Exception(f"Failed to extract Arch Linux kernel/initrd from ISO: {stderr}") from e
 
-    def _extract_alpine_iso_kernel_initrd(self, iso_path: str) -> tuple[str, str]:
+    def _extract_alpine_iso_kernel_initrd(
+        self, iso_path: str, remote_host: str | None = None
+    ) -> tuple[str, str]:
         """Extracts kernel and initrd from an Alpine Linux ISO (boot/ directory)."""
-        if not shutil.which("7z"):
-            raise Exception(
-                "Alpine Linux kernel extraction requires '7z' (p7zip-full). "
-                "Please install it or use the virt-install method."
-            )
+        if remote_host:
+            which_result = run_command(["which", "7z"], remote_host=remote_host, check=False)
+            if which_result.returncode != 0:
+                raise Exception(
+                    "Alpine Linux kernel extraction requires '7z' (p7zip-full) on the remote host. "
+                    "Please install it or use the virt-install method."
+                )
+        else:
+            if not shutil.which("7z"):
+                raise Exception(
+                    "Alpine Linux kernel extraction requires '7z' (p7zip-full). "
+                    "Please install it or use the virt-install method."
+                )
 
-        tmp_dir = tempfile.mkdtemp(prefix="virtui_alpine_iso_extract_")
+        tmp_dir = (
+            f"/tmp/virtui_alpine_iso_extract_{uuid.uuid4().hex[:8]}"
+            if remote_host
+            else tempfile.mkdtemp(prefix="virtui_alpine_iso_extract_")
+        )
 
         # Alpine kernel and initrd are in the boot/ directory
         # We try 'virt' first, then 'lts'
@@ -1855,20 +2214,44 @@ class VMProvisioner:
                     f"-o{tmp_dir}",
                     "-y",
                 ]
-                subprocess.run(cmd, check=True, capture_output=True, text=True)
+                if remote_host:
+                    run_command(cmd, remote_host=remote_host, timeout=120)
+                else:
+                    subprocess.run(cmd, check=True, capture_output=True, text=True)
 
                 extracted_kernel_path = os.path.join(tmp_dir, *kernel_in_iso.split("/"))
                 extracted_initrd_path = os.path.join(tmp_dir, *initrd_in_iso.split("/"))
 
-                if os.path.exists(extracted_kernel_path) and os.path.exists(extracted_initrd_path):
-                    self.logger.info(f"Alpine Linux kernel and initrd extracted to {tmp_dir}")
-                    return extracted_kernel_path, extracted_initrd_path
+                if remote_host:
+                    for check_path in [extracted_kernel_path, extracted_initrd_path]:
+                        check_result = run_command(
+                            ["test", "-f", check_path], remote_host=remote_host, check=False
+                        )
+                        if check_result.returncode != 0:
+                            raise subprocess.CalledProcessError(
+                                1, "file not found"
+                            )
+                else:
+                    if not (
+                        os.path.exists(extracted_kernel_path)
+                        and os.path.exists(extracted_initrd_path)
+                    ):
+                        raise subprocess.CalledProcessError(1, "file not found")
+
+                self.logger.info(f"Alpine Linux kernel and initrd extracted to {tmp_dir}")
+                return extracted_kernel_path, extracted_initrd_path
             except subprocess.CalledProcessError as e:
                 last_error = e.stderr if hasattr(e, "stderr") and e.stderr else str(e)
                 continue
 
         # Clean up temp dir on failure
-        shutil.rmtree(tmp_dir)
+        if remote_host:
+            try:
+                run_command(["rm", "-rf", tmp_dir], remote_host=remote_host, timeout=10)
+            except Exception:
+                pass
+        else:
+            shutil.rmtree(tmp_dir)
         raise Exception(
             f"Failed to extract Alpine Linux kernel/initrd from ISO. Last error: {last_error}"
         )
@@ -2452,7 +2835,12 @@ class VMProvisioner:
 
                         # Try to start HTTP server on configured port, fallback to random
                         auto_install_port = config.get("AUTO_INSTALL_PORT", 8000)
-                        http_server = AutoHTTPServer(temp_dir, port=auto_install_port)
+                        if ssh_host:
+                            http_server = RemoteAutoHTTPServer(
+                                temp_dir, port=auto_install_port, remote_host=ssh_host
+                            )
+                        else:
+                            http_server = AutoHTTPServer(temp_dir, port=auto_install_port)
                         port = http_server.start()
                         # Open firewalld port if running
                         self.logger.info(f"Opening firewalld port {port} for auto install.")
@@ -2463,7 +2851,12 @@ class VMProvisioner:
                                 f"Configured Auto Install port {auto_install_port} is in use. "
                                 "Falling back to a random port."
                             )
-                            http_server = AutoHTTPServer(temp_dir, port=0)
+                            if ssh_host:
+                                http_server = RemoteAutoHTTPServer(
+                                    temp_dir, port=0, remote_host=ssh_host
+                                )
+                            else:
+                                http_server = AutoHTTPServer(temp_dir, port=0)
                             port = http_server.start()
                             # Open firewalld port if running
                             self.logger.info(f"Opening firewalld port {port} for auto install.")
@@ -2491,54 +2884,55 @@ class VMProvisioner:
                         temp_dir = None
 
                     # Get host IP and build Auto Install URL
-                    host_ip = self._get_host_ip_for_vms()
-                    if is_ubuntu_autoinstall:
-                        # For Ubuntu autoinstall, point to directory root (ends with /)
-                        auto_url = f"http://{host_ip}:{port}/"
-                        self.logger.info(f"Ubuntu autoinstall files available at: {auto_url}")
-                        self.logger.info(f"  user-data: {auto_url}user-data")
-                        self.logger.info(f"  meta-data: {auto_url}meta-data")
-                    elif is_ubuntu_preseed:
-                        # For Ubuntu preseed, point to the .cfg file
-                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        self.logger.info(f"Ubuntu preseed file available at: {auto_url}")
-                    elif is_fedora_ks:
-                        # For Fedora kickstart, point to the .cfg file
-                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        self.logger.info(f"Fedora kickstart file available at: {auto_url}")
-                    elif is_arch_json:
-                        # For Arch Linux archinstall, create setup.sh script and point to it
-                        json_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        creds_url = f"http://{host_ip}:{port}/{creds_filename}"
-                        setup_script_url = f"http://{host_ip}:{port}/{setup_script_filename}"
+                    if port is not None:
+                        host_ip = self._get_host_ip_for_vms(network_name)
+                        if is_ubuntu_autoinstall:
+                            # For Ubuntu autoinstall, point to directory root (ends with /)
+                            auto_url = f"http://{host_ip}:{port}/"
+                            self.logger.info(f"Ubuntu autoinstall files available at: {auto_url}")
+                            self.logger.info(f"  user-data: {auto_url}user-data")
+                            self.logger.info(f"  meta-data: {auto_url}meta-data")
+                        elif is_ubuntu_preseed:
+                            # For Ubuntu preseed, point to the .cfg file
+                            auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                            self.logger.info(f"Ubuntu preseed file available at: {auto_url}")
+                        elif is_fedora_ks:
+                            # For Fedora kickstart, point to the .cfg file
+                            auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                            self.logger.info(f"Fedora kickstart file available at: {auto_url}")
+                        elif is_arch_json:
+                            # For Arch Linux archinstall, create setup.sh script and point to it
+                            json_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                            creds_url = f"http://{host_ip}:{port}/{creds_filename}"
+                            setup_script_url = f"http://{host_ip}:{port}/{setup_script_filename}"
 
-                        # Generate the Arch Linux setup script using the automation engine
-                        setup_script_content = self.automation_engine.generate_arch_setup_script(
-                            json_url, creds_url
-                        )
-
-                        setup_script_path = temp_dir / setup_script_filename
-                        with open(setup_script_path, "w", encoding="utf-8") as f:
-                            f.write(setup_script_content)
-                        os.chmod(setup_script_path, 0o755)
-                        auto_url = setup_script_url
-                        self.logger.info(f"Arch Linux archinstall setup script available at: {setup_script_url}")
-                        self.logger.info(f"Arch Linux archinstall JSON file available at: {json_url}")
-                        self.logger.info(f"Arch Linux archinstall creds JSON file available at: {creds_url}")
-                    elif is_alpine_answers:
-                        # For Alpine Linux, point to the .txt or .apkovl file
-                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        self.logger.info(f"Alpine Linux automation file available at: {auto_url}")
-                    else:
-                        # For OpenSUSE/Agama, point to specific file
-                        auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
-                        if is_agama:
-                            self.logger.info(f"Agama automation URL set: {auto_url}")
-                            self.logger.info(
-                                f"  This URL will be passed to kernel cmdline as: inst.auto={auto_url}"
+                            # Generate the Arch Linux setup script using the automation engine
+                            setup_script_content = self.automation_engine.generate_arch_setup_script(
+                                json_url, creds_url
                             )
+
+                            setup_script_path = temp_dir / setup_script_filename
+                            with open(setup_script_path, "w", encoding="utf-8") as f:
+                                f.write(setup_script_content)
+                            os.chmod(setup_script_path, 0o755)
+                            auto_url = setup_script_url
+                            self.logger.info(f"Arch Linux archinstall setup script available at: {setup_script_url}")
+                            self.logger.info(f"Arch Linux archinstall JSON file available at: {json_url}")
+                            self.logger.info(f"Arch Linux archinstall creds JSON file available at: {creds_url}")
+                        elif is_alpine_answers:
+                            # For Alpine Linux, point to the .txt or .apkovl file
+                            auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                            self.logger.info(f"Alpine Linux automation file available at: {auto_url}")
                         else:
-                            self.logger.info(f"AutoYaST file available at: {auto_url}")
+                            # For OpenSUSE/Agama, point to specific file
+                            auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
+                            if is_agama:
+                                self.logger.info(f"Agama automation URL set: {auto_url}")
+                                self.logger.info(
+                                    f"  This URL will be passed to kernel cmdline as: inst.auto={auto_url}"
+                                )
+                            else:
+                                self.logger.info(f"AutoYaST file available at: {auto_url}")
 
                 else:
                     self.logger.warning("OpenSUSE provider not available for automation")
@@ -2568,27 +2962,35 @@ class VMProvisioner:
                     local_iso_path = _determine_iso_path(iso_url)
                     if os_type == OSType.ARCHLINUX:
                         local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
-                            local_iso_path
+                            local_iso_path, remote_host=ssh_host
                         )
                     elif os_type == OSType.DEBIAN:
                         local_kernel_path, local_initrd_path = (
-                            self._extract_debian_iso_kernel_initrd(local_iso_path)
+                            self._extract_debian_iso_kernel_initrd(
+                                local_iso_path, remote_host=ssh_host
+                            )
                         )
                     elif os_type == OSType.UBUNTU:
                         local_kernel_path, local_initrd_path = (
-                            self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                            self._extract_ubuntu_iso_kernel_initrd(
+                                local_iso_path, remote_host=ssh_host
+                            )
                         )
                     elif os_type == OSType.FEDORA:
                         local_kernel_path, local_initrd_path = (
-                            self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                            self._extract_fedora_iso_kernel_initrd(
+                                local_iso_path, remote_host=ssh_host
+                            )
                         )
                     elif os_type == OSType.ALPINE:
                         local_kernel_path, local_initrd_path = (
-                            self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                            self._extract_alpine_iso_kernel_initrd(
+                                local_iso_path, remote_host=ssh_host
+                            )
                         )
                     else:
                         local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
-                            local_iso_path, self.host_arch
+                            local_iso_path, self.host_arch, remote_host=ssh_host
                         )
 
                     report("Uploading kernel and initrd", 81)
@@ -2664,32 +3066,40 @@ class VMProvisioner:
                 if os_type == OSType.UBUNTU:
                     # Use Ubuntu-specific kernel extraction (casper/ directory)
                     local_kernel_path, local_initrd_path = (
-                        self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                        self._extract_ubuntu_iso_kernel_initrd(
+                            local_iso_path, remote_host=ssh_host
+                        )
                     )
                 elif os_type == OSType.DEBIAN:
                     # Use Debian-specific kernel extraction (install.amd/ directory)
                     local_kernel_path, local_initrd_path = (
-                        self._extract_debian_iso_kernel_initrd(local_iso_path)
+                        self._extract_debian_iso_kernel_initrd(
+                            local_iso_path, remote_host=ssh_host
+                        )
                     )
                 elif os_type == OSType.FEDORA:
                     # Use Fedora-specific kernel extraction (images/pxeboot/ directory)
                     local_kernel_path, local_initrd_path = (
-                        self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                        self._extract_fedora_iso_kernel_initrd(
+                            local_iso_path, remote_host=ssh_host
+                        )
                     )
                 elif os_type == OSType.ARCHLINUX:
                     # Use Arch Linux-specific kernel extraction (arch/boot/x86_64/ directory)
                     local_kernel_path, local_initrd_path = self._extract_arch_iso_kernel_initrd(
-                        local_iso_path
+                        local_iso_path, remote_host=ssh_host
                     )
                 elif os_type == OSType.ALPINE:
-                    # Use Alpine Linux-specific kernel extraction (boot/ directory)
+                    # Use Alpine-specific kernel extraction (boot/ directory)
                     local_kernel_path, local_initrd_path = (
-                        self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                        self._extract_alpine_iso_kernel_initrd(
+                            local_iso_path, remote_host=ssh_host
+                        )
                     )
                 else:
                     # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)
                     local_kernel_path, local_initrd_path = self._extract_iso_kernel_initrd(
-                        local_iso_path, self.host_arch
+                        local_iso_path, self.host_arch, remote_host=ssh_host
                     )
 
                 report("Uploading kernel and initrd", 81)
@@ -2737,6 +3147,7 @@ class VMProvisioner:
                         automation_file_path,
                         Path(os.path.dirname(automation_file_path)),
                         internal_filename=internal_filename,
+                        remote_host=ssh_host,
                     )
                     report("Uploading automation floppy image", 82)
                     automation_vol_name = f"{vm_name}-automation.img"
@@ -2917,13 +3328,12 @@ class VMProvisioner:
 
         # Cleanup any leftover temporary directories that weren't automat setup
         # (extract directories are not tracked by the restart_watcher)
-        self._cleanup_extract_temp_dirs()
+        self._cleanup_extract_temp_dirs(remote_host=ssh_host)
 
         report(StaticText.PROVISIONING_COMPLETE, 100)
         return dom
 
-    @staticmethod
-    def _cleanup_extract_temp_dirs():
+    def _cleanup_extract_temp_dirs(self, remote_host: str | None = None):
         """
         Clean up temporary directories created during ISO extraction.
         These are created by _extract_*_iso_kernel_initrd methods and should be
@@ -2940,11 +3350,27 @@ class VMProvisioner:
             "/tmp/virtui_alpine_iso_extract_*",
         ]
 
-        for pattern in temp_patterns:
-            for temp_dir in glob.glob(pattern):
+        if remote_host:
+            for pattern in temp_patterns:
+                # Safeguard: only allow patterns that match /tmp/virtui_*_extract_*
+                if not pattern.startswith("/tmp/virtui_") or not pattern.endswith("_extract_*"):
+                    logging.warning(f"Skipping unsafe cleanup pattern: {pattern}")
+                    continue
                 try:
-                    if os.path.isdir(temp_dir):
-                        shutil.rmtree(temp_dir, ignore_errors=True)
-                        logging.info(f"Cleaned up extraction temp directory: {temp_dir}")
+                    run_command(
+                        ["rm", "-rf", pattern],
+                        remote_host=remote_host,
+                        check=False,
+                        timeout=10,
+                    )
                 except Exception as e:
-                    logging.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
+                    logging.warning(f"Failed to cleanup remote temp dirs: {e}")
+        else:
+            for pattern in temp_patterns:
+                for temp_dir in glob.glob(pattern):
+                    try:
+                        if os.path.isdir(temp_dir):
+                            shutil.rmtree(temp_dir, ignore_errors=True)
+                            logging.info(f"Cleaned up extraction temp directory: {temp_dir}")
+                    except Exception as e:
+                        logging.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
