@@ -104,6 +104,9 @@ class TestAutoInstallRebootHandling(unittest.TestCase):
 
         # Verify on_reboot is set to "destroy" for auto-installation
         self.assertEqual(settings["on_reboot"], "destroy")
+        # QEMU forbids on_poweroff="restart" + on_reboot="destroy",
+        # so on_poweroff must also be forced to "destroy"
+        self.assertEqual(settings["on_poweroff"], "destroy")
 
     def test_normal_computation_has_restart(self):
         """Test that normal (non-auto) COMPUTATION installation has on_reboot as 'restart'."""
