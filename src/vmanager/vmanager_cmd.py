@@ -27,11 +27,18 @@ from .constants import AppInfo, ServerPallette
 from .libvirt_utils import get_host_resources, get_network_info
 from .network_manager import (
     delete_network,
+    ensure_default_network,
     list_networks,
     set_network_active,
     set_network_autostart,
 )
-from .storage_manager import list_storage_pools, list_unused_volumes
+from .storage_manager import (
+    ensure_default_pool,
+    list_storage_pools,
+    list_storage_volumes,
+    list_unused_volumes,
+)
+from .modals.input_modals import _sanitize_domain_name
 from .utils import (
     remote_viewer_cmd,
     sanitize_sensitive_data,
@@ -3537,6 +3544,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         vm_name = arg_list.pop(0)
 
+        # Sanitize VM name (same rules as TUI)
+        try:
+            vm_name, _was_modified = _sanitize_domain_name(vm_name)
+        except ValueError as e:
+            print(f"Invalid VM name: {e}")
+            return
+        if not vm_name:
+            print("VM name cannot be empty.")
+            return
+
         choices_provided = arg_list[:]
         choices_used = []
 
@@ -3554,6 +3571,25 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
             conn = self.active_connections[target_server]
             provisioner = VMProvisioner(conn)
+
+            # Check if VM already exists (fail fast before creating any artifacts)
+            try:
+                conn.lookupByName(vm_name)
+                print(f"VM '{vm_name}' already exists.")
+                return
+            except libvirt.libvirtError as e:
+                if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+                    print(f"Error checking VM name: {e}")
+                    return
+
+            # Ensure default pool and network exist and are active
+            if not ensure_default_pool(conn):
+                print("No storage pool available and could not create default pool.")
+                return
+            ensure_default_network(conn)
+            # Refresh cached lists in case resources were just created
+            list_storage_pools.cache_clear()
+            list_networks.cache_clear()
 
             # 2. Select VM Type
             selected_vm_type = self._select_choice(
@@ -3594,45 +3630,147 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 return
 
             # 5. Select ISO
-            print(f"\nFetching available ISOs for {selected_version.display_name}...")
-            iso_list = provisioner.get_iso_list(selected_version)
-            iso_options = iso_list + ["Custom URL/Path"]
-
-            def iso_display(iso):
-                if isinstance(iso, str):
-                    return iso
-                name = iso.get("name", iso.get("url"))
-                date = iso.get("date", "")
-                size = iso.get("size", "Unknown")
-                label = f"{name}"
-                if date:
-                    label += f" ({date})"
-                return f"{label} [Size: {size}]"
-
-            selected_iso_obj = self._select_choice(
-                "Select ISO Image",
-                iso_options,
+            iso_sources = [
+                "Distribution repository",
+                "Cached ISOs",
+                "Pool volumes",
+                "Custom URL/Path",
+            ]
+            iso_source = self._select_choice(
+                "Select ISO Source",
+                iso_sources,
                 choices_provided=choices_provided,
                 choices_used=choices_used,
-                display_func=iso_display,
                 auto_select=False,
             )
-
-            if not selected_iso_obj:
+            if not iso_source:
                 return
 
-            if selected_iso_obj == "Custom URL/Path":
-                iso_url = self._get_input(
-                    "Enter custom ISO URL or absolute path: ", choices_provided, choices_used
+            if iso_source == "Distribution repository":
+                print(f"\nFetching available ISOs for {selected_version.display_name}...")
+                iso_list = provisioner.get_iso_list(selected_version)
+                if not iso_list:
+                    print("No ISOs found for this distribution/version.")
+                    return
+
+                def iso_display(iso):
+                    name = iso.get("name", iso.get("url"))
+                    date = iso.get("date", "")
+                    size = iso.get("size", "Unknown")
+                    label = f"{name}"
+                    if date:
+                        label += f" ({date})"
+                    return f"{label} [Size: {size}]"
+
+                selected_iso_obj = self._select_choice(
+                    "Select ISO Image",
+                    iso_list,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=iso_display,
+                    auto_select=False,
                 )
-            elif isinstance(selected_iso_obj, dict):
-                iso_url = selected_iso_obj["url"]
-            else:
-                iso_url = selected_iso_obj
+                if not selected_iso_obj:
+                    return
+                iso_url = (
+                    selected_iso_obj["url"]
+                    if isinstance(selected_iso_obj, dict)
+                    else selected_iso_obj
+                )
 
-            if not iso_url:
-                print("Valid ISO URL or path is required.")
-                return
+            elif iso_source == "Cached ISOs":
+                cached_isos = provisioner.get_cached_isos()
+                if not cached_isos:
+                    print("No cached ISOs found.")
+                    return
+                selected_cached = self._select_choice(
+                    "Select Cached ISO",
+                    cached_isos,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=lambda c: f"{c['name']} ({c['date']})",
+                    value_func=lambda c: c["url"],
+                    auto_select=False,
+                )
+                if not selected_cached:
+                    return
+                iso_cache_dir = Path(
+                    self.config.get(
+                        "ISO_DOWNLOAD_PATH",
+                        str(Path.home() / ".cache" / AppInfo.name / "isos"),
+                    )
+                )
+                iso_url = str(iso_cache_dir / selected_cached)
+
+            elif iso_source == "Pool volumes":
+                vol_options = []
+                for p in [
+                    p for p in list_storage_pools(conn) if p["status"] == "active"
+                ]:
+                    for v in list_storage_volumes(p["pool"]):
+                        if v["name"].lower().endswith(".iso"):
+                            vol_options.append((p["name"], v["name"]))
+                if not vol_options:
+                    print("No ISO volumes found in active pools.")
+                    return
+                selected_vol = self._select_choice(
+                    "Select ISO Volume",
+                    vol_options,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=lambda pv: f"{pv[1]} (pool: {pv[0]})",
+                    auto_select=False,
+                )
+                if not selected_vol:
+                    return
+                vol_pool_name, vol_name = selected_vol
+                iso_url = provisioner.check_pool_volume(vol_name, vol_pool_name)
+                if not iso_url:
+                    print(
+                        f"Could not resolve volume '{vol_name}' in pool '{vol_pool_name}'."
+                    )
+                    return
+
+            else:  # Custom URL/Path
+                iso_url = self._get_input(
+                    "Enter custom ISO URL or absolute path: ",
+                    choices_provided,
+                    choices_used,
+                )
+                if not iso_url:
+                    print("Valid ISO URL or path is required.")
+                    return
+
+                # Validate local path (TUI parity); validate_iso handles remote via SSH
+                if not iso_url.startswith(("http://", "https://", "file://")):
+                    uri = conn.getURI()
+                    is_remote = uri and not (
+                        "qemu:///system" in uri or "qemu:///session" in uri
+                    )
+                    if not is_remote:
+                        if not os.path.exists(iso_url):
+                            print(f"ISO path does not exist: {iso_url}")
+                            return
+                        if not os.path.isfile(iso_url):
+                            print(f"ISO path is not a file: {iso_url}")
+                            return
+
+                # Optional checksum validation (interactive only, to avoid
+                # shifting unattended positional choices)
+                if not choices_provided:
+                    use_checksum = self._select_choice(
+                        "Validate ISO checksum (SHA256)?",
+                        ["no", "yes"],
+                        auto_select=False,
+                    )
+                    if use_checksum == "yes":
+                        checksum = self._get_input("Enter SHA256 checksum: ")
+                        if not checksum:
+                            print("Checksum required for validation.")
+                            return
+                        if not provisioner.validate_iso(iso_url, checksum):
+                            print("Checksum validation failed.")
+                            return
 
             # 6. Select Network
             active_networks = [n for n in list_networks(conn) if n["active"]]
@@ -3654,8 +3792,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             if not selected_network:
                 selected_network = "default"
 
+            # Validate selected network exists and is active
+            try:
+                net_obj = conn.networkLookupByName(selected_network)
+                if not net_obj.isActive():
+                    print(f"Network '{selected_network}' is not active.")
+                    return
+            except libvirt.libvirtError as e:
+                print(f"Network '{selected_network}' not found: {e}")
+                return
+
             # 7. Select Storage Pool
-            pools_info = list_storage_pools(conn)
+            pools_info = [p for p in list_storage_pools(conn) if p["status"] == "active"]
             if not pools_info:
                 print("No active storage pools found.")
                 return
@@ -3672,7 +3820,19 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             if not selected_pool:
                 return
 
-            # 7. Automated Installation
+            # 8. Select Boot Mode (UEFI/BIOS)
+            boot_mode = self._select_choice(
+                "Select Boot Mode",
+                ["UEFI", "BIOS"],
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                auto_select=False,
+            )
+            if not boot_mode:
+                return
+            boot_uefi = boot_mode == "UEFI"
+
+            # 9. Automated Installation
             auto_config = None
             templates = []
             try:
@@ -3773,8 +3933,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print(f"Distribution: {selected_os_type.value}")
             print(f"Version: {selected_version.display_name}")
             print(f"ISO: {iso_url}")
+            print(f"ISO Source: {iso_source}")
             print(f"Network: {selected_network}")
             print(f"Storage Pool: {selected_pool}")
+            print(f"Boot Mode: {boot_mode}")
             if auto_config:
                 print(f"Automated Install: Yes (Template: {selected_template})")
             else:
@@ -3804,11 +3966,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 automation_config=auto_config,
                 progress_callback=cli_progress_callback,
                 network_name=selected_network,
+                boot_uefi=boot_uefi,
             )
             if domain:
                 print(f"\nSuccessfully provisioned VM '{vm_name}'.")
-                start_vm(domain)
-                print(f"VM '{vm_name}' started.")
+                if domain.isActive():
+                    print(f"VM '{vm_name}' is already running.")
+                else:
+                    start_vm(domain)
+                    print(f"VM '{vm_name}' started.")
         except Exception as e:
             print(f"\nFailed to provision VM: {e}")
 
