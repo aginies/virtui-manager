@@ -759,7 +759,14 @@ class VMProvisioner:
             temp_pool = self.conn.storagePoolDefineXML(xml, 0)
             temp_pool.create(0)
 
-            source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
+            try:
+                source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
+            except libvirt.libvirtError:
+                self.logger.warning(
+                    f"NVRAM template '{vars_vol_name}' not found in firmware directory. "
+                    "Falling back to libvirt auto-NVRAM."
+                )
+                return None, None
             
             # Use 'nvram' pool if it exists and is active, otherwise fallback to target_pool_name
             target_pool = None
@@ -1100,11 +1107,14 @@ class VMProvisioner:
         # For auto-installation, ensure on_reboot is "destroy" so the VM stops after installation
         # This allows the app to detect completion, cleanup HTTP server, and strip installation assets
         # The on_reboot will be changed back to "restart" (except for SECURE VMs) by strip_installation_assets
+        # QEMU forbids on_poweroff="restart" + on_reboot="destroy", so also force on_poweroff="destroy"
         if is_auto_install and vm_type != VMType.SECURE:
             self.logger.info(
                 f"Auto-installation mode: setting on_reboot to 'destroy' for {vm_type.value} VM"
             )
             settings["on_reboot"] = "destroy"
+            if settings["on_poweroff"] == "restart":
+                settings["on_poweroff"] = "destroy"
 
         return settings
 
@@ -1488,7 +1498,7 @@ class VMProvisioner:
             # Query the libvirt network definition for its IP address
             try:
                 net = self.conn.networkLookupByName(network_name)
-                net_xml = net.getXMLDesc(0)
+                net_xml = net.XMLDesc(0)
                 root = ET.fromstring(net_xml)
                 ip_elem = root.find("ip")
                 if ip_elem is not None and ip_elem.get("address"):
@@ -2677,56 +2687,55 @@ class VMProvisioner:
                                 self.logger.info("Automation tarball validation passed")
                             else:
                                 raise ValueError("Invalid automation tarball file")
-                            content = ""  # No text content to validate
                         else:
                             with open(automation_file_path, "r", encoding="utf-8") as f:
                                 content = f.read()
 
-                        if file_path_str.endswith(".json"):
-                            json.loads(content)
-                            self.logger.info("Automation JSON file validation passed")
-                        elif (
-                            file_path_str.endswith((".yaml", ".yml"))
-                            or "user-data" in file_path_str
-                        ):
-                            # Ubuntu autoinstall uses YAML format
-                            yaml.safe_load(content)
-                            self.logger.info("Automation YAML file validation passed")
-                        elif (
-                            "ks-" in file_path_str
-                            and file_path_str.endswith(".cfg")
-                            or file_path_str.endswith(".ks")
-                        ):
-                            # Fedora Kickstart (no comprehensive validation, just check keywords)
-                            if not any(kw in content for kw in ["%packages", "rootpw"]):
-                                self.logger.warning(
-                                    "Kickstart file might be missing required keywords"
+                            if file_path_str.endswith(".json"):
+                                json.loads(content)
+                                self.logger.info("Automation JSON file validation passed")
+                            elif (
+                                    file_path_str.endswith((".yaml", ".yml"))
+                                    or "user-data" in file_path_str
+                            ):
+                                # Ubuntu autoinstall uses YAML format
+                                yaml.safe_load(content)
+                                self.logger.info("Automation YAML file validation passed")
+                            elif (
+                                    "ks-" in file_path_str
+                                    and file_path_str.endswith(".cfg")
+                                    or file_path_str.endswith(".ks")
+                            ):
+                                # Fedora Kickstart (no comprehensive validation, just check keywords)
+                                if not any(kw in content for kw in ["%packages", "rootpw"]):
+                                    self.logger.warning(
+                                        "Kickstart file might be missing required keywords"
+                                    )
+                                self.logger.info("Automation Kickstart file basic validation passed")
+                            elif file_path_str.endswith(".cfg"):
+                                # Ubuntu preseed uses CFG format (no validation, just check non-empty)
+                                if not content.strip():
+                                    raise ValueError("Preseed file is empty")
+                                self.logger.info("Automation CFG file validation passed")
+                            elif file_path_str.endswith(".xml"):
+                                # OpenSUSE AutoYaST uses XML format
+                                ET.fromstring(content)
+                                self.logger.info("Automation XML file validation passed")
+                            elif file_path_str.endswith(".txt") and "alpine" in file_path_str.lower():
+                                # Alpine answers file
+                                if "HOSTNAMEOPTS" not in content:
+                                    self.logger.warning(
+                                        "Alpine answers file might be missing required keywords"
+                                    )
+                                self.logger.info(
+                                    "Automation Alpine answers file basic validation passed"
                                 )
-                            self.logger.info("Automation Kickstart file basic validation passed")
-                        elif file_path_str.endswith(".cfg"):
-                            # Ubuntu preseed uses CFG format (no validation, just check non-empty)
-                            if not content.strip():
-                                raise ValueError("Preseed file is empty")
-                            self.logger.info("Automation CFG file validation passed")
-                        elif file_path_str.endswith(".xml"):
-                            # OpenSUSE AutoYaST uses XML format
-                            ET.fromstring(content)
-                            self.logger.info("Automation XML file validation passed")
-                        elif file_path_str.endswith(".txt") and "alpine" in file_path_str.lower():
-                            # Alpine answers file
-                            if "HOSTNAMEOPTS" not in content:
+                            else:
+                                # Unknown format, log warning but don't fail
                                 self.logger.warning(
-                                    "Alpine answers file might be missing required keywords"
+                                    f"Unknown automation file format: {automation_file_path}"
                                 )
-                            self.logger.info(
-                                "Automation Alpine answers file basic validation passed"
-                            )
-                        else:
-                            # Unknown format, log warning but don't fail
-                            self.logger.warning(
-                                f"Unknown automation file format: {automation_file_path}"
-                            )
-                            self.logger.info("Skipping validation for unknown file format")
+                                self.logger.info("Skipping validation for unknown file format")
 
                     except ET.ParseError as parse_error:
                         self.logger.error(f"Invalid XML in automation file: {parse_error}")
@@ -3211,7 +3220,7 @@ class VMProvisioner:
                 # Capture boot files before stripping them from XML
                 root = ET.fromstring(dom.XMLDesc(libvirt.VIR_DOMAIN_XML_INACTIVE))
                 boot_files = get_vm_boot_files(root)
-                strip_installation_assets(dom)
+                strip_installation_assets(dom, adjust_on_reboot=False)
             except Exception as e:
                 self.logger.warning(f"Failed to strip installation assets: {e}")
 

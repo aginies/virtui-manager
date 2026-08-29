@@ -39,6 +39,14 @@ def is_running_under_flatpak():
 # Constants
 DEFAULT_WINDOW_WIDTH = 1200
 DEFAULT_WINDOW_HEIGHT = 800
+
+
+def _child_setup(user_data):
+    """GSpawnChildSetupFunc: runs in the child before exec. Puts the child in
+    its own process group so cleanup can kill the whole tree (tmux + vmanager)."""
+    os.setpgrp()
+
+
 MIN_WINDOW_WIDTH = 800
 MIN_WINDOW_HEIGHT = 600
 DEFAULT_FONT_SIZE = 12
@@ -82,6 +90,7 @@ class VirtuiWrapper(Gtk.Window):
 
         # Track child PIDs for cleanup
         self.terminal_pids = {}  # {terminal: pid}
+        self.watchdog_pids = {}  # {session_name: pid}
         self.cleanup_in_progress = False
 
         # Dictionary to store tab data: terminal -> { 'page': ScrolledWindow, 'label': Label }
@@ -291,6 +300,8 @@ class VirtuiWrapper(Gtk.Window):
             # Fallback to running without tmux if not available
             cmd = [sys.executable, "-m", "vmanager.wrapper"]
         self.create_tab("Virtui Manager", cmd, session_name=session_name, allow_copy_paste=False)
+        if session_name:
+            self._spawn_watchdog(session_name, tmux_bin)
 
     def on_new_cmd_tab(self, widget):
         cmd_cli = [sys.executable, "-u", "-m", "vmanager.vmanager_cmd"]
@@ -548,6 +559,26 @@ class VirtuiWrapper(Gtk.Window):
             return True
         return False
 
+    def _spawn_watchdog(self, session_name, tmux_bin):
+        """Spawn a watchdog that kills the tmux session if this process dies.
+        Covers the case where X/Wayland is killed and the GUI gets SIGKILL'd
+        without running any cleanup code."""
+        gui_pid = os.getpid()
+        script = (
+            f"while kill -0 {gui_pid} 2>/dev/null; do sleep 1; done; "
+            f"{tmux_bin} kill-session -t {session_name} 2>/dev/null"
+        )
+        try:
+            proc = subprocess.Popen(
+                ["sh", "-c", script],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            self.watchdog_pids[session_name] = proc.pid
+        except Exception as e:
+            print(f"Error spawning watchdog for {session_name}: {e}")
+
     def kill_tmux_session(self, session_name):
         if is_running_under_flatpak():
             tmux_bin = "/app/bin/tmux"
@@ -633,6 +664,12 @@ class VirtuiWrapper(Gtk.Window):
         # Kill tmux session if needed
         if session_name:
             self.kill_tmux_session(session_name)
+            if session_name in self.watchdog_pids:
+                try:
+                    os.kill(self.watchdog_pids[session_name], signal.SIGTERM)
+                except OSError:
+                    pass
+                del self.watchdog_pids[session_name]
 
     def on_close_tab(self, button, terminal):
         """Handle closing a single tab with proper cleanup."""
@@ -799,7 +836,7 @@ class VirtuiWrapper(Gtk.Window):
                 cmd,  # Command arguments
                 envv,  # Environment
                 GLib.SpawnFlags.DEFAULT,
-                None,  # child_setup
+                _child_setup,  # child_setup: os.setpgrp() in child
                 None,  # child_setup_data
                 -1,  # timeout
                 None,  # cancellable

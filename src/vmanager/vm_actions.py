@@ -1530,7 +1530,7 @@ def _do_set_boot_info(domain: libvirt.virDomain, root: ET.Element, menu_enabled:
                 break
 
 
-def strip_installation_assets(domain: libvirt.virDomain):
+def strip_installation_assets(domain: libvirt.virDomain, adjust_on_reboot: bool = True):
     """
     Removes installation-only elements from the VM configuration.
     Specifically removes <kernel>, <initrd>, <cmdline> from <os>
@@ -1538,6 +1538,13 @@ def strip_installation_assets(domain: libvirt.virDomain):
 
     Also adjusts on_reboot from "destroy" to "restart" for auto-installation VMs,
     except for SECURE VMs (those with SEV enabled) which keep "destroy".
+
+    Args:
+        domain: The libvirt domain object.
+        adjust_on_reboot: If True (default), also flip on_reboot from "destroy"
+            to "restart". Set to False when stripping assets immediately after
+            VM creation (Stage 1 still running) — on_reboot must stay "destroy"
+            so the VM stops after Stage 1 and the restart watcher can detect it.
     """
     if domain is None:
         raise ValueError("Invalid domain object.")
@@ -1545,12 +1552,14 @@ def strip_installation_assets(domain: libvirt.virDomain):
     # active, and defineXML must update the persistent configuration only.
     _modify_domain_xml(
         domain,
-        lambda root: _do_strip_installation_assets(domain, root),
+        lambda root: _do_strip_installation_assets(domain, root, adjust_on_reboot),
         xml_flags=libvirt.VIR_DOMAIN_XML_INACTIVE,
     )
 
 
-def _do_strip_installation_assets(domain: libvirt.virDomain, root: ET.Element):
+def _do_strip_installation_assets(
+    domain: libvirt.virDomain, root: ET.Element, adjust_on_reboot: bool = True
+):
     os_elem = root.find("os")
     if os_elem is not None:
         for tag in ["kernel", "initrd", "cmdline"]:
@@ -1564,12 +1573,26 @@ def _do_strip_installation_assets(domain: libvirt.virDomain, root: ET.Element):
             if disk.get("device") == "floppy":
                 devices.remove(disk)
 
+    if not adjust_on_reboot:
+        return
+
     on_reboot_elem = root.find("on_reboot")
     if on_reboot_elem is not None and on_reboot_elem.text == "destroy":
         is_secure_vm = root.find("launchSecurity[@type='sev']") is not None
 
         if not is_secure_vm:
             on_reboot_elem.text = "restart"
+            # Restore on_poweroff to "restart" for COMPUTATION VMs (iothreads > 0)
+            # whose on_poweroff was forced to "destroy" during auto-install
+            iothreads_elem = root.find("iothreads")
+            if (
+                iothreads_elem is not None
+                and iothreads_elem.text
+                and int(iothreads_elem.text) > 0
+            ):
+                on_poweroff_elem = root.find("on_poweroff")
+                if on_poweroff_elem is not None and on_poweroff_elem.text == "destroy":
+                    on_poweroff_elem.text = "restart"
             logging.info(
                 f"Auto-installation complete for {domain.name()}: "
                 f"changed on_reboot from 'destroy' to 'restart'"

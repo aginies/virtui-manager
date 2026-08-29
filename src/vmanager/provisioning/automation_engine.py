@@ -205,6 +205,9 @@ class AutomationEngine:
         config = user_config.copy()
         config["vm_name"] = vm_name
         config.setdefault("timezone", "UTC")
+        config.setdefault("ssh_server", "openssh")
+        config.setdefault("ntp_client", "chrony")
+        config.setdefault("disk_device", "/dev/vda")
         
         # Detect desktop from template name and install needed stuff
         desktop_cmd = ""

@@ -9,9 +9,11 @@ import atexit
 import base64
 import errno
 import http.server
+import io
 import logging
 import socketserver
 import subprocess
+import tarfile
 import threading
 import time
 import uuid
@@ -269,8 +271,6 @@ class RemoteAutoHTTPServer:
             # Push all files in one SSH call via tar+base64
             files = [item for item in sorted(self.serve_dir.iterdir()) if item.is_file()]
             if files:
-                import tarfile
-                import io
                 tar_buffer = io.BytesIO()
                 with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
                     for item in files:
