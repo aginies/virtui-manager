@@ -24,6 +24,7 @@ import libvirt
 
 from .config import get_log_path, load_config, save_config
 from .constants import AppInfo, ServerPallette
+from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_host_resources, get_network_info
 from .network_manager import (
     delete_network,
@@ -3982,6 +3983,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 def main():
     """Entry point for Virtui Manager command-line interface."""
     import argparse
+
+    # Route libvirt errors to the logging framework instead of raw stderr
+    # (same as TUI). Expected probe failures (e.g. "volume not found" during
+    # upload_file) otherwise leak as C-level stderr noise.
+    register_error_handler()
 
     parser = argparse.ArgumentParser(description="Virtui Manager CLI")
     parser.add_argument(
