@@ -12,6 +12,7 @@ import libvirt
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+from ..constants import VM_START_CONNECT_DELAY_MS, SHUTDOWN_CHECK_MAX_POLLS
 from ...utils import extract_server_name_from_uri
 
 
@@ -95,48 +96,35 @@ class VMStateHandler:
             counter: Number of checks performed
 
         Returns:
-            False to stop the timeout
+            True to keep polling, False to stop
         """
         try:
             if not self.domain.isActive():
-                if self.verbose:
-                    print("VM is shutdown. Exiting...")
                 self.notify(
                     "VM has shut down. You can restart it from the Power menu.",
                     Gtk.MessageType.INFO,
                 )
-                self.shutdown_check_timeout_id = None
                 return False
-        except:
-            self.shutdown_check_timeout_id = None
-            self.quit()
-            return False
-
-        # Verify we're still checking the same domain
-        try:
             if self.domain.UUIDString() != self.original_domain_uuid:
                 self.log("ERROR: Domain UUID changed during reconnect check!")
-                self.shutdown_check_timeout_id = None
                 return False
         except libvirt.libvirtError:
             self.shutdown_check_timeout_id = None
             self.quit()
             return False
 
-        if counter < 10:  # Try for 10 seconds
-            self.shutdown_check_timeout_id = GLib.timeout_add_seconds(
-                1, self._check_shutdown_async, counter + 1
-            )
-            return False
+        if counter < SHUTDOWN_CHECK_MAX_POLLS:
+            # Keep polling
+            return True
+
+        self.shutdown_check_timeout_id = None
 
         # Check VM state - only reconnect if RUNNING, not if PAUSED
         try:
-            state, reason = self.domain.state()
-            # VIR_DOMAIN_RUNNING = 1, VIR_DOMAIN_PAUSED = 3
+            state, _ = self.domain.state()
             if state == libvirt.VIR_DOMAIN_PAUSED:
                 if self.verbose:
                     print("VM is paused, not reconnecting. Will reconnect on resume.")
-                self.shutdown_check_timeout_id = None
                 return False
             elif state == libvirt.VIR_DOMAIN_RUNNING:
                 if self.verbose:
@@ -144,13 +132,11 @@ class VMStateHandler:
                         "VM still running after disconnect (Reboot or Network issue?). Reconnecting..."
                     )
                 # Auto-reconnect if VM is still running
-                self.shutdown_check_timeout_id = None
                 self.connect_display()
                 return False
-        except:
+        except libvirt.libvirtError:
             pass
 
-        self.shutdown_check_timeout_id = None
         return False
 
     def lifecycle_callback(self, conn, dom, event, detail, opaque):
@@ -192,7 +178,7 @@ class VMStateHandler:
                     self.connect_display()
                     return False
 
-                GLib.timeout_add(1000, do_start_reconnect)
+                GLib.timeout_add(VM_START_CONNECT_DELAY_MS, do_start_reconnect)
 
         elif event == libvirt.VIR_DOMAIN_EVENT_STOPPED:
             self.log(f"VM lifecycle event on {server_name}: Stopped")

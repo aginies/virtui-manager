@@ -22,7 +22,6 @@ def build_settings_menu(
     on_lossy_toggled: Callable,
     on_view_only_toggled: Callable,
     on_depth_changed: Callable,
-    on_menu_show: Optional[Callable] = None,
 ) -> tuple[Gtk.MenuButton, Gtk.Box, Gtk.CheckButton]:
     """
     Build the settings menu with display options.
@@ -38,7 +37,6 @@ def build_settings_menu(
         on_lossy_toggled: Callback for lossy encoding toggle
         on_view_only_toggled: Callback for view-only toggle
         on_depth_changed: Callback for depth change
-        on_menu_show: Optional callback when menu is shown
 
     Returns:
         Tuple of (menu_button, depth_settings_box, lossy_check)
@@ -49,8 +47,6 @@ def build_settings_menu(
     settings_button.set_tooltip_text("Settings")
 
     settings_popover = Gtk.Popover()
-    if on_menu_show:
-        settings_popover.connect("show", on_menu_show)
     vbox_settings = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
     vbox_settings.set_margin_top(10)
     vbox_settings.set_margin_bottom(10)
@@ -93,7 +89,10 @@ def build_settings_menu(
     depth_combo.append("8", "8-bit")
     depth_combo.append("16", "16-bit")
     depth_combo.append("24", "24-bit")
-    depth_combo.set_active_id(str(vnc_depth))
+    depth_id = str(vnc_depth)
+    if depth_id not in ("0", "8", "16", "24"):
+        depth_id = "0"
+    depth_combo.set_active_id(depth_id)
     depth_combo.connect("changed", on_depth_changed)
     depth_settings_box.pack_start(depth_combo, True, True, 0)
     vbox_settings.pack_start(depth_settings_box, False, False, 0)

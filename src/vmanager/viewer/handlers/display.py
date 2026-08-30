@@ -7,6 +7,8 @@ Handles display-related events like screenshots, reconnect, send keys, fullscree
 import time
 from typing import Optional, Callable
 
+from ..constants import SPICE_RECONNECT_DELAY_MS
+
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
@@ -133,7 +135,9 @@ class DisplayHandler:
             try:
                 self.spice_session.disconnect()
                 # Wait before reconnecting
-                GLib.timeout_add(800, lambda: self.connect_display(retry_count=0))
+                GLib.timeout_add(
+                    SPICE_RECONNECT_DELAY_MS, lambda: self.connect_display(retry_count=0)
+                )
             except:
                 # Not connected, just reconnect
                 self.connect_display(retry_count=0)

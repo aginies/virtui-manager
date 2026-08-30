@@ -9,9 +9,7 @@ from typing import Optional, Callable, Dict
 import gi
 import libvirt
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
-
-import threading
+from gi.repository import Gtk
 
 
 class PowerHandler:
@@ -145,17 +143,12 @@ class PowerHandler:
     def on_resume(self, button, popover):
         """Resume the VM from paused state."""
         popover.popdown()
-
-        def do_resume():
-            try:
-                self.domain.resume()
-                GLib.idle_add(self.log, "VM resumed successfully")
-            except libvirt.libvirtError as e:
-                GLib.idle_add(self.log, f"Resume error: {e}")
-                GLib.idle_add(self.show_error_dialog, f"Resume error: {e}")
-
-        # Run in thread to avoid blocking UI
-        threading.Thread(target=do_resume, daemon=True).start()
+        try:
+            self.domain.resume()
+            self.log("VM resumed successfully")
+        except libvirt.libvirtError as e:
+            self.log(f"Resume error: {e}")
+            self.show_error_dialog(f"Resume error: {e}")
 
     def on_hibernate(self, button, popover):
         """Hibernate the VM."""

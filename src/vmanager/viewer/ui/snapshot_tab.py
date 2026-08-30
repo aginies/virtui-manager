@@ -364,18 +364,11 @@ class SnapshotTab:
         self.wait_dialog.show()
         self.wait_dialog.present()
 
-        # Ensure UI updates
-        while Gtk.events_pending():
-            Gtk.main_iteration()
-
     def _hide_wait_dialog(self):
         """Hide the wait dialog."""
         if self.wait_dialog:
             self.wait_dialog.destroy()
             self.wait_dialog = None
-            # Ensure UI updates
-            while Gtk.events_pending():
-                Gtk.main_iteration()
 
 
 __all__ = ['SnapshotTab']

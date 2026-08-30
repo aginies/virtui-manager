@@ -202,7 +202,6 @@ class MainWindowBuilder:
             on_lossy_toggled=handlers.get("on_lossy_toggled"),
             on_view_only_toggled=handlers.get("on_view_only_toggled"),
             on_depth_changed=handlers.get("on_depth_changed"),
-            on_menu_show=handlers.get("on_settings_menu_show"),
         )
         header.pack_end(settings_button)
 

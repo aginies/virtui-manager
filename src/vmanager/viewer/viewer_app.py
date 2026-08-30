@@ -12,6 +12,8 @@ All sensitive data is redacted using the shared sanitize_sensitive_data utility.
 
 import argparse
 import sys
+import xml.etree.ElementTree as ET
+from typing import Optional
 
 import gi
 import libvirt
@@ -50,10 +52,10 @@ class RemoteViewer(Gtk.Application):
     def __init__(
         self,
         uri: str,
-        domain_name: str = None,
-        uuid: str = None,
+        domain_name: Optional[str] = None,
+        uuid: Optional[str] = None,
         verbose: bool = False,
-        password: str = None,
+        password: Optional[str] = None,
         show_logs: bool = False,
         attach: bool = False,
         direct: bool = False,
@@ -109,7 +111,6 @@ class RemoteViewer(Gtk.Application):
 
         # State
         self.events_registered = False
-        self._pending_password = None
 
         # Clipboard
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
@@ -212,17 +213,25 @@ class RemoteViewer(Gtk.Application):
                 state_code = dom.info()[0]
 
                 # Only show running or paused VMs
-                if state_code not in [1, 3]:  # RUNNING, PAUSED
+                if state_code not in (
+                    libvirt.VIR_DOMAIN_RUNNING,
+                    libvirt.VIR_DOMAIN_PAUSED,
+                ):
                     continue
 
-                state_str = "Running" if state_code == 1 else "Paused"
+                state_str = (
+                    "Running"
+                    if state_code == libvirt.VIR_DOMAIN_RUNNING
+                    else "Paused"
+                )
 
                 # Detect protocol
                 xml = dom.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
                 proto = "Unknown"
-                if "type='spice'" in xml:
+                root = ET.fromstring(xml)
+                if root.find(".//graphics[@type='spice']") is not None:
                     proto = "SPICE"
-                elif "type='vnc'" in xml:
+                elif root.find(".//graphics[@type='vnc']") is not None:
                     proto = "VNC"
 
                 store.append([dom.name(), state_str, proto, dom])
@@ -357,13 +366,17 @@ class RemoteViewer(Gtk.Application):
                 self._callback = callback
 
             def on_keyboard_grab_activated(self, *args, **kwargs):
-                self._callback(*args, **kwargs)
+                self._callback(True)
 
             def on_keyboard_grab_deactivated(self, *args, **kwargs):
-                self._callback(*args, **kwargs)
+                self._callback(False)
+
+            def on_keyboard_grab_released(self, *args, **kwargs):
+                self._callback(False)
 
             def on_spice_grab_changed(self, *args, **kwargs):
-                self._callback(*args, **kwargs)
+                widget = args[0] if args else None
+                self._callback(bool(widget and widget.get_property("grab-keyboard")))
 
         # Initialize display (already adds to view_container internally)
         self.display_manager.init_display(
@@ -401,8 +414,6 @@ class RemoteViewer(Gtk.Application):
         if self.domain:
             try:
                 state_code, _ = self.domain.state()
-                state_str = vm_queries.get_status(self.domain)
-
                 if state_code == libvirt.VIR_DOMAIN_PAUSED:
                     self._show_notification(
                         f"VM '{self.domain.name()}' is paused.", Gtk.MessageType.WARNING
@@ -489,7 +500,6 @@ class RemoteViewer(Gtk.Application):
             if self.display_handler
             else None,
             "on_boot_device_changed": lambda combo: self._on_boot_device_changed(combo),
-            "on_settings_menu_show": lambda pop: self._on_settings_menu_show(pop),
             "on_boot_menu_show": lambda pop: self._on_boot_menu_show(pop),
             "on_logs_toggled": lambda btn: self._on_logs_toggled(btn),
             # Clipboard handlers
@@ -594,7 +604,7 @@ class RemoteViewer(Gtk.Application):
         return self.display_manager.connect(
             host=None,  # Will be determined from domain
             port=None,  # Will be determined from domain
-            password=password or self.password,
+            password=password if password is not None else self.password,
             attach=self.attach,
             domain=self.domain,
             ssh_tunnel_manager=self.ssh_tunnel_manager,
@@ -787,11 +797,6 @@ class RemoteViewer(Gtk.Application):
             self._show_notification(f"First boot device set to: {device_id}", Gtk.MessageType.INFO)
         except Exception as e:
             self._show_error_dialog(f"Failed to update boot order: {e}")
-
-    def _on_settings_menu_show(self, popover):
-        """Update settings menu elements sensitivity based on VM state."""
-        # Currently no specific sensitivity logic for settings menu
-        pass
 
     def _on_boot_menu_show(self, popover):
         """Update boot menu elements sensitivity based on VM state."""
