@@ -90,7 +90,7 @@ class DisplayHandler:
         elif self.protocol == "spice" and self.display_widget:
             try:
                 pixbuf = self.display_widget.get_pixbuf()
-            except:
+            except Exception:
                 pass
 
         if not pixbuf:
@@ -138,7 +138,7 @@ class DisplayHandler:
                 GLib.timeout_add(
                     SPICE_RECONNECT_DELAY_MS, lambda: self.connect_display(retry_count=0)
                 )
-            except:
+            except Exception:
                 # Not connected, just reconnect
                 self.connect_display(retry_count=0)
 

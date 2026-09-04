@@ -155,7 +155,7 @@ class ConsoleTab:
             if self.console_stream:
                 try:
                     self.console_stream.finish()
-                except:
+                except Exception:
                     pass
                 self.console_stream = None
 
