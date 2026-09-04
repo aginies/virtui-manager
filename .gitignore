@@ -22,3 +22,16 @@ tests/.coverage
 TODO
 .coverage
 GEMINI.md
+.bash_profile
+.bashrc
+.claude/agents
+.claude/commands
+.gitconfig
+.gitmodules
+.idea
+.mcp.json
+.profile
+.ripgreprc
+.vscode
+.zprofile
+.zshrc
