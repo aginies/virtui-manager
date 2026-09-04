@@ -1,6 +1,6 @@
 # Automated Installation Architecture
 
-VirtUI Manager provides a comprehensive automated installation system that supports unattended OS deployment for multiple Linux distributions and Windows. The system uses a pluggable architecture with OS-specific providers, template management, and an HTTP server for serving configuration files during installation.
+Automated installation system for multiple OS distributions. The system uses a pluggable architecture with OS-specific providers, template management, and an HTTP server for serving configuration files during installation.
 
 ## How Automated Installation Works
 

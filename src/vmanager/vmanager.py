@@ -1911,7 +1911,7 @@ class VMManagerTUI(App):
                     else:
                         try:
                             name_for_error = vm_name if "vm_name" in locals() else domain.name()
-                        except:
+                        except Exception:
                             name_for_error = "Unknown"
                         self.call_from_thread(
                             self.show_error_message,

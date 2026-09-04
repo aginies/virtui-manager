@@ -642,7 +642,7 @@ def add_disk(
                         if target_path:
                             info += f" at {target_path}"
                         active_pools_info.append(info)
-                    except:
+                    except Exception:
                         active_pools_info.append(f"{p.name()} (no XML)")
 
             pools_list = ", ".join(active_pools_info) if active_pools_info else "none"
@@ -3520,7 +3520,7 @@ def create_external_overlay(domain: libvirt.virDomain, disk_path: str, overlay_n
         try:
             if "new_vol" in locals():
                 new_vol.delete(0)
-        except:
+        except Exception:
             pass
         raise Exception(f"Failed to update VM configuration: {e}")
 

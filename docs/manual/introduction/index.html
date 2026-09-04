@@ -488,10 +488,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#comprehensive-vm-control" class="md-nav__link">
+  <a href="#vm-control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        🛠️ Comprehensive VM Control
+        VM Control
       
     </span>
   </a>
@@ -502,7 +502,7 @@
   <a href="#rapid-deployment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        📦 Rapid Deployment
+        📦 Provisioning
       
     </span>
   </a>
@@ -1243,10 +1243,10 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#comprehensive-vm-control" class="md-nav__link">
+  <a href="#vm-control" class="md-nav__link">
     <span class="md-ellipsis">
       
-        🛠️ Comprehensive VM Control
+        VM Control
       
     </span>
   </a>
@@ -1257,7 +1257,7 @@
   <a href="#rapid-deployment" class="md-nav__link">
     <span class="md-ellipsis">
       
-        📦 Rapid Deployment
+        📦 Provisioning
       
     </span>
   </a>
@@ -1323,39 +1323,39 @@
 
 
 <h1 id="introduction-to-virtui-manager">Introduction to VirtUI Manager<a class="headerlink" href="#introduction-to-virtui-manager" title="Permanent link">&para;</a></h1>
-<p><strong>Command Your Virtual Machines</strong> with unparalleled efficiency. </p>
-<p>VirtUI Manager is a powerful, next-generation terminal-based management solution for QEMU/KVM virtualization. It bridges the gap between the simplicity of command-line tools and the rich functionality of GUI-based solutions like <code>virt-manager</code>, offering a comprehensive, keyboard-centric management experience directly from your terminal.</p>
+<p>VM management from the terminal. </p>
+<p>VirtUI Manager is a TUI for managing QEMU/KVM VMs via libvirt. Keyboard-centric, no X11 required.</p>
 <p><img alt="VirtUI Manager Main Window" src="../images/main.png" /></p>
 <h2 id="why-virtui-manager">Why VirtUI Manager?<a class="headerlink" href="#why-virtui-manager" title="Permanent link">&para;</a></h2>
 <p>Managing virtual infrastructure often involves a trade-off between convenience and accessibility. Traditional tools often come with significant drawbacks:</p>
 <ul>
 <li><strong>GUI tools (virt-manager)</strong> offer great visualization but require X11 forwarding or a heavy desktop environment, which is slow and resource-intensive over remote connections.</li>
 <li><strong>Web interfaces (Cockpit)</strong> can be complex to deploy, feature-incomplete, or lack robust multi-hypervisor support.</li>
-<li><strong>CLI tools (virsh)</strong> are fast but lack the intuitive "at-a-glance" overview and ease of use required for complex management tasks.</li>
+<li><strong>CLI tools (virsh)</strong> are fast but lack the overview and ease of use required for complex management tasks.</li>
 </ul>
 <p><strong>VirtUI Manager</strong> solves these challenges by providing a <strong>lightweight, fast, and feature-rich interface</strong> that runs entirely in the terminal.</p>
 <ul>
-<li><strong>Intuitive Control:</strong> Navigate complex infrastructures with a streamlined "Actions" menu. Context-aware options appear exactly when you need them.</li>
-<li><strong>Scale Without Limits:</strong> Execute commands across hundreds of VMs simultaneously using powerful regex patterns and group filters.</li>
-<li><strong>Seamless Mobility:</strong> Migrate workloads between different servers with ease. Our custom migration engine handles storage, snapshots, and overlays.</li>
-<li><strong>Zero Dependencies:</strong> No X11 required. Runs perfectly on headless servers and via low-bandwidth SSH connections.</li>
+<li><strong>Actions Menu:</strong> Streamlined "Actions" menu with context-aware options.</li>
+<li><strong>Bulk Operations:</strong> Execute commands across multiple VMs with regex patterns and group filters.</li>
+<li><strong>Migration:</strong> Migrate workloads between servers. Handles storage, snapshots, and overlays.</li>
+<li><strong>No X11 Required:</strong> Runs on headless servers and over SSH.</li>
 </ul>
 <h2 id="key-features">Key Features<a class="headerlink" href="#key-features" title="Permanent link">&para;</a></h2>
 <h3 id="performance-architecture">🚀 Performance &amp; Architecture<a class="headerlink" href="#performance-architecture" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Event-Driven UI:</strong> Uses libvirt events for real-time updates, ensuring ultra-low bandwidth usage and immediate responsiveness.</li>
-<li><strong>Smart Caching:</strong> Advanced metadata caching reduces API load by up to 70%, keeping the interface fluid even with massive VM fleets.</li>
-<li><strong>Transhypervisor View:</strong> Connect to and manage multiple local or remote libvirt servers simultaneously in one unified dashboard.</li>
+<li><strong>Event-Driven UI:</strong> Uses libvirt events for real-time updates.</li>
+<li><strong>Smart Caching:</strong> Metadata caching reduces API load.</li>
+<li><strong>Multi-Server View:</strong> Manage multiple libvirt servers in one dashboard.</li>
 </ul>
-<h3 id="comprehensive-vm-control">🛠️ Comprehensive VM Control<a class="headerlink" href="#comprehensive-vm-control" title="Permanent link">&para;</a></h3>
+<h3 id="vm-control">VM Control<a class="headerlink" href="#vm-control" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Surgical Precision:</strong> Tweak CPU topology, memory, storage, and networking with deep configuration options.</li>
+<li><strong>Configuration:</strong> Tweak CPU, memory, storage, and networking.</li>
 <li><strong>State Mastery:</strong> Full support for snapshots and external disk overlays. Branch your VM states or revert changes with confidence.</li>
-<li><strong>Host Intelligence:</strong> Gain deep insights into physical infrastructure with real-time resource monitoring and detailed hardware capability trees (NUMA, CPU topology, cache).</li>
+<li><strong>Host Info:</strong> Monitor host resources and hardware details (NUMA, CPU topology, cache).</li>
 </ul>
-<h3 id="rapid-deployment">📦 Rapid Deployment<a class="headerlink" href="#rapid-deployment" title="Permanent link">&para;</a></h3>
+<h3 id="provisioning">📦 Provisioning<a class="headerlink" href="#rapid-deployment" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Modern Installation:</strong> Experience a streamlined provisioning process with intelligent defaults, UEFI support, and optimized hardware detection.</li>
+<li><strong>Provisioning:</strong> Streamlined installation with intelligent defaults, UEFI support, and hardware detection.</li>
 <li><strong>Automated Provisioning:</strong> Take deployment to the next level with full automated installation support (Debian, Ubuntu, Fedora, Arch Linux, Alpine, openSUSE/SLES), template management, and intelligent auto-prefill.</li>
 <li><strong>Instant Cloning:</strong> Scale out instantly with advanced VM cloning, including auto-provisioning of storage.</li>
 </ul>
@@ -1363,7 +1363,7 @@
 <ul>
 <li><strong>VirtUI Remote Viewer:</strong> A custom-built, native graphical viewer for VNC/SPICE consoles with support for USB redirection, real-time log monitoring, and snapshot management.</li>
 <li><strong>Secure Web Console:</strong> Integrated <code>noVNC</code> support via websockify for browser-based access, even over SSH tunnels.</li>
-<li><strong>Tmux Integration:</strong> Multitasking mastery by seamlessly launching text consoles in separate Tmux windows.</li>
+<li><strong>Tmux Integration:</strong> Multitasking by launching text consoles in separate Tmux windows.</li>
 <li><strong>Command Line Interface:</strong> Power users can leverage <code>vmanager_cmd</code>, a dedicated shell-like CLI for rapid management and automated pipelines.</li>
 </ul>
 <h2 id="comparison">Comparison<a class="headerlink" href="#comparison" title="Permanent link">&para;</a></h2>

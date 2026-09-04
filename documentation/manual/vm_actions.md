@@ -87,7 +87,7 @@ The VM card displays real-time performance data using sparklines. You can toggle
 
 ### Detailed Tooltip Information
 
-Hover over the VM name to see a comprehensive tooltip with detailed information including:
+Hover over the VM name for detailed information:
 
 *   UUID and hypervisor connection details
 *   Current status and IP addresses

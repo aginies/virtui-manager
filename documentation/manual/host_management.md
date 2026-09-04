@@ -49,7 +49,7 @@ To access these settings, select a VM belonging to the server you want to manage
 
 ### Network Management
 
-The **Network** tab provides a comprehensive view of all virtual networks defined on the host.
+The **Network** tab lists all virtual networks on the host.
 
 ![Server Network Management](images/server_network.png)
 

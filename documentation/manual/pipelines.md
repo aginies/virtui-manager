@@ -1,6 +1,6 @@
 # Command Pipelines
 
-VirtUI Manager provides a powerful command pipeline system that allows chaining multiple operations together using the pipe (`|`) operator. Pipelines enable complex multi-step workflows in a single command, making fleet management and automated operations efficient.
+Chain operations with pipe (`|`) operator.
 
 ## Pipeline Architecture
 

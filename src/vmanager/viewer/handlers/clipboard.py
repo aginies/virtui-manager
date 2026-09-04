@@ -8,14 +8,21 @@ from typing import Optional, Callable
 
 import gi
 gi.require_version("Gtk", "3.0")
-gi.require_version("GtkVnc", "2.0")
 from gi.repository import Gtk, Gdk
 
 try:
+    gi.require_version("GtkVnc", "2.0")
     from gi.repository import GtkVnc
     VNC_AVAILABLE = True
-except ImportError:
+except (ValueError, ImportError):
     VNC_AVAILABLE = False
+
+try:
+    gi.require_version("SpiceClientGtk", "3.0")
+    from gi.repository import SpiceClientGtk
+    SPICE_AVAILABLE = True
+except (ValueError, ImportError):
+    SPICE_AVAILABLE = False
 
 
 class ClipboardHandler:

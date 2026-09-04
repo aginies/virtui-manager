@@ -1371,7 +1371,7 @@ def get_overlay_disks(domain: libvirt.virDomain) -> list[str]:
                         pool = conn.storagePoolLookupByName(source.attrib["pool"])
                         vol = pool.storageVolLookupByName(source.attrib["volume"])
                         path = vol.path()
-                    except:
+                    except Exception:
                         pass
 
             if not path:
@@ -1396,7 +1396,7 @@ def get_overlay_disks(domain: libvirt.virDomain) -> list[str]:
                         vol_backing = vol_root.find("backingStore")
                         if vol_backing is not None and vol_backing.find("path") is not None:
                             is_overlay = True
-                    except:
+                    except Exception:
                         pass
 
             # 3. Check VM Metadata (Custom tracking)
@@ -1509,7 +1509,7 @@ def get_domain_info_dict(domain: libvirt.virDomain, conn: libvirt.virConnect) ->
             uri = conn.getURI()
             if uri:
                 internal_id = f"{internal_id}@{uri}"
-        except:
+        except Exception:
             pass
 
         vm_info = {

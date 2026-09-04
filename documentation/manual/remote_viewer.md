@@ -1,6 +1,6 @@
 # VirtUI Remote Viewer
 
-The **VirtUI Remote Viewer** is a custom-built, high-performance graphical console integrated directly into VirtUI Manager. It provides a seamless way to interact with your Virtual Machines without needing external tools like `virt-viewer` or `virt-manager`.
+The **VirtUI Remote Viewer** is a custom-built, high-performance graphical console integrated directly into VirtUI Manager. It provides a way to interact with Virtual Machines without needing external tools like `virt-viewer` or `virt-manager`.
 
 It supports both **VNC** and **SPICE** protocols and offers advanced features like USB redirection and snapshot management directly from the viewer window.
 
@@ -8,7 +8,7 @@ It supports both **VNC** and **SPICE** protocols and offers advanced features li
 
 ## Interface Overview
 
-The viewer is designed to be intuitive, with a toolbar at the top and a tabbed interface for advanced controls.
+The viewer has a toolbar at the top and a tabbed interface for advanced controls.
 
 ### Main Toolbar
 
@@ -87,7 +87,7 @@ VirtUI Remote Viewer handles connections intelligently:
 
 *   **Local:** Connects directly to local libvirt instances via Unix sockets.
 *   **SSH Tunneling:** When managing remote servers, it automatically establishes secure SSH tunnels for VNC/SPICE traffic, ensuring your data is encrypted.
-*   **Direct Attach:** Can attach to existing file descriptors for seamless integration.
+*   **Direct Attach:** Can attach to existing file descriptors for integration.
 
 ## Keyboard Shortcuts
 

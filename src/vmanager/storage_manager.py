@@ -173,7 +173,7 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                 if "name" not in locals():
                     try:
                         name = pool.name()
-                    except:
+                    except Exception:
                         name = "Unknown Pool"
 
                 logging.warning(f"Failed to get details for pool '{name}': {e}")
@@ -771,6 +771,7 @@ def move_volume(
     except (ET.ParseError, libvirt.libvirtError):
         pass  # Use default if XML parsing fails
 
+    new_vol = None
     new_vol_xml = f"""
     <volume>
         <name>{new_volume_name}</name>
@@ -1069,7 +1070,7 @@ def list_unused_volumes(
                 pass
 
     except libvirt.libvirtError as e:
-        print(f"Error retrieving VM disk information: {e}")
+        logging.error(f"Error retrieving VM disk information: {e}")
         return []
 
     unused_volumes = []
@@ -1214,7 +1215,7 @@ def copy_volume_across_hosts(
         dest_pool = dest_conn.storagePoolLookupByName(dest_pool_name)
         source_vol = source_pool.storageVolLookupByName(volume_name)
     except libvirt.libvirtError as e:
-        log_and_callback(f"[red]ERROR:[/ ] Could not find source/destination resources: {e}")
+        log_and_callback(f"ERROR: Could not find source/destination resources: {e}")
         raise
 
     _, source_capacity, _ = _safe_get_volume_info(source_vol)
@@ -1367,7 +1368,7 @@ def copy_volume_across_hosts(
                     download_error = e
                     try:
                         stream.abort()
-                    except:
+                    except Exception:
                         pass
                 finally:
                     os.close(fd)
@@ -1400,7 +1401,7 @@ def copy_volume_across_hosts(
                     upload_error = e
                     try:
                         stream.abort()
-                    except:
+                    except Exception:
                         pass
                 finally:
                     os.close(fd)
@@ -1433,23 +1434,23 @@ def copy_volume_across_hosts(
         }
 
     except Exception as e:
-        log_and_callback(f"[red]ERROR:[/ ] Failed to copy volume: {e}")
+        log_and_callback(f"ERROR: Failed to copy volume: {e}")
         if dest_vol:
             try:
                 dest_vol.delete(0)
-            except:
+            except Exception:
                 pass
         raise
     finally:
         try:
             if download_stream:
                 download_stream.abort()
-        except:
+        except Exception:
             pass
         try:
             if upload_stream:
                 upload_stream.abort()
-        except:
+        except Exception:
             pass
         if tmp_file and os.path.exists(tmp_file):
             os.remove(tmp_file)

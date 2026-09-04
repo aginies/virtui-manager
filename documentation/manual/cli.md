@@ -1,6 +1,6 @@
 # Command Line Interface (CLI)
 
-VirtUI Manager includes a powerful interactive shell mode, allowing for scriptable and direct management of your virtualization infrastructure without the TUI overhead.
+Interactive shell for VM management. Scriptable, no TUI overhead.
 
 To launch the CLI mode:
 ```bash

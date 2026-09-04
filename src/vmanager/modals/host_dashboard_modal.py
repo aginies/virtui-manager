@@ -133,14 +133,14 @@ class HostDashboardModal(BaseModal[None]):
         try:
             lbl = self.query_one("#progress-label", Label)
             lbl.update(StaticText.COLLECTING_VM_INFO.format(current=current, total=total))
-        except:
+        except Exception:
             pass
 
     def update_dashboard(self) -> None:
         # Hide progress label
         try:
             self.query_one("#progress-label", Label).styles.display = "none"
-        except:
+        except Exception:
             pass
 
         total_host_cpus = self.host_resources.get("total_cpus", 1)

@@ -107,9 +107,6 @@ class DisplayManager:
         self.depth_settings_box: Optional[Gtk.Box] = None
         self.lossy_check: Optional[Gtk.CheckButton] = None
 
-        # Clipboard handler ID (for VNC)
-        self.clipboard_handler_id: Optional[int] = None
-
         # Store handlers for reinitializing display when protocol changes
         self._stored_view_only_handler = None
         self._stored_grab_handler = None
@@ -258,11 +255,6 @@ class DisplayManager:
         # Remove any existing placeholder
         self._remove_no_display_placeholder()
 
-        # Disconnect previous clipboard handler if exists
-        if self.clipboard_handler_id:
-            # This will be handled by clipboard handler module
-            pass
-
         self.log(f"Initializing display for protocol: {self.protocol}")
 
         if self.protocol is None:
@@ -320,8 +312,6 @@ class DisplayManager:
 
     def _init_vnc_display(self, clipboard_handler=None, grab_handler=None):
         """Initialize VNC display widget."""
-        GLib.MainContext.default().iteration(False)
-
         if self.depth_settings_box:
             self.depth_settings_box.set_visible(True)
         if self.lossy_check:
@@ -746,12 +736,12 @@ class DisplayManager:
                 channel.clipboard_selection_request(selection, SpiceClientGLib.ClipboardType.TEXT)
                 break
 
-    def on_spice_clipboard_selection_data(self, channel, selection, type, data, size):
+    def on_spice_clipboard_selection_data(self, channel, selection, clip_type, data, size):
         """Handle SPICE clipboard data from guest."""
         if self.verbose:
-            print(f"SPICE Clipboard Data: {size} bytes, type={type}")
+            print(f"SPICE Clipboard Data: {size} bytes, type={clip_type}")
         
-        if type == SpiceClientGLib.ClipboardType.TEXT and self.clipboard_update_callback:
+        if clip_type == SpiceClientGLib.ClipboardType.TEXT and self.clipboard_update_callback:
             try:
                 # data is usually a bytearray/bytes
                 text = data.decode("utf-8").rstrip("\0")

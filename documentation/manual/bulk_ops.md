@@ -1,6 +1,6 @@
 # Bulk Operations
 
-Bulk operations allow you to execute commands across multiple Virtual Machines simultaneously, significantly reducing the time required for fleet management.
+Execute commands on multiple VMs at once.
 
 ![Bulk Operations Interface](images/bulk.jpg)
 

@@ -575,7 +575,7 @@ class VMProvisioner:
                         if chunk_count % 10 == 0:
                             try:
                                 self.conn.getLibVersion()
-                            except:
+                            except Exception:
                                 pass
 
                         if progress_callback:
@@ -586,7 +586,7 @@ class VMProvisioner:
             except Exception as e:
                 try:
                     stream.abort()
-                except:
+                except Exception:
                     pass
                 vol.delete(0)
                 raise e
@@ -3253,7 +3253,7 @@ class VMProvisioner:
                     try:
                         if domain.isActive():
                             break
-                    except:
+                    except Exception:
                         pass
                     time.sleep(1)
                     timeout -= 1

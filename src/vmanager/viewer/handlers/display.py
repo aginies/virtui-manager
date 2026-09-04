@@ -7,6 +7,8 @@ Handles display-related events like screenshots, reconnect, send keys, fullscree
 import time
 from typing import Optional, Callable
 
+from ..constants import SPICE_RECONNECT_DELAY_MS
+
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib
@@ -88,7 +90,7 @@ class DisplayHandler:
         elif self.protocol == "spice" and self.display_widget:
             try:
                 pixbuf = self.display_widget.get_pixbuf()
-            except:
+            except Exception:
                 pass
 
         if not pixbuf:
@@ -133,8 +135,10 @@ class DisplayHandler:
             try:
                 self.spice_session.disconnect()
                 # Wait before reconnecting
-                GLib.timeout_add(800, lambda: self.connect_display(retry_count=0))
-            except:
+                GLib.timeout_add(
+                    SPICE_RECONNECT_DELAY_MS, lambda: self.connect_display(retry_count=0)
+                )
+            except Exception:
                 # Not connected, just reconnect
                 self.connect_display(retry_count=0)
 

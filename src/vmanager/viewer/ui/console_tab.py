@@ -122,24 +122,23 @@ class ConsoleTab:
             console_names = ["serial0", "console.0", "console"]
 
             for console_name in console_names:
+                stream = self.conn.newStream(libvirt.VIR_STREAM_NONBLOCK)
                 try:
-                    self.console_stream = self.conn.newStream(libvirt.VIR_STREAM_NONBLOCK)
-                    self.domain.openConsole(console_name, self.console_stream, 0)
+                    self.domain.openConsole(console_name, stream, 0)
+                    self.console_stream = stream
                     self.log(f"Connected to console: {console_name}")
                     break
                 except libvirt.libvirtError as e:
+                    try:
+                        stream.finish()
+                    except libvirt.libvirtError:
+                        pass
                     if "not found" in str(e).lower() or "does not exist" in str(e).lower():
                         continue
-                    else:
-                        raise
+                    raise
 
             if not self.console_stream:
                 raise libvirt.libvirtError("No serial console device found")
-
-            # Set up stream callbacks
-            self.console_stream.eventAddCallback(
-                libvirt.VIR_STREAM_EVENT_READABLE, self._console_stream_callback, None
-            )
 
             self.console_connected = True
             self.console_connect_button.set_sensitive(False)
@@ -156,7 +155,7 @@ class ConsoleTab:
             if self.console_stream:
                 try:
                     self.console_stream.finish()
-                except:
+                except Exception:
                     pass
                 self.console_stream = None
 
@@ -167,7 +166,6 @@ class ConsoleTab:
 
         try:
             if self.console_stream:
-                self.console_stream.eventRemoveCallback()
                 self.console_stream.finish()
                 self.console_stream = None
 
@@ -208,11 +206,6 @@ class ConsoleTab:
         except libvirt.libvirtError as e:
             self.log(f"Failed to send to console: {e}")
             self.notify(f"Failed to send to console: {e}", Gtk.MessageType.ERROR)
-
-    def _console_stream_callback(self, stream, events, opaque):
-        """Callback for console stream events."""
-        # This is called by libvirt when data is available
-        return
 
     def _console_receive_data(self):
         """Periodically receive data from console stream."""

@@ -24,6 +24,7 @@ import libvirt
 
 from .config import get_log_path, load_config, save_config
 from .constants import AppInfo, ServerPallette
+from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_host_resources, get_network_info
 from .network_manager import (
     delete_network,
@@ -273,7 +274,7 @@ class VManagerCMD(cmd.Cmd):
         ):
             try:
                 history_length_before = readline.get_current_history_length()
-            except:
+            except Exception:
                 history_length_before = 0
 
             result = super().onecmd(line)
@@ -282,7 +283,7 @@ class VManagerCMD(cmd.Cmd):
                 history_length_after = readline.get_current_history_length()
                 if history_length_after > history_length_before:
                     readline.remove_history_item(history_length_after - 1)
-            except:
+            except Exception:
                 pass
 
             return result
@@ -347,7 +348,7 @@ class VManagerCMD(cmd.Cmd):
 
                         sanitized_cmd = sanitize_sensitive_data(cmd)
                         sanitized_history.append(sanitized_cmd)
-                except:
+                except Exception:
                     continue
 
             if sanitized_history:
@@ -355,7 +356,7 @@ class VManagerCMD(cmd.Cmd):
                     backup_file = self.history_file.with_suffix(".log.bak")
                     try:
                         shutil.copy2(self.history_file, backup_file)
-                    except:
+                    except Exception:
                         pass
 
                 with open(self.history_file, "w", encoding="utf-8") as f:
@@ -767,7 +768,7 @@ class VManagerCMD(cmd.Cmd):
                     if cmd:
                         sanitized_cmd = self._sanitize_message(cmd)
                         print(f"{i:4d}  {sanitized_cmd}")
-                except:
+                except Exception:
                     continue
 
         except Exception as e:
@@ -801,7 +802,7 @@ class VManagerCMD(cmd.Cmd):
             current_length = readline.get_current_history_length()
             print(f"  Current session commands: {current_length}")
             print(f"  History limit: {readline.get_history_length()}")
-        except:
+        except Exception:
             print("  Current session info not available")
 
     def complete_history(self, text, line, begidx, endidx):
@@ -2331,7 +2332,7 @@ class VManagerCMD(cmd.Cmd):
                     try:
                         dt = datetime.datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                         created_at = dt.strftime("%Y-%m-%d %H:%M:%S")
-                    except:
+                    except Exception:
                         pass
 
                 # Get server name, with fallback for old backups without server info
@@ -2543,7 +2544,7 @@ class VManagerCMD(cmd.Cmd):
                 return sorted(backups)
             else:
                 return sorted([b for b in backups if b.startswith(text)])
-        except:
+        except Exception:
             return []
 
     def do_backup_restore(self, args):
@@ -2673,7 +2674,7 @@ class VManagerCMD(cmd.Cmd):
                     return sorted(backups)
                 else:
                     return sorted([b for b in backups if b.startswith(text)])
-            except:
+            except Exception:
                 return []
         else:
             # No other arguments needed
@@ -3270,7 +3271,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 nets = list_networks(conn)
                 for n in nets:
                     all_nets.add(n["name"])
-            except:
+            except Exception:
                 pass
 
         if not text:
@@ -3319,7 +3320,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 if not history_cmd:
                     print(f"Error: No command found at history position {history_number}")
                     return
-            except:
+            except Exception:
                 print(f"Error: Cannot access command at history position {history_number}")
                 return
 
@@ -3982,6 +3983,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 def main():
     """Entry point for Virtui Manager command-line interface."""
     import argparse
+
+    # Route libvirt errors to the logging framework instead of raw stderr
+    # (same as TUI). Expected probe failures (e.g. "volume not found" during
+    # upload_file) otherwise leak as C-level stderr noise.
+    register_error_handler()
 
     parser = argparse.ArgumentParser(description="Virtui Manager CLI")
     parser.add_argument(

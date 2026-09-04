@@ -40,6 +40,9 @@ NOTIFICATION_TIMEOUT_SECONDS = 5
 # Delay after VM start event before attempting display connection (milliseconds)
 VM_START_CONNECT_DELAY_MS = 1000
 
+# Number of 1-second polls before deciding VM shutdown vs reconnect
+SHUTDOWN_CHECK_MAX_POLLS = 10
+
 
 # ============================================================================
 # Display Connection Constants
@@ -47,6 +50,9 @@ VM_START_CONNECT_DELAY_MS = 1000
 
 # Delay before reconnecting after disconnect (milliseconds)
 RECONNECT_DELAY_MS = 500
+
+# Delay before reconnecting SPICE after manual disconnect (milliseconds)
+SPICE_RECONNECT_DELAY_MS = 800
 
 
 # ============================================================================
@@ -69,6 +75,8 @@ __all__ = [
     "TUNNEL_VERIFY_CHECK_INTERVAL_MS",
     "NOTIFICATION_TIMEOUT_SECONDS",
     "VM_START_CONNECT_DELAY_MS",
+    "SHUTDOWN_CHECK_MAX_POLLS",
     "RECONNECT_DELAY_MS",
+    "SPICE_RECONNECT_DELAY_MS",
     "LIBVIRT_EVENT_TICK_INTERVAL_MS",
 ]

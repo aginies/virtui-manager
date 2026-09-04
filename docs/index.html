@@ -1,316 +1,215 @@
 <!DOCTYPE html>
-<html lang="en" class="theme-dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VirtUI Manager - The Future of Terminal Virtualization</title>
-    <meta name="description" content="Manage QEMU/KVM Virtual Machines with unparalleled efficiency. The next-generation terminal-based management solution.">
-    <link rel="stylesheet" href="style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <title>VirtUI Manager - TUI for libvirt VM management</title>
+    <meta name="description" content="Terminal-based interface for managing QEMU/KVM virtual machines via libvirt.">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 0 20px 40px;
+            color: #1a1a1a;
+            line-height: 1.6;
+        }
+        header {
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        header img { height: 40px; }
+        nav { margin-left: auto; font-size: 0.9em; }
+        nav a { margin-left: 16px; color: #0366d6; text-decoration: none; }
+        nav a:hover { text-decoration: underline; }
+        h1 { font-size: 1.6em; margin: 0; }
+        h2 { font-size: 1.3em; margin-top: 2em; border-bottom: 1px solid #eee; padding-bottom: 6px; }
+        p { margin: 0.6em 0; }
+        a { color: #0366d6; }
+        code {
+            background: #f0f0f0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        pre {
+            background: #f6f8fa;
+            padding: 16px;
+            overflow-x: auto;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+        .screenshot {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .screenshots {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+            margin: 12px 0;
+        }
+        .screenshots img {
+            width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+            font-size: 0.95em;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        th { background: #f6f8fa; font-weight: 600; }
+        .features {
+            columns: 2;
+            column-gap: 32px;
+            padding-left: 20px;
+        }
+        .features li {
+            margin-bottom: 4px;
+            break-inside: avoid;
+        }
+        .steps {
+            counter-reset: step;
+            list-style: none;
+            padding-left: 0;
+        }
+        .steps li {
+            counter-increment: step;
+            padding-left: 36px;
+            position: relative;
+            margin-bottom: 12px;
+        }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            width: 24px;
+            height: 24px;
+            background: #0366d6;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 24px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        .badge {
+            display: inline-block;
+            background: #e8f0fe;
+            color: #0366d6;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        footer {
+            border-top: 1px solid #e0e0e0;
+            padding-top: 16px;
+            margin-top: 40px;
+            font-size: 0.85em;
+            color: #666;
+        }
+        @media (max-width: 600px) {
+            .features { columns: 1; }
+            header { flex-direction: column; align-items: flex-start; }
+            nav { margin-left: 0; }
+            nav a { margin-left: 0; margin-right: 16px; }
+        }
+    </style>
 </head>
 <body>
 
-    <header class="navbar">
-        <div class="logo">
-            <img src="manual/images/virtui-manager_logo_notext_inverted.png" alt="Virtui Manager Logo" class="nav-logo">
-            VirtUI Manager
-        </div>
-        <nav>
-            <ul>
-                <li><a href="#features">Features</a></li>
-                <li><a href="https://github.com/aginies/virtui-manager" target="_blank">GitHub</a></li>
-                <li><a href="media.html">Media</a></li>
-                <li><a href="manual/">Documentation</a></li>
-            </ul>
-        </nav>
-    </header>
+<header>
+    <h1>VirtUI Manager</h1>
+    <nav>
+        <a href="manual/">Manual</a>
+        <a href="https://github.com/aginies/virtui-manager">GitHub</a>
+        <a href="https://github.com/aginies/virtui-manager/releases">Releases</a>
+    </nav>
+</header>
 
-    <main>
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-content">
-                <h1>Command Your virtual Machine</h1>
-                <p class="subtitle">The ultimate terminal-based interface for QEMU/KVM virtualization.</p>
-                <div class="cta-group">
-                    <a href="https://github.com/aginies/virtui-manager" class="btn btn-primary">Get Started</a>
-                    <a href="#features" class="btn btn-secondary">Explore Features</a>
-                </div>
-                <div class="hero-image-container">
-                    <img src="manual/images/main.png" alt="VirtUI Manager Main Interface" class="hero-main-img">
-                </div>
-            </div>
-            <div class="hero-bg-anim"></div>
-        </section>
+<p>TUI for managing QEMU/KVM VMs via libvirt. Built with <span class="badge">Python</span> <span class="badge">Textual</span>.</p>
 
-        <!-- Feature Showcase Sections -->
-        
-        <!-- Feature 1: Easy Management -->
-        <section class="feature-section hidden-left" id="management">
-            <div class="feature-image">
-                <img src="manual/images/actions.jpg" alt="The intuitive Actions collapsible menu" class="active">
-                <img src="manual/images/actions2.png" alt="Streamlined VM Actions">
-                <img src="manual/images/actions3.png" alt="Context-aware Management">
-                <img src="manual/images/compact.jpg" alt="The Compact View">
-            </div>
-            <div class="feature-content">
-                <h2>Intuitive Control</h2>
-                <p class="marketing-text">Navigate complex infrastructures with our streamlined "Actions" menu. Context-aware options appear exactly when you need them, keeping your workspace clean and your focus sharp.</p>
-            </div>
-        </section>
+<div class="screenshots">
+    <img src="manual/images/main.png" alt="Main window showing VM cards">
+    <img src="manual/images/actions.jpg" alt="VM Actions menu">
+    <img src="manual/images/bulk.jpg" alt="Bulk operations">
+</div>
 
-        <!-- Feature 2: Bulk Operations -->
-        <section class="feature-section hidden-right" id="bulk-ops">
-            <div class="feature-image">
-                <img src="manual/images/bulk.jpg" alt="Bulk Operations Interface showing multiple VMs selected" class="active">
-                <img src="manual/images/pattern.jpg" alt="Multiple VMs selected by Pattern" class="active">
-            </div>
-            <div class="feature-content">
-                <h2>Scale Without Limits</h2>
-                <p class="marketing-text">Execute commands across hundreds of VMs simultaneously. Whether you're patching, rebooting, or querying status, perform bulk operations with a single keystroke. Efficiency redefined.</p>
-            </div>
-        </section>
+<h2>Install</h2>
 
-        <!-- Feature 3: Migration -->
-        <section class="feature-section hidden-left" id="migration">
-            <div class="feature-image">
-                <img src="manual/images/migration.jpg" alt="Custom migration capabilities in action" class="active">
-                <img src="manual/images/migration2.jpg" alt="Custom migration capabilities in action">
-                <img src="manual/images/migration3.jpg" alt="Custom migration capabilities in action">
-            </div>
-            <div class="feature-content">
-                <h2>Seamless Mobility</h2>
-                <p class="marketing-text">Migrate workloads between different servers with unprecedented ease. Our custom migration engine handles storage, snapshots, and overlays, ensuring your data lands safely—every time.</p>
-            </div>
-        </section>
+<pre><code>pip3 install virtui-manager</code></pre>
 
-        <!-- Feature 4: Clone VM -->
-        <section class="feature-section hidden-right" id="cloning">
-            <div class="feature-image">
-                <img src="manual/images/clone.png" alt="Advanced VM Cloning interface" class="active">
-                <img src="manual/images/clone_mini.jpg" alt="Mini clone interface">
-            </div>
-            <div class="feature-content">
-                <h2>Rapid Deployment</h2>
-                <p class="marketing-text">Need to scale out? Clone VMs instantly with advanced customization. Define suffixes, create multiple instances, and auto-provision storage in seconds.</p>
-            </div>
-        </section>
+<p>Or from source:</p>
 
-        <!-- Feature 5: Modern VM installation -->
-        <section class="feature-section hidden-left" id="installation">
-            <div class="feature-image">
-                <img src="manual/images/install.jpg" alt="Modern VM installation interface" class="active">
-            </div>
-            <div class="feature-content">
-                <h2>Modern VM Installation</h2>
-                <p class="marketing-text">Provisioning has never been this smooth. Experience a streamlined installation process with intelligent defaults, UEFI support by default, and optimized hardware detection. Build your next workload in seconds.</p>
-            </div>
-        </section>
+<pre><code>git clone https://github.com/aginies/virtui-manager.git
+cd virtui-manager/src/vmanager
+python3 virtui_dev.py</code></pre>
 
-        <!-- Feature 6: Automated Installation -->
-        <section class="feature-section hidden-right" id="auto-installation">
-            <div class="feature-image">
-                <img src="manual/images/autofill.png" alt="Automated Installation Configuration" class="active">
-                <img src="manual/images/template.png" alt="Template Management Interface">
-            </div>
-            <div class="feature-content">
-                <h2>Automated Installation</h2>
-                <p class="marketing-text">Take deployment to the next level with full automated installation support. Manage custom templates and leverage the intelligent auto-prefill feature to accelerate your provisioning workflow, ensuring consistency and speed.</p>
-            </div>
-        </section>
+<h2>Features</h2>
 
-        <!-- Feature 7: Virtui Remote Viewer -->
-        <section class="feature-section hidden-left" id="remote-viewer">
-            <div class="feature-image">
-                <img src="manual/images/vr.jpg" alt="VirtUI Remote Viewer" class="active">
-                <img src="manual/images/vr_first_boot.jpg" alt="Remote Viewer First Boot">
-                <img src="manual/images/vr_log.jpg" alt="Integrated Remote Viewer Logs">
-                <img src="manual/images/vr_menu.jpg" alt="Integrated Remote Viewer Menu">
-                <img src="manual/images/vr_snapshot.jpg" alt="Integrated Remote Viewer Snapshots">
-                <img src="manual/images/vr_usb.jpg" alt="Integrated Remote Viewer USB Redirection">
-            </div>
-            <div class="feature-content">
-                <h2>VirtUI Remote Viewer</h2>
-                <p class="marketing-text">Take full control with our custom remote viewer. Manage snapshots, redirect USB devices, and monitor logs in real-time, all within a high-performance, integrated interface designed for the modern administrator.</p>
-            </div>
-        </section>
+<ul class="features">
+    <li>List VMs across local/remote libvirt servers</li>
+    <li>Start, stop, pause, resume VMs</li>
+    <li>VM configuration (CPU, memory, storage, network)</li>
+    <li>Snapshots and disk overlays</li>
+    <li>Bulk operations with regex patterns</li>
+    <li>VM cloning</li>
+    <li>Migration between servers</li>
+    <li>VM provisioning (Debian, Ubuntu, Fedora, Arch, Alpine, openSUSE/SLES)</li>
+    <li>Remote viewer (VNC/SPICE) with USB redirection</li>
+    <li>Web console (noVNC via websockify)</li>
+    <li>CLI tool (vmanager_cmd) for automation</li>
+    <li>Command pipelines</li>
+    <li>Backup management</li>
+    <li>No X11 required, works over SSH</li>
+</ul>
 
-        <!-- Feature 8: Configure VM -->
-        <section class="feature-section hidden-right" id="configuration">
-            <div class="feature-image">
-                <img src="manual/images/configure1.jpg" alt="VM Configuration Interface" class="active">
-                <img src="manual/images/configure2.jpg" alt="Advanced Configuration Options">
-                <img src="manual/images/configure3.jpg" alt="Hardware Tuning">
-                <img src="manual/images/configure4.jpg" alt="Network & Storage Settings">
-                <img src="manual/images/configure5.jpg" alt="Display & Boot Configuration">
-            </div>
-            <div class="feature-content">
-                <h2>Configure VM & Bulk Actions</h2>
-                <p class="marketing-text">Whether managing a single instance or performing bulk operations across your fleet, VirtUI Manager provides a unified interface for deep VM configuration. Tweak CPU, memory, storage, and networking with surgical precision.</p>
-            </div>
-        </section>
+<h2>Quick Start</h2>
 
-        <!-- Feature 9: Host Intelligence -->
-        <section class="feature-section hidden-left" id="host-intelligence">
-            <div class="feature-image">
-                <img src="manual/images/host_resource.png" alt="Host Resource Dashboard" class="active">
-                <img src="manual/images/host_capabilities.png" alt="Host Capabilities Tree">
-            </div>
-            <div class="feature-content">
-                <h2>Host Intelligence</h2>
-                <p class="marketing-text">Gain deep insights into your physical infrastructure. Monitor host resources in real-time and explore detailed capabilities including CPU topology, cache, and NUMA layout directly from the terminal.</p>
-            </div>
-        </section>
+<ol class="steps">
+    <li>Connect to a libvirt server: <code>virtui-manager</code></li>
+    <li>Select a VM and use the <strong>Actions</strong> menu to start, configure, or migrate</li>
+    <li>Press <code>b</code> for bulk operations across multiple VMs</li>
+    <li>Use <code>vmanager_cmd</code> for CLI automation</li>
+</ol>
 
-        <!-- Feature 10: Web Console -->
-        <section class="feature-section hidden-right" id="web-console">
-            <div class="feature-image">
-                <img src="manual/images/webconsole1.jpg" alt="Integrated Web Console" class="active">
-                <img src="manual/images/webconsole2.jpg" alt="NoVNC Session">
-            </div>
-            <div class="feature-content">
-                <h2>Integrated Web Console</h2>
-                <p class="marketing-text">Access your VMs from anywhere with the built-in web console. Powered by noVNC and Websockify, it provides a secure, high-performance graphical interface directly in your browser without additional client software.</p>
-            </div>
-        </section>
+<h2>CLI Example</h2>
 
-        <!-- Feature 11: Server Mastery -->
-        <section class="feature-section hidden-left" id="server-mastery">
-            <div class="feature-image">
-                <img src="manual/images/server_storage.png" alt="Storage Pool Management" class="active">
-                <img src="manual/images/server_network.png" alt="Virtual Network Configuration">
-            </div>
-            <div class="feature-content">
-                <h2>Server Mastery</h2>
-                <p class="marketing-text">Take full command of your virtualization infrastructure. Manage storage pools, volumes, and virtual networks across all your servers from a single, unified interface. Create, configure, and monitor your host resources without leaving the terminal.</p>
-            </div>
-        </section>
+<pre><code>$ vmanager_cmd
+&gt; connect localhost
+(localhost) &gt; list_vms
+&gt; select re:web-.* | start</code></pre>
 
-        <!-- Detailed Feature Grid -->
-        <section class="details-grid" id="features">
-            <h2 class="section-title">Why VirtUI Manager?</h2>
-            <div class="grid-container">
-                <div class="grid-item">
-                    <h3>Automated Installation</h3>
-                    <p>Support for automated OS installations with template management and intelligent auto-prefill.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Command Line Interface</h3>
-                    <p>Power users can leverage <code>vmanager_cmd</code>, a dedicated shell-like CLI for rapid VM management and automated pipelines with built-in security sanitization.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Zero Dependencies</h3>
-                    <p>No X11 required. Runs perfectly on headless servers and remote connections via SSH.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Transhypervisor View</h3>
-                    <p>Manage VMs across multiple Libvirt servers in one unified dashboard.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Real-time Monitoring</h3>
-                    <p>Live CPU, memory, and network sparklines for every VM.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Smart Caching</h3>
-                    <p>Caching reduces latency and API load by up to 70%.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Storage Mastery</h3>
-                    <p>Move volumes, manage pools, and handle disk overlays effortlessly.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Secure Access</h3>
-                    <p>Integrated Websockify and noVNC support for secure remote viewing.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Libvirt Native</h3>
-                    <p>Built directly on the Libvirt API for maximum compatibility and stability with QEMU/KVM environments.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Event Driven</h3>
-                    <p>Real-time updates via events ensure ultra-low bandwidth usage and immediate UI responsiveness.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Data Integrity</h3>
-                    <p>Full support for snapshots and disk overlays. Branch your VM states or revert changes with confidence.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Powerful Selection</h3>
-                    <p>Manage large scale fleets by selecting VMs using flexible regex patterns and group filters.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Server Mastery</h3>
-                    <p>Granular Server Preferences allow you to manage storage pools and network configurations remotely.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Direct XML Editing</h3>
-                    <p>Modify VM configurations at the lowest level with the built-in XML editor.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Integrated Virsh</h3>
-                    <p>Drop into a fully authenticated <code>virsh</code> shell context-switched to your specific server.</p>
-                </div>
-                <div class="grid-item">
-                    <h3>Tmux Integration</h3>
-                    <p>Seamlessly launch text consoles in separate Tmux windows for multitasking mastery.</p>
-                </div>
-            </div>
-        </section>
+<h2>Comparison</h2>
 
-    </main>
+<table>
+    <tr><th></th><th>VirtUI</th><th>Virt-Manager</th><th>Virsh</th><th>Cockpit</th></tr>
+    <tr><td>Type</td><td>TUI + GUI</td><td>GUI</td><td>CLI</td><td>Web</td></tr>
+    <tr><td>SSH</td><td>Native</td><td>X11 (slow)</td><td>Native</td><td>Separate</td></tr>
+    <tr><td>Headless</td><td>Yes</td><td>No</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Multi-server</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td></tr>
+    <tr><td>Resource use</td><td>Low</td><td>High</td><td>Low</td><td>Medium</td></tr>
+</table>
 
-    <footer>
-        <div class="footer-content">
-            <img src="manual/images/virtui-manager_logo_notext_inverted.png" alt="Virtui Manager Logo" class="footer-logo">
-            <p>&copy; 2026 VirtUI Manager. Licensed under <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPLv3</a>.</p>
-            <p>Created by <a href="https://github.com/aginies">Antoine Ginies</a>.</p>
-        </div>
-    </footer>
+<footer>
+<p>&copy; 2026 VirtUI Manager. <a href="https://www.gnu.org/licenses/gpl-3.0.en.html">GPLv3</a>.</p>
+<p>Created by <a href="https://github.com/aginies">Antoine Ginies</a>.</p>
+</footer>
 
-    <!-- Scroll Animation Script -->
-    <script>
-        // Image Slider Logic
-        document.addEventListener('DOMContentLoaded', () => {
-            setInterval(() => {
-                document.querySelectorAll('.feature-image').forEach(slider => {
-                    const images = slider.querySelectorAll('img');
-                    if (images.length > 1) {
-                        const current = slider.querySelector('img.active');
-                        // Ensure we only cycle images, not other elements if they existed
-                        if (current) {
-                            current.classList.remove('active');
-                            // Find next image sibling
-                            let next = current.nextElementSibling;
-                            // If next sibling is not an image (unlikely but safe) or null, loop back
-                            if (!next || next.tagName !== 'IMG') {
-                                next = images[0];
-                            }
-                            next.classList.add('active');
-                        } else if (images.length > 0) {
-                            images[0].classList.add('active');
-                        }
-                    }
-                });
-            }, 3000);
-        });
-
-        const observerOptions = {
-            root: null,
-            rootMargin: '0px',
-            threshold: 0.2
-        };
-
-        const observer = new IntersectionObserver((entries, observer) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('show');
-                }
-            });
-        }, observerOptions);
-
-        const hiddenElements = document.querySelectorAll('.hidden-left, .hidden-right');
-        hiddenElements.forEach((el) => observer.observe(el));
-    </script>
 </body>
 </html>

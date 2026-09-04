@@ -1355,7 +1355,7 @@ class VMService:
             for conn in delete_conns.values():
                 try:
                     conn.close()
-                except:
+                except Exception:
                     pass
 
         # Invalidate caches in bulk at the end
