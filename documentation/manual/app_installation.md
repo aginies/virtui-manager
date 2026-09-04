@@ -98,7 +98,7 @@ Now **virtui-manager**, **virtui-manager-cmd**, **vmc**, **virtui-remote-cmd**, 
 
 ## Nix Package (experimental)
 
-This project includes comprehensive Nix package definitions for easy installation and development. The Nix files are located in the `nix/` directory.
+Nix package definitions for installation and development. The Nix files are located in the `nix/` directory.
 
 ### Prerequisites
 

@@ -1,6 +1,6 @@
 # Selecting and Filtering VMs
 
-Efficiently managing large fleets of Virtual Machines requires powerful selection tools. VirtUI Manager provides multiple ways to target specific VMs for bulk operations or focused management.
+Multiple ways to target VMs for bulk operations.
 
 ![Pattern Selection Interface](images/pattern.jpg)
 

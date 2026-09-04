@@ -9,7 +9,7 @@ The **Management Main Window** is the central hub of VirtUI Manager, designed fo
 !!! note
     You can view the application logs at any time by pressing the **`v`** key. This is useful for monitoring background operations and troubleshooting.
 
-The interface is divided into intuitive sections to streamline your workflow:
+The interface is divided into sections::
 
 ### Server Management
 
@@ -65,7 +65,7 @@ Press **`t`** to open the **Template Management** interface.
 
 ### [Bulk CMD](bulk_ops.md) (`b`)
 
-The "Bulk Command" mode puts the power of fleet management at your fingertips.
+Bulk commands apply to selected VMs.
 
 *   **Multi-Select:** Manually select cards or use **`Ctrl+a`** (Select All) / **`Ctrl+u`** (Unselect All).
 *   **Pattern Selection (`p`):** Select VMs based on name patterns (regex/glob).

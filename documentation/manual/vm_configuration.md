@@ -80,4 +80,4 @@ Configure advanced hardware integration and display settings.
 
 ---
 !!! tip "Bulk Configuration"
-    When multiple VMs are selected via Bulk Edit, changing a setting (like CPU Model or Graphics Password) will apply that change to **all selected VMs** sequentially. This is powerful for fleet updates.
+    When multiple VMs are selected via Bulk Edit, changes apply to all selected VMs.

@@ -1,6 +1,6 @@
 # Backup Management
 
-VirtUI Manager provides a comprehensive backup system for virtual machines, supporting two backup types (snapshot and overlay) with optional compression, encryption, and integrity verification. Backups are managed through both the CLI and the bulk operations interface.
+Backup system supporting snapshot and overlay types with optional compression, encryption, and integrity verification. Backups are managed through both the CLI and the bulk operations interface.
 
 ## Backup Types
 

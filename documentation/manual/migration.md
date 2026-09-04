@@ -1,6 +1,6 @@
 # Virtual Machine Migration
 
-VirtUI Manager provides a powerful interface for migrating Virtual Machines between Libvirt hosts. It supports both standard live migration (using shared storage) and a custom migration mode that handles non-shared storage scenarios by copying disk images.
+Migrate VMs between libvirt hosts. It supports both standard live migration (using shared storage) and a custom migration mode that handles non-shared storage scenarios by copying disk images.
 
 ## Accessing Migration
 

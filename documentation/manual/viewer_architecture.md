@@ -29,7 +29,7 @@ RemoteViewer (Application)
 ### Key Design Principles
 
 *   **Protocol abstraction:** VNC and SPICE are handled through a common `DisplayManager` interface.
-*   **Event-driven:** GTK signal handlers and libvirt event callbacks drive state changes.
+*   **Event-driven:** GTK signal handlers and libvirt events drive state changes.
 *   **Non-blocking:** SSH tunnel verification and display connections use GLib timeouts instead of blocking waits.
 *   **State persistence:** Display settings, font, and fullscreen state are saved and restored automatically.
 
