@@ -5,6 +5,7 @@ Utils functions
 import logging
 import os
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -15,7 +16,6 @@ from typing import Callable, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from .constants import AppInfo
-
 
 # Regex to match URIs with embedded credentials (user:password@host pattern)
 # Matches patterns like: qemu+ssh://user:password@host/system
@@ -395,8 +395,8 @@ def generate_webconsole_keys_if_needed(  # pylint: disable=too-many-branches
                     ["ssh", remote_host, f"mkdir -p {config_dir}"], check=True, timeout=5
                 )
                 # Run openssl remotely
-                # We need to quote the command for ssh
-                remote_cmd = " ".join(gen_cmd)
+                # Quote each argument so the remote shell keeps them intact
+                remote_cmd = " ".join(shlex.quote(c) for c in gen_cmd)
                 subprocess.run(
                     ["ssh", remote_host, remote_cmd],
                     check=True,
@@ -619,11 +619,7 @@ def terminal_supports_emoji() -> bool:
         return False
 
     # Check encoding — use __stdout__ as Textual may redirect sys.stdout
-    encoding = (
-        getattr(sys.__stdout__, "encoding", "")
-        or os.environ.get("LANG", "")
-        or ""
-    )
+    encoding = getattr(sys.__stdout__, "encoding", "") or os.environ.get("LANG", "") or ""
     if "UTF" not in encoding.upper():
         return False
 
@@ -707,9 +703,7 @@ def run_command(
     if remote_host:
         ssh_cmd = ["ssh", remote_host, " ".join(cmd)]
         logging.debug(f"Running remote command: {' '.join(ssh_cmd)}")
-        return subprocess.run(
-            ssh_cmd, capture_output=True, text=True, check=check, timeout=timeout
-        )
+        return subprocess.run(ssh_cmd, capture_output=True, text=True, check=check, timeout=timeout)
     logging.debug(f"Running local command: {' '.join(cmd)}")
     return subprocess.run(cmd, capture_output=True, text=True, check=check, timeout=timeout)
 
@@ -1134,5 +1128,3 @@ def setup_logging():
         logging.info("--- Logging initialized ---")
 
     setup_cache_monitoring(enable=False)
-
-
