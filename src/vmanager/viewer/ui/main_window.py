@@ -284,25 +284,29 @@ class MainWindowBuilder:
         #   INFO   → green   (started / resumed)
         #   WARNING → orange  (paused)
         #   ERROR  → red     (stopped)
+        # set_message_type() applies the class to the InfoBar's internal button,
+        # so the provider must be screen-level to reach it.
         css_provider = Gtk.CssProvider()
         css_data = """
-            InfoBar.info {
+            .info {
                 background-color: #4caf50;
                 color: #ffffff;
             }
-            InfoBar.warning {
+            .warning {
                 background-color: #ff9800;
                 color: #ffffff;
             }
-            InfoBar.error {
+            .error {
                 background-color: #f44336;
                 color: #ffffff;
             }
         """
         css_provider.load_from_data(css_data.encode())
-        self.info_bar.get_style_context().add_provider(
-            css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-        )
+        screen = self.info_bar.get_screen()
+        if screen:
+            Gtk.StyleContext.add_provider_for_screen(
+                screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
 
         content = self.info_bar.get_content_area()
         self.info_bar_label = Gtk.Label()
