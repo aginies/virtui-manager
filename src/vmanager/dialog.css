@@ -9,7 +9,6 @@ SnapshotNameDialog,
 SelectSnapshotDialog,
 SelectOneServerModal,
 ConfirmationDialog,
-ChangeNetworkDialog,
 XMLDisplayModal,
 CapabilitiesTreeModal,
 SelectDiskModal,
@@ -26,7 +25,6 @@ DeleteVMConfirmationDialog,
 AdvancedCloneDialog,
 RenameVMDialog,
 AddInputDeviceModal,
-PasswordModal,
 FileSelectionModal,
 ConfigModal,
 CustomMigrationModal,
@@ -58,9 +56,7 @@ DeleteVMConfirmationDialog > #delete-vm-dialog,
 SelectServerModal > #select-server-container,
 PatternSelectModal > #pattern-select-container,
 RenameVMDialog > #dialog,
-ChangeNetworkDialog > #dialog,
 AddInputDeviceModal > #add-input-container,
-PasswordModal > #password-dialog,
 AddPoolModal > #add-pool-dialog,
 FileSelectionModal > #file-selection-dialog,
 HowToModal > #howto-dialog,
@@ -270,10 +266,8 @@ VMTypeInfoModal #howto-vmtype-dialog, {
     padding: 0 0;
 }
 RenameVMDialog > #dialog { height: 13; }
-ChangeNetworkDialog > #dialog { height: 20; }
 InputModal > #input-modal-container { height: 16; }
 AddInputDeviceModal > #add-input-container { height: 16; }
-PasswordModal > #password-dialog { height: 12; }
 XMLDisplayModal > #xml-display-dialog {
   width: 100%;
   height: 95%;
@@ -344,10 +338,8 @@ SelectPoolModal > #dialog-buttons,
 DeleteVMConfirmationDialog > #dialog-buttons,
 SelectServerModal Button,
 RenameVMDialog > #dialog-buttons,
-ChangeNetworkDialog > #dialog-buttons,
 AutoFillConfigModal > #dialog-buttons,
-AddInputDeviceModal .modal-buttons,
-PasswordModal > #dialog-buttons {
+AddInputDeviceModal .modal-buttons {
   width: 100%;
 }
 
@@ -357,7 +349,6 @@ ConfirmationDialog > #dialog-buttons { margin-top: 1; }
 SnapshotNameDialog Button,
 ConfirmationDialog Button,
 RenameVMDialog Button,
-ChangeNetworkDialog Button,
 AutoFillConfigModal Button,
 AddInputDeviceModal Button,
 WebConsoleDialog Button,
@@ -366,8 +357,7 @@ FileSelectionModal Button,
 SelectPoolModal Button,
 InstallVMModal Button,
 DeleteVMConfirmationDialog Button,
-ConfigModal Button,
-PasswordModal Button {
+ConfigModal Button {
   width: 50%;
   margin: 1;
   margin-left: 1;
@@ -396,7 +386,6 @@ ConfirmationDialog Button { margin-right: 1; }
 /* === INPUTS === */
 SnapshotNameDialog Input,
 RenameVMDialog Input,
-PasswordModal Input,
 AddInputDeviceModal Select {
   margin-bottom: 1;
 }
@@ -417,13 +406,6 @@ SelectSnapshotDialog.snapshot-select-dialog > #dialog {
   height: 15;
   margin-bottom: 1;
   border: round $primary;
-}
-
-/* === NETWORK === */
-ChangeNetworkDialog > #interface-select,
-ChangeNetworkDialog > #network-select {
-  margin-bottom: 1;
-  height: 4;
 }
 
 /* === SWITCHS === */
@@ -797,48 +779,5 @@ TemplateManagementModal Button {
   min-width: 10;
   max-width: 12;
   margin: 0 0;
-}
-
-/* === Template View Modal === */
-TemplateViewModal > #template-view-container {
-  width: 85;
-  height: 85%;
-  border: round $primary;
-  background: $surface;
-  padding: 1;
-}
-
-TemplateViewModal .title {
-  width: 100%;
-  text-align: center;
-  text-style: bold;
-  margin-bottom: 1;
-  color: $accent;
-}
-
-TemplateViewModal #template-content-container {
-  height: 1fr;
-  border: round $surface;
-  margin-bottom: 1;
-  padding: 1;
-}
-
-TemplateViewModal #template-content {
-  width: 100%;
-  height: 100%;
-  background: $surface-darken-1;
-  color: $text;
-  padding: 1;
-}
-
-TemplateViewModal .buttons {
-  width: 100%;
-  height: auto;
-  align: center middle;
-}
-
-TemplateViewModal Button {
-  width: 50%;
-  margin: 1;
 }
 

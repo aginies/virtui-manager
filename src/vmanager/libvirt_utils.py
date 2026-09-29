@@ -5,7 +5,7 @@ Utility functions for libvirt XML parsing and common helpers.
 import logging
 import xml.etree.ElementTree as ET
 from functools import lru_cache
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Any, Dict, List, Optional, Tuple
 
 import libvirt
 
@@ -388,25 +388,6 @@ def get_host_architecture(conn: libvirt.virConnect) -> str:
     return "x86_64"
 
 
-def find_all_vm(conn: libvirt.virConnect) -> List[str]:
-    """Find all VM from the current Hypervisor.
-
-    Args:
-        conn: The libvirt connection object
-
-    Returns:
-        List of VM names
-    """
-    allvm_list = []
-    # Store all VM from the hypervisor
-    domains = conn.listAllDomains(0)
-    for domain in domains:
-        if domain.name():
-            vmdomain = domain.name()
-            allvm_list.append(vmdomain)
-    return allvm_list
-
-
 @lru_cache(maxsize=4)
 def get_domain_capabilities_xml(
     conn: libvirt.virConnect, emulatorbin: str, arch: str, machine: str, flags: int = 0
@@ -457,39 +438,6 @@ def get_video_domain_capabilities(xml_content: str) -> Dict[str, Any]:
             for value_elem in video_elem.findall("value"):
                 if value_elem.text:
                     supported_models["video_models"].append(value_elem.text)
-
-    except ET.ParseError as e:
-        logging.error("Error parsing domain capabilities XML: %s", e)
-    except Exception as e:
-        logging.error("An unexpected error occurred during XML parsing: %s", e)
-
-    return supported_models
-
-
-def get_sound_domain_capabilities(xml_content: str) -> Dict[str, Any]:
-    """Parses the domain capabilities XML to extract supported sound models.
-
-    Args:
-        xml_content: The XML content to parse
-
-    Returns:
-        Dictionary with supported sound models
-    """
-    supported_models = {
-        "sound_models": [],
-    }
-
-    if not xml_content:
-        return supported_models
-
-    try:
-        root = ET.fromstring(xml_content)
-
-        # Extract supported sound models
-        for sound_elem in root.findall(".//sound[@supported='yes']/enum[@name='model']"):
-            for value_elem in sound_elem.findall("value"):
-                if value_elem.text:
-                    supported_models["sound_models"].append(value_elem.text)
 
     except ET.ParseError as e:
         logging.error("Error parsing domain capabilities XML: %s", e)

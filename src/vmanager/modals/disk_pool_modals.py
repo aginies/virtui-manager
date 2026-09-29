@@ -92,46 +92,6 @@ class SelectDiskModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class RemoveDiskModal(BaseModal[str | None]):
-    """Modal screen for removing a disk."""
-
-    def __init__(self, disks: list) -> None:
-        """Initialize the modal with disk list."""
-        super().__init__()
-        self.disks = disks
-        self.selected_disk = None
-
-    def compose(self) -> ComposeResult:
-        """Compose the modal UI."""
-        with Vertical(id="remove-disk-dialog"):
-            yield Label(StaticText.SELECT_DISK_TO_REMOVE)
-            yield ListView(
-                *[ValueListItem(Label(disk), value=disk) for disk in self.disks],
-                id="remove-disk-list",
-            )
-            with Horizontal():
-                yield Button(
-                    ButtonLabels.REMOVE,
-                    variant="error",
-                    id="remove-btn",
-                    classes="Buttonpage delete-button",
-                )
-                yield Button(
-                    ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage"
-                )
-
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        """Handle list view selection."""
-        self.selected_disk = event.item.value
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button press events."""
-        if event.button.id == "remove-btn" and hasattr(self, "selected_disk"):
-            self.dismiss(self.selected_disk)
-        elif event.button.id == "cancel-btn":
-            self.dismiss(None)
-
-
 class AddDiskModal(BaseModal[dict | None]):
     """Modal screen for adding a new disk."""
 
@@ -349,7 +309,9 @@ class AddPoolModal(BaseModal[bool | None]):
                             id="dir-target-path-input",
                             placeholder=StaticText.DIR_TARGET_PATH_PLACEHOLDER,
                         )
-                        yield Button(ButtonLabels.BROWSE, id="browse-dir-btn", disabled=self.is_remote)
+                        yield Button(
+                            ButtonLabels.BROWSE, id="browse-dir-btn", disabled=self.is_remote
+                        )
 
             # Fields for `netfs` type
             with Vertical(id="netfs-fields"):
@@ -357,7 +319,9 @@ class AddPoolModal(BaseModal[bool | None]):
                     yield Label(StaticText.TARGET_PATH_HOST)
                     with Vertical():
                         yield Input("/mnt/nfs", id="netfs-target-path-input")
-                        yield Button(ButtonLabels.BROWSE, id="browse-netfs-btn", disabled=self.is_remote)
+                        yield Button(
+                            ButtonLabels.BROWSE, id="browse-netfs-btn", disabled=self.is_remote
+                        )
                     yield Select(
                         [
                             ("auto", "auto"),
@@ -572,10 +536,12 @@ class EditDiskModal(BaseModal[dict | None]):
             ("usb", "usb"),
             ("fdc", "fdc"),
         ]
-        device_options = [("disk", "disk"),
-                          ("cdrom", "cdrom"),
-                          ("floppy", "floppy"),
-                          ("lun", "lun")]
+        device_options = [
+            ("disk", "disk"),
+            ("cdrom", "cdrom"),
+            ("floppy", "floppy"),
+            ("lun", "lun"),
+        ]
 
         with Vertical(id="edit-disk-dialog"):
             yield Label(

@@ -403,22 +403,6 @@ class MainWindowBuilder:
         """Get the fullscreen toggle button."""
         return self.fs_button
 
-    def get_logs_button(self) -> Gtk.ToggleButton:
-        """Get the logs toggle button."""
-        return self.logs_button
-
-    def get_notebook(self) -> Gtk.Notebook:
-        """Get the notebook widget."""
-        return self.notebook
-
-    def get_snapshot_tab(self) -> SnapshotTab:
-        """Get the snapshot tab instance."""
-        return self.snapshot_tab_instance
-
-    def get_usb_tab(self) -> USBTab:
-        """Get the USB tab instance."""
-        return self.usb_tab_instance
-
     def get_console_tab(self) -> ConsoleTab:
         """Get the console tab instance."""
         return self.console_tab_instance

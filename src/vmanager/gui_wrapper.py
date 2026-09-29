@@ -791,13 +791,6 @@ class VirtuiWrapper(Gtk.Window):
 
         Gtk.main_quit()
 
-    def cleanup(self):
-        """Explicit cleanup method that can be called before destroy."""
-        if not self.cleanup_in_progress:
-            self.cleanup_in_progress = True
-            self.cleanup_all_terminals()
-            self.save_gui_config()
-
     def spawn_process(self, terminal, cmd):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.abspath(os.path.join(script_dir, "..", ".."))

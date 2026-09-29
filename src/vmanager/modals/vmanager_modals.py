@@ -9,7 +9,7 @@ from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSe
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages, VmStatus
 from .base_modals import BaseModal
-from .input_modals import _sanitize_input, validate_integer_range
+from .input_modals import _sanitize_input
 
 
 class FilterModal(BaseModal[None]):
@@ -174,45 +174,3 @@ class FilterModal(BaseModal[None]):
             self.FilterChanged(status=status, search=search_text, selected_servers=selected_servers)
         )
         self.app.pop_screen()
-
-
-class CreateVMModal(BaseModal[dict | None]):
-    """Modal screen for creating a new VM."""
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="create-vm-dialog"):
-            yield Label(StaticText.CREATE_NEW_VM)
-            yield Input(placeholder="VM Name", id="vm-name-input", value="new_vm")
-            yield Input(placeholder="Memory (MB, e.g., 2048)", id="vm-memory-input", value="2048", type="integer")
-            yield Input(placeholder="VCPU (e.g., 2)", id="vm-vcpu-input", value="2", type="integer")
-            yield Input(
-                placeholder="Disk Image Path (e.g., /var/lib/libvirt/images/myvm.qcow2)",
-                id="vm-disk-input",
-                value="/var/lib/libvirt/images/new_vm.qcow2",
-            )
-            # For simplicity, we won't add network details yet.
-            with Horizontal():
-                yield Button(
-                    ButtonLabels.CREATE, variant="primary", id="create-btn", classes="Buttonpage"
-                )
-                yield Button(
-                    ButtonLabels.CANCEL, variant="default", id="cancel-btn", classes="Buttonpage"
-                )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "create-btn":
-            name = self.query_one("#vm-name-input", Input).value
-            memory_input = self.query_one("#vm-memory-input", Input).value
-            vcpu_input = self.query_one("#vm-vcpu-input", Input).value
-            disk = self.query_one("#vm-disk-input", Input).value
-
-            try:
-                memory = validate_integer_range(memory_input, 64, 262144, "Memory (MB)")
-                vcpu = validate_integer_range(vcpu_input, 1, 256, "VCPU")
-            except ValueError as e:
-                self.app.show_error_message(str(e))
-                return
-
-            self.dismiss({"name": name, "memory": memory, "vcpu": vcpu, "disk": disk})
-        elif event.button.id == "cancel-btn":
-            self.dismiss(None)

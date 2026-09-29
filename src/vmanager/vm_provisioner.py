@@ -70,34 +70,6 @@ class VMProvisioner:
         # Backward compatibility registry (to be deprecated)
         self.provider_registry = ProviderRegistry()
 
-    def get_iso_sources(self, os_type: str | OSType, version_id: str) -> List[str]:
-        """
-        Get ISO download sources for a specific OS type and version.
-        Uses LibosinfoManager.
-        """
-        if isinstance(os_type, str):
-            # Try to convert string to OSType
-            for ot in OSType:
-                if ot.value.lower() == os_type.lower():
-                    os_type = ot
-                    break
-            else:
-                return []
-
-        # Find the version in libosinfo
-        version = self.provider_registry.find_version(os_type, version_id)
-        if not version:
-            return []
-
-        isos = self.libosinfo_manager.get_iso_list(version)
-        return [iso["url"] for iso in isos]
-
-    def get_cached_isos_for_provider(self, os_type: str) -> List[Dict[str, Any]]:
-        """
-        Get cached ISOs for a specific provider. (Legacy)
-        """
-        return []
-
     def get_iso_list(self, distro) -> List[Dict[str, Any]]:
         """
         Get list of ISOs for a distribution or custom repository.
@@ -137,14 +109,6 @@ class VMProvisioner:
             return self._get_remote_iso_list(url)
         else:
             return self._get_local_iso_list(url)
-
-    def get_iso_list_from_custom_repo(
-        self, url: str, os_type: str = "linux"
-    ) -> List[Dict[str, Any]]:
-        """
-        Get list of ISOs from a custom repository URL.
-        """
-        return self.get_iso_list_from_url(url)
 
     def get_custom_repos(self) -> List[Dict[str, str]]:
         """
@@ -655,18 +619,6 @@ class VMProvisioner:
 
         return True
 
-    def _format_speed(self, bytes_per_sec: float) -> str:
-        """Format download speed in human-readable format."""
-        units = ["B", "KB", "MB", "GB"]
-        unit_index = 0
-        speed = bytes_per_sec
-
-        while speed >= 1024 and unit_index < len(units) - 1:
-            speed /= 1024
-            unit_index += 1
-
-        return f"{speed:.1f} {units[unit_index]}"
-
     def _get_sev_capabilities(self) -> Dict[str, Any]:
         """
         Retrieves SEV capabilities from the host.
@@ -895,10 +847,6 @@ class VMProvisioner:
                     temp_pool.undefine()
                 except libvirt.libvirtError:
                     pass
-
-    def _get_pool_path(self, pool: libvirt.virStoragePool) -> str:
-        xml = ET.fromstring(pool.XMLDesc(0))
-        return xml.find("target/path").text
 
     def _find_iso_volume_by_path(self, path: str) -> str | None:
         """

@@ -18,6 +18,7 @@ Examples:
     python3 virtui_dev.py gui
     python3 virtui_dev.py viewer --connect qemu:///system --domain-name MyVM
 """
+
 import argparse
 import os
 import sys
@@ -61,15 +62,6 @@ def run_viewer():
     from vmanager.viewer import main
 
     main()
-
-
-def run_viewer_gtk4():
-    from vmanager import remote_viewer_gtk4
-
-    if hasattr(remote_viewer_gtk4, "main"):
-        remote_viewer_gtk4.main()
-    else:
-        print("Error: remote_viewer_gtk4 module has no 'main' function.")
 
 
 def run_gui():

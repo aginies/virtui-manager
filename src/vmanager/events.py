@@ -44,14 +44,6 @@ class VmCardUpdateRequest(Message):
         super().__init__()
 
 
-class VMCardRemoved(Message):
-    """Posted when a VM card needs to be removed from the UI."""
-
-    def __init__(self, internal_id: str) -> None:
-        self.internal_id = internal_id
-        super().__init__()
-
-
 class VMActionButtonPressed(Message):
     """Posted when a button in the VMCardActions pane is pressed."""
 

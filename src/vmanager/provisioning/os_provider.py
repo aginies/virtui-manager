@@ -7,11 +7,11 @@ along with common data structures for OS types and versions.
 
 import logging
 import secrets
-import subprocess
 import string
+import subprocess
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Optional
 
 import gi
 
@@ -50,16 +50,6 @@ class OSVersion:
 
     def __str__(self) -> str:
         return self.display_name
-
-
-@dataclass
-class AutomationConfig:
-    """Configuration for unattended installation."""
-
-    template_name: str
-    variables: Dict[str, Any]
-    supports_custom_user: bool = True
-    supports_network_config: bool = True
 
 
 _osinfo_db = None
