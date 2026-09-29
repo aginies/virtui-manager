@@ -4,14 +4,14 @@ Module for performing actions and modifications on virtual machines.
 
 import logging
 import os
-import shutil
 import secrets
+import shutil
 import time
 import uuid
 import xml.etree.ElementTree as ET
+from typing import Callable
 
 import libvirt
-from typing import Callable
 
 from .libvirt_utils import (
     VIRTUI_MANAGER_NS,
@@ -27,7 +27,13 @@ from .network_manager import list_networks
 from .storage_manager import create_overlay_volume
 from .utils import log_function_call
 from .vm_cache import invalidate_cache
-from .vm_queries import _get_domain_root, get_vm_disks_info, get_vm_snapshots, get_vm_tpm_info, has_overlays
+from .vm_queries import (
+    _get_domain_root,
+    get_vm_disks_info,
+    get_vm_snapshots,
+    get_vm_tpm_info,
+    has_overlays,
+)
 
 
 def _require_vm_stopped(domain: libvirt.virDomain, message: str):
@@ -174,7 +180,9 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             try:
                 original_vol_xml = original_vol.XMLDesc(0)
             except Exception as e:
-                logging.exception("Failed to get XMLDesc for volume '%s': %s", original_vol.name(), e)
+                logging.exception(
+                    "Failed to get XMLDesc for volume '%s': %s", original_vol.name(), e
+                )
                 raise
             vol_root = ET.fromstring(original_vol_xml)
 
@@ -269,9 +277,7 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                         if log_callback:
                             log_callback(msg)
 
-                        new_nvram_vol = nvram_pool.createXMLFrom(
-                            new_nvram_vol_xml, nvram_vol, 0
-                        )
+                        new_nvram_vol = nvram_pool.createXMLFrom(new_nvram_vol_xml, nvram_vol, 0)
                         new_nvram_path = new_nvram_vol.path()
                     elif os.path.isfile(nvram_path):
                         # Fallback: NVRAM not in a storage pool, copy file directly
@@ -291,9 +297,7 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                             "and does not exist on disk"
                         )
                 except libvirt.libvirtError as e:
-                    raise libvirt.libvirtError(
-                        f"Failed to clone NVRAM for VM '{new_vm_name}': {e}"
-                    )
+                    raise libvirt.libvirtError(f"Failed to clone NVRAM for VM '{new_vm_name}': {e}")
                 nvram_elem.text = new_nvram_path
 
         new_xml = ET.tostring(root, encoding="unicode")
@@ -1124,7 +1128,9 @@ def set_disk_properties(domain: libvirt.virDomain, disk_path: str, properties: d
     )
 
 
-def _do_set_disk_properties(domain: libvirt.virDomain, root: ET.Element, disk_path: str, properties: dict):
+def _do_set_disk_properties(
+    domain: libvirt.virDomain, root: ET.Element, disk_path: str, properties: dict
+):
     conn = domain.connect()
     disk_found = False
     for disk in root.findall(".//disk"):
@@ -1387,7 +1393,7 @@ def set_ovmf_debug(domain: libvirt.virDomain, enable: bool):
 
 def _do_set_ovmf_debug(root: ET.Element, enable: bool):
     qemu_ns = "http://libvirt.org/schemas/domain/qemu/1.0"
-    ET.register_namespace('qemu', qemu_ns)
+    ET.register_namespace("qemu", qemu_ns)
     qemu_tag = f"{{{qemu_ns}}}commandline"
     arg_tag = f"{{{qemu_ns}}}arg"
 
@@ -1405,7 +1411,12 @@ def _do_set_ovmf_debug(root: ET.Element, enable: bool):
                 ET.SubElement(commandline, arg_tag, value=arg_val)
     else:
         if commandline is not None:
-            debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
+            debug_args = [
+                "-global",
+                "isa-debugcon.iobase=0x402",
+                "-debugcon",
+                "file:/tmp/debug.log",
+            ]
             for arg in commandline.findall(arg_tag):
                 if arg.get("value") in debug_args:
                     commandline.remove(arg)
@@ -1476,7 +1487,9 @@ def set_boot_info(domain: libvirt.virDomain, menu_enabled: bool, order: list[str
     )
 
 
-def _do_set_boot_info(domain: libvirt.virDomain, root: ET.Element, menu_enabled: bool, order: list[str]):
+def _do_set_boot_info(
+    domain: libvirt.virDomain, root: ET.Element, menu_enabled: bool, order: list[str]
+):
     conn = domain.connect()
     os_elem = root.find(".//os")
     if os_elem is None:
@@ -1585,11 +1598,7 @@ def _do_strip_installation_assets(
             # Restore on_poweroff to "restart" for COMPUTATION VMs (iothreads > 0)
             # whose on_poweroff was forced to "destroy" during auto-install
             iothreads_elem = root.find("iothreads")
-            if (
-                iothreads_elem is not None
-                and iothreads_elem.text
-                and int(iothreads_elem.text) > 0
-            ):
+            if iothreads_elem is not None and iothreads_elem.text and int(iothreads_elem.text) > 0:
                 on_poweroff_elem = root.find("on_poweroff")
                 if on_poweroff_elem is not None and on_poweroff_elem.text == "destroy":
                     on_poweroff_elem.text = "restart"
@@ -1598,9 +1607,7 @@ def _do_strip_installation_assets(
                 f"changed on_reboot from 'destroy' to 'restart'"
             )
         else:
-            logging.info(
-                f"SECURE VM {domain.name()}: keeping on_reboot as 'destroy' (SEV enabled)"
-            )
+            logging.info(f"SECURE VM {domain.name()}: keeping on_reboot as 'destroy' (SEV enabled)")
 
 
 def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bool | None = None):
@@ -1781,6 +1788,7 @@ def set_vm_graphics(
     Sets the graphics configuration (VNC/Spice) for a VM.
     The VM must be stopped.
     """
+
     def _sanitize_password(pwd: str | None) -> str | None:
         if not pwd:
             return None
@@ -1799,7 +1807,14 @@ def set_vm_graphics(
     _modify_domain_xml(
         domain,
         lambda root: _do_set_vm_graphics(
-            root, graphics_type, listen_type, address, port, autoport, password_enabled, password_safe
+            root,
+            graphics_type,
+            listen_type,
+            address,
+            port,
+            autoport,
+            password_enabled,
+            password_safe,
         ),
     )
 
@@ -1871,7 +1886,9 @@ def set_vm_tpm(
     _require_vm_stopped(domain, "VM must be stopped to change TPM settings.")
     _modify_domain_xml(
         domain,
-        lambda root: _do_set_vm_tpm(root, tpm_model, tpm_type, device_path, backend_type, backend_path),
+        lambda root: _do_set_vm_tpm(
+            root, tpm_model, tpm_type, device_path, backend_type, backend_path
+        ),
     )
 
 
@@ -2004,29 +2021,6 @@ def _do_remove_vm_watchdog(root: ET.Element, model: str = None, action: str = No
 
     if not removed:
         raise ValueError(f"No watchdog device with model='{model}' action='{action}' found.")
-
-
-@log_function_call
-def set_vm_input(domain: libvirt.virDomain, input_type: str = "tablet", input_bus: str = "usb"):
-    """
-    Sets Input (keyboard and mouse) configuration for a VM.
-    The VM must be stopped.
-    """
-    _require_vm_stopped(domain, "VM must be stopped to change Input settings.")
-    _modify_domain_xml(
-        domain,
-        lambda root: _do_set_vm_input(root, input_type, input_bus),
-    )
-
-
-def _do_set_vm_input(root: ET.Element, input_type: str, input_bus: str):
-    devices = _get_or_create_devices(root, required=False)
-
-    existing_input_elements = devices.findall(f'./input[@type="{input_type}"]')
-    for elem in existing_input_elements:
-        devices.remove(elem)
-
-    ET.SubElement(devices, "input", type=input_type, bus=input_bus)
 
 
 @log_function_call
@@ -2276,10 +2270,11 @@ def delete_vm(
                     if delete_storage:
                         # Pass delete_conn to resolve volumes
                         disks_to_delete = [
-                            d for d in get_vm_disks_info(delete_conn, root)
+                            d
+                            for d in get_vm_disks_info(delete_conn, root)
                             if d.get("device_type") != "cdrom"
                         ]
-                    
+
                     boot_files_to_delete = get_vm_boot_files(root)
                 except libvirt.libvirtError as e:
                     log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
@@ -2388,7 +2383,7 @@ def delete_vm(
                 if nvram_elem is not None:
                     nvram_path = nvram_elem.text
 
-            log(f"Cleaning up boot and asset files...")
+            log("Cleaning up boot and asset files...")
 
             # 1. Process files explicitly found in XML
             for file_path in boot_files_to_delete:
@@ -2396,7 +2391,7 @@ def delete_vm(
                     continue
 
                 # Determine if we should delete this specific file
-                is_nvram = (file_path == nvram_path)
+                is_nvram = file_path == nvram_path
                 # Non-NVRAM assets follow delete_storage; NVRAM follows delete_nvram
                 should_delete = delete_nvram if is_nvram else delete_storage
 
@@ -2410,7 +2405,9 @@ def delete_vm(
                         vol.delete(0)
                         log(f"  - Deleted: {file_path} from pool {pool.name()}")
                     else:
-                        log(f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume.")
+                        log(
+                            f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume."
+                        )
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
                         log(f"  - [yellow]Skipped:[/] Volume for path '{file_path}' not found.")
@@ -2430,12 +2427,16 @@ def delete_vm(
                         for asset_name in orphaned_assets:
                             try:
                                 vol = pool.storageVolLookupByName(asset_name)
-                                log(f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting...")
+                                log(
+                                    f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting..."
+                                )
                                 vol.delete(0)
                                 log(f"  - Deleted orphaned asset: {asset_name}")
                             except libvirt.libvirtError as e:
                                 if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
-                                    log(f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}")
+                                    log(
+                                        f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}"
+                                    )
                     except libvirt.libvirtError:
                         continue
 
@@ -2516,7 +2517,8 @@ def _do_remove_spice_devices(domain: libvirt.virDomain, root: ET.Element):
         if channel.get("type") in ["spicevmc", "spiceport"]:
             devices.remove(channel)
             logging.info(
-                f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'.")
+                f"Removed SPICE channel (type: {channel.get('type')}) from VM '{domain.name()}'."
+            )
 
     for redirdev in devices.findall("redirdev[@bus='usb']"):
         devices.remove(redirdev)
@@ -2643,7 +2645,10 @@ def check_server_migration_compatibility(
 
 @log_function_call
 def check_vm_migration_compatibility(
-    domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool, check_snapshots: bool = False
+    domain: libvirt.virDomain,
+    dest_conn: libvirt.virConnect,
+    is_live: bool,
+    check_snapshots: bool = False,
 ):
     """
     Checks if a VM is compatible for migration to a destination host.

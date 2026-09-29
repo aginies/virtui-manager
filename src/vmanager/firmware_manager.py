@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 
 import libvirt
 
-from .libvirt_utils import get_host_domain_capabilities, get_domain_capabilities_xml
+from .libvirt_utils import get_domain_capabilities_xml, get_host_domain_capabilities
 from .utils import log_function_call
 
 FIRMWARE_META_BASE_DIR = "/usr/share/qemu/firmware/"
@@ -169,7 +169,7 @@ def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = Tru
                     # Successfully loaded metadata
                     _firmware_cache[cache_key] = uefi_files
                     return uefi_files
-            except (OSError, IOError) as e:
+            except OSError as e:
                 logging.warning("Could not read firmware JSON files: %s", e)
 
             # Fallback: create Firmware objects from loader values alone
@@ -473,7 +473,9 @@ def _score_firmware(
         "acpi-s3": 2,  # Modern systems support S3
         "acpi-s4": 2,  # Modern systems support S4
         "requires-smm": 10,  # Secure boot requires SMM
-        "secure-boot": 50 if secure_boot_required else -50,  # High value if required, strong penalty if NOT required
+        "secure-boot": 50
+        if secure_boot_required
+        else -50,  # High value if required, strong penalty if NOT required
         "verbose-dynamic": 5,  # Debug capability
         "amd-sev": 50,  # SEV capability (valuable but platform-specific)
         "amd-sev-es": 60,  # SEV-ES is more advanced
@@ -495,58 +497,3 @@ def _score_firmware(
             score -= 20  # Should not be code loader
 
     return score
-
-
-@log_function_call
-def generate_firmware_debug_report(conn: libvirt.virConnect | None = None) -> str:
-    """
-    Generates a detailed debug report of all available firmware options.
-    Useful for troubleshooting firmware selection issues.
-
-    Args:
-        conn: libvirt connection object (optional)
-
-    Returns:
-        Formatted debug report as string
-    """
-    firmwares = get_uefi_files(conn, use_cache=False)
-
-    report = []
-    report.append("=" * 80)
-    report.append("FIRMWARE DEBUG REPORT")
-    report.append("=" * 80)
-    report.append(f"Total firmware options: {len(firmwares)}\n")
-    for i, fw in enumerate(firmwares, 1):
-        report.append(f"[{i}] {fw.executable}")
-        report.append(f"    Description: {fw.description}")
-        report.append(f"    Device: {fw.device}")
-        report.append(f"    Architectures: {fw.architectures}")
-        report.append(f"    Machines: {fw.machines if fw.machines else 'Any'}")
-        report.append(f"    Interfaces: {fw.interfaces}")
-        report.append(f"    Features: {fw.features}")
-        report.append(f"    NVRAM Template: {fw.nvram_template if fw.nvram_template else 'None'}")
-        report.append("")
-
-    # Summary by architecture
-    report.append("\nSUMMARY BY ARCHITECTURE:")
-    report.append("-" * 80)
-    architectures = {}
-    for fw in firmwares:
-        for arch in fw.architectures:
-            if arch not in architectures:
-                architectures[arch] = []
-            architectures[arch].append(fw)
-
-    for arch in sorted(architectures.keys()):
-        arch_fw = architectures[arch]
-        with_nvram = sum(1 for fw in arch_fw if fw.nvram_template)
-        with_flash = sum(1 for fw in arch_fw if fw.device == "flash")
-        secure_boot = sum(1 for fw in arch_fw if "secure-boot" in fw.features)
-        report.append(
-            f"{arch:15} : {len(arch_fw):2} total | "
-            f"{with_nvram:2} with NVRAM | {with_flash:2} with flash | {secure_boot:2} secure-boot"
-        )
-
-    report.append("\n" + "=" * 80)
-
-    return "\n".join(report)

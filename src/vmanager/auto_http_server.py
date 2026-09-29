@@ -200,7 +200,7 @@ class RemoteAutoHTTPServer:
         """SSH ControlMaster args for connection reuse."""
         if not self._ssh_master:
             self._ssh_master = f"/tmp/virtui_ssh_{uuid.uuid4().hex[:8]}"
-        return ["-o", f"ControlMaster=auto", "-o", f"ControlPath={self._ssh_master}",
+        return ["-o", "ControlMaster=auto", "-o", f"ControlPath={self._ssh_master}",
                 "-o", "ControlPersist=60"]
 
     def _run_remote(self, cmd: str, check: bool = True, timeout: int = 30) -> subprocess.CompletedProcess:

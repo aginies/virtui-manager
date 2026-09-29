@@ -4,7 +4,6 @@ Tests for Alpine Linux kernel extraction logic
 
 import unittest
 from unittest.mock import patch, MagicMock
-import tempfile
 import os
 import subprocess
 from pathlib import Path
@@ -14,7 +13,6 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from vmanager.vm_provisioner import VMProvisioner
-from vmanager.provisioning.os_provider import OSType
 
 
 class TestAlpineKernelExtraction(unittest.TestCase):

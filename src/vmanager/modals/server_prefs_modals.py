@@ -24,7 +24,6 @@ from ..constants import (
     SuccessMessages,
     WarningMessages,
 )
-from ..i18n import _
 from ..libvirt_utils import _find_pool_by_path, get_network_info
 from ..network_manager import (
     delete_network,
@@ -34,8 +33,8 @@ from ..network_manager import (
     set_network_autostart,
 )
 from ..storage_manager import list_storage_volumes
-from ..vm_queries import get_all_network_usage, get_all_vm_disk_usage, get_all_vm_nvram_usage
 from ..utils import is_remote_connection
+from ..vm_queries import get_all_network_usage, get_all_vm_disk_usage, get_all_vm_nvram_usage
 from .base_modals import BaseModal
 from .disk_pool_modals import (
     AddPoolModal,
@@ -45,7 +44,7 @@ from .disk_pool_modals import (
 )
 from .howto_modals import HowToModal
 from .network_modals import AddEditNetworkModal
-from .utils_modals import _confirm_message, ConfirmationDialog, ProgressModal
+from .utils_modals import ConfirmationDialog, ProgressModal, _confirm_message
 from .xml_modals import XMLDisplayModal
 
 
@@ -422,8 +421,12 @@ class ServerPrefModal(BaseModal[None]):
                 if vm_list
                 else Text(StaticText.NOT_IN_USE, style="dim")
             )
-            active_text = Text("✔", style="bold green") if net["active"] else Text("✘", style="bold red")
-            autostart_text = Text("✔", style="bold green") if net["autostart"] else Text("✘", style="bold red")
+            active_text = (
+                Text("✔", style="bold green") if net["active"] else Text("✘", style="bold red")
+            )
+            autostart_text = (
+                Text("✔", style="bold green") if net["autostart"] else Text("✘", style="bold red")
+            )
 
             table.add_row(
                 Text(net["name"], style="bold"),
@@ -461,7 +464,10 @@ class ServerPrefModal(BaseModal[None]):
                     ]
                     if vm_names:
                         parts.append(
-                            (StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names)), "italic magenta")
+                            (
+                                StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names)),
+                                "italic magenta",
+                            )
                         )
 
                     label = Text.assemble(*parts)
@@ -531,7 +537,9 @@ class ServerPrefModal(BaseModal[None]):
 
         try:
             xml_content = target_obj.XMLDesc(0)
-            self.app.push_screen(XMLDisplayModal(xml_content, read_only=True, vm_name=target_obj.name()))
+            self.app.push_screen(
+                XMLDisplayModal(xml_content, read_only=True, vm_name=target_obj.name())
+            )
         except libvirt.libvirtError as e:
             self.app.show_error_message(
                 ErrorMessages.ERROR_GETTING_XML_FOR_TYPE_TEMPLATE.format(
@@ -592,9 +600,8 @@ class ServerPrefModal(BaseModal[None]):
                 except Exception as e:
                     self.app.show_error_message(
                         ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                                    type=type(e).__name__,
-                                    message=str(e)[:200]
-                                )
+                            type=type(e).__name__, message=str(e)[:200]
+                        )
                     )
 
             self.app.push_screen(
@@ -800,15 +807,16 @@ class ServerPrefModal(BaseModal[None]):
                 except Exception as e:
                     self.app.show_error_message(
                         ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                                    type=type(e).__name__,
-                                    message=str(e)[:200]
-                                )
+                            type=type(e).__name__, message=str(e)[:200]
+                        )
                     )
 
         self.app.push_screen(
             ConfirmationDialog(
                 _confirm_message(
-                    ErrorMessages.DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE.format(pool_name=pool_name)
+                    ErrorMessages.DELETE_STORAGE_POOL_CONFIRMATION_TEMPLATE.format(
+                        pool_name=pool_name
+                    )
                 )
             ),
             on_confirm,
@@ -847,9 +855,8 @@ class ServerPrefModal(BaseModal[None]):
                 except Exception as e:
                     self.app.show_error_message(
                         ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                                    type=type(e).__name__,
-                                    message=str(e)[:200]
-                                )
+                            type=type(e).__name__, message=str(e)[:200]
+                        )
                     )
 
         self.app.push_screen(
@@ -921,12 +928,14 @@ class ServerPrefModal(BaseModal[None]):
                     # Check if current node's label matches
                     if str(node.label) == label_text:
                         return node
-                    # Search in children recursively
+                    # Search in children recursively.
+                    # Initialise to None
+                    result = None
                     for child in node.children:
                         result = search_node(child)
-                    if result:
-                        return result
-                    return None
+                        if result:
+                            break
+                    return result
 
                 return search_node(tree.root)
 
@@ -1050,9 +1059,8 @@ class ServerPrefModal(BaseModal[None]):
             except Exception as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                                    type=type(e).__name__,
-                                    message=str(e)[:200]
-                                )
+                        type=type(e).__name__, message=str(e)[:200]
+                    )
                 )
 
     @on(Button.Pressed, "#toggle-net-autostart-btn")
@@ -1079,9 +1087,8 @@ class ServerPrefModal(BaseModal[None]):
             except Exception as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                                    type=type(e).__name__,
-                                    message=str(e)[:200]
-                                )
+                        type=type(e).__name__, message=str(e)[:200]
+                    )
                 )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -1101,7 +1108,9 @@ class ServerPrefModal(BaseModal[None]):
                     return
                 net = conn.networkLookupByName(network_name)
                 network_xml = net.XMLDesc(0)
-                self.app.push_screen(XMLDisplayModal(network_xml, read_only=True, vm_name=network_name))
+                self.app.push_screen(
+                    XMLDisplayModal(network_xml, read_only=True, vm_name=network_name)
+                )
             except libvirt.libvirtError as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_GETTING_NETWORK_XML_TEMPLATE.format(error=e)
@@ -1109,9 +1118,8 @@ class ServerPrefModal(BaseModal[None]):
             except Exception as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                                    type=type(e).__name__,
-                                    message=str(e)[:200]
-                                )
+                        type=type(e).__name__, message=str(e)[:200]
+                    )
                 )
 
         elif event.button.id == "edit-net-btn":

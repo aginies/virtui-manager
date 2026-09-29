@@ -7,8 +7,7 @@ import ipaddress
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
-from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSet, Select, TextArea
-from textual.widgets.text_area import LanguageDoesNotExist
+from textual.widgets import Button, Checkbox, Input, Label, RadioButton, RadioSet, Select
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..network_manager import (

@@ -8,15 +8,12 @@ import os
 import sys
 import tempfile
 import shutil
-from pathlib import Path
 import libvirt
-import urllib.error
 
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from vmanager.vm_provisioner import VMProvisioner
-from vmanager.constants import StaticText
 
 class TestVMProvisionerDownload(unittest.TestCase):
     def setUp(self):

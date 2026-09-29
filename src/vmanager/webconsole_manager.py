@@ -273,8 +273,6 @@ wp.websockify_init()
         # Handle remote cleanup if needed
         remote_pid = ssh_info.get("remote_pid")
         remote_host = ssh_info.get("remote_host")
-        ssh_port = ssh_info.get("ssh_port")
-        control_socket = ssh_info.get("control_socket")
 
         if remote_pid and remote_host:
             try:
@@ -378,7 +376,6 @@ wp.websockify_init()
             )
             return
 
-        remote_websockify_path = self.config.get("websockify_path", "/usr/bin/websockify")
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
         # Assume remote config directory for certs (use tilde for shell expansion)
@@ -692,9 +689,7 @@ else:
             )
             return
 
-        logging.info(
-            f"Remote websockify port: {web_port}, Local tunnel port: {local_tunnel_port}"
-        )
+        logging.info(f"Remote websockify port: {web_port}, Local tunnel port: {local_tunnel_port}")
 
         # Create control socket for the tunnel
         raw_uuid = uuid.split("@")[0] if "@" in uuid else uuid
@@ -707,7 +702,9 @@ else:
         tunnel_cmd = ["ssh", "-M", "-S", control_socket, "-f", "-N"]
         if ssh_port != 22:
             tunnel_cmd.extend(["-p", str(ssh_port)])
-        tunnel_cmd.extend(["-L", f"127.0.0.1:{local_tunnel_port}:127.0.0.1:{web_port}", remote_user_host])
+        tunnel_cmd.extend(
+            ["-L", f"127.0.0.1:{local_tunnel_port}:127.0.0.1:{web_port}", remote_user_host]
+        )
 
         logging.info(
             f"Creating SSH tunnel: ssh -L 127.0.0.1:{local_tunnel_port}:127.0.0.1:{web_port} {remote_user_host}"
@@ -887,7 +884,6 @@ else:
             )
             return
 
-        websockify_path = self.config.get("websockify_path", "/usr/bin/websockify")
         novnc_path = self._get_local_novnc_path()
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
@@ -957,7 +953,9 @@ else:
                 self.app.push_screen, WebConsoleDialog(url), on_dialog_dismiss
             )
 
-    def _verify_tunnel_port(self, port: int, max_attempts: int = 5, timeout_per_attempt: float = 0.2) -> bool:
+    def _verify_tunnel_port(
+        self, port: int, max_attempts: int = 5, timeout_per_attempt: float = 0.2
+    ) -> bool:
         """
         Verify that a local port is accessible by attempting to connect to it.
 
@@ -975,9 +973,11 @@ else:
                 test_sock.settimeout(timeout_per_attempt)
                 test_sock.connect(("127.0.0.1", port))
                 test_sock.close()
-                logging.info(f"Port {port} verified accessible (attempt {attempt + 1}/{max_attempts})")
+                logging.info(
+                    f"Port {port} verified accessible (attempt {attempt + 1}/{max_attempts})"
+                )
                 return True
-            except (socket.error, socket.timeout):
+            except (OSError, socket.timeout):
                 if attempt < max_attempts - 1:  # Don't sleep on last attempt
                     time.sleep(timeout_per_attempt)
                 continue

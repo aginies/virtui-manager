@@ -11,7 +11,7 @@ This test suite covers:
 """
 
 import unittest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, patch
 import sys
 import os
 
@@ -21,7 +21,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from vmanager.pipeline import (
     PipelineExecutor,
     PipelineContext,
-    PipelineCommand,
     PipelineParser,
     PipelineMode,
     PipelineStage,

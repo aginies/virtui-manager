@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import patch, MagicMock, mock_open
 import sys
 import os
-from pathlib import Path
 import libvirt
 
 # Add the src directory to the path to import vmanager modules

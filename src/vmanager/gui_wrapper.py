@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import shutil
 import signal
 import subprocess
 import sys
@@ -791,13 +790,6 @@ class VirtuiWrapper(Gtk.Window):
         self.save_gui_config()
 
         Gtk.main_quit()
-
-    def cleanup(self):
-        """Explicit cleanup method that can be called before destroy."""
-        if not self.cleanup_in_progress:
-            self.cleanup_in_progress = True
-            self.cleanup_all_terminals()
-            self.save_gui_config()
 
     def spawn_process(self, terminal, cmd):
         script_dir = os.path.dirname(os.path.abspath(__file__))

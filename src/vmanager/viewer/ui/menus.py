@@ -4,11 +4,15 @@ Menu Builders
 Provides builder functions for creating various popup menus used in the viewer.
 """
 
-from typing import Optional, Callable, Dict, Any
+from typing import Callable, Dict, Optional
 
 import gi
+
+# NOTE: gi.require_version must precede the gi.repository import.
+# The LSP cannot resolve gi.repository (GObject introspection C extension),
+# so the "unknown symbol" warnings are unavoidable false positives.
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk
+from gi.repository import Gdk, Gtk
 
 
 def build_settings_menu(
@@ -130,7 +134,7 @@ def build_boot_menu(
     boot_popover = Gtk.Popover()
     if on_menu_show:
         boot_popover.connect("show", on_menu_show)
-    
+
     vbox_boot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
     vbox_boot.set_margin_top(10)
     vbox_boot.set_margin_bottom(10)
@@ -143,7 +147,7 @@ def build_boot_menu(
     boot_combo = Gtk.ComboBoxText()
     for dev_id, label in boot_devices:
         boot_combo.append(dev_id, label)
-    
+
     if current_boot_device:
         boot_combo.set_active_id(current_boot_device)
     elif boot_devices:
@@ -157,7 +161,6 @@ def build_boot_menu(
     boot_button.set_popover(boot_popover)
 
     return boot_button, boot_combo
-
 
 
 def build_power_menu(
@@ -306,14 +309,14 @@ def build_clipboard_menu(
 
     # Manual Pull
     btn_pull_clip = Gtk.ModelButton()
-    btn_pull_clip.set_label("Pull Guest Clipboard to Host")
+    btn_pull_clip.set_label("Pull from Host → Guest")
     if on_pull_clipboard:
         btn_pull_clip.connect("clicked", on_pull_clipboard, clip_popover)
     vbox_clip.pack_start(btn_pull_clip, False, False, 0)
 
     # Manual Push
     btn_push_clip = Gtk.ModelButton()
-    btn_push_clip.set_label("Push Host Clipboard to Guest")
+    btn_push_clip.set_label("Push from Guest → Host")
     if on_push_clipboard:
         btn_push_clip.connect("clicked", on_push_clipboard, clip_popover)
     vbox_clip.pack_start(btn_push_clip, False, False, 0)
@@ -326,9 +329,9 @@ def build_clipboard_menu(
 
 
 __all__ = [
-    'build_settings_menu',
-    'build_boot_menu',
-    'build_power_menu',
-    'build_keys_menu',
-    'build_clipboard_menu',
+    "build_settings_menu",
+    "build_boot_menu",
+    "build_power_menu",
+    "build_keys_menu",
+    "build_clipboard_menu",
 ]

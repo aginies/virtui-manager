@@ -4,16 +4,17 @@ Handles all automation template operations including CRUD, validation, and exter
 Supports multiple automation systems: AutoYaST (openSUSE/SLES), Agama, Ubuntu Autoinstall, and Ubuntu Preseed.
 """
 
+import json
 import logging
 import os
 import subprocess
 import tempfile
 import uuid
-import json
-import yaml
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable
+
+import yaml
 
 from ...config import get_user_templates_dir, get_user_templates_dir_for_os
 from ...constants import ErrorMessages
@@ -95,7 +96,13 @@ class AutoYaSTTemplateManager:
             # Also look for Alpine templates (alpine-answers-*.txt files)
             alpine_patterns = ["alpine-answers-*.txt"]
 
-            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns + arch_patterns + alpine_patterns
+            all_patterns = (
+                opensuse_patterns
+                + ubuntu_patterns
+                + fedora_patterns
+                + arch_patterns
+                + alpine_patterns
+            )
             for pattern in all_patterns:
                 for template_file in self.TEMPLATES_DIR.glob(pattern):
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
@@ -150,7 +157,7 @@ class AutoYaSTTemplateManager:
                             relative_path.parts[0] if len(relative_path.parts) > 1 else "Generic"
                         )
 
-                        with open(template_file, "r", encoding="utf-8") as f:
+                        with open(template_file, encoding="utf-8") as f:
                             content = f.read()
 
                         # Try to read metadata from companion .meta file
@@ -158,7 +165,7 @@ class AutoYaSTTemplateManager:
                         description = "User-defined template"
                         if meta_file.exists():
                             try:
-                                with open(meta_file, "r", encoding="utf-8") as f:
+                                with open(meta_file, encoding="utf-8") as f:
                                     meta = json.load(f)
                                     description = meta.get("description", description)
                             except Exception as e:
@@ -209,7 +216,7 @@ class AutoYaSTTemplateManager:
             ".cfg",
         ]:
             try:
-                with open(template_path, "r", encoding="utf-8") as f:
+                with open(template_path, encoding="utf-8") as f:
                     content = f.read()
 
                 base_dir = get_user_templates_dir()
@@ -220,7 +227,7 @@ class AutoYaSTTemplateManager:
                 description = "User-defined template"
                 if meta_file.exists():
                     try:
-                        with open(meta_file, "r", encoding="utf-8") as f:
+                        with open(meta_file, encoding="utf-8") as f:
                             meta = json.load(f)
                             description = meta.get("description", description)
                     except Exception:
@@ -405,7 +412,7 @@ class AutoYaSTTemplateManager:
             if template["type"] == "user":
                 content = template["content"]
             else:
-                with open(template["path"], "r", encoding="utf-8") as f:
+                with open(template["path"], encoding="utf-8") as f:
                     content = f.read()
 
             if destination.is_dir():
@@ -442,7 +449,7 @@ class AutoYaSTTemplateManager:
         """
         try:
             # Read file
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 content = f.read()
 
             # Validate XML
@@ -476,7 +483,7 @@ class AutoYaSTTemplateManager:
         skeleton_path = self.TEMPLATES_DIR / self.SKELETON_TEMPLATE_FILENAME
 
         try:
-            with open(skeleton_path, "r", encoding="utf-8") as f:
+            with open(skeleton_path, encoding="utf-8") as f:
                 return f.read()
         except Exception as e:
             self.logger.error(f"Error reading skeleton template: {e}")
@@ -500,7 +507,7 @@ class AutoYaSTTemplateManager:
             return template.get("content")
         else:
             try:
-                with open(template["path"], "r", encoding="utf-8") as f:
+                with open(template["path"], encoding="utf-8") as f:
                     return f.read()
             except Exception as e:
                 self.logger.error(f"Error reading template content: {e}")
@@ -663,7 +670,7 @@ class AutoYaSTTemplateManager:
                 )
 
                 subprocess.run(["tmux", "wait-for", signal_name], check=True)
-                with open(tmp_file_path, "r", encoding="utf-8") as f:
+                with open(tmp_file_path, encoding="utf-8") as f:
                     edited_content = f.read()
 
                 if edited_content != content:
@@ -776,26 +783,6 @@ class AutoYaSTTemplateManager:
             if on_error:
                 on_error(str(e))
             return False
-
-    def create_new_template(
-        self,
-        on_save: Callable[[str], None],
-        on_cancel: Callable[[], None] | None = None,
-        on_error: Callable[[str], None] | None = None,
-    ) -> bool:
-        """
-        Create a new template using external editor with skeleton content.
-
-        Args:
-            on_save: Callback with template content when saved
-            on_cancel: Optional callback when cancelled
-            on_error: Optional callback with error message on failure
-
-        Returns:
-            True if editor was launched, False otherwise
-        """
-        skeleton = self.get_skeleton_template()
-        return self.edit_template_in_tmux(skeleton, on_save, on_cancel, on_error)
 
     # -------------------------------------------------------------------------
     # Helper Methods
@@ -950,7 +937,8 @@ class AutoYaSTTemplateManager:
             description = f"Custom Fedora kickstart template: {template_name}"
         elif template_name.startswith("archinstall-"):
             display_name = (
-                template_name.replace("archinstall-", "").replace("-", " ").title() + " (Archinstall)"
+                template_name.replace("archinstall-", "").replace("-", " ").title()
+                + " (Archinstall)"
             )
             description = f"Custom Arch Linux archinstall template: {template_name}"
         elif template_name.startswith("alpine-answers-"):
