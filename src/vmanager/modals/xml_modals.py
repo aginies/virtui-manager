@@ -3,7 +3,6 @@ XML Display and Edit Modal
 """
 
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
 from xml.dom.minidom import parseString

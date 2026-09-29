@@ -23,7 +23,6 @@ from gi.repository import Gtk, Gdk, GLib
 
 from .constants import (
     LIBVIRT_EVENT_TICK_INTERVAL_MS,
-    VM_START_CONNECT_DELAY_MS,
 )
 from .ssh_tunnel import SSHTunnelManager
 from .display_manager import DisplayManager, DisplaySettings

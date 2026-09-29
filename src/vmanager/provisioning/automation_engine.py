@@ -7,7 +7,6 @@ This module centralizes the generation of unattended installation files
 
 import logging
 import os
-import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

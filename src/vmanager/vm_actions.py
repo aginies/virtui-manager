@@ -2388,7 +2388,7 @@ def delete_vm(
                 if nvram_elem is not None:
                     nvram_path = nvram_elem.text
 
-            log(f"Cleaning up boot and asset files...")
+            log("Cleaning up boot and asset files...")
 
             # 1. Process files explicitly found in XML
             for file_path in boot_files_to_delete:

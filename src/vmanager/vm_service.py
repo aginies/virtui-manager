@@ -339,7 +339,9 @@ class VMService:
                         action_str = "Configuration Updated" if detail == 1 else "Defined"
                         final_msg = f"VM [b]{vm_name}[/b] on [b]{server_name}[/b]: {action_str}"
                     elif event == libvirt.VIR_DOMAIN_EVENT_UNDEFINED:
-                        final_msg = f"VM [b]{vm_name}[/b] on [b]{server_name}[/b]: Undefined (Deleted)"
+                        final_msg = (
+                            f"VM [b]{vm_name}[/b] on [b]{server_name}[/b]: Undefined (Deleted)"
+                        )
 
                     if final_msg:
                         clean_msg = final_msg.replace("[b]", "").replace("[/b]", "")
@@ -1797,7 +1799,6 @@ class VMService:
 
             server_names.append(f"{name} ({count})")
 
-        total_vms_unfiltered = len(domains_with_conn)
         # domains_to_display = domains_with_conn
         domains_to_display = sorted(domains_with_conn, key=lambda x: natural_sort_key(x[0].name()))
 

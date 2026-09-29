@@ -55,7 +55,7 @@ class VMActionsModal(BaseModal[str | None]):
 
     def _apply_button_visibility(self) -> None:
         """Apply button visibility based on VM status and state."""
-        from ..vm_queries import get_vm_snapshots, has_overlays
+        from ..vm_queries import has_overlays
 
         is_loading = self.vm_status == StatusText.LOADING
         is_stopped = self.vm_status == StatusText.STOPPED

@@ -13,7 +13,7 @@ from gi.repository import Gdk, Gtk
 
 try:
     gi.require_version("GtkVnc", "2.0")
-    from gi.repository import GtkVnc
+    from gi.repository import GtkVnc  # noqa: F401 (import is the availability probe)
 
     VNC_AVAILABLE = True
 except (ValueError, ImportError):

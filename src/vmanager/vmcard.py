@@ -46,8 +46,7 @@ from .events import (
 from .modals.disk_pool_modals import SelectDiskModal
 from .modals.howto_modals import HowToModal
 from .modals.input_modals import InputModal, _sanitize_input
-from .modals.migration_modals import MigrationModal
-from .modals.utils_modals import _confirm_message, ConfirmationDialog, LoadingModal, ProgressModal
+from .modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal, _confirm_message
 from .modals.vmcard_dialog import (
     AdvancedCloneDialog,
     DeleteVMConfirmationDialog,
@@ -60,11 +59,11 @@ from .modals.vmcard_dialog import (
 from .modals.vmdetails_modals import VMDetailModal
 from .modals.xml_modals import XMLDisplayModal
 from .utils import (
-    is_inside_tmux,
     extract_server_name_from_uri,
     generate_tooltip_markdown,
-    remote_viewer_cmd,
+    is_inside_tmux,
     is_remote_connection,
+    remote_viewer_cmd,
     terminal_supports_emoji,
 )
 from .vm_actions import (
@@ -89,7 +88,6 @@ from .vm_queries import (
     get_vm_graphics_info,
     get_vm_network_ip,
     get_vm_snapshots,
-    has_overlays,
 )
 
 
@@ -568,7 +566,6 @@ class VMCard(Static):
         if not self.display or not self.ui or self.compact_view:
             return
 
-        is_active = self.status in (StatusText.RUNNING, StatusText.PAUSED)
         is_resources_mode = new_mode == "resources"
 
         sparklines_container = self.ui.get("sparklines_container")
@@ -1203,7 +1200,6 @@ class VMCard(Static):
         is_running = self.status == StatusText.RUNNING
         is_stopped = self.status == StatusText.STOPPED
         is_loading = self.status == StatusText.LOADING
-        is_pmsuspended = self.status == StatusText.PMSUSPENDED
         is_blocked = self.status == StatusText.BLOCKED
 
         has_snapshots = snapshot_count > 0
@@ -1312,10 +1308,6 @@ class VMCard(Static):
     def _handle_create_overlay(self) -> None:
         """Handles the create overlay button press."""
         try:
-            # Use cached XML if available to avoid XMLDesc() call
-            vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
-            xml_content = vm_cache.get("xml")
-
             disks = get_vm_disks(self.vm)
             # Filter for actual disks (exclude cdroms, etc)
             valid_disks = [d["path"] for d in disks if d.get("device_type") == "disk"]
@@ -1574,9 +1566,6 @@ class VMCard(Static):
     def _handle_xml_button(self) -> None:
         """Handles the xml button press."""
         try:
-            vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
-            cached_xml = vm_cache.get("xml")
-
             xml_flags = 0
             try:
                 original_xml = self.vm.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)

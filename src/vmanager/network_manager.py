@@ -5,7 +5,6 @@ Module for managing network-related operations for virtual machines.
 import ipaddress
 import logging
 import secrets
-import subprocess
 import xml.etree.ElementTree as ET
 from functools import lru_cache
 

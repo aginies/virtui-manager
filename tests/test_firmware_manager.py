@@ -2,22 +2,22 @@
 Tests for firmware_manager module
 """
 
-import unittest
-from unittest.mock import patch, MagicMock, mock_open
-import sys
-import os
 import json
+import os
+import sys
 import tempfile
+import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from vmanager.firmware_manager import (
     Firmware,
-    get_uefi_files,
     _load_firmware_from_files,
     clear_firmware_cache,
+    get_uefi_files,
     select_best_firmware,
 )
 
@@ -266,7 +266,7 @@ class TestGetUefiFiles(unittest.TestCase):
 
         mock_load_files.side_effect = [
             OSError("Permission denied"),
-            populate_files(uefi_files := []),
+            populate_files([]),
         ]
 
         mock_conn = MagicMock()
@@ -350,7 +350,6 @@ class TestGetUefiFiles(unittest.TestCase):
         self.assertGreater(
             len(result), 0, "Should never return empty list with available domain capabilities"
         )
-
 
     @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
     def test_get_uefi_files_fallback_infers_nvram(self, mock_get_caps):
@@ -479,9 +478,9 @@ class TestFirmwareSelection(unittest.TestCase):
         fw_aarch64 = Firmware()
         fw_aarch64.executable = "/usr/share/AAVMF/AAVMF_CODE.fd"
         fw_aarch64.architectures = ["aarch64"]
-        
+
         firmwares = self.firmwares + [fw_aarch64]
-        
+
         selected = select_best_firmware(firmwares, architecture="aarch64")
         self.assertEqual(selected.executable, fw_aarch64.executable)
 
