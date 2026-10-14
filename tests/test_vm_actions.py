@@ -1,37 +1,38 @@
 # Complete Test Suite for VM Actions
 # This file implements all 19 functions tests as outlined in FINAL_IMPLEMENTATION_PLAN.md
 
-import unittest
-from unittest.mock import MagicMock, patch, call
-import xml.etree.ElementTree as ET
-import sys
 import os
+import sys
+import unittest
+import xml.etree.ElementTree as ET
+from unittest.mock import MagicMock, patch
 
 # Add the src directory to the path so we can import modules properly
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 # Test the existing test that works
 try:
-    from vmanager.vm_actions import (
-        clone_vm,
-        rename_vm,
-        add_disk,
-        remove_disk,
-        add_virtiofs,
-        remove_virtiofs,
-        add_network_interface,
-        remove_network_interface,
-        change_vm_network,
-        set_vcpu,
-        set_memory,
-        set_machine_type,
-        migrate_vm_machine_type,
-        disable_disk,
-        enable_disk,
-        set_disk_properties,
-        set_boot_info,
-        set_vm_video_model,
-        set_shared_memory,
+    # Import smoke test: verify all public vm_actions functions are importable.
+    from vmanager.vm_actions import (  # noqa: F401 (import smoke test)
+        add_disk,  # noqa: F401
+        add_network_interface,  # noqa: F401
+        add_virtiofs,  # noqa: F401
+        change_vm_network,  # noqa: F401
+        clone_vm,  # noqa: F401
+        disable_disk,  # noqa: F401
+        enable_disk,  # noqa: F401
+        migrate_vm_machine_type,  # noqa: F401
+        remove_disk,  # noqa: F401
+        remove_network_interface,  # noqa: F401
+        remove_virtiofs,  # noqa: F401
+        rename_vm,  # noqa: F401
+        set_boot_info,  # noqa: F401
+        set_disk_properties,  # noqa: F401
+        set_machine_type,  # noqa: F401
+        set_memory,  # noqa: F401
+        set_shared_memory,  # noqa: F401
+        set_vcpu,  # noqa: F401
+        set_vm_video_model,  # noqa: F401
     )
 
     print("Import successful")
@@ -41,7 +42,7 @@ except ImportError as e:
     # Let's try to check what's in the src directory
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-        import vmanager.vm_actions as vm_actions
+        import vmanager.vm_actions as vm_actions  # noqa: F401 (import smoke test)
 
         print("Alternative import successful")
     except ImportError as e2:
@@ -499,7 +500,7 @@ class TestVMActionsComplete(unittest.TestCase):
             set_cpu_model(mock_domain, "default")
             # Test should pass without error for basic scenario
             self.assertTrue(True)
-        except Exception as e:
+        except Exception:
             # If there's an exception, we at least test that it can be called
             self.assertTrue(True)
 
@@ -533,7 +534,7 @@ class TestVMActionsComplete(unittest.TestCase):
             set_uefi_file(mock_domain, "/path/to/uefi.bin", True)
             # Test should pass without error for basic scenario
             self.assertTrue(True)
-        except Exception as e:
+        except Exception:
             # If there's an exception, we at least test that it can be called
             self.assertTrue(True)
 
@@ -566,7 +567,7 @@ class TestVMActionsComplete(unittest.TestCase):
             set_vm_sound_model(mock_domain, "ac97")
             # Test should pass without error for basic scenario
             self.assertTrue(True)
-        except Exception as e:
+        except Exception:
             # If there's an exception, we at least test that it can be called
             self.assertTrue(True)
 
@@ -599,7 +600,7 @@ class TestVMActionsComplete(unittest.TestCase):
             set_vm_graphics(mock_domain, "vnc", "address", "127.0.0.1", 5900, False, False, None)
             # Test should pass without error for basic scenario
             self.assertTrue(True)
-        except Exception as e:
+        except Exception:
             # If there's an exception, we at least test that it can be called
             self.assertTrue(True)
 
@@ -632,41 +633,8 @@ class TestVMActionsComplete(unittest.TestCase):
             set_vm_tpm(mock_domain, "tpm-crb", "emulated")
             # Test should pass without error for basic scenario
             self.assertTrue(True)
-        except Exception as e:
-            # If there's an exception, we at least test that it can be called
-            self.assertTrue(True)
-
-    @patch("vmanager.vm_actions.get_internal_id")
-    @patch("vmanager.vm_actions.invalidate_cache")
-    def test_set_vm_rng(self, mock_invalidate_cache, mock_get_internal_id):
-        """Test set_vm_rng function"""
-        # Mock the domain object
-        mock_domain = MagicMock()
-        mock_domain.isActive.return_value = False
-
-        # Create a minimal XML structure
-        xml_content = """
-        <domain>
-            <name>test-vm</name>
-            <devices></devices>
-        </domain>
-        """
-        mock_domain.XMLDesc.return_value = xml_content
-        mock_domain.connect.return_value = MagicMock()
-
-        # Mock the internal ID
-        mock_get_internal_id.return_value = "test-id"
-
-        # Import the function to test
-        from vmanager.vm_actions import set_vm_rng
-
-        # Test that the function can be called without error
-        try:
-            set_vm_rng(mock_domain)
-            # Test should pass without error for basic scenario
-            self.assertTrue(True)
         except Exception:
-            # Even if it fails, we at least verify it can be called
+            # If there's an exception, we at least test that it can be called
             self.assertTrue(True)
 
     @patch("vmanager.vm_actions.get_internal_id")
@@ -765,7 +733,7 @@ class TestVMActionsComplete(unittest.TestCase):
         try:
             set_vm_rng(mock_domain)
             self.assertTrue(True)  # Test passes if function call succeeds
-        except Exception as e:
+        except Exception:
             # If there's an exception, we at least verify the function can be called
             self.assertTrue(True)
 
@@ -902,7 +870,9 @@ class TestVMActionsComplete(unittest.TestCase):
     @patch("vmanager.vm_actions.invalidate_cache")
     @patch("vmanager.vm_actions._find_vol_by_path")
     @patch("vmanager.vm_actions.get_vm_disks_info")
-    def test_delete_vm(self, mock_get_disks, mock_find_vol, mock_invalidate_cache, mock_get_internal_id):
+    def test_delete_vm(
+        self, mock_get_disks, mock_find_vol, mock_invalidate_cache, mock_get_internal_id
+    ):
         """Test delete_vm basic flow: VM is undefined and storage volumes are deleted."""
         from vmanager.vm_actions import delete_vm
 
@@ -1096,8 +1066,16 @@ class TestVMActionsComplete(unittest.TestCase):
 
         mock_find_vol.side_effect = find_vol
         mock_get_disks.return_value = [
-            {"path": "/var/lib/libvirt/images/test-vm.qcow2", "status": "enabled", "device_type": "disk"},
-            {"path": "/var/lib/libvirt/images/install.iso", "status": "enabled", "device_type": "cdrom"},
+            {
+                "path": "/var/lib/libvirt/images/test-vm.qcow2",
+                "status": "enabled",
+                "device_type": "disk",
+            },
+            {
+                "path": "/var/lib/libvirt/images/install.iso",
+                "status": "enabled",
+                "device_type": "cdrom",
+            },
         ]
         mock_get_internal_id.return_value = "test-id"
 
@@ -1169,9 +1147,11 @@ class TestVMActionsComplete(unittest.TestCase):
 
         # Mock dependencies to simulate a VM with a TPM
         mock_get_domain_root.return_value = (MagicMock(), ET.fromstring("<domain></domain>"))
-        mock_get_vm_tpm_info.return_value = [{'type': 'emulated', 'model': 'tpm-crb'}]
+        mock_get_vm_tpm_info.return_value = [{"type": "emulated", "model": "tpm-crb"}]
         # Mock dest caps to indicate TPM is supported
-        mock_get_host_domain_capabilities.return_value = "<domainCapabilities><devices><tpm supported='yes'/></devices></domainCapabilities>"
+        mock_get_host_domain_capabilities.return_value = (
+            "<domainCapabilities><devices><tpm supported='yes'/></devices></domainCapabilities>"
+        )
 
         from vmanager.vm_actions import check_server_migration_compatibility
 
@@ -1181,8 +1161,8 @@ class TestVMActionsComplete(unittest.TestCase):
         )
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['severity'], 'WARNING')
-        self.assertIn("Live migration with TPM can sometimes have issues", result[0]['message'])
+        self.assertEqual(result[0]["severity"], "WARNING")
+        self.assertIn("Live migration with TPM can sometimes have issues", result[0]["message"])
 
         # Test with no TPM on source
         mock_get_vm_tpm_info.return_value = None
@@ -1192,14 +1172,14 @@ class TestVMActionsComplete(unittest.TestCase):
         self.assertEqual(len(result), 0)
 
         # Test with no destination capabilities XML
-        mock_get_vm_tpm_info.return_value = [{'type': 'emulated', 'model': 'tpm-crb'}]
+        mock_get_vm_tpm_info.return_value = [{"type": "emulated", "model": "tpm-crb"}]
         mock_get_host_domain_capabilities.return_value = None
         result = check_server_migration_compatibility(
             mock_source_conn, mock_dest_conn, "test-vm", is_live=True
         )
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]['severity'], 'WARNING')
-        self.assertIn("Could not retrieve destination host capabilities", result[0]['message'])
+        self.assertEqual(result[0]["severity"], "WARNING")
+        self.assertIn("Could not retrieve destination host capabilities", result[0]["message"])
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
@@ -1729,9 +1709,7 @@ class TestCloneVMNVRAM(unittest.TestCase):
     def test_linked_clone_keeps_nvram(self, mock_find_vol, mock_libvirt_open):
         """Linked clone (clone_storage=False) keeps the shared NVRAM path."""
         mock_libvirt_open.return_value = self.mock_clone_conn
-        self.mock_domain.XMLDesc.return_value = self._xml(
-            "/var/lib/libvirt/nvram/orig-vm_VARS.fd"
-        )
+        self.mock_domain.XMLDesc.return_value = self._xml("/var/lib/libvirt/nvram/orig-vm_VARS.fd")
         mock_find_vol.return_value = (None, None)
 
         from vmanager.vm_actions import clone_vm
@@ -1746,9 +1724,7 @@ class TestCloneVMNVRAM(unittest.TestCase):
     def test_nvram_clone_failure_raises(self, mock_find_vol, mock_libvirt_open):
         """NVRAM missing from pool and disk aborts the clone."""
         mock_libvirt_open.return_value = self.mock_clone_conn
-        self.mock_domain.XMLDesc.return_value = self._xml(
-            "/nonexistent/path/orig-vm_VARS.fd"
-        )
+        self.mock_domain.XMLDesc.return_value = self._xml("/nonexistent/path/orig-vm_VARS.fd")
         mock_find_vol.return_value = (None, None)
 
         from vmanager.vm_actions import clone_vm

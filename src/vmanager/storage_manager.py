@@ -4,7 +4,6 @@ Module for managing libvirt storage pools and volumes.
 
 import logging
 import os
-import shutil
 import subprocess
 import tempfile
 import threading
@@ -297,7 +296,9 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
         try:
             pool = conn.storagePoolLookupByName("default")
             if not pool.isActive():
-                logging.info("Default storage pool 'default' exists but is inactive. Starting it...")
+                logging.info(
+                    "Default storage pool 'default' exists but is inactive. Starting it..."
+                )
                 pool.create(0)
             return pool
         except libvirt.libvirtError as e:
@@ -312,13 +313,13 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
             active_pools = [p for p in pools if p.isActive()]
             if active_pools:
                 return active_pools[0]
-            
+
             # If no pools are active, try to start the first one
             try:
                 pools[0].create(0)
                 return pools[0]
             except libvirt.libvirtError:
-                pass # Fallback to creating 'default' if we can't start existing one
+                pass  # Fallback to creating 'default' if we can't start existing one
 
         # No pools present or couldn't start existing ones, create 'default'
         name = "default"
@@ -327,7 +328,7 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
 
         # Try to define and create it
         logging.info(f"Creating default pool '{name}' at {target}...")
-        
+
         xml = f"""
         <pool type='{pool_type}'>
             <name>{name}</name>
@@ -337,7 +338,7 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
         </pool>
         """
         pool = conn.storagePoolDefineXML(xml, 0)
-        
+
         # Try to build it (creates the directory if missing)
         try:
             pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
@@ -345,7 +346,7 @@ def ensure_default_pool(conn: libvirt.virConnect) -> libvirt.virStoragePool | No
             try:
                 pool.build(0)
             except libvirt.libvirtError:
-                pass # Already exists or cannot build
+                pass  # Already exists or cannot build
 
         pool.create(0)
         pool.setAutostart(1)
@@ -467,91 +468,6 @@ def create_volume(
         pool.createXML(vol_xml, 0)
     except libvirt.libvirtError as e:
         msg = f"Error creating volume '{name}': {e}"
-        logging.error(msg)
-        raise Exception(msg) from e
-
-
-def attach_volume(pool: libvirt.virStoragePool, name: str, path: str, vol_format: str):
-    """
-    Attaches an existing file as a storage volume in a pool.
-    """
-    if not _ensure_pool_active(pool):
-        msg = f"Pool '{pool.name()}' is not active and could not be activated."
-        logging.error(msg)
-        raise Exception(msg)
-
-    if not os.path.exists(path):
-        msg = f"File not found at path: {path}"
-        logging.error(msg)
-        raise Exception(msg)
-
-    capacity = os.path.getsize(path)
-    pool_xml = pool.XMLDesc(0)
-    root = ET.fromstring(pool_xml)
-    pool_type = root.get("type")
-
-    if pool_type == "dir":
-        target_path_elem = root.find("target/path")
-        if target_path_elem is None:
-            raise Exception("Could not determine target path for 'dir' pool.")
-        pool_target_path = target_path_elem.text
-
-        # The destination path for the volume inside the pool's directory
-        dest_path = os.path.join(pool_target_path, name)
-
-        if os.path.abspath(path) != os.path.abspath(dest_path):
-            # If the source file is not already in the target directory with the correct name, copy it.
-            logging.info(f"Copying file from {path} to {dest_path}")
-            try:
-                shutil.copy(path, dest_path)
-            except Exception as e:
-                msg = f"Failed to copy file from {path} to {dest_path}: {e}"
-                logging.error(msg)
-                raise Exception(msg) from e
-
-        vol_xml = f"""
-        <volume>
-            <name>{name}</name>
-            <capacity unit="bytes">{capacity}</capacity>
-            <target>
-                <format type='{vol_format}'/>
-            </target>
-        </volume>
-        """
-    else:
-        vol_xml = f"""
-        <volume>
-            <name>{name}</name>
-            <capacity unit="bytes">{capacity}</capacity>
-            <target>
-                <path>{path}</path>
-                <format type='{vol_format}'/>
-            </target>
-        </volume>
-        """
-
-    try:
-        # Refresh the pool to make sure libvirt knows about the file if it was just copied.
-        _safe_refresh_pool(pool)
-        vol = pool.storageVolLookupByName(name)
-        if vol:
-            logging.warning(
-                f"Volume '{name}' already exists in pool '{pool.name()}'. Not creating."
-            )
-            return
-    except libvirt.libvirtError:
-        pass
-
-    try:
-        pool.createXML(vol_xml, 0)
-        # Refresh again after creating the volume from XML
-        _safe_refresh_pool(pool)
-    except libvirt.libvirtError as e:
-        # If creation fails, attempt to clean up the copied file
-        if pool_type == "dir" and "dest_path" in locals() and os.path.exists(dest_path):
-            if os.path.abspath(path) != os.path.abspath(dest_path):
-                os.remove(dest_path)
-        msg = f"Error attaching volume '{name}': {e}"
         logging.error(msg)
         raise Exception(msg) from e
 

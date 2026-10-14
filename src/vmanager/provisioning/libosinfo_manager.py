@@ -7,7 +7,7 @@ distributions similar to GNOME Boxes.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .os_provider import OSType, OSVersion, get_osinfo_db
 

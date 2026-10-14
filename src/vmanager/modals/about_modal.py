@@ -6,7 +6,7 @@ import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Button, Label, TextArea
+from textual.widgets import Button, TextArea
 
 from ..constants import AppInfo, ButtonLabels
 from .base_modals import BaseModal

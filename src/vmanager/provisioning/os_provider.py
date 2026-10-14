@@ -5,23 +5,13 @@ This module defines the base interface that all OS providers must implement,
 along with common data structures for OS types and versions.
 """
 
-import base64
-import hashlib
 import logging
-import os
-import re
 import secrets
-import ssl
-import subprocess
 import string
-import urllib.request
-from concurrent.futures import ThreadPoolExecutor
+import subprocess
 from dataclasses import dataclass
-from datetime import datetime
-from email.utils import parsedate_to_datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import gi
 
@@ -60,16 +50,6 @@ class OSVersion:
 
     def __str__(self) -> str:
         return self.display_name
-
-
-@dataclass
-class AutomationConfig:
-    """Configuration for unattended installation."""
-
-    template_name: str
-    variables: Dict[str, Any]
-    supports_custom_user: bool = True
-    supports_network_config: bool = True
 
 
 _osinfo_db = None
@@ -117,7 +97,7 @@ def hash_password(plaintext_password: str) -> str:
         )
         if result.returncode == 0:
             hashed = result.stdout.strip()
-            logging.info(f"Password hashed using mkpasswd (SHA-512)")
+            logging.info("Password hashed using mkpasswd (SHA-512)")
             return hashed
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         logging.debug(f"mkpasswd not available: {e}")
@@ -134,7 +114,7 @@ def hash_password(plaintext_password: str) -> str:
         )
         if result.returncode == 0:
             hashed = result.stdout.strip()
-            logging.info(f"Password hashed using openssl (SHA-512)")
+            logging.info("Password hashed using openssl (SHA-512)")
             return hashed
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         logging.debug(f"openssl not available: {e}")
@@ -145,7 +125,7 @@ def hash_password(plaintext_password: str) -> str:
         import crypt
 
         hashed = crypt.crypt(plaintext_password, crypt.mksalt(crypt.METHOD_SHA512))
-        logging.info(f"Password hashed using Python crypt module (SHA-512)")
+        logging.info("Password hashed using Python crypt module (SHA-512)")
         return hashed
     except (ImportError, AttributeError, ValueError) as e:
         logging.debug(f"crypt module not available or failed: {e}")
@@ -160,7 +140,7 @@ def hash_password(plaintext_password: str) -> str:
         salt_chars = string.ascii_letters + string.digits + "./"
         salt = "$6$" + "".join(secrets.choice(salt_chars) for _ in range(16))
         hashed = crypt.crypt(plaintext_password, salt)
-        logging.info(f"Password hashed using Python crypt with manual salt (SHA-512)")
+        logging.info("Password hashed using Python crypt with manual salt (SHA-512)")
         return hashed
     except (ImportError, AttributeError, ValueError) as e:
         logging.debug(f"crypt module fallback failed: {e}")

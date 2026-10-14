@@ -98,33 +98,6 @@ class VMCardPool:
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     logging.error("Error removing card %s when pool full: %s", uuid, e)
 
-    def clear_pool(self) -> None:
-        """Clear the entire pool and release all resources."""
-        with self.lock:
-            # Clean up all active cards first
-            active_uuids = list(self.active_cards.keys())
-
-        # Release outside lock to avoid potential deadlocks
-        for uuid in active_uuids:
-            try:
-                self.release_card(uuid)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logging.error("Error releasing active card %s during pool clear: %s", uuid, e)
-
-        # Clean up all cards in pool
-        with self.lock:
-            # Clean up all cards in pool
-            for card in self.available_cards:
-                try:
-                    if hasattr(card, "is_mounted") and card.is_mounted:
-                        card.remove()
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    logging.error("Error removing card during pool clear: %s", e)
-
-            self.available_cards.clear()
-            self.active_cards.clear()
-            self.last_page_order.clear()
-
     def get_pool_stats(self) -> dict[str, int]:
         """Returns statistics about the pool state."""
         with self.lock:

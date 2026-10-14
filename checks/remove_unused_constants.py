@@ -270,7 +270,7 @@ Examples:
         # Delete backup unless --backup flag was used
         if not args.backup:
             os.remove(backup_file)
-            print(f"✓ Backup file removed")
+            print("✓ Backup file removed")
         else:
             print(f"✓ Backup preserved: {backup_file}")
 

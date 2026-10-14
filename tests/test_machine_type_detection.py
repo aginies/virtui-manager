@@ -3,8 +3,7 @@ Test for machine type detection functionality.
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
-import xml.etree.ElementTree as ET
+from unittest.mock import MagicMock
 import os
 import sys
 

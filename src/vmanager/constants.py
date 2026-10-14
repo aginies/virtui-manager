@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.3.3"
+    version = "3.3.4"
     author = "Antoine Ginies"
 
 
@@ -177,7 +177,6 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     NO = _("No")
     CANCEL = _("Cancel")
     CREATE = _("Create")
-    CHANGE = _("Change")
     STOP = _("Stop")
     CLOSE = _("Close")
     MOVE = _("Move")
@@ -382,7 +381,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     FIRMWARE_LABEL = _(" Firmware")
     DELETE_STORAGE_VOLUMES = _("Delete storage volumes and NVRAM")
     QUIESCE_GUEST = _("Quiesce guest (requires agent)")
-    SELECT_INTERFACE_AND_NETWORK = _("Select interface and new network")
     ENTER_BASE_NAME = _("Enter base name for new VM(s)")
     SUFFIX_FOR_CLONE_NAMES = _("Suffix for clone names (e.g., _C)")
     NUMBER_OF_CLONES_TO_CREATE = _("Number of clones to create")
@@ -417,7 +415,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     PMSUSPENDED = _("Guest Suspended")
     BLOCKED = _("Blocked")
     STOPPED = _("Stopped")
-    CREATE_NEW_VM = _("Create New VM")
     START_VMS = _("Start VMs")
     STOP_VMS_GRACEFUL = _("Stop VMs (Graceful Shutdown)")
     FORCE_OFF_VMS = _("Force Off VMs")
@@ -445,7 +442,6 @@ class StaticText:  # pylint: disable=too-few-public-methods
     MIGRATE_VMS_TITLE = _("[{migration_type}] Migrate VMs: [b]{vm_names}[/b]")
     EMPTY_LABEL = ""
     SERVER_PREFERENCES = _("Server Preferences")
-    SELECT_DISK_TO_REMOVE = _("Select Disk to Remove")
     ADD_NEW_DISK = _("Add New Disk")
     ADD_NEW_STORAGE_POOL = _("Add New Storage Pool")
     TARGET_PATH_VOLUMES = _("Target Path (for volumes)")
@@ -769,7 +765,9 @@ Specify the NUMA nodes to use.
     VM_TYPE_SERVER = _("Server")
 
     # vmcard_dialog.py strings
-    DELETE_VM_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete VM '{vm_name}' on server '{server_name}'?")
+    DELETE_VM_CONFIRMATION_TEMPLATE = _(
+        "Are you sure you want to delete VM '{vm_name}' on server '{server_name}'?"
+    )
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
     SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
     WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")
@@ -888,12 +886,12 @@ class SparklineLabels:  # pylint: disable=too-few-public-methods
 
     DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
     NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
-    VCPU = ("{cpu} VCPU")
-    MEMORY_GB = ("{mem} Gb")
-    IDLE_CPU = ("-- VCPU")
-    IDLE_MEM = ("-- Gb")
-    IDLE_DISK = ("Disk --")
-    IDLE_NET = ("Net --")
+    VCPU = "{cpu} VCPU"
+    MEMORY_GB = "{mem} Gb"
+    IDLE_CPU = "-- VCPU"
+    IDLE_MEM = "-- Gb"
+    IDLE_DISK = "Disk --"
+    IDLE_NET = "Net --"
 
 
 class ErrorMessages:  # pylint: disable=too-few-public-methods
@@ -937,7 +935,6 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     PREFERENCES_LAUNCH_ERROR = _("Error launching preferences: {error}")
     BULK_ACTION_VM_NAMES_RETRIEVAL_FAILED = _("Could not retrieve names for selected VMs.")
     VM_CLONE_FAILED_TEMPLATE = _("Failed to clone to: {vm_names}")
-    NVRAM_CLONE_FAILED_TEMPLATE = _("Failed to clone NVRAM for VM '{vm_name}': {error}")
     NO_SUITABLE_DISKS_FOR_OVERLAY = _("No suitable disks found for overlay.")
     OVERLAY_NAME_EMPTY_AFTER_SANITIZATION = _(
         "Overlay volume name cannot be empty after sanitization."
@@ -1090,7 +1087,6 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     POOL_MUST_BE_INACTIVE_FOR_XML_EDIT = _("Pool must be inactive to edit its XML definition.")
     ERROR_GETTING_XML_FOR_POOL_TEMPLATE = _("Error getting XML for pool: {error}")
     ERROR_UPDATING_POOL_XML_TEMPLATE = _("Error updating pool XML: {error}")
-    UNEXPECTED_ERROR_OCCURRED_TEMPLATE_XML = _("An unexpected error occurred: {error}")
     ERROR_TRUNCATED_TEMPLATE = _("Error ({type}): {message}")
     EDIT_POOL_XML_WARNING = _(
         "Editing a pool's XML definition is an advanced operation.\\n"
@@ -1124,7 +1120,6 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     )
     VIRTIOFS_PATH_EMPTY = _("Source Path and Target Path cannot be empty.")
     SANITIZATION_ERROR_TEMPLATE = _("{error}")
-    PLEASE_SELECT_INTERFACE_AND_NETWORK = _("Please select an interface and a network.")
     BASE_NAME_EMPTY = _("Base name cannot be empty.")
     INVALID_CHARS_IN_SUFFIX = _("Invalid characters in suffix: {error}")
     CLONE_COUNT_POSITIVE_INTEGER = _("Number of clones must be a positive integer.")
@@ -1375,9 +1370,7 @@ class VMDetailConstants:  # pylint: disable=too-few-public-methods
     GRAPHICS_LOCALHOST = "127.0.0.1"
     GRAPHICS_ALL_INTERFACES = "0.0.0.0"
 
-    VIDEO_MODELS_FALLBACK = [
-        "default", "virtio", "qxl", "vga", "cirrus", "bochs", "ramfb", "none"
-    ]
+    VIDEO_MODELS_FALLBACK = ["default", "virtio", "qxl", "vga", "cirrus", "bochs", "ramfb", "none"]
     SOUND_MODELS_FALLBACK = ["none", "ich6", "ich9", "ac97", "sb16", "usb"]
 
 

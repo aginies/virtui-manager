@@ -1,10 +1,10 @@
 # Test suite for main vmanager.py application
-import unittest
-from unittest.mock import MagicMock, patch, call, PropertyMock
-import sys
 import os
+import sys
 import threading
 import time
+import unittest
+from unittest.mock import MagicMock, PropertyMock, patch
 
 # Add the source directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -30,7 +30,7 @@ class TestVMManager(unittest.TestCase):
         mock_callable = MagicMock()
 
         # Test that it runs without exceptions
-        worker = self.worker_manager.run(callable=mock_callable, name="test_worker", exclusive=True)
+        self.worker_manager.run(callable=mock_callable, name="test_worker", exclusive=True)
 
         # Should return a worker object (or None if already running)
         # This is a basic test to make sure the method doesn't crash
@@ -191,7 +191,7 @@ class TestWorkerManagerThreading(unittest.TestCase):
         mock_callable = MagicMock()
 
         # Run first worker
-        worker1 = self.worker_manager.run(mock_callable, name="exclusive_worker", exclusive=True)
+        self.worker_manager.run(mock_callable, name="exclusive_worker", exclusive=True)
 
         # Try to run same worker again (should be prevented)
         worker2 = self.worker_manager.run(mock_callable, name="exclusive_worker", exclusive=True)
@@ -209,7 +209,7 @@ class TestWorkerManagerThreading(unittest.TestCase):
             executed.append("end")
 
         # Run worker
-        worker = self.worker_manager.run(slow_task, name="slow_worker")
+        self.worker_manager.run(slow_task, name="slow_worker")
 
         # Cancel immediately
         self.worker_manager.cancel("slow_worker")
@@ -280,7 +280,7 @@ class TestWorkerManagerThreading(unittest.TestCase):
 
         # Should not raise exception
         try:
-            worker = self.worker_manager.run(failing_task, name="failing_worker")
+            self.worker_manager.run(failing_task, name="failing_worker")
             time.sleep(0.05)  # Give time for task to fail
             # If we get here, the exception was handled
             self.assertTrue(True)
@@ -1879,11 +1879,9 @@ class TestVMManagerServiceCallbacks(unittest.TestCase):
         self.app._remove_vms_for_uri = MagicMock()
         self.app.show_success_message = MagicMock()
         self.app.call_from_thread = MagicMock(
-            side_effect=lambda func, *args: func(*args)
-            if callable(func) and args
-            else func()
-            if callable(func)
-            else None
+            side_effect=lambda func, *args: (
+                func(*args) if callable(func) and args else func() if callable(func) else None
+            )
         )
 
         message = "Connection to qemu:///system lost: Network error. Attempting to reconnect..."

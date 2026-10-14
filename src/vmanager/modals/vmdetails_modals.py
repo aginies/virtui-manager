@@ -2,9 +2,9 @@
 Main interface
 """
 
-import re
 import logging
 import os
+import re
 import xml.etree.ElementTree as ET
 from collections import namedtuple
 from typing import Any
@@ -133,7 +133,7 @@ from .disk_pool_modals import AddDiskModal, EditDiskModal, SelectDiskModal, Sele
 from .howto_modals import HowToModal
 from .input_modals import AddChannelModal, AddInputDeviceModal, AddWatchdogModal
 from .network_modals import AddEditNetworkInterfaceModal
-from .utils_modals import _confirm_message, ConfirmationDialog, FileSelectionModal, ProgressModal
+from .utils_modals import ConfirmationDialog, FileSelectionModal, ProgressModal, _confirm_message
 from .virtiofs_modals import AddEditVirtIOFSModal
 
 BootDevice = namedtuple("BootDevice", ["type", "id", "description", "boot_order_idx"])
@@ -225,9 +225,8 @@ class VMDetailModal(ModalScreen):
             except Exception as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
-                            type=type(e).__name__,
-                            message=str(e)[:200]
-                        )
+                        type=type(e).__name__, message=str(e)[:200]
+                    )
                 )
                 return
 
@@ -1346,7 +1345,9 @@ class VMDetailModal(ModalScreen):
             if self.is_bulk:
                 msg = ErrorMessages.SPICE_REMOVAL_CONFIRMATION_BULK
 
-            self.app.push_screen(ConfirmationDialog(_confirm_message(msg)), on_confirm_spice_removal)
+            self.app.push_screen(
+                ConfirmationDialog(_confirm_message(msg)), on_confirm_spice_removal
+            )
         else:
             logging.info("No SPICE devices to remove, applying settings directly.")
             do_apply_graphics_settings()
@@ -1606,11 +1607,11 @@ class VMDetailModal(ModalScreen):
             addr = dev.get("pci_address", "?")
 
             if addr in attached_pci_addresses:
-                row_key = attached_table.add_row(iommu, device_label, addr, key=addr)
+                attached_table.add_row(iommu, device_label, addr, key=addr)
                 self._pci_attached_devices[addr] = dev
                 attached_pci_addresses.remove(addr)
             else:
-                row_key = available_table.add_row(iommu, device_label, driver, addr, key=addr)
+                available_table.add_row(iommu, device_label, driver, addr, key=addr)
                 self._pci_available_devices[addr] = dev
 
         # Add any attached devices that are no longer present on the host
@@ -1936,7 +1937,6 @@ class VMDetailModal(ModalScreen):
     def compose(self) -> ComposeResult:
         xml_root = ET.fromstring(self.xml_desc)
         status = self.vm_info.get("status", "N/A")
-        uuid_vm = self.vm_info.get("uuid", "N/A")
 
         title = f"VM Details: {self.vm_name} "
         if self.is_bulk:
@@ -3194,7 +3194,9 @@ class VMDetailModal(ModalScreen):
                                             f"An unexpected error occurred: {e}"
                                         )
 
-                            self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm_edit)
+                            self.app.push_screen(
+                                ConfirmationDialog(_confirm_message(message)), on_confirm_edit
+                            )
 
                     network_models = self.app.config.get("network_models", [])
                     self.app.push_screen(
@@ -3392,7 +3394,9 @@ class VMDetailModal(ModalScreen):
                         else:
                             self.app.show_success_message("Machine type migration cancelled.")
 
-                    self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm_migration)
+                    self.app.push_screen(
+                        ConfirmationDialog(_confirm_message(message)), on_confirm_migration
+                    )
                 elif new_machine_type == current_machine_type:
                     self.app.show_success_message(
                         "Machine type is already set to the selected value."

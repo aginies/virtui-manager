@@ -4,13 +4,13 @@ Manages multiple libvirt connections.
 
 import logging
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 import libvirt
 
 from .constants import AppCacheTimeout
 from .utils import sanitize_credentials
-import time
 
 
 class ConnectionManager:
@@ -105,11 +105,6 @@ class ConnectionManager:
         with self._lock:
             # Return a deep copy
             return {uri: methods.copy() for uri, methods in self.call_stats.items()}
-
-    def reset_stats(self):
-        """Resets all call statistics."""
-        with self._lock:
-            self.call_stats.clear()
 
     def connect(self, uri: str, force_retry: bool = False) -> libvirt.virConnect | None:
         """
@@ -283,13 +278,6 @@ class ConnectionManager:
                     return uri
         return None
 
-    def get_all_connections(self) -> list[libvirt.virConnect]:
-        """
-        Returns a list of all active libvirt connection objects.
-        """
-        with self._lock:
-            return list(self.connections.values())
-
     def get_all_uris(self) -> list[str]:
         """
         Returns a list of all URIs with active connections.
@@ -324,20 +312,3 @@ class ConnectionManager:
         """
         with self._lock:
             return uri in self.connections
-
-    def is_connection_alive(self, uri: str) -> bool:
-        """
-        Checks if a connection to the given URI is alive.
-        """
-        with self._lock:
-            conn = self.connections.get(uri)
-
-        if not conn:
-            return False
-
-        try:
-            # Test the connection by calling a simple libvirt function
-            conn.getLibVersion()
-            return True
-        except libvirt.libvirtError:
-            return False

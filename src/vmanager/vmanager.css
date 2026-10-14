@@ -765,7 +765,6 @@ Select {
 .server-pref-button { height: 4; padding: 0 0; margin-bottom: 1; }
 
 /* Network List Item in server prefs */
-NetworkListItem { height: auto; margin-bottom: 0; }
 .net-name { width: 30%; }
 .net-mode { width: 15%; }
 #net-active-check { width: 25%; }

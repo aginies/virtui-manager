@@ -1,10 +1,9 @@
-import unittest
-from unittest.mock import patch, MagicMock
-import sys
 import os
+import sys
 import tempfile
-import shutil
+import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
@@ -13,11 +12,11 @@ from vmanager.utils import (
     check_novnc_path,
     check_r_viewer,
     check_websockify,
+    extract_server_name_from_uri,
     get_server_color_cached,
     is_running_under_flatpak,
-    setup_logging,
     setup_cache_monitoring,
-    extract_server_name_from_uri,
+    setup_logging,
     strip_ansi_codes,
 )
 
@@ -26,11 +25,11 @@ class TestUtils(unittest.TestCase):
     def test_strip_ansi_codes(self):
         """Test stripping ANSI escape codes."""
         # Test basic colors
-        self.assertEqual(strip_ansi_codes("\x1B[31mRed Text\x1B[0m"), "Red Text")
+        self.assertEqual(strip_ansi_codes("\x1b[31mRed Text\x1b[0m"), "Red Text")
         # Test bold and colors
-        self.assertEqual(strip_ansi_codes("\x1B[1;32mBold Green\x1B[0m"), "Bold Green")
+        self.assertEqual(strip_ansi_codes("\x1b[1;32mBold Green\x1b[0m"), "Bold Green")
         # Test complex sequence from user report
-        user_report = "\x1B[1;32m[\x1B]0;nixos@nixos: ~\x07nixos@nixos:~]$\x1B[0m"
+        user_report = "\x1b[1;32m[\x1b]0;nixos@nixos: ~\x07nixos@nixos:~]$\x1b[0m"
         self.assertEqual(strip_ansi_codes(user_report), "[nixos@nixos:~]$")
         # Test normal text
         self.assertEqual(strip_ansi_codes("Normal Text"), "Normal Text")
@@ -91,8 +90,10 @@ class TestUtils(unittest.TestCase):
     def test_check_r_viewer(self, mock_which):
         """Test checking remote viewer."""
         # Mock that the path exists
-        mock_which.side_effect = lambda x: f"/usr/bin/{x}" if x in ["virt-viewer", "virtui-remote-viewer"] else None
-        
+        mock_which.side_effect = lambda x: (
+            f"/usr/bin/{x}" if x in ["virt-viewer", "virtui-remote-viewer"] else None
+        )
+
         # Test with configured viewer
         result = check_r_viewer("virt-viewer")
         self.assertEqual(result, "virt-viewer")
@@ -143,7 +144,7 @@ class TestUtils(unittest.TestCase):
         """Test setting up cache monitoring."""
         # This test mainly checks that it doesn't raise an exception
         try:
-            result = setup_cache_monitoring()
+            setup_cache_monitoring()
             # If we get here without exception, the test passes
             self.assertTrue(True)
         except Exception as e:

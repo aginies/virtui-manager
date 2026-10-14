@@ -8,7 +8,6 @@ import logging
 import os
 import re
 import signal
-import sys
 import threading
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -25,7 +24,6 @@ from textual.widgets import (
     Footer,
     Header,
     Label,
-    Link,
 )
 from textual.worker import Worker, WorkerState
 
@@ -39,12 +37,12 @@ from .constants import (
     ProgressMessages,
     QuickMessages,
     ServerPallette,
+    StaticText,
     StatusText,
     SuccessMessages,
     VmAction,
     VmStatus,
     WarningMessages,
-    StaticText,
 )
 from .events import VmActionRequest, VmCardUpdateRequest, VMSelectionChanged  # ,VMNameClicked
 from .libvirt_error_handler import register_error_handler
@@ -64,11 +62,10 @@ from .modals.selection_modals import PatternSelectModal
 from .modals.server_modals import ServerManagementModal
 from .modals.server_prefs_modals import ServerPrefModal
 from .modals.template_modals import TemplateManagementModal
-from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .modals.utils_modals import (
-    _confirm_message,
     ConfirmationDialog,
     LoadingModal,
+    _confirm_message,
     show_error_message,
     show_in_progress_message,
     show_quick_message,
@@ -79,16 +76,17 @@ from .modals.virsh_modals import VirshShellScreen
 from .modals.vmanager_modals import (
     FilterModal,
 )
+from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .utils import (
     check_novnc_path,
     check_r_viewer,
     check_websockify,
     generate_webconsole_keys_if_needed,
     get_server_color_cached,
+    is_remote_connection,
     is_running_under_flatpak,
     setup_cache_monitoring,
     setup_logging,
-    is_remote_connection,
 )
 from .vm_queries import (
     get_status,
@@ -514,9 +512,7 @@ class VMManagerTUI(App):
         self.config["servers"] = list(new_servers)
         save_config(self.config)
 
-        new_autoconnect_uris = [
-            s["uri"] for s in new_servers if s.get("autoconnect", False)
-        ]
+        new_autoconnect_uris = [s["uri"] for s in new_servers if s.get("autoconnect", False)]
 
         uris_to_connect = [uri for uri in new_autoconnect_uris if uri not in self.active_uris]
         if uris_to_connect:
@@ -2407,16 +2403,6 @@ class VMManagerTUI(App):
 
 def main():
     """Entry point for vmanager TUI application."""
-    if is_running_under_flatpak():
-        ldir = "/app/share/locale"
-    else:
-        if not os.path.exists("locale"):
-            # Installed on the system
-            ldir = "/usr/share/locale"
-        else:
-            # Devel version from git
-            ldir = "locale"
-
     parser = argparse.ArgumentParser(description=StaticText.APP_DESCRIPTION)
     parser.add_argument("--cmd", action="store_true", help=StaticText.CLI_HELP)
     args = parser.parse_args()
@@ -2441,7 +2427,6 @@ def main():
         # This prevents zombie processes when spawned viewers (virt-viewer, etc.) exit
         def sigchld_handler(signum, frame):
             """Reap zombie child processes."""
-            import sys
 
             while True:
                 try:

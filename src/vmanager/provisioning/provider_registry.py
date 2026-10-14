@@ -8,8 +8,8 @@ allowing the system to dynamically support multiple operating systems.
 import logging
 from typing import Dict, List, Optional
 
-from .os_provider import OSType, OSVersion
 from .libosinfo_manager import LibosinfoManager
+from .os_provider import OSType, OSVersion
 
 
 class ProviderRegistry:
@@ -46,16 +46,3 @@ class ProviderRegistry:
             if v.os_type == os_type and v.version_id == version_id:
                 return v
         return None
-
-    def is_supported(self, os_type: OSType) -> bool:
-        """Check if an OS type is supported (Legacy)."""
-        return os_type in self.get_supported_os_types()
-
-
-# Global registry instance
-_registry = ProviderRegistry()
-
-
-def get_registry() -> ProviderRegistry:
-    """Get the global provider registry instance."""
-    return _registry

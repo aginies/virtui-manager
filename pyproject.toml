@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "virtui-manager"
-version = "3.3.3"
+version = "3.3.4"
 description = "Terminal-based interface to manage virtual machines using libvirt"
 readme = "README.md"
 authors = [
@@ -118,4 +118,10 @@ python_version = "3.7"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+
+# GObject-Introspection bindings are dynamic; mypy cannot resolve their symbols.
+[[tool.mypy.overrides]]
+module = ["gi", "gi.*", "gi.repository.*"]
+ignore_missing_imports = true
+follow_imports = "skip"
 

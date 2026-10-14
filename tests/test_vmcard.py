@@ -1582,19 +1582,6 @@ class TestVMCard(unittest.TestCase):
         border_top = self.vm_card.styles.border.top
         self.assertEqual(border_top[0], VMCardConstants.DEFAULT_BORDER_TYPE)
 
-    def test_watch_server_border_color_not_selected(self):
-        """Test watch_server_border_color when card is not selected."""
-        with patch.object(VMCard, "update_button_layout"), patch.object(
-            VMCard, "update_stats"
-        ), patch.object(VMCard, "_perform_tooltip_update"):
-            self.vm_card.is_selected = False
-
-        VMCard.watch_server_border_color(self.vm_card, "blue", "green")
-
-        # When not selected, should use default border type
-        border_top = self.vm_card.styles.border.top
-        self.assertEqual(border_top[0], VMCardConstants.DEFAULT_BORDER_TYPE)
-
     # ========================================================================
     # VMNAME CLICK TESTS
     # ========================================================================

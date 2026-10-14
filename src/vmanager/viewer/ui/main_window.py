@@ -4,20 +4,21 @@ Main Window Builder
 Builds the main viewer window with header bar, tabs, and all UI components.
 """
 
-from typing import Optional, Callable, Dict, Any
+from typing import Any, Callable, Dict, Optional
 
 import gi
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
-from .menus import (
-    build_settings_menu,
-    build_boot_menu,
-    build_power_menu,
-    build_keys_menu,
-    build_clipboard_menu,
-)
 from .console_tab import ConsoleTab
+from .menus import (
+    build_boot_menu,
+    build_clipboard_menu,
+    build_keys_menu,
+    build_power_menu,
+    build_settings_menu,
+)
 from .snapshot_tab import SnapshotTab
 from .usb_tab import USBTab
 
@@ -173,10 +174,7 @@ class MainWindowBuilder:
         return self.window
 
     def _build_header_bar(
-        self,
-        title: str,
-        subtitle: str,
-        handlers: Dict[str, Any]
+        self, title: str, subtitle: str, handlers: Dict[str, Any]
     ) -> Gtk.HeaderBar:
         """Build the header bar with all buttons and menus."""
         header = Gtk.HeaderBar()
@@ -228,9 +226,7 @@ class MainWindowBuilder:
         header.pack_end(power_button)
 
         # Send Keys Menu
-        keys_button = build_keys_menu(
-            on_send_key=handlers.get("on_send_key")
-        )
+        keys_button = build_keys_menu(on_send_key=handlers.get("on_send_key"))
         header.pack_end(keys_button)
 
         # Clipboard Menu
@@ -283,6 +279,34 @@ class MainWindowBuilder:
         self.info_bar.set_revealed(False)
         self.info_bar.set_show_close_button(True)
         self.info_bar.connect("response", lambda bar, resp: bar.set_revealed(False))
+
+        # Apply custom CSS to color-code message types:
+        #   INFO   → green   (started / resumed)
+        #   WARNING → orange  (paused)
+        #   ERROR  → red     (stopped)
+        # set_message_type() applies the class to the InfoBar's internal button,
+        # so the provider must be screen-level to reach it.
+        css_provider = Gtk.CssProvider()
+        css_data = """
+            .info {
+                background-color: #4caf50;
+                color: #ffffff;
+            }
+            .warning {
+                background-color: #ff9800;
+                color: #ffffff;
+            }
+            .error {
+                background-color: #f44336;
+                color: #ffffff;
+            }
+        """
+        css_provider.load_from_data(css_data.encode())
+        screen = self.info_bar.get_screen()
+        if screen:
+            Gtk.StyleContext.add_provider_for_screen(
+                screen, css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+            )
 
         content = self.info_bar.get_content_area()
         self.info_bar_label = Gtk.Label()
@@ -379,22 +403,6 @@ class MainWindowBuilder:
         """Get the fullscreen toggle button."""
         return self.fs_button
 
-    def get_logs_button(self) -> Gtk.ToggleButton:
-        """Get the logs toggle button."""
-        return self.logs_button
-
-    def get_notebook(self) -> Gtk.Notebook:
-        """Get the notebook widget."""
-        return self.notebook
-
-    def get_snapshot_tab(self) -> SnapshotTab:
-        """Get the snapshot tab instance."""
-        return self.snapshot_tab_instance
-
-    def get_usb_tab(self) -> USBTab:
-        """Get the USB tab instance."""
-        return self.usb_tab_instance
-
     def get_console_tab(self) -> ConsoleTab:
         """Get the console tab instance."""
         return self.console_tab_instance
@@ -457,4 +465,4 @@ class MainWindowBuilder:
             self.console_tab_instance.disconnect()
 
 
-__all__ = ['MainWindowBuilder']
+__all__ = ["MainWindowBuilder"]

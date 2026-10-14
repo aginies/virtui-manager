@@ -9,16 +9,17 @@ import re
 import socket
 import subprocess
 import time
-from typing import Optional, Tuple, Callable
+from typing import Callable, Optional, Tuple
 
 import gi
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk
 
 from .constants import (
-    SSH_TUNNEL_VERIFY_TIMEOUT,
     SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT,
     SSH_TUNNEL_KILL_TIMEOUT,
+    SSH_TUNNEL_VERIFY_TIMEOUT,
     TUNNEL_VERIFY_CHECK_INTERVAL_MS,
 )
 
@@ -30,8 +31,11 @@ class SSHTunnelManager:
     Handles tunnel creation, verification, and cleanup for qemu+ssh:// URIs.
     """
 
-    def __init__(self, log_callback: Optional[Callable[[str], None]] = None,
-                 notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None):
+    def __init__(
+        self,
+        log_callback: Optional[Callable[[str], None]] = None,
+        notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None,
+    ):
         """
         Initialize the SSH tunnel manager.
 
@@ -184,7 +188,7 @@ class SSHTunnelManager:
         ]
 
         # Sanitize command for logging (hide potential sensitive info)
-        safe_cmd = ' '.join(ssh_cmd).replace(self.ssh_gateway, "***@***")
+        safe_cmd = " ".join(ssh_cmd).replace(self.ssh_gateway, "***@***")
         self.log(f"Starting SSH tunnel: {safe_cmd}")
 
         try:
@@ -329,13 +333,5 @@ class SSHTunnelManager:
         """
         return self.ssh_tunnel_local_port
 
-    def cleanup(self):
-        """
-        Clean up tunnel resources.
 
-        Alias for stop() for use in destructors.
-        """
-        self.stop()
-
-
-__all__ = ['SSHTunnelManager']
+__all__ = ["SSHTunnelManager"]

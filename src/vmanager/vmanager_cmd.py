@@ -12,20 +12,22 @@ import atexit
 import cmd
 import datetime
 import os
-from pathlib import Path
 import re
 import readline
 import shlex
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 import libvirt
 
-from .config import get_log_path, load_config, save_config
+from .backup_manager import BackupManager, BackupOptions, BackupType
+from .config import get_log_path, load_config
 from .constants import AppInfo, ServerPallette
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_host_resources, get_network_info
+from .modals.input_modals import _sanitize_domain_name
 from .network_manager import (
     delete_network,
     ensure_default_network,
@@ -33,18 +35,19 @@ from .network_manager import (
     set_network_active,
     set_network_autostart,
 )
+from .pipeline import PipelineExecutor, PipelineMode
+from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
     ensure_default_pool,
     list_storage_pools,
     list_storage_volumes,
     list_unused_volumes,
 )
-from .modals.input_modals import _sanitize_domain_name
 from .utils import (
+    extract_server_name_from_uri,
     remote_viewer_cmd,
     sanitize_sensitive_data,
     strip_ansi_codes,
-    extract_server_name_from_uri,
 )
 from .vm_actions import (
     clone_vm,
@@ -58,14 +61,9 @@ from .vm_actions import (
     start_vm,
     stop_vm,
 )
-from .vm_queries import get_vm_snapshots, get_domain_info_dict
-from .vm_service import VMService
-from .pipeline import PipelineExecutor, PipelineMode
-from .backup_manager import BackupManager, BackupType, BackupOptions
-from .provisioning.provider_registry import get_registry
-from .provisioning.os_provider import OSType
 from .vm_provisioner import VMProvisioner, VMType
-from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
+from .vm_queries import get_domain_info_dict, get_vm_snapshots
+from .vm_service import VMService
 
 
 class InterruptionRequested(Exception):
@@ -296,7 +294,6 @@ class VManagerCMD(cmd.Cmd):
             return os.get_terminal_size().columns
         except (AttributeError, OSError):
             try:
-
                 result = subprocess.run(["tput", "cols"], capture_output=True, text=True)
                 if result.returncode == 0:
                     return int(result.stdout.strip())
@@ -314,7 +311,7 @@ class VManagerCMD(cmd.Cmd):
             if self.history_file.exists():
                 try:
                     readline.read_history_file(str(self.history_file))
-                except (IOError, OSError) as e:
+                except OSError as e:
                     print(f"Warning: Could not load command history: {e}")
 
             atexit.register(self._save_history)
@@ -363,7 +360,7 @@ class VManagerCMD(cmd.Cmd):
                     for cmd in sanitized_history:
                         f.write(f"{cmd}\n")
 
-        except Exception as e:
+        except Exception:
             pass
 
     def _sanitize_message(self, message: str) -> str:
@@ -791,7 +788,7 @@ class VManagerCMD(cmd.Cmd):
                 print(f"  File size: {stat.st_size} bytes")
                 print(f"  Last modified: {datetime.datetime.fromtimestamp(stat.st_mtime)}")
 
-                with open(self.history_file, "r", encoding="utf-8") as f:
+                with open(self.history_file, encoding="utf-8") as f:
                     line_count = sum(1 for _ in f)
                 print(f"  Commands stored: {line_count}")
 
@@ -2141,14 +2138,14 @@ class VManagerCMD(cmd.Cmd):
                 self.columnize(sorted(cmds_to_print), displaywidth=80)
 
         # Add pipeline help summary
-        print(f"\n\033[1;32mPipeline Commands:\033[0m")
+        print("\n\033[1;32mPipeline Commands:\033[0m")
         print("  Use | to chain commands together:")
         print("    select re:web.* | stop | snapshot create backup | start")
         print("    pipeline --dry-run select vm1 vm2 | pause")
         print("  Type 'help pipelines' for detailed pipeline documentation.")
 
         # Add history help summary
-        print(f"\n\033[1;32mHistory Commands:\033[0m")
+        print("\n\033[1;32mHistory Commands:\033[0m")
         print("  Use history to view previous commands:")
         print("    history         # Show last 20 commands")
         print("    history 50      # Show last 50 commands")
@@ -2607,7 +2604,7 @@ class VManagerCMD(cmd.Cmd):
                 return
 
             # Show backup information
-            print(f"\nBackup Information:")
+            print("\nBackup Information:")
             print(f"  Backup Name: {backup_name}")
             print(f"  Original VM: {vm_name}")
             print(f"  Backup Type: {backup_type}")
@@ -2619,7 +2616,7 @@ class VManagerCMD(cmd.Cmd):
             # Warning for overlay backups
             if backup_type == "overlay":
                 print(
-                    f"\n⚠️  WARNING: Overlay backup restore is experimental and may not work correctly."
+                    "\n⚠️  WARNING: Overlay backup restore is experimental and may not work correctly."
                 )
                 print("   Snapshot backups are recommended for reliable restoration.")
 
@@ -2631,7 +2628,9 @@ class VManagerCMD(cmd.Cmd):
                 print("   Current VM state will be lost!")
 
                 try:
-                    response = self._get_input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    response = (
+                        self._get_input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    )
                     if response not in ["yes", "y"]:
                         print("Restore cancelled.")
                         return
@@ -3471,7 +3470,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return ["select"]
 
         pipeline_text = " ".join(pipeline_words)
-        pipe_count = pipeline_text.count("|")
 
         if "|" in pipeline_text:
             current_segment = pipeline_text.split("|")[-1].strip()
@@ -3705,9 +3703,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
             elif iso_source == "Pool volumes":
                 vol_options = []
-                for p in [
-                    p for p in list_storage_pools(conn) if p["status"] == "active"
-                ]:
+                for p in [p for p in list_storage_pools(conn) if p["status"] == "active"]:
                     for v in list_storage_volumes(p["pool"]):
                         if v["name"].lower().endswith(".iso"):
                             vol_options.append((p["name"], v["name"]))
@@ -3727,9 +3723,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 vol_pool_name, vol_name = selected_vol
                 iso_url = provisioner.check_pool_volume(vol_name, vol_pool_name)
                 if not iso_url:
-                    print(
-                        f"Could not resolve volume '{vol_name}' in pool '{vol_pool_name}'."
-                    )
+                    print(f"Could not resolve volume '{vol_name}' in pool '{vol_pool_name}'.")
                     return
 
             else:  # Custom URL/Path
@@ -3745,9 +3739,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 # Validate local path (TUI parity); validate_iso handles remote via SSH
                 if not iso_url.startswith(("http://", "https://", "file://")):
                     uri = conn.getURI()
-                    is_remote = uri and not (
-                        "qemu:///system" in uri or "qemu:///session" in uri
-                    )
+                    is_remote = uri and not ("qemu:///system" in uri or "qemu:///session" in uri)
                     if not is_remote:
                         if not os.path.exists(iso_url):
                             print(f"ISO path does not exist: {iso_url}")
@@ -3814,7 +3806,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 pools_info,
                 choices_provided=choices_provided,
                 choices_used=choices_used,
-                display_func=lambda p: f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation']/p['capacity']*100) if p['capacity']>0 else 0:.1f}%)",
+                display_func=lambda p: (
+                    f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation'] / p['capacity'] * 100) if p['capacity'] > 0 else 0:.1f}%)"
+                ),
                 value_func=lambda p: p["name"],
                 auto_select=True,
             )
@@ -3844,7 +3838,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     templates = [
                         t
                         for t in all_templates
-                        if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()
+                        if "autoinstall" in t["filename"].lower()
+                        or "preseed" in t["filename"].lower()
                     ]
                 elif "suse" in os_lower or "sles" in os_lower:
                     templates = [
@@ -3991,7 +3986,8 @@ def main():
 
     parser = argparse.ArgumentParser(description="Virtui Manager CLI")
     parser.add_argument(
-        "-c", "--command",
+        "-c",
+        "--command",
         help="Execute a single command non-interactively and exit",
     )
     args = parser.parse_args()

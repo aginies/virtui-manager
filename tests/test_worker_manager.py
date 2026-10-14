@@ -1,7 +1,8 @@
-import unittest
-from unittest.mock import MagicMock, patch
-import sys
 import os
+import sys
+import unittest
+from unittest.mock import MagicMock
+
 from textual.worker import WorkerState
 
 # Add the src directory to the path to import vmanager modules
@@ -54,7 +55,7 @@ class TestWorkerManager(unittest.TestCase):
         self.assertFalse(self.worker_manager.is_running("test_worker"))
 
         # Start a worker
-        worker = self.worker_manager.run(mock_callable, name="test_worker", exclusive=True)
+        self.worker_manager.run(mock_callable, name="test_worker", exclusive=True)
         self.assertTrue(self.worker_manager.is_running("test_worker"))
 
     def test_cancel(self):

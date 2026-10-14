@@ -7,7 +7,17 @@ from datetime import datetime
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
-from textual.widgets import Button, Checkbox, DataTable, Input, Label, Markdown, Select, Static, Switch
+from textual.widgets import (
+    Button,
+    Checkbox,
+    DataTable,
+    Input,
+    Label,
+    Markdown,
+    Select,
+    Static,
+    Switch,
+)
 
 from ..config import load_config, save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, StatusText, SuccessMessages
@@ -55,7 +65,7 @@ class VMActionsModal(BaseModal[str | None]):
 
     def _apply_button_visibility(self) -> None:
         """Apply button visibility based on VM status and state."""
-        from ..vm_queries import get_vm_snapshots, has_overlays
+        from ..vm_queries import has_overlays
 
         is_loading = self.vm_status == StatusText.LOADING
         is_stopped = self.vm_status == StatusText.STOPPED
@@ -108,7 +118,10 @@ class VMActionsModal(BaseModal[str | None]):
             except Exception:
                 pass
 
-        update("#snapshot_restore", has_snapshots and not is_running and not is_loading and not is_blocked)
+        update(
+            "#snapshot_restore",
+            has_snapshots and not is_running and not is_loading and not is_blocked,
+        )
         update("#snapshot_delete", has_snapshots)
         update("#commit_disk", (is_running or is_blocked) and has_overlay_disks)
         update("#discard_overlay", is_stopped and has_overlay_disks)
@@ -163,45 +176,6 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
     def action_cancel_modal(self) -> None:
         """Cancel the modal."""
         self.dismiss((False, False))
-
-
-class ChangeNetworkDialog(BaseDialog[dict | None]):
-    """A dialog to change a VM's network interface."""
-
-    def __init__(self, interfaces: list[dict], networks: list[str]) -> None:
-        super().__init__()
-        self.interfaces = interfaces
-        self.networks = networks
-
-    def compose(self):
-        interface_options = [
-            (f"{iface['mac']} ({iface['network']})", iface["mac"]) for iface in self.interfaces
-        ]
-        network_options = [(str(net), str(net)) for net in self.networks]
-
-        with Vertical(id="dialog"):
-            yield Label(StaticText.SELECT_INTERFACE_AND_NETWORK)
-            yield Select(interface_options, id="interface-select")
-            yield Select(network_options, id="network-select")
-            with Horizontal(id="dialog-buttons"):
-                yield Button(ButtonLabels.CHANGE, variant="success", id="change")
-                yield Button(ButtonLabels.CANCEL, variant="error", id="cancel")
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "change":
-            interface_select = self.query_one("#interface-select", Select)
-            network_select = self.query_one("#network-select", Select)
-
-            mac_address = interface_select.value
-            new_network = network_select.value
-
-            if mac_address is Select.NULL or new_network is Select.NULL:
-                self.app.show_error_message(ErrorMessages.PLEASE_SELECT_INTERFACE_AND_NETWORK)
-                return
-
-            self.dismiss({"mac_address": mac_address, "new_network": new_network})
-        else:
-            self.dismiss(None)
 
 
 class AdvancedCloneDialog(BaseDialog[dict | None]):

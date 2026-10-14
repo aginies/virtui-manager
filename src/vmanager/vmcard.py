@@ -46,8 +46,7 @@ from .events import (
 from .modals.disk_pool_modals import SelectDiskModal
 from .modals.howto_modals import HowToModal
 from .modals.input_modals import InputModal, _sanitize_input
-from .modals.migration_modals import MigrationModal
-from .modals.utils_modals import _confirm_message, ConfirmationDialog, LoadingModal, ProgressModal
+from .modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal, _confirm_message
 from .modals.vmcard_dialog import (
     AdvancedCloneDialog,
     DeleteVMConfirmationDialog,
@@ -60,11 +59,11 @@ from .modals.vmcard_dialog import (
 from .modals.vmdetails_modals import VMDetailModal
 from .modals.xml_modals import XMLDisplayModal
 from .utils import (
-    is_inside_tmux,
     extract_server_name_from_uri,
     generate_tooltip_markdown,
-    remote_viewer_cmd,
+    is_inside_tmux,
     is_remote_connection,
+    remote_viewer_cmd,
     terminal_supports_emoji,
 )
 from .vm_actions import (
@@ -89,7 +88,6 @@ from .vm_queries import (
     get_vm_graphics_info,
     get_vm_network_ip,
     get_vm_snapshots,
-    has_overlays,
 )
 
 
@@ -568,7 +566,6 @@ class VMCard(Static):
         if not self.display or not self.ui or self.compact_view:
             return
 
-        is_active = self.status in (StatusText.RUNNING, StatusText.PAUSED)
         is_resources_mode = new_mode == "resources"
 
         sparklines_container = self.ui.get("sparklines_container")
@@ -1176,54 +1173,6 @@ class VMCard(Static):
                 xml_button.label = ButtonLabels.VIEW_XML
             xml_button.display = not is_loading
 
-    def _update_slow_buttons(self, snapshot_summary: dict, has_overlay: bool):
-        """Updates buttons that rely on heavy state."""
-        if not self.query("#rename-button"):
-            return
-
-        snapshot_count = snapshot_summary.get("count", 0)
-
-        # Update Tooltip on TabPane
-        try:
-            tabbed_content = self.query_one("#button-container", TabbedContent)
-            pane = tabbed_content.get_tab("snapshot-tab")
-            if snapshot_count > 0:
-                latest = snapshot_summary.get("latest")
-                info = (
-                    f"{StaticText.LATEST_SNAPSHOT} {latest['name']} ({latest['time']})"
-                    if latest
-                    else "Unknown"
-                )
-                pane.tooltip = TabTitles.TOTAL_TAB.format(info=info, snapshot_count=snapshot_count)
-            else:
-                pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
-        except Exception:
-            pass
-
-        is_running = self.status == StatusText.RUNNING
-        is_stopped = self.status == StatusText.STOPPED
-        is_loading = self.status == StatusText.LOADING
-        is_pmsuspended = self.status == StatusText.PMSUSPENDED
-        is_blocked = self.status == StatusText.BLOCKED
-
-        has_snapshots = snapshot_count > 0
-
-        def update(selector, visible):
-            for w in self.query(selector):
-                w.display = visible
-
-        update(
-            "#snapshot_restore",
-            has_snapshots and not is_running and not is_loading and not is_blocked,
-        )
-        update("#snapshot_delete", has_snapshots)
-
-        update("#commit_disk", (is_running or is_blocked) and has_overlay)
-        update("#discard_overlay", is_stopped and has_overlay)
-        update("#create_overlay", is_stopped and not has_overlay)
-
-        self.update_snapshot_tab_title(snapshot_count)
-
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
         if status_widget:
@@ -1312,10 +1261,6 @@ class VMCard(Static):
     def _handle_create_overlay(self) -> None:
         """Handles the create overlay button press."""
         try:
-            # Use cached XML if available to avoid XMLDesc() call
-            vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
-            xml_content = vm_cache.get("xml")
-
             disks = get_vm_disks(self.vm)
             # Filter for actual disks (exclude cdroms, etc)
             valid_disks = [d["path"] for d in disks if d.get("device_type") == "disk"]
@@ -1574,9 +1519,6 @@ class VMCard(Static):
     def _handle_xml_button(self) -> None:
         """Handles the xml button press."""
         try:
-            vm_cache = self.app.vm_service._vm_data_cache.get(self.internal_id, {})
-            cached_xml = vm_cache.get("xml")
-
             xml_flags = 0
             try:
                 original_xml = self.vm.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)

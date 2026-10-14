@@ -21,18 +21,18 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
 import libvirt
-from .backup_manager import BackupManager, BackupType, BackupOptions
 
+from .backup_manager import BackupManager, BackupOptions, BackupType
 from .utils import remote_viewer_cmd
 from .vm_actions import (
-    start_vm,
-    stop_vm,
-    force_off_vm,
-    pause_vm,
-    hibernate_vm,
     create_vm_snapshot,
     delete_vm_snapshot,
+    force_off_vm,
+    hibernate_vm,
+    pause_vm,
     restore_vm_snapshot,
+    start_vm,
+    stop_vm,
 )
 from .vm_queries import get_vm_snapshots
 
@@ -176,10 +176,6 @@ class PipelineCommand(ABC):
     def validate(self, context: PipelineContext, vm_service, cli_instance) -> List[str]:
         """Validate the command. Return list of error messages."""
         pass
-
-    def can_receive_input(self) -> bool:
-        """Whether this command can receive input from previous commands in pipeline."""
-        return self.supports_piping
 
     def get_description(self, context: PipelineContext) -> str:  # pylint: disable=unused-argument
         """Get a human-readable description of what this command will do."""
