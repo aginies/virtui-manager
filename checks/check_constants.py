@@ -282,7 +282,6 @@ def main():
     class_constants = get_class_constants(CONSTANTS_FILE)
 
     constants_error = check_usages(SEARCH_DIR, class_constants)
-    # i18n_error = check_i18n(SEARCH_DIR)
     tooltip_error = check_tooltips(SEARCH_DIR, class_constants)
     unused_error = check_unused_constants(SEARCH_DIR, class_constants)
 
@@ -293,9 +292,6 @@ def main():
     elif tooltip_error:
         print("Failure: found untranslated tooltips.")
         sys.exit(1)
-    # elif i18n_error:
-    #    print("Failure: found, but its WIP (missing translation).")
-    #    sys.exit(0)
     else:
         if unused_error:
             print(

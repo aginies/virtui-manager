@@ -90,7 +90,6 @@ class SelectMachineTypeModal(BaseModal[str | None]):
     def on_mount(self) -> None:
         list_view = self.query_one(ListView)
         try:
-            # self.query_one(DirectoryTree).focus()
             current_index = self.machine_types.index(self.current_machine_type)
             list_view.index = current_index
         except (ValueError, IndexError):

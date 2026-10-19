@@ -489,16 +489,10 @@ class VMManagerTUI(App):
                 classes="Buttonpage",
             )
             yield Button(ButtonLabels.FILTER_VM, id="filter_button", classes="Buttonpage")
-            # yield Button(ButtonLabels.VIEW_LOG, id="view-log-button", classes="Buttonpage")
-            # yield Button("Virsh Shell", id="virsh_shell_button", classes="Buttonpage")
             yield Button(ButtonLabels.BULK_CMD, id="bulk_selected_vms", classes="Buttonpage")
             yield Button(
                 ButtonLabels.PATTERN_SELECT, id="pattern_select_button", classes="Buttonpage"
             )
-            # yield Button(ButtonLabels.CONFIG, id="config-button", classes="Buttonpage")
-            # yield Button(
-            #    ButtonLabels.COMPACT_VIEW, id="compact-view-button", classes="Buttonpage"
-            # )
             yield Button("About", id="about_button", classes="Buttonpage")
 
         yield self.ui["pagination_controls"]
