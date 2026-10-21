@@ -14,13 +14,12 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
-from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..network_manager import ensure_default_network, list_networks
-from ..storage_manager import ensure_default_pool, list_storage_pools
-from ..utils import is_remote_connection, remote_viewer_cmd
-from ..vm_provisioner import VMProvisioner, VMType
 from ..provisioning.os_provider import OSType, OSVersion
-
+from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
+from ..storage_manager import ensure_default_pool, list_storage_pools
+from ..utils import get_ssh_host_from_uri, is_remote_connection, remote_viewer_cmd
+from ..vm_provisioner import VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name, validate_path_in_allowed_dirs
@@ -87,12 +86,12 @@ class InstallVMModal(BaseModal[str | None]):
                             label = version.display_name
                         else:
                             label = f"{os_type.value}: {version.display_name}"
-                    
+
                         # Ensure label uniqueness in the dropdown
                         if label in seen_labels:
                             # Append version_id to make it unique if necessary
                             label = f"{label} ({version.version_id})"
-                    
+
                         seen_labels.add(label)
                         distro_options.append((label, version))
 
@@ -153,7 +152,9 @@ class InstallVMModal(BaseModal[str | None]):
                             id="checksum-input",
                             disabled=True,
                         )
-                        yield Label(StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text")
+                        yield Label(
+                            StaticText.EMPTY_LABEL, id="checksum-status", classes="status-text"
+                        )
 
                 # Container for ISO selection from Storage Pools
                 with Vertical(id="pool-iso-container"):
@@ -185,11 +186,19 @@ class InstallVMModal(BaseModal[str | None]):
                 with Horizontal(id="pool-network-selection"):
                     with Vertical(id="pool-selection"):
                         yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                        yield Select(active_pools, value=default_pool if default_pool else Select.NULL, id="pool", allow_blank=True if not active_pools else False)
+                        yield Select(
+                            active_pools,
+                            value=default_pool if default_pool else Select.NULL,
+                            id="pool",
+                            allow_blank=True if not active_pools else False,
+                        )
                     with Vertical(id="network-selection"):
                         yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
                         yield Select(
-                            active_networks, value=default_network if default_network else Select.NULL, id="network", allow_blank=True if not active_networks else False
+                            active_networks,
+                            value=default_network if default_network else Select.NULL,
+                            id="network",
+                            allow_blank=True if not active_networks else False,
                         )
 
                 with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
@@ -337,9 +346,7 @@ class InstallVMModal(BaseModal[str | None]):
                 yield Label(StaticText.EMPTY_LABEL, id="status-label")
 
         with Horizontal(classes="buttons"):
-            yield Button(
-                ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True
-            )
+            yield Button(ButtonLabels.INSTALL, variant="primary", id="install-btn", disabled=True)
             yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-btn")
 
     def on_mount(self):
@@ -370,13 +377,13 @@ class InstallVMModal(BaseModal[str | None]):
             if pool:
                 # Refresh storage pool lists in the UI
                 self.app.call_from_thread(self._refresh_pool_selectors)
-            
+
             # 2. Check/Ensure Network
             net = ensure_default_network(self.conn)
             if net:
                 # Refresh network lists in the UI
                 self.app.call_from_thread(self._refresh_network_selectors)
-                
+
         except Exception as e:
             logging.error(f"Failed to ensure default resources in background: {e}")
 
@@ -662,11 +669,13 @@ class InstallVMModal(BaseModal[str | None]):
                     sel.value = "none"
                     sel.disabled = True
                     if eol_warning:
-                        status_lbl.update(f"[red]{StaticText.EOL_NO_ISO_FOUND}[/red]\n[yellow]{eol_warning}[/yellow]")
+                        status_lbl.update(
+                            f"[red]{StaticText.EOL_NO_ISO_FOUND}[/red]\n[yellow]{eol_warning}[/yellow]"
+                        )
                         status_lbl.styles.display = "block"
                     else:
                         status_lbl.styles.display = "none"
-                
+
                 self.query_one("#install-btn", Button).disabled = False
                 self._check_form_validity()  # Re-check validity after options change
 
@@ -1315,6 +1324,29 @@ class InstallVMModal(BaseModal[str | None]):
             )
             return
 
+        # Pre-flight check: ensure required install binaries are available before
+        # downloading/uploading the ISO and locking the UI.
+        missing_tools = self.provisioner.check_install_tools(
+            self.provisioner.required_install_tools(
+                distro=distro,
+                iso_url=iso_url,
+                custom_path=custom_path,
+                automation_template_id=automation_template_id,
+                boot_uefi=boot_uefi,
+            ),
+            ssh_host=(get_ssh_host_from_uri(self.conn.getURI()) if self.is_remote else None),
+        )
+        if missing_tools:
+            location = (
+                StaticText.LOCATION_REMOTE_SERVER if self.is_remote else StaticText.LOCATION_LOCAL
+            )
+            self.app.show_error_message(
+                ErrorMessages.MISSING_INSTALL_TOOLS_TEMPLATE.format(
+                    tools=", ".join(missing_tools), location=location
+                )
+            )
+            return
+
         # Disable inputs
         self.query_one("#automation-collapsible", Collapsible).collapsed = True
         self.query_one("#expert-mode-collapsible", Collapsible).collapsed = True
@@ -1386,9 +1418,7 @@ class InstallVMModal(BaseModal[str | None]):
                 existing_path = self.provisioner.check_pool_volume(iso_name, pool_name)
                 if existing_path:
                     progress_cb(
-                        StaticText.ISO_ALREADY_IN_POOL.format(
-                            name=iso_name, pool_name=pool_name
-                        ),
+                        StaticText.ISO_ALREADY_IN_POOL.format(name=iso_name, pool_name=pool_name),
                         80,
                     )
                     final_iso_url = existing_path
@@ -1427,7 +1457,9 @@ class InstallVMModal(BaseModal[str | None]):
                                 )
                             if not os.path.isfile(custom_path):
                                 raise Exception(
-                                    ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(path=custom_path)
+                                    ErrorMessages.CUSTOM_ISO_NOT_FILE_TEMPLATE.format(
+                                        path=custom_path
+                                    )
                                 )
 
                     # 1. Validate Checksum
