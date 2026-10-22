@@ -2310,6 +2310,87 @@ class VMProvisioner:
 
         return None
 
+    def _resolve_os_type(self, distro, iso_url=None, custom_path=None, automation_template_id=None):
+        """Resolve the OSType for an install, mirroring the logic in provision_vm."""
+        template_name = (automation_template_id or "").lower()
+        if isinstance(distro, OSType):
+            os_type = distro
+        elif isinstance(distro, OSVersion):
+            os_type = distro.os_type
+        elif any(k in template_name for k in ["ubuntu", "autoinstall"]):
+            os_type = OSType.UBUNTU
+        elif any(k in template_name for k in ["debian", "preseed"]):
+            os_type = OSType.DEBIAN
+        elif any(k in template_name for k in ["fedora", "kickstart"]):
+            os_type = OSType.FEDORA
+        elif any(k in template_name for k in ["arch", "archinstall"]):
+            os_type = OSType.ARCHLINUX
+        elif any(k in template_name for k in ["alpine"]):
+            os_type = OSType.ALPINE
+        elif any(k in template_name for k in ["suse", "sles", "autoyast", "agama"]):
+            os_type = OSType.OPENSUSE
+        else:
+            os_type = OSType.LINUX
+        if os_type == OSType.LINUX:
+            iso_ref = ((iso_url or "") + " " + (custom_path or "")).lower()
+            if "ubuntu" in iso_ref:
+                os_type = OSType.UBUNTU
+            elif "debian" in iso_ref:
+                os_type = OSType.DEBIAN
+            elif "fedora" in iso_ref:
+                os_type = OSType.FEDORA
+            elif "archlinux" in iso_ref or "arch-linux" in iso_ref:
+                os_type = OSType.ARCHLINUX
+            elif "alpine" in iso_ref:
+                os_type = OSType.ALPINE
+            elif "opensuse" in iso_ref or "suse" in iso_ref:
+                os_type = OSType.OPENSUSE
+        return os_type
+
+    def required_install_tools(
+        self, distro, iso_url=None, custom_path=None, automation_template_id=None, boot_uefi=True
+    ):
+        """Return the CLI binaries this install will need, based on the path that will be taken.
+
+        Single source of truth shared with provision_vm so the pre-flight check and the real run
+        can never disagree.
+        """
+        os_type = self._resolve_os_type(distro, iso_url, custom_path, automation_template_id)
+        tools = ["qemu-img"]  # disk creation is always required
+
+        # Primary path: kernel/initrd extraction from ISO (direct kernel boot)
+        use_direct_kernel_boot = bool(automation_template_id) or (
+            boot_uefi and os_type in (OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE)
+        )
+        if use_direct_kernel_boot:
+            tools.append("7z")
+
+        # Fallback path: FAT automation floppy (openSUSE/Alpine AutoYaST/answers)
+        is_floppy_capable = os_type in (OSType.OPENSUSE, OSType.ALPINE)
+        is_other_distro = os_type not in (
+            OSType.DEBIAN,
+            OSType.UBUNTU,
+            OSType.ARCHLINUX,
+            OSType.ALPINE,
+            OSType.FEDORA,
+        )
+        if automation_template_id and (is_floppy_capable or is_other_distro):
+            tools.extend(["dd", "mkfs.vfat", "mcopy"])
+
+        return tools
+
+    def check_install_tools(self, tools, ssh_host=None):
+        """Return the subset of `tools` that are missing locally or on the remote host."""
+        missing = []
+        for tool in tools:
+            if ssh_host:
+                ok = run_command(["which", tool], remote_host=ssh_host, check=False).returncode == 0
+            else:
+                ok = shutil.which(tool) is not None
+            if not ok:
+                missing.append(tool)
+        return missing
+
     def provision_vm(
         self,
         vm_name: str,

@@ -383,6 +383,15 @@ def create_storage_pool(
         xml += f"<target><path>{target}</path></target>"
     xml += "</pool>"
     pool = conn.storagePoolDefineXML(xml, 0)
+
+    # Create the target directory (dir pools) or mount the share (netfs pools).
+    # This runs on the host that owns the pool (local or remote via libvirtd),
+    # so pool.create() does not fail when the target path does not exist yet.
+    try:
+        pool.build(libvirt.VIR_STORAGE_POOL_BUILD_RESIZE)
+    except libvirt.libvirtError:
+        pool.build(0)
+
     pool.create(0)
     pool.setAutostart(1)
     return pool

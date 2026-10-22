@@ -2674,10 +2674,6 @@ class VMDetailModal(ModalScreen):
                             yield Label(StaticText.ATTACHED_TO_VM)
                             yield DataTable(id="attached-pci-table", cursor_type="row")
                             yield Static("", id="iommu-group-detail")
-                # with TabPane("PCIe", id="detail-pcie-tab"):
-                #    yield Label("PCIe")
-                # with TabPane("SATA", id="detail-sata-tab"):
-                #    yield Label("SATA")
                 with TabPane("Channel", id="detail-channel-tab"):
                     with ScrollableContainer(classes="info-details"):
                         yield DataTable(id="channel-table", cursor_type="row")

@@ -887,7 +887,6 @@ else:
         novnc_path = self._get_local_novnc_path()
         buf_size = self.config.get("WEBSOCKIFY_BUF_SIZE", 4096)
 
-        # websockify_path, "--run-once", str(web_port),
         websockify_cmd = [
             "python3",
             "-c",

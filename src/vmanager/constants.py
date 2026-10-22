@@ -47,7 +47,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.3.4"
+    version = "3.3.5"
     author = "Antoine Ginies"
 
 
@@ -628,6 +628,8 @@ Specify the NUMA nodes to use.
     SELECT_SERVER_FOR_CAPS = _("Select a server for Capabilities")
     SELECT_SERVER_FOR_INSTALL = _("Select a server for VM Installation")
     INSTALL_HERE = _("Install Here")
+    LOCATION_LOCAL = _("this machine")
+    LOCATION_REMOTE_SERVER = _("the remote server")
     SHUTTING_DOWN = _("Shutting down...")
     APP_DESCRIPTION = _("A Textual application to manage VMs.")
     CLI_HELP = _("Run in command-line interpreter mode.")
@@ -1053,6 +1055,11 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
         "Storage pool '{pool_name}' is not active. Please activate it first."
     )
     ERROR_ACCESSING_STORAGE_POOL_TEMPLATE = _("Error accessing storage pool '{pool_name}': {error}")
+    MISSING_INSTALL_TOOLS_TEMPLATE = _(
+        "The following tools are required for this installation but were not found: "
+        "{tools}.\nInstall them on {location} (p7zip-full provides '7z', dosfstools provides "
+        "'mkfs.vfat', mtools provides 'mcopy', qemu-utils provides 'qemu-img'), then retry."
+    )
     CUSTOM_ISO_PATH_NOT_EXIST_TEMPLATE = _("Custom ISO path does not exist: {path}")
     CUSTOM_ISO_NOT_FILE_TEMPLATE = _("Custom ISO path is not a file: {path}")
     CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE = _("Failed to download ISO from {url}: {error}")

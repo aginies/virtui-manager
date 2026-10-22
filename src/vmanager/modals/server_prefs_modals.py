@@ -209,7 +209,6 @@ class ServerPrefModal(BaseModal[None]):
                 # self.app.show_warning_message(WarningMessages.RUNNING_DISK_USAGE_SCAN_WARNING)
                 disk_map = get_all_vm_disk_usage(self.conn)
                 nvram_map = get_all_vm_nvram_usage(self.conn)
-                # overlay_map = get_all_vm_overlay_usage(self.conn)
 
                 # Merge the dictionaries
                 self.path_to_vm_list = disk_map.copy()

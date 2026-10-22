@@ -1,8 +1,9 @@
-import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
-import sys
-import os
 import builtins
+import os
+import sys
+import unittest
+from unittest.mock import MagicMock, PropertyMock, patch
+
 from textual._context import active_app
 
 # Add the src directory to the path to import vmanager modules
@@ -11,9 +12,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 # Mock translation function globally for tests
 builtins._ = lambda s: s
 
-from vmanager.vmcard import VMCard
 from vmanager.constants import StatusText, VmAction, VMCardConstants
-from vmanager.events import VmActionRequest, VMSelectionChanged, VMNameClicked
+from vmanager.events import VmActionRequest, VMNameClicked, VMSelectionChanged
+from vmanager.vmcard import VMCard
 
 
 class TestVMCard(unittest.TestCase):
@@ -316,10 +317,21 @@ class TestVMCard(unittest.TestCase):
         self.vm_card.post_message = MagicMock()
         self.mock_app.push_screen = MagicMock()
 
+        # In the real app XMLDesc runs inside a worker and the modal is pushed
+        # from the main thread via call_from_thread. Make both execute
+        # synchronously here so the full non-blocking flow is exercised.
+        def run_sync(func, name=None):
+            func()
+
+        self.mock_app.worker_manager.run = MagicMock(side_effect=run_sync)
+        self.mock_app.call_from_thread = MagicMock(
+            side_effect=lambda func, *args, **kwargs: func(*args, **kwargs)
+        )
+
         # Call the handler
         self.vm_card._handle_xml_button()
 
-        # Verify XMLDesc was called
+        # Verify XMLDesc was called (off the main thread, inside the worker)
         self.assertTrue(mock_vm.XMLDesc.called)
 
         # Verify modal was shown (non-blocking UI pattern)
@@ -455,8 +467,8 @@ class TestVMCard(unittest.TestCase):
             # Invoke it with test data
             callback({"name": "snap1", "description": "test", "quiesce": False})
 
-        self.mock_app.push_screen.side_effect = (
-            lambda modal, callback=None: simulate_snapshot_modal() if callback else None
+        self.mock_app.push_screen.side_effect = lambda modal, callback=None: (
+            simulate_snapshot_modal() if callback else None
         )
         self.mock_app.vm_service.suppress_vm_events = MagicMock()
         self.mock_app.vm_service.unsuppress_vm_events = MagicMock()

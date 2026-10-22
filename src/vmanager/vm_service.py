@@ -768,8 +768,6 @@ class VMService:
 
             for domain in domains:
                 try:
-                    # self._get_domain_info(domain)
-                    ##self._get_domain_info_and_xml(domain)
                     # Use state() for preload instead of full info()
                     self._get_domain_state(domain)
                 except libvirt.libvirtError:
@@ -1799,7 +1797,6 @@ class VMService:
 
             server_names.append(f"{name} ({count})")
 
-        # domains_to_display = domains_with_conn
         domains_to_display = sorted(domains_with_conn, key=lambda x: natural_sort_key(x[0].name()))
 
         if sort_by != VmStatus.DEFAULT:

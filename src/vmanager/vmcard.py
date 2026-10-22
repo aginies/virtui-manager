@@ -8,7 +8,6 @@ import os
 import subprocess
 import threading
 import time
-import traceback
 from functools import partial
 from urllib.parse import urlparse
 
@@ -266,14 +265,8 @@ class VMCard(Static):
             # For now, return default if we can't get it cheaply.
             return TabTitles.SNAP_OVER_UPDATE
 
-        if self.vm:
-            try:
-                if num_snapshots <= 0:
-                    return TabTitles.STATE_MANAGEMENT
-                else:
-                    return f"{TabTitles.STATE_MANAGEMENT}({num_snapshots})"
-            except libvirt.libvirtError:
-                pass  # Domain might be transient or invalid
+        if self.vm and num_snapshots > 0:
+            return f"{TabTitles.STATE_MANAGEMENT}({num_snapshots})"
         return TabTitles.STATE_MANAGEMENT
 
     def update_snapshot_tab_title(self, num_snapshots: int = -1) -> None:
@@ -1518,14 +1511,36 @@ class VMCard(Static):
 
     def _handle_xml_button(self) -> None:
         """Handles the xml button press."""
-        try:
-            xml_flags = 0
+        internal_id = self.internal_id
+
+        def fetch_xml_worker() -> None:
+            """Fetch the domain XML in a worker to avoid blocking the UI."""
             try:
-                original_xml = self.vm.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
-                xml_flags = libvirt.VIR_DOMAIN_XML_SECURE
-            except libvirt.libvirtError:
-                original_xml = self.vm.XMLDesc(0)
-                xml_flags = 0
+                try:
+                    original_xml = self.vm.XMLDesc(libvirt.VIR_DOMAIN_XML_SECURE)
+                    xml_flags = libvirt.VIR_DOMAIN_XML_SECURE
+                except libvirt.libvirtError:
+                    original_xml = self.vm.XMLDesc(0)
+                    xml_flags = 0
+            except libvirt.libvirtError as e:
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    ErrorMessages.ERROR_GETTING_XML_TEMPLATE.format(vm_name=self.name, error=e),
+                )
+                return
+            except Exception as e:
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE.format(error=e),
+                )
+                return
+            self.app.call_from_thread(on_xml_ready, (original_xml, xml_flags))
+
+        def on_xml_ready(xml_result: tuple[str, int] | None) -> None:
+            """Push the XML modal once the domain XML is available (main thread)."""
+            if xml_result is None:
+                return
+            original_xml, xml_flags = xml_result
             is_stopped = self.status == StatusText.STOPPED
 
             def handle_xml_modal_result(modified_xml: str | None):
@@ -1570,15 +1585,8 @@ class VMCard(Static):
                 XMLDisplayModal(original_xml, read_only=not is_stopped, vm_name=self.name),
                 handle_xml_modal_result,
             )
-        except libvirt.libvirtError as e:
-            self.app.show_error_message(
-                ErrorMessages.ERROR_GETTING_XML_TEMPLATE.format(vm_name=self.name, error=e)
-            )
-        except Exception as e:
-            self.app.show_error_message(
-                ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE.format(error=e)
-            )
-            logging.error(f"Unexpected error handling XML button: {traceback.format_exc()}")
+
+        self.app.worker_manager.run(fetch_xml_worker, name=f"xml_fetch_{internal_id}")
 
     def _handle_connect_button(self) -> None:
         """Handles the connect button press by running the remove virt viewer in a worker."""
@@ -2276,11 +2284,6 @@ class VMCard(Static):
 
             app.worker_manager.run(do_clone, name=f"clone_{self.name}")
 
-        # def on_confirm(confirmed: bool) -> None:
-        #    if confirmed:
-        #        self.app.push_screen(AdvancedCloneDialog(self.name), handle_clone_results)
-
-        # self.app.push_screen(ConfirmationDialog(DialogMessages.EXPERIMENTAL), on_confirm)
         self.app.push_screen(AdvancedCloneDialog(self.name), handle_clone_results)
 
     def _handle_rename_button(self) -> None:
