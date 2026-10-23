@@ -327,6 +327,10 @@ class VMManagerTUI(App):
         self.vm_service.set_message_callback(self.on_service_message)
         self.worker_manager = WorkerManager(self)
         self.webconsole_manager = WebConsoleManager(self)
+        # Monotonic token identifying the most recent list_vms refresh.
+        # Used to discard stale/cancelled refresh workers so they cannot
+        # re-apply an old snapshot (e.g. re-adding a just-deleted VM card).
+        self._refresh_generation = 0
         self.server_color_map = {}
         self._color_index = 0
         self.ui = {}
@@ -1772,6 +1776,10 @@ class VMManagerTUI(App):
         if self.initial_cache_loading and not self.initial_cache_complete:
             return
 
+        # Bump the generation so any worker started before this call becomes
+        # stale and must not apply its result to the UI anymore.
+        self._refresh_generation += 1
+
         # Try to run the worker. If it's already running, this will do nothing.
         selected_uuids = set(self.selected_vm_uuids)
         current_page = self.current_page
@@ -1810,6 +1818,11 @@ class VMManagerTUI(App):
         on_complete: Callable | None = None,
     ):
         """Worker to fetch, filter, and display VMs using a diffing strategy."""
+        # Snapshot the generation at entry. If a newer refresh has started
+        # by the time this worker finishes (e.g. it was cancelled but, being a
+        # threaded worker, ran to completion), skip applying its result.
+        current_generation = self._refresh_generation
+
         try:
             # Update Host Stats
             if threading.current_thread() is threading.main_thread():
@@ -1924,6 +1937,14 @@ class VMManagerTUI(App):
             all_uuids_from_libvirt = set(all_active_uuids)
 
             def update_ui_on_main_thread():
+                # Drop stale results: a newer refresh has superseded this one.
+                if current_generation != self._refresh_generation:
+                    logging.debug(
+                        "Discarding stale list_vms refresh (generation "
+                        f"{current_generation} < {self._refresh_generation})"
+                    )
+                    return
+
                 if reset_page:
                     self.current_page = 0
 
