@@ -1,4 +1,10 @@
 /*
+ * modals.css
+ *   All overlay modal / dialog styles.
+ *   (Reorganized from the former standalone "dialog.css".)
+ */
+
+/*
  * dialog.css - Textual TUI
  */
 
@@ -126,9 +132,6 @@ InstallVMModal #expert-disk-format, {
   padding: 0 0;
   margin-bottom: 0;
 }
-#iso-select {
-  width: 100%;
-}
 /* === SPECIFIC HEIGHT === */
 AutoFillConfigModal > #autofill-config-dialog {
   width: 90%;
@@ -156,16 +159,6 @@ InstallVMModal Label {
     margin-top: 0;
     margin-bottom: 0;
 }
-InstallVMModal Input,
-InstallVMModal Select {
-    margin-bottom: 0;
-    height: 3;
-}
-InstallVMModal .label-row,
-InstallVMModal .input-row {
-    height: 3;
-    margin-bottom: 0;
-}
 InstallVMModal #vm-type-info-btn {
     height: 3;
     margin: 0 1;
@@ -179,9 +172,6 @@ SelectSnapshotDialog > #dialog {
   margin-top: 1;
   padding: 0 0;
 }
-#expert-mode {
-  height: 4;
-}
 #howto-vmtype-dialog {
   width: 80;
   height: auto;
@@ -189,8 +179,6 @@ SelectSnapshotDialog > #dialog {
 }
 
 
-SelectSnapshotDialog > #dialog,
-SnapshotNameDialog > #dialog { height: 20;}
 DeleteVMConfirmationDialog > #delete-vm-dialog,
 WebConsoleDialog > #webconsole-dialog,
 ConfirmationDialog > #dialog { 
@@ -204,20 +192,9 @@ InstallVMModal #checksum-container {
   margin-bottom: 1;
 }
 
-.input-row {
-    height: 3;
-    margin-bottom: 1;
-}
-InstallVMModal #custom-iso-container Checkbox {
-    height: 3;
-}
 AddChannelModal > #add-channel-container,
 WebConsoleConfigDialog > #webconsole-config-dialog, {
   height: 24;
-}
-#custom-iso-container,
-SelectOneServerModal > #select-one-server-container, {
-  height: 10
 }
 #automation-collapsible,
 #expert-mode-collapsible {
@@ -236,12 +213,6 @@ SelectOneServerModal > #select-one-server-container, {
 #pool-network-selection {
   height: 5;
   width: 100%;
-}
-#pool-selection {
-  width: 50%;
-}
-#network-selection {
-  width: 50%;
 }
 #pool-iso-container, {
    height: 8;
@@ -266,8 +237,7 @@ VMTypeInfoModal #howto-vmtype-dialog, {
     padding: 0 0;
 }
 RenameVMDialog > #dialog { height: 13; }
-InputModal > #input-modal-container { height: 16; }
-AddInputDeviceModal > #add-input-container { height: 16; }
+InputModal > #input-modal-container, AddInputDeviceModal > #add-input-container { height: 16; }
 XMLDisplayModal > #xml-display-dialog {
   width: 100%;
   height: 95%;
@@ -276,16 +246,6 @@ XMLDisplayModal > #xml-display-dialog {
 #xml-textarea {
   width: 100%;
   height: 1fr;
-}
-
-#xml-buttons {
-  width: 100%;
-  height: auto;
-  align: center middle;
-}
-
-#xml-buttons Button {
-  width: 1fr;
 }
 
 #xml-display-title {
@@ -339,6 +299,7 @@ DeleteVMConfirmationDialog > #dialog-buttons,
 SelectServerModal Button,
 RenameVMDialog > #dialog-buttons,
 AutoFillConfigModal > #dialog-buttons,
+#iso-select,
 AddInputDeviceModal .modal-buttons {
   width: 100%;
 }
@@ -378,15 +339,14 @@ InstallVMModal #browse-autoinstall-btn, {
   height: 1;
   width: 25%;
 }
-AddPoolModal #browse-dir-btn, {
-  height: 3;
-}
 ConfirmationDialog Button { margin-right: 1; }
 
 /* === INPUTS === */
 SnapshotNameDialog Input,
 RenameVMDialog Input,
-AddInputDeviceModal Select {
+AddInputDeviceModal Select,
+ProgressModal > #progress-bar,
+#results-label {
   margin-bottom: 1;
 }
 InstallVMModal #custom-iso-path,
@@ -409,15 +369,6 @@ SelectSnapshotDialog.snapshot-select-dialog > #dialog {
 }
 
 /* === SWITCHS === */
-#remote-console-switch > .switch--slider {
-    color: red;
-}
-#remote-console-switch.switch-on > .switch--slider {
-    color: green;
-}
-#remote-console-switch.switch-off > .switch--slider {
-    color: red;
-}
 #remote-console-switch {
   margin: 0 0;
   border: none;
@@ -431,14 +382,6 @@ ProgressModal > #progress-modal-container {
   border: round $primary;
 }
 
-ProgressModal > #progress-title,
-ProgressModal > #progress-bar { 
-  height: auto; 
-}
-
-ProgressModal > #progress-bar { 
-  margin-bottom: 1; 
-}
 
 ProgressModal .progress-log {
   height: 1fr;
@@ -484,10 +427,6 @@ ProgressModal .progress-log {
 }
 
 /* === MISC === */
-SelectServerModal,
-FilterModal {
-    align: center middle;
-}
 
 SelectServerModal Checkbox,
 FilterModal Checkbox {
@@ -500,7 +439,8 @@ FilterModal Checkbox {
 
 #tab-storage { layout: vertical; }
 
-#storage-tree {
+#storage-tree,
+#results-container {
   height: 1fr;
   border: round $primary;
   margin-bottom: 1;
@@ -510,11 +450,6 @@ FilterModal Checkbox {
   align: center middle;
   height: auto;
   margin-top: 1;
-}
-
-.storage-buttons Button { 
-  width: 1fr; 
-  margin: 0 1; 
 }
 
 #grid-remote-local,
@@ -527,10 +462,7 @@ FilterModal Checkbox {
   width: 58;
   height: auto;
 }
-#grid-remote-local,
-#grid-vnc-config, {
-  border: none;
-}
+
 
 .log-view {
   background: #222222;
@@ -567,14 +499,7 @@ PatternSelectModal > #pattern-select-container {
     margin-bottom: 1;
 }
 
-.pattern-input-row {
-    height: auto;
-    margin-bottom: 1;
-}
 
-#pattern-input {
-    width: 1fr;
-}
 
 #regex-checkbox {
     width: auto;
@@ -589,34 +514,12 @@ PatternSelectModal > #pattern-select-container {
     border: round $surface;
 }
 
-#search-vms-btn {
-    width: 100%;
-    margin-bottom: 1;
-}
-
-#results-label {
-    margin-bottom: 1;
-}
-
-#results-container {
-    height: 1fr;
-    border: round $primary;
-    margin-bottom: 1;
-}
-
-#results-table {
-    height: auto;
-}
 
 #pattern-action-buttons {
     height: auto;
     align: center middle;
 }
 
-#pattern-action-buttons Button {
-    margin: 0 1;
-    width: 1fr;
-}
 
 LoadingModal > Vertical {
     width: auto;
@@ -655,9 +558,6 @@ Button:hover {
     color: $text;
 }
 
-Button.-active {
-    background: $primary-darken-2;
-}
 
 /* === Capabilities Tree Modal === */
 CapabilitiesTreeModal > #capabilities-dialog {
@@ -674,12 +574,6 @@ CapabilitiesTreeModal #xml-tree {
   margin-bottom: 1;
 }
 
-CapabilitiesTreeModal #dialog-title {
-  width: 100%;
-  content-align: center middle;
-  margin-bottom: 1;
-  text-style: bold;
-}
 
 /* === Template Management Modal === */
 TemplateManagementModal > #template-management-container {
@@ -691,7 +585,8 @@ TemplateManagementModal > #template-management-container {
   align: center middle;
 }
 
-TemplateManagementModal .title {
+TemplateManagementModal .title,
+TemplateNameModal .title {
   width: 100%;
   text-align: center;
   text-style: bold;
@@ -699,7 +594,8 @@ TemplateManagementModal .title {
   color: $accent;
 }
 
-TemplateManagementModal .label {
+TemplateManagementModal .label,
+TemplateNameModal .label {
   width: 100%;
   margin-top: 1;
   margin-bottom: 0;
@@ -714,7 +610,8 @@ TemplateManagementModal #template-table {
   margin-bottom: 1;
 }
 
-TemplateManagementModal .buttons {
+TemplateManagementModal .buttons,
+TemplateNameModal .buttons {
   width: 100%;
   height: auto;
   align: center middle;
@@ -735,38 +632,6 @@ TemplateNameModal > #template-name-container {
   background: $surface;
   padding: 2;
   align: center middle;
-}
-
-TemplateNameModal .title {
-  width: 100%;
-  text-align: center;
-  text-style: bold;
-  margin-bottom: 1;
-  color: $accent;
-}
-
-TemplateNameModal .label {
-  width: 100%;
-  margin-top: 1;
-  margin-bottom: 0;
-  text-style: bold;
-}
-
-TemplateNameModal Input {
-  width: 100%;
-  margin-bottom: 1;
-}
-
-TemplateNameModal Select {
-  width: 100%;
-  margin-bottom: 1;
-}
-
-TemplateNameModal .buttons {
-  width: 100%;
-  height: auto;
-  align: center middle;
-  margin-top: 1;
 }
 
 TemplateNameModal Button {

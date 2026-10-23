@@ -1,3 +1,9 @@
+/*
+ * components.css
+ *   VM cards, sparklines, host dashboard and other component styles.
+ *   (Reorganized from the former standalone "vmcard.css".)
+ */
+
 #info-container, #status {
   content-align: center middle;
 }
@@ -23,17 +29,6 @@ VMCard {
   color: white;
   width: 41;
   height: 9;
-}
-
-#dialog Select {
-  width: 50;
-  height: 5;
-  border: none;
-  margin: 0;
-}
-
-#dialog-buttons Button {
-  width: 50%;
 }
 
 #io-sparkline,
@@ -62,22 +57,26 @@ VMCard {
 #disk-sparkline { color: $accent; }
 #net-sparkline { color: $primary; }
 
-#status, Button, .Buttonpage, #xml, #snapshot_take,
-#snapshot_restore, #snapshot_delete, .button-separator,
-#connect, #create_overlay, #commit_disk, #discard_overlay, #tmux_console {
+/* .button-separator is used across modals, so it stays global. */
+.button-separator,
+VMCard Button,
+VMCard #status,
+VMCard #snapshot-tab,
+VMCard #manage-tab {
   height: 1;
   padding: 0;
 }
 
-VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab {
+
+
+VMCard,
+VMCard Button,
+#snapshot-tab,
+#manage-tab,
+#grid-remote-local,
+#grid-vnc-config {
   border: none;
 }
-
-#manage-tab Vertical, #snapshot-tab Vertical, #special-tab Vertical {
-  width: 1fr;
-}
-
-.hidden { display: none !important; }
 
 #vm-header-row {
   height: 2;
@@ -91,24 +90,17 @@ VMCard, Button, .Buttonpage, #snapshot-tab, #manage-tab {
 }
 
 #status.running, #status.stopped, #status.paused, #status.loading, #status.pmsuspended, #status.blocked { color: black; }
-#status.running { background: lightgreen; }
-#status.stopped { background: red; }
-#status.paused { background: orange; }
+#status.running, #create_overlay:hover, .rename-button:hover { background: lightgreen; }
+#status.stopped, #snapshot_delete, #connect, #discard_overlay { background: red; }
+#status.paused, #status.blocked { background: orange; }
 #status.pmsuspended { background: lightblue; }
-#status.blocked { background: orange; }
 #status.loading { background: grey; }
 
-Button {
+VMCard Button {
   width: 100%;
   margin: 0 1;
 }
 
-.Buttonpage {
-  width: auto;
-  margin: 0 -1;
-  border: none;
-  background: $primary-lighten-1;
-}
 
 #button-container, #status-cpu-mem {
   width: 100%;
@@ -129,26 +121,15 @@ Button {
 #xml:hover { background: lightgrey; }
 #snapshot_take { background: #00008B; }
 #snapshot_take:hover { background: #0000CD; }
-#snapshot_restore { background: #0000FF; }
-#snapshot_restore:hover { background: #1E90FF; }
-#snapshot_delete { background: red; }
-#snapshot_delete:hover { background: #FF4500; }
+#snapshot_restore, #commit_disk { background: #0000FF; }
+#snapshot_restore:hover, #commit_disk:hover { background: #1E90FF; }
+#snapshot_delete:hover, #connect:hover, #discard_overlay:hover, .delete-button:hover { background: #FF4500; }
 #pause { background: #FFA500; }
 #pause:hover { background: #FFD700; }
-#connect { background: red; }
-#connect:hover { background: #FF4500; }
 #tmux_console { background: #008080; }
 #tmux_console:hover { background: #20B2AA; }
-#create_overlay { background: green; }
-#create_overlay:hover { background: lightgreen; }
-#commit_disk { background: #0000FF; }
-#commit_disk:hover { background: #1E90FF; }
-#discard_overlay { background: red; }
-#discard_overlay:hover { background: #FF4500; }
 
-.delete-button:hover { background: #FF4500; }
 .clone-button:hover { background: #FF69B4; }
-.rename-button:hover { background: lightgreen; }
 
 .vm-select-checkbox {
   width: 5;

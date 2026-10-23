@@ -1,3 +1,10 @@
+/*
+ * base.css
+ *   Global layout, widget globals (Button/Select/Input) and app-wide
+ *   dialog/component styles.
+ *   (Reorganized from the former standalone "vmanager.css".)
+ */
+
 /* --- General Layout & Global Styles --- */
 
 Header, Footer {
@@ -5,13 +12,15 @@ Header, Footer {
     color: $text;
 }
 
-/* Default Button Style (can be overridden) */
+/* Global Button Style (app-wide default).
+   Values mirror the effective global look so that scoping the card-specific
+   Button rules in components.css to VMCard does not change any button's look. */
 Button {
-    height: 3vh;
+    height: 1;
     width: 100%;
-    margin: 1 1;
-    padding: 0 0;
-    border: hidden;
+    margin: 0 1;
+    padding: 0;
+    border: none;
 }
 
 .info-text {
@@ -67,7 +76,7 @@ Toast.-inprogress {
     padding: 1 2;
 }
 
-/* Common centered alignment for various elements */
+/* Common centered alignment for various elements (merged from several groups) */
 .close-button,
 #add-disk-dialog,
 #attach-volume-dialog,
@@ -80,11 +89,19 @@ Toast.-inprogress {
 .network-interface-row,
 #migration-dialog,
 #virsh-shell-container,
-#virsh-input-container {
+#virsh-input-container,
+AddInputDeviceModal,
+AddWatchdogModal,
+#server-pref-title,
+SelectServerModal,
+FilterModal {
     align: center middle;
 }
 
-.server-list {
+.server-list,
+#select-one-server-container,
+#custom-iso-container,
+SelectOneServerModal > #select-one-server-container {
     height: 10;
 }
 #server-list-title {
@@ -101,7 +118,7 @@ Toast.-inprogress {
     height: 32;
     width: 64;
 }
-#move-volume-dialog { height: 20; }
+#move-volume-dialog, #server-management-dialog, SelectSnapshotDialog > #dialog, SnapshotNameDialog > #dialog { height: 20; }
 #attach-volume-dialog,
 #add-disk-dialog,
 #remove-disk-dialog,
@@ -109,15 +126,6 @@ Toast.-inprogress {
 #select-pool-dialog,
 #server-pref-dialog { width: 90; height: 30; }
 #migration-dialog { width: 84; height: 34; }
-#select-one-server-container { height: 10; }
-
-#server-management-dialog {
-    height: 20;
-}
-AddInputDeviceModal,
-AddWatchdogModal {
-    align: center middle;
-}
 
 #add-input-container,
 #add-watchdog-container {
@@ -197,7 +205,10 @@ AddWatchdogModal {
 #add-disk-dialog Select,
 #attach-volume-dialog Select,
 #remove-disk-dialog Select,
-#edit-memory-dialog Input {
+#edit-memory-dialog Input,
+#search-vms-btn,
+TemplateNameModal Input,
+TemplateNameModal Select {
     width: 100%;
     margin-bottom: 1;
 }
@@ -222,7 +233,8 @@ AddWatchdogModal {
 #remove-disk-dialog Horizontal,
 #edit-cpu-dialog Horizontal,
 #edit-memory-dialog Horizontal,
-#select-machine-type-dialog Horizontal {
+#select-machine-type-dialog Horizontal,
+#xml-buttons {
     width: 100%;
     height: auto;
     align: center middle;
@@ -249,7 +261,8 @@ AddWatchdogModal {
 #remove-disk-dialog Button,
 #edit-cpu-dialog Button,
 #edit-memory-dialog Button,
-#select-machine-type-dialog Button {
+#select-machine-type-dialog Button,
+.tabd {
     margin: 0 1; /* Overrides default button margin */
 }
 
@@ -266,7 +279,13 @@ AddWatchdogModal {
     margin-bottom: 1;
 }
 
-#select-one-server-container Button {
+#select-one-server-container Button,
+.dir-target-path-input,
+.dhcp-input,
+#create-network-form #dhcp-options Input,
+#dialog-buttons Button,
+#pool-selection,
+#network-selection {
     width: 50%;
 }
 
@@ -292,7 +311,8 @@ AddWatchdogModal {
     overflow: auto;
 }
 
-#vm-detail-container #title {
+#vm-detail-container #title,
+CapabilitiesTreeModal #dialog-title {
     content-align: center middle;
     width: 100%;
     text-style: bold;
@@ -375,7 +395,11 @@ AddWatchdogModal {
     border: none;
 }
 
-#migration-dialog #dest-server-select {
+#migration-dialog #dest-server-select,
+InstallVMModal Input,
+InstallVMModal Select,
+InstallVMModal .label-row,
+InstallVMModal .input-row {
     height: 3;
     margin-bottom: 0;
 }
@@ -465,7 +489,8 @@ AddWatchdogModal {
 }
 
 /* --- USB Host Tab Layout --- */
-#usb-tab-layout {
+#usb-tab-layout,
+#pci-tab-layout {
     width: 100%;
     height: auto;
     padding: 0 1;
@@ -477,24 +502,19 @@ AddWatchdogModal {
     border: round $primary;
 }
 
-#usb-buttons-row {
+#usb-buttons-row,
+#pci-buttons-row {
     height: 1;
     width: 100%;
     align: center middle;
 }
 
-#usb-buttons-row Button {
+#usb-buttons-row Button,
+#pci-buttons-row Button {
     width: auto;
     min-width: 12;
     height: 1;
     margin: 0 1;
-}
-
-/* --- PCI Host Tab Layout --- */
-#pci-tab-layout {
-    width: 100%;
-    height: auto;
-    padding: 0 1;
 }
 
 #available-pci-table, #attached-pci-table {
@@ -502,18 +522,6 @@ AddWatchdogModal {
     height: 8;
 }
 
-#pci-buttons-row {
-    height: 1;
-    width: 100%;
-    align: center middle;
-}
-
-#pci-buttons-row Button {
-    width: auto;
-    min-width: 12;
-    height: 1;
-    margin: 0 1;
-}
 
 #iommu-group-detail {
     height: auto;
@@ -535,11 +543,15 @@ AddWatchdogModal {
     margin-right: 1;
 }
 
-#dkb-container Horizontal {
+#dkb-container Horizontal,
+InstallVMModal #custom-iso-container Checkbox,
+AddPoolModal #browse-dir-btn {
     height: 3;
 }
 
-#dkb-container Input {
+#dkb-container Input,
+.storage-buttons Button,
+#pattern-action-buttons Button {
     width: 1fr;
     margin: 0 1;
 }
@@ -587,8 +599,8 @@ AddWatchdogModal {
 }
 
 /* Status colors */
-#status-running { color: green; } /*border: round green; }*/
-#status-stopped, #status-shut-off { color: red; } /*border: round red; } */
+#status-running, #remote-console-switch.switch-on > .switch--slider { color: green; }
+#status-stopped, #status-shut-off, #remote-console-switch > .switch--slider, #remote-console-switch.switch-off > .switch--slider { color: red; }
 #status-paused { color: yellow; } /*border: round yellow; } */
 .error-message { text-align: center; color: red; height: 1; }
 
@@ -600,8 +612,19 @@ AddWatchdogModal {
 }
 
 /* Specific button variants */
-.Buttonpage { height: auto; width: auto; margin: 0 0; padding: 1 1; color: white; background: black; border: round; }
-.Buttonpage:hover { background: $primary-darken-2; }
+/* Canonical global action-button style (used across modals + app bar).
+   Consolidated here from the former base.css + components.css copies; the
+   components.css copy was removed to avoid a duplicate/conflicting definition. */
+.Buttonpage {
+    height: 1;
+    width: auto;
+    margin: 0 -1;
+    padding: 0;
+    color: white;
+    background: $primary-lighten-1;
+    border: none;
+}
+.Buttonpage:hover, Button.-active { background: $primary-darken-2; }
 .button-details { height: 1; padding: 0 0; }
 .ctrlpage {
    height: 1;
@@ -614,8 +637,7 @@ AddWatchdogModal {
 }
 .close-button { height: 1; width: auto; color: white; background: red; border: hidden; margin: 1 1; }
 #delete-server-btn, #delete-button, .cancel-button { background: red; width: 25% }
-.rename-button, .edit-button, .add-button { background: green; }
-.done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
+.rename-button, .edit-button, .add-button, #create_overlay { background: green; }
 #add-channel-btn,
 #cancel-channel-btn,
 #remove-channel-btn,
@@ -627,7 +649,11 @@ AddWatchdogModal {
 #refresh-btn,
 #clear-btn,
 #close-btn,
-#remove-controller-btn {
+#remove-controller-btn,
+.done-button,
+.cancel-button,
+.edit-button,
+.add-button {
     height: 1;
     width: 25%;
     color: white;
@@ -652,12 +678,11 @@ ListView > ListItem:hover { height: 1; background: $primary-darken-2; border: no
 
 /* Misc form elements */
 #shared-memory { height: 4; border: none; }
-.small { height: 4; }
-.dir-target-path-input { width: 50%; }
+.small, #expert-mode { height: 4; }
 RadioButton { padding: 0 0 0 1; }
 .create-network-form { background: $surface; border: round $primary; }
-.hidden { display: none; }
-.dhcp-input { width: 50%; }
+/* !important so utility hiding wins over any widget's own `display`. */
+.hidden { display: none !important; }
 .dns-domain-radioset { background: $surface; height: 2; border: none; }
 
 /* Create/Edit Network modal: vertical layout with scrollable middle section.
@@ -675,13 +700,13 @@ RadioButton { padding: 0 0 0 1; }
     overflow-x: hidden;
     margin-bottom: 1;
 }
-#create-network-form { height: auto; padding: 0 1; }
+#create-network-form, .network-interface-row { height: auto; padding: 0 1; }
 #create-network-form RadioSet#type-network { height: 5; margin-bottom: 1; }
 #create-network-form #forward-iface-row,
-#create-network-form #bridge-row { height: auto; margin-bottom: 1; }
-#create-network-form #ip-section { height: auto; }
-#create-network-form #dhcp-options { height: 3; margin-bottom: 1; }
-#create-network-form #dhcp-options Input { width: 50%; }
+#create-network-form #bridge-row,
+.pattern-input-row { height: auto; margin-bottom: 1; }
+#create-network-form #ip-section, ProgressModal > #progress-title, ProgressModal > #progress-bar, #results-table { height: auto; }
+#create-network-form #dhcp-options, .input-row { height: 3; margin-bottom: 1; }
 #create-network-form Checkbox {
     height: auto;
     margin-bottom: 1;
@@ -694,11 +719,9 @@ RadioButton { padding: 0 0 0 1; }
     align: center middle;
 }
 #network-modal-buttons Button { width: 50%; margin: 0 1; }
-.tabd { margin: 0 1; }
 .tabd-warning { margin: 0 1; background: red 40%; }
 .disk-info { margin: 0 2; padding: 0 0; height: 40; border-left: round; }
 .detail-disks { width: 15%; background: $primary; }
-.network-interface-row { height: auto; padding: 0 1; }
 .network-mac-label { height: auto; width: 40%; }
 
 /* Select widgets */
@@ -761,14 +784,12 @@ Select {
 }
 
 /* Server Preferences */
-#server-pref-title { align: center middle; }
 .server-pref-button { height: 4; padding: 0 0; margin-bottom: 1; }
 
 /* Network List Item in server prefs */
 .net-name { width: 30%; }
 .net-mode { width: 15%; }
-#net-active-check { width: 25%; }
-#net-autostart-check { width: 25%; }
+#net-active-check, #net-autostart-check { width: 25%; }
 
 /* Host Dashboard Styles */
 #host-dashboard-dialog {
@@ -811,6 +832,9 @@ Select {
     margin-right: 2;
 }
 
-#mem-bar, #cpu-alloc-bar, #mem-alloc-bar {
+#mem-bar, #cpu-alloc-bar, #mem-alloc-bar,
+#manage-tab Vertical, #snapshot-tab Vertical, #special-tab Vertical,
+#xml-buttons Button,
+#pattern-input {
     width: 1fr;
 }
