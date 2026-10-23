@@ -845,7 +845,21 @@ Select {
  *   (Reorganized from the former standalone "vmcard.css".)
  */
 
-#info-container, #status {
+#info-container, #status,
+ConfirmationDialog Label,
+RenameVMDialog,
+AddDiskModal,
+EditDiskModal,
+WebConsoleDialog,
+XMLDisplayModal,
+CapabilitiesTreeModal,
+MigrationModal,
+MoveVolumeModal,
+SelectDiskModal > #dialog,
+SelectPoolModal > #dialog,
+AddInputDeviceModal,
+InputModal,
+SelectOneServerModal {
   content-align: center middle;
 }
 
@@ -1060,7 +1074,8 @@ AddChannelModal,
 EditNumaTuneModal,
 AutoFillConfigModal,
 InfoModal,
-EditCpuTuneModal {
+EditCpuTuneModal,
+VMActionsModal {
   align: center middle;
   background: rgba(0, 0, 0, 0.5);
 }
@@ -1097,10 +1112,6 @@ VMTypeInfoModal > #howto-vmtype-dialog {
   height: auto;
 }
 
-VMActionsModal {
-  align: center middle;
-  background: rgba(0, 0, 0, 0.5);
-}
 
 VMActionsModal > #vm-actions-modal {
   width: 46;
@@ -1274,23 +1285,6 @@ XMLDisplayModal > #xml-display-dialog {
 }
 
 /* === CENTERED CONTENT === */
-ConfirmationDialog Label,
-RenameVMDialog,
-AddDiskModal,
-EditDiskModal,
-WebConsoleDialog,
-XMLDisplayModal,
-CapabilitiesTreeModal,
-MigrationModal,
-MoveVolumeModal,
-SelectDiskModal > #dialog,
-SelectPoolModal > #dialog,
-AddInputDeviceModal,
-InputModal,
-SelectOneServerModal {
-  content-align: center middle;
-}
-
 /* === LABELS QUESTION === */
 SnapshotNameDialog > #question,
 ConfirmationDialog > #question,
