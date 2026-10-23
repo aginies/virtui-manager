@@ -317,7 +317,7 @@ class VMManagerTUI(App):
     compact_view = reactive(False)
 
     SERVER_COLOR_PALETTE = ServerPallette.COLOR
-    CSS_PATH = ["base.css", "components.css", "modals.css"]
+    CSS_PATH = ["vmanager.css"]
 
     def __init__(self):
         super().__init__()
