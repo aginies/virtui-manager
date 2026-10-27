@@ -1,3 +1,10 @@
+/*
+ * base.css
+ *   Global layout, widget globals (Button/Select/Input) and app-wide
+ *   dialog/component styles.
+ *   (Reorganized from the former standalone "vmanager.css".)
+ */
+
 /* --- General Layout & Global Styles --- */
 
 Header, Footer {
@@ -5,13 +12,15 @@ Header, Footer {
     color: $text;
 }
 
-/* Default Button Style (can be overridden) */
+/* Global Button Style (app-wide default).
+   Values mirror the effective global look so that scoping the card-specific
+   Button rules in components.css to VMCard does not change any button's look. */
 Button {
-    height: 3vh;
+    height: 1;
     width: 100%;
-    margin: 1 1;
-    padding: 0 0;
-    border: hidden;
+    margin: 0 1;
+    padding: 0;
+    border: none;
 }
 
 .info-text {
@@ -67,7 +76,7 @@ Toast.-inprogress {
     padding: 1 2;
 }
 
-/* Common centered alignment for various elements */
+/* Common centered alignment for various elements (merged from several groups) */
 .close-button,
 #add-disk-dialog,
 #attach-volume-dialog,
@@ -80,11 +89,19 @@ Toast.-inprogress {
 .network-interface-row,
 #migration-dialog,
 #virsh-shell-container,
-#virsh-input-container {
+#virsh-input-container,
+AddInputDeviceModal,
+AddWatchdogModal,
+#server-pref-title,
+SelectServerModal,
+FilterModal {
     align: center middle;
 }
 
-.server-list {
+.server-list,
+#select-one-server-container,
+#custom-iso-container,
+SelectOneServerModal > #select-one-server-container {
     height: 10;
 }
 #server-list-title {
@@ -101,7 +118,7 @@ Toast.-inprogress {
     height: 32;
     width: 64;
 }
-#move-volume-dialog { height: 20; }
+#move-volume-dialog, #server-management-dialog, SelectSnapshotDialog > #dialog, SnapshotNameDialog > #dialog { height: 20; }
 #attach-volume-dialog,
 #add-disk-dialog,
 #remove-disk-dialog,
@@ -109,15 +126,6 @@ Toast.-inprogress {
 #select-pool-dialog,
 #server-pref-dialog { width: 90; height: 30; }
 #migration-dialog { width: 84; height: 34; }
-#select-one-server-container { height: 10; }
-
-#server-management-dialog {
-    height: 20;
-}
-AddInputDeviceModal,
-AddWatchdogModal {
-    align: center middle;
-}
 
 #add-input-container,
 #add-watchdog-container {
@@ -197,7 +205,10 @@ AddWatchdogModal {
 #add-disk-dialog Select,
 #attach-volume-dialog Select,
 #remove-disk-dialog Select,
-#edit-memory-dialog Input {
+#edit-memory-dialog Input,
+#search-vms-btn,
+TemplateNameModal Input,
+TemplateNameModal Select {
     width: 100%;
     margin-bottom: 1;
 }
@@ -222,7 +233,8 @@ AddWatchdogModal {
 #remove-disk-dialog Horizontal,
 #edit-cpu-dialog Horizontal,
 #edit-memory-dialog Horizontal,
-#select-machine-type-dialog Horizontal {
+#select-machine-type-dialog Horizontal,
+#xml-buttons {
     width: 100%;
     height: auto;
     align: center middle;
@@ -249,7 +261,8 @@ AddWatchdogModal {
 #remove-disk-dialog Button,
 #edit-cpu-dialog Button,
 #edit-memory-dialog Button,
-#select-machine-type-dialog Button {
+#select-machine-type-dialog Button,
+.tabd {
     margin: 0 1; /* Overrides default button margin */
 }
 
@@ -266,7 +279,13 @@ AddWatchdogModal {
     margin-bottom: 1;
 }
 
-#select-one-server-container Button {
+#select-one-server-container Button,
+.dir-target-path-input,
+.dhcp-input,
+#create-network-form #dhcp-options Input,
+#dialog-buttons Button,
+#pool-selection,
+#network-selection {
     width: 50%;
 }
 
@@ -292,7 +311,8 @@ AddWatchdogModal {
     overflow: auto;
 }
 
-#vm-detail-container #title {
+#vm-detail-container #title,
+CapabilitiesTreeModal #dialog-title {
     content-align: center middle;
     width: 100%;
     text-style: bold;
@@ -375,7 +395,11 @@ AddWatchdogModal {
     border: none;
 }
 
-#migration-dialog #dest-server-select {
+#migration-dialog #dest-server-select,
+InstallVMModal Input,
+InstallVMModal Select,
+InstallVMModal .label-row,
+InstallVMModal .input-row {
     height: 3;
     margin-bottom: 0;
 }
@@ -465,7 +489,8 @@ AddWatchdogModal {
 }
 
 /* --- USB Host Tab Layout --- */
-#usb-tab-layout {
+#usb-tab-layout,
+#pci-tab-layout {
     width: 100%;
     height: auto;
     padding: 0 1;
@@ -477,24 +502,19 @@ AddWatchdogModal {
     border: round $primary;
 }
 
-#usb-buttons-row {
+#usb-buttons-row,
+#pci-buttons-row {
     height: 1;
     width: 100%;
     align: center middle;
 }
 
-#usb-buttons-row Button {
+#usb-buttons-row Button,
+#pci-buttons-row Button {
     width: auto;
     min-width: 12;
     height: 1;
     margin: 0 1;
-}
-
-/* --- PCI Host Tab Layout --- */
-#pci-tab-layout {
-    width: 100%;
-    height: auto;
-    padding: 0 1;
 }
 
 #available-pci-table, #attached-pci-table {
@@ -502,18 +522,6 @@ AddWatchdogModal {
     height: 8;
 }
 
-#pci-buttons-row {
-    height: 1;
-    width: 100%;
-    align: center middle;
-}
-
-#pci-buttons-row Button {
-    width: auto;
-    min-width: 12;
-    height: 1;
-    margin: 0 1;
-}
 
 #iommu-group-detail {
     height: auto;
@@ -535,11 +543,15 @@ AddWatchdogModal {
     margin-right: 1;
 }
 
-#dkb-container Horizontal {
+#dkb-container Horizontal,
+InstallVMModal #custom-iso-container Checkbox,
+AddPoolModal #browse-dir-btn {
     height: 3;
 }
 
-#dkb-container Input {
+#dkb-container Input,
+.storage-buttons Button,
+#pattern-action-buttons Button {
     width: 1fr;
     margin: 0 1;
 }
@@ -587,8 +599,8 @@ AddWatchdogModal {
 }
 
 /* Status colors */
-#status-running { color: green; } /*border: round green; }*/
-#status-stopped, #status-shut-off { color: red; } /*border: round red; } */
+#status-running, #remote-console-switch.switch-on > .switch--slider { color: green; }
+#status-stopped, #status-shut-off, #remote-console-switch > .switch--slider, #remote-console-switch.switch-off > .switch--slider { color: red; }
 #status-paused { color: yellow; } /*border: round yellow; } */
 .error-message { text-align: center; color: red; height: 1; }
 
@@ -600,8 +612,19 @@ AddWatchdogModal {
 }
 
 /* Specific button variants */
-.Buttonpage { height: auto; width: auto; margin: 0 0; padding: 1 1; color: white; background: black; border: round; }
-.Buttonpage:hover { background: $primary-darken-2; }
+/* Canonical global action-button style (used across modals + app bar).
+   Consolidated here from the former base.css + components.css copies; the
+   components.css copy was removed to avoid a duplicate/conflicting definition. */
+.Buttonpage {
+    height: 1;
+    width: auto;
+    margin: 0 -1;
+    padding: 0;
+    color: white;
+    background: $primary-lighten-1;
+    border: none;
+}
+.Buttonpage:hover, Button.-active { background: $primary-darken-2; }
 .button-details { height: 1; padding: 0 0; }
 .ctrlpage {
    height: 1;
@@ -614,8 +637,7 @@ AddWatchdogModal {
 }
 .close-button { height: 1; width: auto; color: white; background: red; border: hidden; margin: 1 1; }
 #delete-server-btn, #delete-button, .cancel-button { background: red; width: 25% }
-.rename-button, .edit-button, .add-button { background: green; }
-.done-button, .cancel-button, .edit-button, .add-button { height: 1; width: 25%; color: white; }
+.rename-button, .edit-button, .add-button, #create_overlay { background: green; }
 #add-channel-btn,
 #cancel-channel-btn,
 #remove-channel-btn,
@@ -627,7 +649,11 @@ AddWatchdogModal {
 #refresh-btn,
 #clear-btn,
 #close-btn,
-#remove-controller-btn {
+#remove-controller-btn,
+.done-button,
+.cancel-button,
+.edit-button,
+.add-button {
     height: 1;
     width: 25%;
     color: white;
@@ -652,12 +678,11 @@ ListView > ListItem:hover { height: 1; background: $primary-darken-2; border: no
 
 /* Misc form elements */
 #shared-memory { height: 4; border: none; }
-.small { height: 4; }
-.dir-target-path-input { width: 50%; }
+.small, #expert-mode { height: 4; }
 RadioButton { padding: 0 0 0 1; }
 .create-network-form { background: $surface; border: round $primary; }
-.hidden { display: none; }
-.dhcp-input { width: 50%; }
+/* !important so utility hiding wins over any widget's own `display`. */
+.hidden { display: none !important; }
 .dns-domain-radioset { background: $surface; height: 2; border: none; }
 
 /* Create/Edit Network modal: vertical layout with scrollable middle section.
@@ -675,13 +700,13 @@ RadioButton { padding: 0 0 0 1; }
     overflow-x: hidden;
     margin-bottom: 1;
 }
-#create-network-form { height: auto; padding: 0 1; }
+#create-network-form, .network-interface-row { height: auto; padding: 0 1; }
 #create-network-form RadioSet#type-network { height: 5; margin-bottom: 1; }
 #create-network-form #forward-iface-row,
-#create-network-form #bridge-row { height: auto; margin-bottom: 1; }
-#create-network-form #ip-section { height: auto; }
-#create-network-form #dhcp-options { height: 3; margin-bottom: 1; }
-#create-network-form #dhcp-options Input { width: 50%; }
+#create-network-form #bridge-row,
+.pattern-input-row { height: auto; margin-bottom: 1; }
+#create-network-form #ip-section, ProgressModal > #progress-title, ProgressModal > #progress-bar, #results-table { height: auto; }
+#create-network-form #dhcp-options, .input-row { height: 3; margin-bottom: 1; }
 #create-network-form Checkbox {
     height: auto;
     margin-bottom: 1;
@@ -694,11 +719,9 @@ RadioButton { padding: 0 0 0 1; }
     align: center middle;
 }
 #network-modal-buttons Button { width: 50%; margin: 0 1; }
-.tabd { margin: 0 1; }
 .tabd-warning { margin: 0 1; background: red 40%; }
 .disk-info { margin: 0 2; padding: 0 0; height: 40; border-left: round; }
 .detail-disks { width: 15%; background: $primary; }
-.network-interface-row { height: auto; padding: 0 1; }
 .network-mac-label { height: auto; width: 40%; }
 
 /* Select widgets */
@@ -761,14 +784,12 @@ Select {
 }
 
 /* Server Preferences */
-#server-pref-title { align: center middle; }
 .server-pref-button { height: 4; padding: 0 0; margin-bottom: 1; }
 
 /* Network List Item in server prefs */
 .net-name { width: 30%; }
 .net-mode { width: 15%; }
-#net-active-check { width: 25%; }
-#net-autostart-check { width: 25%; }
+#net-active-check, #net-autostart-check { width: 25%; }
 
 /* Host Dashboard Styles */
 #host-dashboard-dialog {
@@ -811,6 +832,827 @@ Select {
     margin-right: 2;
 }
 
-#mem-bar, #cpu-alloc-bar, #mem-alloc-bar {
+#mem-bar, #cpu-alloc-bar, #mem-alloc-bar,
+#manage-tab Vertical, #snapshot-tab Vertical, #special-tab Vertical,
+#xml-buttons Button,
+#pattern-input {
     width: 1fr;
 }
+
+/*
+ * components.css
+ *   VM cards, sparklines, host dashboard and other component styles.
+ *   (Reorganized from the former standalone "vmcard.css".)
+ */
+
+#info-container, #status,
+ConfirmationDialog Label,
+RenameVMDialog,
+AddDiskModal,
+EditDiskModal,
+WebConsoleDialog,
+XMLDisplayModal,
+CapabilitiesTreeModal,
+MigrationModal,
+MoveVolumeModal,
+SelectDiskModal > #dialog,
+SelectPoolModal > #dialog,
+AddInputDeviceModal,
+InputModal,
+SelectOneServerModal {
+  content-align: center middle;
+}
+
+VMCard {
+  background: #323232;
+  text-align: center;
+  margin: 0;
+  width: 43;
+  height: 9;
+}
+
+#vmname {
+  background: green;
+  color: white;
+  text-style: bold;
+  height: 1;
+  content-align: center middle;
+}
+
+#info-container {
+  background: $background;
+  color: white;
+  width: 41;
+  height: 9;
+}
+
+#io-sparkline,
+#resources-sparkline,
+#sparklines-container-group, {
+  align-horizontal: left;
+  height: 2;
+  margin: 1 1 1 1;
+}
+
+.sparkline-label {
+  width: 10;
+  text-align: left;
+  padding: 0;
+}
+
+#cpu-sparkline, #mem-sparkline, #disk-sparkline, #net-sparkline {
+  background: $background;
+  width: 25;
+  margin-right: 1;
+  padding-right: 1;
+}
+
+#cpu-sparkline { color: $success; }
+#mem-sparkline { color: $warning; }
+#disk-sparkline { color: $accent; }
+#net-sparkline { color: $primary; }
+
+/* .button-separator is used across modals, so it stays global. */
+.button-separator,
+VMCard Button,
+VMCard #status,
+VMCard #snapshot-tab,
+VMCard #manage-tab {
+  height: 1;
+  padding: 0;
+}
+
+
+
+VMCard,
+VMCard Button,
+#snapshot-tab,
+#manage-tab,
+#grid-remote-local,
+#grid-vnc-config {
+  border: none;
+}
+
+#vm-header-row {
+  height: 2;
+  align: center middle;
+}
+
+#status {
+  margin: 0;
+  text-style: bold;
+  margin-bottom: 1;
+}
+
+#status.running, #status.stopped, #status.paused, #status.loading, #status.pmsuspended, #status.blocked { color: black; }
+#status.running, #create_overlay:hover, .rename-button:hover { background: lightgreen; }
+#status.stopped, #snapshot_delete, #connect, #discard_overlay { background: red; }
+#status.paused, #status.blocked { background: orange; }
+#status.pmsuspended { background: lightblue; }
+#status.loading { background: grey; }
+
+VMCard Button {
+  width: 100%;
+  margin: 0 1;
+}
+
+
+#button-container, #status-cpu-mem {
+  width: 100%;
+  height: auto;
+  margin: 0;
+  padding: 0 0;
+}
+
+#xml, #snapshot_take, #snapshot_restore, #snapshot_delete {
+  color: white;
+}
+
+#xml {
+  padding: 0 1;
+  background: grey;
+}
+
+#xml:hover { background: lightgrey; }
+#snapshot_take { background: #00008B; }
+#snapshot_take:hover { background: #0000CD; }
+#snapshot_restore, #commit_disk { background: #0000FF; }
+#snapshot_restore:hover, #commit_disk:hover { background: #1E90FF; }
+#snapshot_delete:hover, #connect:hover, #discard_overlay:hover, .delete-button:hover { background: #FF4500; }
+#pause { background: #FFA500; }
+#pause:hover { background: #FFD700; }
+#tmux_console { background: #008080; }
+#tmux_console:hover { background: #20B2AA; }
+
+.clone-button:hover { background: #FF69B4; }
+
+.vm-select-checkbox {
+  width: 5;
+  height: 2;
+  border: none;
+}
+.btn-qbar {
+  min-width: 3;
+  width: 1fr;
+  height: 1;
+  border: none;
+  padding: 0 0;
+  margin: 0;
+  background: $panel;
+}
+
+.btn-qbar:hover {
+  background: $primary;
+}
+
+#vm-actions-title {
+  text-style: bold;
+  text-align: center;
+  width: 100%;
+  height: 1;
+  background: $primary;
+  color: $text;
+  margin: 0;
+  padding: 0;
+}
+
+.name-box {
+    height: 2;
+}
+
+#quick-action-bar {
+    height: 1;
+    width: 100%;
+    margin: 0 0 0 5;
+    padding: 0 1 0 0;
+}
+
+
+/*
+ * modals.css
+ *   All overlay modal / dialog styles.
+ *   (Reorganized from the former standalone "dialog.css".)
+ */
+
+/*
+ * dialog.css - Textual TUI
+ */
+
+/* === COMMON OVERLAY MODAL === */
+BulkActionModal,
+WebConsoleDialog,
+SnapshotNameDialog,
+SelectSnapshotDialog,
+SelectOneServerModal,
+ConfirmationDialog,
+XMLDisplayModal,
+CapabilitiesTreeModal,
+SelectDiskModal,
+AddDiskModal,
+EditDiskModal,
+SelectPoolModal,
+VMDetailModal,
+VirshShellScreen,
+ProgressModal,
+AddPoolModal,
+MigrationModal,
+MoveVolumeModal,
+DeleteVMConfirmationDialog,
+AdvancedCloneDialog,
+RenameVMDialog,
+AddInputDeviceModal,
+FileSelectionModal,
+ConfigModal,
+CustomMigrationModal,
+AboutModal,
+WebConsoleConfigDialog,
+LoadingModal,
+InstallVMModal,
+PatternSelectModal,
+VMTypeInfoModal,
+AddChannelModal,
+EditNumaTuneModal,
+AutoFillConfigModal,
+InfoModal,
+EditCpuTuneModal,
+VMActionsModal {
+  align: center middle;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* === BASE DIALOGUE === */
+SnapshotNameDialog > #dialog,
+ConfirmationDialog > #dialog,
+CustomMigrationModal > #custom-migration-dialog,
+WebConsoleDialog > #dialog,
+SelectDiskModal > #dialog,
+MoveVolumeModal > #move-volume-dialog,
+SelectPoolModal > #dialog,
+SelectOneServerModal > #select-one-server-container,
+DeleteVMConfirmationDialog > #delete-vm-dialog,
+SelectServerModal > #select-server-container,
+PatternSelectModal > #pattern-select-container,
+RenameVMDialog > #dialog,
+AddInputDeviceModal > #add-input-container,
+AddPoolModal > #add-pool-dialog,
+FileSelectionModal > #file-selection-dialog,
+HowToModal > #howto-dialog,
+WebConsoleConfigDialog > #webconsole-config-dialog,
+EditNumaTuneModal > #edit-numatune-dialog,
+EditCpuTuneModal > #edit-cpu-tune-dialog,
+AddChannelModal > #add-channel-container,
+InfoModal > #info-modal-dialog,
+AutoFillConfigModal > #autofill-config-dialog,
+VMTypeInfoModal > #howto-vmtype-dialog {
+  width: 60;
+  padding: 1;
+  content-align: center middle;
+  align: center middle;
+  border: round $primary;
+  height: auto;
+}
+
+
+VMActionsModal > #vm-actions-modal {
+  width: 46;
+  height: auto;
+  max-height: 11;
+  padding: 0 0;
+  border: round $primary;
+  background: $surface;
+}
+
+ConfigModal > #config-dialog, {
+  border: round $primary;
+  align: center middle;
+  width: 75;
+}
+
+InstallVMModal #install-dialog Select,
+InstallVMModal #vm-type Select,
+InstallVMModal #distro Select,
+InstallVMModal #automation-template-select Select,
+WebConsoleConfigDialog > #webconsole-config-dialog Select,
+CustomMigrationModal Select {
+  width: 75%;
+  border: none ;
+}
+InstallVMModal #expert-graphics,
+InstallVMModal #expert-disk-format, { 
+  width: 19%; 
+}
+#expert-cpu, {
+  width: 12%;
+}
+#expert-mem,
+#expert-disk-size, {
+  width: 18%;
+}
+
+#expert-firmware, {
+  width: 26%;
+}
+
+#iso-path-label {
+  height: 1;
+  margin: 0 0;
+  padding: 0 0;
+  margin-bottom: 0;
+}
+/* === SPECIFIC HEIGHT === */
+AutoFillConfigModal > #autofill-config-dialog {
+  width: 90%;
+  height: auto;
+}
+InstallVMModal > #install-modal-root {
+  width: 100%;
+  height: auto;
+  max-height: 95%;
+  border: round $primary;
+  padding: 1;
+}
+InstallVMModal #install-dialog {
+  width: 100%;
+  height: 1fr;
+  min-height: 10;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+InstallVMModal .buttons {
+  height: 3;
+  margin-top: 1;
+}
+InstallVMModal Label {
+    margin-top: 0;
+    margin-bottom: 0;
+}
+InstallVMModal #vm-type-info-btn {
+    height: 3;
+    margin: 0 1;
+}
+SelectDiskModal > #select-disk-dialog,
+SelectSnapshotDialog > #dialog {
+  width: 68;
+}
+#vminstall-network-label,
+#vminstall-storage-label {
+  margin-top: 1;
+  padding: 0 0;
+}
+#howto-vmtype-dialog {
+  width: 80;
+  height: auto;
+  align: center middle;
+}
+
+
+DeleteVMConfirmationDialog > #delete-vm-dialog,
+WebConsoleDialog > #webconsole-dialog,
+ConfirmationDialog > #dialog { 
+  height: 15; 
+  border: $error; 
+}
+InstallVMModal #custom-iso-container,
+InstallVMModal #autoinstall-container,
+InstallVMModal #checksum-container {
+  height: 8;
+  margin-bottom: 1;
+}
+
+AddChannelModal > #add-channel-container,
+WebConsoleConfigDialog > #webconsole-config-dialog, {
+  height: 24;
+}
+#automation-collapsible,
+#expert-mode-collapsible {
+  height: auto;
+  border: none;
+  margin: 0 0;
+  padding: 0 0;
+}
+#automation-user-config-wrapper,
+#repo-iso-container,
+#pool-selection,
+#network-selection,
+#automation-template-container {
+   height: 5;
+}
+#pool-network-selection {
+  height: 5;
+  width: 100%;
+}
+#pool-iso-container, {
+   height: 8;
+}
+#automation-user-config-wrapper, {
+   height: 9;
+}
+#file-tree {
+   height: 90%;
+}
+FileSelectionModal > #file-selection-dialog,
+ConfigModal #config-dialog,
+HowToModal #howto-dialog,
+InfoModal #info-modal-dialog,
+VMTypeInfoModal #howto-vmtype-dialog {
+    width: 85;
+    height: 95%;
+}
+
+VMTypeInfoModal #howto-vmtype-dialog, {
+    width: 92;
+    padding: 0 0;
+}
+RenameVMDialog > #dialog { height: 13; }
+InputModal > #input-modal-container, AddInputDeviceModal > #add-input-container { height: 16; }
+XMLDisplayModal > #xml-display-dialog {
+  width: 100%;
+  height: 95%;
+}
+
+#xml-textarea {
+  width: 100%;
+  height: 1fr;
+}
+
+#xml-display-title {
+  width: 100%;
+  text-align: center;
+  text-style: bold;
+  background: $primary;
+  color: $text;
+  padding: 0 1;
+}
+
+/* === CENTERED CONTENT === */
+/* === LABELS QUESTION === */
+SnapshotNameDialog > #question,
+ConfirmationDialog > #question,
+RenameVMDialog > #question,
+SelectDiskModal > #question,
+SelectPoolModal > #question,
+DeleteVMConfirmationDialog > #question,
+SelectServerModal Label,
+InputModal Label,
+AddInputDeviceModal Label {
+  margin-bottom: 1;
+  content-align: center middle;
+}
+
+/* === BOUTONS CONTAINERS === */
+SnapshotNameDialog > #dialog-buttons,
+ConfirmationDialog > #dialog-buttons,
+WebConsoleDialog > #dialog-buttons,
+SelectDiskModal > #dialog-buttons,
+SelectPoolModal > #dialog-buttons,
+DeleteVMConfirmationDialog > #dialog-buttons,
+SelectServerModal Button,
+RenameVMDialog > #dialog-buttons,
+AutoFillConfigModal > #dialog-buttons,
+#iso-select,
+AddInputDeviceModal .modal-buttons {
+  width: 100%;
+}
+
+ConfirmationDialog > #dialog-buttons { margin-top: 1; }
+
+/* === LARGES BOUTONS (50%) === */
+SnapshotNameDialog Button,
+ConfirmationDialog Button,
+RenameVMDialog Button,
+AutoFillConfigModal Button,
+AddInputDeviceModal Button,
+WebConsoleDialog Button,
+SelectDiskModal Button,
+FileSelectionModal Button,
+SelectPoolModal Button,
+InstallVMModal Button,
+DeleteVMConfirmationDialog Button,
+ConfigModal Button {
+  width: 50%;
+  margin: 1;
+  margin-left: 1;
+}
+InstallVMModal #browse-iso-btn,
+AttachVolumeModal #browse-vol-btn,
+InstallVMModal #vm-type-info-btn,
+InstallVMModal #manage-templates-btn,
+AddDiskModal #browse-disk-btn, {
+  height: 3;
+  width: 25%;
+  padding: 0 0;
+  margin: 0 0;
+  background: $primary;
+}
+InstallVMModal #browse-iso-btn,
+InstallVMModal #browse-autoinstall-btn, {
+  height: 1;
+  width: 25%;
+}
+ConfirmationDialog Button { margin-right: 1; }
+
+/* === INPUTS === */
+SnapshotNameDialog Input,
+RenameVMDialog Input,
+AddInputDeviceModal Select,
+ProgressModal > #progress-bar,
+#results-label {
+  margin-bottom: 1;
+}
+InstallVMModal #custom-iso-path,
+InstallVMModal #autoinstall-path,
+InstallVMModal #automation-template-select,
+AddPoolModal #dir-target-path-input,
+AttachVolumeModal #vol-path-input,
+AddDiskModal #disk-path-input {
+  width: 70%;
+}
+SelectSnapshotDialog.snapshot-select-dialog > #dialog {
+  width: 90;
+  height: 25;
+}
+
+#snapshot-table {
+  height: 15;
+  margin-bottom: 1;
+  border: round $primary;
+}
+
+/* === SWITCHS === */
+#remote-console-switch {
+  margin: 0 0;
+  border: none;
+}
+
+/* === PROGRESS MODAL === */
+ProgressModal > #progress-modal-container {
+  layout: vertical;
+  height: 80%;
+  width: 80%;
+  border: round $primary;
+}
+
+
+ProgressModal .progress-log {
+  height: 1fr;
+  min-height: 5;
+  border: heavy $primary;
+  padding: 0 1;
+  background: $surface-darken-1;
+}
+
+/* === WEBCONSOLE === */
+#webconsole-dialog,
+#webconsole-config-dialog {
+  width: 60;
+  content-align: center middle;
+  border: round $primary;
+}
+
+#webconsole-dialog { 
+  width: 85; 
+  height: 10; 
+}
+
+#config-title,
+#config-title-file,
+#webconsole-config-title {
+  column-span: 2;
+  margin: 0 1;
+  content-align: center middle;
+  width: 100%;
+}
+
+.webconsole-config-label { 
+  content-align: right middle; 
+}
+
+/* === BULK ACTION === */
+#bulk-action-dialog {
+  height: 24;
+  width: 80;
+  border: round $primary;
+  content-align: center middle;
+  padding: 0 1;
+}
+
+/* === MISC === */
+
+SelectServerModal Checkbox,
+FilterModal Checkbox {
+  height: 6;
+  width: 100%;
+  padding: 0 0;
+  margin-bottom: 0;
+  color: $text;
+}
+
+#tab-storage { layout: vertical; }
+
+#storage-tree,
+#results-container {
+  height: 1fr;
+  border: round $primary;
+  margin-bottom: 1;
+}
+
+.storage-buttons {
+  align: center middle;
+  height: auto;
+  margin-top: 1;
+}
+
+#grid-remote-local,
+#grid-vnc-config,
+#clone-dialog {
+  grid-rows: 4;
+  grid-size-columns: 2;
+  grid-gutter: 0 1;
+  border: round $primary;
+  width: 58;
+  height: auto;
+}
+
+
+.log-view {
+  background: #222222;
+  color: #DDDDDD;
+}
+
+#wc-port-start-input,
+#wc-port-end-input,
+#vnc-quality-input,
+#vnc-compression-input,
+#cache-ttl-input,
+#stats-interval-input,
+#add-pool-btn #cancel-pool-btn,
+#attach-btn, #cancel-btn,
+#save-config-btn, #cancel-config-btn,
+#port-range-label {
+  width: 25%;
+  height: 1;
+  border: none;
+}
+
+
+PatternSelectModal > #pattern-select-container {
+    width: 80;
+    height: 80%;
+    padding: 1;
+    border: round $primary;
+}
+
+#pattern-select-title {
+    width: 100%;
+    text-align: center;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+
+
+#regex-checkbox {
+    width: auto;
+    margin-left: 1;
+}
+
+.checkbox-list {
+    height: auto;
+    overflow-x: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: round $surface;
+}
+
+
+#pattern-action-buttons {
+    height: auto;
+    align: center middle;
+}
+
+
+LoadingModal > Vertical {
+    width: auto;
+    height: auto;
+    min-width: 30;
+    background: $surface;
+    border: round $primary;
+    padding: 1 2;
+}
+
+LoadingModal Label {
+    width: 100%;
+    text-align: center;
+    margin-bottom: 1;
+}
+
+LoadingModal LoadingIndicator {
+    height: 1;
+    color: $accent;
+}
+/* === Install Modals === */
+#progress-bar {
+    display: none;
+    margin-top: 1;
+    width: 100%;
+}
+
+#status-label {
+    text-align: center;
+    color: $accent;
+    margin-bottom: 1;
+}
+
+Button:hover {
+    background: $primary-lighten-2;
+    color: $text;
+}
+
+
+/* === Capabilities Tree Modal === */
+CapabilitiesTreeModal > #capabilities-dialog {
+  width: 90%;
+  height: 90%;
+  border: round $primary;
+  background: $surface;
+  padding: 1;
+}
+
+CapabilitiesTreeModal #xml-tree {
+  height: 80%;
+  border: round $primary;
+  margin-bottom: 1;
+}
+
+
+/* === Template Management Modal === */
+TemplateManagementModal > #template-management-container {
+  width: 90;
+  height: 80%;
+  border: round $primary;
+  background: $surface;
+  padding: 1;
+  align: center middle;
+}
+
+TemplateManagementModal .title,
+TemplateNameModal .title {
+  width: 100%;
+  text-align: center;
+  text-style: bold;
+  margin-bottom: 1;
+  color: $accent;
+}
+
+TemplateManagementModal .label,
+TemplateNameModal .label {
+  width: 100%;
+  margin-top: 1;
+  margin-bottom: 0;
+  text-style: bold;
+}
+
+TemplateManagementModal #template-table {
+  height: 1fr;
+  min-height: 15;
+  border: round $primary;
+  margin-top: 1;
+  margin-bottom: 1;
+}
+
+TemplateManagementModal .buttons,
+TemplateNameModal .buttons {
+  width: 100%;
+  height: auto;
+  align: center middle;
+  margin-top: 1;
+}
+
+TemplateManagementModal Button {
+  min-width: 8;
+  max-width: 10;
+  margin: 0 0;
+}
+
+/* === Template Name Modal === */
+TemplateNameModal > #template-name-container {
+  width: 80;
+  height: auto;
+  border: round $primary;
+  background: $surface;
+  padding: 2;
+  align: center middle;
+}
+
+TemplateNameModal Button {
+  width: 40%;
+  margin: 0 1;
+}
+
+
+TemplateManagementModal Button {
+  min-width: 10;
+  max-width: 12;
+  margin: 0 0;
+}
+
