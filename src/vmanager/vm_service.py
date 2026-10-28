@@ -2,6 +2,7 @@
 VM Service Layer
 Handles all libvirt interactions and data processing.
 """
+from __future__ import annotations
 
 import logging
 import threading

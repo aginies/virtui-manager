@@ -1,6 +1,7 @@
 """
 Main interface
 """
+from __future__ import annotations
 
 import argparse
 import asyncio
@@ -303,7 +304,7 @@ class VMManagerTUI(App):
         logging.info("No autoconnect servers configured")
         return []
 
-    active_uris = reactive(_get_initial_active_uris(servers))
+    active_uris = reactive(_get_initial_active_uris.__func__(servers))
     current_page = reactive(0)
     # changing that will break CSS value!
     VMS_PER_PAGE = config.get("VMS_PER_PAGE", 6)

@@ -1,6 +1,7 @@
 """
 Network Hypervisor and guest side
 """
+from __future__ import annotations
 
 import ipaddress
 
@@ -19,9 +20,10 @@ from ..network_manager import (
 )
 from .base_modals import BaseDialog, BaseModal
 from .input_modals import _sanitize_domain_name, _sanitize_input, validate_mac_address, validate_ip_or_cidr
+from typing import Optional
 
 
-class AddEditNetworkInterfaceModal(BaseDialog[dict | None]):
+class AddEditNetworkInterfaceModal(BaseDialog[Optional[dict]]):
     """A dialog to add or edit a VM's network interface."""
 
     def __init__(

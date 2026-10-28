@@ -1,6 +1,7 @@
 """
 Storage Pool Volume
 """
+from __future__ import annotations
 
 import os
 import re
@@ -24,9 +25,10 @@ from ..storage_manager import create_storage_pool, list_storage_pools
 from .base_modals import BaseModal, ValueListItem
 from .input_modals import _sanitize_input
 from .utils_modals import DirectorySelectionModal, FileSelectionModal
+from typing import Optional
 
 
-class SelectPoolModal(BaseModal[str | None]):
+class SelectPoolModal(BaseModal[Optional[str]]):
     """Modal screen for selecting a storage pool from a list."""
 
     def __init__(self, pools: list[str], prompt: str) -> None:
@@ -57,7 +59,7 @@ class SelectPoolModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class SelectDiskModal(BaseModal[str | None]):
+class SelectDiskModal(BaseModal[Optional[str]]):
     """Modal screen for selecting a disk from a list."""
 
     def __init__(self, disks: list[str], prompt: str) -> None:
@@ -92,7 +94,7 @@ class SelectDiskModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class AddDiskModal(BaseModal[dict | None]):
+class AddDiskModal(BaseModal[Optional[dict]]):
     """Modal screen for adding a new disk."""
 
     def __init__(self, pools: list[str] | None = None) -> None:
@@ -277,7 +279,7 @@ class AddDiskModal(BaseModal[dict | None]):
             self.dismiss(None)
 
 
-class AddPoolModal(BaseModal[bool | None]):
+class AddPoolModal(BaseModal[Optional[bool]]):
     """Modal screen for adding a new storage pool."""
 
     def __init__(self, conn: libvirt.virConnect, is_remote: bool = False) -> None:
@@ -458,7 +460,7 @@ class AddPoolModal(BaseModal[bool | None]):
             self.dismiss(None)
 
 
-class CreateVolumeModal(BaseModal[dict | None]):
+class CreateVolumeModal(BaseModal[Optional[dict]]):
     """Modal screen for creating a new storage volume."""
 
     def compose(self) -> ComposeResult:
@@ -510,7 +512,7 @@ class CreateVolumeModal(BaseModal[dict | None]):
             self.dismiss(None)
 
 
-class EditDiskModal(BaseModal[dict | None]):
+class EditDiskModal(BaseModal[Optional[dict]]):
     """Modal screen for editing an existing disk."""
 
     def __init__(self, disk_info: dict, is_stopped: bool):
@@ -678,7 +680,7 @@ class MoveVolumeModal(BaseModal[dict]):
                 self.app.show_error_message(ErrorMessages.DEST_POOL_AND_NAME_REQUIRED)
 
 
-class AttachVolumeModal(BaseModal[dict | None]):
+class AttachVolumeModal(BaseModal[Optional[dict]]):
     """Modal screen for attaching an existing disk file as a storage volume."""
 
     def __init__(self, is_remote: bool = False) -> None:

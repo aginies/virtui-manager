@@ -1,6 +1,7 @@
 """
 Custom migration modal module
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
@@ -8,9 +9,10 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Select, Static
 
 from ..constants import ButtonLabels, StaticText
+from typing import Optional
 
 
-class CustomMigrationModal(ModalScreen[dict | None]):
+class CustomMigrationModal(ModalScreen[Optional[dict]]):
     """A modal to confirm custom migration actions."""
 
     def __init__(self, actions: list[dict], **kwargs):

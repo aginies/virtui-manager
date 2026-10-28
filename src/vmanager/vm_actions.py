@@ -1,6 +1,7 @@
 """
 Module for performing actions and modifications on virtual machines.
 """
+from __future__ import annotations
 
 import logging
 import os

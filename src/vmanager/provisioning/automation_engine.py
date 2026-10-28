@@ -4,6 +4,7 @@ Automation Engine for VirtUI Manager.
 This module centralizes the generation of unattended installation files
 (Kickstart, Preseed, AutoYaST, Cloud-init, etc.) for all supported operating systems.
 """
+from __future__ import annotations
 
 import logging
 import os

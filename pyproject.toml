@@ -15,7 +15,7 @@ maintainers = [
 ]
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE"]
-requires-python = ">=3.6"
+requires-python = ">=3.9"
 keywords = ["virtualization", "libvirt", "kvm", "qemu", "tui", "terminal", "manager", "virt"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -23,8 +23,6 @@ classifiers = [
     "Intended Audience :: System Administrators",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -98,11 +96,11 @@ vmanager = [
 
 [tool.black]
 line-length = 100
-target-version = [ 'py37', 'py38', 'py39', 'py310', 'py311', 'py312','py313',]
+target-version = [ 'py39', 'py310', 'py311', 'py312','py313',]
 
 [tool.ruff]
 line-length = 100
-target-version = "py37"
+target-version = "py39"
 select = ["E", "F", "W", "I", "N", "UP"]
 ignore = ["E501"]
 
@@ -114,7 +112,7 @@ python_functions = ["test_*"]
 addopts = "--cov=vmanager --cov-report=html --cov-report=term-missing"
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false

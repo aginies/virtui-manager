@@ -1,6 +1,7 @@
 """
 XML Display and Edit Modal
 """
+from __future__ import annotations
 
 import logging
 from datetime import datetime
@@ -17,6 +18,7 @@ from textual.widgets.text_area import LanguageDoesNotExist
 from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
 from .utils_modals import DirectorySelectionModal
+from typing import Optional
 
 
 def _format_xml(xml_text: str) -> str:
@@ -28,7 +30,7 @@ def _format_xml(xml_text: str) -> str:
         return xml_text
 
 
-class XMLDisplayModal(BaseModal[str | None]):
+class XMLDisplayModal(BaseModal[Optional[str]]):
     """A modal screen for displaying and editing XML."""
 
     def __init__(self, xml_content: str, read_only: bool = False, vm_name: str | None = None):

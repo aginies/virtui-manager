@@ -2,6 +2,7 @@
 Server pref modal
 Main interface
 """
+from __future__ import annotations
 
 import os
 
