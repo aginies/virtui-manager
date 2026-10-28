@@ -271,18 +271,7 @@ class VMService:
         if not self._events_enabled:
             return
 
-        with self._registration_lock:
-            # Check if already registered before doing any work
-            if uri in self._event_callbacks:
-                logging.debug(f"Events already registered for {uri}, skipping")
-                return
-
-            # Register close callback (always, even if events are disabled, to handle disconnects)
-            try:
-                conn.registerCloseCallback(self._connection_close_callback, uri)
-                logging.debug(f"Registered close callback for {uri}")
-            except Exception as e:
-                logging.warning(f"Failed to register close callback for {uri}: {e}")
+        new_real_conn = conn._obj if hasattr(conn, "_obj") else conn
 
         def lifecycle_callback(conn, domain, event, detail, opaque):
             """Callback for domain lifecycle events."""
@@ -421,20 +410,59 @@ class VMService:
             except Exception as e:
                 logging.info(f"Error in lifecycle callback: {e}")
 
-        try:
-            callback_id = conn.domainEventRegisterAny(
-                None, libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE, lifecycle_callback, None
-            )
+        with self._registration_lock:
+            existing = self._event_callbacks.get(uri)
+            if existing is not None:
+                old_conn_wrapper, old_callback_id = existing
+                old_real_conn = (
+                    old_conn_wrapper._obj if hasattr(old_conn_wrapper, "_obj") else old_conn_wrapper
+                )
+                if old_real_conn == new_real_conn:
+                    # Already registered on this exact connection; nothing to do.
+                    logging.debug(f"Events already registered for {uri}, skipping")
+                    return
+                # Connection changed: tear down the old registration on the old
+                # connection first to avoid leaked / duplicate callbacks.
+                logging.info(f"Connection object changed for {uri}, re-registering events")
+                self._event_callbacks.pop(uri, None)
+                try:
+                    old_conn_wrapper.unregisterCloseCallback(self._connection_close_callback)
+                except Exception:
+                    pass
+                if old_callback_id is not None:
+                    try:
+                        old_conn_wrapper.domainEventDeregisterAny(old_callback_id)
+                    except Exception:
+                        pass
+
+            # Register close callback (handles disconnects).
+            try:
+                conn.registerCloseCallback(self._connection_close_callback, uri)
+                logging.debug(f"Registered close callback for {uri}")
+            except Exception as e:
+                logging.warning(f"Failed to register close callback for {uri}: {e}")
+
+            # Domain lifecycle callback. Check-and-register is atomic under the
+            # lock, preventing duplicate/leaked callbacks across reconnects and
+            # concurrent connect() calls.
+            try:
+                callback_id = conn.domainEventRegisterAny(
+                    None, libvirt.VIR_DOMAIN_EVENT_ID_LIFECYCLE, lifecycle_callback, None
+                )
+            except libvirt.libvirtError as e:
+                logging.warning(f"Could not register domain events for {uri}: {e}")
+                try:
+                    conn.unregisterCloseCallback(self._connection_close_callback)
+                except Exception:
+                    pass
+                if "event timer" in str(e).lower() or "event loop" in str(e).lower():
+                    logging.info("Disabling event system due to event loop issues")
+                    self._events_enabled = False
+                return
 
             # We already hold _registration_lock here
             self._event_callbacks[uri] = (conn, callback_id)
             logging.info(f"Registered domain events for {uri}")
-
-        except libvirt.libvirtError as e:
-            logging.warning(f"Could not register domain events for {uri}: {e}")
-            if "event timer" in str(e).lower() or "event loop" in str(e).lower():
-                logging.info("Disabling event system due to event loop issues")
-                self._events_enabled = False
 
     def _unregister_domain_events(self, conn: libvirt.virConnect, uri: str):
         """Unregister domain events."""
@@ -1163,30 +1191,11 @@ class VMService:
         # return self.connection_manager.connect(uri)
         conn = self.connection_manager.connect(uri, force_retry=force_retry)
 
-        # Check if we need to re-register events because connection object changed
+        # (Re)register events. _register_domain_events is idempotent: it detects
+        # whether the underlying connection changed and tears down stale callbacks
+        # before registering, so it is safe to call on every connect().
         if conn:
-            should_register = False
-            with self._registration_lock:
-                if uri in self._event_callbacks:
-                    # Handle unwrapping if it's a wrapper from ConnectionManager
-                    real_conn = conn._obj if hasattr(conn, "_obj") else conn
-                    registered_conn, _ = self._event_callbacks[uri]
-                    real_registered_conn = (
-                        registered_conn._obj
-                        if hasattr(registered_conn, "_obj")
-                        else registered_conn
-                    )
-
-                    if real_conn != real_registered_conn:
-                        logging.info(f"Connection object changed for {uri}, re-registering events")
-                        # Remove old registration record (old conn is likely dead anyway)
-                        del self._event_callbacks[uri]
-                        should_register = True
-                else:
-                    should_register = True
-
-            if should_register:
-                self._register_domain_events(conn, uri)
+            self._register_domain_events(conn, uri)
 
         return conn
 
