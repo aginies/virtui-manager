@@ -7,7 +7,7 @@ VirtUI Manager is a Python-based application that leverages `libvirt` for virtua
 ### System Requirements
 
 *   **Operating System:** Linux (tested on openSUSE)
-*   **Python:** 3.7+
+*   **Python:** 3.9+
 *   **Virtualization:** KVM/QEMU and Libvirt installed and running.
 *   **Essential Tools:**
     *   `libvirt` (daemon and client tools like `virsh`)

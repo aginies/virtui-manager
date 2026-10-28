@@ -9,6 +9,7 @@ Provides a unified interface for managing installation templates including:
 - Deleting user templates
 - Exporting templates to files
 """
+from __future__ import annotations
 
 import logging
 from pathlib import Path
@@ -21,9 +22,10 @@ from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..config import load_config, save_config
 from .base_modals import BaseModal
 from .utils_modals import FileSelectionModal
+from typing import Optional
 
 
-class TemplateNameModal(BaseModal[dict | None]):
+class TemplateNameModal(BaseModal[Optional[dict]]):
     """
     Modal for entering template name, description, and OS type.
 
@@ -614,7 +616,7 @@ class TemplateManagementModal(BaseModal[bool]):
         )
 
 
-class AutoFillConfigModal(BaseModal[dict | None]):
+class AutoFillConfigModal(BaseModal[Optional[dict]]):
     """
     Modal for configuring AUTO_INSTALL_PRE_FILL and SUSE_SCC settings.
 

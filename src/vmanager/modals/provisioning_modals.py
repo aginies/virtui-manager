@@ -1,6 +1,7 @@
 """
 Modals for VM Provisioning (Installation).
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -27,9 +28,10 @@ from .template_modals import TemplateManagementModal
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
 from .vmdetails_modals import VMDetailModal
+from typing import Optional
 
 
-class InstallVMModal(BaseModal[str | None]):
+class InstallVMModal(BaseModal[Optional[str]]):
     """
     Modal for creating and provisioning a new OpenSUSE VM.
     """

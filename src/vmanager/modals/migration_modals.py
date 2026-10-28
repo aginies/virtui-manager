@@ -1,6 +1,7 @@
 """
 Modals for handling VM migration.
 """
+from __future__ import annotations
 
 import threading
 from typing import Dict, List

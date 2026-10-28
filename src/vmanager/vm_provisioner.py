@@ -1,6 +1,7 @@
 """
 Library for VM creation and provisioning, supporting multiple Linux distributions.
 """
+from __future__ import annotations
 
 import base64
 import hashlib

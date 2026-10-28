@@ -2,7 +2,10 @@
 Dialog box for VMcard
 """
 
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Optional
 
 from textual import on
 from textual.app import ComposeResult
@@ -22,13 +25,13 @@ from textual.widgets import (
 from ..config import load_config, save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, StatusText, SuccessMessages
 from ..events import VMActionButtonPressed
-from ..vm_queries import is_qemu_agent_running, is_qemu_agent_running_on_guest
+from ..vm_queries import is_qemu_agent_running
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 from .utils_modals import BaseDialog
 
 
-class VMActionsModal(BaseModal[str | None]):
+class VMActionsModal(BaseModal[Optional[str]]):
     """Modal that shows VM action buttons (replaces the collapsible on VMCard)."""
 
     BINDINGS = [("escape", "cancel_modal", "Cancel")]
@@ -178,7 +181,7 @@ class DeleteVMConfirmationDialog(BaseDialog[tuple[bool, bool]]):
         self.dismiss((False, False))
 
 
-class AdvancedCloneDialog(BaseDialog[dict | None]):
+class AdvancedCloneDialog(BaseDialog[Optional[dict]]):
     """A dialog to ask for a new VM name and number of clones."""
 
     def __init__(self, vm_name: str) -> None:
@@ -278,7 +281,7 @@ class AdvancedCloneDialog(BaseDialog[dict | None]):
             self.dismiss(None)
 
 
-class RenameVMDialog(BaseDialog[str | None]):
+class RenameVMDialog(BaseDialog[Optional[str]]):
     """A dialog to ask for a new VM name when renaming."""
 
     def __init__(self, current_name: str) -> None:
@@ -333,7 +336,7 @@ class RenameVMDialog(BaseDialog[str | None]):
             self.dismiss(None)
 
 
-class SelectSnapshotDialog(BaseDialog[str | None]):
+class SelectSnapshotDialog(BaseDialog[Optional[str]]):
     """A dialog to select a snapshot from a list."""
 
     def __init__(self, snapshots: list[dict], prompt: str) -> None:
@@ -372,7 +375,7 @@ class SelectSnapshotDialog(BaseDialog[str | None]):
             self.dismiss(None)
 
 
-class SnapshotNameDialog(BaseDialog[dict | None]):
+class SnapshotNameDialog(BaseDialog[Optional[dict]]):
     """A dialog to ask for a snapshot name."""
 
     def __init__(self, domain=None) -> None:
@@ -382,11 +385,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
     def compose(self):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         default_name = datetime.now().strftime("snap_%Y%m%d_%H%M%S")
-        agent_running = (
-            (is_qemu_agent_running(self.domain) and is_qemu_agent_running_on_guest(self.domain))
-            if self.domain
-            else False
-        )
+        agent_running = is_qemu_agent_running(self.domain) if self.domain else False
 
         if not agent_running and self.domain:
             self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)
@@ -457,7 +456,7 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
             self.dismiss(None)
 
 
-class WebConsoleDialog(BaseDialog[str | None]):
+class WebConsoleDialog(BaseDialog[Optional[str]]):
     """A dialog to show the web console URL."""
 
     def __init__(self, url: str) -> None:

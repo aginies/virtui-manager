@@ -1,13 +1,14 @@
 """
 Useful Modal screens
 """
+from __future__ import annotations
 
 import logging
 import os
 import pathlib
 import re
 import time
-from typing import Iterable
+from typing import Iterable, Optional
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -139,7 +140,7 @@ class SafeDirectoryTree(DirectoryTree):
         return [p for p in paths if not any(part in BLACKLIST for part in p.parts)]
 
 
-class DirectorySelectionModal(BaseModal[str | None]):
+class DirectorySelectionModal(BaseModal[Optional[str]]):
     """A modal screen for selecting a directory."""
 
     def __init__(self, path: str | None = None) -> None:
@@ -170,7 +171,7 @@ class DirectorySelectionModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class FileSelectionModal(BaseModal[str | None]):
+class FileSelectionModal(BaseModal[Optional[str]]):
     """A modal screen for selecting a file."""
 
     def __init__(self, path: str | None = None) -> None:

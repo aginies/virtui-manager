@@ -1,6 +1,7 @@
 """
 CPU MEM Machine type modals
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -9,9 +10,10 @@ from textual.widgets import Button, Input, Label, ListView, Select
 from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal, ValueListItem
 from .utils_modals import InfoModal
+from typing import Optional
 
 
-class EditCpuModal(BaseModal[str | None]):
+class EditCpuModal(BaseModal[Optional[str]]):
     """Modal screen for editing VCPU count."""
 
     def __init__(self, current_cpu: str = "") -> None:
@@ -39,7 +41,7 @@ class EditCpuModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class EditMemoryModal(BaseModal[str | None]):
+class EditMemoryModal(BaseModal[Optional[str]]):
     """Modal screen for editing memory size."""
 
     def __init__(self, current_memory: str = "") -> None:
@@ -67,7 +69,7 @@ class EditMemoryModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class SelectMachineTypeModal(BaseModal[str | None]):
+class SelectMachineTypeModal(BaseModal[Optional[str]]):
     """Modal screen for selecting machine type."""
 
     def __init__(self, machine_types: list[str], current_machine_type: str = "") -> None:
@@ -103,7 +105,7 @@ class SelectMachineTypeModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class EditCpuTuneModal(BaseModal[list[dict] | None]):
+class EditCpuTuneModal(BaseModal[Optional[list[dict]]]):
     """Modal screen for editing CPU Tune (vcpupin)."""
 
     def __init__(self, current_vcpupin: list[dict] = None, max_vcpus: int = 0) -> None:
@@ -170,7 +172,7 @@ class EditCpuTuneModal(BaseModal[list[dict] | None]):
             )
 
 
-class EditNumaTuneModal(BaseModal[dict | None]):
+class EditNumaTuneModal(BaseModal[Optional[dict]]):
     """Modal screen for editing NUMA Tune."""
 
     def __init__(self, current_mode: str = "strict", current_nodeset: str = "") -> None:

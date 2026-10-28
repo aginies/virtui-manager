@@ -1,6 +1,7 @@
 """
 Modals for input device configuration and all Input dialog
 """
+from __future__ import annotations
 
 import os
 import re
@@ -16,9 +17,10 @@ from textual.widgets import Button, Input, Label, Select
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText, VMDetailConstants
 from .base_modals import BaseModal
+from typing import Optional
 
 
-class InputModal(BaseModal[str | None]):
+class InputModal(BaseModal[Optional[str]]):
     """A generic modal for getting text input from the user."""
 
     def __init__(self, prompt: str, initial_value: str = "", restrict: str | None = None):
@@ -90,7 +92,7 @@ class AddInputDeviceModal(BaseModal[None]):
             self.dismiss()
 
 
-class AddWatchdogModal(BaseModal[dict | None]):
+class AddWatchdogModal(BaseModal[Optional[dict]]):
     """A modal for adding or editing a watchdog device."""
 
     def __init__(self, current_model: str = None, current_action: str = None):
@@ -146,7 +148,7 @@ class AddWatchdogModal(BaseModal[dict | None]):
             self.dismiss(None)
 
 
-class AddChannelModal(BaseModal[dict | None]):
+class AddChannelModal(BaseModal[Optional[dict]]):
     """A modal for adding a new channel device."""
 
     def compose(self) -> ComposeResult:

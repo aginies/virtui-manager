@@ -1,6 +1,7 @@
 """
 Modals for VM selection.
 """
+from __future__ import annotations
 
 import logging
 import re
@@ -12,9 +13,10 @@ from textual.widgets import Button, Checkbox, DataTable, Input, Label
 
 from ..constants import ButtonLabels, StaticText
 from .base_modals import BaseModal
+from typing import Optional
 
 
-class PatternSelectModal(BaseModal[set[str] | None]):
+class PatternSelectModal(BaseModal[Optional[set[str]]]):
     """Modal for selecting VMs by pattern across servers."""
 
     BINDINGS = [("ctrl+u", "unselect_all", "Unselect All")]

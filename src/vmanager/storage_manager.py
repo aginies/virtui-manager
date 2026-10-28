@@ -1,6 +1,7 @@
 """
 Module for managing libvirt storage pools and volumes.
 """
+from __future__ import annotations
 
 import logging
 import os

@@ -1,6 +1,7 @@
 """
 Modal for displaying Host Domain Capabilities in a Tree View with Search.
 """
+from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 

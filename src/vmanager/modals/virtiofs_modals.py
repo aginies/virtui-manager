@@ -1,6 +1,7 @@
 """
 virtiofs modals
 """
+from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
@@ -13,9 +14,10 @@ from textual.widgets import (
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText
 from .base_modals import BaseModal
+from typing import Optional
 
 
-class AddEditVirtIOFSModal(BaseModal[dict | None]):
+class AddEditVirtIOFSModal(BaseModal[Optional[dict]]):
     """Modal screen for adding or editing a VirtIO-FS mount."""
 
     def __init__(

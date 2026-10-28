@@ -1,9 +1,10 @@
 """
 Server management
 """
+from __future__ import annotations
 
 import logging
-from typing import Tuple
+from typing import Optional, Tuple
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
@@ -23,7 +24,7 @@ def _is_valid_server_uri(uri: str) -> bool:
     return uri.startswith(VALID_URI_PREFIXES)
 
 
-class ConnectionModal(BaseModal[str | None]):
+class ConnectionModal(BaseModal[Optional[str]]):
     def compose(self) -> ComposeResult:
         with Vertical(id="connection-dialog"):
             yield Label(StaticText.ENTER_QEMU_CONNECTION_URI)
@@ -47,7 +48,7 @@ class ConnectionModal(BaseModal[str | None]):
             self.dismiss(None)
 
 
-class AddServerModal(BaseModal[Tuple[str, str] | None]):
+class AddServerModal(BaseModal[Optional[Tuple[str, str]]]):
     """Modal for adding a new server with autoconnect option."""
 
     def compose(self) -> ComposeResult:
@@ -89,7 +90,7 @@ class AddServerModal(BaseModal[Tuple[str, str] | None]):
             self.dismiss(None)
 
 
-class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
+class EditServerModal(BaseModal[Optional[Tuple[str, str, bool]]]):
     def __init__(self, server_name: str, server_uri: str, autoconnect: bool = False) -> None:
         super().__init__()
         self.server_name = server_name
@@ -129,7 +130,7 @@ class EditServerModal(BaseModal[Tuple[str, str, bool] | None]):
             self.dismiss(None)
 
 
-class ServerManagementModal(BaseModal[str | None]):
+class ServerManagementModal(BaseModal[Optional[str]]):
     """Modal screen for managing servers."""
 
     def __init__(self, servers: list) -> None:

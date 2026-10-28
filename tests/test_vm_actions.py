@@ -5,7 +5,7 @@ import os
 import sys
 import unittest
 import xml.etree.ElementTree as ET
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 # Add the src directory to the path so we can import modules properly
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
@@ -826,129 +826,29 @@ class TestVMActionsComplete(unittest.TestCase):
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
-    def test_graceful_shutdown_uses_agent_when_running(
-        self, mock_invalidate_cache, mock_get_internal_id
-    ):
-        """graceful_shutdown uses the guest-agent flag when the agent is running."""
-        from vmanager.vm_actions import graceful_shutdown
-
-        agent_flag = getattr(self.libvirt, "VIR_DOMAIN_SHUTDOWN_GUEST_AGENT")
-        mock_domain = MagicMock()
-        mock_domain.isActive.return_value = True
-        mock_domain.name.return_value = "test-vm"
-
-        with patch("vmanager.vm_actions.is_qemu_agent_running_on_guest", return_value=True):
-            graceful_shutdown(mock_domain)
-
-        mock_domain.shutdown.assert_called_once_with(agent_flag)
-        self.assertEqual(mock_domain.shutdown.call_count, 1)
-
-    @patch("vmanager.vm_actions.get_internal_id")
-    @patch("vmanager.vm_actions.invalidate_cache")
-    def test_graceful_shutdown_uses_acpi_when_agent_absent(
-        self, mock_invalidate_cache, mock_get_internal_id
-    ):
-        """graceful_shutdown falls back to ACPI when no agent is running."""
+    def test_graceful_shutdown_uses_acpi(self, mock_invalidate_cache, mock_get_internal_id):
+        """graceful_shutdown shuts the VM down via the ACPI power button."""
         from vmanager.vm_actions import graceful_shutdown
 
         mock_domain = MagicMock()
         mock_domain.isActive.return_value = True
         mock_domain.name.return_value = "test-vm"
 
-        with patch("vmanager.vm_actions.is_qemu_agent_running_on_guest", return_value=False):
-            graceful_shutdown(mock_domain)
+        graceful_shutdown(mock_domain)
 
         mock_domain.shutdown.assert_called_once_with()
 
     @patch("vmanager.vm_actions.get_internal_id")
     @patch("vmanager.vm_actions.invalidate_cache")
-    def test_graceful_shutdown_falls_back_on_agent_error(
-        self, mock_invalidate_cache, mock_get_internal_id
-    ):
-        """graceful_shutdown falls back to ACPI when the agent call raises."""
-        from vmanager.vm_actions import graceful_shutdown
-
-        agent_flag = getattr(self.libvirt, "VIR_DOMAIN_SHUTDOWN_GUEST_AGENT")
-        mock_domain = MagicMock()
-        mock_domain.isActive.return_value = True
-        mock_domain.name.return_value = "test-vm"
-
-        with patch("vmanager.vm_actions.is_qemu_agent_running_on_guest", return_value=True):
-            # First call (agent) raises, second call (ACPI fallback) succeeds.
-            mock_domain.shutdown.side_effect = [
-                self.libvirt_error("agent down"),
-                None,
-            ]
-            # Should not raise: ACPI fallback must absorb the agent error.
-            graceful_shutdown(mock_domain)
-
-        self.assertEqual(mock_domain.shutdown.call_count, 2)
-        mock_domain.shutdown.assert_has_calls([call(agent_flag), call()])
-
-    @patch("vmanager.vm_actions.get_internal_id")
-    @patch("vmanager.vm_actions.invalidate_cache")
-    def test_graceful_shutdown_old_libvirt_uses_acpi(
-        self, mock_invalidate_cache, mock_get_internal_id
-    ):
-        """graceful_shutdown uses ACPI when the agent flag is unavailable."""
-        from vmanager.vm_actions import graceful_shutdown
-
-        mock_domain = MagicMock()
-        mock_domain.isActive.return_value = True
-        mock_domain.name.return_value = "test-vm"
-
-        with patch("vmanager.vm_actions.libvirt", self._FakeLibvirt()):
-            graceful_shutdown(mock_domain)
-
-        mock_domain.shutdown.assert_called_once_with()
-
-    @patch("vmanager.vm_actions.get_internal_id")
-    @patch("vmanager.vm_actions.invalidate_cache")
-    def test_guest_reboot_uses_agent_when_running(
-        self, mock_invalidate_cache, mock_get_internal_id
-    ):
-        """guest_reboot uses the guest-agent reboot flag when the agent is running."""
-        from vmanager.vm_actions import guest_reboot
-
-        agent_flag = getattr(self.libvirt, "VIR_DOMAIN_REBOOT_GUEST_AGENT")
-        mock_domain = MagicMock()
-        mock_domain.isActive.return_value = True
-        mock_domain.name.return_value = "test-vm"
-
-        with patch("vmanager.vm_actions.is_qemu_agent_running_on_guest", return_value=True):
-            guest_reboot(mock_domain)
-
-        mock_domain.reboot.assert_called_once_with(agent_flag)
-
-    @patch("vmanager.vm_actions.get_internal_id")
-    @patch("vmanager.vm_actions.invalidate_cache")
-    def test_guest_reboot_uses_acpi_when_agent_absent(
-        self, mock_invalidate_cache, mock_get_internal_id
-    ):
-        """guest_reboot falls back to ACPI reboot when no agent is running."""
+    def test_guest_reboot_uses_acpi(self, mock_invalidate_cache, mock_get_internal_id):
+        """guest_reboot reboots the VM via the ACPI reboot button."""
         from vmanager.vm_actions import guest_reboot
 
         mock_domain = MagicMock()
         mock_domain.isActive.return_value = True
         mock_domain.name.return_value = "test-vm"
 
-        with patch("vmanager.vm_actions.is_qemu_agent_running_on_guest", return_value=False):
-            guest_reboot(mock_domain)
-
-        mock_domain.reboot.assert_called_once_with(0)
-
-    @patch("vmanager.vm_actions.get_internal_id")
-    @patch("vmanager.vm_actions.invalidate_cache")
-    def test_guest_reboot_old_libvirt_uses_acpi(self, mock_invalidate_cache, mock_get_internal_id):
-        """guest_reboot uses ACPI reboot when the agent flag is unavailable."""
-        from vmanager.vm_actions import guest_reboot
-
-        mock_domain = MagicMock()
-        mock_domain.isActive.return_value = True
-        mock_domain.name.return_value = "test-vm"
-
-        with patch("vmanager.vm_actions.libvirt", self._FakeLibvirt()):
-            guest_reboot(mock_domain)
+        guest_reboot(mock_domain)
 
         mock_domain.reboot.assert_called_once_with(0)
 

@@ -1,6 +1,7 @@
 """
 Module for managing firmware-related information and operations.
 """
+from __future__ import annotations
 
 import fnmatch
 import json
