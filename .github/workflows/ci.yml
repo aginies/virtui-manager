@@ -34,7 +34,11 @@ jobs:
         run: ./checks/find_missing_msgstr.py
 
   lint:
-    runs-on: ubuntu-latest
+    # Pin to ubuntu-24.04: it ships libvirt 10.0.0, matching the pinned
+    # libvirt-python==10.0.0 sdist. ubuntu-latest has drifted past 10.0.0,
+    # and since libvirt-python publishes no wheels it always builds from
+    # source, failing against the newer C-API (libgen.py type-converter errors).
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -62,7 +66,9 @@ jobs:
           pylint -E --disable=E1101,E0611,E1120,E0401 --exit-zero src/vmanager
 
   tests:
-    runs-on: ubuntu-latest
+    # Pin to ubuntu-24.04 (see lint job): stable libvirt 10.0.0 to match
+    # libvirt-python==10.0.0, which must build from source (no PyPI wheels).
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
