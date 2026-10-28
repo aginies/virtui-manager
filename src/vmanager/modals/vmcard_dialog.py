@@ -22,7 +22,7 @@ from textual.widgets import (
 from ..config import load_config, save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, StatusText, SuccessMessages
 from ..events import VMActionButtonPressed
-from ..vm_queries import is_qemu_agent_running
+from ..vm_queries import is_qemu_agent_running, is_qemu_agent_running_on_guest
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 from .utils_modals import BaseDialog
@@ -382,7 +382,11 @@ class SnapshotNameDialog(BaseDialog[dict | None]):
     def compose(self):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         default_name = datetime.now().strftime("snap_%Y%m%d_%H%M%S")
-        agent_running = is_qemu_agent_running(self.domain) if self.domain else False
+        agent_running = (
+            (is_qemu_agent_running(self.domain) and is_qemu_agent_running_on_guest(self.domain))
+            if self.domain
+            else False
+        )
 
         if not agent_running and self.domain:
             self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)

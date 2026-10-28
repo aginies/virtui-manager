@@ -33,6 +33,7 @@ from .vm_queries import (
     get_vm_snapshots,
     get_vm_tpm_info,
     has_overlays,
+    is_qemu_agent_running_on_guest,
 )
 
 
@@ -2105,6 +2106,64 @@ def start_vm(domain):
     domain.create()
 
 
+def graceful_shutdown(domain: libvirt.virDomain) -> None:
+    """
+    Gracefully shuts down a VM, preferring the QEMU guest agent when it is
+    running, and falling back to the ACPI power button otherwise.
+
+    Guest-agent shutdown (virsh shutdown --mode agent) is more reliable when an
+    agent is present: the guest performs its own orderly shutdown and reports
+    failure clearly if the agent is unresponsive. If the agent is absent or the
+    agent call fails, we fall back to a plain ACPI shutdown so the user's intent
+    (shut the VM down) is always honored.
+    """
+    agent_flag = getattr(libvirt, "VIR_DOMAIN_SHUTDOWN_GUEST_AGENT", None)
+    if agent_flag is None:
+        # Older libvirt without the guest-agent shutdown flag: use ACPI.
+        domain.shutdown()
+        return
+
+    if is_qemu_agent_running_on_guest(domain):
+        try:
+            domain.shutdown(agent_flag)
+            return
+        except libvirt.libvirtError as e:
+            logging.warning(
+                f"Guest-agent shutdown failed for '{domain.name()}': {e}; "
+                "falling back to ACPI shutdown."
+            )
+
+    domain.shutdown()
+
+
+def guest_reboot(domain: libvirt.virDomain) -> None:
+    """
+    Reboots a VM, preferring the QEMU guest agent when it is running, and
+    falling back to an ACPI reboot otherwise.
+
+    Uses virDomainReboot with the guest-agent flag (virsh reboot --mode agent)
+    when available. Falls back to a plain reboot on failure or when the flag is
+    unsupported by the installed libvirt.
+    """
+    agent_flag = getattr(libvirt, "VIR_DOMAIN_REBOOT_GUEST_AGENT", None)
+    if agent_flag is None:
+        # libvirt too old to support guest-agent reboot: use ACPI reboot.
+        domain.reboot(0)
+        return
+
+    if is_qemu_agent_running_on_guest(domain):
+        try:
+            domain.reboot(agent_flag)
+            return
+        except libvirt.libvirtError as e:
+            logging.warning(
+                f"Guest-agent reboot failed for '{domain.name()}': {e}; "
+                "falling back to ACPI reboot."
+            )
+
+    domain.reboot(0)
+
+
 def stop_vm(domain: libvirt.virDomain):
     """
     Initiates a graceful shutdown of the VM.
@@ -2115,7 +2174,7 @@ def stop_vm(domain: libvirt.virDomain):
         raise libvirt.libvirtError(f"VM '{domain.name()}' is not active, cannot shutdown.")
 
     invalidate_cache(get_internal_id(domain))
-    domain.shutdown()
+    graceful_shutdown(domain)
 
 
 def hibernate_vm(domain: libvirt.virDomain):

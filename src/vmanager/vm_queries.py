@@ -1364,6 +1364,30 @@ def is_qemu_agent_running(domain: libvirt.virDomain) -> bool:
     return False
 
 
+def is_qemu_agent_running_on_guest(domain: libvirt.virDomain) -> bool:
+    """
+    Checks if the QEMU guest agent is actually running inside the guest VM.
+
+    Uses the libvirt guest-agent protocol (agent-get-state) to query the true
+    runtime state, unlike is_qemu_agent_running() which only checks whether the
+    channel is configured in the VM XML.
+
+    Returns True only when the agent reports itself as RUNNING.
+    Returns False if the API is unsupported, an error occurs, or the agent is
+    not running.
+    """
+    if domain.isActive() == 0:
+        return False
+
+    try:
+        # VIR_GUEST_AGENT_STATE_RUNNING == 2
+        state = domain.agentGetState(0)
+        return state == libvirt.VIR_GUEST_AGENT_STATE_RUNNING
+    except libvirt.libvirtError as e:
+        logging.warning(f"Failed to query guest agent state: {e}")
+        return False
+
+
 def get_vm_cputune(root: ET.Element) -> dict:
     """
     Extracts cputune information from a VM's XML definition.
