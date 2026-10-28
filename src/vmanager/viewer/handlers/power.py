@@ -4,12 +4,15 @@ Power Control Handlers
 Handles VM power state changes (start, pause, resume, shutdown, reboot, destroy).
 """
 
-from typing import Optional, Callable, Dict
+from typing import Callable, Dict, Optional
 
 import gi
 import libvirt
+
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
+
+from ...vm_actions import graceful_shutdown, guest_reboot
 
 
 class PowerHandler:
@@ -57,7 +60,9 @@ class PowerHandler:
 
         self.log = log_callback if log_callback else lambda msg: None
         self.notify = notification_callback if notification_callback else lambda msg, typ: None
-        self.show_error_dialog = error_dialog_callback if error_dialog_callback else lambda msg: None
+        self.show_error_dialog = (
+            error_dialog_callback if error_dialog_callback else lambda msg: None
+        )
 
     def update_menu_sensitivity(self, popover):
         """
@@ -158,6 +163,7 @@ class PowerHandler:
             # but it is easier to just call it if we pass it or if we use the domain
             # The user requested to use hibernate_vm from @src/vmanager/vm_actions.py
             from ...vm_actions import hibernate_vm
+
             hibernate_vm(self.domain)
             self.log("VM hibernation initiated")
         except libvirt.libvirtError as e:
@@ -171,7 +177,9 @@ class PowerHandler:
         """Gracefully shutdown the VM."""
         popover.popdown()
         try:
-            self.domain.shutdown()
+            # Prefer the guest agent (virsh shutdown --mode agent) when an agent
+            # is running, falling back to ACPI otherwise.
+            graceful_shutdown(self.domain)
             self.log("Graceful shutdown initiated")
         except libvirt.libvirtError as e:
             self.log(f"Shutdown error: {e}")
@@ -181,7 +189,9 @@ class PowerHandler:
         """Reboot the VM."""
         popover.popdown()
         try:
-            self.domain.reboot(0)
+            # Prefer the guest agent (virsh reboot --mode agent) when an agent is
+            # running, falling back to ACPI reboot otherwise.
+            guest_reboot(self.domain)
             self.log("VM reboot initiated")
         except libvirt.libvirtError as e:
             self.log(f"Reboot error: {e}")
@@ -198,4 +208,4 @@ class PowerHandler:
             self.show_error_dialog(f"Destroy error: {e}")
 
 
-__all__ = ['PowerHandler']
+__all__ = ["PowerHandler"]
