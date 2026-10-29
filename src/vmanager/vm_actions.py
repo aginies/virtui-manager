@@ -1614,12 +1614,16 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
             return  # No devices and no model to set, so nothing to do.
         devices = ET.SubElement(root, "devices")
 
-    video = devices.find("video")
+    videos = devices.findall("video")
+    video = videos[0] if videos else None
 
-    # If model is being set to none, remove the entire video tag.
+    # If model is being set to none, remove ALL video tags. A VM can have more
+    # than one video device (e.g. a virtio video plus a default VGA); find()
+    # only returns the first, which would leave the others (and their VGA args)
+    # behind in the XML when switching to "none".
     if model is None or model == "none":
-        if video is not None:
-            devices.remove(video)
+        for v in videos:
+            devices.remove(v)
         new_xml = ET.tostring(root, encoding="unicode")
         domain.connect().defineXML(new_xml)
         return
@@ -1645,10 +1649,10 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
         model_elem.set("heads", old_attribs.get("heads", "1"))
         model_elem.set("primary", old_attribs.get("primary", "yes"))
     elif model == "qxl":
-        model_elem.set("vram", old_attribs.get("vram", "65536"))
-        model_elem.set("ram", old_attribs.get("ram", "65536"))
+        model_elem.set("vram", "65536")
+        model_elem.set("ram", "65536")
     else:  # vga, cirrus etc.
-        model_elem.set("vram", old_attribs.get("vram", "16384"))
+        model_elem.set("vram", "16384")
 
     # Handle 3D acceleration
     final_accel = accel3d if accel3d is not None else existing_accel
