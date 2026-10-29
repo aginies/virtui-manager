@@ -2325,7 +2325,7 @@ class VMCard(Static):
                     )
                     self.app.vm_service.invalidate_domain_cache()
                     self._boot_device_checked = False
-                    self.app.refresh_vm_list()
+                    self.app.call_from_thread(self.app.refresh_vm_list, force=True)
                     logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
                 except Exception as e:
                     self.app.show_error_message(
