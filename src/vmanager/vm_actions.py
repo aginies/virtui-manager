@@ -1626,9 +1626,11 @@ def _do_set_vm_video_model(root: ET.Element, model: str | None, accel3d: bool | 
         devices = root.find("devices")
         if devices is None:
             return
-        video = devices.find("video")
-        if video is not None:
-            devices.remove(video)
+        # A VM can have more than one video device (e.g. a virtio video plus a
+        # default VGA); find() only returns the first, which would leave the
+        # others (and their VGA args) behind in the XML. Remove all of them.
+        for v in devices.findall("video"):
+            devices.remove(v)
         return
 
     devices = _get_or_create_devices(root, required=False)
@@ -1653,10 +1655,10 @@ def _do_set_vm_video_model(root: ET.Element, model: str | None, accel3d: bool | 
         model_elem.set("heads", old_attribs.get("heads", "1"))
         model_elem.set("primary", old_attribs.get("primary", "yes"))
     elif model == "qxl":
-        model_elem.set("vram", old_attribs.get("vram", "65536"))
-        model_elem.set("ram", old_attribs.get("ram", "65536"))
-    else:
-        model_elem.set("vram", old_attribs.get("vram", "16384"))
+        model_elem.set("vram", "65536")
+        model_elem.set("ram", "65536")
+    else:  # vga, cirrus etc.
+        model_elem.set("vram", "16384")
 
     final_accel = accel3d if accel3d is not None else existing_accel
 
