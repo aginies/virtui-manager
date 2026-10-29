@@ -167,10 +167,8 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     MANAGE_SERVERS = _("Servers [b][#FFD700]L[/][/]ist")
     SERVER_PREFERENCES = _("Server Prefs")
     FILTER_VM = _("[b][#FFD700]F[/][/]ilter VM")
-    VIEW_LOG = _("Log")
     BULK_CMD = _("[b][#FFD700]B[/][/]ulk CMD")
     PATTERN_SELECT = _("[b][#FFD700]P[/][/]attern Sel")
-    CONFIG = _("Config")
     PREVIOUS_PAGE = _("\\[Previous Page]")
     NEXT_PAGE = _("\\[Next Page]")
     YES = _("Yes")
@@ -196,7 +194,6 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     COMMIT_DISK = _("Commit Disk")
     DISCARD_OVERLAY = _("Discard Overlay")
     SNAP_OVERLAY_HELP = _("Help")
-    COMPACT_VIEW = _("Compact")
     SELECT = _("Select")
     OK = _("OK")
     LAUNCH = _("Launch")
@@ -1188,9 +1185,6 @@ class DialogMessages:  # pylint: disable=too-few-public-methods
 
     DELETE_SNAPSHOT_CONFIRMATION = _("Are you sure you want to delete snapshot '{name}'?")
     DELETE_VOLUME_CONFIRMATION_TEMPLATE = _("Are you sure you want to delete volume '{vol_name}'?")
-    EXPERIMENTAL = _(
-        "Experimental Feature! Still contains bugs, fix in progress. You have been informed"
-    )
     CONFIRM_REMOVE_CHANNEL_TEMPLATE = _("Are you sure you want to remove channel '{target_name}'?")
     CONFIRM_DISCARD_CHANGES = _(
         "Are you sure you want to discard changes in '{target_disk}' and revert to its backing file? This action cannot be undone."
