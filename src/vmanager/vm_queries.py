@@ -1021,10 +1021,12 @@ def get_vm_watchdog_info(root: ET.Element) -> list[dict]:
         devices = root.find("devices")
         if devices is not None:
             for watchdog_elem in devices.findall("./watchdog"):
-                watchdog_devices.append({
-                    "model": watchdog_elem.get("model", "unknown"),
-                    "action": watchdog_elem.get("action", "reset"),
-                })
+                watchdog_devices.append(
+                    {
+                        "model": watchdog_elem.get("model", "unknown"),
+                        "action": watchdog_elem.get("action", "reset"),
+                    }
+                )
     except Exception:
         logging.debug("Failed to parse watchdog info from XML")
 

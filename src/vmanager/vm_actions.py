@@ -25,7 +25,13 @@ from .network_manager import list_networks
 from .storage_manager import create_overlay_volume
 from .utils import log_function_call
 from .vm_cache import invalidate_cache
-from .vm_queries import _get_domain_root, get_vm_disks_info, get_vm_snapshots, get_vm_tpm_info, has_overlays
+from .vm_queries import (
+    _get_domain_root,
+    get_vm_disks_info,
+    get_vm_snapshots,
+    get_vm_tpm_info,
+    has_overlays,
+)
 
 
 def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
@@ -122,7 +128,9 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
             try:
                 original_vol_xml = original_vol.XMLDesc(0)
             except Exception as e:
-                logging.exception("Failed to get XMLDesc for volume '%s': %s", original_vol.name(), e)
+                logging.exception(
+                    "Failed to get XMLDesc for volume '%s': %s", original_vol.name(), e
+                )
                 raise
             vol_root = ET.fromstring(original_vol_xml)
 
@@ -216,9 +224,7 @@ def clone_vm(original_vm, new_vm_name, clone_storage=True, log_callback=None):
                         if log_callback:
                             log_callback(msg)
 
-                        new_nvram_vol = nvram_pool.createXMLFrom(
-                            new_nvram_vol_xml, nvram_vol, 0
-                        )
+                        new_nvram_vol = nvram_pool.createXMLFrom(new_nvram_vol_xml, nvram_vol, 0)
                         # Update XML with new NVRAM path
                         nvram_elem.text = new_nvram_vol.path()
                     except libvirt.libvirtError as e:
@@ -1370,10 +1376,10 @@ def set_ovmf_debug(domain: libvirt.virDomain, enable: bool):
 
     xml_desc = domain.XMLDesc(0)
     root = ET.fromstring(xml_desc)
-    
+
     # Define QEMU namespace
     qemu_ns = "http://libvirt.org/schemas/domain/qemu/1.0"
-    ET.register_namespace('qemu', qemu_ns)
+    ET.register_namespace("qemu", qemu_ns)
     qemu_tag = f"{{{qemu_ns}}}commandline"
     arg_tag = f"{{{qemu_ns}}}arg"
 
@@ -1382,22 +1388,27 @@ def set_ovmf_debug(domain: libvirt.virDomain, enable: bool):
     if enable:
         if commandline is None:
             commandline = ET.SubElement(root, qemu_tag)
-        
+
         # Check if already present to avoid duplicates
         existing_args = [arg.get("value") for arg in commandline.findall(arg_tag)]
         debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
-        
+
         for arg_val in debug_args:
             if arg_val not in existing_args:
                 ET.SubElement(commandline, arg_tag, value=arg_val)
     else:
         if commandline is not None:
             # Remove specific debug arguments
-            debug_args = ["-global", "isa-debugcon.iobase=0x402", "-debugcon", "file:/tmp/debug.log"]
+            debug_args = [
+                "-global",
+                "isa-debugcon.iobase=0x402",
+                "-debugcon",
+                "file:/tmp/debug.log",
+            ]
             for arg in commandline.findall(arg_tag):
                 if arg.get("value") in debug_args:
                     commandline.remove(arg)
-            
+
             # If commandline is empty, remove it
             if not list(commandline):
                 root.remove(commandline)
@@ -1582,9 +1593,7 @@ def strip_installation_assets(domain: libvirt.virDomain):
                 f"changed on_reboot from 'destroy' to 'restart'"
             )
         else:
-            logging.info(
-                f"SECURE VM {domain.name()}: keeping on_reboot as 'destroy' (SEV enabled)"
-            )
+            logging.info(f"SECURE VM {domain.name()}: keeping on_reboot as 'destroy' (SEV enabled)")
 
     new_xml = ET.tostring(root, encoding="unicode")
     conn.defineXML(new_xml)
@@ -2344,7 +2353,7 @@ def delete_vm(
                     if delete_storage:
                         # Pass delete_conn to resolve volumes
                         disks_to_delete = get_vm_disks_info(delete_conn, root)
-                    
+
                     boot_files_to_delete = get_vm_boot_files(root)
                 except libvirt.libvirtError as e:
                     log(f"[red]ERROR:[/] Could not get XML description for '{vm_name}': {e}")
@@ -2461,7 +2470,7 @@ def delete_vm(
                     continue
 
                 # Determine if we should delete this specific file
-                is_nvram = (file_path == nvram_path)
+                is_nvram = file_path == nvram_path
                 # Non-NVRAM assets follow delete_storage; NVRAM follows delete_nvram
                 should_delete = delete_nvram if is_nvram else delete_storage
 
@@ -2475,7 +2484,9 @@ def delete_vm(
                         vol.delete(0)
                         log(f"  - Deleted: {file_path} from pool {pool.name()}")
                     else:
-                        log(f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume.")
+                        log(
+                            f"  - [yellow]Skipped:[/] Asset '{file_path}' is not a managed libvirt volume."
+                        )
                 except libvirt.libvirtError as e:
                     if e.get_error_code() == libvirt.VIR_ERR_NO_STORAGE_VOL:
                         log(f"  - [yellow]Skipped:[/] Volume for path '{file_path}' not found.")
@@ -2495,12 +2506,16 @@ def delete_vm(
                         for asset_name in orphaned_assets:
                             try:
                                 vol = pool.storageVolLookupByName(asset_name)
-                                log(f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting...")
+                                log(
+                                    f"Found orphaned asset '{asset_name}' in pool '{pool_name}'. Deleting..."
+                                )
                                 vol.delete(0)
                                 log(f"  - Deleted orphaned asset: {asset_name}")
                             except libvirt.libvirtError as e:
                                 if e.get_error_code() != libvirt.VIR_ERR_NO_STORAGE_VOL:
-                                    log(f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}")
+                                    log(
+                                        f"  - [yellow]Warning:[/] Error checking for '{asset_name}' in '{pool_name}': {e}"
+                                    )
                     except libvirt.libvirtError:
                         continue
 
@@ -2714,7 +2729,10 @@ def check_server_migration_compatibility(
 
 @log_function_call
 def check_vm_migration_compatibility(
-    domain: libvirt.virDomain, dest_conn: libvirt.virConnect, is_live: bool, check_snapshots: bool = False
+    domain: libvirt.virDomain,
+    dest_conn: libvirt.virConnect,
+    is_live: bool,
+    check_snapshots: bool = False,
 ):
     """
     Checks if a VM is compatible for migration to a destination host.

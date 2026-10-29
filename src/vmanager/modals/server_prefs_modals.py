@@ -420,8 +420,12 @@ class ServerPrefModal(BaseModal[None]):
                 if vm_list
                 else Text(StaticText.NOT_IN_USE, style="dim")
             )
-            active_text = Text("✔", style="bold green") if net["active"] else Text("✘", style="bold red")
-            autostart_text = Text("✔", style="bold green") if net["autostart"] else Text("✘", style="bold red")
+            active_text = (
+                Text("✔", style="bold green") if net["active"] else Text("✘", style="bold red")
+            )
+            autostart_text = (
+                Text("✔", style="bold green") if net["autostart"] else Text("✘", style="bold red")
+            )
 
             table.add_row(
                 Text(net["name"], style="bold"),
@@ -459,7 +463,10 @@ class ServerPrefModal(BaseModal[None]):
                     ]
                     if vm_names:
                         parts.append(
-                            (StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names)), "italic magenta")
+                            (
+                                StaticText.IN_USE_BY_TEMPLATE.format(vms=", ".join(vm_names)),
+                                "italic magenta",
+                            )
                         )
 
                     label = Text.assemble(*parts)
@@ -529,7 +536,9 @@ class ServerPrefModal(BaseModal[None]):
 
         try:
             xml_content = target_obj.XMLDesc(0)
-            self.app.push_screen(XMLDisplayModal(xml_content, read_only=True, vm_name=target_obj.name()))
+            self.app.push_screen(
+                XMLDisplayModal(xml_content, read_only=True, vm_name=target_obj.name())
+            )
         except libvirt.libvirtError as e:
             self.app.show_error_message(
                 ErrorMessages.ERROR_GETTING_XML_FOR_TYPE_TEMPLATE.format(
@@ -1078,7 +1087,9 @@ class ServerPrefModal(BaseModal[None]):
                     return
                 net = conn.networkLookupByName(network_name)
                 network_xml = net.XMLDesc(0)
-                self.app.push_screen(XMLDisplayModal(network_xml, read_only=True, vm_name=network_name))
+                self.app.push_screen(
+                    XMLDisplayModal(network_xml, read_only=True, vm_name=network_name)
+                )
             except libvirt.libvirtError as e:
                 self.app.show_error_message(
                     ErrorMessages.ERROR_GETTING_NETWORK_XML_TEMPLATE.format(error=e)

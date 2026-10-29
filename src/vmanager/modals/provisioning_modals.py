@@ -85,12 +85,12 @@ class InstallVMModal(BaseModal[str | None]):
                         label = version.display_name
                     else:
                         label = f"{os_type.value}: {version.display_name}"
-                    
+
                     # Ensure label uniqueness in the dropdown
                     if label in seen_labels:
                         # Append version_id to make it unique if necessary
                         label = f"{label} ({version.version_id})"
-                    
+
                     seen_labels.add(label)
                     distro_options.append((label, version))
 
@@ -183,11 +183,19 @@ class InstallVMModal(BaseModal[str | None]):
             with Horizontal(id="pool-network-selection"):
                 with Vertical(id="pool-selection"):
                     yield Label(StaticText.STORAGE_POOL, id="vminstall-storage-label")
-                    yield Select(active_pools, value=default_pool if default_pool else Select.NULL, id="pool", allow_blank=True if not active_pools else False)
+                    yield Select(
+                        active_pools,
+                        value=default_pool if default_pool else Select.NULL,
+                        id="pool",
+                        allow_blank=True if not active_pools else False,
+                    )
                 with Vertical(id="network-selection"):
                     yield Label(StaticText.SELECT_NETWORK_PROMPT, id="vminstall-network-label")
                     yield Select(
-                        active_networks, value=default_network if default_network else Select.NULL, id="network", allow_blank=True if not active_networks else False
+                        active_networks,
+                        value=default_network if default_network else Select.NULL,
+                        id="network",
+                        allow_blank=True if not active_networks else False,
                     )
 
             with Collapsible(title=StaticText.EXPERT_MODE, id="expert-mode-collapsible"):
@@ -368,13 +376,13 @@ class InstallVMModal(BaseModal[str | None]):
             if pool:
                 # Refresh storage pool lists in the UI
                 self.app.call_from_thread(self._refresh_pool_selectors)
-            
+
             # 2. Check/Ensure Network
             net = ensure_default_network(self.conn)
             if net:
                 # Refresh network lists in the UI
                 self.app.call_from_thread(self._refresh_network_selectors)
-                
+
         except Exception as e:
             logging.error(f"Failed to ensure default resources in background: {e}")
 
@@ -660,11 +668,13 @@ class InstallVMModal(BaseModal[str | None]):
                     sel.value = "none"
                     sel.disabled = True
                     if eol_warning:
-                        status_lbl.update(f"[red]{StaticText.EOL_NO_ISO_FOUND}[/red]\n[yellow]{eol_warning}[/yellow]")
+                        status_lbl.update(
+                            f"[red]{StaticText.EOL_NO_ISO_FOUND}[/red]\n[yellow]{eol_warning}[/yellow]"
+                        )
                         status_lbl.styles.display = "block"
                     else:
                         status_lbl.styles.display = "none"
-                
+
                 self.query_one("#install-btn", Button).disabled = False
                 self._check_form_validity()  # Re-check validity after options change
 

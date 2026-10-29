@@ -103,7 +103,8 @@ class XMLDisplayModal(BaseModal[str | None]):
             except Exception as e:
                 logging.error(f"Error exporting XML: {e}")
                 self.app.notify(
-                    ErrorMessages.ERROR_EXPORTING_XML_TEMPLATE.format(error=str(e)), severity="error"
+                    ErrorMessages.ERROR_EXPORTING_XML_TEMPLATE.format(error=str(e)),
+                    severity="error",
                 )
 
         self.app.push_screen(DirectorySelectionModal(), on_dir_selected)

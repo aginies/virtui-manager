@@ -118,7 +118,9 @@ class AddWatchdogModal(BaseModal[dict | None]):
                 id="watchdog-action-select",
             )
             with Horizontal():
-                yield Button(btn_label, variant="primary", id="add-watchdog", disabled=not self.is_edit)
+                yield Button(
+                    btn_label, variant="primary", id="add-watchdog", disabled=not self.is_edit
+                )
                 yield Button(ButtonLabels.CANCEL, variant="default", id="cancel-watchdog")
 
     @on(Select.Changed)
@@ -127,7 +129,9 @@ class AddWatchdogModal(BaseModal[dict | None]):
         action_select = self.query_one("#watchdog-action-select", Select)
         is_model_selected = model_select.value != Select.NULL
         is_action_selected = action_select.value != Select.NULL
-        self.query_one("#add-watchdog", Button).disabled = not (is_model_selected and is_action_selected)
+        self.query_one("#add-watchdog", Button).disabled = not (
+            is_model_selected and is_action_selected
+        )
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "add-watchdog":

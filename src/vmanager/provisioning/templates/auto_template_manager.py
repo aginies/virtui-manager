@@ -95,7 +95,13 @@ class AutoYaSTTemplateManager:
             # Also look for Alpine templates (alpine-answers-*.txt files)
             alpine_patterns = ["alpine-answers-*.txt"]
 
-            all_patterns = opensuse_patterns + ubuntu_patterns + fedora_patterns + arch_patterns + alpine_patterns
+            all_patterns = (
+                opensuse_patterns
+                + ubuntu_patterns
+                + fedora_patterns
+                + arch_patterns
+                + alpine_patterns
+            )
             for pattern in all_patterns:
                 for template_file in self.TEMPLATES_DIR.glob(pattern):
                     if template_file.name == self.SKELETON_TEMPLATE_FILENAME:
@@ -950,7 +956,8 @@ class AutoYaSTTemplateManager:
             description = f"Custom Fedora kickstart template: {template_name}"
         elif template_name.startswith("archinstall-"):
             display_name = (
-                template_name.replace("archinstall-", "").replace("-", " ").title() + " (Archinstall)"
+                template_name.replace("archinstall-", "").replace("-", " ").title()
+                + " (Archinstall)"
             )
             description = f"Custom Arch Linux archinstall template: {template_name}"
         elif template_name.startswith("alpine-answers-"):

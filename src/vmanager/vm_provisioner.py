@@ -686,7 +686,7 @@ class VMProvisioner:
             temp_pool.create(0)
 
             source_vol = temp_pool.storageVolLookupByName(vars_vol_name)
-            
+
             # Use 'nvram' pool if it exists and is active, otherwise fallback to target_pool_name
             target_pool = None
             try:
@@ -696,7 +696,7 @@ class VMProvisioner:
                     logging.info("Using dedicated 'nvram' storage pool for UEFI variables.")
             except libvirt.libvirtError:
                 pass
-                
+
             if not target_pool:
                 target_pool = self.conn.storagePoolLookupByName(target_pool_name)
 
@@ -754,7 +754,9 @@ class VMProvisioner:
                         f"Converting NVRAM template to {nvram_format} using qemu-img (pflash={has_pflash})."
                     )
                     # Create temporary files for conversion
-                    with tempfile.NamedTemporaryFile(suffix=".raw", delete=False, dir="/var/tmp") as tmp_in:
+                    with tempfile.NamedTemporaryFile(
+                        suffix=".raw", delete=False, dir="/var/tmp"
+                    ) as tmp_in:
                         try:
                             tmp_in.write(received_data)
                             tmp_in.flush()
@@ -1069,8 +1071,12 @@ class VMProvisioner:
         is_auto_install = bool(auto_url)
 
         settings = self._get_vm_settings(
-            vm_type, boot_uefi, disk_format, os_type=os_type, graphics_type=graphics_type,
-            is_auto_install=is_auto_install
+            vm_type,
+            boot_uefi,
+            disk_format,
+            os_type=os_type,
+            graphics_type=graphics_type,
+            is_auto_install=is_auto_install,
         )
 
         # Boot order: if kernel_path is provided, we are doing a direct kernel boot for install
@@ -1094,7 +1100,7 @@ class VMProvisioner:
         if kernel_path and initrd_path:
             # Determine if we use manual firmware selection or autoselection
             use_manual_firmware = settings["boot_uefi"] and loader_path and nvram_path
-            
+
             # Use firmware='efi' ONLY for autoselection.
             os_firmware = ""
             if settings["boot_uefi"] and not use_manual_firmware:
@@ -1108,7 +1114,11 @@ class VMProvisioner:
             if settings["boot_uefi"] and not use_manual_firmware:
                 # Explicitly disable secure boot if UEFI is used but secure_boot is False
                 # Only for specific distros that have issues with it (Arch, Debian, Alpine)
-                if not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]:
+                if not settings.get("secure_boot") and os_type in [
+                    OSType.ARCHLINUX,
+                    OSType.DEBIAN,
+                    OSType.ALPINE,
+                ]:
                     xml += """    <firmware>
       <feature enabled='no' name='secure-boot'/>
     </firmware>
@@ -1139,7 +1149,9 @@ class VMProvisioner:
                 elif auto_url.endswith(".json"):
                     # Agama (openSUSE) automation
                     # Multiple flags to disable SSL verification and allow insecure HTTP
-                    cmdline = f"inst.auto={auto_url} inst.insecure=1 inst.auto_insecure=1 ssl_verify=no"
+                    cmdline = (
+                        f"inst.auto={auto_url} inst.insecure=1 inst.auto_insecure=1 ssl_verify=no"
+                    )
                 elif auto_url.endswith("/") or "user-data" in auto_url:
                     # Ubuntu autoinstall automation (cloud-init based)
                     # URL should point to directory containing user-data and meta-data
@@ -1229,7 +1241,11 @@ class VMProvisioner:
             else:
                 # Autoselection: use firmware='efi' attribute and optional features
                 os_firmware = " firmware='efi'"
-                has_firmware_subelement = not settings.get("secure_boot") and os_type in [OSType.ARCHLINUX, OSType.DEBIAN, OSType.ALPINE]
+                has_firmware_subelement = not settings.get("secure_boot") and os_type in [
+                    OSType.ARCHLINUX,
+                    OSType.DEBIAN,
+                    OSType.ALPINE,
+                ]
 
                 xml += f"""
   <os{os_firmware}>
@@ -2022,7 +2038,7 @@ class VMProvisioner:
                 match = re.search(r"alpine-(?:virt|standard|extended)-(\d+\.\d+)", iso_url)
                 if match:
                     os_version = match.group(1)
-        
+
         # Try to detect OpenSUSE version for automation
         if os_type == OSType.OPENSUSE:
             detected = self._detect_opensuse_version_from_iso(iso_url)
@@ -2479,9 +2495,15 @@ class VMProvisioner:
                             f.write(setup_script_content)
                         os.chmod(setup_script_path, 0o755)
                         auto_url = setup_script_url
-                        self.logger.info(f"Arch Linux archinstall setup script available at: {setup_script_url}")
-                        self.logger.info(f"Arch Linux archinstall JSON file available at: {json_url}")
-                        self.logger.info(f"Arch Linux archinstall creds JSON file available at: {creds_url}")
+                        self.logger.info(
+                            f"Arch Linux archinstall setup script available at: {setup_script_url}"
+                        )
+                        self.logger.info(
+                            f"Arch Linux archinstall JSON file available at: {json_url}"
+                        )
+                        self.logger.info(
+                            f"Arch Linux archinstall creds JSON file available at: {creds_url}"
+                        )
                     elif is_alpine_answers:
                         # For Alpine Linux, point to the .txt or .apkovl file
                         auto_url = f"http://{host_ip}:{port}/{autoinst_filename}"
@@ -2572,9 +2594,7 @@ class VMProvisioner:
                 loader_path=loader_path,
                 nvram_path=nvram_path,
                 boot_uefi=boot_uefi,
-                automation_file_path=str(automation_file_path)
-                if automation_file_path
-                else None,
+                automation_file_path=str(automation_file_path) if automation_file_path else None,
                 auto_url=auto_url,
                 kernel_path=kernel_path,
                 initrd_path=initrd_path,
@@ -2620,18 +2640,18 @@ class VMProvisioner:
 
                 if os_type == OSType.UBUNTU:
                     # Use Ubuntu-specific kernel extraction (casper/ directory)
-                    local_kernel_path, local_initrd_path = (
-                        self._extract_ubuntu_iso_kernel_initrd(local_iso_path)
+                    local_kernel_path, local_initrd_path = self._extract_ubuntu_iso_kernel_initrd(
+                        local_iso_path
                     )
                 elif os_type == OSType.DEBIAN:
                     # Use Debian-specific kernel extraction (install.amd/ directory)
-                    local_kernel_path, local_initrd_path = (
-                        self._extract_debian_iso_kernel_initrd(local_iso_path)
+                    local_kernel_path, local_initrd_path = self._extract_debian_iso_kernel_initrd(
+                        local_iso_path
                     )
                 elif os_type == OSType.FEDORA:
                     # Use Fedora-specific kernel extraction (images/pxeboot/ directory)
-                    local_kernel_path, local_initrd_path = (
-                        self._extract_fedora_iso_kernel_initrd(local_iso_path)
+                    local_kernel_path, local_initrd_path = self._extract_fedora_iso_kernel_initrd(
+                        local_iso_path
                     )
                 elif os_type == OSType.ARCHLINUX:
                     # Use Arch Linux-specific kernel extraction (arch/boot/x86_64/ directory)
@@ -2640,8 +2660,8 @@ class VMProvisioner:
                     )
                 elif os_type == OSType.ALPINE:
                     # Use Alpine Linux-specific kernel extraction (boot/ directory)
-                    local_kernel_path, local_initrd_path = (
-                        self._extract_alpine_iso_kernel_initrd(local_iso_path)
+                    local_kernel_path, local_initrd_path = self._extract_alpine_iso_kernel_initrd(
+                        local_iso_path
                     )
                 else:
                     # Use OpenSUSE/SLES kernel extraction (boot/{arch}/loader/)

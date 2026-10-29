@@ -52,7 +52,7 @@ class HostDashboardModal(BaseModal[None]):
 
                 with Horizontal(classes="usage-row"):
                     yield Label(
-                        f"{used_mem/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_pct:.1f}%)"
+                        f"{used_mem / 1024:.1f} GB / {total_mem / 1024:.1f} GB ({mem_pct:.1f}%)"
                     )
                     yield ProgressBar(
                         total=100, show_percentage=False, show_eta=False, id="mem-bar"
@@ -160,7 +160,7 @@ class HostDashboardModal(BaseModal[None]):
 
         self.query_one("#mem-alloc-bar-total", ProgressBar).update(progress=mem_alloc_pct_total)
         self.query_one("#mem-alloc-label-total", Label).update(
-            f"{StaticText.ALLOCATED_MEMORY} (Total): {alloc_mem_total/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_alloc_pct_total:.1f}%)"
+            f"{StaticText.ALLOCATED_MEMORY} (Total): {alloc_mem_total / 1024:.1f} GB / {total_mem / 1024:.1f} GB ({mem_alloc_pct_total:.1f}%)"
         )
 
         # Active Allocation
@@ -175,7 +175,7 @@ class HostDashboardModal(BaseModal[None]):
         mem_alloc_pct_active = (alloc_mem_active / total_mem * 100) if total_mem > 0 else 0
         self.query_one("#mem-alloc-bar-active", ProgressBar).update(progress=mem_alloc_pct_active)
         self.query_one("#mem-alloc-label-active", Label).update(
-            f"{StaticText.ALLOCATED_MEMORY} (Active): {alloc_mem_active/1024:.1f} GB / {total_mem/1024:.1f} GB ({mem_alloc_pct_active:.1f}%)"
+            f"{StaticText.ALLOCATED_MEMORY} (Active): {alloc_mem_active / 1024:.1f} GB / {total_mem / 1024:.1f} GB ({mem_alloc_pct_active:.1f}%)"
         )
 
     @on(Button.Pressed, "#close-btn")

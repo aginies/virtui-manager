@@ -287,7 +287,6 @@ class VManagerCMD(cmd.Cmd):
             return os.get_terminal_size().columns
         except (AttributeError, OSError):
             try:
-
                 result = subprocess.run(["tput", "cols"], capture_output=True, text=True)
                 if result.returncode == 0:
                     return int(result.stdout.strip())
@@ -2638,7 +2637,9 @@ class VManagerCMD(cmd.Cmd):
                 print("   Current VM state will be lost!")
 
                 try:
-                    response = self._get_input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    response = (
+                        self._get_input("\nDo you want to continue? (yes/no): ").lower().strip()
+                    )
                     if response not in ["yes", "y"]:
                         print("Restore cancelled.")
                         return
@@ -3692,7 +3693,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 pools_info,
                 choices_provided=choices_provided,
                 choices_used=choices_used,
-                display_func=lambda p: f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation']/p['capacity']*100) if p['capacity']>0 else 0:.1f}%)",
+                display_func=lambda p: (
+                    f"{p['name']} (Capacity: {p['capacity'] // (1024**3)} GiB, Used: {(p['allocation'] / p['capacity'] * 100) if p['capacity'] > 0 else 0:.1f}%)"
+                ),
                 value_func=lambda p: p["name"],
                 auto_select=True,
             )
@@ -3710,7 +3713,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     templates = [
                         t
                         for t in all_templates
-                        if "autoinstall" in t["filename"].lower() or "preseed" in t["filename"].lower()
+                        if "autoinstall" in t["filename"].lower()
+                        or "preseed" in t["filename"].lower()
                     ]
                 elif "suse" in os_lower or "sles" in os_lower:
                     templates = [

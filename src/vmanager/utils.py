@@ -619,11 +619,7 @@ def terminal_supports_emoji() -> bool:
         return False
 
     # Check encoding — use __stdout__ as Textual may redirect sys.stdout
-    encoding = (
-        getattr(sys.__stdout__, "encoding", "")
-        or os.environ.get("LANG", "")
-        or ""
-    )
+    encoding = getattr(sys.__stdout__, "encoding", "") or os.environ.get("LANG", "") or ""
     if "UTF" not in encoding.upper():
         return False
 
@@ -707,9 +703,7 @@ def run_command(
     if remote_host:
         ssh_cmd = ["ssh", remote_host, " ".join(cmd)]
         logging.debug(f"Running remote command: {' '.join(ssh_cmd)}")
-        return subprocess.run(
-            ssh_cmd, capture_output=True, text=True, check=check, timeout=timeout
-        )
+        return subprocess.run(ssh_cmd, capture_output=True, text=True, check=check, timeout=timeout)
     logging.debug(f"Running local command: {' '.join(cmd)}")
     return subprocess.run(cmd, capture_output=True, text=True, check=check, timeout=timeout)
 
@@ -1134,5 +1128,3 @@ def setup_logging():
         logging.info("--- Logging initialized ---")
 
     setup_cache_monitoring(enable=False)
-
-

@@ -7,7 +7,17 @@ from datetime import datetime
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Grid, Horizontal, Vertical
-from textual.widgets import Button, Checkbox, DataTable, Input, Label, Markdown, Select, Static, Switch
+from textual.widgets import (
+    Button,
+    Checkbox,
+    DataTable,
+    Input,
+    Label,
+    Markdown,
+    Select,
+    Static,
+    Switch,
+)
 
 from ..config import load_config, save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, StatusText, SuccessMessages
@@ -108,7 +118,10 @@ class VMActionsModal(BaseModal[str | None]):
             except Exception:
                 pass
 
-        update("#snapshot_restore", has_snapshots and not is_running and not is_loading and not is_blocked)
+        update(
+            "#snapshot_restore",
+            has_snapshots and not is_running and not is_loading and not is_blocked,
+        )
         update("#snapshot_delete", has_snapshots)
         update("#commit_disk", (is_running or is_blocked) and has_overlay_disks)
         update("#discard_overlay", is_stopped and has_overlay_disks)
