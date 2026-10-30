@@ -86,6 +86,7 @@ from .utils import (
     get_server_color_cached,
     is_remote_connection,
     is_running_under_flatpak,
+    sanitize_sensitive_data,
     setup_cache_monitoring,
     setup_logging,
 )
@@ -377,6 +378,8 @@ class VMManagerTUI(App):
                     self.call_from_thread(self._remove_vms_for_uri, uri)
                 except RuntimeError:
                     self._remove_vms_for_uri(uri)
+                # Never echo credentials embedded in the connection URI.
+                message = sanitize_sensitive_data(message)
 
         target = self.show_success_message
         if level == "error":
@@ -584,7 +587,9 @@ class VMManagerTUI(App):
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
-                        self.call_from_thread(self.show_error_message, error_msg)
+                        self.call_from_thread(
+                            self.show_error_message, sanitize_sensitive_data(error_msg)
+                        )
 
         # Proceed to cache worker
         self._initial_cache_worker()
@@ -697,7 +702,8 @@ class VMManagerTUI(App):
                         self.call_from_thread(
                             self.show_error_message,
                             ErrorMessages.SERVER_CONNECTION_ERROR.format(
-                                server_name=server_name, error_msg=error_msg
+                                server_name=server_name,
+                                error_msg=sanitize_sensitive_data(error_msg),
                             ),
                         )
 
@@ -862,7 +868,7 @@ class VMManagerTUI(App):
         else:
             error_msg = self.vm_service.connection_manager.get_connection_error(uri)
             if not error_msg:
-                error_msg = f"Failed to connect to {uri}"
+                error_msg = f"Failed to connect to {sanitize_sensitive_data(uri)}"
             logging.error(error_msg)
             return False
 
@@ -979,7 +985,8 @@ class VMManagerTUI(App):
                     if error_msg:
                         self.show_error_message(
                             ErrorMessages.SERVER_FAILED_TO_CONNECT.format(
-                                server_name=server_name, error_msg=error_msg
+                                server_name=server_name,
+                                error_msg=sanitize_sensitive_data(error_msg),
                             )
                         )
 
@@ -2069,7 +2076,9 @@ class VMManagerTUI(App):
                     if err and uri not in uris_to_remove:
                         # Only show error if not already marked for removal
                         # This prevents duplicate error messages
-                        errors.append(f"Server '{server_name}': {err}")
+                        errors.append(
+                            f"Server '{server_name}': {sanitize_sensitive_data(err)}"
+                        )
 
                 # Display collected errors
                 for error in errors:
