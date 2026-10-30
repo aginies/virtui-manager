@@ -3990,6 +3990,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         if "autoinstall" in t["filename"].lower()
                         or "preseed" in t["filename"].lower()
                     ]
+                elif "debian" in os_lower:
+                    templates = [
+                        t for t in all_templates if "preseed" in t["filename"].lower()
+                    ]
                 elif "suse" in os_lower or "sles" in os_lower:
                     templates = [
                         t
@@ -4006,6 +4010,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
                 elif "alpine" in os_lower:
                     templates = [t for t in all_templates if "alpine" in t["filename"].lower()]
+                else:
+                    # No OS-specific match (e.g. generic "Linux", "Windows", or
+                    # "Custom"): offer all templates so autoinstall can be selected.
+                    templates = all_templates
             except Exception as e:
                 print(f"Warning: Could not fetch templates: {e}")
 
