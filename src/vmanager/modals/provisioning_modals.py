@@ -20,7 +20,7 @@ from ..provisioning.os_provider import OSType, OSVersion
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..storage_manager import ensure_default_pool, list_storage_pools
 from ..utils import get_ssh_host_from_uri, is_remote_connection, remote_viewer_cmd
-from ..vm_provisioner import VMProvisioner, VMType
+from ..vm_provisioner import DEFAULT_DISK_SIZE_GB, VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name, validate_path_in_allowed_dirs
@@ -450,7 +450,7 @@ class InstallVMModal(BaseModal[Optional[str]]):
     def _update_expert_defaults(self, vm_type, distro=None):
         mem = 4
         vcpu = 2
-        disk_size = 8
+        disk_size = DEFAULT_DISK_SIZE_GB.get(vm_type, 8)
         disk_format = "qcow2"
         boot_uefi = True
 
@@ -473,23 +473,18 @@ class InstallVMModal(BaseModal[Optional[str]]):
         elif vm_type == VMType.SERVER:
             mem = 4
             vcpu = 6
-            disk_size = 18
         elif vm_type == VMType.DESKTOP:
             mem = 4
             vcpu = 4
-            disk_size = 30
         elif vm_type == VMType.LOW_RESOURCE:
             mem = 0.5
             vcpu = 1
-            disk_size = 6
         elif vm_type == VMType.WDESKTOP:
             mem = 16
             vcpu = 8
-            disk_size = 40
         elif vm_type == VMType.WLDESKTOP:
             mem = 4
             vcpu = 4
-            disk_size = 30
             boot_uefi = False
         elif vm_type == VMType.SECURE:
             mem = 4
