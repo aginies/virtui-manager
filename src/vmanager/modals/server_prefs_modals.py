@@ -17,10 +17,10 @@ from textual.worker import Worker
 
 from .. import storage_manager
 from ..constants import (
-    AppCacheTimeout,
     ButtonLabels,
     DialogMessages,
     ErrorMessages,
+    ServerPrefsConstants,
     StaticText,
     SuccessMessages,
     WarningMessages,
@@ -200,10 +200,10 @@ class ServerPrefModal(BaseModal[None]):
             except libvirt.libvirtError:
                 num_vms = 0
 
-            if num_vms > AppCacheTimeout.DONT_DISPLAY_DISK_USAGE:
+            if num_vms > ServerPrefsConstants.DONT_DISPLAY_DISK_USAGE:
                 self.app.show_warning_message(
                     WarningMessages.TOO_MANY_VMS_DISK_USAGE_WARNING_TEMPLATE.format(
-                        count=AppCacheTimeout.DONT_DISPLAY_DISK_USAGE
+                        count=ServerPrefsConstants.DONT_DISPLAY_DISK_USAGE
                     )
                 )
             else:

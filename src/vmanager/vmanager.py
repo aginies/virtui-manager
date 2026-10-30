@@ -37,7 +37,7 @@ from .constants import (
     ErrorMessages,
     ProgressMessages,
     QuickMessages,
-    ServerPallette,
+    ServerPalette,
     StaticText,
     StatusText,
     SuccessMessages,
@@ -86,6 +86,7 @@ from .utils import (
     get_server_color_cached,
     is_remote_connection,
     is_running_under_flatpak,
+    sanitize_sensitive_data,
     setup_cache_monitoring,
     setup_logging,
 )
@@ -317,7 +318,7 @@ class VMManagerTUI(App):
     bulk_operation_in_progress = reactive(False)
     compact_view = reactive(False)
 
-    SERVER_COLOR_PALETTE = ServerPallette.COLOR
+    SERVER_COLOR_PALETTE = ServerPalette.COLOR
     CSS_PATH = ["vmanager.css"]
 
     def __init__(self):
@@ -332,10 +333,11 @@ class VMManagerTUI(App):
         # Used to discard stale/cancelled refresh workers so they cannot
         # re-apply an old snapshot (e.g. re-adding a just-deleted VM card).
         self._refresh_generation = 0
-        self.server_color_map = {}
-        self._color_index = 0
         self.ui = {}
-        self.devel = "(Devel v" + AppInfo.version + ")"
+        dev_mode = os.environ.get("VIRTUI_DEV_MODE") == "1"
+        self.devel = (
+            "(Devel v" + AppInfo.version + ")" if dev_mode else "(v" + AppInfo.version + ")"
+        )
         self.vm_card_pool = VMCardPool(self.VMS_PER_PAGE + 8)
         self._resize_timer = None
         self.filtered_server_uris = None
@@ -357,9 +359,6 @@ class VMManagerTUI(App):
         """Called when the application is unmounted."""
         if hasattr(self, "vm_service"):
             self.vm_service.disconnect_all()
-        if hasattr(self, "worker_manager"):
-            # worker_manager doesn't seem to have a stop method based on quick look but it uses workers
-            pass
 
     def on_service_message(self, level: str, message: str):
         """Callback from VMService to display messages."""
@@ -377,6 +376,8 @@ class VMManagerTUI(App):
                     self.call_from_thread(self._remove_vms_for_uri, uri)
                 except RuntimeError:
                     self._remove_vms_for_uri(uri)
+                # Never echo credentials embedded in the connection URI.
+                message = sanitize_sensitive_data(message)
 
         target = self.show_success_message
         if level == "error":
@@ -584,7 +585,9 @@ class VMManagerTUI(App):
                 else:
                     error_msg = self.vm_service.connection_manager.get_connection_error(uri)
                     if error_msg:
-                        self.call_from_thread(self.show_error_message, error_msg)
+                        self.call_from_thread(
+                            self.show_error_message, sanitize_sensitive_data(error_msg)
+                        )
 
         # Proceed to cache worker
         self._initial_cache_worker()
@@ -697,7 +700,8 @@ class VMManagerTUI(App):
                         self.call_from_thread(
                             self.show_error_message,
                             ErrorMessages.SERVER_CONNECTION_ERROR.format(
-                                server_name=server_name, error_msg=error_msg
+                                server_name=server_name,
+                                error_msg=sanitize_sensitive_data(error_msg),
                             ),
                         )
 
@@ -832,15 +836,6 @@ class VMManagerTUI(App):
         self.worker_manager.cancel_all()
         self.vm_service.disconnect_all()
 
-    def _get_active_connections(self):
-        """Generator that yields active libvirt connection objects."""
-        for uri in self.active_uris:
-            conn = self.vm_service.connect(uri)
-            if conn:
-                yield conn
-            else:
-                self.show_error_message(ErrorMessages.FAILED_TO_OPEN_CONNECTION.format(uri=uri))
-
     def _get_filter_summary(self) -> str:
         """Builds an icon-based summary string for active filters."""
         parts: list[str] = []
@@ -862,7 +857,7 @@ class VMManagerTUI(App):
         else:
             error_msg = self.vm_service.connection_manager.get_connection_error(uri)
             if not error_msg:
-                error_msg = f"Failed to connect to {uri}"
+                error_msg = f"Failed to connect to {sanitize_sensitive_data(uri)}"
             logging.error(error_msg)
             return False
 
@@ -979,7 +974,8 @@ class VMManagerTUI(App):
                     if error_msg:
                         self.show_error_message(
                             ErrorMessages.SERVER_FAILED_TO_CONNECT.format(
-                                server_name=server_name, error_msg=error_msg
+                                server_name=server_name,
+                                error_msg=sanitize_sensitive_data(error_msg),
                             )
                         )
 
@@ -1006,10 +1002,6 @@ class VMManagerTUI(App):
 
             # Use handle_select_server_result to perform cleanup properly
             self.handle_select_server_result(new_active_uris)
-
-    def _collapse_all_action_collapsibles(self) -> None:
-        """No-op: Actions are now in a modal, not collapsible."""
-        pass
 
     def _remove_vms_for_uri(self, uri: str) -> None:
         """Removes all VM cards associated with the given URI."""
@@ -2069,7 +2061,9 @@ class VMManagerTUI(App):
                     if err and uri not in uris_to_remove:
                         # Only show error if not already marked for removal
                         # This prevents duplicate error messages
-                        errors.append(f"Server '{server_name}': {err}")
+                        errors.append(
+                            f"Server '{server_name}': {sanitize_sensitive_data(err)}"
+                        )
 
                 # Display collected errors
                 for error in errors:
@@ -2223,9 +2217,7 @@ class VMManagerTUI(App):
 
     @on(Button.Pressed, "#bulk_selected_vms")
     def action_bulk_cmd(self) -> None:
-        # def on_bulk_selected_vms_button_pressed(self) -> None:
         """Handles the 'Bulk Selected' button press."""
-        self._collapse_all_action_collapsibles()
         if not self.selected_vm_uuids:
             self.show_error_message(ErrorMessages.NO_VMS_SELECTED)
             return

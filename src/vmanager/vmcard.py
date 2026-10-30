@@ -1690,7 +1690,7 @@ class VMCard(Static):
 
         # Check if running in tmux
         if not os.environ.get("TMUX"):
-            self.app.show_error_message("This feature requires running inside tmux.")
+            self.app.show_error_message(ErrorMessages.TMUX_CONSOLE_REQUIRED)
             return
 
         try:

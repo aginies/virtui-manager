@@ -18,7 +18,6 @@ from gi.repository import GLib, Gtk
 
 from .constants import (
     SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT,
-    SSH_TUNNEL_KILL_TIMEOUT,
     SSH_TUNNEL_VERIFY_TIMEOUT,
     TUNNEL_VERIFY_CHECK_INTERVAL_MS,
 )
@@ -275,45 +274,57 @@ class SSHTunnelManager:
         """
         Terminate the SSH tunnel process if active.
 
-        This method is safe to call multiple times and handles cleanup robustly.
-        Can be connected as a GTK signal handler (accepts extra args).
+        Termination is non-blocking: SIGTERM is sent immediately and the
+        process is polled via a GLib timeout, so the GTK main loop never
+        blocks on it. If the process survives the graceful timeout, SIGKILL
+        follows. Safe to call multiple times and usable as a GTK signal
+        handler (accepts extra args).
         """
         if not self.ssh_tunnel_process:
             return
 
+        proc = self.ssh_tunnel_process
+        self.ssh_tunnel_process = None
+        self.ssh_tunnel_active = False
+
         try:
-            self.log("Terminating SSH tunnel")
-
-            # Check if process is still running before attempting termination
-            if self.ssh_tunnel_process.poll() is None:
-                # Process is still running, attempt graceful termination
-                self.ssh_tunnel_process.terminate()
-
-                try:
-                    # Wait for graceful shutdown
-                    self.ssh_tunnel_process.wait(timeout=SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT)
-                    self.log("SSH tunnel terminated gracefully.")
-                except subprocess.TimeoutExpired:
-                    # Force kill if graceful termination failed
-                    self.log("SSH tunnel did not respond to SIGTERM, sending SIGKILL")
-                    self.ssh_tunnel_process.kill()
-                    try:
-                        # Wait for kill to complete
-                        self.ssh_tunnel_process.wait(timeout=SSH_TUNNEL_KILL_TIMEOUT)
-                        self.log("SSH tunnel forcefully terminated.")
-                    except subprocess.TimeoutExpired:
-                        self.log("WARNING: SSH tunnel process may still be running")
-            else:
-                # Process already exited
+            if proc.poll() is not None:
                 self.log("SSH tunnel process already exited.")
+                return
 
-        except Exception as e:
-            # Log but don't raise - cleanup should be robust
+            self.log("Terminating SSH tunnel")
+            proc.terminate()
+        except OSError as e:
             self.log(f"WARNING: Error while stopping SSH tunnel: {e}")
-        finally:
-            # Always clean up our references
-            self.ssh_tunnel_process = None
-            self.ssh_tunnel_active = False
+            return
+
+        start_time = time.time()
+
+        def poll_exited() -> bool:
+            if proc.poll() is not None:
+                self.log("SSH tunnel terminated gracefully.")
+                return False
+
+            if time.time() - start_time >= SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT:
+                self.log("SSH tunnel did not respond to SIGTERM, sending SIGKILL")
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                return False
+
+            return True
+
+        try:
+            GLib.timeout_add(TUNNEL_VERIFY_CHECK_INTERVAL_MS, poll_exited)
+        except Exception:
+            # Main loop may already be gone (e.g. during interpreter
+            # shutdown) - fall back to an immediate kill.
+            self.log("GLib loop unavailable during SSH tunnel stop, killing directly")
+            try:
+                proc.kill()
+            except OSError:
+                pass
 
     def is_active(self) -> bool:
         """

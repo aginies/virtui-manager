@@ -58,6 +58,19 @@ class VMType(Enum):
     SERVER = StaticText.VM_TYPE_SERVER
 
 
+# Reasonable default disk sizes (GiB) per VM type, used when a caller does not
+# specify an explicit disk size (e.g. the vmc installvm command).
+DEFAULT_DISK_SIZE_GB: Dict[VMType, int] = {
+    VMType.SERVER: 32,
+    VMType.DESKTOP: 30,
+    VMType.WDESKTOP: 40,
+    VMType.WLDESKTOP: 30,
+    VMType.LOW_RESOURCE: 6,
+    VMType.SECURE: 8,
+    VMType.COMPUTATION: 8,
+}
+
+
 class VMProvisioner:
     def __init__(self, conn: libvirt.virConnect):
         self.conn = conn
@@ -2400,7 +2413,7 @@ class VMProvisioner:
         storage_pool_name: str,
         memory_mb: int = 4096,
         vcpu: int = 2,
-        disk_size_gb: int = 8,
+        disk_size_gb: int | None = None,
         disk_format: str | None = None,
         graphics_type: str = "spice",
         boot_uefi: bool | None = None,
@@ -2421,7 +2434,8 @@ class VMProvisioner:
             storage_pool_name: Name of the storage pool where the disk will be created.
             memory_mb: RAM in megabytes.
             vcpu: Number of virtual CPUs.
-            disk_size_gb: Disk size in gigabytes.
+            disk_size_gb: Disk size in gigabytes. If None, a type-appropriate
+                default is used (see DEFAULT_DISK_SIZE_GB).
             disk_format: Disk format (e.g., qcow2).
             graphics_type: Graphics type (e.g., spice, vnc).
             boot_uefi: Whether to use UEFI boot.
@@ -2432,6 +2446,11 @@ class VMProvisioner:
         def report(stage, percent):
             if progress_callback:
                 progress_callback(stage, percent)
+
+        # Apply a type-appropriate default disk size when the caller did not
+        # provide one (e.g. the CLI installvm command).
+        if disk_size_gb is None:
+            disk_size_gb = DEFAULT_DISK_SIZE_GB.get(vm_type, 20)
 
         # Determine OS Type from iso_url or automation_config
         os_type = OSType.LINUX

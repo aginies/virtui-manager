@@ -24,7 +24,7 @@ import libvirt
 
 from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
-from .constants import AppInfo, ServerPallette
+from .constants import AppInfo, ServerPalette
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_host_resources, get_network_info
 from .modals.input_modals import _sanitize_domain_name
@@ -38,7 +38,10 @@ from .network_manager import (
 from .pipeline import PipelineExecutor, PipelineMode
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
+    delete_volume,
     ensure_default_pool,
+    find_volume,
+    find_vms_using_volume,
     list_storage_pools,
     list_storage_volumes,
     list_unused_volumes,
@@ -147,7 +150,7 @@ class VManagerCMD(cmd.Cmd):
         self.servers = self.config.get("servers", [])
         self.server_names = [s["name"] for s in self.servers]
         self.server_colors = {
-            s["name"]: ServerPallette.COLOR[i % len(ServerPallette.COLOR)]
+            s["name"]: ServerPalette.COLOR[i % len(ServerPalette.COLOR)]
             for i, s in enumerate(self.servers)
         }
         self.vm_service = vm_service if vm_service is not None else VMService()
@@ -214,7 +217,7 @@ class VManagerCMD(cmd.Cmd):
                 "net_info",
                 "net_autostart",
             ],
-            "Storage": ["list_pool", "list_unused_volumes"],
+            "Storage": ["list_pool", "list_unused_volumes", "delete_volume"],
             "Pipelines": ["pipeline"],
             "Shell/Utils": ["bash", "history", "about", "quit"],
         }
@@ -1183,8 +1186,8 @@ class VManagerCMD(cmd.Cmd):
 
             # Ensure we have a color for this server
             if server_name not in self.server_colors:
-                self.server_colors[server_name] = ServerPallette.COLOR[
-                    len(self.server_colors) % len(ServerPallette.COLOR)
+                self.server_colors[server_name] = ServerPalette.COLOR[
+                    len(self.server_colors) % len(ServerPalette.COLOR)
                 ]
 
             try:
@@ -2090,22 +2093,143 @@ class VManagerCMD(cmd.Cmd):
 
     def complete_list_unused_volumes(self, text, _, _b, _e):
         """Auto-completion for pool names in list_unused_volumes command."""
+        return self._complete_pools(text)
+
+    def _complete_pools(self, text):
+        """Helper to autocomplete storage pool names."""
         if not self.active_connections:
             return []
 
-        all_pool_names = set()
+        all_pools = set()
         for conn in self.active_connections.values():
             try:
                 pools_info = list_storage_pools(conn)
-                pool_names = {pool_info["name"] for pool_info in pools_info}
-                all_pool_names.update(pool_names)
+                all_pools.update(p["name"] for p in pools_info)
             except libvirt.libvirtError:
                 continue
 
         if not text:
-            return list(all_pool_names)
-        else:
-            return [pool for pool in all_pool_names if pool.startswith(text)]
+            return list(all_pools)
+        return [p for p in all_pools if p.startswith(text)]
+
+    def _complete_volumes(self, text, pool_name):
+        """Helper to autocomplete volume names for a given pool."""
+        if not self.active_connections or not pool_name:
+            return []
+
+        all_volumes = set()
+        for conn in self.active_connections.values():
+            for pool_info in list_storage_pools(conn):
+                if pool_info["name"] == pool_name:
+                    all_volumes.update(
+                        v["name"] for v in list_storage_volumes(pool_info["pool"])
+                    )
+                    break
+
+        if not text:
+            return list(all_volumes)
+        return [v for v in all_volumes if v.startswith(text)]
+
+    def _find_volume(self, pool_name, volume_name):
+        """
+        Find a storage volume across connected servers.
+
+        Returns (server_name, conn, volume) or (None, None, None).
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return None, None, None
+
+        matches = []
+        for server_name, conn in self.active_connections.items():
+            vol = find_volume(conn, pool_name, volume_name)
+            if vol is not None:
+                matches.append((server_name, conn, vol))
+
+        if not matches:
+            print(
+                f"Volume '{volume_name}' not found in pool '{pool_name}' on any connected server."
+            )
+            return None, None, None
+
+        if len(matches) == 1:
+            return matches[0]
+
+        print(f"Volume '{volume_name}' found in pool '{pool_name}' on multiple servers:")
+        for i, (name, _, _) in enumerate(matches):
+            print(f"  {i + 1}. {name}")
+
+        try:
+            choice = self._get_input("Select server (number): ")
+            idx = int(choice) - 1
+            if 0 <= idx < len(matches):
+                return matches[idx]
+            print("Invalid selection.")
+        except (ValueError, IndexError):
+            print("Invalid input.")
+        except InterruptionRequested:
+            print("\nOperation cancelled.")
+        return None, None, None
+
+    def do_delete_volume(self, args):
+        """Delete a storage volume from a pool.
+        Usage: delete_volume <pool_name> <volume_name>"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = shlex.split(args) if args else []
+        if len(arg_list) < 2:
+            print("Usage: delete_volume <pool_name> <volume_name>")
+            return
+
+        pool_name, volume_name = arg_list[0], arg_list[1]
+
+        server_name, conn, vol = self._find_volume(pool_name, volume_name)
+        if not vol:
+            return
+
+        # Warn if the volume is still attached to a VM.
+        vms_using = []
+        try:
+            vms_using = find_vms_using_volume(conn, vol.path(), volume_name)
+        except libvirt.libvirtError as e:
+            print(f"Could not check if volume is in use: {e}")
+
+        try:
+            if vms_using:
+                names = ", ".join(d.name() for d in vms_using)
+                print(f"Volume '{volume_name}' is in use by VM(s): {names}")
+                confirm = self._get_input(
+                    "Delete this volume anyway? This cannot be undone. (yes/no): "
+                ).lower()
+            else:
+                confirm = self._get_input(
+                    f"Delete volume '{volume_name}' from pool '{pool_name}' on server "
+                    f"'{server_name}'? This cannot be undone. (yes/no): "
+                ).lower()
+        except InterruptionRequested:
+            print("\nOperation cancelled.")
+            return
+
+        if confirm != "yes":
+            print("Operation cancelled.")
+            return
+
+        try:
+            delete_volume(vol)
+            print(f"Volume '{volume_name}' deleted from pool '{pool_name}' on {server_name}.")
+        except Exception as e:
+            print(f"Error deleting volume '{volume_name}' on {server_name}: {e}")
+
+    def complete_delete_volume(self, text, line, begidx, endidx):
+        """Auto-completion for delete_volume: pool name then volume name."""
+        args = line.split()
+        if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
+            # Completing the pool name
+            return self._complete_pools(text)
+        # Completing the volume name (pool is the first argument)
+        return self._complete_volumes(text, args[1])
 
     def do_help(self, arg):
         """List available commands with "help" or detailed help with "help cmd"."""
@@ -3604,37 +3728,50 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
             # 3. Select Distribution
             registry = provisioner.provider_registry
+            custom_distro = "Custom"
+            distro_options = registry.get_supported_os_types() + [custom_distro]
             selected_os_type = self._select_choice(
                 "Select Distribution",
-                registry.get_supported_os_types(),
+                distro_options,
                 choices_provided=choices_provided,
                 choices_used=choices_used,
-                display_func=lambda os_t: os_t.value,
+                display_func=lambda os_t: os_t if isinstance(os_t, str) else os_t.value,
                 auto_select=False,
             )
             if not selected_os_type:
                 return
+            is_custom = selected_os_type == custom_distro
 
-            # 4. Select Version
-            versions = registry.get_supported_versions(selected_os_type)
-            selected_version = self._select_choice(
-                f"Select Version for {selected_os_type.value}",
-                versions,
-                choices_provided=choices_provided,
-                choices_used=choices_used,
-                display_func=lambda v: v.display_name,
-                auto_select=False,
-            )
-            if not selected_version:
-                return
+            # 4. Select Version (skipped for Custom)
+            if is_custom:
+                selected_version = None
+            else:
+                versions = registry.get_supported_versions(selected_os_type)
+                selected_version = self._select_choice(
+                    f"Select Version for {selected_os_type.value}",
+                    versions,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=lambda v: v.display_name,
+                    auto_select=False,
+                )
+                if not selected_version:
+                    return
 
             # 5. Select ISO
-            iso_sources = [
-                "Distribution repository",
-                "Cached ISOs",
-                "Pool volumes",
-                "Custom URL/Path",
-            ]
+            if is_custom:
+                iso_sources = [
+                    "Cached ISOs",
+                    "Pool volumes",
+                    "Custom URL/Path",
+                ]
+            else:
+                iso_sources = [
+                    "Distribution repository",
+                    "Cached ISOs",
+                    "Pool volumes",
+                    "Custom URL/Path",
+                ]
             iso_source = self._select_choice(
                 "Select ISO Source",
                 iso_sources,
@@ -3827,19 +3964,35 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 return
             boot_uefi = boot_mode == "UEFI"
 
-            # 9. Automated Installation
+            # 9. Select Graphics (VNC or Spice)
+            graphics_type = self._select_choice(
+                "Select Graphics",
+                ["Spice", "VNC"],
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                value_func=lambda g: g.lower(),
+                auto_select=False,
+            )
+            if not graphics_type:
+                return
+
+            # 10. Automated Installation
             auto_config = None
             templates = []
             try:
                 template_mgr = AutoYaSTTemplateManager(provisioner)
                 all_templates = template_mgr.get_all_templates()
-                os_lower = selected_os_type.value.lower()
+                os_lower = "" if is_custom else selected_os_type.value.lower()
                 if "ubuntu" in os_lower:
                     templates = [
                         t
                         for t in all_templates
                         if "autoinstall" in t["filename"].lower()
                         or "preseed" in t["filename"].lower()
+                    ]
+                elif "debian" in os_lower:
+                    templates = [
+                        t for t in all_templates if "preseed" in t["filename"].lower()
                     ]
                 elif "suse" in os_lower or "sles" in os_lower:
                     templates = [
@@ -3857,6 +4010,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     templates = [t for t in all_templates if "archinstall" in t["filename"].lower()]
                 elif "alpine" in os_lower:
                     templates = [t for t in all_templates if "alpine" in t["filename"].lower()]
+                else:
+                    # No OS-specific match (e.g. generic "Linux", "Windows", or
+                    # "Custom"): offer all templates so autoinstall can be selected.
+                    templates = all_templates
             except Exception as e:
                 print(f"Warning: Could not fetch templates: {e}")
 
@@ -3926,13 +4083,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             if target_server:
                 print(f"Server: {target_server}")
             print(f"VM Type: {selected_vm_type.name}")
-            print(f"Distribution: {selected_os_type.value}")
-            print(f"Version: {selected_version.display_name}")
+            print(f"Distribution: {'Custom' if is_custom else selected_os_type.value}")
+            print(f"Version: {selected_version.display_name if selected_version else 'N/A'}")
             print(f"ISO: {iso_url}")
             print(f"ISO Source: {iso_source}")
             print(f"Network: {selected_network}")
             print(f"Storage Pool: {selected_pool}")
             print(f"Boot Mode: {boot_mode}")
+            print(f"Graphics: {'Spice' if graphics_type == 'spice' else 'VNC'}")
             if auto_config:
                 print(f"Automated Install: Yes (Template: {selected_template})")
             else:
@@ -3963,6 +4121,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 progress_callback=cli_progress_callback,
                 network_name=selected_network,
                 boot_uefi=boot_uefi,
+                graphics_type=graphics_type,
             )
             if domain:
                 print(f"\nSuccessfully provisioned VM '{vm_name}'.")

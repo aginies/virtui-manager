@@ -9,13 +9,11 @@ CONSTANTS_FILE = os.path.join(BASE_DIR, "../src/vmanager/constants.py")
 SEARCH_DIR = os.path.join(BASE_DIR, "../src")
 
 dont_check_files = [
-    "remote_viewer.py",
     "vmanager_cmd.py",
     "gui_wrapper.py",
     "i18n.py",
     "virtui_dev.py",
     "wrapper.py",
-    "remote_viewer_gtk4.py",
 ]
 
 

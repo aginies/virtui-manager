@@ -16,7 +16,7 @@ import libvirt
 from .connection_manager import ConnectionManager
 from .constants import AppCacheTimeout, StatusText, VmAction, VmStatus
 from .storage_manager import check_domain_volumes_in_use
-from .utils import extract_server_name_from_uri, natural_sort_key
+from .utils import extract_server_name_from_uri, natural_sort_key, sanitize_sensitive_data
 from .vm_actions import delete_vm, force_off_vm, hibernate_vm, pause_vm, start_vm, stop_vm
 from .vm_queries import (
     get_boot_info,
@@ -241,12 +241,16 @@ class VMService:
         }
         reason_str = reasons.get(reason, f"Code {reason}")
 
-        logging.warning(f"Connection to {uri} closed: {reason_str}")
+        logging.warning(f"Connection to {sanitize_sensitive_data(uri)} closed: {reason_str}")
 
-        # Send message to UI
+        # Send message to UI. The URI is intentionally kept un-sanitized here
+        # because the TUI parses it to clean up the affected VM cards;
+        # the UI sanitizes the message before displaying it.
         if self._message_callback:
             self._message_callback(
-                "warning", f"Connection to {uri} lost: {reason_str}. Attempting to reconnect..."
+                "warning",
+                f"Connection to {uri} lost: {reason_str}. "
+                "Attempting to reconnect...",
             )
 
         # Clean up event callbacks tracking

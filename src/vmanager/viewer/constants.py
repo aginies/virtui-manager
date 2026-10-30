@@ -15,9 +15,6 @@ SSH_TUNNEL_VERIFY_TIMEOUT = 5
 # Time to wait for SSH process to gracefully terminate (seconds)
 SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT = 5
 
-# Time to wait for SSH process to die after SIGKILL (seconds)
-SSH_TUNNEL_KILL_TIMEOUT = 2
-
 # Delay before attempting to use SSH tunnel after starting (milliseconds)
 SSH_TUNNEL_CONNECT_DELAY_MS = 500
 
@@ -70,7 +67,6 @@ LIBVIRT_EVENT_TICK_INTERVAL_MS = 100
 __all__ = [
     "SSH_TUNNEL_VERIFY_TIMEOUT",
     "SSH_TUNNEL_GRACEFUL_SHUTDOWN_TIMEOUT",
-    "SSH_TUNNEL_KILL_TIMEOUT",
     "SSH_TUNNEL_CONNECT_DELAY_MS",
     "TUNNEL_VERIFY_CHECK_INTERVAL_MS",
     "NOTIFICATION_TIMEOUT_SECONDS",

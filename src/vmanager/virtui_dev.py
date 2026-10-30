@@ -41,6 +41,8 @@ def setup_path():
 
 
 def run_tui():
+    # Signal that we run from a source checkout so the title shows a "Devel" marker.
+    os.environ["VIRTUI_DEV_MODE"] = "1"
     from vmanager import vmanager
 
     if hasattr(vmanager, "main"):

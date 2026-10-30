@@ -190,7 +190,9 @@ class ConnectionManager:
 
             if conn is None:
                 # This case can happen if the URI is valid but the hypervisor is not running
-                raise libvirt.libvirtError(f"libvirt.open('{uri}') returned None")
+                raise libvirt.libvirtError(
+                    f"libvirt.open('{sanitize_credentials(uri)}') returned None"
+                )
 
             # Enable keepalive for remote connections
             # Local connections (qemu:///system, etc.) usually don't support it and raise an error
@@ -213,7 +215,11 @@ class ConnectionManager:
                 self._failed_attempts[uri] = self._failed_attempts.get(uri, 0) + 1
                 count = self._failed_attempts[uri]
 
-            error_message = f"Failed to connect to '{uri}' (Attempt {count}/3): {e}"
+            safe_uri = sanitize_credentials(uri)
+            error_message = (
+                f"Failed to connect to '{safe_uri}' (Attempt {count}/3): "
+                f"{sanitize_credentials(str(e))}"
+            )
             if count >= 3:
                 error_message += " - Max retries reached. Will not try again."
 

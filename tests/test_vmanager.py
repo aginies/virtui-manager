@@ -1545,32 +1545,6 @@ class TestVMManagerHelpers(unittest.TestCase):
         mock_vm_service.return_value = self.mock_vm_service
         self.app = VMManagerTUI()
 
-    def test_get_active_connections_yields_connections(self):
-        """Test that _get_active_connections yields valid connections."""
-        self.app.active_uris = ["qemu:///system"]
-        mock_conn = MagicMock()
-        self.app.vm_service.connect = MagicMock(return_value=mock_conn)
-
-        connections = list(self.app._get_active_connections())
-
-        self.assertEqual(len(connections), 1)
-        self.assertEqual(connections[0], mock_conn)
-
-    def test_get_active_connections_shows_error_on_failure(self):
-        """Test that _get_active_connections shows error on connection failure."""
-        self.app.active_uris = ["qemu:///system"]
-        self.app.vm_service.connect = MagicMock(return_value=None)
-        self.app.show_error_message = MagicMock()
-
-        connections = list(self.app._get_active_connections())
-
-        self.assertEqual(len(connections), 0)
-        self.app.show_error_message.assert_called_once()
-
-    def test_collapse_all_action_collapsibles_is_noop(self):
-        """Test that _collapse_all_action_collapsibles is a safe no-op (actions are in a modal now)."""
-        self.app._collapse_all_action_collapsibles()  # Should not raise
-
     def test_remove_vms_for_uri_releases_cards(self):
         """Test that _remove_vms_for_uri releases VM cards for the given URI."""
         uri = "qemu:///system"
@@ -1607,6 +1581,27 @@ class TestVMManagerHelpers(unittest.TestCase):
         self.app._remove_vms_for_uri(uri)
 
         self.app.vm_card_pool.release_card.assert_not_called()
+
+    def test_on_service_message_connection_loss_cleans_raw_uri_sanitized_display(self):
+        """Connection loss must clean up cards using the raw URI while the
+        displayed toast never leaks the credentials embedded in that URI."""
+        uri = "qemu+ssh://user:pass@host/system"
+        message = f"Connection to {uri} lost: Error. Attempting to reconnect..."
+
+        self.app._remove_vms_for_uri = MagicMock()
+        self.app.show_warning_message = MagicMock()
+        # Force the synchronous fallback path of on_service_message.
+        self.app.call_from_thread = MagicMock(side_effect=RuntimeError)
+
+        self.app.on_service_message("warning", message)
+
+        # Card cleanup must receive the raw URI, not the sanitized one.
+        self.app._remove_vms_for_uri.assert_called_once_with(uri)
+        self.app.show_warning_message.assert_called_once()
+        displayed = self.app.show_warning_message.call_args[0][0]
+        # Display must be sanitized: no credentials, redaction marker present.
+        self.assertNotIn("user:pass", displayed)
+        self.assertIn("***", displayed)
 
 
 # ============================================================================
@@ -1682,7 +1677,6 @@ class TestVMManagerBulkActions(unittest.TestCase):
         """Test that action_bulk_cmd shows error when nothing selected."""
         self.app.selected_vm_uuids = set()
         self.app.show_error_message = MagicMock()
-        self.app._collapse_all_action_collapsibles = MagicMock()
 
         self.app.action_bulk_cmd()
 
@@ -1691,7 +1685,6 @@ class TestVMManagerBulkActions(unittest.TestCase):
     def test_action_bulk_cmd_with_selection_launches_worker(self):
         """Test that action_bulk_cmd launches worker when VMs selected."""
         self.app.selected_vm_uuids = {"uuid-123", "uuid-456"}
-        self.app._collapse_all_action_collapsibles = MagicMock()
         self.app.worker_manager.run = MagicMock()
 
         self.app.action_bulk_cmd()

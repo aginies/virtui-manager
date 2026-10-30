@@ -4,6 +4,56 @@ All notable changes to Virtui Manager are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.9]
+
+### Changed
+- Use plain ACPI shutdown/reboot instead of the QEMU guest agent for reliable power
+  actions.
+
+### Fixed
+- Refresh the VM list after a rename so the updated name is displayed.
+- Remove all video devices (not just the first) and use correct model defaults when
+  changing the video model.
+- Fix Python 3.9 compatibility (PEP 604 union annotations).
+- Pin the CI lint/test jobs to ubuntu-24.04 so the source-built libvirt-python
+  10.0.0 matches the libvirt version shipped by that distro.
+
+### Removed
+- Cleaned up 4 unused constants.
+
+## [3.3.6]
+
+### Added
+- Prefer the QEMU guest agent for graceful shutdown and reboot with automatic
+  fallback to plain ACPI.
+- Helper to detect whether the QEMU guest agent is available in the guest.
+
+### Changed
+- Snapshot quiesce now requires the guest agent to be both configured and running.
+
+### Fixed
+- Make libvirt event registration idempotent (no duplicate/leaked callbacks on
+  connection re-registration).
+- Fix a stale refresh re-adding a removed VM card in the main view.
+
+### Refactored
+- Consolidated the base/components/modals CSS rules into a single vmanager.css
+  and merged remaining duplicate CSS rules.
+
+## [3.3.5]
+
+### Added
+- Pre-flight check of required install binaries (7z, mkfs.vfat, mcopy, qemu-img)
+  before starting a VM installation.
+- Auto-create the target directory when creating a `dir` storage pool.
+- VM card changes prepared alongside the install-tools pre-flight feature.
+
+## [3.3.4]
+
+### Removed
+- Removed commented-out code and verified dead code (cleanup batches).
+- Bumped release to 3.3.4 and cleaned up lint/format.
+
 ## [3.3.3]
 
 ### Added

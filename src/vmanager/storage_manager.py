@@ -10,7 +10,7 @@ import tempfile
 import threading
 import xml.etree.ElementTree as ET
 from functools import lru_cache
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import libvirt
 
@@ -223,6 +223,24 @@ def list_storage_volumes(pool: libvirt.virStoragePool) -> List[Dict[str, Any]]:
     except libvirt.libvirtError:
         pass  # Or log error
     return volumes_info
+
+
+def find_volume(
+    conn: libvirt.virConnect, pool_name: str, volume_name: str
+) -> Optional[libvirt.virStorageVol]:
+    """
+    Look up a storage volume by pool and volume name.
+
+    Returns the virStorageVol object, or None if the pool or volume does
+    not exist (or is not accessible).
+    """
+    if not conn:
+        return None
+    try:
+        pool = conn.storagePoolLookupByName(pool_name)
+        return pool.storageVolLookupByName(volume_name)
+    except libvirt.libvirtError:
+        return None
 
 
 def set_pool_active(pool: libvirt.virStoragePool, active: bool):

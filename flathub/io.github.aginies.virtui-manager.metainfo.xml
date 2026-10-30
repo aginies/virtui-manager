@@ -23,7 +23,7 @@
   </developer>
   <url type="homepage">https://aginies.github.io/virtui-manager</url>
   <url type="bugtracker">https://github.com/aginies/virtui-manager/issues</url>
-  <url type="contribute">https://github.com/aginies//virtui-manager/pulls</url>
+  <url type="contribute">https://github.com/aginies/virtui-manager/pulls</url>
   <launchable type="desktop-id">io.github.aginies.virtui-manager.desktop</launchable>
   <screenshots>
     <screenshot type="default">
@@ -32,6 +32,7 @@
   </screenshots>
   <content_rating type="oars-1.1" />
   <releases>
+    <release version="3.3.9" date="2026-10-30" />
     <release version="1.5.0" date="2026-02-04" />
   </releases>
 </component>

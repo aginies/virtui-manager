@@ -57,8 +57,8 @@ modules:
     buildsystem: autotools
     sources:
       - type: archive
-        url: https://github.com/tmux/tmux/releases/download/3.5a/tmux-3.5a.tar.gz
-        sha256: 16216bd0877170dfcc64157085ba9013610b12b082548c7c9542cc0103198951
+        url: https://github.com/tmux/tmux/releases/download/3.8/tmux-3.8.tar.gz
+        sha256: e79c699c7e949dccd0a4a125e17b8d1261e311b16979dbc8eb34542f3966d82e
 
   - name: libusb
     buildsystem: autotools
@@ -113,8 +113,8 @@ modules:
       - -Dlibssh2=enabled
     sources:
       - type: archive
-        url: https://libvirt.org/sources/libvirt-12.0.0.tar.xz
-        sha256: bf4e680019c04c45b557dd4a7ef59e952887f74e3c47044fe035a961fb624726
+        url: https://download.libvirt.org/libvirt-12.8.0.tar.xz
+        sha256: 0cd46a8f3a2b9b63c35c6e6f42a6c2989183ef3b3d1499ee92b4876db35e6fe9
       - type: patch
         path: libvirt-use-monitor-in-xdg-runtime-dir.patch
     cleanup:
@@ -194,8 +194,8 @@ modules:
       - python3 setup.py install --skip-build --prefix=/app --root=/ --optimize=1
     sources:
       - type: archive
-        url: https://libvirt.org/sources/python/libvirt-python-11.7.0.tar.gz
-        sha256: f65f80fe7dabb47c2ea887bec5f62509b756282acac4fa958ab74706c0b76c11
+        url: https://files.pythonhosted.org/packages/6c/9e/7211301d1d53acfaa5f99bec4af279e575c31e0aca7e2fe84a5aaa73d8f9/libvirt_python-12.8.0.tar.gz
+        sha256: ab24a102ebf99b913ddc3459031aa71a48b0b1cdbb0f423b4ea278052791ac8a
 
   - name: gtk-vnc
     buildsystem: meson
@@ -320,8 +320,8 @@ modules:
       - --disable-zstd
     sources:
       - type: archive
-        url: https://download.qemu.org/qemu-10.2.1.tar.xz
-        sha256: a3717477d8e2c84d630bfffbc20f6cd3293eb45aa1e6dac6d0cc27689991c9e1
+        url: https://download.qemu.org/qemu-11.1.3.tar.xz
+        sha256: 5a8289c7940dc77d3873c81a6c29ba3afe1446fc9d36e77fa1658cdbecb84b22
 
   - name: p7zip
     buildsystem: simple
@@ -373,8 +373,8 @@ modules:
     sources:
       - type: git
         url: https://gitlab.com/libosinfo/osinfo-db.git
-        tag: v20251212
-        commit: 70fe571c605541e7be76b50f430c1cd13959c5b9
+        tag: v20260812
+        commit: ae7a0bfe36940a7dde23fcd95ce60c0608cb7e33
 
   - name: libosinfo
     buildsystem: meson

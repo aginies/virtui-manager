@@ -3,12 +3,7 @@ From: Felipe Borges <felipeborges@gnome.org>
 Date: Wed, 29 Jul 2020 12:03:34 +0200
 Subject: [PATCH] use monitor in XDG_RUNTIME_DIR
 
----
- src/qemu/qemu_process.c | 15 ++++++++++++++-
- 1 file changed, 14 insertions(+), 1 deletion(-)
-
 diff --git a/src/qemu/qemu_process.c b/src/qemu/qemu_process.c
-index d36088ba98..1c57cd66ae 100644
 --- a/src/qemu/qemu_process.c
 +++ b/src/qemu/qemu_process.c
 @@ -22,6 +22,7 @@
@@ -19,8 +14,8 @@ index d36088ba98..1c57cd66ae 100644
  #include <unistd.h>
  #include <signal.h>
  #include <sys/stat.h>
-@@ -3181,10 +3182,22 @@ int
- qemuProcessPrepareMonitorChr(virDomainChrSourceDefPtr monConfig,
+@@ -3425,10 +3426,20 @@
+ qemuProcessPrepareMonitorChr(virDomainChrSourceDef *monConfig,
                               const char *domainDir)
  {
 +    g_autoptr(GFile) file = NULL;
@@ -37,11 +32,10 @@ index d36088ba98..1c57cd66ae 100644
 +
 +    g_mkdir (path, 0700);
 +    monConfig->data.nix.path = g_strdup_printf("%s/monitor.sock", path);
-+    
-+    
 +
      return 0;
  }
  
--- 
+
+--
 2.26.2
