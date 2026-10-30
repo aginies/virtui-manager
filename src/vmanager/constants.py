@@ -7,7 +7,7 @@ Shared constants for the application.
 from .i18n import _
 
 
-class ServerPallette:  # pylint: disable=too-few-public-methods
+class ServerPalette:  # pylint: disable=too-few-public-methods
     """Color for server"""
 
     COLOR = [
@@ -39,6 +39,11 @@ class AppCacheTimeout:  # pylint: disable=too-few-public-methods
 
     INFO_CACHE_TTL = 60
     XML_CACHE_TTL = 3600  # 1 hour
+
+
+class ServerPrefsConstants:  # pylint: disable=too-few-public-methods
+    """Thresholds and limits for Server Preferences views."""
+
     DONT_DISPLAY_DISK_USAGE = 50
 
 
@@ -47,7 +52,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.3.9"
+    version = "3.4.0"
     author = "Antoine Ginies"
 
 
@@ -637,6 +642,9 @@ Specify the NUMA nodes to use.
     PASSWORD_PLACEHOLDER = _("Password")
     BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
     SELECT_VM = _("Select VM")
+    CPU_MODEL_LABEL = _("CPU Model:")
+    VIDEO_MODEL_LABEL = _("Video Model:")
+    SOUND_MODEL_LABEL = _("Sound Model:")
 
     PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP = _(
         "Pause the guest filesystem to ensure a c. .."
@@ -732,9 +740,7 @@ Specify the NUMA nodes to use.
     USER_PASSWORD_PLACEHOLDER = _("user password")
     HOSTNAME_LABEL = _("Hostname")
     HOSTNAME_PLACEHOLDER = _("hostname")
-    LANGUAGE_LABEL = _("Language")
     LANGUAGE_TOOLTIP = _("System language for the installation")
-    KEYBOARD_LABEL = _("Keyboard Layout")
     KEYBOARD_TOOLTIP = _("Keyboard layout for the system")
     SERIAL_CONSOLE_TOOLTIP = _("Adds console=tty0 console=ttyS0,115200 to kernel args")
     CPUS_LABEL = _("CPUs")
@@ -770,8 +776,8 @@ Specify the NUMA nodes to use.
     CLONE_SUFFIX_PLACEHOLDER = _("e.g., -clone")
     SNAPSHOT_DESCRIPTION_PLACEHOLDER = _("snapshot description")
     WEB_CONSOLE_RUNNING_MESSAGE = _("**Web Console** is running at:")
-    WESOCKIFY_SINGLE_CONNECTION_MESSAGE = _(
-        "Wesockify will handle a **single WebSocket** connection and exit. "
+    WEBSOCKIFY_SINGLE_CONNECTION_MESSAGE = _(
+        "Websockify will handle a **single WebSocket** connection and exit. "
         "So it will be possible to **connect only ONE** time. If you disconnect "
         "you need to restart a new Web Console."
     )
@@ -821,11 +827,11 @@ Specify the NUMA nodes to use.
 
     COMPATIBILITY_CHECK_FAILED_TEMPLATE = _("\n[red]✗ Compatibility checks failed for {vm_name}[/]")
     COMPATIBILITY_CHECK_PASSED_TEMPLATE = _(
-        "\\n[green]✓ Compatibility checks passed for {vm_name}[/] "
+        "\n[green]✓ Compatibility checks passed for {vm_name}[/] "
         "(with warnings if any shown above)."
     )
     FATAL_ERROR_CHECKING_TEMPLATE = _(
-        "\\n[on red bold]FATAL ERROR[/]: An unexpected error occurred while checking "
+        "\n[on red bold]FATAL ERROR[/]: An unexpected error occurred while checking "
         "{vm_name}: {error}"
     )
     MIGRATING_VM_HEADER_TEMPLATE = _("\n[bold]--- Migrating {vm_name} ---[/]")
@@ -899,14 +905,13 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     R_VIEWER_NOT_FOUND = _("Remote viewer command not found. Please ensure it is installed.")
     HARD_STOP_WARNING = _("This is a hard stop, like unplugging the power cord.")
     MIGRATION_LOCALHOST_NOT_SUPPORTED = _(
-        "Migration from localhost (qemu:///system) is not supported.\\n"
+        "Migration from localhost (qemu:///system) is not supported.\n"
         "A full remote URI (e.g., qemu+ssh://user@host/system) is required."
     )
     DIFFERENT_SOURCE_HOSTS = _("Cannot migrate VMs from different source hosts at the same time.")
     MIXED_VM_STATES = _("Cannot migrate running/paused and stopped VMs at the same time.")
     WEBSOCKIFY_NOT_FOUND = _("websockify is not installed. 'Web Console' button will be disabled.")
     NOVNC_NOT_FOUND = _("novnc is not installed. 'Web Console' button will be disabled.")
-    FAILED_TO_OPEN_CONNECTION = _("Failed to open connection to [b]{uri}[/b]")
     NOT_CONNECTED_TO_ANY_SERVER = _("Not connected to any server.")
     COULD_NOT_CONNECT_TO_SERVER = _("Could not connect to {uri}")
     NO_ACTION_TYPE_BULK_MODAL = _("No action type received from bulk action modal.")
@@ -1093,8 +1098,8 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     ERROR_UPDATING_POOL_XML_TEMPLATE = _("Error updating pool XML: {error}")
     ERROR_TRUNCATED_TEMPLATE = _("Error ({type}): {message}")
     EDIT_POOL_XML_WARNING = _(
-        "Editing a pool's XML definition is an advanced operation.\\n"
-        "An invalid configuration may make its volumes inaccessible to VMs.\\n\\n"
+        "Editing a pool's XML definition is an advanced operation.\n"
+        "An invalid configuration may make its volumes inaccessible to VMs.\n\n"
         "Are you sure you want to proceed?"
     )
     ERROR_TOGGLE_POOL_ACTIVE_TEMPLATE = _("Error toggling pool active state: {error}")
@@ -1157,7 +1162,6 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     SPICE_REMOVAL_CONFIRMATION_BULK = _(
         "Some selected VMs have other SPICE-related devices.\nDo you want to remove them from ALL selected VMs for a clean switch to VNC?"
     )
-    COULD_NOT_DETERMINE_SOURCE_POOL = _("Could not determine the source pool.")
     ERROR_SAVING_BOOT_ORDER_TEMPLATE = _("Error saving boot order: {error}")
     SANITIZED_INPUT_TOO_LONG = _("Sanitized input is too long (max 64 characters)")
     SANITIZED_DOMAIN_TOO_LONG = _("Sanitized domain name is too long (max 64 characters)")
@@ -1178,6 +1182,7 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     INVALID_SERVER_URI_TEMPLATE = _(
         "Invalid URI '{uri}'.\nURI must start with 'qemu:///' or 'qemu+ssh://'."
     )
+    TMUX_CONSOLE_REQUIRED = _("This feature requires running inside tmux.")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
@@ -1376,7 +1381,7 @@ class VMDetailConstants:  # pylint: disable=too-few-public-methods
 
 
 class ProgressMessages:  # pylint: disable=too-few-public-methods
-    """Constants for success messages"""
+    """Constants for progress and in-progress status messages"""
 
     CONNECTING_TO_SERVER = _("Connecting to [b]{uri}[/b]...")
     CONFIG_UPDATED_REFRESHING_VM_LIST = _("Configuration updated. Refreshing VM list...")

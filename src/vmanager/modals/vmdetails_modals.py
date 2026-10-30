@@ -1966,7 +1966,7 @@ class VMDetailModal(ModalScreen):
 
                         # CPU Model Selection
                         current_cpu_model = self.vm_info.get("cpu_model", "default")
-                        yield Label("CPU Model:", id="cpu-model-label", classes="tabd")
+                        yield Label(StaticText.CPU_MODEL_LABEL, id="cpu-model-label", classes="tabd")
 
                         arch_elem = xml_root.find(".//os/type")
                         arch = arch_elem.get("arch") if arch_elem is not None else "x86_64"
@@ -2364,7 +2364,7 @@ class VMDetailModal(ModalScreen):
 
                         video_model_options = [(model, model) for model in video_models]
 
-                        yield Label("Video Model:", id="video-model-label")
+                        yield Label(StaticText.VIDEO_MODEL_LABEL, id="video-model-label")
                         yield Select(
                             video_model_options,
                             value=current_model,
@@ -2390,7 +2390,7 @@ class VMDetailModal(ModalScreen):
 
                         sound_model_options = [(model, model) for model in sound_models]
 
-                        yield Label("Sound Model:", id="sound-model-label")
+                        yield Label(StaticText.SOUND_MODEL_LABEL, id="sound-model-label")
                         yield Select(
                             sound_model_options,
                             value=(

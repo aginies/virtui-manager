@@ -4,7 +4,7 @@ import logging
 import os
 
 # Setup path to locale
-# This assumes the 'locales' directory is next to this file
+# This assumes the 'locale' directory is next to this file
 LOCALE_DIR = os.path.join(os.path.dirname(__file__), "locale")
 DOMAIN = "virtui-manager"
 

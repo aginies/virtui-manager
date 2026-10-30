@@ -467,7 +467,7 @@ class WebConsoleDialog(BaseDialog[Optional[str]]):
         yield Vertical(
             Markdown(StaticText.WEB_CONSOLE_RUNNING_MESSAGE),
             Markdown(self.url),
-            Markdown(StaticText.WESOCKIFY_SINGLE_CONNECTION_MESSAGE),
+            Markdown(StaticText.WEBSOCKIFY_SINGLE_CONNECTION_MESSAGE),
             Label(""),
             Horizontal(
                 Button(ButtonLabels.STOP, variant="error", id="stop"),

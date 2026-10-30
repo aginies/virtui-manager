@@ -494,13 +494,6 @@ def rename_vm(domain, new_name, delete_snapshots=False):
                             nvram_elem = domain_elem.find("./os/nvram")
                             if nvram_elem is not None:
                                 nvram_elem.text = new_nvram_path
-                    # Update UUID in domain definition to match new domain's UUID (which we just defined)
-                    # Let's ensure the snapshot XML uses the correct UUID if it's there
-                    if domain_elem is not None:
-                        d_uuid = domain_elem.find("uuid")
-                        if d_uuid is not None:
-                            # We didn't change the UUID in the main XML, so it should be fine.
-                            pass
 
                     updated_snap_xml = ET.tostring(snap_root, encoding="unicode")
 
@@ -3025,8 +3018,6 @@ def attach_usb_device(domain: libvirt.virDomain, vendor_id: str, product_id: str
     Attaches a host USB device to the specified VM.
     """
     invalidate_cache(get_internal_id(domain))
-    if domain.isActive():
-        pass
 
     # vendor/product ID in hostdev XML is for libvirt to find it.
     device_xml = f"""
