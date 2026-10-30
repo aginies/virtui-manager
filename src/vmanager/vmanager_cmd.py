@@ -3964,13 +3964,25 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 return
             boot_uefi = boot_mode == "UEFI"
 
-            # 9. Automated Installation
+            # 9. Select Graphics (VNC or Spice)
+            graphics_type = self._select_choice(
+                "Select Graphics",
+                ["Spice", "VNC"],
+                choices_provided=choices_provided,
+                choices_used=choices_used,
+                value_func=lambda g: g.lower(),
+                auto_select=False,
+            )
+            if not graphics_type:
+                return
+
+            # 10. Automated Installation
             auto_config = None
             templates = []
             try:
                 template_mgr = AutoYaSTTemplateManager(provisioner)
                 all_templates = template_mgr.get_all_templates()
-                os_lower = selected_os_type.value.lower()
+                os_lower = "" if is_custom else selected_os_type.value.lower()
                 if "ubuntu" in os_lower:
                     templates = [
                         t
@@ -4063,13 +4075,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             if target_server:
                 print(f"Server: {target_server}")
             print(f"VM Type: {selected_vm_type.name}")
-            print(f"Distribution: {selected_os_type.value}")
-            print(f"Version: {selected_version.display_name}")
+            print(f"Distribution: {'Custom' if is_custom else selected_os_type.value}")
+            print(f"Version: {selected_version.display_name if selected_version else 'N/A'}")
             print(f"ISO: {iso_url}")
             print(f"ISO Source: {iso_source}")
             print(f"Network: {selected_network}")
             print(f"Storage Pool: {selected_pool}")
             print(f"Boot Mode: {boot_mode}")
+            print(f"Graphics: {'Spice' if graphics_type == 'spice' else 'VNC'}")
             if auto_config:
                 print(f"Automated Install: Yes (Template: {selected_template})")
             else:
@@ -4100,6 +4113,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 progress_callback=cli_progress_callback,
                 network_name=selected_network,
                 boot_uefi=boot_uefi,
+                graphics_type=graphics_type,
             )
             if domain:
                 print(f"\nSuccessfully provisioned VM '{vm_name}'.")
