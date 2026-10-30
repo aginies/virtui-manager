@@ -3728,37 +3728,50 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
             # 3. Select Distribution
             registry = provisioner.provider_registry
+            custom_distro = "Custom"
+            distro_options = registry.get_supported_os_types() + [custom_distro]
             selected_os_type = self._select_choice(
                 "Select Distribution",
-                registry.get_supported_os_types(),
+                distro_options,
                 choices_provided=choices_provided,
                 choices_used=choices_used,
-                display_func=lambda os_t: os_t.value,
+                display_func=lambda os_t: os_t if isinstance(os_t, str) else os_t.value,
                 auto_select=False,
             )
             if not selected_os_type:
                 return
+            is_custom = selected_os_type == custom_distro
 
-            # 4. Select Version
-            versions = registry.get_supported_versions(selected_os_type)
-            selected_version = self._select_choice(
-                f"Select Version for {selected_os_type.value}",
-                versions,
-                choices_provided=choices_provided,
-                choices_used=choices_used,
-                display_func=lambda v: v.display_name,
-                auto_select=False,
-            )
-            if not selected_version:
-                return
+            # 4. Select Version (skipped for Custom)
+            if is_custom:
+                selected_version = None
+            else:
+                versions = registry.get_supported_versions(selected_os_type)
+                selected_version = self._select_choice(
+                    f"Select Version for {selected_os_type.value}",
+                    versions,
+                    choices_provided=choices_provided,
+                    choices_used=choices_used,
+                    display_func=lambda v: v.display_name,
+                    auto_select=False,
+                )
+                if not selected_version:
+                    return
 
             # 5. Select ISO
-            iso_sources = [
-                "Distribution repository",
-                "Cached ISOs",
-                "Pool volumes",
-                "Custom URL/Path",
-            ]
+            if is_custom:
+                iso_sources = [
+                    "Cached ISOs",
+                    "Pool volumes",
+                    "Custom URL/Path",
+                ]
+            else:
+                iso_sources = [
+                    "Distribution repository",
+                    "Cached ISOs",
+                    "Pool volumes",
+                    "Custom URL/Path",
+                ]
             iso_source = self._select_choice(
                 "Select ISO Source",
                 iso_sources,
