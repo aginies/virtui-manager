@@ -310,7 +310,7 @@ class InstallVMModal(BaseModal[Optional[str]]):
                                     disabled=True,
                                     tooltip=StaticText.LANGUAGE_TOOLTIP,
                                 )
-                                yield Label(StaticText.KEYBOARD_LABEL, classes="label")
+                                yield Label(StaticText.KEYBOARD_LAYOUT_LABEL, classes="label")
                                 yield Select(
                                     [
                                         ("US", "us"),

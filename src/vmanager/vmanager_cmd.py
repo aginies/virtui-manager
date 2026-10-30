@@ -24,7 +24,7 @@ import libvirt
 
 from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
-from .constants import AppInfo, ServerPallette
+from .constants import AppInfo, ServerPalette
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import get_host_resources, get_network_info
 from .modals.input_modals import _sanitize_domain_name
@@ -150,7 +150,7 @@ class VManagerCMD(cmd.Cmd):
         self.servers = self.config.get("servers", [])
         self.server_names = [s["name"] for s in self.servers]
         self.server_colors = {
-            s["name"]: ServerPallette.COLOR[i % len(ServerPallette.COLOR)]
+            s["name"]: ServerPalette.COLOR[i % len(ServerPalette.COLOR)]
             for i, s in enumerate(self.servers)
         }
         self.vm_service = vm_service if vm_service is not None else VMService()
@@ -1186,8 +1186,8 @@ class VManagerCMD(cmd.Cmd):
 
             # Ensure we have a color for this server
             if server_name not in self.server_colors:
-                self.server_colors[server_name] = ServerPallette.COLOR[
-                    len(self.server_colors) % len(ServerPallette.COLOR)
+                self.server_colors[server_name] = ServerPalette.COLOR[
+                    len(self.server_colors) % len(ServerPalette.COLOR)
                 ]
 
             try:
