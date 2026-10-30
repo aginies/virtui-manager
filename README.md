@@ -49,7 +49,7 @@ VirtUI Manager solves these challenges with:
 
 - **Recommended Minimal Terminal Size**: 34x92. **34x128** is the recommended Size
 - **Remote Connection**: SSH access to libvirt server (ssh-agent recommended)
-- **Python 3.7+**
+- **Python 3.9+**
 - **libvirt** with Python bindings
 - **libosinfo** and **osinfo-db** for dynamic OS version discovery
 - **Python Dependencies**: see requirements.txt file

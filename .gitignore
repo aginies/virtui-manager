@@ -16,6 +16,8 @@ venv/
 ENV/
 documentation/manual/appdocs/
 docs/manual/pdf/
+htmlcov/
+flathub/.flatpak-builder/
 src/vmanager/locales/*/LC_MESSAGES/*.mo
 virtui-manager-*.tar.gz
 tests/.coverage
