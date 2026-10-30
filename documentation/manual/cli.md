@@ -271,6 +271,7 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 *   **`list_pool`**: Displays all storage pools, their capacity, and usage.
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
 *   **`host_info [server]`**: Displays host resource information (CPU models, topology, total/free memory).
+*   **`list_templates [os_name]`**: Lists all auto-installation templates (built-in and user-defined), grouped by automation system. Templates are discovered locally, so no server connection is required. An optional argument filters by automation system or OS name (e.g. `ubuntu`, `fedora`, `opensuse`, `sles`, `arch`, `alpine`).
 
 ```bash
 (ryzen7,g.org) list_pool
@@ -287,7 +288,42 @@ default                        active          58              44              7
 --- Storage Pools on g.org ---
 Pool Name                      Status          Capacity (GiB)  Allocation (GiB) Usage %   
 ------------------------------ --------------- --------------- --------------- ----------
-default                        active          899             375             41.71%    
+default                        active          899             375             41.71%   
+```
+
+```bash
+(vm) list_templates
+
+Available Installation Templates
+Total: 32
+
+Agama:
+Name                                     Source       Description
+---------------------------------------- ------------ --------------------
+Basic Server (Agama)                     built-in     Agama-based basic server installation with essential packages
+...
+Minimal System (Agama)                   built-in     Agama-based minimal installation
+
+Kickstart:
+Name                                     Source       Description
+---------------------------------------- ------------ --------------------
+Basic Server (Kickstart)                 built-in     Basic Fedora server installation with essential packages
+...
+Minimal System (Kickstart)               built-in     Minimal Fedora installation with only core packages
+
+(vm) list_templates fedora
+
+Available Installation Templates
+Total: 5
+
+Kickstart:
+Name                                     Source       Description
+---------------------------------------- ------------ --------------------
+Basic Server (Kickstart)                 built-in     Basic Fedora server installation with essential packages
+Desktop Workstation (Kickstart)          built-in     Fedora Workstation with GNOME desktop environment
+Development Workstation (Kickstart)      built-in     Fedora Workstation with development tools and libraries
+Full Server (Kickstart)                  built-in     Fedora Server product environment
+Minimal System (Kickstart)               built-in     Minimal Fedora installation with only core packages
 ```
 
 ## Advanced Tools

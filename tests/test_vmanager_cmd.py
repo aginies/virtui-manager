@@ -2,9 +2,11 @@
 Tests for VManagerCMD class.
 """
 
+import io
 import os
 import sys
 import unittest
+from contextlib import redirect_stdout
 from unittest.mock import MagicMock, patch
 
 # Add the src directory to the path to import vmanager modules
@@ -128,6 +130,48 @@ class TestVManagerCMD(unittest.TestCase):
 
         completions = self.cmd.complete_connect("Act", "connect Act", 8, 11)
         self.assertIn("ActiveServer", completions)
+
+    def _run_list_templates(self, args=""):
+        """Run do_list_templates and capture its output."""
+        buffer = io.StringIO()
+        with redirect_stdout(buffer):
+            self.cmd.do_list_templates(args)
+        return buffer.getvalue()
+
+    def test_list_templates_lists_builtin(self):
+        """list_templates lists built-in templates without a connection."""
+        output = self._run_list_templates()
+        self.assertIn("Available Installation Templates", output)
+        self.assertGreater(output.count("built-in"), 0)
+
+    def test_list_templates_works_without_connection(self):
+        """list_templates is a local operation and needs no active connection."""
+        self.cmd.active_connections = {}
+        output = self._run_list_templates()
+        self.assertIn("Available Installation Templates", output)
+
+    def test_list_templates_filter_by_system(self):
+        """list_templates filters templates by automation system / OS name."""
+        output = self._run_list_templates("fedora")
+        self.assertIn("Kickstart", output)
+        self.assertNotIn("Preseed", output)
+        # Five built-in Kickstart templates (matched by their display-name suffix).
+        self.assertEqual(output.count("(Kickstart)"), 5)
+
+    def test_list_templates_filter_unknown(self):
+        """list_templates reports when no template matches the filter."""
+        output = self._run_list_templates("not-a-distro")
+        self.assertIn("No installation templates found", output)
+
+    def test_list_templates_completion(self):
+        """complete_list_templates offers automation system / OS names."""
+        completions = self.cmd.complete_list_templates("", None, None, None)
+        self.assertIn("Ubuntu", completions)
+        self.assertIn("Fedora", completions)
+        self.assertIn("Arch", completions)
+        self.assertEqual(
+            self.cmd.complete_list_templates("fe", None, None, None), ["Fedora"]
+        )
 
 
 if __name__ == "__main__":

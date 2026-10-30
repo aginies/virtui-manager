@@ -218,6 +218,7 @@ class VManagerCMD(cmd.Cmd):
                 "net_autostart",
             ],
             "Storage": ["list_pool", "list_unused_volumes", "delete_volume"],
+            "Installation": ["list_templates"],
             "Pipelines": ["pipeline"],
             "Shell/Utils": ["bash", "history", "about", "quit"],
         }
@@ -2090,6 +2091,99 @@ class VManagerCMD(cmd.Cmd):
                 print(f"Error listing storage pools on {server_name}: {e}")
             except Exception as e:
                 print(f"An unexpected error occurred on {server_name}: {e}")
+
+    def do_list_templates(self, args):
+        """Lists all available auto-installation templates (built-in and user-defined).
+        Templates are grouped by automation system. An optional argument filters by
+        automation system or OS name (e.g. 'list_templates ubuntu').
+        Usage: list_templates [os_name]"""
+        template_manager = AutoYaSTTemplateManager()
+
+        try:
+            templates = template_manager.get_all_templates()
+        except Exception as e:
+            print(f"Error gathering templates: {e}")
+            return
+
+        # Group by automation system derived from the filename prefix.
+        def _system(name: str) -> str:
+            for prefix in (
+                "alpine-answers-",
+                "archinstall-",
+                "kickstart-",
+                "preseed-",
+                "autoinstall-",
+                "agama-",
+                "autoyast-",
+            ):
+                if name.startswith(prefix):
+                    return prefix.replace("-", "").replace("_", "").title()
+            return "Custom"
+
+        # Searchable terms for a template (name, description, system, OS aliases).
+        def _search_terms(template: dict) -> set[str]:
+            system = _system(template["filename"])
+            aliases = {
+                "Kickstart": {"fedora"},
+                "Autoinstall": {"ubuntu", "cloud"},
+                "Preseed": {"ubuntu"},
+                "Autoyast": {"opensuse", "sles", "suse"},
+                "Agama": {"opensuse", "sles", "suse"},
+                "Archinstall": {"arch"},
+                "Alpineanswers": {"alpine"},
+            }
+            terms = {
+                template.get("os_name", "").lower(),
+                template["filename"].lower(),
+                template["display_name"].lower(),
+                template.get("description", "").lower(),
+                system.lower(),
+            }
+            terms |= aliases.get(system, set())
+            return {t for t in terms if t}
+
+        filter_value = args.strip().lower() if args.strip() else None
+        if filter_value:
+            templates = [t for t in templates if filter_value in _search_terms(t)]
+
+        if not templates:
+            print("No installation templates found")
+            return
+        groups: dict[str, list[dict]] = {}
+        for template in templates:
+            groups.setdefault(_system(template["filename"]), []).append(template)
+
+        print("\nAvailable Installation Templates")
+        print(f"Total: {len(templates)}\n")
+
+        for system in sorted(groups):
+            print(f"\033[1;36m{system}:\033[0m")
+            print(f"{'Name':<40} {'Source':<12} Description")
+            print(f"{'-' * 40} {'-' * 12} {'-' * 20}")
+            for template in groups[system]:
+                source = (
+                    "built-in"
+                    if template.get("type") == "built-in"
+                    else "user"
+                )
+                print(
+                    f"{template['display_name']:<40} {source:<12} {template.get('description', '')}"
+                )
+            print()
+
+    def complete_list_templates(self, text, _, _b, _e):
+        """Auto-completion for automation system / OS names in list_templates."""
+        prefixes = (
+            "openSUSE",
+            "SLES",
+            "Ubuntu",
+            "Fedora",
+            "Arch",
+            "Alpine",
+        )
+        if not text:
+            return list(prefixes)
+        return [p for p in prefixes if p.lower().startswith(text.lower())]
 
     def complete_list_unused_volumes(self, text, _, _b, _e):
         """Auto-completion for pool names in list_unused_volumes command."""
