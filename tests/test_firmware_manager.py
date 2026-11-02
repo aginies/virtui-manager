@@ -16,6 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 from vmanager.firmware_manager import (
     Firmware,
     _load_firmware_from_files,
+    _load_firmware_from_json_map,
     clear_firmware_cache,
     get_uefi_files,
     select_best_firmware,
@@ -158,289 +159,272 @@ class TestGetUefiFiles(unittest.TestCase):
         """Clear cache before each test"""
         clear_firmware_cache()
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    @patch("vmanager.firmware_manager._load_firmware_from_files")
-    def test_get_uefi_files_with_connection_and_capabilities(self, mock_load_files, mock_get_caps):
-        """Test get_uefi_files with a valid connection and domain capabilities"""
-        # Mock domain capabilities XML with loaders
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                    <value>/usr/share/OVMF/OVMF_CODE.secboot.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
+    def tearDown(self):
+        """Clear cache after each test"""
+        clear_firmware_cache()
 
-        # Mock the _load_firmware_from_files to populate the list
-        def populate_files(uefi_files):
+    # -- helpers --------------------------------------------------------
+
+    @staticmethod
+    def _completed(stdout="", returncode=0, args=None):
+        import subprocess
+
+        if args is None:
+            args = ["ssh", "host", "cmd"]
+        return subprocess.CompletedProcess(args=args, returncode=returncode, stdout=stdout)
+
+    @staticmethod
+    def _x86_64_json():
+        return json.dumps(
+            {
+                "interface-types": ["uefi"],
+                "mapping": {
+                    "executable": {"filename": "/usr/share/OVMF/OVMF_CODE.fd"},
+                    "nvram-template": {"filename": "/usr/share/OVMF/OVMF_VARS.fd"},
+                },
+                "features": ["secure-boot"],
+                "targets": [{"architecture": "x86_64", "machines": ["pc-q35-*"]}],
+            }
+        )
+
+    @staticmethod
+    def _aarch64_json():
+        return json.dumps(
+            {
+                "interface-types": ["uefi"],
+                "mapping": {
+                    "executable": {"filename": "/usr/share/AAVMF/AAVMF_CODE.fd"},
+                    "nvram-template": {"filename": "/usr/share/AAVMF/AAVMF_VARS.fd"},
+                },
+                "targets": [{"architecture": "aarch64", "machines": ["virt-*"]}],
+            }
+        )
+
+    # -- local connection ----------------------------------------------
+
+    @patch("vmanager.firmware_manager._load_firmware_from_files")
+    def test_local_connection_reads_local_files(self, mock_load_files):
+        """A None connection reads the local firmware JSON files."""
+
+        def populate(uefi_files):
             fw = Firmware()
             fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
             fw.architectures = ["x86_64"]
             fw.interfaces = ["uefi"]
-            fw.features = ["secure-boot"]
             uefi_files.append(fw)
 
-        mock_load_files.side_effect = populate_files
-
-        # Create mock connection
-        mock_conn = MagicMock()
-
-        result = get_uefi_files(mock_conn)
-
-        # Should have called get_domain_capabilities_xml
-        mock_get_caps.assert_called_once()
-        # Should have tried to load from files
-        mock_load_files.assert_called_once()
-        # Should return firmware list
-        self.assertGreater(len(result), 0)
-
-    @patch("vmanager.firmware_manager._load_firmware_from_files")
-    def test_get_uefi_files_without_connection(self, mock_load_files):
-        """Test get_uefi_files without a connection (local filesystem)"""
-
-        def populate_files(uefi_files):
-            fw = Firmware()
-            fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
-            fw.architectures = ["x86_64"]
-            fw.interfaces = ["uefi"]
-            uefi_files.append(fw)
-
-        mock_load_files.side_effect = populate_files
+        mock_load_files.side_effect = populate
 
         result = get_uefi_files(None)
 
-        # Should have loaded from filesystem
         mock_load_files.assert_called_once()
         self.assertGreater(len(result), 0)
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    @patch("vmanager.firmware_manager._load_firmware_from_files")
-    def test_get_uefi_files_fallback_on_no_capabilities(self, mock_load_files, mock_get_caps):
-        """Test fallback to filesystem when domain capabilities unavailable"""
-        mock_get_caps.return_value = None
+    # -- remote connection (SSH) ---------------------------------------
 
-        def populate_files(uefi_files):
+    @patch("vmanager.firmware_manager.run_command")
+    @patch("vmanager.firmware_manager.get_ssh_host_from_uri", return_value="user@host")
+    def test_remote_connection_reads_remote_files(self, mock_ssh_host, mock_run_command):
+        """A qemu+ssh connection reads firmware JSON from the remote host via SSH,
+        discovering every architecture (x86_64 and aarch64 here)."""
+
+        def fake_run_command(cmd, remote_host=None, check=True, timeout=30):
+            # A single combined remote command; emit RS-separated file blocks.
+            combined = (
+                "\x1eovmf-x86_64.json\n" + self._x86_64_json() + "\n"
+                "\x1eAAVMF-aarch64.json\n" + self._aarch64_json() + "\n"
+            )
+            return self._completed(combined, returncode=0)
+
+        mock_run_command.side_effect = fake_run_command
+
+        mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu+ssh://user@host/system"
+
+        result = get_uefi_files(mock_conn)
+
+        # Both architectures discovered from the remote host.
+        archs = {a for fw in result for a in fw.architectures}
+        self.assertIn("x86_64", archs)
+        self.assertIn("aarch64", archs)
+        # NVRAM templates came from the remote JSON metadata.
+        nvram = [f for f in result if f.nvram_template]
+        self.assertGreater(len(nvram), 0)
+        # SSH was used with the parsed host.
+        mock_ssh_host.assert_called_once_with("qemu+ssh://user@host/system")
+
+    @patch("vmanager.firmware_manager.run_command")
+    @patch("vmanager.firmware_manager.get_ssh_host_from_uri", return_value="user@host")
+    def test_remote_ssh_read_failure_returns_empty(self, mock_ssh_host, mock_run_command):
+        """If the remote firmware read fails, return an empty list."""
+
+        def fake_run_command(cmd, remote_host=None, check=True, timeout=30):
+            return self._completed("", returncode=1)
+
+        mock_run_command.side_effect = fake_run_command
+        mock_ssh_host.return_value = "user@host"
+
+        mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu+ssh://user@host/system"
+
+        result = get_uefi_files(mock_conn)
+
+        self.assertEqual(result, [])
+
+    @patch("vmanager.firmware_manager.run_command")
+    @patch("vmanager.firmware_manager.get_ssh_host_from_uri", return_value="user@host")
+    def test_remote_read_does_not_interpolate_filenames(
+        self, mock_ssh_host, mock_run_command
+    ):
+        """Filenames with shell metacharacters are never interpolated into the
+        remote command (the remote shell performs the globbing)."""
+
+        weird = "OVMF's 'boot'; rm -rf .json"
+        combined = "\x1e" + weird + "\n" + self._x86_64_json() + "\n"
+
+        def fake_run_command(cmd, remote_host=None, check=True, timeout=30):
+            # The command must not contain the filename (no interpolation).
+            self.assertNotIn(weird, " ".join(cmd))
+            return self._completed(combined, returncode=0)
+
+        mock_run_command.side_effect = fake_run_command
+        mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu+ssh://user@host/system"
+
+        result = get_uefi_files(mock_conn)
+
+        # The file is still parsed and loaded despite the hostile filename.
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].architectures, ["x86_64"])
+
+    @patch("vmanager.firmware_manager.get_ssh_host_from_uri", return_value=None)
+    @patch("vmanager.firmware_manager._load_firmware_from_files")
+    def test_non_ssh_connection_falls_back_to_local(self, mock_load_files, mock_ssh_host):
+        """A non-SSH connection (no SSH host) falls back to reading local JSON."""
+
+        def populate(uefi_files):
             fw = Firmware()
             fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
             fw.architectures = ["x86_64"]
             fw.interfaces = ["uefi"]
             uefi_files.append(fw)
 
-        mock_load_files.side_effect = populate_files
+        mock_load_files.side_effect = populate
 
         mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu+tls://user@host/system"
+
         result = get_uefi_files(mock_conn)
 
-        # Should have fallen back to filesystem
         mock_load_files.assert_called_once()
         self.assertGreater(len(result), 0)
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    @patch("vmanager.firmware_manager._load_firmware_from_files")
-    def test_get_uefi_files_fallback_on_json_read_error(self, mock_load_files, mock_get_caps):
-        """Test fallback when JSON files can't be read"""
-        # Mock domain capabilities with loaders
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                    <value>/usr/share/OVMF/OVMF_CODE.secure.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
+    # -- caching -------------------------------------------------------
 
-        # First call raises error, second call (fallback) populates
-        def populate_files(uefi_files):
+    @patch("vmanager.firmware_manager._load_firmware_from_files")
+    def test_caching_enabled(self, mock_load_files):
+        """Repeated calls with use_cache=True return the cached result."""
+
+        def populate(uefi_files):
             fw = Firmware()
             fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
             fw.architectures = ["x86_64"]
             fw.interfaces = ["uefi"]
             uefi_files.append(fw)
 
-        mock_load_files.side_effect = [
-            OSError("Permission denied"),
-            populate_files([]),
-        ]
+        mock_load_files.side_effect = populate
 
         mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu:///system"
 
-        # The function should handle the error and still return firmware
-        # created from loader values (fallback mechanism)
-        result = get_uefi_files(mock_conn)
+        result1 = get_uefi_files(mock_conn, use_cache=True)
+        result2 = get_uefi_files(mock_conn, use_cache=True)
 
-        # Should return some firmware (either from files or fallback)
-        # The actual implementation creates firmware from loader values on error
-        self.assertIsInstance(result, list)
+        # Only the first call hits the loader; the second uses the cache.
+        self.assertEqual(mock_load_files.call_count, 1)
+        self.assertEqual(result1[0].executable, result2[0].executable)
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    def test_get_uefi_files_fallback_creates_firmware_from_loaders(self, mock_get_caps):
-        """Test that fallback creates Firmware objects from loader values"""
-        # Mock domain capabilities with loaders
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                    <value>/usr/share/OVMF/OVMF_CODE.secboot.fd</value>
-                    <value>/usr/share/seabios/bios-256k.bin</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
+    @patch("vmanager.firmware_manager._load_firmware_from_files")
+    def test_caching_disabled(self, mock_load_files):
+        """use_cache=False bypasses the cache and re-reads."""
+
+        def populate(uefi_files):
+            fw = Firmware()
+            fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
+            fw.architectures = ["x86_64"]
+            fw.interfaces = ["uefi"]
+            uefi_files.append(fw)
+
+        mock_load_files.side_effect = populate
 
         mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu:///system"
 
-        # Mock _load_firmware_from_files to raise an error (simulating inaccessible JSON files)
-        with patch(
-            "vmanager.firmware_manager._load_firmware_from_files",
-            side_effect=OSError("Permission denied"),
-        ):
-            result = get_uefi_files(mock_conn)
+        get_uefi_files(mock_conn, use_cache=True)
+        get_uefi_files(mock_conn, use_cache=False)
 
-        # Should have created firmware objects from loader values
-        self.assertGreater(len(result), 0, "Should create firmware from loader values")
+        self.assertEqual(mock_load_files.call_count, 2)
 
-        # Should have firmware for x86_64
-        x86_64_firmware = [f for f in result if "x86_64" in f.architectures]
-        self.assertGreater(len(x86_64_firmware), 0, "Should have x86_64 firmware")
 
-        # Should have detected UEFI and BIOS interfaces
-        uefi_fw = [f for f in result if "uefi" in f.interfaces]
-        bios_fw = [f for f in result if "bios" in f.interfaces]
+class TestLoadFirmwareFromJsonMap(unittest.TestCase):
+    """Tests for the shared JSON-map parser used by local and remote paths."""
 
-        self.assertGreater(len(uefi_fw), 0, "Should have detected UEFI firmware")
-        self.assertGreater(len(bios_fw), 0, "Should have detected BIOS firmware")
+    def test_parses_valid_and_invalid(self):
+        json_map = {
+            "good.json": json.dumps(
+                {
+                    "interface-types": ["uefi"],
+                    "mapping": {
+                        "executable": {"filename": "/usr/share/OVMF/OVMF_CODE.fd"},
+                        "nvram-template": {"filename": "/usr/share/OVMF/OVMF_VARS.fd"},
+                    },
+                    "targets": [{"architecture": "aarch64"}],
+                }
+            ),
+            "bad.json": "{not valid json",
+        }
+        uefi_files = []
+        loaded, rejected = _load_firmware_from_json_map(json_map, uefi_files)
 
-        # Should detect secure-boot in secboot firmware
-        secure_fw = [f for f in result if "secure-boot" in f.features]
-        self.assertGreater(len(secure_fw), 0, "Should detect secure-boot feature")
-
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    def test_get_uefi_files_never_returns_empty_list(self, mock_get_caps):
-        """Test that get_uefi_files never returns an empty list when fallback works"""
-        # This is critical: ensure we always have some firmware available
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
-
-        mock_conn = MagicMock()
-
-        with patch(
-            "vmanager.firmware_manager._load_firmware_from_files",
-            side_effect=OSError("Simulated error"),
-        ):
-            result = get_uefi_files(mock_conn)
-
-        # The function should NEVER return an empty list when domain capabilities are available
-        self.assertGreater(
-            len(result), 0, "Should never return empty list with available domain capabilities"
-        )
-
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    def test_get_uefi_files_fallback_infers_nvram(self, mock_get_caps):
-        """Test that fallback logic infers NVRAM template from loader path"""
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                    <value>/usr/share/OVMF/OVMF_CODE.secboot.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
-        mock_conn = MagicMock()
-
-        with patch(
-            "vmanager.firmware_manager._load_firmware_from_files",
-            side_effect=OSError("Simulated error"),
-        ):
-            result = get_uefi_files(mock_conn)
-
-        # Check if nvram_template was inferred
-        fw_with_nvram = [f for f in result if f.nvram_template is not None]
-        self.assertGreater(len(fw_with_nvram), 0, "Should have inferred NVRAM template")
-
-        # Check specific inference
-        ovmf_fw = next((f for f in result if "OVMF_CODE.fd" in f.executable), None)
-        self.assertIsNotNone(ovmf_fw)
-        self.assertEqual(ovmf_fw.nvram_template, "/usr/share/OVMF/OVMF_VARS.fd")
+        self.assertEqual(loaded, 1)
+        self.assertEqual(rejected, 1)
+        self.assertEqual(len(uefi_files), 1)
+        self.assertEqual(uefi_files[0].architectures, ["aarch64"])
+        self.assertEqual(uefi_files[0].nvram_template, "/usr/share/OVMF/OVMF_VARS.fd")
 
 
 class TestFirmwareFeatureInference(unittest.TestCase):
-    """Tests for firmware feature inference from loader paths"""
+    """Tests for firmware feature inference from JSON metadata."""
 
-    def setUp(self):
-        """Clear cache before each test"""
-        clear_firmware_cache()
+    def test_secure_boot_and_sev_from_metadata(self):
+        json_map = {
+            "secure.json": json.dumps(
+                {
+                    "interface-types": ["uefi"],
+                    "mapping": {
+                        "executable": {"filename": "/usr/share/OVMF/OVMF_CODE.secboot.fd"},
+                        "nvram-template": {"filename": "/usr/share/OVMF/OVMF_VARS.secboot.fd"},
+                    },
+                    "features": ["secure-boot"],
+                    "targets": [{"architecture": "x86_64", "machines": ["pc-q35-*"]}],
+                }
+            ),
+            "sev.json": json.dumps(
+                {
+                    "interface-types": ["uefi"],
+                    "mapping": {
+                        "executable": {"filename": "/usr/share/OVMF/OVMF_CODE.sev-es.fd"},
+                    },
+                    "features": ["amd-sev-es"],
+                    "targets": [{"architecture": "x86_64", "machines": ["pc-q35-*"]}],
+                }
+            ),
+        }
+        uefi_files = []
+        _load_firmware_from_json_map(json_map, uefi_files)
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    def test_detect_secure_boot_feature(self, mock_get_caps):
-        """Test detection of secure-boot feature from path"""
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.secboot.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
-        mock_conn = MagicMock()
-
-        with patch(
-            "vmanager.firmware_manager._load_firmware_from_files", side_effect=OSError("Error")
-        ):
-            result = get_uefi_files(mock_conn)
-
-        # Should detect secure-boot in path
-        secure_fw = [f for f in result if "secure-boot" in f.features]
-        self.assertGreater(len(secure_fw), 0, "Should detect 'secure-boot' in features")
-
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
-    def test_detect_sev_features(self, mock_get_caps):
-        """Test detection of AMD-SEV features from path"""
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.sev.fd</value>
-                    <value>/usr/share/OVMF/OVMF_CODE.sev-es.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
-        mock_conn = MagicMock()
-
-        with patch(
-            "vmanager.firmware_manager._load_firmware_from_files", side_effect=OSError("Error")
-        ):
-            result = get_uefi_files(mock_conn)
-
-        # Should detect amd-sev and amd-sev-es
-        amd_sev = [f for f in result if "amd-sev" in f.features and "amd-sev-es" not in f.features]
-        amd_sev_es = [f for f in result if "amd-sev-es" in f.features]
-
-        self.assertGreater(len(amd_sev), 0, "Should detect 'amd-sev' feature")
-        self.assertGreater(len(amd_sev_es), 0, "Should detect 'amd-sev-es' feature")
+        self.assertTrue(any("secure-boot" in f.features for f in uefi_files))
+        self.assertTrue(any("amd-sev-es" in f.features for f in uefi_files))
 
 
 class TestFirmwareSelection(unittest.TestCase):
@@ -492,20 +476,9 @@ class TestFirmwareCaching(unittest.TestCase):
         """Clear cache after each test"""
         clear_firmware_cache()
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
     @patch("vmanager.firmware_manager._load_firmware_from_files")
-    def test_firmware_caching_enabled(self, mock_load_files, mock_get_caps):
+    def test_firmware_caching_enabled(self, mock_load_files):
         """Test that firmware caching works and returns cached results"""
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
 
         def populate_files(uefi_files):
             fw = Firmware()
@@ -517,6 +490,7 @@ class TestFirmwareCaching(unittest.TestCase):
         mock_load_files.side_effect = populate_files
 
         mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu:///system"
 
         # First call - should load from libvirt
         result1 = get_uefi_files(mock_conn, use_cache=True)
@@ -528,30 +502,15 @@ class TestFirmwareCaching(unittest.TestCase):
         self.assertEqual(len(result1), len(result2))
         self.assertEqual(result1[0].executable, result2[0].executable)
 
-        # _load_firmware_from_files should have been called once per call since
-        # we're using mocks. In practice, the cache would prevent re-reading.
-        # Verify that both calls returned similar data
+        # The loader should only run once; the second call uses the cache.
+        self.assertEqual(mock_load_files.call_count, 1)
         self.assertEqual(result1[0].architectures, result2[0].architectures)
 
-    @patch("vmanager.firmware_manager.get_domain_capabilities_xml")
     @patch("vmanager.firmware_manager._load_firmware_from_files")
-    def test_firmware_caching_disabled(self, mock_load_files, mock_get_caps):
+    def test_firmware_caching_disabled(self, mock_load_files):
         """Test that use_cache=False bypasses the cache"""
-        caps_xml = """<?xml version="1.0"?>
-        <domainCapabilities>
-            <os>
-                <loader>
-                    <value>/usr/share/OVMF/OVMF_CODE.fd</value>
-                </loader>
-            </os>
-        </domainCapabilities>
-        """
-        mock_get_caps.return_value = caps_xml
-
-        call_count = [0]
 
         def populate_files(uefi_files):
-            call_count[0] += 1
             fw = Firmware()
             fw.executable = "/usr/share/OVMF/OVMF_CODE.fd"
             fw.architectures = ["x86_64"]
@@ -561,6 +520,7 @@ class TestFirmwareCaching(unittest.TestCase):
         mock_load_files.side_effect = populate_files
 
         mock_conn = MagicMock()
+        mock_conn.getURI.return_value = "qemu:///system"
 
         # First call - populates cache
         result1 = get_uefi_files(mock_conn, use_cache=True)
@@ -571,6 +531,9 @@ class TestFirmwareCaching(unittest.TestCase):
         # Both should return firmware
         self.assertGreater(len(result1), 0)
         self.assertGreater(len(result2), 0)
+
+        # Loader ran for both calls (cache bypassed on the second).
+        self.assertEqual(mock_load_files.call_count, 2)
 
     def test_clear_firmware_cache(self):
         """Test clearing the firmware cache"""

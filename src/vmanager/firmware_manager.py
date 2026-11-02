@@ -7,12 +7,13 @@ import fnmatch
 import json
 import logging
 import os
+import subprocess
 import xml.etree.ElementTree as ET
 
 import libvirt
 
-from .libvirt_utils import get_domain_capabilities_xml, get_host_domain_capabilities
-from .utils import log_function_call
+from .libvirt_utils import get_host_domain_capabilities
+from .utils import get_ssh_host_from_uri, log_function_call, run_command, sanitize_credentials
 
 FIRMWARE_META_BASE_DIR = "/usr/share/qemu/firmware/"
 
@@ -105,11 +106,17 @@ class Firmware:
 
 def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = True):
     """
-    Retrieves available UEFI firmware configurations from the hypervisor via libvirt.
+    Retrieves available UEFI firmware configurations from the hypervisor.
 
-    When a connection is provided, retrieves firmware from the remote/local hypervisor
-    using libvirt's domain capabilities and reads firmware JSON metadata files.
-    Falls back to local filesystem access if connection is None.
+    Firmware metadata is read from the QEMU firmware JSON files
+    (``/usr/share/qemu/firmware/*.json``), which enumerate every supported
+    architecture, so all architectures (x86_64, aarch64, ...) are discovered.
+
+    - Local connection (``conn`` is None): read the JSON files from the local
+      filesystem.
+    - Remote ``qemu+ssh://`` connection: SSH into the hypervisor and read the
+      same JSON files there, so remote hosts get the same rich metadata
+      (NVRAM templates, secure-boot/SEV features, all architectures).
 
     Args:
         conn: libvirt connection object. If None, reads from local filesystem.
@@ -118,8 +125,18 @@ def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = Tru
     Returns:
         List of Firmware objects with available configurations.
     """
-    # Generate cache key based on connection
-    cache_key = "local" if conn is None else "remote"
+    # Compute the SSH host once (used for both the cache key and the remote read).
+    ssh_host = get_ssh_host_from_uri(conn.getURI()) if conn is not None else None
+
+    # Generate cache key based on connection. For remote connections, key by the
+    # sanitized SSH host so each remote host has its own cache entry (firmware
+    # metadata is genuinely host-specific).
+    if conn is None:
+        cache_key = "local"
+    elif ssh_host:
+        cache_key = f"remote:{sanitize_credentials(ssh_host)}"
+    else:
+        cache_key = "remote"
 
     # Check cache first
     if use_cache and cache_key in _firmware_cache:
@@ -128,107 +145,137 @@ def get_uefi_files(conn: libvirt.virConnect | None = None, use_cache: bool = Tru
 
     uefi_files = []
 
-    if conn:
-        # Use libvirt to retrieve firmware info from the host
-        try:
-            # Try to get domain capabilities for x86_64 first (most common)
-            # This works for both local and remote systems
-            caps_xml = get_domain_capabilities_xml(
-                conn=conn, emulatorbin=None, arch="x86_64", machine="pc", flags=0
-            )
-
-            if not caps_xml:
-                logging.warning("Could not get domain capabilities from libvirt")
-                # Fall back to local filesystem if no capabilities available
-                _load_firmware_from_files(uefi_files)
-                _firmware_cache[cache_key] = uefi_files
-                return uefi_files
-
-            root = ET.fromstring(caps_xml)
-
-            # Extract loader values from domain capabilities
-            loader_values = []
-            loader_elem = root.find(".//os/loader")
-            if loader_elem is not None:
-                for value_elem in loader_elem.findall("value"):
-                    if value_elem.text:
-                        loader_values.append(value_elem.text.strip())
-
-            if not loader_values:
-                logging.warning("No loader values found in domain capabilities")
-                # Fall back to local filesystem if no loaders found
-                _load_firmware_from_files(uefi_files)
-                _firmware_cache[cache_key] = uefi_files
-                return uefi_files
-
-            # For remote systems, we need to read the firmware JSON metadata
-            # Try to read from the firmware directory if it's accessible
-            # This might require the directory to be NFS-mounted or similar for remote hosts
-            try:
-                _load_firmware_from_files(uefi_files)
-                if uefi_files:
-                    # Successfully loaded metadata
-                    _firmware_cache[cache_key] = uefi_files
-                    return uefi_files
-            except OSError as e:
-                logging.warning("Could not read firmware JSON files: %s", e)
-
-            # Fallback: create Firmware objects from loader values alone
-            # This provides basic firmware info even if metadata is unavailable
-            logging.info("Using fallback firmware creation from loader values")
-            for loader_path in loader_values:
-                firmware = Firmware()
-                firmware.executable = loader_path
-
-                # Infer NVRAM template path from loader path
-                # Try common patterns like substituting "code" with "vars"
-                nvram_guess = None
-                if "code" in loader_path:
-                    nvram_guess = loader_path.replace("code", "vars")
-                elif "CODE" in loader_path:
-                    nvram_guess = loader_path.replace("CODE", "VARS")
-                elif "Code" in loader_path:
-                    nvram_guess = loader_path.replace("Code", "Vars")
-
-                # We can't verify existence easily on remote host, but we can assign it
-                # if the pattern matched.
-                if nvram_guess and nvram_guess != loader_path:
-                    firmware.nvram_template = nvram_guess
-
-                # Infer architecture from path (default to x86_64)
-                if "aarch64" in loader_path.lower() or "arm64" in loader_path.lower():
-                    firmware.architectures = ["aarch64"]
-                else:
-                    firmware.architectures = ["x86_64"]
-
-                # Infer interface type from path
-                if "bios" in loader_path.lower():
-                    firmware.interfaces = ["bios"]
-                else:
-                    firmware.interfaces = ["uefi"]
-
-                # Try to infer features from the path
-                if "secboot" in loader_path.lower() or "secure" in loader_path.lower():
-                    firmware.features = ["secure-boot"]
-                if "sev" in loader_path.lower():
-                    if "sev-es" in loader_path.lower() or "snp" in loader_path.lower():
-                        firmware.features.append("amd-sev-es")
-                    else:
-                        firmware.features.append("amd-sev")
-
-                uefi_files.append(firmware)
-
-        except libvirt.libvirtError as e:
-            logging.error("Error retrieving firmware via libvirt: %s", e)
-            # Fall back to local filesystem
-            _load_firmware_from_files(uefi_files)
+    if conn is None:
+        # Case 1: local connection, read local firmware JSON metadata files.
+        logging.debug("Reading local firmware JSON metadata files")
+        _load_firmware_from_files(uefi_files)
+    elif ssh_host:
+        # Case 2: remote connection. Read the firmware JSON metadata from the
+        # hypervisor over SSH so we get the full per-architecture metadata.
+        logging.debug("Reading remote firmware JSON metadata files from %s", ssh_host)
+        json_map = _fetch_remote_firmware_files(ssh_host)
+        _load_firmware_from_json_map(json_map, uefi_files)
     else:
-        # Original behavior: read from local filesystem
+        # Defensive fallback: unsupported connection type without an SSH
+        # host. Read local JSON as a best-effort source.
+        logging.warning(
+            "No SSH host available for %s; falling back to local firmware JSON files",
+            sanitize_credentials(conn.getURI()),
+        )
         _load_firmware_from_files(uefi_files)
 
     # Cache the result
     _firmware_cache[cache_key] = uefi_files
     return uefi_files
+
+
+def _fetch_remote_firmware_files(ssh_host: str) -> dict:
+    """
+    Read firmware JSON metadata files from a remote host over SSH.
+
+    Args:
+        ssh_host: SSH host string (user@host).
+
+    Returns:
+        Dictionary mapping firmware JSON filename to its text content.
+        Empty dict if the directory is missing, unreadable, or SSH fails.
+    """
+    json_map: dict = {}
+
+    # A single remote shell command lists and reads every firmware JSON file.
+    # The remote shell performs the glob expansion, so no filename is ever
+    # interpolated into the command string (safe against special characters).
+    # Files are separated by an ASCII record separator (\x1e) that cannot appear
+    # in JSON text. The command is passed as a single argument so ssh sends it
+    # to the remote shell intact.
+    remote_cmd = (
+        "for f in "
+        f"{FIRMWARE_META_BASE_DIR}*.json; do "
+        '[ -f "$f" ] || continue; '
+        'printf "\\036%s\\n" "$(basename "$f")"; '
+        'cat "$f"; '
+        'printf "\\n"; '
+        "done"
+    )
+
+    try:
+        result = run_command(
+            [remote_cmd],
+            remote_host=ssh_host,
+            check=False,
+            timeout=30,
+        )
+    except (subprocess.TimeoutExpired, OSError) as e:
+        logging.warning("Could not read firmware JSON files on %s: %s", ssh_host, e)
+        return json_map
+
+    if result.returncode != 0:
+        logging.warning(
+            "Could not read firmware JSON files on %s (rc=%s)",
+            ssh_host,
+            result.returncode,
+        )
+        return json_map
+
+    # Split the combined output on the record separator. The first chunk is
+    # empty (before the first separator); each remaining chunk is
+    # "<filename>\n<content>\n".
+    for chunk in result.stdout.split("\x1e"):
+        if not chunk:
+            continue
+        nl = chunk.find("\n")
+        if nl == -1:
+            continue
+        filename = chunk[:nl]
+        content = chunk[nl + 1 :]
+        if filename and content.strip():
+            json_map[filename] = content
+
+    return json_map
+
+
+def _load_firmware_from_json_map(json_map: dict, uefi_files: list) -> tuple:
+    """
+    Parse firmware JSON text into Firmware objects.
+
+    Args:
+        json_map: Mapping of firmware JSON filename to its text content.
+        uefi_files: List to append Firmware objects to.
+
+    Returns:
+        Tuple of (loaded, rejected) counts.
+    """
+    loaded = 0
+    rejected = 0
+
+    for filename, json_text in json_map.items():
+        try:
+            jsondata = json.loads(json_text)
+            firmware = Firmware()
+            if firmware.load_from_json(jsondata):
+                uefi_files.append(firmware)
+                has_nvram = "✓" if firmware.nvram_template else "✗"
+                logging.debug(
+                    "Loaded firmware from %s: %s (%s NVRAM)",
+                    filename,
+                    firmware.executable,
+                    has_nvram,
+                )
+                loaded += 1
+            else:
+                logging.debug("Firmware rejected from %s: load_from_json returned False", filename)
+                rejected += 1
+        except (json.JSONDecodeError, ValueError) as e:
+            logging.debug("Failed to parse firmware JSON from %s: %s", filename, e)
+            rejected += 1
+            continue
+
+    logging.info(
+        "Firmware loading complete: %s loaded, %s rejected",
+        loaded,
+        rejected,
+    )
+    return loaded, rejected
 
 
 def clear_firmware_cache(cache_key: str | None = None):
@@ -249,7 +296,7 @@ def clear_firmware_cache(cache_key: str | None = None):
 
 def _load_firmware_from_files(uefi_files: list):
     """
-    Load firmware information from JSON metadata files.
+    Load firmware information from local JSON metadata files.
 
     Args:
         uefi_files: List to append Firmware objects to.
@@ -266,33 +313,18 @@ def _load_firmware_from_files(uefi_files: list):
         FIRMWARE_META_BASE_DIR,
     )
 
-    loaded = 0
-    rejected = 0
-
+    # Build a {filename: json_text} map and reuse the shared parser.
+    json_map: dict = {}
     for file in json_files:
         full_path = os.path.join(FIRMWARE_META_BASE_DIR, file)
         try:
             with open(full_path, encoding="utf-8") as f:
-                jsondata = json.load(f)
-
-            firmware = Firmware()
-            if firmware.load_from_json(jsondata):
-                uefi_files.append(firmware)
-                has_nvram = "✓" if firmware.nvram_template else "✗"
-                logging.debug(
-                    "Loaded firmware from %s: %s (%s NVRAM)", file, firmware.executable, has_nvram
-                )
-                loaded += 1
-            else:
-                logging.debug("Firmware rejected from %s: load_from_json returned False", file)
-                rejected += 1
-        except (OSError, json.JSONDecodeError) as e:
+                json_map[file] = f.read()
+        except (OSError, UnicodeDecodeError) as e:
             # ignore malformed or unreadable files
-            logging.debug("Failed to load firmware JSON from %s: %s", file, e)
-            rejected += 1
-            continue
+            logging.debug("Failed to read firmware JSON from %s: %s", file, e)
 
-    logging.info("Firmware loading from JSON complete: %s loaded, %s rejected", loaded, rejected)
+    _load_firmware_from_json_map(json_map, uefi_files)
 
 
 @log_function_call

@@ -858,13 +858,33 @@ class VMDetailModal(ModalScreen):
             logging.debug("Graphics apply button widget not available")
 
     def _update_uefi_options(self) -> None:
-        """Filters and updates the UEFI file selection list."""
+        """Fetches UEFI firmware in a worker, then updates the selection list.
+
+        The fetch may perform blocking SSH I/O for remote ``qemu+ssh://``
+        connections, so it runs off the main thread (see AGENTS.md). The UI
+        update itself stays on the main thread.
+        """
+        try:
+            self.query_one("#uefi-file-select", Select)
+        except Exception:  # QueryError means the Firmware tab might not be UEFI type
+            return
+
+        def worker():
+            try:
+                all_uefi_files = get_uefi_files(self.conn)
+                self.app.call_from_thread(self._apply_uefi_options, all_uefi_files)
+            except Exception as e:
+                logging.error(f"Error fetching UEFI firmware files: {e}")
+
+        self.app.worker_manager.run(worker, name="uefi_files_fetch_worker")
+
+    def _apply_uefi_options(self, all_uefi_files) -> None:
+        """Filters and updates the UEFI file selection list (main thread)."""
         try:
             uefi_select = self.query_one("#uefi-file-select", Select)
         except Exception:  # QueryError means the Firmware tab might not be UEFI type
             return
 
-        all_uefi_files = get_uefi_files(self.conn)
         uefi_files_to_show = all_uefi_files
 
         try:
@@ -3248,6 +3268,56 @@ class VMDetailModal(ModalScreen):
 
                 self.app.push_screen(ConfirmationDialog(_confirm_message(message)), on_confirm)
 
+    def _handle_switch_to_uefi(self, all_uefi_files) -> None:
+        """Filters UEFI firmware for the VM arch and prompts selection (main thread)."""
+        logging.info(f"Retrieved {len(all_uefi_files)} total firmware configurations")
+        for fw in all_uefi_files:
+            logging.debug(
+                f"Firmware: {fw.executable}, arch={fw.architectures}, "
+                f"interfaces={fw.interfaces}, features={fw.features}"
+            )
+
+        xml_root = ET.fromstring(self.xml_desc)
+        arch_elem = xml_root.find(".//os/type")
+        arch = arch_elem.get("arch") if arch_elem is not None else "x86_64"
+
+        uefi_for_arch = [
+            f for f in all_uefi_files if arch in f.architectures and "uefi" in f.interfaces
+        ]
+
+        logging.info(f"Filtered {len(uefi_for_arch)} UEFI firmware for architecture '{arch}'")
+        for fw in uefi_for_arch:
+            logging.debug(f"Selected UEFI: {fw.executable}")
+
+        if not uefi_for_arch:
+            bios_count = sum(1 for f in all_uefi_files if "bios" in f.interfaces)
+            other_arch = [f.architectures for f in all_uefi_files if f.architectures != [arch]]
+            error_detail = (
+                f"No UEFI firmware found for architecture '{arch}'. "
+                f"(Total: {len(all_uefi_files)}, BIOS: {bios_count}, Other arch: {len(other_arch)})"
+            )
+            logging.error(error_detail)
+            self.app.show_error_message(error_detail)
+            return
+
+        uefi_paths = [f.executable for f in uefi_for_arch]
+
+        def on_uefi_file_selected(uefi_path: str | None):
+            if uefi_path:
+                try:
+                    set_uefi_file(self.domain, uefi_path=uefi_path, secure_boot=False)
+                    self._invalidate_cache()
+                    self.app.show_success_message(
+                        "Switched to UEFI successfully. Please reopen the dialog to see changes."
+                    )
+                    self.dismiss()
+                except (libvirt.libvirtError, ValueError) as e:
+                    self.app.show_error_message(f"Error switching to UEFI: {e}")
+
+        self.app.push_screen(
+            SelectDiskModal(uefi_paths, "Select UEFI Firmware"), on_uefi_file_selected
+        )
+
     def _handle_firmware_button(self, button_id):
         """Handle firmware related button presses."""
         if button_id == "switch-to-bios":
@@ -3272,55 +3342,21 @@ class VMDetailModal(ModalScreen):
             )
 
         elif button_id == "switch-to-uefi":
-            all_uefi_files = get_uefi_files(self.conn)
+            # Fetch firmware in a worker (blocking SSH I/O off the main thread).
+            def worker():
+                try:
+                    all_uefi_files = get_uefi_files(self.conn)
+                    self.app.call_from_thread(self._handle_switch_to_uefi, all_uefi_files)
+                except Exception as e:
+                    logging.error(f"Error fetching UEFI firmware files: {e}")
+                    self.app.call_from_thread(
+                        self.app.show_error_message,
+                        ErrorMessages.ERROR_TRUNCATED_TEMPLATE.format(
+                            type=type(e).__name__, message=str(e)[:200]
+                        ),
+                    )
 
-            logging.info(f"Retrieved {len(all_uefi_files)} total firmware configurations")
-            for fw in all_uefi_files:
-                logging.debug(
-                    f"Firmware: {fw.executable}, arch={fw.architectures}, "
-                    f"interfaces={fw.interfaces}, features={fw.features}"
-                )
-
-            xml_root = ET.fromstring(self.xml_desc)
-            arch_elem = xml_root.find(".//os/type")
-            arch = arch_elem.get("arch") if arch_elem is not None else "x86_64"
-
-            uefi_for_arch = [
-                f for f in all_uefi_files if arch in f.architectures and "uefi" in f.interfaces
-            ]
-
-            logging.info(f"Filtered {len(uefi_for_arch)} UEFI firmware for architecture '{arch}'")
-            for fw in uefi_for_arch:
-                logging.debug(f"Selected UEFI: {fw.executable}")
-
-            if not uefi_for_arch:
-                bios_count = sum(1 for f in all_uefi_files if "bios" in f.interfaces)
-                other_arch = [f.architectures for f in all_uefi_files if f.architectures != [arch]]
-                error_detail = (
-                    f"No UEFI firmware found for architecture '{arch}'. "
-                    f"(Total: {len(all_uefi_files)}, BIOS: {bios_count}, Other arch: {len(other_arch)})"
-                )
-                logging.error(error_detail)
-                self.app.show_error_message(error_detail)
-                return
-
-            uefi_paths = [f.executable for f in uefi_for_arch]
-
-            def on_uefi_file_selected(uefi_path: str | None):
-                if uefi_path:
-                    try:
-                        set_uefi_file(self.domain, uefi_path=uefi_path, secure_boot=False)
-                        self._invalidate_cache()
-                        self.app.show_success_message(
-                            "Switched to UEFI successfully. Please reopen the dialog to see changes."
-                        )
-                        self.dismiss()
-                    except (libvirt.libvirtError, ValueError) as e:
-                        self.app.show_error_message(f"Error switching to UEFI: {e}")
-
-            self.app.push_screen(
-                SelectDiskModal(uefi_paths, "Select UEFI Firmware"), on_uefi_file_selected
-            )
+            self.app.worker_manager.run(worker, name="switch_to_uefi_fetch_worker")
 
         elif button_id == "edit-machine-type":
             if not self.is_vm_stopped:
