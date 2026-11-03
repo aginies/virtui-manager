@@ -1168,7 +1168,7 @@ class VManagerCMD(cmd.Cmd):
     def _connect_one(self, target):
         """Connect to a single server by configured name or URI.
 
-        Reused by ``do_connect`` and by ``deploy_from_config`` (``--config``).
+        Reused by ``do_connect`` and by ``deploy_from_config`` (``--json``).
         Returns the server name on success (so the caller can look the
         connection up in ``self.active_connections``), or ``None`` on failure.
         """
@@ -4773,7 +4773,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             json.dump(cfg, f, indent=2)
             f.write("\n")
         print(f"\nDeployment config written to: {p}")
-        print(f"Run it with: vmc --config {p}")
+        print(f"Run it with: vmc --json {p}")
 
     def _write_skeleton_json(self, path):
         """Write an example deployment JSON skeleton (no server probing)."""
@@ -4927,14 +4927,14 @@ def main():
     )
     parser.add_argument(
         "-C",
-        "--config",
+        "--json",
         metavar="JSON",
         help="Deploy a single VM from a JSON config file (see the 'prepare_json' command)",
     )
     parser.add_argument(
         "--dryrun",
         action="store_true",
-        help="With --config: show a summary of the deployment without provisioning",
+        help="With --json: show a summary of the deployment without provisioning",
     )
     args = parser.parse_args()
 
@@ -4947,8 +4947,8 @@ def main():
     cmd_app.yes_mode = bool(args.command)
 
     # Config-driven deployment (non-interactive): load JSON, connect, provision.
-    if args.config:
-        cmd_app.deploy_from_config(args.config, dryrun=args.dryrun)
+    if args.json:
+        cmd_app.deploy_from_config(args.json, dryrun=args.dryrun)
         return
 
     if args.command:

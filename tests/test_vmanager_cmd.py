@@ -137,7 +137,7 @@ class TestVManagerCMD(unittest.TestCase):
 
 
 class TestDeployFromConfig(unittest.TestCase):
-    """Tests for the ``vmc --config`` deploy path and ``prepare_json``."""
+    """Tests for the ``vmc --json`` deploy path and ``prepare_json``."""
 
     @patch("vmanager.vmanager_cmd.load_config")
     @patch("vmanager.vmanager_cmd.get_log_path")

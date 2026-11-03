@@ -298,15 +298,15 @@ network, storage, boot, graphics and the auto-install settings), so the deploy
 runs fully non-interactively. This works for local and remote servers alike.
 
 *   **`prepare_json [output_path] [--init]`** (interactive, inside the CLI): walks you through the real decisions — probes the connected server for active networks, storage pools, cached/pool ISOs and the distribution ISO list, and lists the available auto-install templates — then writes a ready-to-run JSON file. Use `--init` to write an example skeleton without connecting to any server.
-*   **`vmc --config <file.json> [--dryrun]`** (outside the CLI): loads the JSON, connects to the server named in it and provisions the VM. `--dryrun` prints a summary of what would happen without provisioning anything.
+*   **`vmc --json <file.json> [--dryrun]`** (outside the CLI): loads the JSON, connects to the server named in it and provisions the VM. `--dryrun` prints a summary of what would happen without provisioning anything.
 
 ```bash
 # 1. Generate a config (interactive, inside the vmc prompt)
 (vmc) prepare_json ~/deploy/web01.json
 
 # 2. Review / edit the file, then deploy it
-$ vmc --dryrun --config ~/deploy/web01.json
-$ vmc --config ~/deploy/web01.json
+$ vmc --dryrun --json ~/deploy/web01.json
+$ vmc --json ~/deploy/web01.json
 ```
 
 Example `autoinstall` block (openSUSE/SLES, the only distros currently supported

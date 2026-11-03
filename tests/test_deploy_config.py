@@ -1,5 +1,5 @@
 """
-Tests for the declarative deployment config (``vmc --config``) and the
+Tests for the declarative deployment config (``vmc --json``) and the
 openSUSE/SLES extra-packages handling in the automation engine.
 """
 
