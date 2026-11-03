@@ -290,6 +290,128 @@ Pool Name                      Status          Capacity (GiB)  Allocation (GiB) 
 default                        active          899             375             41.71%    
 ```
 
+## Config-Driven Deployment
+
+Deploy a single VM from a declarative JSON file instead of answering the
+`installvm` prompts. The JSON describes every choice (server, hardware, ISO,
+network, storage, boot, graphics and the auto-install settings), so the deploy
+runs fully non-interactively. This works for local and remote servers alike.
+
+*   **`prepare_json [output_path] [--init]`** (interactive, inside the CLI): walks you through the real decisions — probes the connected server for active networks, storage pools, cached/pool ISOs and the distribution ISO list, and lists the available auto-install templates — then writes a ready-to-run JSON file. Use `--init` to write an example skeleton without connecting to any server.
+*   **`vmc --json <file.json> [--dryrun]`** (outside the CLI): loads the JSON, connects to the server named in it and provisions the VM. `--dryrun` prints a summary of what would happen without provisioning anything.
+*   **`deploy_vm <file_or_name> [--dryrun]`** (interactive, inside the CLI): the in-shell equivalent of `vmc --json` — loads the JSON, connects to the server named in it and provisions the VM. `<file_or_name>` may be a full path or a bare filename looked up in `~/.config/virtui-manager/deploy/` (tab-completes the available files).
+
+When the config enables an unattended install (`autoinstall.enabled`), the deploy prints the location and HTTP URL of the generated auto-install profile right after provisioning finishes. The file is served from a temporary directory while the VM installs, so you can inspect it (packages, SCC, baked-in post-install commands) if the auto-install does not behave as expected.
+
+```bash
+# 1. Generate a config (interactive, inside the vmc prompt)
+(vmc) prepare_json ~/deploy/web01.json
+
+# 2. Review / edit the file, then deploy it — either outside the CLI ...
+$ vmc --dryrun --json ~/deploy/web01.json
+$ vmc --json ~/deploy/web01.json
+# ... or from inside the CLI (bare filename works for files in the deploy dir)
+(vmc) deploy_vm web01.json
+```
+
+Example `autoinstall` block (openSUSE/SLES, the only distros currently supported
+for extra packages and SCC registration):
+
+```json
+{
+  "server": "Localhost",
+  "vm_name": "web01",
+  "vm_type": "server",
+  "boot_uefi": true,
+  "graphics": "spice",
+  "network": "default",
+  "storage_pool": "default",
+  "iso": { "source": "url", "url": "https://example.com/opensuse-leap.iso" },
+  "autoinstall": {
+    "enabled": true,
+    "template": "autoyast-server.xml",
+    "packages": ["ssh", "vim"],
+    "username": "admin",
+    "user_password": "CHANGE_ME",
+    "root_password": "CHANGE_ME",
+    "hostname": "web01",
+    "timezone": "UTC",
+    "keyboard": "us",
+    "language": "English (US)",
+    "scc": { "scc_email": "", "scc_reg_code": "" }
+  },
+  "post_install": {
+    "commands": ["systemctl enable foo", "echo done > /var/log/deploy.log"]
+  },
+  "start": true
+}
+```
+
+`vm_type` selects a *profile* — `secure`, `computation`, `desktop`,
+`low_resource`, `wdesktop`, `wldesktop` or `server` — and the memory, disk and
+vCPU are taken from that profile (the same defaults the GUI uses), so you do
+not have to specify them. To set them manually, use `"vm_type": "custom"` and
+add `memory_mb`, `vcpu` and `disk_size_gb` (all required in that case). You may
+also add these fields to a profile to override its defaults.
+
+The `iso.source` field can be `url`, `cached`, `pool` or `repository` (mirroring
+the ISO sources offered by `installvm`). `autoinstall.packages` adds extra
+packages on top of the template defaults, and `autoinstall.scc` registers the
+installed system with the SUSE Customer Center.
+
+### Post-install commands
+
+`post_install` runs shell commands **during the unattended install**, by baking
+them into the auto-install template's post-install script (AutoYaST
+`<scripts><chroot-scripts>` for AutoYaST templates, `scripts.post` for Agama
+templates). Because the commands run as part of the install itself, no guest
+agent or SSH credentials are needed afterwards — which makes this a good fit for
+deploy-then-test workflows (e.g. reproduce a bug automatically on a fresh VM).
+
+*   `commands` — a list of shell strings, run in order as root via the system
+    shell.
+
+`post_install` requires `autoinstall` to be enabled (there is no template to
+bake the script into otherwise). Each command is written verbatim, so commas,
+quotes and shell redirection are safe. The commands run inside the installed
+system after the packages are installed but before the first boot, so they can
+enable services and write files but cannot start them (systemd is not running
+yet).
+
+### Managing deployment JSON files
+
+*   **`list_json`** (inside the CLI): lists all deployment JSON files you have
+    created with `prepare_json` (from `~/.config/virtui-manager/deploy/`),
+    showing the VM name, type, size and modification date.
+*   **`show_json <file>`** (inside the CLI): pretty-prints a deployment JSON
+    file. `<file>` may be a full path or a bare filename looked up in the
+    deploy directory (tab-completes the available files).
+*   **`deploy_vm <file_or_name> [--dryrun]`** (inside the CLI): deploys the VM
+    described by a deployment JSON file — the in-shell equivalent of
+    `vmc --json`. `<file_or_name>` may be a full path or a bare filename looked
+    up in the deploy directory (tab-completes the available files); the server
+    is connected automatically from the `server` field in the JSON.
+
+```bash
+(vmc) list_json
+Deployment JSON files in /home/user/.config/virtui-manager/deploy:
+
+File                     VM Name            Type             Size  Modified
+--------------------------------------------------------------------------
+web01.json               web01              server           789 B  2026-11-03 12:00
+
+(vmc) show_json web01.json
+--- /home/user/.config/virtui-manager/deploy/web01.json ---
+{
+  "server": "Localhost",
+  "vm_name": "web01",
+  "vm_type": "server",
+  ...
+}
+
+(vmc) deploy_vm web01.json
+```
+
 ## Advanced Tools
 
 *   **`virsh [server]`**: Launches an interactive `virsh` shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.
@@ -398,5 +520,6 @@ Snapshot 'pre-update' created for 'web-01'.
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `net_autostart` |
 | Storage | `list_pool`, `list_unused_volumes` |
+| Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json` |
 | Pipelines | `pipeline` (with `|` chaining) |
 | Shell/Utils | `bash`, `history`, `!<number>`, `quit`, `help` |

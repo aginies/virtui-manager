@@ -125,9 +125,11 @@ def sanitize_sensitive_data(message: str) -> str:
         sanitized,
     )
 
-    # 7. Redact JSON password fields
+    # 7. Redact JSON password fields, including prefixed keys such as
+    #    user_password and root_password (any JSON string value whose key
+    #    contains a password-like token is redacted).
     sanitized = re.sub(
-        r'(?i)"(passwd|password|pwd|pass|secret|key|token|auth|credential|cred)"\s*:\s*"[^"]*"',
+        r'(?i)"([^"]*(?:passwd|password|pwd|pass|secret|key|token|auth|credential|cred)[^"]*)"\s*:\s*"[^"]*"',
         r'"\1":"***"',
         sanitized,
     )
@@ -168,6 +170,14 @@ def sanitize_sensitive_data(message: str) -> str:
         "[CERTIFICATE_REDACTED]",
         sanitized,
         flags=re.DOTALL,
+    )
+
+    # 13. Redact SCC registration codes (personal registration/license codes
+    #    such as scc_reg_code, scc_we_reg_code, scc_hpc_reg_code, ...).
+    sanitized = re.sub(
+        r'(?i)"([^"]*(?:reg_code)[^"]*)"\s*:\s*"[^"]*"',
+        r'"\1":"***"',
+        sanitized,
     )
 
     return sanitized

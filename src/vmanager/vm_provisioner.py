@@ -70,6 +70,23 @@ DEFAULT_DISK_SIZE_GB: Dict[VMType, int] = {
     VMType.COMPUTATION: 8,
 }
 
+# Per-profile resource defaults (memory in MiB, vCPU count), mirroring the GUI
+# expert defaults (ProvisioningModal._update_expert_defaults). Memory and vCPU
+# have no other reusable source; disk is intentionally left to DEFAULT_DISK_SIZE_GB
+# (provision_vm falls back to it when disk_size_gb is None), so there is a single
+# source of truth for disk size.
+# Used by the config-driven deploy path when a profile (not "custom") is chosen,
+# so memory/vCPU are taken from the profile instead of being asked each time.
+VM_TYPE_DEFAULTS: Dict[VMType, Dict[str, int]] = {
+    VMType.SECURE: {"memory_mb": 4096, "vcpu": 2},
+    VMType.COMPUTATION: {"memory_mb": 8192, "vcpu": 4},
+    VMType.DESKTOP: {"memory_mb": 4096, "vcpu": 4},
+    VMType.LOW_RESOURCE: {"memory_mb": 512, "vcpu": 1},
+    VMType.WDESKTOP: {"memory_mb": 16384, "vcpu": 8},
+    VMType.WLDESKTOP: {"memory_mb": 8192, "vcpu": 4},
+    VMType.SERVER: {"memory_mb": 16384, "vcpu": 6},
+}
+
 
 class VMProvisioner:
     def __init__(self, conn: libvirt.virConnect):
@@ -2421,6 +2438,7 @@ class VMProvisioner:
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
         automation_config: Optional[Dict[str, Any]] = None,
+        show_automation_path: bool = False,
         network_name: str = "default",
         ovmf_debug: bool = False,
     ) -> libvirt.virDomain:
@@ -3384,6 +3402,14 @@ class VMProvisioner:
         self._cleanup_extract_temp_dirs(remote_host=ssh_host)
 
         report(StaticText.PROVISIONING_COMPLETE, 100)
+
+        # Surface the auto-install file location for non-interactive callers
+        # (vmc deploy), so the generated profile can be inspected while the
+        # HTTP server keeps serving it during the OS installation.
+        if show_automation_path and temp_dir and auto_url:
+            print(f"\nAuto-install file served from: {temp_dir}")
+            print(f"  URL: {auto_url}")
+
         return dom
 
     def _cleanup_extract_temp_dirs(self, remote_host: str | None = None):
