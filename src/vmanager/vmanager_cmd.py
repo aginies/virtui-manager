@@ -4244,6 +4244,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 boot_uefi=boot_uefi,
                 configure_before_install=False,
                 automation_config=automation_config,
+                # Surface the generated auto-install file path only when an
+                # unattended install profile is actually generated.
+                show_automation_path=bool(automation_config),
                 progress_callback=cli_progress_callback,
                 network_name=network,
             )
@@ -4282,6 +4285,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             scc = ai.get("scc") or {}
             if any(scc.get(k) for k in ("scc_email", "scc_reg_code")):
                 print("SCC Registration: Yes")
+            pi = cfg.get("post_install") or {}
+            if pi.get("commands"):
+                print(f"Post-install: Yes ({len(pi['commands'])} commands, baked into template)")
         else:
             print("Automated Install: No")
 
@@ -4352,7 +4358,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if not ai or not ai.get("enabled", True):
             return None
         scc = ai.get("scc") or {}
-        return {
+        config = {
             "template_name": ai["template"],
             "root_password": ai.get("root_password", ""),
             "hostname": ai.get("hostname", vm_name),
@@ -4371,6 +4377,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             "scc_lpatching_reg_code": scc.get("scc_lpatching_reg_code", ""),
             "scc_product_arch": scc.get("scc_product_arch", ""),
         }
+        # Post-install commands are baked into the auto-install template's
+        # post-install script (AutoYaST <scripts><post> / Agama scripts.post).
+        pi = cfg.get("post_install") or {}
+        commands = pi.get("commands") or []
+        if commands:
+            config["post_install_commands"] = commands
+        return config
 
     def do_prepare_json(self, args):
         """Generate a deployment JSON config by asking questions.
@@ -4489,6 +4502,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         # 10. Auto-install
         autoinstall = self._prepare_autoinstall(provisioner, vm_name)
 
+        # 10.5. Post-install (baked into the auto-install template)
+        post_install = self._prepare_post_install()
+
         # 11. Start after install
         start = (
             self._select_choice("Start VM after installation?", ["yes", "no"], auto_select=False)
@@ -4511,6 +4527,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         cfg.update(hardware)
         if autoinstall is not None:
             cfg["autoinstall"] = autoinstall
+        if post_install is not None:
+            cfg["post_install"] = post_install
 
         path = output_path or str(
             Path.home() / ".config" / AppInfo.name / "deploy" / f"{vm_name}.json"
@@ -4765,6 +4783,33 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             "scc_reg_code": self._get_password("SCC registration code: ") or "",
         }
 
+    def _prepare_post_install(self):
+        """Interactively build the config ``post_install`` block (optional).
+
+        The commands are baked into the auto-install template's post-install
+        script (AutoYaST ``<scripts><post>`` / Agama ``scripts.post``), so they
+        run during the unattended install. Commands are collected one per line
+        (a blank line ends input) so that commands containing commas, quotes or
+        shell redirection are not mangled.
+        """
+        use = self._select_choice(
+            "Add post-install commands (run during auto-install)?",
+            ["yes", "no"],
+            auto_select=False,
+        )
+        if use != "yes":
+            return None
+        print("Enter one post-install command per line (blank line to finish):")
+        commands = []
+        while True:
+            line = self._get_input("  ").strip()
+            if not line:
+                break
+            commands.append(line)
+        if not commands:
+            return None
+        return {"commands": commands}
+
     def _write_json(self, path, cfg):
         """Write a config dict as pretty JSON, creating parent dirs as needed."""
         p = Path(path).expanduser()
@@ -4772,8 +4817,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         with open(p, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2)
             f.write("\n")
+        deploy_dir = (Path.home() / ".config" / AppInfo.name / "deploy").resolve()
+        hint = p.name if p.resolve().parent == deploy_dir else str(p)
         print(f"\nDeployment config written to: {p}")
         print(f"Run it with: vmc --json {p}")
+        print(f"or, interactively: deploy_vm {hint}")
 
     def _write_skeleton_json(self, path):
         """Write an example deployment JSON skeleton (no server probing)."""
@@ -4807,6 +4855,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     "scc_email": "",
                     "scc_reg_code": "",
                 },
+            },
+            # Post-install commands are baked into the auto-install template's
+            # post-install script (AutoYaST <scripts><post> / Agama
+            # scripts.post) and run during the unattended install. Requires
+            # "autoinstall" to be enabled. Edit or remove as needed.
+            "post_install": {
+                "commands": ["echo 'post-install example'"],
             },
             "start": True,
         }
@@ -4893,7 +4948,41 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         print(f"--- {p} ---")
-        print(json.dumps(data, indent=2, ensure_ascii=False))
+        # Sanitize sensitive data (passwords, URIs, keys, tokens) before
+        # displaying the file contents, reusing the shared sanitizer.
+        print(self._sanitize_message(json.dumps(data, indent=2, ensure_ascii=False)))
+
+    def do_deploy_vm(self, args):
+        """Deploy a single VM from a deployment JSON file (see 'prepare_json').
+
+        Usage: deploy_vm <file_or_name> [--dryrun]
+
+        <file_or_name> may be a full path, or a filename looked up in the
+        default deploy directory (~/.config/virtui-manager/deploy/).
+        Equivalent to 'vmc --json <file>' from the command line; the server is
+        connected automatically from the 'server' field in the JSON.
+        """
+        arg_list = shlex.split(args)
+        dryrun = "--dryrun" in arg_list or "--show" in arg_list
+        arg_list = [a for a in arg_list if a not in ("--dryrun", "--show")]
+
+        if not arg_list:
+            print("Usage: deploy_vm <file_or_name> [--dryrun]")
+            print("Use 'list_json' to see available files.")
+            return
+
+        arg = arg_list[0]
+        p = Path(arg).expanduser()
+        if not p.exists():
+            candidate = Path.home() / ".config" / AppInfo.name / "deploy" / arg
+            if candidate.exists():
+                p = candidate
+            else:
+                print(f"Error: JSON file not found: {arg}")
+                print("Use 'list_json' to see available files.")
+                return
+
+        self.deploy_from_config(str(p), dryrun=dryrun)
 
     def complete_list_json(self, text, line, begidx, endidx):
         """No arguments for list_json."""
@@ -4901,6 +4990,16 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     def complete_show_json(self, text, line, begidx, endidx):
         """Tab completion for show_json (filenames in the deploy directory)."""
+        deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
+        if not deploy_dir.is_dir():
+            return []
+        names = [p.name for p in deploy_dir.glob("*.json")]
+        if not text:
+            return sorted(names)
+        return [n for n in sorted(names) if n.startswith(text)]
+
+    def complete_deploy_vm(self, text, line, begidx, endidx):
+        """Tab completion for deploy_vm (filenames in the deploy directory)."""
         deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
         if not deploy_dir.is_dir():
             return []

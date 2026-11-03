@@ -2438,6 +2438,7 @@ class VMProvisioner:
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,
         progress_callback: Optional[Callable[[str, int], None]] = None,
         automation_config: Optional[Dict[str, Any]] = None,
+        show_automation_path: bool = False,
         network_name: str = "default",
         ovmf_debug: bool = False,
     ) -> libvirt.virDomain:
@@ -3401,6 +3402,14 @@ class VMProvisioner:
         self._cleanup_extract_temp_dirs(remote_host=ssh_host)
 
         report(StaticText.PROVISIONING_COMPLETE, 100)
+
+        # Surface the auto-install file location for non-interactive callers
+        # (vmc deploy), so the generated profile can be inspected while the
+        # HTTP server keeps serving it during the OS installation.
+        if show_automation_path and temp_dir and auto_url:
+            print(f"\nAuto-install file served from: {temp_dir}")
+            print(f"  URL: {auto_url}")
+
         return dom
 
     def _cleanup_extract_temp_dirs(self, remote_host: str | None = None):

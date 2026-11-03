@@ -137,12 +137,33 @@ def _validate(cfg: Dict[str, Any]) -> None:
 
     # --- autoinstall (optional) ---
     ai = cfg.get("autoinstall")
+    if ai is not None and not isinstance(ai, dict):
+        raise DeployConfigError("'autoinstall' must be an object")
+    ai_enabled = ai is not None and ai.get("enabled", True)
+
+    # --- post_install (optional) ---
+    # Post-install commands are baked into the auto-install template's
+    # post-install script (AutoYaST <scripts><post> / Agama scripts.post), so
+    # they only make sense when auto-install is enabled.
+    pi = cfg.get("post_install")
+    if pi is not None:
+        if not isinstance(pi, dict):
+            raise DeployConfigError("'post_install' must be an object")
+        cmds = pi.get("commands")
+        if cmds is not None and (
+            not isinstance(cmds, list) or not all(isinstance(c, str) for c in cmds)
+        ):
+            raise DeployConfigError("post_install.commands must be a list of strings")
+        if not ai_enabled:
+            raise DeployConfigError(
+                "post_install requires autoinstall to be enabled "
+                "(commands are baked into the auto-install template)"
+            )
+
     if ai is None:
         cfg["autoinstall"] = None
         return
-    if not isinstance(ai, dict):
-        raise DeployConfigError("'autoinstall' must be an object")
-    if ai.get("enabled", True) and not ai.get("template"):
+    if ai_enabled and not ai.get("template"):
         raise DeployConfigError(
             "autoinstall.template is required when autoinstall.enabled is true"
         )

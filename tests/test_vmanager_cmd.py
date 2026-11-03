@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from vmanager.vmanager_cmd import VManagerCMD
 from vmanager.deploy_config import DeployConfigError, load_deploy_config
+from vmanager.constants import AppInfo
 
 
 class TestVManagerCMD(unittest.TestCase):
@@ -331,6 +332,141 @@ class TestDeployFromConfig(unittest.TestCase):
         self.assertIn("already exists", buf.getvalue())
         mock_prov.return_value.provision_vm.assert_not_called()
 
+    def test_deploy_from_config_passes_show_automation_path(self):
+        cfg_path = self._write_cfg(
+            {
+                "server": "local",
+                "vm_name": "web01",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "https://x/y.iso"},
+                "autoinstall": {
+                    "enabled": True,
+                    "template": "autoyast-server.xml",
+                    "packages": ["ssh"],
+                },
+            }
+        )
+        conn = MagicMock()
+        conn.lookupByName.side_effect = self._no_domain_error()
+        self.cmd.active_connections["local"] = conn
+        self.cmd._connect_one = MagicMock(return_value="local")
+
+        with patch("vmanager.vmanager_cmd.ensure_default_pool", return_value=True), \
+            patch("vmanager.vmanager_cmd.ensure_default_network"), \
+            patch("vmanager.vmanager_cmd.VMProvisioner") as mock_prov, \
+            patch("vmanager.vmanager_cmd.list_storage_pools"), \
+            patch("vmanager.vmanager_cmd.list_networks"), \
+            redirect_stdout(io.StringIO()):
+            self.cmd.deploy_from_config(cfg_path)
+
+        # The generated auto-install file path must be surfaced to the user.
+        mock_prov.return_value.provision_vm.assert_called_once()
+        _, kwargs = mock_prov.return_value.provision_vm.call_args
+        self.assertTrue(kwargs.get("show_automation_path"))
+
+    def test_deploy_from_config_no_autoinstall_does_not_force_path(self):
+        cfg_path = self._write_cfg(
+            {
+                "server": "local",
+                "vm_name": "web01",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "https://x/y.iso"},
+            }
+        )
+        conn = MagicMock()
+        conn.lookupByName.side_effect = self._no_domain_error()
+        self.cmd.active_connections["local"] = conn
+        self.cmd._connect_one = MagicMock(return_value="local")
+
+        with patch("vmanager.vmanager_cmd.ensure_default_pool", return_value=True), \
+            patch("vmanager.vmanager_cmd.ensure_default_network"), \
+            patch("vmanager.vmanager_cmd.VMProvisioner") as mock_prov, \
+            patch("vmanager.vmanager_cmd.list_storage_pools"), \
+            patch("vmanager.vmanager_cmd.list_networks"), \
+            redirect_stdout(io.StringIO()):
+            self.cmd.deploy_from_config(cfg_path)
+
+        mock_prov.return_value.provision_vm.assert_called_once()
+        _, kwargs = mock_prov.return_value.provision_vm.call_args
+        # No autoinstall -> no automation -> show_automation_path stays False.
+        self.assertFalse(kwargs.get("show_automation_path"))
+
+    def test_deploy_vm_no_args_shows_usage(self):
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_deploy_vm("")
+        self.assertIn("Usage: deploy_vm", buf.getvalue())
+
+    def test_deploy_vm_missing_file(self):
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_deploy_vm("does-not-exist-12345.json")
+        out = buf.getvalue()
+        self.assertIn("not found", out)
+        self.assertIn("list_json", out)
+
+    def test_deploy_vm_full_path_calls_deploy_from_config(self):
+        cfg_path = self._write_cfg(
+            {
+                "server": "local",
+                "vm_name": "web01",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "https://x/y.iso"},
+            }
+        )
+        self.cmd.deploy_from_config = MagicMock()
+        with redirect_stdout(io.StringIO()):
+            self.cmd.do_deploy_vm(cfg_path)
+        self.cmd.deploy_from_config.assert_called_once_with(cfg_path, dryrun=False)
+
+    def test_deploy_vm_dryrun_flag(self):
+        cfg_path = self._write_cfg(
+            {
+                "server": "local",
+                "vm_name": "web01",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "https://x/y.iso"},
+            }
+        )
+        self.cmd.deploy_from_config = MagicMock()
+        with redirect_stdout(io.StringIO()):
+            self.cmd.do_deploy_vm(f"{cfg_path} --dryrun")
+        self.cmd.deploy_from_config.assert_called_once_with(cfg_path, dryrun=True)
+
+    def test_deploy_vm_bare_filename_resolves_in_deploy_dir(self):
+        with tempfile.TemporaryDirectory() as home:
+            deploy_dir = Path(home) / ".config" / AppInfo.name / "deploy"
+            deploy_dir.mkdir(parents=True)
+            cfg = {
+                "server": "local",
+                "vm_name": "web01",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "https://x/y.iso"},
+            }
+            (deploy_dir / "161.json").write_text(json.dumps(cfg), encoding="utf-8")
+
+            self.cmd.deploy_from_config = MagicMock()
+            with patch("vmanager.vmanager_cmd.Path.home", return_value=Path(home)):
+                with redirect_stdout(io.StringIO()):
+                    self.cmd.do_deploy_vm("161.json")
+            self.cmd.deploy_from_config.assert_called_once_with(
+                str(deploy_dir / "161.json"), dryrun=False
+            )
+
+    def test_deploy_vm_tab_completion(self):
+        with tempfile.TemporaryDirectory() as home:
+            deploy_dir = Path(home) / ".config" / AppInfo.name / "deploy"
+            deploy_dir.mkdir(parents=True)
+            (deploy_dir / "161.json").write_text("{}", encoding="utf-8")
+            (deploy_dir / "262.json").write_text("{}", encoding="utf-8")
+            with patch("vmanager.vmanager_cmd.Path.home", return_value=Path(home)):
+                self.assertEqual(
+                    self.cmd.complete_deploy_vm("", "deploy_vm ", 10, 10),
+                    ["161.json", "262.json"],
+                )
+                self.assertEqual(
+                    self.cmd.complete_deploy_vm("16", "deploy_vm 16", 10, 12),
+                    ["161.json"],
+                )
+
     def test_prepare_json_init_writes_skeleton(self):
         import json
 
@@ -366,6 +502,7 @@ class TestDeployFromConfig(unittest.TestCase):
             return_value={"source": "url", "url": "https://x/y.iso"}
         )
         self.cmd._prepare_autoinstall = MagicMock(return_value=None)
+        self.cmd._prepare_post_install = MagicMock(return_value=None)
 
         with tempfile.TemporaryDirectory() as d:
             out_path = str(Path(d) / "custom.json")
@@ -396,6 +533,7 @@ class TestDeployFromConfig(unittest.TestCase):
             return_value={"source": "url", "url": "https://x/y.iso"}
         )
         self.cmd._prepare_autoinstall = MagicMock(return_value=None)
+        self.cmd._prepare_post_install = MagicMock(return_value=None)
 
         with tempfile.TemporaryDirectory() as d:
             out_path = str(Path(d) / "profile.json")
@@ -694,6 +832,41 @@ class TestListShowJson(unittest.TestCase):
                 redirect_stdout(io.StringIO()) as buf:
                     self.cmd.do_show_json(str(path))
             self.assertIn("web01", buf.getvalue())
+
+    def test_show_json_sanitizes_sensitive_data(self):
+        with tempfile.TemporaryDirectory() as d:
+            home = self._make_deploy(
+                d,
+                {
+                    "web01.json": {
+                        "server": "qemu+ssh://admin:secret@remote/system",
+                        "vm_name": "web01",
+                        "autoinstall": {
+                            "username": "admin",
+                            "user_password": "SuperSecret123",
+                            "scc": {
+                                "scc_email": "admin@example.com",
+                                "scc_reg_code": "ABCDEF-123456",
+                                "scc_we_reg_code": "WE-999999",
+                            },
+                        }
+                    }
+                },
+            )
+            with patch("vmanager.vmanager_cmd.Path.home", return_value=home), \
+                redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_show_json("web01.json")
+            out = buf.getvalue()
+            # The plaintext password must not leak into the output.
+            self.assertNotIn("SuperSecret123", out)
+            self.assertNotIn("secret", out)
+            # Personal SCC registration codes must not leak either.
+            self.assertNotIn("ABCDEF-123456", out)
+            self.assertNotIn("WE-999999", out)
+            # The sanitized placeholder should be present instead.
+            self.assertIn("***", out)
+            # Non-sensitive fields (email) are preserved.
+            self.assertIn("admin@example.com", out)
 
     def test_show_json_not_found(self):
         with tempfile.TemporaryDirectory() as d:

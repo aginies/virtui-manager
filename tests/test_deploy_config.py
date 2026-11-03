@@ -205,6 +205,89 @@ class TestLoadDeployConfig(unittest.TestCase):
         with self.assertRaises(DeployConfigError):
             load_deploy_config(path)
 
+    def _autoinstall(self):
+        return {
+            "enabled": True,
+            "template": "autoyast-server.xml",
+            "root_password": "r",
+            "user_password": "u",
+        }
+
+    def test_post_install_validated(self):
+        path = self._write(
+            {
+                "server": "s",
+                "vm_name": "x",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "u"},
+                "autoinstall": self._autoinstall(),
+                "post_install": {"commands": ["echo hi", "a, b > c"]},
+            }
+        )
+        cfg = load_deploy_config(path)
+        self.assertEqual(
+            cfg["post_install"]["commands"], ["echo hi", "a, b > c"]
+        )
+
+    def test_post_install_requires_autoinstall(self):
+        # No autoinstall block at all -> post_install is rejected.
+        path = self._write(
+            {
+                "server": "s",
+                "vm_name": "x",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "u"},
+                "post_install": {"commands": ["echo hi"]},
+            }
+        )
+        with self.assertRaises(DeployConfigError):
+            load_deploy_config(path)
+
+    def test_post_install_requires_autoinstall_enabled(self):
+        # autoinstall present but disabled -> post_install is rejected.
+        ai = self._autoinstall()
+        ai["enabled"] = False
+        path = self._write(
+            {
+                "server": "s",
+                "vm_name": "x",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "u"},
+                "autoinstall": ai,
+                "post_install": {"commands": ["echo hi"]},
+            }
+        )
+        with self.assertRaises(DeployConfigError):
+            load_deploy_config(path)
+
+    def test_post_install_must_be_object(self):
+        path = self._write(
+            {
+                "server": "s",
+                "vm_name": "x",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "u"},
+                "autoinstall": self._autoinstall(),
+                "post_install": ["echo hi"],
+            }
+        )
+        with self.assertRaises(DeployConfigError):
+            load_deploy_config(path)
+
+    def test_post_install_commands_must_be_strings(self):
+        path = self._write(
+            {
+                "server": "s",
+                "vm_name": "x",
+                "vm_type": "server",
+                "iso": {"source": "url", "url": "u"},
+                "autoinstall": self._autoinstall(),
+                "post_install": {"commands": ["echo hi", 42]},
+            }
+        )
+        with self.assertRaises(DeployConfigError):
+            load_deploy_config(path)
+
 
 class TestOpenSUSEPackages(unittest.TestCase):
     """Extra packages must be injected into AutoYaST XML and Agama JSON."""
@@ -281,6 +364,106 @@ class TestOpenSUSEPackages(unittest.TestCase):
         content = out.read_text()
         ET.fromstring(content)
         self.assertNotIn("<package>ssh</package>", content)
+
+
+class TestOpenSUSEPostInstall(unittest.TestCase):
+    """Post-install commands must be baked into the auto-install template."""
+
+    def setUp(self):
+        self.engine = AutomationEngine()
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(self._cleanup)
+
+    def _cleanup(self):
+        import shutil
+
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _base_config(self, template, **extra):
+        cfg = {
+            "template_name": template,
+            "root_password": "root",
+            "username": "admin",
+            "user_password": "pw",
+        }
+        cfg.update(extra)
+        return cfg
+
+    def test_autoyast_post_install_inserted(self):
+        out = self.engine.generate(
+            os_type=OSType.OPENSUSE,
+            version_id="24.3",
+            vm_name="web01",
+            user_config=self._base_config(
+                "autoyast-server.xml",
+                post_install_commands=["systemctl enable foo", "echo a, b > /tmp/c"],
+            ),
+            output_path=self.tmp,
+            template_name="autoyast-server.xml",
+        )
+        content = out.read_text()
+        # Must still be valid XML
+        root = ET.fromstring(content)
+        # The template declares a default namespace, so all elements (including
+        # the ones we insert) live in it.
+        ns = "{http://www.suse.com/1.0/yast2ns}"
+        # The <scripts><chroot-scripts> section is present with both commands,
+        # in order, wrapped in a <source> CDATA block and chrooted into the
+        # installed system.
+        scripts = root.find(f"{ns}scripts")
+        self.assertIsNotNone(scripts, "<scripts> section missing")
+        chroot_scripts = scripts.find(f"{ns}chroot-scripts")
+        self.assertIsNotNone(chroot_scripts, "<chroot-scripts> section missing")
+        script = chroot_scripts.find(f"{ns}script")
+        self.assertIsNotNone(script, "<script> element missing")
+        # chrooted must be true so it runs in the installed system
+        chrooted = script.find(f"{ns}chrooted")
+        self.assertIsNotNone(chrooted, "<chrooted> element missing")
+        self.assertEqual(chrooted.text.strip(), "true")
+        # The commands live in a <source> element, in order
+        source = script.find(f"{ns}source")
+        self.assertIsNotNone(source, "<source> element missing")
+        self.assertIn("systemctl enable foo", source.text)
+        self.assertIn("echo a, b > /tmp/c", source.text)
+        self.assertLess(
+            source.text.index("systemctl enable foo"),
+            source.text.index("echo a, b > /tmp/c"),
+        )
+        # The scripts section is inside the profile (before </profile>)
+        self.assertLess(content.index("<scripts>"), content.index("</profile>"))
+
+    def test_agama_post_install_appended(self):
+        out = self.engine.generate(
+            os_type=OSType.OPENSUSE,
+            version_id="16.0",
+            vm_name="web02",
+            user_config=self._base_config(
+                "agama-server.json",
+                post_install_commands=["systemctl enable bar"],
+            ),
+            output_path=self.tmp,
+            template_name="agama-server.json",
+        )
+        data = json.loads(out.read_text())
+        post = data["scripts"]["post"]
+        self.assertEqual(len(post), 1)
+        self.assertEqual(post[0]["name"], "virtui-post-install.sh")
+        self.assertTrue(post[0]["chroot"])
+        self.assertTrue(post[0]["content"].startswith("#!/bin/sh"))
+        self.assertIn("systemctl enable bar", post[0]["content"])
+
+    def test_no_post_install_is_noop(self):
+        out = self.engine.generate(
+            os_type=OSType.OPENSUSE,
+            version_id="24.3",
+            vm_name="web03",
+            user_config=self._base_config("autoyast-server.xml"),
+            output_path=self.tmp,
+            template_name="autoyast-server.xml",
+        )
+        content = out.read_text()
+        ET.fromstring(content)
+        self.assertNotIn("<scripts>", content)
 
 
 if __name__ == "__main__":

@@ -168,6 +168,16 @@ class AutomationEngine:
             else:
                 content = self._apply_autoyast_packages(content, packages)
 
+        # Bake any post-install commands into the template's post-install script
+        # (AutoYaST <scripts><post> / Agama scripts.post). These run during the
+        # unattended install, so no agent/SSH is needed afterwards.
+        post_install_commands = config.get("post_install_commands") or []
+        if post_install_commands:
+            if output_filename == "agama.json":
+                content = self._apply_agama_post_install(content, post_install_commands)
+            else:
+                content = self._apply_autoyast_post_install(content, post_install_commands)
+
         output_file = output_path / output_filename
         self._write_file(output_file, content)
         return output_file
@@ -366,6 +376,61 @@ reboot
         for p in pkgs:
             if p not in arr:
                 arr.append(p)
+        return json.dumps(data, indent=2, ensure_ascii=False)
+
+    def _apply_autoyast_post_install(self, content: str, commands: List[str]) -> str:
+        """Insert a ``<scripts><chroot-scripts>`` section running the commands.
+
+        Note: a command containing the literal sequence ``]]>`` would terminate
+        the CDATA early; such shell is effectively never written, so it is not
+        handled.
+        """
+        cmds = [str(c).strip() for c in commands if str(c).strip()]
+        if not cmds:
+            return content
+        anchor = "</profile>"
+        if anchor not in content:
+            self.logger.warning(
+                "AutoYaST template has no </profile> anchor; post-install ignored"
+            )
+            return content
+        body = "\n".join(cmds)
+        scripts = (
+            "    <!-- Post-install -->\n"
+            "    <scripts>\n"
+            "        <chroot-scripts config:type=\"list\">\n"
+            "            <script>\n"
+            "                <chrooted config:type=\"boolean\">true</chrooted>\n"
+            "                <interpreter>shell</interpreter>\n"
+            "                <source><![CDATA[\n"
+            f"{body}\n"
+            "                ]]></source>\n"
+            "            </script>\n"
+            "        </chroot-scripts>\n"
+            "    </scripts>\n"
+        )
+        return content.replace(anchor, scripts + anchor, 1)
+
+    def _apply_agama_post_install(self, content: str, commands: List[str]) -> str:
+        """Add a ``scripts.post`` entry running the given commands.
+        """
+        cmds = [str(c).strip() for c in commands if str(c).strip()]
+        if not cmds:
+            return content
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            self.logger.warning("Could not parse Agama JSON; post-install ignored")
+            return content
+        body = "#!/bin/sh\n" + "\n".join(cmds)
+        scripts = data.setdefault("scripts", {})
+        post = scripts.setdefault("post", [])
+        post[:] = [s for s in post if s.get("name") != "virtui-post-install.sh"]
+        post.append({
+            "name": "virtui-post-install.sh",
+            "chroot": True,
+            "content": body,
+        })
         return json.dumps(data, indent=2, ensure_ascii=False)
 
     def _generate_basic_kickstart(self, config: Dict[str, Any]) -> str:
