@@ -721,6 +721,59 @@ class TestVMManagerRaceConditions(unittest.TestCase):
         # All calls should succeed
         self.assertGreaterEqual(call_count[0], 1)
 
+    def test_refresh_vm_list_starts_worker_when_idle(self):
+        """Test that refresh_vm_list bumps the generation and starts a worker when idle."""
+        self.app.active_uris = ["qemu:///system"]
+        self.app.bulk_operation_in_progress = False
+        self.app.initial_cache_loading = False
+        self.app.worker_manager.is_running = MagicMock(return_value=False)
+        self.app.worker_manager.run = MagicMock(return_value=MagicMock())
+
+        gen_before = self.app._refresh_generation
+
+        self.app.refresh_vm_list()
+
+        self.app.worker_manager.run.assert_called_once()
+        self.assertEqual(self.app._refresh_generation, gen_before + 1)
+
+    def test_refresh_vm_list_does_not_orphan_running_worker(self):
+        """Test that a non-forced refresh while a worker is in flight does not
+        bump the generation (which would orphan the running worker's result)
+        and does not start a new worker."""
+        self.app.active_uris = ["qemu:///system"]
+        self.app.bulk_operation_in_progress = False
+        self.app.initial_cache_loading = False
+        self.app.worker_manager.is_running = MagicMock(return_value=True)
+        self.app.worker_manager.run = MagicMock(return_value=None)
+
+        gen_before = self.app._refresh_generation
+
+        self.app.refresh_vm_list()
+
+        # No new worker started, generation unchanged: the in-flight worker's
+        # result will still be applied.
+        self.app.worker_manager.run.assert_not_called()
+        self.assertEqual(self.app._refresh_generation, gen_before)
+
+    def test_refresh_vm_list_force_cancels_running_worker(self):
+        """Test that a forced refresh cancels the in-flight worker, bumps the
+        generation (so the cancelled worker's stale result is discarded) and
+        starts a fresh worker."""
+        self.app.active_uris = ["qemu:///system"]
+        self.app.bulk_operation_in_progress = False
+        self.app.initial_cache_loading = False
+        self.app.worker_manager.is_running = MagicMock(return_value=False)
+        self.app.worker_manager.cancel = MagicMock(return_value=MagicMock())
+        self.app.worker_manager.run = MagicMock(return_value=MagicMock())
+
+        gen_before = self.app._refresh_generation
+
+        self.app.refresh_vm_list(force=True)
+
+        self.app.worker_manager.cancel.assert_called_once_with("list_vms")
+        self.app.worker_manager.run.assert_called_once()
+        self.assertEqual(self.app._refresh_generation, gen_before + 1)
+
 
 # ============================================================================
 # FILTER FUNCTIONALITY TESTS
@@ -1896,14 +1949,14 @@ class TestVMManagerServiceCallbacks(unittest.TestCase):
         self.app.refresh_vm_list.assert_not_called()
 
     def test_on_vm_data_update_refreshes_normally(self):
-        """Test that on_vm_data_update refreshes when not in bulk operation."""
+        """Test that on_vm_data_update refreshes (forced) when not in bulk operation."""
         self.app.bulk_operation_in_progress = False
         self.app.refresh_vm_list = MagicMock()
-        self.app.call_from_thread = MagicMock(side_effect=lambda func: func())
+        self.app.call_from_thread = MagicMock(side_effect=lambda func, *args: func(*args))
 
         self.app.on_vm_data_update()
 
-        self.app.refresh_vm_list.assert_called_once()
+        self.app.refresh_vm_list.assert_called_once_with(True)
 
     def test_on_vm_update_posts_update_request(self):
         """Test that on_vm_update posts a card update request."""

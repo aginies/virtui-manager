@@ -399,10 +399,13 @@ class VMManagerTUI(App):
         if self.bulk_operation_in_progress:
             return
 
+        # Force a fresh fetch: the VM data has changed (e.g. a VM was
+        # defined or undefined), and a worker that is already in flight may
+        # have fetched stale data.
         try:
-            self.call_from_thread(self.refresh_vm_list)
+            self.call_from_thread(self.refresh_vm_list, True)
         except RuntimeError:
-            self.refresh_vm_list()
+            self.refresh_vm_list(force=True)
 
         try:
             self.call_from_thread(self.worker_manager._cleanup_finished_workers)
@@ -1769,11 +1772,22 @@ class VMManagerTUI(App):
         if self.initial_cache_loading and not self.initial_cache_complete:
             return
 
+        if force:
+            self.worker_manager.cancel("list_vms")
+        elif self.worker_manager.is_running("list_vms"):
+            # A refresh is already in flight. Leave it alone: its result is
+            # the freshest available, and bumping the generation here would
+            # orphan it (its result would be discarded at apply time and no
+            # new worker would start), leaving the UI stale until the next
+            # refresh trigger.
+            if on_complete:
+                on_complete()
+            return
+
         # Bump the generation so any worker started before this call becomes
         # stale and must not apply its result to the UI anymore.
         self._refresh_generation += 1
 
-        # Try to run the worker. If it's already running, this will do nothing.
         selected_uuids = set(self.selected_vm_uuids)
         current_page = self.current_page
         vms_per_page = self.VMS_PER_PAGE
@@ -1783,9 +1797,6 @@ class VMManagerTUI(App):
             if self.filtered_server_uris is not None
             else list(self.active_uris)
         )
-
-        if force:
-            self.worker_manager.cancel("list_vms")
 
         self.worker_manager.run(
             lambda: self.list_vms_worker(
