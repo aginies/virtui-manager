@@ -290,6 +290,94 @@ Pool Name                      Status          Capacity (GiB)  Allocation (GiB) 
 default                        active          899             375             41.71%    
 ```
 
+## Config-Driven Deployment
+
+Deploy a single VM from a declarative JSON file instead of answering the
+`installvm` prompts. The JSON describes every choice (server, hardware, ISO,
+network, storage, boot, graphics and the auto-install settings), so the deploy
+runs fully non-interactively. This works for local and remote servers alike.
+
+*   **`prepare_json [output_path] [--init]`** (interactive, inside the CLI): walks you through the real decisions — probes the connected server for active networks, storage pools, cached/pool ISOs and the distribution ISO list, and lists the available auto-install templates — then writes a ready-to-run JSON file. Use `--init` to write an example skeleton without connecting to any server.
+*   **`vmc --config <file.json> [--dryrun]`** (outside the CLI): loads the JSON, connects to the server named in it and provisions the VM. `--dryrun` prints a summary of what would happen without provisioning anything.
+
+```bash
+# 1. Generate a config (interactive, inside the vmc prompt)
+(vmc) prepare_json ~/deploy/web01.json
+
+# 2. Review / edit the file, then deploy it
+$ vmc --dryrun --config ~/deploy/web01.json
+$ vmc --config ~/deploy/web01.json
+```
+
+Example `autoinstall` block (openSUSE/SLES, the only distros currently supported
+for extra packages and SCC registration):
+
+```json
+{
+  "server": "Localhost",
+  "vm_name": "web01",
+  "vm_type": "server",
+  "boot_uefi": true,
+  "graphics": "spice",
+  "network": "default",
+  "storage_pool": "default",
+  "iso": { "source": "url", "url": "https://example.com/opensuse-leap.iso" },
+  "autoinstall": {
+    "enabled": true,
+    "template": "autoyast-server.xml",
+    "packages": ["ssh", "vim"],
+    "username": "admin",
+    "user_password": "CHANGE_ME",
+    "root_password": "CHANGE_ME",
+    "hostname": "web01",
+    "timezone": "UTC",
+    "keyboard": "us",
+    "language": "English (US)",
+    "scc": { "scc_email": "", "scc_reg_code": "" }
+  },
+  "start": true
+}
+```
+
+`vm_type` selects a *profile* — `secure`, `computation`, `desktop`,
+`low_resource`, `wdesktop`, `wldesktop` or `server` — and the memory, disk and
+vCPU are taken from that profile (the same defaults the GUI uses), so you do
+not have to specify them. To set them manually, use `"vm_type": "custom"` and
+add `memory_mb`, `vcpu` and `disk_size_gb` (all required in that case). You may
+also add these fields to a profile to override its defaults.
+
+The `iso.source` field can be `url`, `cached`, `pool` or `repository` (mirroring
+the ISO sources offered by `installvm`). `autoinstall.packages` adds extra
+packages on top of the template defaults, and `autoinstall.scc` registers the
+installed system with the SUSE Customer Center.
+
+### Managing deployment JSON files
+
+*   **`list_json`** (inside the CLI): lists all deployment JSON files you have
+    created with `prepare_json` (from `~/.config/virtui-manager/deploy/`),
+    showing the VM name, type, size and modification date.
+*   **`show_json <file>`** (inside the CLI): pretty-prints a deployment JSON
+    file. `<file>` may be a full path or a bare filename looked up in the
+    deploy directory (tab-completes the available files).
+
+```bash
+(vmc) list_json
+Deployment JSON files in /home/user/.config/virtui-manager/deploy:
+
+File                     VM Name            Type             Size  Modified
+--------------------------------------------------------------------------
+web01.json               web01              server           789 B  2026-11-03 12:00
+
+(vmc) show_json web01.json
+--- /home/user/.config/virtui-manager/deploy/web01.json ---
+{
+  "server": "Localhost",
+  "vm_name": "web01",
+  "vm_type": "server",
+  ...
+}
+```
+
 ## Advanced Tools
 
 *   **`virsh [server]`**: Launches an interactive `virsh` shell connected to the selected server. If multiple servers are connected and no argument is provided, you will be prompted to choose.
@@ -398,5 +486,6 @@ Snapshot 'pre-update' created for 'web-01'.
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `net_autostart` |
 | Storage | `list_pool`, `list_unused_volumes` |
+| Installation | `prepare_json`, `list_json`, `show_json` |
 | Pipelines | `pipeline` (with `|` chaining) |
 | Shell/Utils | `bash`, `history`, `!<number>`, `quit`, `help` |

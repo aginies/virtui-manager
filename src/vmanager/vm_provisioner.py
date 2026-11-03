@@ -70,6 +70,23 @@ DEFAULT_DISK_SIZE_GB: Dict[VMType, int] = {
     VMType.COMPUTATION: 8,
 }
 
+# Per-profile resource defaults (memory in MiB, vCPU count), mirroring the GUI
+# expert defaults (ProvisioningModal._update_expert_defaults). Memory and vCPU
+# have no other reusable source; disk is intentionally left to DEFAULT_DISK_SIZE_GB
+# (provision_vm falls back to it when disk_size_gb is None), so there is a single
+# source of truth for disk size.
+# Used by the config-driven deploy path when a profile (not "custom") is chosen,
+# so memory/vCPU are taken from the profile instead of being asked each time.
+VM_TYPE_DEFAULTS: Dict[VMType, Dict[str, int]] = {
+    VMType.SECURE: {"memory_mb": 4096, "vcpu": 2},
+    VMType.COMPUTATION: {"memory_mb": 8192, "vcpu": 4},
+    VMType.DESKTOP: {"memory_mb": 4096, "vcpu": 4},
+    VMType.LOW_RESOURCE: {"memory_mb": 512, "vcpu": 1},
+    VMType.WDESKTOP: {"memory_mb": 16384, "vcpu": 8},
+    VMType.WLDESKTOP: {"memory_mb": 8192, "vcpu": 4},
+    VMType.SERVER: {"memory_mb": 16384, "vcpu": 6},
+}
+
 
 class VMProvisioner:
     def __init__(self, conn: libvirt.virConnect):

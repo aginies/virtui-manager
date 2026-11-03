@@ -11,6 +11,8 @@ redacted with "***" placeholders while preserving enough context for debugging.
 import atexit
 import cmd
 import datetime
+import getpass
+import json
 import os
 import re
 import readline
@@ -36,6 +38,7 @@ from .network_manager import (
     set_network_autostart,
 )
 from .pipeline import PipelineExecutor, PipelineMode
+from .provisioning.os_provider import OSType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
     delete_volume,
@@ -218,6 +221,7 @@ class VManagerCMD(cmd.Cmd):
                 "net_autostart",
             ],
             "Storage": ["list_pool", "list_unused_volumes", "delete_volume"],
+            "Installation": ["prepare_json", "list_json", "show_json"],
             "Pipelines": ["pipeline"],
             "Shell/Utils": ["bash", "history", "about", "quit"],
         }
@@ -1157,53 +1161,64 @@ class VManagerCMD(cmd.Cmd):
             targets_to_connect = self.server_names
 
         for target in targets_to_connect:
-            # Check if it's already connected
-            if target in self.active_connections:
-                print(f"Already connected to '{target}'.")
-                continue
-
-            # Check if it's a URI or a configured server name
-            uri = None
-            server_name = None
-
-            if "://" in target or target.startswith("qemu:///"):
-                uri = target
-                # Extract a friendly name for the URI
-                server_name = extract_server_name_from_uri(uri)
-                # If name already exists, append a unique identifier or the URI itself
-                if server_name in self.active_connections:
-                    server_name = f"{server_name} ({self._sanitize_message(uri)})"
-            else:
-                server_info = next((s for s in self.servers if s["name"] == target), None)
-                if server_info:
-                    server_name = target
-                    uri = server_info["uri"]
-                else:
-                    print(
-                        f"Error: '{target}' is not a configured server name and does not look like a URI."
-                    )
-                    continue
-
-            # Ensure we have a color for this server
-            if server_name not in self.server_colors:
-                self.server_colors[server_name] = ServerPalette.COLOR[
-                    len(self.server_colors) % len(ServerPalette.COLOR)
-                ]
-
-            try:
-                self._safe_print(f"Connecting to {server_name} at {self._sanitize_message(uri)}...")
-                conn = self.vm_service.connect(uri)
-                if conn:
-                    self.active_connections[server_name] = conn
-                    print(f"Successfully connected to '{server_name}'.")
-                else:
-                    print(f"Failed to connect to '{server_name}'.")
-            except libvirt.libvirtError as e:
-                self._safe_print(f"Error connecting to {server_name}: {e}")
-            except Exception as e:
-                self._safe_print(f"Unexpected error connecting to {server_name}: {e}")
+            self._connect_one(target)
 
         self._update_prompt()
+
+    def _connect_one(self, target):
+        """Connect to a single server by configured name or URI.
+
+        Reused by ``do_connect`` and by ``deploy_from_config`` (``--config``).
+        Returns the server name on success (so the caller can look the
+        connection up in ``self.active_connections``), or ``None`` on failure.
+        """
+        # Check if it's already connected
+        if target in self.active_connections:
+            print(f"Already connected to '{target}'.")
+            return target
+
+        # Check if it's a URI or a configured server name
+        uri = None
+        server_name = None
+
+        if "://" in target or target.startswith("qemu:///"):
+            uri = target
+            # Extract a friendly name for the URI
+            server_name = extract_server_name_from_uri(uri)
+            # If name already exists, append a unique identifier or the URI itself
+            if server_name in self.active_connections:
+                server_name = f"{server_name} ({self._sanitize_message(uri)})"
+        else:
+            server_info = next((s for s in self.servers if s["name"] == target), None)
+            if server_info:
+                server_name = target
+                uri = server_info["uri"]
+            else:
+                print(
+                    f"Error: '{target}' is not a configured server name and does not look like a URI."
+                )
+                return None
+
+        # Ensure we have a color for this server
+        if server_name not in self.server_colors:
+            self.server_colors[server_name] = ServerPalette.COLOR[
+                len(self.server_colors) % len(ServerPalette.COLOR)
+            ]
+
+        try:
+            self._safe_print(f"Connecting to {server_name} at {self._sanitize_message(uri)}...")
+            conn = self.vm_service.connect(uri)
+            if conn:
+                self.active_connections[server_name] = conn
+                print(f"Successfully connected to '{server_name}'.")
+                return server_name
+            print(f"Failed to connect to '{server_name}'.")
+            return None
+        except libvirt.libvirtError as e:
+            self._safe_print(f"Error connecting to {server_name}: {e}")
+        except Exception as e:
+            self._safe_print(f"Unexpected error connecting to {server_name}: {e}")
+        return None
 
     def complete_connect(self, text, line, begidx, endidx):
         """Auto-completion for server names."""
@@ -4133,6 +4148,767 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         except Exception as e:
             print(f"\nFailed to provision VM: {e}")
 
+    def deploy_from_config(self, path, dryrun=False):
+        """Deploy a single VM from a JSON config file (see ``prepare_json``).
+
+        Non-interactive counterpart of ``installvm``: the JSON describes every
+        choice, so no prompts are shown. Reuses the same
+        ``VMProvisioner.provision_vm`` path as the interactive command.
+        """
+        from .deploy_config import DeployConfigError, load_deploy_config, resolve_vm_resources
+
+        try:
+            cfg = load_deploy_config(path)
+        except DeployConfigError as e:
+            print(f"Config error: {e}")
+            return
+
+        vm_name = cfg["vm_name"]
+        try:
+            vm_name, _was_modified = _sanitize_domain_name(vm_name)
+        except ValueError as e:
+            print(f"Invalid VM name: {e}")
+            return
+        if not vm_name:
+            print("VM name cannot be empty.")
+            return
+
+        server = cfg["server"]
+        server_name = self._connect_one(server)
+        if not server_name:
+            print(f"Could not connect to server '{server}'.")
+            return
+        conn = self.active_connections[server_name]
+        provisioner = VMProvisioner(conn)
+
+        # Fail fast before creating any artifacts
+        try:
+            conn.lookupByName(vm_name)
+            print(f"VM '{vm_name}' already exists.")
+            return
+        except libvirt.libvirtError as e:
+            if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
+                print(f"Error checking VM name: {e}")
+                return
+
+        # Ensure default pool and network exist and are active
+        if not ensure_default_pool(conn):
+            print("No storage pool available and could not create default pool.")
+            return
+        ensure_default_network(conn)
+        list_storage_pools.cache_clear()
+        list_networks.cache_clear()
+
+        iso_url = self._resolve_iso_url(provisioner, cfg)
+        if not iso_url:
+            print("Could not resolve ISO from config.")
+            return
+
+        vm_type, memory_mb, vcpu, disk_size_gb = resolve_vm_resources(cfg)
+
+        network = cfg["network"]
+        storage_pool = cfg["storage_pool"]
+        boot_uefi = cfg["boot_uefi"]
+        graphics_type = cfg["graphics"]
+        disk_format = cfg.get("disk_format")
+
+        automation_config = self._build_automation_config(cfg, vm_name)
+
+        if dryrun:
+            self._print_deploy_summary(
+                cfg, vm_name, server_name, iso_url, network, storage_pool,
+                boot_uefi, graphics_type, memory_mb, vcpu, disk_size_gb, automation_config,
+            )
+            return
+
+        def cli_progress_callback(stage, percent):
+            columns, _ = shutil.get_terminal_size()
+            sys.stdout.write(f"\r[{percent}%] {stage}".ljust(columns - 1))
+            sys.stdout.flush()
+            if percent >= 100:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+
+        print(f"\nProvisioning VM '{vm_name}' on server '{server_name}'...")
+        try:
+            domain = provisioner.provision_vm(
+                vm_name=vm_name,
+                vm_type=vm_type,
+                iso_url=iso_url,
+                storage_pool_name=storage_pool,
+                memory_mb=memory_mb,
+                vcpu=vcpu,
+                disk_size_gb=disk_size_gb,
+                disk_format=disk_format,
+                graphics_type=graphics_type,
+                boot_uefi=boot_uefi,
+                configure_before_install=False,
+                automation_config=automation_config,
+                progress_callback=cli_progress_callback,
+                network_name=network,
+            )
+            if domain:
+                print(f"\nSuccessfully provisioned VM '{vm_name}'.")
+                if domain.isActive():
+                    print(f"VM '{vm_name}' is already running.")
+                elif cfg.get("start", True):
+                    start_vm(domain)
+                    print(f"VM '{vm_name}' started.")
+            else:
+                print("\nProvisioning did not return a domain.")
+        except Exception as e:
+            print(f"\nFailed to provision VM: {e}")
+
+    def _print_deploy_summary(self, cfg, vm_name, server_name, iso_url,
+                              network, storage_pool, boot_uefi, graphics_type,
+                              memory_mb, vcpu, disk_size_gb, automation_config):
+        """Print a dry-run summary of what ``deploy_from_config`` would do."""
+        print("\n--- Summary of Actions (dry run) ---")
+        print(f"VM Name: {vm_name}")
+        print(f"Server: {server_name}")
+        print(f"VM Type: {cfg['vm_type']}")
+        disk = disk_size_gb if disk_size_gb else "default"
+        print(f"Memory: {memory_mb} MB, vCPU: {vcpu}, Disk: {disk} GB")
+        print(f"ISO: {iso_url}")
+        print(f"Network: {network}")
+        print(f"Storage Pool: {storage_pool}")
+        print(f"Boot Mode: {'UEFI' if boot_uefi else 'BIOS'}")
+        print(f"Graphics: {graphics_type}")
+        if automation_config:
+            print(f"Automated Install: Yes (Template: {automation_config['template_name']})")
+            ai = cfg.get("autoinstall") or {}
+            if ai.get("packages"):
+                print(f"Extra Packages: {', '.join(ai.get('packages', []))}")
+            scc = ai.get("scc") or {}
+            if any(scc.get(k) for k in ("scc_email", "scc_reg_code")):
+                print("SCC Registration: Yes")
+        else:
+            print("Automated Install: No")
+
+    def _resolve_iso_url(self, provisioner, cfg):
+        """Resolve the ISO url/path from the config's ``iso`` block.
+
+        Reuses the same resolution helpers as ``installvm``:
+        ``check_pool_volume`` for pool volumes, the ISO cache dir for cached
+        ISOs, and ``get_iso_list`` for the distribution repository.
+        """
+        iso = cfg.get("iso", {})
+        source = iso.get("source", "url")
+
+        if source == "url":
+            return iso.get("url")
+
+        if source == "pool":
+            return provisioner.check_pool_volume(iso["volume"], iso["pool"])
+
+        if source == "cached":
+            iso_cache_dir = Path(
+                self.config.get(
+                    "ISO_DOWNLOAD_PATH",
+                    str(Path.home() / ".cache" / AppInfo.name / "isos"),
+                )
+            )
+            return str(iso_cache_dir / iso["volume"])
+
+        if source == "repository":
+            # If the exact URL was captured at prepare time, use it directly so the
+            # deploy is deterministic (the user picked a specific ISO).
+            if iso.get("url"):
+                return iso["url"]
+            # Otherwise (hand-written config with only a version), re-resolve.
+            versions = provisioner.provider_registry.get_supported_versions(OSType.OPENSUSE)
+            version = None
+            for v in versions:
+                if v.version_id == iso.get("version") or iso.get("version") in v.display_name:
+                    version = v
+                    break
+            if not version:
+                print(f"No openSUSE/SLES version matching '{iso.get('version')}' found.")
+                return None
+            print(f"Fetching available ISOs for {version.display_name}...")
+            iso_list = provisioner.get_iso_list(version)
+            if not iso_list:
+                print("No ISOs found for this version.")
+                return None
+            name = iso.get("name")
+            chosen = None
+            for i in iso_list:
+                if name and name in i.get("name", i.get("url", "")):
+                    chosen = i
+                    break
+            if not chosen:
+                chosen = iso_list[0]
+                print(f"Using first available ISO: {chosen.get('name', chosen.get('url'))}")
+            return chosen.get("url")
+
+        return None
+
+    def _build_automation_config(self, cfg, vm_name):
+        """Build the ``automation_config`` dict for ``provision_vm`` from the
+        config's ``autoinstall`` block. Returns ``None`` when auto-install is
+        disabled (matching the shape ``installvm`` builds).
+        """
+        ai = cfg.get("autoinstall")
+        if not ai or not ai.get("enabled", True):
+            return None
+        scc = ai.get("scc") or {}
+        return {
+            "template_name": ai["template"],
+            "root_password": ai.get("root_password", ""),
+            "hostname": ai.get("hostname", vm_name),
+            "username": ai.get("username", "admin"),
+            "user_password": ai.get("user_password", ""),
+            "keyboard": ai.get("keyboard", "us"),
+            "language": ai.get("language", "English (US)"),
+            "timezone": ai.get("timezone", "UTC"),
+            "packages": ai.get("packages", []),
+            "scc_email": scc.get("scc_email", ""),
+            "scc_reg_code": scc.get("scc_reg_code", ""),
+            "scc_we_reg_code": scc.get("scc_we_reg_code", ""),
+            "scc_hpc_reg_code": scc.get("scc_hpc_reg_code", ""),
+            "scc_ha_reg_code": scc.get("scc_ha_reg_code", ""),
+            "scc_ltss_reg_code": scc.get("scc_ltss_reg_code", ""),
+            "scc_lpatching_reg_code": scc.get("scc_lpatching_reg_code", ""),
+            "scc_product_arch": scc.get("scc_product_arch", ""),
+        }
+
+    def do_prepare_json(self, args):
+        """Generate a deployment JSON config by asking questions.
+
+        Usage: prepare_json [output_path] [--init]
+
+        --init  Write an example JSON skeleton without probing a server
+                (no connection required).
+        """
+        arg_list = shlex.split(args)
+        init_mode = "--init" in arg_list
+        if "--init" in arg_list:
+            arg_list.remove("--init")
+        output_path = arg_list[0] if arg_list else None
+
+        if init_mode:
+            path = output_path or str(
+                Path.home() / ".config" / AppInfo.name / "deploy" / "template.json"
+            )
+            self._write_skeleton_json(path)
+            return
+
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>' first.")
+            return
+
+        # 1. Server
+        target_server = self._select_choice(
+            "Select Server", list(self.active_connections.keys()), auto_select=True
+        )
+        if not target_server:
+            return
+        conn = self.active_connections[target_server]
+        provisioner = VMProvisioner(conn)
+
+        # 2. VM name
+        vm_name = self._get_input("Enter VM name: ")
+        if not vm_name:
+            print("VM name is required.")
+            return
+        try:
+            vm_name, _was_modified = _sanitize_domain_name(vm_name)
+        except ValueError as e:
+            print(f"Invalid VM name: {e}")
+            return
+
+        # 3. VM type (a profile, or "custom" to set memory/disk/vCPU manually)
+        vm_type = self._select_choice(
+            "Select VM Type",
+            list(VMType) + ["custom"],
+            display_func=lambda t: "Custom" if t == "custom" else t.value,
+            value_func=lambda t: "custom" if t == "custom" else t.name.lower(),
+            auto_select=False,
+        )
+        if not vm_type:
+            return
+
+        # 4. Hardware: taken from the chosen profile, or asked when "custom".
+        hardware = {}
+        if vm_type == "custom":
+            memory_gb = self._get_positive_float("Memory (GB)", 4)
+            vcpu = self._get_positive_int("vCPU", 2)
+            disk_size_gb = self._get_positive_int("Disk size (GB)", 30)
+            hardware = {
+                "memory_mb": int(memory_gb * 1024),
+                "vcpu": vcpu,
+                "disk_size_gb": disk_size_gb,
+            }
+
+        # 5. ISO
+        iso = self._prepare_iso(provisioner)
+        if not iso:
+            print("Could not select an ISO.")
+            return
+
+        # 6. Network
+        active_networks = [n for n in list_networks(conn) if n["active"]]
+        network = "default"
+        if active_networks:
+            network = (
+                self._select_choice(
+                    "Select Network",
+                    active_networks,
+                    display_func=lambda n: f"{n['name']} (Mode: {n['mode']})",
+                    value_func=lambda n: n["name"],
+                    auto_select=True,
+                )
+                or "default"
+            )
+
+        # 7. Storage pool
+        pools = [p for p in list_storage_pools(conn) if p["status"] == "active"]
+        storage_pool = "default"
+        if pools:
+            storage_pool = (
+                self._select_choice(
+                    "Select Storage Pool",
+                    pools,
+                    display_func=lambda p: p["name"],
+                    value_func=lambda p: p["name"],
+                    auto_select=True,
+                )
+                or "default"
+            )
+
+        # 8. Boot mode
+        boot_mode = self._select_choice("Select Boot Mode", ["UEFI", "BIOS"], auto_select=False)
+        boot_uefi = (boot_mode or "UEFI") == "UEFI"
+
+        # 9. Graphics
+        graphics = self._select_choice(
+            "Select Graphics", ["Spice", "VNC"], value_func=lambda g: g.lower(), auto_select=False
+        )
+        graphics = graphics or "spice"
+
+        # 10. Auto-install
+        autoinstall = self._prepare_autoinstall(provisioner, vm_name)
+
+        # 11. Start after install
+        start = (
+            self._select_choice("Start VM after installation?", ["yes", "no"], auto_select=False)
+            or "yes"
+        ) == "yes"
+
+        cfg = {
+            "server": target_server,
+            "vm_name": vm_name,
+            "vm_type": vm_type,
+            "boot_uefi": boot_uefi,
+            "graphics": graphics,
+            "network": network,
+            "storage_pool": storage_pool,
+            "iso": iso,
+            "start": start,
+        }
+        # For "custom" the hardware is stored explicitly; for a profile it is
+        # derived from the profile defaults at deploy time.
+        cfg.update(hardware)
+        if autoinstall is not None:
+            cfg["autoinstall"] = autoinstall
+
+        path = output_path or str(
+            Path.home() / ".config" / AppInfo.name / "deploy" / f"{vm_name}.json"
+        )
+        self._write_json(path, cfg)
+
+    def _get_positive_int(self, prompt, default):
+        """Prompt for a non-negative integer, falling back to ``default``."""
+        while True:
+            try:
+                val = input(f"{prompt} [{default}]: ").strip()
+            except EOFError:
+                return default
+            if not val:
+                return default
+            try:
+                iv = int(val)
+            except ValueError:
+                print("Please enter a number.")
+                continue
+            if iv < 0:
+                print("Must be a non-negative integer.")
+                continue
+            return iv
+
+    def _get_positive_float(self, prompt, default):
+        """Prompt for a non-negative number, falling back to ``default``."""
+        while True:
+            try:
+                val = input(f"{prompt} [{default}]: ").strip()
+            except EOFError:
+                return default
+            if not val:
+                return default
+            try:
+                fv = float(val)
+            except ValueError:
+                print("Please enter a number.")
+                continue
+            if fv <= 0:
+                print("Must be a positive number.")
+                continue
+            return fv
+
+    def _get_password(self, prompt):
+        """Prompt for a secret without echoing it (getpass)."""
+        try:
+            return getpass.getpass(prompt)
+        except Exception:
+            return ""
+
+    def _prepare_iso(self, provisioner):
+        """Interactively pick an ISO source and return the config ``iso`` block."""
+        sources = ["Distribution repository", "Cached ISOs", "Pool volumes", "Custom URL/Path"]
+        source = self._select_choice("Select ISO Source", sources, auto_select=False)
+        if not source:
+            return None
+
+        if source == "Distribution repository":
+            versions = provisioner.provider_registry.get_supported_versions(OSType.OPENSUSE)
+            if not versions:
+                print("No openSUSE/SLES versions found.")
+                return None
+            version = self._select_choice(
+                "Select Version", versions, display_func=lambda v: v.display_name, auto_select=False
+            )
+            if not version:
+                return None
+            print(f"Fetching available ISOs for {version.display_name}...")
+            iso_list = provisioner.get_iso_list(version)
+            if not iso_list:
+                print("No ISOs found for this version.")
+                return None
+
+            def iso_display(iso):
+                return (
+                    f"{iso.get('name', iso.get('url'))} ({iso.get('date', '')}) "
+                    f"[Size: {iso.get('size', '?')}]"
+                )
+
+            chosen = self._select_choice(
+                "Select ISO Image", iso_list, display_func=iso_display, auto_select=False
+            )
+            if not chosen:
+                return None
+            return {
+                "source": "repository",
+                "version": version.version_id,
+                "url": chosen.get("url"),
+            }
+
+        if source == "Cached ISOs":
+            cached = provisioner.get_cached_isos()
+            if not cached:
+                print("No cached ISOs found.")
+                return None
+            chosen = self._select_choice(
+                "Select Cached ISO",
+                cached,
+                display_func=lambda c: f"{c['name']} ({c['date']})",
+                value_func=lambda c: c["name"],
+                auto_select=False,
+            )
+            if not chosen:
+                return None
+            return {"source": "cached", "volume": chosen}
+
+        if source == "Pool volumes":
+            vol_options = []
+            for p in [p for p in list_storage_pools(provisioner.conn) if p["status"] == "active"]:
+                for v in list_storage_volumes(p["pool"]):
+                    if v["name"].lower().endswith(".iso"):
+                        vol_options.append((p["name"], v["name"]))
+            if not vol_options:
+                print("No ISO volumes found in active pools.")
+                return None
+            selected = self._select_choice(
+                "Select ISO Volume",
+                vol_options,
+                display_func=lambda pv: f"{pv[1]} (pool: {pv[0]})",
+                auto_select=False,
+            )
+            if not selected:
+                return None
+            pool_name, vol_name = selected
+            return {"source": "pool", "pool": pool_name, "volume": vol_name}
+
+        # Custom URL/Path
+        url = self._get_input("Enter custom ISO URL or absolute path: ")
+        if not url:
+            return None
+        return {"source": "url", "url": url}
+
+    def _prepare_autoinstall(self, provisioner, vm_name):
+        """Interactively build the config ``autoinstall`` block (openSUSE/SLES)."""
+        use_auto = self._select_choice(
+            "Use automated installation?", ["yes", "no"], auto_select=False
+        )
+        if use_auto != "yes":
+            return None
+
+        template_mgr = AutoYaSTTemplateManager(provisioner)
+        all_templates = template_mgr.get_all_templates()
+        templates = [
+            t
+            for t in all_templates
+            if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()
+        ]
+        if not templates:
+            print("No openSUSE/SLES auto-install templates found.")
+            return None
+
+        selected = self._select_choice(
+            "Select Template",
+            templates,
+            display_func=lambda t: f"{t['display_name']} - {t['description']}",
+            value_func=lambda t: t["filename"],
+            auto_select=False,
+        )
+        if not selected:
+            return None
+
+        packages = self._get_input("Extra packages (comma-separated, optional): ").strip()
+        package_list = [p.strip() for p in packages.split(",") if p.strip()] if packages else []
+
+        prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
+        scc_config = self.config.get("SUSE_SCC", {})
+
+        return self._prepare_autoinstall_settings(
+            prefill, scc_config, selected, package_list, vm_name
+        )
+
+    def _prepare_autoinstall_settings(
+        self, prefill, scc_config, selected, package_list, vm_name
+    ):
+        """Collect the auto-install settings, proposing the config pre-fill first.
+
+        If the config has any pre-fill (credentials, locale or SCC), the user is
+        asked once whether to reuse it; accepting uses all pre-filled values so
+        nothing else has to be typed. If declined (or if there is no pre-fill)
+        each field is asked interactively. Passwords are never echoed.
+        """
+        prefill_keys = (
+            "username",
+            "user_password",
+            "root_password",
+            "timezone",
+            "keyboard",
+            "language",
+        )
+        scc_keys = ("scc_email", "scc_reg_code")
+        has_prefill = any(prefill.get(k) for k in prefill_keys) or any(
+            scc_config.get(k) for k in scc_keys
+        )
+
+        use_prefill = False
+        if has_prefill:
+            use = self._select_choice(
+                "Use pre-filled auto-install settings from config?",
+                ["yes", "no"],
+                auto_select=False,
+            )
+            use_prefill = use == "yes"
+
+        if use_prefill:
+            username = prefill.get("username", "admin")
+            user_password = prefill.get("user_password", "")
+            root_password = prefill.get("root_password", "")
+            timezone = prefill.get("timezone", "UTC")
+            keyboard = prefill.get("keyboard", "us")
+            language = prefill.get("language", "English (US)")
+            scc = {
+                "scc_email": scc_config.get("scc_email", ""),
+                "scc_reg_code": scc_config.get("scc_reg_code", ""),
+            }
+        else:
+            # No pre-fill (or declined): ask each field.
+            username = self._get_input("Username: ") or "admin"
+            user_password = self._get_password("User password: ")
+            root_password = self._get_password("Root password: ")
+            timezone = self._get_input("Timezone (e.g. Europe/Zurich): ") or "UTC"
+            keyboard = self._get_input("Keyboard layout (e.g. ch, us): ") or "us"
+            language = self._get_input("Language (e.g. German (Germany)): ") or "English (US)"
+            scc = self._ask_scc()
+
+        return {
+            "enabled": True,
+            "template": selected,
+            "packages": package_list,
+            "username": username,
+            "user_password": user_password,
+            "root_password": root_password,
+            "hostname": vm_name,
+            "timezone": timezone,
+            "keyboard": keyboard,
+            "language": language,
+            "scc": scc,
+        }
+
+    def _ask_scc(self):
+        """Ask for SCC registration interactively (no pre-fill proposal)."""
+        enabled = (
+            self._select_choice(
+                "Register with SUSE Customer Center (SCC)?", ["yes", "no"], auto_select=False
+            )
+            or "no"
+        ) == "yes"
+        if not enabled:
+            return {}
+        return {
+            "scc_email": self._get_input("SCC email: ") or "",
+            "scc_reg_code": self._get_password("SCC registration code: ") or "",
+        }
+
+    def _write_json(self, path, cfg):
+        """Write a config dict as pretty JSON, creating parent dirs as needed."""
+        p = Path(path).expanduser()
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, indent=2)
+            f.write("\n")
+        print(f"\nDeployment config written to: {p}")
+        print(f"Run it with: vmc --config {p}")
+
+    def _write_skeleton_json(self, path):
+        """Write an example deployment JSON skeleton (no server probing)."""
+        skeleton = {
+            "server": "Localhost",
+            "vm_name": "myvm",
+            # A profile (secure/computation/desktop/low_resource/wdesktop/
+            # wldesktop/server) takes memory/disk/vCPU from the profile. Use
+            # "custom" and add memory_mb/vcpu/disk_size_gb to set them manually.
+            "vm_type": "server",
+            "boot_uefi": True,
+            "graphics": "spice",
+            "network": "default",
+            "storage_pool": "default",
+            "iso": {
+                "source": "url",
+                "url": "https://example.com/opensuse-leap.iso",
+            },
+            "autoinstall": {
+                "enabled": True,
+                "template": "autoyast-server.xml",
+                "packages": ["ssh", "vim"],
+                "username": "admin",
+                "user_password": "CHANGE_ME",
+                "root_password": "CHANGE_ME",
+                "hostname": "myvm",
+                "timezone": "UTC",
+                "keyboard": "us",
+                "language": "English (US)",
+                "scc": {
+                    "scc_email": "",
+                    "scc_reg_code": "",
+                },
+            },
+            "start": True,
+        }
+        self._write_json(path, skeleton)
+
+    def complete_prepare_json(self, text, line, begidx, endidx):
+        """Tab completion for prepare_json (the --init flag)."""
+        options = ["--init"]
+        if not text:
+            return options
+        return [o for o in options if o.startswith(text)]
+
+    def do_list_json(self, args):
+        """List all deployment JSON files created by 'prepare_json'.
+        Usage: list_json"""
+        deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
+        if not deploy_dir.is_dir():
+            print("No deployment JSON files found.")
+            print("Create one with: prepare_json [output_path]")
+            return
+
+        json_files = sorted(deploy_dir.glob("*.json"))
+        if not json_files:
+            print(f"No deployment JSON files found in {deploy_dir}.")
+            print("Create one with: prepare_json [output_path]")
+            return
+
+        print(f"Deployment JSON files in {deploy_dir}:")
+        print()
+        header = f"{'File':<24} {'VM Name':<18} {'Type':<12} {'Size':>10}  Modified"
+        print(header)
+        print("-" * len(header))
+
+        for path in json_files:
+            try:
+                cfg = json.loads(path.read_text(encoding="utf-8"))
+                vm_name = str(cfg.get("vm_name", "?"))
+                vm_type = str(cfg.get("vm_type", "?"))
+            except (json.JSONDecodeError, OSError):
+                vm_name, vm_type = "?", "?"
+
+            try:
+                st = path.stat()
+                size = st.st_size
+                mtime = datetime.datetime.fromtimestamp(st.st_mtime).strftime(
+                    "%Y-%m-%d %H:%M"
+                )
+            except OSError:
+                size, mtime = 0, "?"
+            size_str = f"{size} B" if size < 1024 else f"{size / 1024:.1f} KB"
+
+            print(f"{path.name:<24} {vm_name:<18} {vm_type:<12} {size_str:>10}  {mtime}")
+
+    def do_show_json(self, args):
+        """Show the contents of a deployment JSON file.
+        Usage: show_json <file_or_name>
+
+        <file_or_name> may be a full path, or a filename looked up in the
+        default deploy directory (~/.config/virtui-manager/deploy/)."""
+        arg = args.strip()
+        if not arg:
+            print("Usage: show_json <file_or_name>")
+            print("Use 'list_json' to see available files.")
+            return
+
+        p = Path(arg).expanduser()
+        if not p.exists():
+            candidate = Path.home() / ".config" / AppInfo.name / "deploy" / arg
+            if candidate.exists():
+                p = candidate
+            else:
+                print(f"Error: JSON file not found: {arg}")
+                print("Use 'list_json' to see available files.")
+                return
+
+        try:
+            with open(p, encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"Error: Invalid JSON in {p}: {e}")
+            return
+        except OSError as e:
+            print(f"Error: Could not read {p}: {e}")
+            return
+
+        print(f"--- {p} ---")
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+
+    def complete_list_json(self, text, line, begidx, endidx):
+        """No arguments for list_json."""
+        return []
+
+    def complete_show_json(self, text, line, begidx, endidx):
+        """Tab completion for show_json (filenames in the deploy directory)."""
+        deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
+        if not deploy_dir.is_dir():
+            return []
+        names = [p.name for p in deploy_dir.glob("*.json")]
+        if not text:
+            return sorted(names)
+        return [n for n in sorted(names) if n.startswith(text)]
+
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
@@ -4149,6 +4925,17 @@ def main():
         "--command",
         help="Execute a single command non-interactively and exit",
     )
+    parser.add_argument(
+        "-C",
+        "--config",
+        metavar="JSON",
+        help="Deploy a single VM from a JSON config file (see the 'prepare_json' command)",
+    )
+    parser.add_argument(
+        "--dryrun",
+        action="store_true",
+        help="With --config: show a summary of the deployment without provisioning",
+    )
     args = parser.parse_args()
 
     # Show help if -c/--command passed with no value
@@ -4158,6 +4945,11 @@ def main():
 
     cmd_app = VManagerCMD()
     cmd_app.yes_mode = bool(args.command)
+
+    # Config-driven deployment (non-interactive): load JSON, connect, provision.
+    if args.config:
+        cmd_app.deploy_from_config(args.config, dryrun=args.dryrun)
+        return
 
     if args.command:
         cmd_app.preloop()

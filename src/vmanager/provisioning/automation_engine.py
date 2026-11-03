@@ -6,6 +6,7 @@ This module centralizes the generation of unattended installation files
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from pathlib import Path
@@ -158,7 +159,15 @@ class AutomationEngine:
 
         with open(template_path, "r", encoding="utf-8") as f:
             content = self._substitute_variables(f.read(), config, hash_fields=["root_password", "user_password"])
-            
+
+        # Apply any extra packages requested in the deployment config (openSUSE/SLES)
+        packages = config.get("packages") or []
+        if packages:
+            if output_filename == "agama.json":
+                content = self._apply_agama_packages(content, packages)
+            else:
+                content = self._apply_autoyast_packages(content, packages)
+
         output_file = output_path / output_filename
         self._write_file(output_file, content)
         return output_file
@@ -319,6 +328,45 @@ reboot
         """Write content to file with restrictive permissions."""
         with open(os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as f:
             f.write(content)
+
+    def _apply_autoyast_packages(self, content: str, packages: List[str]) -> str:
+        """Insert extra ``<package>`` entries into an AutoYaST ``<packages>`` list.
+
+        No-op (with a warning) if the template has no ``</packages>`` anchor,
+        so templates that already hardcode their package set keep working.
+        """
+        pkgs = [str(p).strip() for p in packages if str(p).strip()]
+        if not pkgs:
+            return content
+        anchor = "</packages>"
+        if anchor not in content:
+            self.logger.warning(
+                "AutoYaST template has no <packages> section; extra packages ignored"
+            )
+            return content
+        block = "".join(f"            <package>{p}</package>\n" for p in pkgs)
+        return content.replace(anchor, block + anchor, 1)
+
+    def _apply_agama_packages(self, content: str, packages: List[str]) -> str:
+        """Append extra packages to an Agama JSON ``software.packages`` array.
+
+        The content is already variable-substituted at this point, so it parses
+        as JSON (placeholders that were not substituted remain plain strings).
+        """
+        pkgs = [str(p).strip() for p in packages if str(p).strip()]
+        if not pkgs:
+            return content
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            self.logger.warning("Could not parse Agama JSON; extra packages ignored")
+            return content
+        software = data.setdefault("software", {})
+        arr = software.setdefault("packages", [])
+        for p in pkgs:
+            if p not in arr:
+                arr.append(p)
+        return json.dumps(data, indent=2, ensure_ascii=False)
 
     def _generate_basic_kickstart(self, config: Dict[str, Any]) -> str:
         """Fallback basic Kickstart if template is missing."""
