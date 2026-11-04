@@ -136,6 +136,61 @@ class TestVManagerCMD(unittest.TestCase):
         completions = self.cmd.complete_connect("Act", "connect Act", 8, 11)
         self.assertIn("ActiveServer", completions)
 
+    def test_list_servers(self):
+        """Test list_servers shows all configured servers."""
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_list_servers("")
+
+        out = buf.getvalue()
+        self.assertIn("Configured servers (2):", out)
+        self.assertIn("local", out)
+        self.assertIn("remote", out)
+        self.assertIn("qemu:///system", out)
+        # URI credentials must be sanitized
+        self.assertNotIn("user@remote", out)
+
+    def test_list_servers_autoconnect_flag(self):
+        """Test list_servers shows the autoconnect flag."""
+        self.cmd.servers = [
+            {"name": "local", "uri": "qemu:///system", "autoconnect": True},
+        ]
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_list_servers("")
+
+        out = buf.getvalue()
+        self.assertIn("Autoconnect", out)
+        self.assertIn("yes", out)
+
+    def test_list_servers_empty(self):
+        """Test list_servers with no configured servers."""
+        self.cmd.servers = []
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_list_servers("")
+
+        self.assertIn("No servers configured.", buf.getvalue())
+
+    def test_list_connected_servers(self):
+        """Test list_connected_servers shows active connections with URIs."""
+        conn = MagicMock()
+        conn.getURI.return_value = "qemu+ssh://user@remote/system"
+        self.cmd.active_connections["remote"] = conn
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_list_connected_servers("")
+
+        out = buf.getvalue()
+        self.assertIn("Connected servers (1):", out)
+        self.assertIn("remote", out)
+        # URI credentials must be sanitized
+        self.assertNotIn("user@remote", out)
+
+    def test_list_connected_servers_empty(self):
+        """Test list_connected_servers with no active connections."""
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_list_connected_servers("")
+
+        self.assertIn("Not connected to any server", buf.getvalue())
+
 
 class TestDeployFromConfig(unittest.TestCase):
     """Tests for the ``vmc --json`` deploy path and ``prepare_json``."""

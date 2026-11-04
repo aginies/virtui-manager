@@ -183,7 +183,14 @@ class VManagerCMD(cmd.Cmd):
 
         # Categories for help and completion
         self.categories = {
-            "Connection": ["connect", "disconnect", "host_info", "virsh"],
+            "Connection": [
+            "connect",
+            "disconnect",
+            "list_servers",
+            "list_connected_servers",
+            "host_info",
+            "virsh",
+        ],
             "VM Selection": [
                 "list_vms",
                 "select_vm",
@@ -1270,6 +1277,59 @@ class VManagerCMD(cmd.Cmd):
             return connected_servers
         else:
             return [s for s in connected_servers if s.startswith(text)]
+
+    def do_list_servers(self, args):
+        """List all configured servers (from the configuration file).
+        Usage: list_servers"""
+        if not self.servers:
+            print("No servers configured.")
+            return
+
+        rows = [
+            (
+                self._colorize(server["name"], server["name"]),
+                self._sanitize_message(server.get("uri", "")),
+                "yes" if server.get("autoconnect", False) else "no",
+            )
+            for server in self.servers
+        ]
+        name_width = max(self._get_display_width(name) for name, _, _ in rows)
+        uri_width = max(len(uri) for _, uri, _ in rows)
+
+        print(f"Configured servers ({len(rows)}):")
+        print()
+        print(f"{'Name':<{name_width}}  {'URI':<{uri_width}}  Autoconnect")
+        print(f"{'-' * name_width}  {'-' * uri_width}  -----------")
+        for name, uri, autoconnect in rows:
+            padding = " " * (name_width - self._get_display_width(name))
+            print(f"{name}{padding}  {uri}  {autoconnect}")
+
+    def do_list_connected_servers(self, args):
+        """List all currently connected servers.
+        Usage: list_connected_servers"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        rows = []
+        for server_name, conn in self.active_connections.items():
+            try:
+                uri = self._sanitize_message(conn.getURI())
+            except libvirt.libvirtError as e:
+                self._safe_print(f"Error getting URI for {server_name}: {e}")
+                uri = "?"
+            rows.append((self._colorize(server_name, server_name), uri))
+
+        name_width = max(self._get_display_width(name) for name, _ in rows)
+        uri_width = max(len(uri) for _, uri in rows)
+
+        print(f"Connected servers ({len(rows)}):")
+        print()
+        print(f"{'Name':<{name_width}}  {'URI':<{uri_width}}")
+        print(f"{'-' * name_width}  {'-' * uri_width}")
+        for name, uri in rows:
+            padding = " " * (name_width - self._get_display_width(name))
+            print(f"{name}{padding}  {uri}")
 
     def do_list_vms(self, arg):
         """List all VMs on the connected servers with their status."""

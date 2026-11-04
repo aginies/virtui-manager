@@ -47,6 +47,10 @@ The prompt dynamically updates to show your active context:
         *   `connect qemu+ssh://admin@server.org/system` (direct remote connection)
 *   **`disconnect [<server> ...]`**
     Closes connections to specific servers. If no server is specified, it disconnects from **all** active sessions.
+*   **`list_servers`**
+    Lists all servers defined in your configuration (name, URI, autoconnect flag), without connecting to any of them.
+*   **`list_connected_servers`**
+    Lists the servers you are currently connected to, with their URIs.
 
 ## Selection & Targeting
 
@@ -513,7 +517,7 @@ Snapshot 'pre-update' created for 'web-01'.
 
 | Category | Commands |
 |----------|----------|
-| Connection | `connect`, `disconnect`, `host_info`, `virsh` |
+| Connection | `connect`, `disconnect`, `list_servers`, `list_connected_servers`, `host_info`, `virsh` |
 | VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `show_selection` |
 | VM Operations | `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `installvm`, `view` |
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
