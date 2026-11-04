@@ -2315,28 +2315,34 @@ class VMCard(Static):
                 self.app.show_success_message(SuccessMessages.VM_RENAME_NO_CHANGE)
                 return
 
+            old_name = self.name
+
             def do_rename():
+                # Runs in a worker thread: rename_vm performs blocking libvirt calls,
+                # so all UI updates must go through call_from_thread.
                 internal_id = self.internal_id
                 self.app.vm_service.suppress_vm_events(internal_id)
                 try:
                     rename_vm(self.vm, new_name)
-                    self.app.show_success_message(
-                        SuccessMessages.VM_RENAMED.format(old_name=self.name, new_name=new_name)
+                    self.app.call_from_thread(
+                        self.app.show_success_message,
+                        SuccessMessages.VM_RENAMED.format(old_name=old_name, new_name=new_name),
                     )
                     self.app.vm_service.invalidate_domain_cache()
                     self._boot_device_checked = False
                     self.app.call_from_thread(self.app.refresh_vm_list, force=True)
-                    logging.info(f"Successfully renamed VM '{self.name}' to '{new_name}'")
+                    logging.info(f"Successfully renamed VM '{old_name}' to '{new_name}'")
                 except Exception as e:
-                    self.app.show_error_message(
-                        ErrorMessages.ERROR_RENAMING_VM_TEMPLATE.format(vm_name=self.name, error=e)
+                    self.app.call_from_thread(
+                        self.app.show_error_message,
+                        ErrorMessages.ERROR_RENAMING_VM_TEMPLATE.format(vm_name=old_name, error=e),
                     )
                 finally:
                     self.app.vm_service.unsuppress_vm_events(internal_id)
 
             def on_confirm_rename(confirmed: bool, delete_snapshots=False) -> None:
                 if confirmed:
-                    do_rename()
+                    self.app.worker_manager.run(do_rename, name=f"rename_{self.name}")
                     if delete_snapshots:
                         self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                 else:
