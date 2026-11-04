@@ -28,11 +28,20 @@ from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
 from .constants import AppInfo, ServerPalette
 from .libvirt_error_handler import register_error_handler
-from .libvirt_utils import get_host_resources, get_network_info
+from .libvirt_utils import (
+    get_cpu_models,
+    get_host_architecture,
+    get_host_domain_capabilities,
+    get_host_resources,
+    get_latest_machine_types,
+    get_network_info,
+    get_video_domain_capabilities,
+)
 from .modals.input_modals import _sanitize_domain_name
 from .network_manager import (
     delete_network,
     ensure_default_network,
+    get_vms_using_network,
     list_networks,
     set_network_active,
     set_network_autostart,
@@ -61,8 +70,10 @@ from .vm_actions import (
     delete_vm,
     delete_vm_snapshot,
     force_off_vm,
+    guest_reboot,
     hibernate_vm,
     pause_vm,
+    rename_vm,
     restore_vm_snapshot,
     start_vm,
     stop_vm,
@@ -189,6 +200,7 @@ class VManagerCMD(cmd.Cmd):
             "list_servers",
             "list_connected_servers",
             "host_info",
+            "host_capabilities",
             "virsh",
         ],
             "VM Selection": [
@@ -197,17 +209,20 @@ class VManagerCMD(cmd.Cmd):
                 "unselect_vm",
                 "status",
                 "vm_info",
+                "vm_stats",
                 "show_selection",
             ],
             "VM Operations": [
                 "start",
                 "stop",
                 "force_off",
+                "reboot",
                 "pause",
                 "resume",
                 "hibernate",
                 "delete",
                 "clone_vm",
+                "rename_vm",
                 "installvm",
                 "view",
             ],
@@ -225,10 +240,17 @@ class VManagerCMD(cmd.Cmd):
                 "net_stop",
                 "net_delete",
                 "net_info",
+                "network_usage",
                 "net_autostart",
             ],
-            "Storage": ["list_pool", "list_unused_volumes", "delete_volume"],
-            "Installation": ["prepare_json", "list_json", "show_json"],
+            "Storage": [
+                "list_pool",
+                "list_volumes",
+                "list_unused_volumes",
+                "volume_usage",
+                "delete_volume",
+            ],
+            "Installation": ["prepare_json", "list_json", "show_json", "list_isos", "list_cached_isos"],
             "Pipelines": ["pipeline"],
             "Shell/Utils": ["bash", "history", "version", "about", "quit"],
         }
@@ -1683,6 +1705,43 @@ class VManagerCMD(cmd.Cmd):
     def complete_vm_info(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
+    def do_vm_stats(self, args):
+        """Show live runtime statistics for one or more VMs (CPU, memory, disk and network I/O).
+        Usage: vm_stats [vm_name_1] [vm_name_2] ...
+        If no VM names are provided, it will show stats for the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_check = self._get_vms_to_operate(args)
+        if not vms_to_check:
+            return
+
+        for server_name, vm_list in vms_to_check.items():
+            print(f"\n--- VM Stats on {server_name} ---")
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    stats = self.vm_service.get_vm_runtime_stats(domain)
+                    if stats is None:
+                        print(f"No runtime stats available for '{vm_name}'.")
+                        continue
+                    print(
+                        f"{vm_name}: {stats.get('status')} | "
+                        f"CPU {stats.get('cpu_percent', 0.0):.1f}% | "
+                        f"Mem {stats.get('mem_percent', 0.0):.1f}% | "
+                        f"Disk R/W {stats.get('disk_read_kbps', 0.0):.1f}/"
+                        f"{stats.get('disk_write_kbps', 0.0):.1f} KB/s | "
+                        f"Net RX/TX {stats.get('net_rx_kbps', 0.0):.1f}/"
+                        f"{stats.get('net_tx_kbps', 0.0):.1f} KB/s"
+                    )
+                except libvirt.libvirtError as e:
+                    self._safe_print(f"Error getting stats for '{vm_name}': {e}")
+
+    def complete_vm_stats(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
     def do_view(self, args):
         """Launch the graphical viewer (Spice/VNC) for one or more VMs.
         Usage: view [vm_name_1] [vm_name_2] ...
@@ -1819,6 +1878,35 @@ class VManagerCMD(cmd.Cmd):
                     print(f"An unexpected error occurred with VM '{vm_name}': {e}")
 
     def complete_force_off(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_reboot(self, args):
+        """Reboots one or more running VMs (ACPI reboot).
+        Usage: reboot [vm_name_1] [vm_name_2] ...
+        If no VM names are provided, it will reboot the selected VMs."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_reboot = self._get_vms_to_operate(args)
+        if not vms_to_reboot:
+            return
+
+        for server_name, vm_list in vms_to_reboot.items():
+            print(f"\n--- Rebooting VMs on {server_name} ---")
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    if not domain.isActive():
+                        print(f"VM '{vm_name}' is not running.")
+                        continue
+                    guest_reboot(domain)
+                    print(f"Sent reboot signal to VM '{vm_name}'.")
+                except libvirt.libvirtError as e:
+                    self._safe_print(f"Error rebooting VM '{vm_name}': {e}")
+
+    def complete_reboot(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_pause(self, args):
@@ -2099,6 +2187,43 @@ class VManagerCMD(cmd.Cmd):
 
         return self.complete_select_vm(text, line, begidx, endidx)
 
+    def do_rename_vm(self, args):
+        """Renames a stopped VM (snapshots and NVRAM are preserved).
+        Usage: rename_vm <vm_name> <new_name>"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = args.split()
+        if len(arg_list) != 2:
+            print("Usage: rename_vm <vm_name> <new_name>")
+            return
+
+        vm_name, new_name = arg_list
+        sanitized, _ = _sanitize_domain_name(new_name)
+        if not sanitized:
+            print("Error: Invalid new name (only letters, digits, hyphens and dots are allowed).")
+            return
+
+        domain, server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        try:
+            rename_vm(domain, sanitized)
+            self.vm_service.invalidate_domain_cache()
+            print(f"VM '{vm_name}' renamed to '{sanitized}' on '{server_name}'.")
+        except libvirt.libvirtError as e:
+            self._safe_print(f"Error renaming VM '{vm_name}': {e}")
+
+    def complete_rename_vm(self, text, line, begidx, endidx):
+        """Auto-completion for the VM to rename (first argument only)."""
+        words = line.split()
+        if len(words) > 2 or (len(words) == 2 and not line.endswith(" ")):
+            return []
+
+        return self.complete_select_vm(text, line, begidx, endidx)
+
     def do_list_unused_volumes(self, args):
         """Lists all storage volumes that are not attached to any VM.
         If pool_name is provided, only checks volumes in that specific pool.
@@ -2166,9 +2291,110 @@ class VManagerCMD(cmd.Cmd):
             except Exception as e:
                 print(f"An unexpected error occurred on {server_name}: {e}")
 
+    # virStorageVolType values (see libvirt.VIR_STORAGE_VOL_TYPE_*)
+    _VOL_TYPES = {
+        0: "file",
+        1: "block",
+        2: "net",
+        3: "dir",
+        4: "scsi",
+        5: "rbd",
+        6: "sheepdog",
+        7: "gluster",
+        8: "iscsi",
+        9: "logical",
+        10: "disk",
+        11: "pool",
+        12: "ploop",
+        13: "zfs",
+    }
+
+    def do_list_volumes(self, args):
+        """Lists all storage volumes in a pool (name, type, capacity, allocation).
+        If pool_name is provided, only lists volumes in that specific pool.
+        Usage: list_volumes [pool_name]"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        pool_name = args.strip() if args else None
+
+        for server_name, conn in self.active_connections.items():
+            print(f"\n--- Volumes on {server_name} ---")
+            try:
+                pools_info = list_storage_pools(conn)
+                if pool_name:
+                    pools_info = [p for p in pools_info if p["name"] == pool_name]
+                    if not pools_info:
+                        print(f"Pool '{pool_name}' not found on this server.")
+                        continue
+                found_any = False
+                for pool_info in pools_info:
+                    volumes = list_storage_volumes(pool_info["pool"])
+                    if not volumes:
+                        continue
+                    found_any = True
+                    print(f"\n  Pool: {pool_info['name']}")
+                    print(
+                        f"  {'Volume Name':<30} {'Type':<10} {'Capacity (GiB)':<15} {'Allocation (GiB)':<15}"
+                    )
+                    print(f"  {'-' * 30} {'-' * 10} {'-' * 15} {'-' * 15}")
+                    for vol in volumes:
+                        capacity_gib = vol["capacity"] // (1024 * 1024 * 1024)
+                        allocation_gib = vol["allocation"] // (1024 * 1024 * 1024)
+                        vol_type = self._VOL_TYPES.get(vol["type"], str(vol["type"]))
+                        print(
+                            f"  {vol['name']:<30} {vol_type:<10} {capacity_gib:<15} {allocation_gib:<15}"
+                        )
+                if not found_any:
+                    print("No volumes found on this server.")
+            except libvirt.libvirtError as e:
+                print(f"Error listing volumes on {server_name}: {e}")
+            except Exception as e:
+                print(f"An unexpected error occurred on {server_name}: {e}")
+
+    def complete_list_volumes(self, text, _, _b, _e):
+        """Auto-completion for pool names in list_volumes command."""
+        return self._complete_pools(text)
+
     def complete_list_unused_volumes(self, text, _, _b, _e):
         """Auto-completion for pool names in list_unused_volumes command."""
         return self._complete_pools(text)
+
+    def do_volume_usage(self, args):
+        """Shows which VMs use a storage volume.
+        Usage: volume_usage <pool_name> <volume_name>"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = args.split()
+        if len(arg_list) != 2:
+            print("Usage: volume_usage <pool_name> <volume_name>")
+            return
+
+        pool_name, volume_name = arg_list
+        server_name, conn, vol = self._find_volume(pool_name, volume_name)
+        if vol is None:
+            return
+
+        vms = find_vms_using_volume(conn, vol.path(), vol.name())
+        print(f"\n--- Volume Usage on {server_name} ---")
+        print(f"Volume: {pool_name}/{volume_name}")
+        if vms:
+            for d in vms:
+                print(f"  - {d.name()}")
+        else:
+            print("  Not used by any VM.")
+
+    def complete_volume_usage(self, text, line, begidx, endidx):
+        """Auto-completion for volume_usage: pool name then volume name."""
+        args = line.split()
+        if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
+            # Completing the pool name
+            return self._complete_pools(text)
+        # Completing the volume name (pool is the first argument)
+        return self._complete_volumes(text, args[1])
 
     def _complete_pools(self, text):
         """Helper to autocomplete storage pool names."""
@@ -3386,6 +3612,39 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     def complete_net_info(self, text, line, begidx, endidx):
         return self._complete_networks(text)
 
+    def do_network_usage(self, args):
+        """Shows which VMs use a libvirt network.
+        Usage: network_usage <network_name>"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        network_name = args.strip()
+        if not network_name:
+            print("Usage: network_usage <network_name>")
+            return
+
+        found = False
+        for server_name, conn in self.active_connections.items():
+            try:
+                conn.networkLookupByName(network_name)
+            except libvirt.libvirtError:
+                continue
+            found = True
+            vms = get_vms_using_network(conn, network_name)
+            print(f"\n--- Network Usage on {server_name} ---")
+            print(f"Network: {network_name}")
+            if vms:
+                for vm in vms:
+                    print(f"  - {vm}")
+            else:
+                print("  Not used by any VM.")
+        if not found:
+            print(f"Error: Network '{network_name}' not found on any connected server.")
+
+    def complete_network_usage(self, text, line, begidx, endidx):
+        return self._complete_networks(text)
+
     def do_net_autostart(self, args):
         """Set a network to autostart or not.
         Usage: net_autostart <network_name> <on|off>"""
@@ -3461,6 +3720,45 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"Error retrieving host info for {server_name}: {e}")
 
     def complete_host_info(self, text, line, begidx, endidx):
+        return self.complete_disconnect(text, line, begidx, endidx)
+
+    def do_host_capabilities(self, args):
+        """Show hypervisor capabilities: architecture, CPU models, machine types and video models.
+        Usage: host_capabilities [server_name]"""
+        target_servers = []
+        if args:
+            server_name = args.strip()
+            if server_name in self.active_connections:
+                target_servers = [server_name]
+            else:
+                print(f"Error: Not connected to '{server_name}'.")
+                return
+        else:
+            target_servers = list(self.active_connections.keys())
+
+        if not target_servers:
+            print("Not connected to any server.")
+            return
+
+        for server_name in target_servers:
+            conn = self.active_connections[server_name]
+            try:
+                arch = get_host_architecture(conn)
+                print(f"\n--- Host Capabilities: {server_name} ---")
+                print(f"Architecture: {arch}")
+                cpu_models = get_cpu_models(conn, arch)
+                if cpu_models:
+                    print(f"CPU Models: {', '.join(cpu_models)}")
+                machine_types = get_latest_machine_types(conn, arch)
+                for name, mtype in machine_types.items():
+                    print(f"Machine Type ({name}): {mtype}")
+                video = get_video_domain_capabilities(get_host_domain_capabilities(conn) or "")
+                if video.get("video_models"):
+                    print(f"Video Models: {', '.join(video['video_models'])}")
+            except Exception as e:
+                print(f"Error retrieving host capabilities for {server_name}: {e}")
+
+    def complete_host_capabilities(self, text, line, begidx, endidx):
         return self.complete_disconnect(text, line, begidx, endidx)
 
     def _complete_networks(self, text):
@@ -4449,6 +4747,100 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if commands:
             config["post_install_commands"] = commands
         return config
+
+    def do_list_isos(self, args):
+        """Lists available ISOs for a distribution and version.
+        Usage: list_isos [distro [version]]
+        If no distro is given, the supported distros are listed.
+        If no version is given, the supported versions are listed.
+        Example: list_isos openSUSE 15.6"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        conn = next(iter(self.active_connections.values()))
+        provisioner = VMProvisioner(conn)
+        registry = provisioner.provider_registry
+        supported_distros = ", ".join(sorted(t.value for t in registry.get_supported_os_types()))
+
+        arg_list = args.split()
+        if not arg_list:
+            print(f"\nSupported distros: {supported_distros}")
+            return
+
+        # Distro names may contain spaces (e.g. "Arch Linux"), so match the
+        # longest distro prefix of the arguments; the remainder is the version.
+        os_type = None
+        version = None
+        for i in range(len(arg_list), 0, -1):
+            candidate = " ".join(arg_list[:i])
+            for t in OSType:
+                if t.value.lower() == candidate.lower() or t.name.lower() == candidate.lower():
+                    os_type = t
+                    version = arg_list[i] if i < len(arg_list) else None
+                    break
+            if os_type is not None:
+                break
+
+        if os_type is None:
+            print(f"Unknown distro '{arg_list[0]}'. Supported: {supported_distros}")
+            return
+
+        if version is None:
+            versions = sorted(v.version_id for v in registry.get_supported_versions(os_type))
+            if not versions:
+                print(f"No versions found for {os_type.value} in the libosinfo catalog.")
+            else:
+                print(f"\nSupported versions for {os_type.value}: {', '.join(versions)}")
+            return
+
+        os_version = registry.find_version(os_type, version)
+        if os_version is None:
+            versions = sorted(v.version_id for v in registry.get_supported_versions(os_type))
+            message = f"Unknown version '{version}' for {os_type.value}."
+            if versions:
+                message += f" Supported: {', '.join(versions)}"
+            print(message)
+            return
+
+        isos = provisioner.get_iso_list(os_version)
+        if not isos:
+            print(f"No ISOs found for {os_version.display_name}.")
+            return
+
+        print(f"\n--- ISOs for {os_version.display_name} ({len(isos)}) ---")
+        for iso in isos:
+            size = iso.get("size")
+            size_str = f" ({size})" if size and size != "Unknown" else ""
+            print(f"  - {iso.get('name')}{size_str}")
+            print(f"      {iso.get('url')}")
+
+    def complete_list_isos(self, text, line, begidx, endidx):
+        """Auto-completion for distro names in list_isos command."""
+        words = line.split()
+        if len(words) > 2 or (len(words) == 2 and not line.endswith(" ")):
+            return []
+        distros = sorted(t.value for t in OSType)
+        if not text:
+            return distros
+        return [d for d in distros if d.lower().startswith(text.lower())]
+
+    def do_list_cached_isos(self, args):
+        """Lists ISOs already downloaded to the local cache.
+        Usage: list_cached_isos"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        conn = next(iter(self.active_connections.values()))
+        isos = VMProvisioner(conn).get_cached_isos()
+        if not isos:
+            print("No cached ISOs found.")
+            return
+
+        print(f"\n--- Cached ISOs ({len(isos)}) ---")
+        for iso in isos:
+            print(f"  - {iso.get('name')} ({iso.get('date')})")
 
     def do_prepare_json(self, args):
         """Generate a deployment JSON config by asking questions.

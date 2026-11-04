@@ -72,14 +72,17 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 
 *   **`status`**: Shows state, vCPU count, and memory usage.
 *   **`vm_info`**: Displays detailed metadata, including UUID, architecture, network interfaces (with IPs if available), and disk paths.
+*   **`vm_stats`**: Shows live runtime statistics (CPU%, memory%, disk and network I/O) for the target VMs.
 *   **`start`**: Boots up the target VMs.
 *   **`stop`**: Sends a graceful shutdown signal (ACPI).
 *   **`force_off`**: Immediately cuts power (hard shutdown).
+*   **`reboot`**: Sends an ACPI reboot signal to the target VMs (they must be running).
 *   **`pause` / `resume`**: Freezes or unfreezes VM execution.
 *   **`hibernate`**: Saves the VM state to disk and stops it.
 *   **`view`**: Launches the graphical viewer (Spice or VNC) for the target VMs.
 *   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
 *   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
+*   **`rename_vm <vm_name> <new_name>`**: Renames a stopped VM (snapshots and NVRAM are preserved).
 *   **`installvm [--dryrun|--show] <vm_name> [choice1 choice2 ...]`**: Installs a new Virtual Machine. It can be used interactively or unattended by providing numerical choices as positional arguments.
     *   `--dryrun` / `--show`: Displays a summary of the selected configuration and the command required to run it unattended, without performing the actual installation.
     *   *Note*: Automated installation credentials (passwords, keyboard layout, etc.) are pulled directly from the `AUTO_INSTALL_PRE_FILL` section of your configuration.
@@ -213,6 +216,7 @@ installvm fed43 3 4 1 1 2 2 yes 1
 *   **`net_stop <name>`**: Stops (destroys) a virtual network.
 *   **`net_delete <name>`**: Permanently deletes (undefines) a network configuration.
 *   **`net_info <name>`**: Shows detailed information (UUID, bridge, IP, DHCP range) for a network.
+*   **`network_usage <name>`**: Lists the VMs that use a network.
 *   **`net_autostart <name> <on|off>`**: Enables or disables autostart for a network.
 
 ```bash
@@ -273,8 +277,13 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 
 *   **`list_vms`**: Lists all VMs on all connected servers with their current status.
 *   **`list_pool`**: Displays all storage pools, their capacity, and usage.
+*   **`list_volumes [pool_name]`**: Lists all storage volumes in a pool (name, type, capacity, allocation).
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
+*   **`volume_usage <pool_name> <volume_name>`**: Lists the VMs that use a storage volume.
 *   **`host_info [server]`**: Displays host resource information (CPU models, topology, total/free memory).
+*   **`host_capabilities [server]`**: Displays hypervisor capabilities (architecture, CPU models, latest machine types, supported video models).
+*   **`list_isos [distro [version]]`**: Lists available ISOs for a distribution and version (e.g. `list_isos openSUSE 15.6`). Distro names with spaces work as-is (e.g. `list_isos Arch Linux`). If no distro is given, the supported distros are listed; if no version is given, the supported versions are listed.
+*   **`list_cached_isos`**: Lists ISOs already downloaded to the local cache.
 
 ```bash
 (ryzen7,g.org) list_pool
@@ -518,13 +527,13 @@ Snapshot 'pre-update' created for 'web-01'.
 
 | Category | Commands |
 |----------|----------|
-| Connection | `connect`, `disconnect`, `list_servers`, `list_connected_servers`, `host_info`, `virsh` |
-| VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `show_selection` |
-| VM Operations | `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `installvm`, `view` |
+| Connection | `connect`, `disconnect`, `list_servers`, `list_connected_servers`, `host_info`, `host_capabilities`, `virsh` |
+| VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `vm_stats`, `show_selection` |
+| VM Operations | `start`, `stop`, `force_off`, `reboot`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `rename_vm`, `installvm`, `view` |
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
-| Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `net_autostart` |
-| Storage | `list_pool`, `list_unused_volumes` |
-| Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json` |
+| Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `network_usage`, `net_autostart` |
+| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `volume_usage` |
+| Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json`, `list_isos`, `list_cached_isos` |
 | Pipelines | `pipeline` (with `|` chaining) |
 | Shell/Utils | `bash`, `history`, `!<number>`, `version`, `quit`, `help` |

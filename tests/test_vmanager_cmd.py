@@ -12,12 +12,15 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import libvirt
+
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
 from vmanager.vmanager_cmd import VManagerCMD
 from vmanager.deploy_config import DeployConfigError, load_deploy_config
 from vmanager.constants import AppInfo
+from vmanager.provisioning.os_provider import OSType
 
 
 class TestVManagerCMD(unittest.TestCase):
@@ -199,6 +202,263 @@ class TestVManagerCMD(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn(AppInfo.namecase, out)
         self.assertIn(AppInfo.version, out)
+
+    def _make_vm_conn(self, vm_name="vm1", active=True):
+        """Helper: a connected server with a single VM domain."""
+        domain = MagicMock()
+        domain.name.return_value = vm_name
+        domain.UUIDString.return_value = "uuid-1"
+        domain.isActive.return_value = active
+        conn = MagicMock()
+        conn.listAllDomains.return_value = [domain]
+        conn.lookupByName.return_value = domain
+        self.cmd.active_connections["local"] = conn
+        return conn, domain
+
+    def test_reboot(self):
+        """Test reboot sends an ACPI reboot to a running VM."""
+        conn, domain = self._make_vm_conn()
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_reboot("vm1")
+
+        domain.reboot.assert_called_once_with(0)
+        self.assertIn("Sent reboot signal to VM 'vm1'.", buf.getvalue())
+
+    def test_reboot_not_running(self):
+        """Test reboot refuses a stopped VM."""
+        conn, domain = self._make_vm_conn(active=False)
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_reboot("vm1")
+
+        domain.reboot.assert_not_called()
+        self.assertIn("is not running", buf.getvalue())
+
+    def test_vm_stats(self):
+        """Test vm_stats displays runtime statistics."""
+        conn, domain = self._make_vm_conn()
+        self.mock_vm_service.get_vm_runtime_stats.return_value = {
+            "status": "running",
+            "cpu_percent": 12.5,
+            "mem_percent": 30.0,
+            "disk_read_kbps": 1.0,
+            "disk_write_kbps": 2.0,
+            "net_rx_kbps": 3.0,
+            "net_tx_kbps": 4.0,
+        }
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_vm_stats("vm1")
+
+        out = buf.getvalue()
+        self.assertIn("vm1", out)
+        self.assertIn("CPU 12.5%", out)
+        self.assertIn("Mem 30.0%", out)
+
+    def test_rename_vm(self):
+        """Test rename_vm renames a stopped VM and invalidates the cache."""
+        conn, domain = self._make_vm_conn(vm_name="old")
+        with patch("vmanager.vmanager_cmd.rename_vm") as mock_rename:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_rename_vm("old new")
+
+        mock_rename.assert_called_once_with(domain, "new")
+        self.mock_vm_service.invalidate_domain_cache.assert_called_once()
+        self.assertIn("renamed to 'new'", buf.getvalue())
+
+    def test_rename_vm_usage(self):
+        """Test rename_vm with a wrong number of arguments."""
+        self._make_vm_conn()
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_rename_vm("old")
+
+        self.assertIn("Usage: rename_vm <vm_name> <new_name>", buf.getvalue())
+
+    def test_list_volumes(self):
+        """Test list_volumes lists the volumes of a pool."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        pool_mock = MagicMock()
+        with patch(
+            "vmanager.vmanager_cmd.list_storage_pools",
+            return_value=[{"name": "default", "pool": pool_mock}],
+        ), patch(
+            "vmanager.vmanager_cmd.list_storage_volumes",
+            return_value=[
+                {
+                    "name": "vol1.qcow2",
+                    "type": "file",
+                    "capacity": 10 * 1024**3,
+                    "allocation": 5 * 1024**3,
+                }
+            ],
+        ):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_volumes("")
+
+        out = buf.getvalue()
+        self.assertIn("default", out)
+        self.assertIn("vol1.qcow2", out)
+
+    def test_volume_usage(self):
+        """Test volume_usage lists the VMs using a volume."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        vol = MagicMock()
+        vol.path.return_value = "/var/lib/libvirt/vol1.qcow2"
+        vol.name.return_value = "vol1.qcow2"
+        user_vm = MagicMock()
+        user_vm.name.return_value = "vm1"
+        with patch("vmanager.vmanager_cmd.find_volume", return_value=vol), patch(
+            "vmanager.vmanager_cmd.find_vms_using_volume", return_value=[user_vm]
+        ):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_volume_usage("default vol1.qcow2")
+
+        self.assertIn("vm1", buf.getvalue())
+
+    def test_network_usage(self):
+        """Test network_usage lists the VMs using a network."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        with patch("vmanager.vmanager_cmd.get_vms_using_network", return_value=["vm1"]):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_network_usage("default")
+
+        out = buf.getvalue()
+        self.assertIn("default", out)
+        self.assertIn("vm1", out)
+
+    def test_network_usage_not_found(self):
+        """Test network_usage with an unknown network."""
+        conn = MagicMock()
+        conn.networkLookupByName.side_effect = libvirt.libvirtError("no such network")
+        self.cmd.active_connections["local"] = conn
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_network_usage("missing")
+
+        self.assertIn("not found", buf.getvalue())
+
+    def test_host_capabilities(self):
+        """Test host_capabilities displays arch, CPU models and machine types."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        with patch("vmanager.vmanager_cmd.get_host_architecture", return_value="x86_64"), patch(
+            "vmanager.vmanager_cmd.get_cpu_models", return_value=["Haswell", "IvyBridge"]
+        ), patch(
+            "vmanager.vmanager_cmd.get_latest_machine_types",
+            return_value={"pc-i440fx": "pc.i440fx.8.1", "pc-q35": "pc.q35.8.1"},
+        ), patch(
+            "vmanager.vmanager_cmd.get_host_domain_capabilities", return_value=None
+        ), patch(
+            "vmanager.vmanager_cmd.get_video_domain_capabilities",
+            return_value={"video_models": ["virtio"]},
+        ):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_host_capabilities("")
+
+        out = buf.getvalue()
+        self.assertIn("x86_64", out)
+        self.assertIn("Haswell", out)
+        self.assertIn("pc.q35.8.1", out)
+
+    def test_list_isos(self):
+        """Test list_isos lists ISOs for a distro and version."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        os_version = MagicMock()
+        os_version.display_name = "openSUSE Leap 15.6"
+        registry = MagicMock()
+        registry.get_supported_os_types.return_value = [OSType.OPENSUSE]
+        registry.find_version.return_value = os_version
+        provisioner = MagicMock()
+        provisioner.provider_registry = registry
+        provisioner.get_iso_list.return_value = [
+            {"name": "opensuse-15.6.iso", "url": "http://example.com/iso.iso", "size": "Unknown"}
+        ]
+        with patch("vmanager.vmanager_cmd.VMProvisioner", return_value=provisioner):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_isos("openSUSE 15.6")
+
+        registry.find_version.assert_called_once_with(OSType.OPENSUSE, "15.6")
+        self.assertIn("opensuse-15.6.iso", buf.getvalue())
+
+    def test_list_isos_versions(self):
+        """Test list_isos lists the supported versions when no version is given."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        registry = MagicMock()
+        registry.get_supported_versions.return_value = [
+            MagicMock(version_id="15.5"),
+            MagicMock(version_id="15.6"),
+        ]
+        provisioner = MagicMock()
+        provisioner.provider_registry = registry
+        with patch("vmanager.vmanager_cmd.VMProvisioner", return_value=provisioner):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_isos("openSUSE")
+
+        registry.get_supported_versions.assert_called_once_with(OSType.OPENSUSE)
+        self.assertIn("Supported versions for openSUSE: 15.5, 15.6", buf.getvalue())
+
+    def test_list_isos_no_args(self):
+        """Test list_isos lists the supported distros when no argument is given."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        provisioner = MagicMock()
+        provisioner.provider_registry.get_supported_os_types.return_value = [
+            OSType.OPENSUSE,
+            OSType.ARCHLINUX,
+        ]
+        with patch("vmanager.vmanager_cmd.VMProvisioner", return_value=provisioner):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_isos("")
+
+        self.assertIn("Supported distros: Arch Linux, openSUSE", buf.getvalue())
+
+    def test_list_isos_distro_with_space(self):
+        """Test list_isos handles distro names containing spaces."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        registry = MagicMock()
+        registry.get_supported_versions.return_value = [MagicMock(version_id="13")]
+        provisioner = MagicMock()
+        provisioner.provider_registry = registry
+        with patch("vmanager.vmanager_cmd.VMProvisioner", return_value=provisioner):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_isos("Arch Linux")
+
+        registry.get_supported_versions.assert_called_once_with(OSType.ARCHLINUX)
+        self.assertIn("Supported versions for Arch Linux: 13", buf.getvalue())
+
+    def test_list_isos_unknown_distro(self):
+        """Test list_isos with an unknown distro."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        provisioner = MagicMock()
+        provisioner.provider_registry.get_supported_os_types.return_value = [OSType.OPENSUSE]
+        with patch("vmanager.vmanager_cmd.VMProvisioner", return_value=provisioner):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_isos("FreeBSD 14")
+
+        self.assertIn("Unknown distro", buf.getvalue())
+
+    def test_list_cached_isos(self):
+        """Test list_cached_isos lists the local ISO cache."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        provisioner = MagicMock()
+        provisioner.get_cached_isos.return_value = [
+            {"name": "cached.iso", "url": "cached.iso", "date": "2026-01-01 00:00 (Cached)"}
+        ]
+        with patch("vmanager.vmanager_cmd.VMProvisioner", return_value=provisioner):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_list_cached_isos("")
+
+        self.assertIn("cached.iso", buf.getvalue())
 
 
 class TestDeployFromConfig(unittest.TestCase):
