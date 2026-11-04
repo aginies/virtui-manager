@@ -112,7 +112,7 @@ def _validate(cfg: Dict[str, Any]) -> None:
 
     # --- boot / graphics / network / pool defaults ---
     cfg["boot_uefi"] = bool(cfg.get("boot_uefi", True))
-    cfg["graphics"] = cfg.get("graphics", "spice")
+    cfg["graphics"] = cfg.get("graphics", "vnc")
     cfg["network"] = cfg.get("network", "default")
     cfg["storage_pool"] = cfg.get("storage_pool", "default")
     cfg["start"] = bool(cfg.get("start", True))

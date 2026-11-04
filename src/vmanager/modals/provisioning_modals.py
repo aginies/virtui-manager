@@ -223,7 +223,7 @@ class InstallVMModal(BaseModal[Optional[str]]):
                             yield Label(StaticText.GRAPHICS_LABEL, classes="label")
                             yield Select(
                                 [("Spice", "spice"), ("VNC", "vnc")],
-                                value="spice",
+                                value="vnc",
                                 id="graphics-type",
                             )
                         with Vertical(id="expert-disk-size"):

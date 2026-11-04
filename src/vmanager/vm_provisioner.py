@@ -913,7 +913,7 @@ class VMProvisioner:
         boot_uefi: bool,
         disk_format: str | None = None,
         os_type: OSType = OSType.OPENSUSE,
-        graphics_type: str = "spice",
+        graphics_type: str = "vnc",
         is_auto_install: bool = False,
     ) -> Dict[str, Any]:
         """
@@ -1119,7 +1119,7 @@ class VMProvisioner:
         initrd_path: str | None = None,
         serial_console: bool = False,
         os_type: OSType = OSType.OPENSUSE,
-        graphics_type: str = "spice",
+        graphics_type: str = "vnc",
         os_version: str | None = None,
         network_name: str = "default",
         ovmf_debug: bool = False,
@@ -2545,7 +2545,7 @@ class VMProvisioner:
         vcpu: int = 2,
         disk_size_gb: int | None = None,
         disk_format: str | None = None,
-        graphics_type: str = "spice",
+        graphics_type: str = "vnc",
         boot_uefi: bool | None = None,
         configure_before_install: bool = False,
         show_config_modal_callback: Optional[Callable[[libvirt.virDomain], None]] = None,

@@ -336,7 +336,7 @@ for extra packages and SCC registration):
   "vm_name": "web01",
   "vm_type": "server",
   "boot_uefi": true,
-  "graphics": "spice",
+  "graphics": "vnc",
   "network": "default",
   "storage_pool": "default",
   "iso": { "source": "url", "url": "https://example.com/opensuse-leap.iso" },

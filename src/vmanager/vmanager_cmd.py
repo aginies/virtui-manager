@@ -4357,7 +4357,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             # 9. Select Graphics (VNC or Spice)
             graphics_type = self._select_choice(
                 "Select Graphics",
-                ["Spice", "VNC"],
+                ["VNC", "Spice"],
                 choices_provided=choices_provided,
                 choices_used=choices_used,
                 value_func=lambda g: g.lower(),
@@ -4973,9 +4973,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         # 9. Graphics
         graphics = self._select_choice(
-            "Select Graphics", ["Spice", "VNC"], value_func=lambda g: g.lower(), auto_select=False
+            "Select Graphics", ["VNC", "Spice"], value_func=lambda g: g.lower(), auto_select=False
         )
-        graphics = graphics or "spice"
+        graphics = graphics or "vnc"
 
         # 10. Auto-install
         autoinstall = self._prepare_autoinstall(provisioner, vm_name)
@@ -5311,7 +5311,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             # "custom" and add memory_mb/vcpu/disk_size_gb to set them manually.
             "vm_type": "server",
             "boot_uefi": True,
-            "graphics": "spice",
+            "graphics": "vnc",
             "network": "default",
             "storage_pool": "default",
             "iso": {
