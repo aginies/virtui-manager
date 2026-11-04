@@ -650,9 +650,11 @@ class RemoteViewer(Gtk.Application):
 
     def _on_notebook_switch_page(self, notebook, page, page_num):
         """Handle tab switch to populate data on demand."""
-        if page_num == 1:  # Snapshots tab
+        if not self.window_builder:
+            return
+        if page is self.window_builder.snapshot_tab_widget:
             self.window_builder.populate_snapshots()
-        elif page_num == 2:  # USB tab
+        elif page is self.window_builder.usb_tab_widget:
             self.window_builder.populate_usb_lists()
 
     def _register_domain_events(self):

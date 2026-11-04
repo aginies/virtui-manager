@@ -11,6 +11,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk
 
+from ...utils import is_remote_connection
 from .console_tab import ConsoleTab
 from .menus import (
     build_boot_menu,
@@ -83,6 +84,8 @@ class MainWindowBuilder:
         self.conn = conn
         self.domain_name = domain_name
         self.uri = uri
+        # USB passthrough needs host device access: local hypervisor only
+        self.is_remote = is_remote_connection(uri)
         self.attach = attach
         self.is_fullscreen = is_fullscreen
         self.show_logs = show_logs
@@ -126,6 +129,11 @@ class MainWindowBuilder:
         self.console_tab_instance: Optional[ConsoleTab] = None
         self.snapshot_tab_instance: Optional[SnapshotTab] = None
         self.usb_tab_instance: Optional[USBTab] = None
+
+        # Tab page widgets (for visibility toggling and tab-switch handling)
+        self.snapshot_tab_widget: Optional[Gtk.Widget] = None
+        self.usb_tab_widget: Optional[Gtk.Widget] = None
+        self.console_tab_widget: Optional[Gtk.Widget] = None
 
     def build_window(self, handlers: Dict[str, Any]) -> Gtk.ApplicationWindow:
         """
@@ -331,18 +339,21 @@ class MainWindowBuilder:
             reconnect_callback=self.reconnect,
         )
         snapshot_tab_widget = self.snapshot_tab_instance.build_tab()
+        self.snapshot_tab_widget = snapshot_tab_widget
         self.notebook.append_page(snapshot_tab_widget, Gtk.Label(label="Snapshots"))
 
-        # Tab 3: USB Devices
-        self.usb_tab_instance = USBTab(
-            domain=self.domain,
-            conn=self.conn,
-            window=self.window,
-            log_callback=self.log,
-            notification_callback=self.notify,
-        )
-        usb_tab_widget = self.usb_tab_instance.build_tab()
-        self.notebook.append_page(usb_tab_widget, Gtk.Label(label="USB Devices"))
+        # Tab 3: USB Devices (local hypervisor only: USB passthrough needs
+        # host device access, which a remote connection does not provide)
+        if not self.is_remote:
+            self.usb_tab_instance = USBTab(
+                domain=self.domain,
+                conn=self.conn,
+                window=self.window,
+                log_callback=self.log,
+                notification_callback=self.notify,
+            )
+            self.usb_tab_widget = self.usb_tab_instance.build_tab()
+            self.notebook.append_page(self.usb_tab_widget, Gtk.Label(label="USB Devices"))
 
         # Tab 4: Serial Console
         self.console_tab_instance = ConsoleTab(
@@ -352,6 +363,7 @@ class MainWindowBuilder:
             notification_callback=self.notify,
         )
         console_tab_widget = self.console_tab_instance.build_tab()
+        self.console_tab_widget = console_tab_widget
         self.notebook.append_page(console_tab_widget, Gtk.Label(label="Serial Console"))
 
         # Tab 5: Logs & Events
@@ -420,26 +432,21 @@ class MainWindowBuilder:
         if not self.notebook:
             return
 
-        # Page numbers: 0=Display, 1=Snapshots, 2=USB, 3=Console, 4=Logs
-        snapshots_page_num = 1
-        usb_page_num = 2
-        console_page_num = 3
-        logs_page_num = 4
-
-        if show:
-            # Show all tabs
-            self.notebook.get_nth_page(logs_page_num).show()
-            self.notebook.get_nth_page(snapshots_page_num).show()
-            self.notebook.get_nth_page(usb_page_num).show()
-            self.notebook.get_nth_page(console_page_num).show()
-            self.notebook.set_show_tabs(True)
-        else:
-            # Hide extra tabs, show only Display
-            self.notebook.get_nth_page(logs_page_num).hide()
-            self.notebook.get_nth_page(snapshots_page_num).hide()
-            self.notebook.get_nth_page(usb_page_num).hide()
-            self.notebook.get_nth_page(console_page_num).hide()
-            self.notebook.set_show_tabs(False)
+        # Extra pages (everything except Display): snapshots, USB
+        # (local only), console, logs
+        extra_pages = [
+            self.log_scroll,
+            self.snapshot_tab_widget,
+            self.console_tab_widget,
+        ]
+        if self.usb_tab_widget is not None:
+            extra_pages.append(self.usb_tab_widget)
+        for page in extra_pages:
+            if show:
+                page.show()
+            else:
+                page.hide()
+        self.notebook.set_show_tabs(show)
 
         # Always switch to Display tab when toggling
         self.notebook.set_current_page(0)
