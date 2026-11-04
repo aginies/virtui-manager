@@ -422,6 +422,7 @@ web01.json               web01              server           789 B  2026-11-03 1
 *   **`bash [command]`**: Executes a local shell command or starts an interactive bash shell.
 *   **`history [number|all|info]`**: Displays the command history. Use `history all` to see all history, `history <number>` for a specific number of recent commands, or `history info` for history file location.
 *   **`!<number>`**: Re-executes a command from the history by its number (e.g., `!15` runs command #15).
+*   **`version`**: Displays the version of VirtUI Manager (same version as the TUI).
 
 ```bash
 (ryzen7,g.org) virsh
@@ -526,4 +527,4 @@ Snapshot 'pre-update' created for 'web-01'.
 | Storage | `list_pool`, `list_unused_volumes` |
 | Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json` |
 | Pipelines | `pipeline` (with `|` chaining) |
-| Shell/Utils | `bash`, `history`, `!<number>`, `quit`, `help` |
+| Shell/Utils | `bash`, `history`, `!<number>`, `version`, `quit`, `help` |

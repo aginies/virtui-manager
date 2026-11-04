@@ -191,6 +191,15 @@ class TestVManagerCMD(unittest.TestCase):
 
         self.assertIn("Not connected to any server", buf.getvalue())
 
+    def test_version(self):
+        """Test version displays the application name and version."""
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_version("")
+
+        out = buf.getvalue()
+        self.assertIn(AppInfo.namecase, out)
+        self.assertIn(AppInfo.version, out)
+
 
 class TestDeployFromConfig(unittest.TestCase):
     """Tests for the ``vmc --json`` deploy path and ``prepare_json``."""

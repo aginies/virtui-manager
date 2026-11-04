@@ -230,7 +230,7 @@ class VManagerCMD(cmd.Cmd):
             "Storage": ["list_pool", "list_unused_volumes", "delete_volume"],
             "Installation": ["prepare_json", "list_json", "show_json"],
             "Pipelines": ["pipeline"],
-            "Shell/Utils": ["bash", "history", "about", "quit"],
+            "Shell/Utils": ["bash", "history", "version", "about", "quit"],
         }
         try:
             readline.set_completion_display_matches_hook(self._display_completion_matches)
@@ -2953,6 +2953,11 @@ Dry-run testing:
         self.vm_service.disconnect_all()
         print(f"\nExiting {AppInfo.namecase}.")
         return True
+
+    def do_version(self, args):
+        """Display the version of VirtUI Manager (vmc).
+        Usage: version"""
+        print(f"{AppInfo.namecase} {AppInfo.version}")
 
     def do_about(self, args):
         """Display GPL license and copyright information."""
