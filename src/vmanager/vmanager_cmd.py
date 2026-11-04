@@ -141,7 +141,7 @@ class VManagerCMD(cmd.Cmd):
     prompt = "(" + AppInfo.name + ") "
     intro = f"""Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.
 
-{AppInfo.namecase}  Copyright (C) {datetime.datetime.now().year}  {AppInfo.author}
+{AppInfo.namecase}  Copyright (C) {AppInfo.copyright_years}  {AppInfo.author}
     This program comes with ABSOLUTELY NO WARRANTY; for details type 'about'.
     This is free software, and you are welcome to redistribute it
     under certain conditions; type 'about' for details.
@@ -3187,11 +3187,10 @@ Dry-run testing:
 
     def do_about(self, args):
         """Display GPL license and copyright information."""
-        current_year = datetime.datetime.now().year
         about_text = f"""
 {AppInfo.namecase} {AppInfo.version}
 
-Copyright (C) {current_year} {AppInfo.author}
+Copyright (C) {AppInfo.copyright_years} {AppInfo.author}
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
