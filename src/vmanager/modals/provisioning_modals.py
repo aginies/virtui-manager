@@ -479,7 +479,7 @@ class InstallVMModal(BaseModal[Optional[str]]):
             disk_format = "raw"
             boot_uefi = False
         elif vm_type == VMType.SERVER:
-            mem = 4
+            mem = 16
             vcpu = 6
         elif vm_type == VMType.DESKTOP:
             mem = 4
