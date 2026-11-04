@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -167,6 +168,16 @@ class AutomationEngine:
                 content = self._apply_agama_packages(content, packages)
             else:
                 content = self._apply_autoyast_packages(content, packages)
+
+        # Bake the serial console into the installed system's bootloader. The
+        # installer's own kernel cmdline (console=ttyS0) is gone after the
+        # reboot into the installed system, so the console has to be written
+        # into the installed bootloader to survive that reboot.
+        if config.get("serial_console"):
+            if output_filename == "agama.json":
+                content = self._apply_agama_serial_console(content)
+            else:
+                content = self._apply_autoyast_serial_console(content)
 
         # Bake any post-install commands into the template's post-install script
         # (AutoYaST <scripts><post> / Agama scripts.post). These run during the
@@ -376,6 +387,88 @@ reboot
         for p in pkgs:
             if p not in arr:
                 arr.append(p)
+        return json.dumps(data, indent=2, ensure_ascii=False)
+
+    # Kernel params that redirect the guest console to the serial port.
+    # console=tty0 keeps the graphical console working; ttyS0 is the
+    # libvirt pty that openConsole("serial0") attaches to.
+    SERIAL_CONSOLE_PARAMS = "console=tty0 console=ttyS0,115200"
+
+    def _apply_autoyast_serial_console(self, content: str) -> str:
+        """Add serial console kernel params to the installed system's bootloader.
+
+        AutoYaST's ``<bootloader><global><append>`` is written into the
+        installed system's GRUB, so the console survives the reboot from the
+        installer. If the template has no ``<append>`` element, one is created
+        (inside ``<global>`` when present, otherwise inside ``<bootloader>``).
+        No-op (with a warning) if the template has no ``<bootloader>`` section.
+        """
+        params = self.SERIAL_CONSOLE_PARAMS
+        if "console=ttyS0" in content:
+            return content  # already configured (idempotent)
+        bl_idx = content.find("<bootloader>")
+        if bl_idx == -1:
+            self.logger.warning(
+                "AutoYaST template has no <bootloader> section; "
+                "serial console not configured for the installed system"
+            )
+            return content
+        head, tail = content[:bl_idx], content[bl_idx:]
+        # Only look inside the <bootloader> section: an <append> or <global>
+        # elsewhere in the profile must not receive the console params.
+        bl_end = tail.find("</bootloader>")
+        if bl_end != -1:
+            bl, rest = tail[:bl_end], tail[bl_end:]
+        else:
+            bl, rest = tail, ""
+        # Match the <append> opening tag with optional attributes
+        # (e.g. <append config:type="list">) and insert right after it.
+        append_match = re.search(r"<append(?:\s[^>]*)?>", bl)
+        if append_match:
+            tag = append_match.group(0)
+            bl = bl.replace(tag, f"{tag}{params} ", 1)
+        elif "<global>" in bl:
+            bl = bl.replace(
+                "<global>", f"<global>\n            <append>{params}</append>", 1
+            )
+        else:
+            bl = bl.replace(
+                "<bootloader>",
+                f"<bootloader>\n        <global>\n"
+                f"            <append>{params}</append>\n        </global>",
+                1,
+            )
+        return head + bl + rest
+
+    def _apply_agama_serial_console(self, content: str) -> str:
+        """Add serial console kernel params to Agama's ``bootloader.extraKernelParams``.
+
+        Agama writes these params into the installed system's bootloader
+        (GRUB/BLS), so the console survives the reboot from the installer.
+        """
+        params = self.SERIAL_CONSOLE_PARAMS
+        if "console=ttyS0" in content:
+            return content  # already configured (idempotent)
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            self.logger.warning("Could not parse Agama JSON; serial console ignored")
+            return content
+        bootloader = data.setdefault("bootloader", {})
+        extra_raw = bootloader.get("extraKernelParams")
+        if isinstance(extra_raw, str):
+            extra = extra_raw
+        elif isinstance(extra_raw, list):
+            extra = " ".join(str(p) for p in extra_raw)
+        elif extra_raw is None:
+            extra = ""
+        else:
+            self.logger.warning(
+                "Agama template has a non-string extraKernelParams; "
+                "starting fresh with the console params"
+            )
+            extra = ""
+        bootloader["extraKernelParams"] = f"{extra} {params}".strip()
         return json.dumps(data, indent=2, ensure_ascii=False)
 
     def _apply_autoyast_post_install(self, content: str, commands: List[str]) -> str:

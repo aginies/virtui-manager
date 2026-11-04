@@ -42,3 +42,4 @@ Welcome to the official documentation for **VirtUI Manager**, the next-generatio
 - [State Management](appdocs/howto_overlay.md)
 - [Using an SSH Agent](appdocs/howto_ssh.md)
 - [Using VirtIO-FS](appdocs/howto_virtiofs.md)
+- [Serial Console](appdocs/howto_serial_console.md)
