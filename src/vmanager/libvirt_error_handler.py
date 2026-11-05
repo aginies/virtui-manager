@@ -10,6 +10,19 @@ import logging
 
 import libvirt
 
+# libvirt reports the absence of a thing at its own error level, but a lookup
+# that asks "is it there yet?" is a probe the caller handles: the domain is
+# about to be defined, the ISO about to be uploaded, the firmware pool about to
+# be created. Logging those as errors makes a run that worked read like one
+# that did not, and teaches whoever reads the log to ignore it.
+_EXPECTED_ABSENCES = frozenset(
+    {
+        libvirt.VIR_ERR_NO_DOMAIN,
+        libvirt.VIR_ERR_NO_STORAGE_VOL,
+        libvirt.VIR_ERR_NO_STORAGE_POOL,
+    }
+)
+
 
 def libvirt_error_handler(conn, error):  # pylint: disable=unused-argument
     """
@@ -28,7 +41,11 @@ def libvirt_error_handler(conn, error):  # pylint: disable=unused-argument
         conn_str = error[4] if len(error) > 4 else "Unknown connection"
 
         # Determine logging level - only use levels that exist
-        if level == libvirt.VIR_ERR_ERROR:
+        if code in _EXPECTED_ABSENCES:
+            # An absence somebody went looking for. Still recorded, for whoever
+            # is debugging why a probe did not find what it wanted.
+            log_level = logging.DEBUG
+        elif level == libvirt.VIR_ERR_ERROR:
             log_level = logging.ERROR
         elif level == libvirt.VIR_ERR_WARNING:
             log_level = logging.WARNING

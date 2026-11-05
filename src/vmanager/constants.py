@@ -586,8 +586,7 @@ class StaticText:  # pylint: disable=too-few-public-methods
     ACTIONS = _("Actions")
     NODESET_EXAMPLE = _("e.g., 0-1")
     CPU_TUNE_HELP_TITLE = _("CPU Tuning Help")
-    CPU_TUNE_HELP_TEXT = _(
-        """
+    CPU_TUNE_HELP_TEXT = _("""
 # CPU Tune Help
 
 ## CPU Pinning (vcpupin)
@@ -604,11 +603,9 @@ Specify which physical CPUs (host CPUs) each virtual CPU (guest CPU) can run on.
 * `0:0-3`: Pin vCPU 0 to physical CPUs 0, 1, 2, and 3.
 * `0:0,2`: Pin vCPU 0 to physical CPUs 0 and 2.
 * `0:0-1; 1:2-3`: Pin vCPU 0 to physical CPUs 0-1, and vCPU 1 to physical CPUs 2-3.
-"""
-    )
+""")
     NUMA_TUNE_HELP_TITLE = _("NUMA Tuning Help")
-    NUMA_TUNE_HELP_TEXT = _(
-        """
+    NUMA_TUNE_HELP_TEXT = _("""
 # NUMA Tune Help
 
 ## Memory Modes
@@ -621,8 +618,7 @@ Specify the NUMA nodes to use.
 * Example: `0` (Node 0 only)
 * Example: `0-1` (Nodes 0 and 1)
 * Example: `0,2-3` (Node 0 and nodes 2 through 3)
-"""
-    )
+""")
     REFRESHING_HOST_STATS = _("Refreshing host stats")
     SELECT_SERVER_FOR_PREFS = _("Select a server for Preferences")
     SELECT_SERVER_FOR_VIRSH = _("Select a server for Virsh Shell")
@@ -747,7 +743,17 @@ Specify the NUMA nodes to use.
     CPUS_LABEL = _("CPUs")
     NONE_OPTION = _("None")
     REDIRECT_CONSOLE_SERIAL_LABEL = _("Redirect console to serial (ttyS0)")
-    # VM Provisioner Progress Messages
+    # VM Provisioner Progress Messages. Both deploy routes report from here: the words
+    # name the event, so a machine built from install media and a machine booted from a
+    # volume say the same thing while doing the same thing, and a caller watching one
+    # can read the other. A word only one route can report is added here too — starting
+    # a machine, or leaving it defined — because a second word for one event is worse
+    # than a word one route never says.
+    #
+    # These are passed through `_()` while the `stage` field beside them is not, and
+    # that is the seam decision 0001 in `docs/adr/` names and accepts: a `--machine`
+    # caller that needs a word to branch on reads `stage`, and the text here is the
+    # detail for whoever reads the log.
     PROVISIONING_CHECKING_ENVIRONMENT = _("Checking Environment")
     PROVISIONING_USING_EXISTING_ISO_VOLUME = _("Using existing ISO volume: {path}")
     PROVISIONING_USING_LOCAL_ISO_IMAGE = _("Using local ISO image")
@@ -756,10 +762,22 @@ Specify the NUMA nodes to use.
     PROVISIONING_SETTING_UP_UEFI_FIRMWARE = _("Setting up UEFI Firmware")
     PROVISIONING_CREATING_STORAGE = _("Creating Storage")
     PROVISIONING_GENERATING_AUTOMATION_CONFIG = _("Generating automation configuration")
+    PROVISIONING_UPLOADING_KERNEL_INITRD = _("Uploading kernel and initrd")
+    PROVISIONING_UPLOADING_AUTOMATION_IMAGE = _("Uploading automation floppy image")
+    PROVISIONING_ISO_ALREADY_EXISTS = _("ISO already exists")
     PROVISIONING_DEFINING_VM = _("Defining VM")
+    # The boot route defines, then starts, and reports the two separately. An install
+    # defines and starts in one step, so it has no event to report here — which is why
+    # this is a word of its own rather than a second name for a shared event.
+    PROVISIONING_STARTING_VM = _("Starting VM")
     PROVISIONING_COMPLETE_CONFIG_MODE = _("Provisioning Complete (Configuration Mode)")
     PROVISIONING_CONFIGURING_VM_XML = _("Configuring VM (XML)")
     PROVISIONING_COMPLETE = _("Provisioning Complete")
+    # The one ending only a boot gives: `start: false` leaves the machine defined and
+    # stopped, which an install cannot do, so it has no shared word to borrow. Whether
+    # the machine ended running is in the answer's `running` field, not a fact this line
+    # has to carry — and not the machine's name either, which is in `domain`.
+    PROVISIONING_COMPLETE_NOT_STARTED = _("Provisioning Complete (Defined, Not Started)")
 
     # VM Type constants
     VM_TYPE_SECURE = _("Secure VM")
@@ -885,6 +903,71 @@ Specify the NUMA nodes to use.
     # utils_modals.py strings
     IN_PROGRESS_TITLE = _("In Progress")
     QUICK_INFO_TITLE = _("Quick Info")
+
+    # vmanager_cmd.py: what the interactive install path asks a person with — `prepare_json`
+    # writing a file, and `installvm` provisioning a machine — and what it says once the
+    # answer is written. Where the two ask the same question, they ask it with these words,
+    # so they cannot drift apart. Translated, because these are put to a person at a
+    # terminal: no machine command reaches them (`--machine` has no prepare route and never
+    # writes a file), so none of them is a contract field. See docs/adr/0001.
+    PREPARE_NOT_CONNECTED = _("Not connected to any server. Use 'connect <server_name>' first.")
+    PREPARE_SELECT_SERVER = _("Select Server")
+    PREPARE_ENTER_VM_NAME = _("Enter VM name: ")
+    PREPARE_VM_NAME_REQUIRED = _("VM name is required.")
+    PREPARE_SELECT_VM_TYPE = _("Select VM Type")
+    PREPARE_MEMORY_GB = _("Memory (GB)")
+    PREPARE_VCPU = _("vCPU")
+    PREPARE_DISK_SIZE_GB = _("Disk size (GB)")
+    PREPARE_NO_ISO = _("Could not select an ISO.")
+    PREPARE_SELECT_NETWORK = _("Select Network")
+    PREPARE_SELECT_BOOT_MODE = _("Select Boot Mode")
+    PREPARE_SELECT_GRAPHICS = _("Select Graphics")
+    PREPARE_START_AFTER_INSTALL = _("Start VM after installation?")
+    PREPARE_ENTER_A_NUMBER = _("Please enter a number.")
+    PREPARE_NON_NEGATIVE_INTEGER = _("Must be a non-negative integer.")
+    PREPARE_POSITIVE_NUMBER = _("Must be a positive number.")
+    # The ISO choice. The four sources are also what `_prepare_iso` branches on, so a label
+    # and the comparison against it name the same constant rather than agreeing by hand.
+    # The cached source reuses `CACHED_ISOS` above rather than saying it twice.
+    PREPARE_ISO_SOURCE_REPOSITORY = _("Distribution repository")
+    PREPARE_ISO_SOURCE_POOL = _("Pool volumes")
+    PREPARE_ISO_SOURCE_CUSTOM = _("Custom URL/Path")
+    PREPARE_SELECT_ISO_SOURCE = _("Select ISO Source")
+    PREPARE_NO_VERSIONS = _("No openSUSE/SLES versions found.")
+    PREPARE_SELECT_VERSION = _("Select Version")
+    PREPARE_FETCHING_ISOS_TEMPLATE = _("Fetching available ISOs for {version}...")
+    PREPARE_NO_ISOS_FOR_VERSION = _("No ISOs found for this version.")
+    PREPARE_SELECT_ISO_IMAGE = _("Select ISO Image")
+    PREPARE_NO_CACHED_ISOS = _("No cached ISOs found.")
+    PREPARE_SELECT_CACHED_ISO = _("Select Cached ISO")
+    PREPARE_NO_ISO_VOLUMES = _("No ISO volumes found in active pools.")
+    PREPARE_SELECT_ISO_VOLUME = _("Select ISO Volume")
+    PREPARE_ENTER_CUSTOM_ISO = _("Enter custom ISO URL or absolute path: ")
+    # The auto-install settings. The three secrets are asked with getpass; only their
+    # prompts are wording, never the values.
+    PREPARE_USE_AUTOINSTALL = _("Use automated installation?")
+    PREPARE_NO_TEMPLATES = _("No openSUSE/SLES auto-install templates found.")
+    PREPARE_SELECT_TEMPLATE = _("Select Template")
+    PREPARE_EXTRA_PACKAGES = _("Extra packages (comma-separated, optional): ")
+    PREPARE_USE_PREFILL = _("Use pre-filled auto-install settings from config?")
+    PREPARE_USERNAME = _("Username: ")
+    PREPARE_USER_PASSWORD = _("User password: ")
+    PREPARE_ROOT_PASSWORD = _("Root password: ")
+    PREPARE_TIMEZONE = _("Timezone (e.g. Europe/Zurich): ")
+    PREPARE_KEYBOARD = _("Keyboard layout (e.g. ch, us): ")
+    PREPARE_LANGUAGE = _("Language (e.g. German (Germany)): ")
+    PREPARE_SCC_REGISTER = _("Register with SUSE Customer Center (SCC)?")
+    PREPARE_SCC_EMAIL = _("SCC email: ")
+    PREPARE_SCC_REG_CODE = _("SCC registration code: ")
+    PREPARE_POST_INSTALL_ASK = _("Add post-install commands (run during auto-install)?")
+    PREPARE_POST_INSTALL_HELP = _("Enter one post-install command per line (blank line to finish):")
+    # Writing the answer back, and the one way that fails.
+    PREPARE_CONFIG_WRITTEN_TEMPLATE = _("\nDeployment config written to: {path}")
+    PREPARE_CONFIG_RUN_TEMPLATE = _("Run it with: vmc --json {path}")
+    PREPARE_CONFIG_DEPLOY_VM_TEMPLATE = _("or, interactively: deploy_vm {command}")
+    PREPARE_CONFIG_WRITE_FAILED_TEMPLATE = _(
+        "Could not write the deployment config to {path}: {error}"
+    )
 
 
 class SparklineLabels:  # pylint: disable=too-few-public-methods
@@ -1379,6 +1462,254 @@ class VMDetailConstants:  # pylint: disable=too-few-public-methods
 
     VIDEO_MODELS_FALLBACK = ["default", "virtio", "qxl", "vga", "cirrus", "bochs", "ramfb", "none"]
     SOUND_MODELS_FALLBACK = ["none", "ich6", "ich9", "ac97", "sb16", "usb"]
+
+
+class MachineModeText:  # pylint: disable=too-few-public-methods
+    """The words a machine caller is answered with when its command is wrong.
+
+    Deliberately not passed through `_()`, for the reason recorded in
+    ``docs/adr/0001-machine-answers-are-not-localized.md``. The `code` beside
+    these is the stable part; this is the part written for the human reading the
+    log afterwards.
+    """
+
+    EMPTY_COMMAND = "Empty command."
+    CANNOT_PARSE_COMMAND_TEMPLATE = "Cannot parse command: {error}"
+    UNKNOWN_COMMAND_TEMPLATE = "Unknown command '{command}'."
+    NO_MACHINE_RESULT_TEMPLATE = "The command '{command}' has no machine-readable result."
+    UNKNOWN_SUBCOMMAND_TEMPLATE = "Unknown machine subcommand '{subcommand}'."
+    NO_SUCH_FLAG_TEMPLATE = "machine info has no {flag} flag."
+
+
+class MachineProgressStage:  # pylint: disable=too-few-public-methods
+    """The stage a ``--machine`` progress event names, and the only set of them.
+
+    A caller branches on these words the way it branches on an exit status, so they
+    are part of a contract rather than prose: not passed through `_()`, and not
+    reworded once a script depends on them. Every command takes its stage from here,
+    and ``documentation/manual/cli.md`` lists the same words in its Progress events
+    section — ``tests/test_cli_docs.py`` fails if the manual, this set, or a command
+    drifts apart, because a stage emitted and not documented leaves a caller
+    branching on a word it was never told about.
+    """
+
+    # The two routes a deploy takes, one word for each.
+    INSTALL = "install"  # a machine built from install media
+    BOOT = "boot"  # a machine booted from a volume the pool already holds
+
+    # The bytes of `volume upload`, reported as they go into the pool.
+    UPLOAD = "upload"
+
+    # A domain action reports the action's own word, because that is the word the
+    # caller of `domain start` already branches on. `undefine` is not one of them:
+    # the machine it removes has nothing left to report afterwards.
+    START = "start"
+    SHUTDOWN = "shutdown"
+    REBOOT = "reboot"
+    DESTROY = "destroy"
+
+    # The whole set, which is what the manual lists.
+    ALL = frozenset({INSTALL, BOOT, UPLOAD, START, SHUTDOWN, REBOOT, DESTROY})
+
+
+class MachineResourceText:  # pylint: disable=too-few-public-methods
+    """What the resource commands of ``vmc --machine`` answer when told wrongly.
+
+    Not passed through `_()`, for the reason in decision 0001 in ``docs/adr/``:
+    a program reads these, and the `code` field beside them is the part that must
+    not vary.
+    Names of things — a pool, a volume, a flag — arrive as `{name}` so the sentence
+    stays here and the vocabulary of the command does not leak into it.
+    """
+
+    # Reading the words a command is made of
+    NO_SUCH_FLAG_TEMPLATE = "{command} has no --{flag} flag."
+    FLAG_TAKES_NO_VALUE_TEMPLATE = "--{flag} takes no value."
+    FLAG_NEEDS_VALUE_TEMPLATE = "--{flag} needs a value."
+    NEEDS_SUBCOMMAND_TEMPLATE = "{command} needs a subcommand ({subcommands})."
+    UNKNOWN_SUBCOMMAND_TEMPLATE = "Unknown {command} subcommand '{subcommand}'."
+    NEEDS_NAME_TEMPLATE = "{command} needs a name."
+    NEEDS_FLAG_TEMPLATE = "{command} needs --{flag}."
+    UNEXPECTED_ARGUMENT_PREFIX = "Unexpected argument: "
+
+    # Which hypervisor the command was meant for
+    NO_HYPERVISOR_CONNECTED = "No hypervisor is connected. Pass -u <uri>."
+    TOO_MANY_HYPERVISORS_TEMPLATE = (
+        "{count} hypervisors are connected, and a resource command means one. "
+        "Pass -u <uri> to name it."
+    )
+
+    # A thing asked for by name
+    NOT_FOUND_TEMPLATE = "No {kind} '{name}'."
+    COULD_NOT_READ_TEMPLATE = "Could not read the {kind} '{name}': {error}"
+
+    # Storage pools
+    POOL_ALREADY_DEFINED_TEMPLATE = "A storage pool '{name}' is already defined."
+    COULD_NOT_CREATE_POOL_TEMPLATE = "Could not create the pool '{name}': {error}"
+    COULD_NOT_LIST_POOL_TEMPLATE = "Could not list the pool: {error}"
+
+    # Volumes
+    VOLUME_ALREADY_IN_POOL_TEMPLATE = "A volume '{name}' is already in this pool."
+    BACKING_HAS_NO_PATH_TEMPLATE = "The backing volume '{name}' has no path to record."
+    SIZE_NOT_A_NUMBER_TEMPLATE = "--size must be a number of gigabytes (got '{value}')."
+    FORMAT_MUST_BE_RAW_OR_QCOW2_TEMPLATE = "--format must be raw or qcow2 (got '{value}')."
+    NO_SUCH_FILE_TEMPLATE = "No such file: {path}"
+    COULD_NOT_CREATE_VOLUME_TEMPLATE = "Could not create the volume '{name}': {error}"
+    COULD_NOT_CREATE_OVERLAY_TEMPLATE = "Could not create the overlay '{name}': {error}"
+    COULD_NOT_REPLACE_VOLUME_TEMPLATE = "Could not replace the volume '{name}': {error}"
+    COULD_NOT_DELETE_VOLUME_TEMPLATE = "Could not delete '{name}': {error}"
+    VOLUME_RENAME_IS_NOT_POSSIBLE = (
+        "Renaming a volume is not something the libvirt binding can do. "
+        "Do it with 'virsh vol-rename' on the hypervisor, "
+        "or upload the bytes under the new name."
+    )
+    COULD_NOT_UPLOAD_TEMPLATE = "Could not upload '{source}': {error}"
+
+    # Domains, networks, hosts
+    COULD_NOT_LIST_DOMAINS_TEMPLATE = "Could not list the domains: {error}"
+    COULD_NOT_LIST_NETWORKS_TEMPLATE = "Could not list the networks: {error}"
+    COULD_NOT_ACT_ON_DOMAIN_TEMPLATE = "Could not {action} '{name}': {error}"
+    COULD_NOT_READ_METADATA_TEMPLATE = "Could not read the metadata of '{name}': {error}"
+    COULD_NOT_READ_ADDRESSES_TEMPLATE = "Could not read the addresses of '{name}': {error}"
+    DOMAIN_RUNNING_REFUSAL_TEMPLATE = (
+        "The domain '{name}' is running; stop it before you {verb} it."
+    )
+
+
+class DeployText:  # pylint: disable=too-few-public-methods
+    """What the config-driven deploy answers with when it cannot deploy.
+
+    One string, two readers. ``deploy_from_config`` prints these sentences and,
+    under ``--machine``, ships the same sentence as the ``message`` of the failure
+    answer — so they are the awkward middle: they read like prose because they are
+    read by a person, and they are a contract because a program logs the same words
+    beside the ``code`` it branches on. The machine half picks the class, and with
+    it the rule that they are not passed through `_()` — decision 0001 in
+    ``docs/adr/``.
+
+    Names come out of the deploy file, so they arrive as placeholders and the
+    sentence stays here. `checks/check_constants.py` reports any deploy failure
+    that spells its answer out instead of naming one of these.
+    """
+
+    # The file itself: unreadable, or readable and wrong.
+    CONFIG_ERROR_TEMPLATE = "Config error: {error}"
+    INVALID_VM_NAME_TEMPLATE = "Invalid VM name: {error}"
+    VM_NAME_EMPTY = "VM name cannot be empty."
+
+    # Where the machine was meant to land.
+    CANNOT_CONNECT_TEMPLATE = "Could not connect to server '{server}'."
+    VM_ALREADY_EXISTS_TEMPLATE = "VM '{name}' already exists."
+    VM_NAME_CHECK_FAILED_TEMPLATE = "Error checking VM name: {error}"
+    NO_DEFAULT_POOL = "No storage pool available and could not create default pool."
+
+    # A thing the file names that the hypervisor does not have. Both routes answer
+    # these from here: an install looks them up in the pool it resolved, a boot in
+    # the pool named by `storage_pool`, which is the same pool either way.
+    NO_SUCH_POOL_TEMPLATE = "No storage pool '{pool}' on {server}."
+    NO_SUCH_VOLUME_TEMPLATE = "No volume '{volume}' in the pool '{pool}'."
+    NO_SUCH_SEED_TEMPLATE = "No seed volume '{seed}' in '{pool}'."
+    NO_SUCH_BACKING_TEMPLATE = "No backing volume '{backing}' in '{pool}'."
+    OVERLAY_FAILED_TEMPLATE = "Could not make '{volume}' over '{backing}': {error}"
+
+    # The deploy itself, once everything the file named has been found.
+    ISO_UNRESOLVABLE = "Could not resolve ISO from config."
+    NO_DOMAIN = "Provisioning did not return a domain."
+    PROVISION_FAILED_TEMPLATE = "Failed to provision VM: {error}"
+    BOOT_FAILED_TEMPLATE = "Failed to boot the machine: {error}"
+
+
+class DeploySummaryText:  # pylint: disable=too-few-public-methods
+    """What a dry run answers to "what would this deploy do?".
+
+    There are two summaries because there are two deployments: one for a machine
+    built from install media, one for a machine booted from a volume the pool
+    holds. They describe the same machine, so they used to print the same labels —
+    written twice, and free to drift. They are held here instead, in the order both
+    routes print them:
+
+        whose machine, on which hypervisor; the hardware; what it boots from; the
+        disc it reads its configuration from; the network; the pool; the firmware;
+        the screen; what an install would answer for; and last, what becomes of the
+        machine.
+
+    A route prints only the lines it has something to say for. The profile name is
+    an install's answer (a boot deploy takes memory and vCPU from it, both named by
+    the hardware line, and discards the disk it would imply, since the disk already
+    exists); the install media and the boot order are one route's each; the disk
+    size has no place in a boot summary for the same reason.
+
+    Two voices, deliberately. A fact about the machine is a label and a value
+    (`Network: default`). Something the deploy would *do*, that a caller could not
+    read off the machine, is written as what would happen (`… would be started`) —
+    so no line can be misread as something the dry run went and did.
+
+    Deliberately not passed through `_()`, for the reason given on `DeployText`:
+    these lines are the deploy surface's, printed as a log line under `--machine`
+    beside the answer of the same deploy, whose keys (`storage_pool`, `graphics`,
+    `memory_mb`) are English whatever the language. Translating the labels would
+    leave one deploy speaking two vocabularies.
+    """
+
+    HEADER = "\n--- Summary of Actions (dry run) ---"
+
+    # Whose machine, and on which hypervisor.
+    VM_NAME_TEMPLATE = "VM Name: {name}"
+    SERVER_TEMPLATE = "Server: {server}"
+    VM_TYPE_TEMPLATE = "VM Type: {vm_type}"
+
+    # The hardware the machine would be given. The disk is the one field only an
+    # install can name: a machine booted from a volume has no disk of its own to
+    # size, so the route that boots one prints the shorter line rather than a disk
+    # the file named and the deploy then ignored.
+    MEMORY_VCPU_TEMPLATE = "Memory: {memory_mb} MB, vCPU: {vcpu}"
+    MEMORY_VCPU_DISK_TEMPLATE = "Memory: {memory_mb} MB, vCPU: {vcpu}, Disk: {disk} GB"
+    DISK_SIZE_DEFAULT = "default"
+
+    # What the machine boots from: media it installs from, or a disk it already has.
+    ISO_TEMPLATE = "ISO: {iso}"
+    BOOT_VOLUME_TEMPLATE = "Boots the volume: {volume} ({format})"
+    # A pool that is down cannot be asked how a volume of it is formatted.
+    UNKNOWN_FORMAT = "unknown format"
+    OVERLAY_WOULD_BE_MADE_TEMPLATE = "  would be made as an overlay of: {backing}"
+    OVERLAY_IS_TEMPLATE = "  as an overlay of: {backing}"
+
+    # A read-only disc the guest reads its own configuration from.
+    SEED_TEMPLATE = "Seed CD-ROM: {seed}"
+
+    # Where the machine is plugged in, and where it lives. The two ways a pool shows
+    # up say different things, and both are said when both are true: which pool the
+    # machine lands in, and whether the deploy would have to bring that pool up
+    # first (which a dry run may not do, so it has to be said rather than done).
+    NETWORK_TEMPLATE = "Network: {network}"
+    STORAGE_POOL_TEMPLATE = "Storage Pool: {pool}"
+    POOL_WOULD_START_TEMPLATE = "Storage pool: {pool} would be started"
+
+    # The firmware and the screen the domain is defined with. `UEFI`/`BIOS` are the
+    # technical words AGENTS.md keeps out of the constants; the screen is what the
+    # file said, or this for a file that asked for none — one word for both routes,
+    # where the install route holds a `None` and the boot route a `"none"`.
+    BOOT_MODE_TEMPLATE = "Boot Mode: {mode}"
+    GRAPHICS_TEMPLATE = "Graphics: {graphics}"
+    NO_SCREEN = "none"
+
+    # Which of the disk and the cdrom the firmware tries first. Only the route that
+    # boots a disk has the choice to report: an install's media is what boots.
+    BOOT_ORDER_TEMPLATE = "Boot order: {boot}"
+
+    # An install's answers: the profile it would hand the media, and what is baked
+    # into that profile.
+    AUTOMATED_INSTALL_TEMPLATE = "Automated Install: Yes (Template: {template})"
+    AUTOMATED_INSTALL_NONE = "Automated Install: No"
+    EXTRA_PACKAGES_TEMPLATE = "Extra Packages: {packages}"
+    SCC_YES = "SCC Registration: Yes"
+    POST_INSTALL_TEMPLATE = "Post-install: Yes ({count} commands, baked into template)"
+
+    # How the deploy ends, which is the file's `start` and was named by neither
+    # summary: a deploy that leaves the machine running and one that leaves it
+    # defined and stopped are two different answers to the dry run's question.
+    MACHINE_WOULD_START = "The machine would be started once it is defined."
+    MACHINE_WOULD_NOT_START = "The machine would be left defined and stopped."
 
 
 class ProgressMessages:  # pylint: disable=too-few-public-methods
