@@ -273,9 +273,7 @@ class TestGetUefiFiles(unittest.TestCase):
 
     @patch("vmanager.firmware_manager.run_command")
     @patch("vmanager.firmware_manager.get_ssh_host_from_uri", return_value="user@host")
-    def test_remote_read_does_not_interpolate_filenames(
-        self, mock_ssh_host, mock_run_command
-    ):
+    def test_remote_read_does_not_interpolate_filenames(self, mock_ssh_host, mock_run_command):
         """Filenames with shell metacharacters are never interpolated into the
         remote command (the remote shell performs the globbing)."""
 
@@ -364,6 +362,105 @@ class TestGetUefiFiles(unittest.TestCase):
         get_uefi_files(mock_conn, use_cache=False)
 
         self.assertEqual(mock_load_files.call_count, 2)
+
+
+class TestCredentialBearingUri(unittest.TestCase):
+    """A connection URI that carries a password must not leak it into the logs.
+
+    These run the real ``utils.run_command`` (only ``subprocess.run`` is stubbed)
+    so the command line it logs is under test as well as the read path.
+    """
+
+    PASSWORD = "hunter2"
+    URI = f"qemu+ssh://root:{PASSWORD}@hyp.example.com/system"
+
+    def setUp(self):
+        clear_firmware_cache()
+
+    def tearDown(self):
+        clear_firmware_cache()
+
+    @staticmethod
+    def _conn():
+        conn = MagicMock()
+        conn.getURI.return_value = TestCredentialBearingUri.URI
+        return conn
+
+    @staticmethod
+    def _completed(stdout="", returncode=0):
+        import subprocess
+
+        return subprocess.CompletedProcess(
+            args=["ssh", "host", "cmd"], returncode=returncode, stdout=stdout
+        )
+
+    def _remote_json(self):
+        return (
+            "\x1eovmf-x86_64.json\n"
+            + json.dumps(
+                {
+                    "interface-types": ["uefi"],
+                    "mapping": {
+                        "executable": {"filename": "/usr/share/OVMF/OVMF_CODE.fd"},
+                        "nvram-template": {"filename": "/usr/share/OVMF/OVMF_VARS.fd"},
+                    },
+                    "targets": [{"architecture": "x86_64", "machines": ["pc-q35-*"]}],
+                }
+            )
+            + "\n"
+        )
+
+    def test_a_password_in_the_uri_is_not_logged_and_the_read_still_works(self):
+        """The remote read names the host in the log, never the password."""
+        with patch("vmanager.utils.subprocess.run") as mock_run:
+            mock_run.return_value = self._completed(self._remote_json())
+            with self.assertLogs(level="DEBUG") as logs:
+                result = get_uefi_files(self._conn())
+
+        logged = "\n".join(logs.output)
+        self.assertNotIn(self.PASSWORD, logged)
+        # The host is still named, so the log stays useful.
+        self.assertIn("hyp.example.com", logged)
+        # ssh is given a target it can actually authenticate with.
+        self.assertEqual(mock_run.call_args[0][0][1], "root@hyp.example.com")
+        # And the firmware read still returned the remote metadata.
+        self.assertEqual([fw.architectures for fw in result], [["x86_64"]])
+
+    def test_a_password_in_the_uri_is_not_logged_when_the_remote_read_fails(self):
+        """The failure paths name the host, never the password."""
+        with patch("vmanager.utils.subprocess.run") as mock_run:
+            mock_run.return_value = self._completed("", returncode=255)
+            with self.assertLogs(level="DEBUG") as logs:
+                result = get_uefi_files(self._conn())
+
+        self.assertEqual(result, [])
+        logged = "\n".join(logs.output)
+        self.assertNotIn(self.PASSWORD, logged)
+        self.assertIn("Could not read firmware JSON files on root@hyp.example.com", logged)
+
+    def test_a_password_in_the_uri_is_not_logged_when_the_remote_read_times_out(self):
+        """A timed-out read reports the host, never the password."""
+        import subprocess
+
+        with patch("vmanager.utils.subprocess.run") as mock_run:
+            mock_run.side_effect = subprocess.TimeoutExpired(cmd="ssh", timeout=30)
+            with self.assertLogs(level="DEBUG") as logs:
+                result = get_uefi_files(self._conn())
+
+        self.assertEqual(result, [])
+        self.assertNotIn(self.PASSWORD, "\n".join(logs.output))
+
+    def test_a_password_in_the_uri_is_not_logged_on_a_cache_hit(self):
+        """The cached-entry line is built from the sanitized host."""
+        with patch("vmanager.utils.subprocess.run") as mock_run:
+            mock_run.return_value = self._completed(self._remote_json())
+            get_uefi_files(self._conn())
+            with self.assertLogs(level="DEBUG") as logs:
+                get_uefi_files(self._conn())
+
+        logged = "\n".join(logs.output)
+        self.assertIn("Using cached firmware list", logged)
+        self.assertNotIn(self.PASSWORD, logged)
 
 
 class TestLoadFirmwareFromJsonMap(unittest.TestCase):

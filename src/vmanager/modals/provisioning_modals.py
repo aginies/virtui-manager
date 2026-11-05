@@ -1,12 +1,14 @@
 """
 Modals for VM Provisioning (Installation).
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import libvirt
 from textual import on, work
@@ -21,7 +23,7 @@ from ..provisioning.os_provider import OSType, OSVersion
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..storage_manager import ensure_default_pool, list_storage_pools
 from ..utils import get_ssh_host_from_uri, is_remote_connection, remote_viewer_cmd
-from ..vm_provisioner import DEFAULT_DISK_SIZE_GB, VMProvisioner, VMType
+from ..vm_provisioner import DEFAULT_DISK_SIZE_GB, VM_TYPE_DEFAULTS, VMProvisioner, VMType
 from ..vm_service import VMService
 from .base_modals import BaseModal
 from .input_modals import _sanitize_domain_name, validate_path_in_allowed_dirs
@@ -29,7 +31,6 @@ from .template_modals import TemplateManagementModal
 from .utils_modals import FileSelectionModal
 from .vm_type_info_modal import VMTypeInfoModal
 from .vmdetails_modals import VMDetailModal
-from typing import Optional
 
 
 class InstallVMModal(BaseModal[Optional[str]]):
@@ -456,8 +457,18 @@ class InstallVMModal(BaseModal[Optional[str]]):
             logging.error(f"Error refreshing pool selectors: {e}")
 
     def _update_expert_defaults(self, vm_type, distro=None):
-        mem = 4
-        vcpu = 2
+        # Memory and vCPU are what the profile means, read from the one table the
+        # config-driven deploy reads too (vm_provisioner.VM_TYPE_DEFAULTS); this
+        # screen has no copy of its own. Its expert input is filled in GB, the
+        # unit a person types, and :g keeps the text it always showed ("4",
+        # "0.5") rather than "4.0". A type with no entry - nothing selected -
+        # falls back to the values the widgets are created with.
+        defaults = VM_TYPE_DEFAULTS.get(vm_type)
+        mem = defaults["memory_mb"] / 1024 if defaults else 4
+        vcpu = defaults["vcpu"] if defaults else 2
+        # Format and firmware are this screen's facts, not the profile table's:
+        # a deploy takes its boot mode from its own file and never asked about a
+        # format (see the comment on VM_TYPE_DEFAULTS).
         disk_size = DEFAULT_DISK_SIZE_GB.get(vm_type, 8)
         disk_format = "qcow2"
         boot_uefi = True
@@ -474,31 +485,12 @@ class InstallVMModal(BaseModal[Optional[str]]):
             boot_uefi = True
 
         if vm_type == VMType.COMPUTATION:
-            mem = 8
-            vcpu = 4
             disk_format = "raw"
             boot_uefi = False
-        elif vm_type == VMType.SERVER:
-            mem = 16
-            vcpu = 6
-        elif vm_type == VMType.DESKTOP:
-            mem = 4
-            vcpu = 4
-        elif vm_type == VMType.LOW_RESOURCE:
-            mem = 0.5
-            vcpu = 1
-        elif vm_type == VMType.WDESKTOP:
-            mem = 16
-            vcpu = 8
         elif vm_type == VMType.WLDESKTOP:
-            mem = 4
-            vcpu = 4
             boot_uefi = False
-        elif vm_type == VMType.SECURE:
-            mem = 4
-            vcpu = 2
 
-        self.query_one("#memory-input", Input).value = str(mem)
+        self.query_one("#memory-input", Input).value = f"{mem:g}"
         self.query_one("#cpu-input", Input).value = str(vcpu)
         self.query_one("#disk-size-input", Input).value = str(disk_size)
         self.query_one("#disk-format", Select).value = disk_format
@@ -1419,9 +1411,13 @@ class InstallVMModal(BaseModal[Optional[str]]):
             self.app.call_from_thread(status_lbl.update, stage)
             self.app.call_from_thread(p_bar.update, progress=percent)
 
+        # Bound before the try: the except handler cleans this file up, and a
+        # failure on the first statement inside the try would leave it unbound
+        # and replace the real error with UnboundLocalError.
+        downloaded_iso_path = None  # Track downloaded file for cleanup
+
         try:
             final_iso_url = iso_url
-            downloaded_iso_path = None  # Track downloaded file for cleanup
 
             if custom_path:
                 # Check if ISO already exists in pool before downloading

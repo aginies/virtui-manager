@@ -10,7 +10,6 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
@@ -225,9 +224,7 @@ class TestLoadDeployConfig(unittest.TestCase):
             }
         )
         cfg = load_deploy_config(path)
-        self.assertEqual(
-            cfg["post_install"]["commands"], ["echo hi", "a, b > c"]
-        )
+        self.assertEqual(cfg["post_install"]["commands"], ["echo hi", "a, b > c"])
 
     def test_post_install_requires_autoinstall(self):
         # No autoinstall block at all -> post_install is rejected.
@@ -288,6 +285,37 @@ class TestLoadDeployConfig(unittest.TestCase):
         with self.assertRaises(DeployConfigError):
             load_deploy_config(path)
 
+    def _install_config(self, **extra):
+        cfg = {
+            "server": "s",
+            "vm_name": "x",
+            "vm_type": "server",
+            "iso": {"source": "url", "url": "u"},
+        }
+        cfg.update(extra)
+        return self._write(cfg)
+
+    def test_a_disk_format_hypervisor_cannot_use_is_a_config_error(self):
+        """A format is chosen from the ones QEMU can open a disk with.
+
+        Spelled here, where a bad one is an answer about the deploy file, rather
+        than by libvirt after the disk has been created and the seed placed.
+        """
+        for bad in ["qcow2' x='", "qcow2/><disk/>", "", "QCOW2"]:
+            with self.subTest(bad=bad):
+                with self.assertRaises(DeployConfigError):
+                    load_deploy_config(self._install_config(disk_format=bad))
+
+    def test_a_disk_format_hypervisor_can_use_is_kept(self):
+        for good in ["qcow2", "raw", "vmdk"]:
+            with self.subTest(good=good):
+                cfg = load_deploy_config(self._install_config(disk_format=good))
+                self.assertEqual(cfg["disk_format"], good)
+
+    def test_no_disk_format_is_still_no_format(self):
+        cfg = load_deploy_config(self._install_config())
+        self.assertIsNone(cfg["disk_format"])
+
 
 class TestOpenSUSEPackages(unittest.TestCase):
     """Extra packages must be injected into AutoYaST XML and Agama JSON."""
@@ -323,9 +351,35 @@ class TestOpenSUSEPackages(unittest.TestCase):
         # Extra packages present, in order, before the closing tag
         self.assertIn("<package>ssh</package>", content)
         self.assertIn("<package>vim-extra</package>", content)
-        self.assertLess(
-            content.index("<package>ssh</package>"), content.index("</packages>")
+        self.assertLess(content.index("<package>ssh</package>"), content.index("</packages>"))
+
+    def test_a_package_name_holding_markup_is_still_one_package(self):
+        """A package name is a name, not a fragment of the answer file.
+
+        A name carrying `&` or `<` written into the profile unescaped would make
+        the AutoYaST profile unparseable, and the machine would fail in the
+        installer rather than here.
+        """
+        hostile = "we&rd<pkg>"
+        out = self.engine.generate(
+            os_type=OSType.OPENSUSE,
+            version_id="24.3",
+            vm_name="web05",
+            user_config={
+                "template_name": "autoyast-server.xml",
+                "root_password": "root",
+                "username": "admin",
+                "user_password": "pw",
+                "packages": [hostile, "ssh"],
+            },
+            output_path=self.tmp,
+            template_name="autoyast-server.xml",
         )
+        profile = ET.fromstring(out.read_text())
+        # The profile puts its elements in a namespace, so match on the local name.
+        written = [el.text for el in profile.iter() if el.tag.rsplit("}", 1)[-1] == "package"]
+        self.assertIn(hostile, written)
+        self.assertIn("ssh", written)
 
     def test_agama_packages_appended(self):
         out = self.engine.generate(
@@ -364,6 +418,119 @@ class TestOpenSUSEPackages(unittest.TestCase):
         content = out.read_text()
         ET.fromstring(content)
         self.assertNotIn("<package>ssh</package>", content)
+
+
+class TestBootConfig(unittest.TestCase):
+    """The shape of a config that boots a disk the pool already has (no install)."""
+
+    def _write(self, obj, name="boot.json"):
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(obj, f)
+            path = f.name
+        self.addCleanup(os.unlink, path)
+        return path
+
+    def _boot(self, **extra):
+        cfg = {
+            "server": "Localhost",
+            "vm_name": "worker01",
+            "vm_type": "custom",
+            "memory_mb": 2048,
+            "vcpu": 2,
+            "disk_size_gb": 20,
+            "disk": {"volume": "sidekick-worker01"},
+            "seed": {"volume": "sidekick-worker01-seed"},
+            "metadata": {"mcp-sidekick": "instance", "instance": "worker01"},
+        }
+        cfg.update(extra)
+        return load_deploy_config(self._write(cfg))
+
+    def test_a_volume_needs_no_iso(self):
+        cfg = self._boot()
+        self.assertEqual(cfg["disk_volume"], "sidekick-worker01")
+        self.assertEqual(cfg["seed_volume"], "sidekick-worker01-seed")
+        self.assertEqual(cfg["boot"], "disk")
+        self.assertEqual(cfg["metadata"]["instance"], "worker01")
+
+    def test_the_screen_is_one_the_tool_can_give(self):
+        self.assertEqual(self._boot(graphics="vnc")["graphics"], "vnc")
+        self.assertIsNone(self._boot(graphics=None)["graphics"])
+
+    def test_a_screen_the_tool_cannot_give_is_a_bad_config(self):
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(graphics="rdp")
+        self.assertIn("graphics", str(raised.exception))
+
+    def test_a_number_in_metadata_is_kept_as_text(self):
+        cfg = self._boot(metadata={"cpus": 4})
+        self.assertEqual(cfg["metadata"]["cpus"], "4")
+
+    def test_media_and_a_boot_volume_are_two_deployments(self):
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(iso={"source": "url", "url": "u"})
+        self.assertIn("not both", str(raised.exception))
+
+    def test_a_backing_volume_needs_the_volume_it_underlays(self):
+        cfg = {
+            "server": "s",
+            "vm_name": "v",
+            "vm_type": "custom",
+            "memory_mb": 1024,
+            "vcpu": 1,
+            "disk_size_gb": 10,
+            "disk": {"backing_volume": "base"},
+        }
+        with self.assertRaises(DeployConfigError) as raised:
+            load_deploy_config(self._write(cfg))
+        self.assertIn("needs disk.volume", str(raised.exception))
+
+    def test_a_seed_without_a_volume_is_not_a_seed(self):
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(seed={})
+        self.assertIn("seed.volume", str(raised.exception))
+
+    def test_metadata_holds_one_value_each(self):
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(metadata={"a": {"b": "c"}})
+        self.assertIn("single value", str(raised.exception))
+
+    def test_a_metadata_key_xml_cannot_use_is_refused(self):
+        """A key becomes an element name, so libvirt would refuse the domain."""
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(metadata={"who owns": "ops"})
+        self.assertIn("who owns", str(raised.exception))
+
+    def test_a_metadata_key_beginning_with_a_digit_is_refused(self):
+        with self.assertRaises(DeployConfigError):
+            self._boot(metadata={"1st": "ops"})
+
+    def test_a_metadata_key_in_the_reserved_prefix_is_refused(self):
+        with self.assertRaises(DeployConfigError):
+            self._boot(metadata={"xml:owner": "ops"})
+
+    def test_a_key_that_would_name_a_prefix_is_refused(self):
+        """`ns:owner` would name a prefix nothing declares: the XML is refused."""
+        import xml.etree.ElementTree as ET
+
+        with self.assertRaises(DeployConfigError):
+            self._boot(metadata={"ns:owner": "ops"})
+        # What the check stands against: libvirt would answer the same way.
+        with self.assertRaises(ET.ParseError):
+            ET.fromstring("<properties><ns:owner>ops</ns:owner></properties>")
+
+    def test_a_key_of_the_shape_the_tool_writes_is_accepted(self):
+        cfg = self._boot(metadata={"mcp-sidekick": "instance", "task_1": "worker01"})
+        self.assertEqual(cfg["metadata"]["mcp-sidekick"], "instance")
+
+    def test_boot_is_either_disk_or_cdrom(self):
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(boot="floppy")
+        self.assertIn("disk, cdrom", str(raised.exception))
+
+    def test_an_answer_file_needs_something_to_answer(self):
+        with self.assertRaises(DeployConfigError) as raised:
+            self._boot(autoinstall={"enabled": True, "template": "autoyast-server.xml"})
+        self.assertIn("install media", str(raised.exception))
 
 
 class TestOpenSUSEPostInstall(unittest.TestCase):

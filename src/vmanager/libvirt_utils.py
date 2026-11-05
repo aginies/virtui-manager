@@ -467,6 +467,91 @@ def _get_vm_names_from_uuids(conn: libvirt.virConnect, vm_uuids: List[str]) -> L
     return vm_names
 
 
+def network_facts(network: libvirt.virNetwork) -> Dict[str, Any]:
+    """What a network is, read once.
+
+    Its name and uuid, whether it runs and whether it is set to come up with the
+    host, how it forwards, the bridge it owns, the address it holds and the range
+    it leases from that address.
+
+    The interactive `list_networks` and `net_info`, the network pickers and the
+    answers of ``vmc --machine`` are drawn from here. One function is worth the
+    three readings it replaces because they disagreed: the machine answer asked
+    for `getAutostart()`, which the binding does not have, and read the bridge
+    with a second parser and a second error handler, which answered a network
+    that would not describe itself with a null bridge instead of a failure.
+
+    Raises what libvirt raises for a network that will not describe itself. Who
+    is listing networks decides what to make of that; who was asked about one
+    network says so.
+    """
+    info = {
+        "name": network.name(),
+        "uuid": network.UUIDString(),
+        "active": bool(network.isActive()),
+        "autostart": bool(network.autostart()),
+        "forward_mode": "isolated",  # Default
+        "bridge_name": None,
+        "ip_address": None,
+        "dhcp": False,
+    }
+
+    root = ET.fromstring(network.XMLDesc(0))
+
+    # Extract forward info
+    forward_elem = root.find("forward")
+    if forward_elem is not None:
+        info["forward_mode"] = forward_elem.get("mode", "isolated")
+        info["forward_dev"] = forward_elem.get("dev") or (
+            forward_elem.find("interface").get("dev")
+            if forward_elem.find("interface") is not None
+            else None
+        )
+
+        # NAT port range
+        nat_elem = forward_elem.find("nat")
+        if nat_elem is not None:
+            port_elem = nat_elem.find("port")
+            if port_elem is not None:
+                info["port_forward_start"] = port_elem.get("start")
+                info["port_forward_end"] = port_elem.get("end")
+
+    # Extract bridge info
+    bridge_elem = root.find("bridge")
+    if bridge_elem is not None:
+        info["bridge_name"] = bridge_elem.get("name")
+
+    # Extract IP info
+    ip_elem = root.find("ip")
+    if ip_elem is not None:
+        info.update(
+            {
+                "ip_address": ip_elem.get("address"),
+                "netmask": ip_elem.get("netmask"),
+                "prefix": ip_elem.get("prefix"),
+                "dhcp": ip_elem.find("dhcp") is not None,
+            }
+        )
+
+        if info["dhcp"]:
+            dhcp_elem = ip_elem.find("dhcp")
+            if dhcp_elem is not None:
+                range_elem = dhcp_elem.find("range")
+                if range_elem is not None:
+                    info.update(
+                        {
+                            "dhcp_start": range_elem.get("start"),
+                            "dhcp_end": range_elem.get("end"),
+                        }
+                    )
+
+    # Extract domain name
+    domain_elem = root.find("domain")
+    if domain_elem is not None:
+        info["domain_name"] = domain_elem.get("name")
+    return info
+
+
 def get_network_info(conn: libvirt.virConnect, network_name: str) -> Dict[str, Any]:
     """Get detailed information about a specific network based on its name.
 
@@ -475,75 +560,10 @@ def get_network_info(conn: libvirt.virConnect, network_name: str) -> Dict[str, A
         network_name: The name of the network
 
     Returns:
-        Dictionary with network information
+        Dictionary with network information, empty when there is no such network
     """
     try:
-        network = conn.networkLookupByName(network_name)
-        xml_desc = network.XMLDesc(0)
-        root = ET.fromstring(xml_desc)
-
-        info = {
-            "name": network.name(),
-            "uuid": network.UUIDString(),
-            "forward_mode": "isolated",  # Default
-            "bridge_name": None,
-            "ip_address": None,
-            "dhcp": False,
-        }
-
-        # Extract forward info
-        forward_elem = root.find("forward")
-        if forward_elem is not None:
-            info["forward_mode"] = forward_elem.get("mode", "isolated")
-            info["forward_dev"] = forward_elem.get("dev") or (
-                forward_elem.find("interface").get("dev")
-                if forward_elem.find("interface") is not None
-                else None
-            )
-
-            # NAT port range
-            nat_elem = forward_elem.find("nat")
-            if nat_elem is not None:
-                port_elem = nat_elem.find("port")
-                if port_elem is not None:
-                    info["port_forward_start"] = port_elem.get("start")
-                    info["port_forward_end"] = port_elem.get("end")
-
-        # Extract bridge info
-        bridge_elem = root.find("bridge")
-        if bridge_elem is not None:
-            info["bridge_name"] = bridge_elem.get("name")
-
-        # Extract IP info
-        ip_elem = root.find("ip")
-        if ip_elem is not None:
-            info.update(
-                {
-                    "ip_address": ip_elem.get("address"),
-                    "netmask": ip_elem.get("netmask"),
-                    "prefix": ip_elem.get("prefix"),
-                    "dhcp": ip_elem.find("dhcp") is not None,
-                }
-            )
-
-            if info["dhcp"]:
-                dhcp_elem = ip_elem.find("dhcp")
-                if dhcp_elem is not None:
-                    range_elem = dhcp_elem.find("range")
-                    if range_elem is not None:
-                        info.update(
-                            {
-                                "dhcp_start": range_elem.get("start"),
-                                "dhcp_end": range_elem.get("end"),
-                            }
-                        )
-
-        # Extract domain name
-        domain_elem = root.find("domain")
-        if domain_elem is not None:
-            info["domain_name"] = domain_elem.get("name")
-        return info
-
+        return network_facts(conn.networkLookupByName(network_name))
     except libvirt.libvirtError:
         return {}
 

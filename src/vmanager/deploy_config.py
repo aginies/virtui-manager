@@ -1,31 +1,63 @@
 """
-Declarative deployment configuration for ``vmc --config``.
+Declarative deployment configuration for ``vmc -C/--json``.
 
-Loads and validates a JSON file that describes a *single* VM deployment in
-auto-install mode. Today only openSUSE / SLES is supported (AutoYaST and Agama
-auto-install, with optional SUSE Customer Center registration).
+Loads and validates a JSON file that describes a *single* VM deployment. There
+are two shapes, and a file is one or the other:
+
+* an **install**: ``iso`` names install media, and ``autoinstall`` (optional)
+  describes the answer file it should be handed. ``VMProvisioner.provision_vm``
+  performs it.
+* a **boot**: ``disk.volume`` names a disk the storage pool already holds, and
+  the machine is defined over it without installing anything.
+  ``VMProvisioner.provision_existing_volume`` performs it.
 
 This module only *describes* the deployment: it performs no libvirt operation
 and never touches the network. The resolved values are handed straight through
-to ``VMProvisioner.provision_vm`` by the CLI, so all the real work reuses the
-existing provisioning path.
+to the provisioner by the CLI.
 """
 
 from __future__ import annotations
 
 import json
+import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
 
-from .vm_provisioner import VMType, VM_TYPE_DEFAULTS
+from .vm_provisioner import VM_TYPE_DEFAULTS, VMType
 
 
 class DeployConfigError(Exception):
     """Raised when a deployment config file is missing, malformed or invalid."""
 
 
+# Each metadata key is written as an element name inside the one namespace the
+# tool declares, so it is held to what can be such a name: XML's characters, less
+# the colon, which would call for a prefix nothing declares; and away from `xml`,
+# which XML reserves. Checked here, where the answer is a config error, rather
+# than by libvirt once the disk and the seed have been placed.
+XML_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]*\Z")
+
+
 # Allowed values for the ``iso.source`` field.
 ISO_SOURCES = ("url", "pool", "cached", "repository")
+
+# What may boot first: the disk the machine lives on, or the CD-ROM the caller
+# attached (install media, or a seed a built machine is configured from).
+BOOT_DEVICES = ("disk", "cdrom")
+
+# The disk formats QEMU can open a machine's disk with, and so the ones a deploy
+# file may name. Spelled out here rather than left to the hypervisor: a format
+# that is not one of these is a bad deploy file, and the caller should be told so
+# before the disk is created and the seed placed, not refused by libvirt partway
+# through a deploy. It also keeps a value written with markup out of the domain
+# XML, where it would close the `driver` element it sits in.
+DISK_FORMATS = ("raw", "qcow2", "qcow", "vmdk", "vdi", "qed", "cow", "iso", "host_device")
+
+# The screens the tool can give a machine. Anything else in `graphics` is a typo
+# that would reach libvirt as a device it refuses, so it is answered here, as the
+# bad deploy file it is. `null` asks for no screen at all.
+GRAPHICS_TYPES = ("vnc", "spice")
 
 # ``vm_type`` may be one of the VMType profile names (lowercase) or this value,
 # which lets the user supply memory/disk/vCPU manually instead of a profile.
@@ -54,6 +86,60 @@ def resolve_vm_resources(cfg: Dict[str, Any]):
     # No explicit disk -> None -> provision_vm uses DEFAULT_DISK_SIZE_GB[vm_type].
     disk_size_gb = cfg.get("disk_size_gb")
     return vm_type, memory_mb, vcpu, disk_size_gb
+
+
+@dataclass(frozen=True)
+class MachinePlan:
+    """The machine a deploy file asks for, settled once and carried whole.
+
+    Name, hypervisor, pool, network, firmware, screen, memory, vCPU, disk: the
+    same values travel from the file to the dry-run summary and on to the answer,
+    and until now they travelled as twelve positional arguments through two
+    functions, where a transposition would be a machine that is not the one the
+    file asked for. As one value a route can hand over the whole machine or
+    nothing of it.
+
+    `graphics` is whatever the file said, verbatim, and both routes answer with it as
+    read: `null` is how a file asks for no screen, and `null` is what a caller gets,
+    because it is the one spelling a deploy file may hold. `disk_size_gb` is None
+    when the file named no size, which means the provisioner's own default for the
+    profile, not zero.
+    """
+
+    vm_name: str
+    server_name: str
+    storage_pool: str
+    network: str
+    boot_uefi: bool
+    graphics: Any
+    memory_mb: int
+    vcpu: int
+    disk_size_gb: int | None
+    automation_config: Dict[str, Any] | None
+    vm_type: VMType
+
+    @classmethod
+    def of(cls, cfg, *, server_name, vm_name=None, automation_config=None) -> MachinePlan:
+        """The plan a validated config asks for, resources resolved.
+
+        `vm_name` is given when the caller settled on a name the file does not
+        hold verbatim (a sanitised one), and `server_name` is what the connection
+        answered with, which the file cannot know.
+        """
+        vm_type, memory_mb, vcpu, disk_size_gb = resolve_vm_resources(cfg)
+        return cls(
+            vm_name=vm_name if vm_name else cfg["vm_name"],
+            server_name=server_name,
+            storage_pool=cfg["storage_pool"],
+            network=cfg["network"],
+            boot_uefi=cfg["boot_uefi"],
+            graphics=cfg["graphics"],
+            memory_mb=memory_mb,
+            vcpu=vcpu,
+            disk_size_gb=disk_size_gb,
+            automation_config=automation_config,
+            vm_type=vm_type,
+        )
 
 
 def load_deploy_config(path) -> Dict[str, Any]:
@@ -107,18 +193,83 @@ def _validate(cfg: Dict[str, Any]) -> None:
         cfg["memory_mb"] = _positive_int(cfg, "memory_mb", None)
         cfg["vcpu"] = _positive_int(cfg, "vcpu", None)
         cfg["disk_size_gb"] = _positive_int(cfg, "disk_size_gb", None)
-    if cfg.get("disk_format") is not None and not isinstance(cfg["disk_format"], str):
-        raise DeployConfigError("'disk_format' must be a string (e.g. 'qcow2')")
+    disk_format = cfg.get("disk_format")
+    if disk_format is not None:
+        if not isinstance(disk_format, str):
+            raise DeployConfigError("'disk_format' must be a string (e.g. 'qcow2')")
+        if disk_format not in DISK_FORMATS:
+            raise DeployConfigError(
+                f"'disk_format' must be one of {', '.join(DISK_FORMATS)} (got '{disk_format}')"
+            )
+    cfg["disk_format"] = disk_format
 
     # --- boot / graphics / network / pool defaults ---
     cfg["boot_uefi"] = bool(cfg.get("boot_uefi", True))
-    cfg["graphics"] = cfg.get("graphics", "vnc")
+    graphics = cfg.get("graphics", "vnc")
+    if graphics is not None and graphics not in GRAPHICS_TYPES:
+        raise DeployConfigError(
+            f"'graphics' must be one of {', '.join(GRAPHICS_TYPES)}, "
+            f"or null for no screen (got '{graphics}')"
+        )
+    cfg["graphics"] = graphics
     cfg["network"] = cfg.get("network", "default")
     cfg["storage_pool"] = cfg.get("storage_pool", "default")
     cfg["start"] = bool(cfg.get("start", True))
 
-    # --- iso ---
+    boot = cfg.get("boot", "disk")
+    if boot not in BOOT_DEVICES:
+        raise DeployConfigError(f"'boot' must be one of {', '.join(BOOT_DEVICES)} (got '{boot}')")
+    cfg["boot"] = boot
+
+    # --- disk: the volume to boot, instead of installing ---
+    disk = cfg.get("disk") or {}
+    if not isinstance(disk, dict):
+        raise DeployConfigError("'disk' must be an object")
+    cfg["disk_volume"] = disk.get("volume")
+    cfg["backing_volume"] = disk.get("backing_volume")
+    if cfg["backing_volume"] and not cfg["disk_volume"]:
+        raise DeployConfigError("disk.backing_volume needs disk.volume to overlay")
+
+    # --- seed: a read-only CD-ROM the guest reads its configuration from ---
+    seed = cfg.get("seed")
+    if seed is None:
+        cfg["seed_volume"] = None
+    elif not isinstance(seed, dict):
+        raise DeployConfigError("'seed' must be an object")
+    else:
+        cfg["seed_volume"] = seed.get("volume")
+        if not cfg["seed_volume"]:
+            raise DeployConfigError("seed.volume is required when 'seed' is given")
+
+    # --- metadata: whose this machine is, kept in its XML and reported back ---
+    metadata = cfg.get("metadata")
+    if metadata is None:
+        cfg["metadata"] = {}
+    elif not isinstance(metadata, dict):
+        raise DeployConfigError("'metadata' must be an object")
+    else:
+        for key, value in metadata.items():
+            if not isinstance(value, (str, int, float, bool)):
+                raise DeployConfigError(
+                    f"metadata.{key} must be a single value, not {type(value).__name__}"
+                )
+            if XML_NAME.match(str(key)) is None or str(key).lower().startswith("xml"):
+                raise DeployConfigError(
+                    f"metadata.{key} cannot be kept on a domain: '{key}' is not a name XML allows"
+                )
+        cfg["metadata"] = {str(k): str(v) for k, v in metadata.items()}
+
+    # --- iso: required to install, forbidden when booting a volume ---
     iso = cfg.get("iso")
+    if cfg["disk_volume"]:
+        if iso:
+            raise DeployConfigError(
+                "disk.volume and iso describe different deployments: a machine boots "
+                "a disk it has, or it installs from media, not both"
+            )
+        if cfg.get("autoinstall"):
+            raise DeployConfigError("autoinstall needs install media; disk.volume installs nothing")
+        return
     if not isinstance(iso, dict):
         raise DeployConfigError("Missing required object: 'iso'")
     source = iso.get("source", "url")
@@ -164,9 +315,7 @@ def _validate(cfg: Dict[str, Any]) -> None:
         cfg["autoinstall"] = None
         return
     if ai_enabled and not ai.get("template"):
-        raise DeployConfigError(
-            "autoinstall.template is required when autoinstall.enabled is true"
-        )
+        raise DeployConfigError("autoinstall.template is required when autoinstall.enabled is true")
     pkgs = ai.get("packages")
     if pkgs is not None:
         if not isinstance(pkgs, list) or not all(isinstance(p, str) for p in pkgs):

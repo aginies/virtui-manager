@@ -14,6 +14,7 @@ from vmanager.utils import (
     check_websockify,
     extract_server_name_from_uri,
     get_server_color_cached,
+    get_ssh_host_from_uri,
     is_running_under_flatpak,
     setup_cache_monitoring,
     setup_logging,
@@ -53,6 +54,32 @@ class TestUtils(unittest.TestCase):
         uri4 = "esx://192.168.1.100"
         name4 = extract_server_name_from_uri(uri4)
         self.assertEqual(name4, "192.168.1.100")
+
+    def test_get_ssh_host_from_uri(self):
+        """The SSH host is usable and never carries the URI's password."""
+        # A password in the URI is dropped; ssh cannot use one, and it must not
+        # reach a log line.
+        self.assertEqual(
+            get_ssh_host_from_uri("qemu+ssh://root:hunter2@hyp.example.com/system"),
+            "root@hyp.example.com",
+        )
+        # Without a password the host is named as it stands.
+        self.assertEqual(
+            get_ssh_host_from_uri("qemu+ssh://root@hyp.example.com/system"),
+            "root@hyp.example.com",
+        )
+        self.assertEqual(
+            get_ssh_host_from_uri("qemu+ssh://hyp.example.com/system"),
+            "hyp.example.com",
+        )
+        # A password containing "@" does not swallow the host.
+        self.assertEqual(
+            get_ssh_host_from_uri("qemu+ssh://root:p@ss@hyp.example.com/system"),
+            "root@hyp.example.com",
+        )
+        # Non-SSH connections have no SSH host.
+        self.assertIsNone(get_ssh_host_from_uri("qemu:///system"))
+        self.assertIsNone(get_ssh_host_from_uri(""))
 
     def test_is_running_under_flatpak(self):
         """Test checking if running under flatpak."""

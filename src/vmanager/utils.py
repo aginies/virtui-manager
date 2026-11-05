@@ -14,8 +14,27 @@ from functools import lru_cache, wraps
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple, Union
 from urllib.parse import urlparse
+from xml.sax.saxutils import escape
 
 from .constants import AppInfo
+
+
+def xml_value(value) -> str:
+    """A path, name or setting made safe to put into XML.
+
+    These arrive from a deploy file and from the hypervisor: a pool directory may
+    hold a `&`, a network may be written with a quote, a download URL asked for by
+    an installer line may carry both. Escaped, libvirt is handed one value; left
+    alone, it is handed a document that does not parse and a failure that names the
+    hypervisor rather than the input. Both quote marks are escaped, so the result
+    is safe between tags and inside the single quotes this XML is written with.
+
+    Lives here rather than in the provisioner because anything that writes XML for
+    the hypervisor needs it, and the automation engine cannot import the
+    provisioner: the provisioner imports the engine.
+    """
+    return escape(str(value), {'"': "&quot;", "'": "&apos;"})
+
 
 # Regex to match URIs with embedded credentials (user:password@host pattern)
 # Matches patterns like: qemu+ssh://user:password@host/system
@@ -815,12 +834,26 @@ def manage_firewalld_port(
 def get_ssh_host_from_uri(uri: str) -> Optional[str]:
     """
     Extracts the SSH host (user@host) from a libvirt URI.
+
+    A URI may carry its own credentials (``qemu+ssh://user:password@host``). The
+    password is dropped here, at the source, so that it cannot reach a log line or
+    the command line logged by ``run_command``. It is of no use anyway: ssh takes
+    its target as ``user@host`` and authenticates with keys, so a password in the
+    target spec only makes the connection fail.
     """
     if not uri or not uri.startswith("qemu+ssh://"):
         return None
     try:
         parsed_uri = urlparse(uri)
-        return parsed_uri.netloc
+        netloc = parsed_uri.netloc
+        if "@" not in netloc:
+            return netloc
+        # Split on the last "@" so that a password containing "@" stays on the
+        # userinfo side instead of being taken for the host.
+        userinfo, host = netloc.rsplit("@", 1)
+        # Keep the user, drop the ":password" that follows it.
+        user = userinfo.split(":", 1)[0]
+        return f"{user}@{host}" if user else host
     except Exception:
         return None
 
