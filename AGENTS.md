@@ -159,3 +159,5 @@ If you need clarification on:
 - Whether a change is appropriate
 
 **Ask the human** rather than making assumptions. The human maintainer has final say on all changes.
+
+@CONTRIBUTING.md

@@ -229,6 +229,21 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
         "View XML details of the selected pool or. .."
     )
     EDIT_XML_OF_THE_SELECTED_POOL = _("Edit XML of the selected pool.")
+    RUN_COMMAND = _("Run Command")
+    SSH_KEYS = _("SSH Keys")
+    ADD_KEY = _("Add Key")
+    REMOVE_KEY = _("Remove Key")
+    LOAD_KEYS = _("Load Keys")
+    GUEST_AGENT = _("Guest Agent")
+    TRIM = _("Trim")
+    SYNC_TIME = _("Sync Time")
+    SET_PASSWORD = _("Set Password")
+    FREEZE_FS = _("Freeze FS")
+    THAW_FS = _("Thaw FS")
+    GUEST_SHUTDOWN = _("Guest Shutdown")
+    SUSPEND_RAM = _("Suspend to RAM")
+    SUSPEND_DISK = _("Suspend to Disk")
+    UPLOAD_FILE = _("Upload File")
 
 
 class QBarIcons:  # pylint: disable=too-few-public-methods
@@ -882,6 +897,78 @@ Specify the NUMA nodes to use.
     NO_VOLUMES = _("No volumes")
     MOVING_VOLUME_TEMPLATE = _("Moving {volume_name}...")
 
+    # Guest agent (QGA) strings
+    GUEST_AGENT_TITLE_TEMPLATE = _("Guest Agent: {vm_name}")
+    GUEST_AGENT_STATUS_LABEL = _("Guest agent")
+    GUEST_AGENT_STATUS_RUNNING = _("[green]Running[/green] (v{version})")
+    GUEST_AGENT_STATUS_DOWN = _("[yellow]Configured, not responding[/yellow]")
+    GUEST_AGENT_STATUS_NOT_CONFIGURED = _("[red]Not configured[/red] (no agent channel)")
+    GUEST_AGENT_STATUS_NOT_RUNNING = _("[red]VM not running[/red]")
+    GUEST_AGENT_STATUS_CHECKING = _("Checking...")
+    GUEST_AGENT_NOT_CONFIGURED_HINT = _(
+        "Install 'qemu-guest-agent' inside the guest and add the 'org.qemu.guest_agent.0' channel (Configure > Channels) to enable guest features."
+    )
+    GUEST_HOSTNAME_LABEL = _("Hostname")
+    GUEST_OS_LABEL = _("OS")
+    GUEST_KERNEL_LABEL = _("Kernel")
+    GUEST_UPTIME_LABEL = _("Uptime")
+    GUEST_LOAD_LABEL = _("Load (1/5/15 min)")
+    GUEST_FILESYSTEMS_TITLE = _("Filesystems")
+    GUEST_MOUNTPOINT_COLUMN = _("Mountpoint")
+    GUEST_FSTYPE_COLUMN = _("Type")
+    GUEST_TOTAL_COLUMN = _("Total")
+    GUEST_USED_COLUMN = _("Used")
+    GUEST_FREE_COLUMN = _("Free")
+    GUEST_USAGE_COLUMN = _("Usage")
+    GUEST_LOAD_FORMAT = _("{load1:.2f} / {load5:.2f} / {load15:.2f}")
+
+    # Guest operations strings
+    GUEST_OPERATIONS_TITLE = _("Guest operations")
+    GUEST_FS_FREEZE_LABEL = _("FS freeze: {state}")
+    GUEST_SET_PASSWORD_TITLE_TEMPLATE = _("Set password in {vm_name}")
+    GUEST_SET_PASSWORD_USER_LABEL = _("Username")
+    GUEST_SET_PASSWORD_PASSWORD_LABEL = _("Password")
+    GUEST_SET_PASSWORD_CRYPTED = _("Password is crypted (hashed)")
+
+    # Guest command execution strings
+    GUEST_EXEC_TITLE_TEMPLATE = _("Run command in {vm_name}")
+    GUEST_EXEC_WARNING = _(
+        "The command is executed inside the guest by the QEMU guest agent (with the agent's privileges, usually root)."
+    )
+    GUEST_EXEC_COMMAND_LABEL = _("Command")
+    GUEST_EXEC_TIMEOUT_LABEL = _("Timeout (seconds)")
+    GUEST_EXEC_OUTPUT_TITLE = _("Output")
+    GUEST_EXEC_RUNNING = _("Running...")
+    GUEST_EXEC_EXIT_CODE_TEMPLATE = _("Exit code: {code}")
+    GUEST_EXEC_NO_OUTPUT = _("No output")
+    GUEST_EXEC_OUTPUT_TRUNCATED = _("(output truncated by the guest agent)")
+    GUEST_EXEC_SIGNAL_TEMPLATE = _("Terminated by signal {signal}")
+
+    # SSH authorized keys strings
+    GUEST_SSH_TITLE_TEMPLATE = _("SSH authorized keys in {vm_name}")
+    GUEST_SSH_USER_LABEL = _("Guest user")
+    GUEST_SSH_KEY_LABEL = _("New public key")
+    GUEST_SSH_KEYS_EMPTY = _("No keys loaded")
+    GUEST_SSH_KEY_COLUMN = _("Authorized key")
+
+    # Guest file upload strings
+    GUEST_UPLOAD_TITLE_TEMPLATE = _("Upload file to {vm_name}")
+    GUEST_UPLOAD_WARNING = _(
+        "The file is written inside the guest by the QEMU guest agent: "
+        "it is created with the agent's ownership (usually root)."
+    )
+    GUEST_UPLOAD_LOCAL_LABEL = _("Local file")
+    GUEST_UPLOAD_LOCAL_PLACEHOLDER = _("Select a local file...")
+    GUEST_UPLOAD_DEST_LABEL = _("Destination path in the guest")
+    GUEST_UPLOAD_DEST_PLACEHOLDER = _("/tmp/file")
+    GUEST_UPLOAD_DEST_HINT = _(
+        "The destination directory must already exist in the guest (the file itself is created)."
+    )
+    GUEST_UPLOAD_MODE_LABEL = _("Write mode")
+    GUEST_UPLOAD_MODE_OVERWRITE = _("Overwrite (create or truncate)")
+    GUEST_UPLOAD_MODE_APPEND = _("Append")
+    GUEST_UPLOAD_CANCELLED_TEMPLATE = _("Upload cancelled: {bytes} of {total} written.")
+
     # utils_modals.py strings
     IN_PROGRESS_TITLE = _("In Progress")
     QUICK_INFO_TITLE = _("Quick Info")
@@ -1184,6 +1271,38 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
         "Invalid URI '{uri}'.\nURI must start with 'qemu:///' or 'qemu+ssh://'."
     )
     TMUX_CONSOLE_REQUIRED = _("This feature requires running inside tmux.")
+    GUEST_AGENT_NOT_AVAILABLE = _(
+        "Guest agent commands are not available: the libvirt build does not expose qemuAgentCommand."
+    )
+    GUEST_AGENT_NOT_CONFIGURED = _(
+        "The guest agent is not configured for this VM. Install 'qemu-guest-agent' inside the guest and add the 'org.qemu.guest_agent.0' channel."
+    )
+    GUEST_AGENT_NOT_CONNECTED = _(
+        "The guest agent is not responding. Check that 'qemu-guest-agent' is installed and running inside the guest."
+    )
+    GUEST_AGENT_TIMEOUT = _("The guest agent did not respond in time.")
+    GUEST_COMMAND_FAILED_TEMPLATE = _("Guest agent command '{command}' failed: {error}")
+    GUEST_COMMAND_UNSUPPORTED_TEMPLATE = _(
+        "Guest agent command '{command}' is not supported by this guest agent version."
+    )
+    GUEST_EXEC_INVALID_COMMAND = _("Invalid command. Use a full command line, e.g. 'ls -la /tmp'.")
+    GUEST_EXEC_TIMEOUT_INVALID = _("Timeout must be a positive number of seconds.")
+    GUEST_SSH_USER_REQUIRED = _("Enter the guest user name.")
+    GUEST_SSH_KEY_REQUIRED = _("Paste an SSH public key (e.g. 'ssh-ed25519 AAAA... user@host').")
+    GUEST_SSH_KEY_NOT_FOUND = _("The selected key was not found for this user (it may have changed).")
+    GUEST_SSH_FILE_READ_ERROR_TEMPLATE = _("Could not read the selected file: {error}")
+    GUEST_SSH_FILE_EMPTY = _("The selected file does not contain an SSH key.")
+    GUEST_SSH_DIR_NOT_A_DIRECTORY_TEMPLATE = _(
+        "{path} already exists in the guest but is not a directory "
+        "(e.g. a regular file or a broken symlink). Fix it inside the guest "
+        "(move it aside, then run 'mkdir -m 700 {path}'), and retry."
+    )
+    GUEST_SET_PASSWORD_USER_REQUIRED = _("Enter the guest user name.")
+    GUEST_SET_PASSWORD_REQUIRED = _("Enter the new password.")
+    GUEST_UPLOAD_LOCAL_REQUIRED = _("Select a local file to upload.")
+    GUEST_UPLOAD_LOCAL_MISSING_TEMPLATE = _("The selected file no longer exists: {path}")
+    GUEST_UPLOAD_DEST_REQUIRED = _("Enter the destination path in the guest.")
+    GUEST_UPLOAD_FAILED_TEMPLATE = _("Upload to '{path}' failed: {error}")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
@@ -1200,6 +1319,27 @@ class DialogMessages:  # pylint: disable=too-few-public-methods
     )
     CONFIRM_BULK_EDIT = _(
         "This will apply configuration changes to all selected VMs based on the settings you choose.\n\nSome changes modify the VM's XML directly. All change cannot be undone.\n\nAre you sure you want to proceed?"
+    )
+    CONFIRM_GUEST_EXEC_TEMPLATE = _(
+        "Run this command inside the guest {vm_name}?\n\n{command}"
+    )
+    CONFIRM_SSH_KEY_REMOVE_TEMPLATE = _(
+        "Remove this SSH authorized key of user {user} inside the guest?\n\n{key}"
+    )
+    CONFIRM_GUEST_TRIM_TEMPLATE = _(
+        "Run fstrim inside the guest {vm_name}?\n\n"
+        "This discards free blocks on all writable guest filesystems. "
+        "It is safe but can be I/O intensive."
+    )
+    CONFIRM_GUEST_SYNC_TIME_TEMPLATE = _(
+        "Sync the clock of {vm_name} to the host clock?"
+    )
+    CONFIRM_GUEST_SHUTDOWN_TEMPLATE = _(
+        "Shut down the guest from inside {vm_name}?\n\n"
+        "The guest's init will run its normal shutdown sequence."
+    )
+    CONFIRM_GUEST_SUSPEND_TEMPLATE = _(
+        "Suspend the guest from inside {vm_name}?\n\nMode: {mode}"
     )
 
 
@@ -1241,6 +1381,10 @@ class WarningMessages:  # pylint: disable=too-few-public-methods
     VM_START_OVERCOMMIT_VCPU = _("vCPUs: {total} > {limit}")
     VM_START_OVERCOMMIT_WARNING = _(
         "Starting VM '{vm_name}' will exceed host capacity (Active Allocation):\n{details}"
+    )
+    GUEST_SSH_KEY_ALREADY_PRESENT = _("This key is already present for the selected user.")
+    GUEST_SSH_FILE_MULTI_KEY_TEMPLATE = _(
+        "The file contains {count} keys; only the first one was loaded."
     )
 
 
@@ -1345,6 +1489,17 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
         "Bulk action '{action_type}' complete. Successful: {successful_vms}, Failed: {failed_vms}"
     )
     AUTOFILL_AND_SCC_CONFIGURATION_UPDATED = _("Auto-fill and SCC configuration updated")
+    GUEST_SSH_KEY_ADDED_TEMPLATE = _("SSH key added for user [b]{user}[/b] in the guest.")
+    GUEST_SSH_KEY_REMOVED_TEMPLATE = _("SSH key removed for user [b]{user}[/b] in the guest.")
+    GUEST_COMMAND_FINISHED_TEMPLATE = _("Command finished with exit code {code}.")
+    GUEST_TRIM_DONE_TEMPLATE = _("Trimmed {bytes} from the guest filesystems.")
+    GUEST_TIME_SYNCED = _("Guest clock synced to host clock.")
+    GUEST_SHUTDOWN_REQUESTED = _("Shutdown requested in the guest.")
+    GUEST_SUSPENDED_TEMPLATE = _("Guest suspended to {mode}.")
+    GUEST_PASSWORD_SET_TEMPLATE = _("Password for [b]{user}[/b] updated in the guest.")
+    GUEST_FS_FROZEN_TEMPLATE = _("{count} filesystem(s) frozen.")
+    GUEST_FS_THAWED_TEMPLATE = _("{count} filesystem(s) thawed.")
+    GUEST_UPLOAD_DONE_TEMPLATE = _("Uploaded {bytes} to [b]{path}[/b] in the guest.")
 
 
 class VMDetailConstants:  # pylint: disable=too-few-public-methods

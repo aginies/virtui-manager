@@ -12,7 +12,7 @@ import subprocess
 import sys
 from functools import lru_cache, wraps
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 from .constants import AppInfo
@@ -899,6 +899,50 @@ def natural_sort_key(text):
     return [tryint(c) for c in re.split("([0-9]+)", text)]
 
 
+def humanize_bytes(num_bytes: float) -> str:
+    """Convert a byte count to a human-readable string (e.g. '1.5 GiB')."""
+    if num_bytes is None or not isinstance(num_bytes, (int, float)):
+        return "N/A"
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB", "PiB"):
+        if abs(num_bytes) < 1024.0 or unit == "PiB":
+            if unit == "B":
+                return f"{int(num_bytes)} {unit}"
+            return f"{num_bytes:.1f} {unit}"
+        num_bytes /= 1024.0
+
+
+def snake_case_keys(value: Any) -> Any:
+    """Recursively convert kebab-case dict keys to snake_case.
+
+    QGA replies use kebab-case keys (e.g. 'total-bytes', 'pretty-name');
+    the rest of the codebase expects snake_case.
+    """
+    if isinstance(value, dict):
+        return {str(k).replace("-", "_"): snake_case_keys(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [snake_case_keys(item) for item in value]
+    return value
+
+
+def parse_version(version: str) -> tuple[int, ...]:
+    """Parse a version string like '10.1.0' into a comparable tuple.
+
+    Returns an empty tuple if the string does not start with a number.
+    """
+    parts: list[int] = []
+    for part in (version or "").split("."):
+        digits = ""
+        for ch in part:
+            if ch.isdigit():
+                digits += ch
+            else:
+                break
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts)
+
+
 @lru_cache(maxsize=8)
 def format_server_names(server_uris: tuple[str]) -> str:
     """
@@ -989,6 +1033,17 @@ def format_memory_display(memory_mib: int) -> str:
     if memory_mib >= 1024:
         mem_str += f" ({memory_mib / 1024:.2f} GiB)"
     return mem_str
+
+
+def format_uptime(seconds: float) -> str:
+    """Format seconds the way QGA used to format uptime_format ('2:34:56', '1 day, 2:34:56')."""
+    total = int(seconds)
+    days, rem = divmod(total, 86400)
+    hours, rem = divmod(rem, 3600)
+    minutes, secs = divmod(rem, 60)
+    if days:
+        return f"{days} day{'s' if days != 1 else ''}, {hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
 
 
 @lru_cache(maxsize=128)

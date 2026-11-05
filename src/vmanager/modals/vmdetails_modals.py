@@ -1967,7 +1967,10 @@ class VMDetailModal(ModalScreen):
             with Horizontal(id="vm-details-title"):
                 yield Label(title, id="title_vm")
                 if not self.is_bulk:
-                    yield Label(f"({status})", id=f"status-{status.lower().replace(' ', '-')}")
+                    # Sanitize the status for use as a widget id (CSS colors the
+                    # known states: #status-running, #status-stopped, ...)
+                    status_id = re.sub(r"[^a-z0-9_-]", "-", status.lower()) or "unknown"
+                    yield Label(f"({status})", id=f"status-{status_id}")
 
             if not self.is_bulk:
                 yield Label(f"ID: {self.vm_info.get('internal_id', 'N/A')}", id="vm-details-uuid")
