@@ -15,6 +15,7 @@ from textual.widgets import Button, Checkbox, Collapsible, Input, Label, Progres
 
 from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
+from ..host_capabilities import has_secure_vm_capability
 from ..network_manager import ensure_default_network, list_networks
 from ..provisioning.os_provider import OSType, OSVersion
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
@@ -42,6 +43,8 @@ class InstallVMModal(BaseModal[Optional[str]]):
         self.uri = uri
         self.conn = self.vm_service.connect(uri)
         self.is_remote = is_remote_connection(self.conn.getURI()) if self.conn else False
+        # Secure VMs need a SNP or TDX capable host; hide the profile otherwise
+        self.secure_vm_available = has_secure_vm_capability(self.conn)
         self.provisioner = VMProvisioner(self.conn)
         self.template_manager = AutoYaSTTemplateManager(self.provisioner)
         self.iso_list = []
@@ -62,8 +65,13 @@ class InstallVMModal(BaseModal[Optional[str]]):
                 yield Input(placeholder=StaticText.VM_NAME, id="vm-name")
 
                 with Horizontal(classes="label-row"):
+                    vm_type_options = [(t.value, t) for t in VMType]
+                    if not self.secure_vm_available:
+                        vm_type_options = [
+                            (value, t) for value, t in vm_type_options if t != VMType.SECURE
+                        ]
                     yield Select(
-                        [(t.value, t) for t in VMType],
+                        vm_type_options,
                         value=VMType.DESKTOP,
                         id="vm-type",
                         allow_blank=False,
@@ -215,7 +223,7 @@ class InstallVMModal(BaseModal[Optional[str]]):
                             yield Label(StaticText.GRAPHICS_LABEL, classes="label")
                             yield Select(
                                 [("Spice", "spice"), ("VNC", "vnc")],
-                                value="spice",
+                                value="vnc",
                                 id="graphics-type",
                             )
                         with Vertical(id="expert-disk-size"):
@@ -471,7 +479,7 @@ class InstallVMModal(BaseModal[Optional[str]]):
             disk_format = "raw"
             boot_uefi = False
         elif vm_type == VMType.SERVER:
-            mem = 4
+            mem = 16
             vcpu = 6
         elif vm_type == VMType.DESKTOP:
             mem = 4
@@ -499,6 +507,12 @@ class InstallVMModal(BaseModal[Optional[str]]):
         uefi_checkbox = self.query_one("#boot-uefi-checkbox", Checkbox)
         if not uefi_checkbox.disabled:
             uefi_checkbox.value = boot_uefi
+
+        # Secure VMs have no video output: default to a serial console
+        # (the user can still uncheck it)
+        serial_checkbox = self.query_one("#automation-serial-console", Checkbox)
+        if not serial_checkbox.disabled:
+            serial_checkbox.value = vm_type == VMType.SECURE
 
     @on(Select.Changed, "#vm-type")
     def on_vm_type_changed(self, event: Select.Changed):

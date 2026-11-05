@@ -27,6 +27,7 @@ import libvirt
 from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
 from .constants import AppInfo, ServerPalette
+from .host_capabilities import has_secure_vm_capability
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import (
     get_cpu_models,
@@ -141,7 +142,7 @@ class VManagerCMD(cmd.Cmd):
     prompt = "(" + AppInfo.name + ") "
     intro = f"""Welcome to the {AppInfo.namecase} command shell. Type help or ? to list commands.
 
-{AppInfo.namecase}  Copyright (C) {datetime.datetime.now().year}  {AppInfo.author}
+{AppInfo.namecase}  Copyright (C) {AppInfo.copyright_years}  {AppInfo.author}
     This program comes with ABSOLUTELY NO WARRANTY; for details type 'about'.
     This is free software, and you are welcome to redistribute it
     under certain conditions; type 'about' for details.
@@ -3187,11 +3188,10 @@ Dry-run testing:
 
     def do_about(self, args):
         """Display GPL license and copyright information."""
-        current_year = datetime.datetime.now().year
         about_text = f"""
 {AppInfo.namecase} {AppInfo.version}
 
-Copyright (C) {current_year} {AppInfo.author}
+Copyright (C) {AppInfo.copyright_years} {AppInfo.author}
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -4092,16 +4092,28 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             list_storage_pools.cache_clear()
             list_networks.cache_clear()
 
-            # 2. Select VM Type
+            # 2. Select VM Type (Secure VMs need a SNP or TDX capable host)
+            secure_capable = has_secure_vm_capability(conn)
+            vm_type_options = [t for t in VMType]
+            if not secure_capable:
+                vm_type_options = [t for t in vm_type_options if t != VMType.SECURE]
             selected_vm_type = self._select_choice(
                 "Select VM Type",
-                [t for t in VMType],
+                vm_type_options,
                 choices_provided=choices_provided,
                 choices_used=choices_used,
                 display_func=lambda t: f"{t.name} ({t.value})",
                 auto_select=False,
             )
             if not selected_vm_type:
+                return
+            if not isinstance(selected_vm_type, VMType):
+                print(f"Error: unknown VM type '{selected_vm_type}'.")
+                return
+            if selected_vm_type == VMType.SECURE and not secure_capable:
+                print(
+                    "Error: Secure VMs require a host with AMD SEV or Intel TDX support."
+                )
                 return
 
             # 3. Select Distribution
@@ -4345,7 +4357,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             # 9. Select Graphics (VNC or Spice)
             graphics_type = self._select_choice(
                 "Select Graphics",
-                ["Spice", "VNC"],
+                ["VNC", "Spice"],
                 choices_provided=choices_provided,
                 choices_used=choices_used,
                 value_func=lambda g: g.lower(),
@@ -4740,6 +4752,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             "scc_lpatching_reg_code": scc.get("scc_lpatching_reg_code", ""),
             "scc_product_arch": scc.get("scc_product_arch", ""),
         }
+        # Optional: serial console for the install (and, for openSUSE/SLES,
+        # for the installed system's bootloader). Absent here means the
+        # provisioner applies its own default (on for Secure VMs).
+        if "serial_console" in ai:
+            config["serial_console"] = ai["serial_console"]
         # Post-install commands are baked into the auto-install template's
         # post-install script (AutoYaST <scripts><post> / Agama scripts.post).
         pi = cfg.get("post_install") or {}
@@ -4887,10 +4904,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print(f"Invalid VM name: {e}")
             return
 
-        # 3. VM type (a profile, or "custom" to set memory/disk/vCPU manually)
+        # 3. VM type (a profile, or "custom" to set memory/disk/vCPU manually;
+        #    Secure VMs need a SNP or TDX capable host)
+        vm_type_options = list(VMType) + ["custom"]
+        if not has_secure_vm_capability(conn):
+            vm_type_options = [t for t in vm_type_options if t != VMType.SECURE]
         vm_type = self._select_choice(
             "Select VM Type",
-            list(VMType) + ["custom"],
+            vm_type_options,
             display_func=lambda t: "Custom" if t == "custom" else t.value,
             value_func=lambda t: "custom" if t == "custom" else t.name.lower(),
             auto_select=False,
@@ -4952,9 +4973,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         # 9. Graphics
         graphics = self._select_choice(
-            "Select Graphics", ["Spice", "VNC"], value_func=lambda g: g.lower(), auto_select=False
+            "Select Graphics", ["VNC", "Spice"], value_func=lambda g: g.lower(), auto_select=False
         )
-        graphics = graphics or "spice"
+        graphics = graphics or "vnc"
 
         # 10. Auto-install
         autoinstall = self._prepare_autoinstall(provisioner, vm_name)
@@ -5290,7 +5311,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             # "custom" and add memory_mb/vcpu/disk_size_gb to set them manually.
             "vm_type": "server",
             "boot_uefi": True,
-            "graphics": "spice",
+            "graphics": "vnc",
             "network": "default",
             "storage_pool": "default",
             "iso": {

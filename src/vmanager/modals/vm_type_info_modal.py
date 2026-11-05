@@ -30,7 +30,7 @@ VM_TYPE_INFO_TEXT = """
 | [boot UEFI](https://libvirt.org/formatdomain.html#bios-bootloader) | auto | auto | auto | auto | auto | auto | auto |
 | [vTPM](https://libvirt.org/formatdomain.html#tpm-device) | tpm-crb 2.0 | none | none | none | tpm-crb 2.0 | none | none |
 | [iothreads](https://libvirt.org/formatdomain.html#iothreads-allocation) | disable | 4 | disable | disable | disable | disable | disable |
-| [video](https://libvirt.org/formatdomain.html#video-devices) | qxl | qxl | virtio | virtio | virtio | virtio | virtio |
+| [video](https://libvirt.org/formatdomain.html#video-devices) | none | qxl | virtio | virtio | virtio | virtio | virtio |
 | [sound](https://libvirt.org/formatdomain.html#sound-devices) | none | none | ich9 | ich9 | ich9 | ich9 | none |
 | [network](https://libvirt.org/formatdomain.html#network-interfaces) | e1000 | virtio | e1000 | virtio | e1000 | e1000 | virtio |
 | [keyboard](https://libvirt.org/formatdomain.html#input-devices) | ps2 | virtio | virtio | virtio | virtio | usb | virtio |

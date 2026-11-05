@@ -2,8 +2,6 @@
 About modal to display GPL license information
 """
 
-import datetime
-
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, TextArea
@@ -32,9 +30,7 @@ class AboutModal(BaseModal[None]):
 
     def _get_license_text(self) -> str:
         """Get the GPL license text with copyright information"""
-        current_year = datetime.datetime.now().year
-
-        license_text = f"""Copyright (C) {current_year} {AppInfo.author}
+        license_text = f"""Copyright (C) {AppInfo.copyright_years} {AppInfo.author}
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by

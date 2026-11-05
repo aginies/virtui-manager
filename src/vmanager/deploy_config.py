@@ -112,7 +112,7 @@ def _validate(cfg: Dict[str, Any]) -> None:
 
     # --- boot / graphics / network / pool defaults ---
     cfg["boot_uefi"] = bool(cfg.get("boot_uefi", True))
-    cfg["graphics"] = cfg.get("graphics", "spice")
+    cfg["graphics"] = cfg.get("graphics", "vnc")
     cfg["network"] = cfg.get("network", "default")
     cfg["storage_pool"] = cfg.get("storage_pool", "default")
     cfg["start"] = bool(cfg.get("start", True))
@@ -171,6 +171,9 @@ def _validate(cfg: Dict[str, Any]) -> None:
     if pkgs is not None:
         if not isinstance(pkgs, list) or not all(isinstance(p, str) for p in pkgs):
             raise DeployConfigError("autoinstall.packages must be a list of strings")
+    sc = ai.get("serial_console")
+    if sc is not None and not isinstance(sc, bool):
+        raise DeployConfigError("autoinstall.serial_console must be a boolean")
     scc = ai.get("scc")
     if scc is not None and not isinstance(scc, dict):
         raise DeployConfigError("autoinstall.scc must be an object")

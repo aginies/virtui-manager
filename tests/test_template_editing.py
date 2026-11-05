@@ -6,11 +6,168 @@ Test template editing functionality for VirtUI Manager
 import unittest
 import os
 import sys
+import json
 import tempfile
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
+
+from vmanager.provisioning.automation_engine import AutomationEngine  # noqa: E402
+from vmanager.provisioning.os_provider import OSType  # noqa: E402
+
+TEMPLATES_DIR = Path(__file__).parent.parent / "src" / "vmanager" / "provisioning" / "templates"
+SERIAL_CONSOLE_PARAMS = "console=tty0 console=ttyS0,115200"
+
+
+class TestSerialConsoleTemplateInjection(unittest.TestCase):
+    """Tests for baking the serial console into the installed system's bootloader."""
+
+    def setUp(self):
+        self.engine = AutomationEngine()
+
+    def _read_template(self, name):
+        with open(TEMPLATES_DIR / name, encoding="utf-8") as f:
+            return f.read()
+
+    # --- AutoYaST ---
+
+    def test_autoyast_with_existing_append(self):
+        """Template with <append>: console params are added, existing kept."""
+        content = self._read_template("autoyast-server.xml")
+        self.assertIn("<append>", content)
+        result = self.engine._apply_autoyast_serial_console(content)
+        self.assertIn(SERIAL_CONSOLE_PARAMS, result)
+        # Existing params must be preserved
+        self.assertIn("quiet splash=silent showopts", result)
+        # Params must sit inside the <append> element
+        self.assertIn(f"<append>{SERIAL_CONSOLE_PARAMS} quiet splash=silent showopts</append>", result)
+        # Still valid XML
+        ET.fromstring(result)
+
+    def test_autoyast_without_append(self):
+        """Template without <append>: one is created inside <bootloader><global>."""
+        content = self._read_template("autoyast-basic.xml")
+        self.assertNotIn("<append>", content)
+        result = self.engine._apply_autoyast_serial_console(content)
+        self.assertIn(f"<append>{SERIAL_CONSOLE_PARAMS}</append>", result)
+        # Must be placed after <bootloader><global>
+        self.assertGreater(result.index("<append>"), result.index("<global>"))
+        self.assertLess(result.index("<append>"), result.index("</global>"))
+        # Still valid XML
+        ET.fromstring(result)
+
+    def test_autoyast_without_bootloader(self):
+        """Template without <bootloader>: no-op with warning, content unchanged."""
+        content = self._read_template("autoyast-skeleton.xml")
+        self.assertNotIn("<bootloader>", content)
+        result = self.engine._apply_autoyast_serial_console(content)
+        self.assertEqual(result, content)
+
+    def test_autoyast_idempotent(self):
+        """Applying twice must not duplicate the console params."""
+        for template in ("autoyast-server.xml", "autoyast-basic.xml"):
+            content = self._read_template(template)
+            once = self.engine._apply_autoyast_serial_console(content)
+            twice = self.engine._apply_autoyast_serial_console(once)
+            self.assertEqual(twice, once, f"not idempotent for {template}")
+            self.assertEqual(twice.count("console=ttyS0"), 1)
+
+    # --- Agama ---
+
+    def test_agama_serial_console(self):
+        """Agama JSON: extraKernelParams extended, existing params kept."""
+        content = self._read_template("agama-basic.json")
+        result = self.engine._apply_agama_serial_console(content)
+        data = json.loads(result)
+        extra = data["bootloader"]["extraKernelParams"]
+        self.assertIn(SERIAL_CONSOLE_PARAMS, extra)
+        self.assertIn("quiet splash=silent showopts", extra)
+
+    def test_agama_serial_console_keeps_other_keys(self):
+        """The JSON round-trip must not drop other bootloader keys."""
+        content = self._read_template("agama-basic.json")
+        before = json.loads(content)
+        after = json.loads(self.engine._apply_agama_serial_console(content))
+        self.assertEqual(after["bootloader"].get("timeout"), before["bootloader"]["timeout"])
+
+    def test_agama_idempotent(self):
+        """Applying twice must not duplicate the console params."""
+        content = self._read_template("agama-basic.json")
+        once = self.engine._apply_agama_serial_console(content)
+        twice = self.engine._apply_agama_serial_console(once)
+        self.assertEqual(twice, once)
+        self.assertEqual(twice.count("console=ttyS0"), 1)
+
+    # --- Full engine path (_generate_opensuse) ---
+
+    def _generate(self, template_name, serial_console):
+        user_config = {
+            "hostname": "testvm",
+            "language": "English (US)",
+            "keyboard": "us",
+            "timezone": "UTC",
+            "root_password": "rootpw",
+            "username": "testuser",
+            "user_password": "userpw",
+            "serial_console": serial_console,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = self.engine.generate(
+                os_type=OSType.OPENSUSE,
+                version_id="15.6",
+                vm_name="testvm",
+                user_config=user_config,
+                output_path=Path(tmp),
+                template_name=template_name,
+            )
+            with open(out_path, encoding="utf-8") as f:
+                return f.read()
+
+    def test_generate_autoyast_flag_on(self):
+        content = self._generate("autoyast-basic.xml", True)
+        self.assertIn(SERIAL_CONSOLE_PARAMS, content)
+        ET.fromstring(content)
+
+    def test_generate_autoyast_flag_off(self):
+        content = self._generate("autoyast-basic.xml", False)
+        self.assertNotIn("console=ttyS0", content)
+        ET.fromstring(content)
+
+    def test_generate_agama_flag_on(self):
+        content = self._generate("agama-basic.json", True)
+        data = json.loads(content)
+        self.assertIn(SERIAL_CONSOLE_PARAMS, data["bootloader"]["extraKernelParams"])
+
+    def test_generate_agama_flag_off(self):
+        content = self._generate("agama-basic.json", False)
+        self.assertNotIn("console=ttyS0", content)
+        json.loads(content)
+
+    def test_generate_agama_flag_absent(self):
+        """No serial_console key at all: no console params injected."""
+        user_config = {
+            "hostname": "testvm",
+            "language": "English (US)",
+            "keyboard": "us",
+            "timezone": "UTC",
+            "root_password": "rootpw",
+            "username": "testuser",
+            "user_password": "userpw",
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = self.engine.generate(
+                os_type=OSType.OPENSUSE,
+                version_id="15.6",
+                vm_name="testvm",
+                user_config=user_config,
+                output_path=Path(tmp),
+                template_name="agama-basic.json",
+            )
+            with open(out_path, encoding="utf-8") as f:
+                content = f.read()
+        self.assertNotIn("console=ttyS0", content)
 
 
 class TestTemplateEditing(unittest.TestCase):
