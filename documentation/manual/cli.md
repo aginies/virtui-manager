@@ -312,7 +312,21 @@ runs fully non-interactively. This works for local and remote servers alike.
 
 *   **`prepare_json [output_path] [--init]`** (interactive, inside the CLI): walks you through the real decisions — probes the connected server for active networks, storage pools, cached/pool ISOs and the distribution ISO list, and lists the available auto-install templates — then writes a ready-to-run JSON file. Use `--init` to write an example skeleton without connecting to any server.
 *   **`vmc --json <file.json> [--dryrun]`** (outside the CLI): loads the JSON, connects to the server named in it and provisions the VM. `--dryrun` prints a summary of what would happen without provisioning anything.
-*   **`deploy_vm <file_or_name> [--dryrun]`** (interactive, inside the CLI): the in-shell equivalent of `vmc --json` — loads the JSON, connects to the server named in it and provisions the VM. `<file_or_name>` may be a full path or a bare filename looked up in `~/.config/virtui-manager/deploy/` (tab-completes the available files).
+*   **`deploy_vm <file_or_name> [--dryrun|--show]`** (interactive, inside the CLI): the in-shell equivalent of `vmc --json` — loads the JSON, connects to the server named in it and provisions the VM. `<file_or_name>` may be a full path or a bare filename looked up in `~/.config/virtui-manager/deploy/` (tab-completes the available files).
+
+The hypervisor a deploy goes to is the `server` field of the file, so a deploy
+needs no `-u/--uri`. That flag is how one file goes somewhere else: given `-u`,
+the deploy connects to the uri instead of the file's `server`, and the `server`
+of the answer names the hypervisor the machine was really made on, so you can
+see the override took effect.
+
+```bash
+# The file says "server": "Localhost", so this goes there ...
+$ vmc --json ~/deploy/web01.json
+# ... and this builds the same machine on another hypervisor, with no edit
+$ vmc -u qemu+ssh://root@build-box/system --json ~/deploy/web01.json
+{"ok": true, "command": "deploy", "data": {"domain": "web01", "server": "build-box", ...}}
+```
 
 When the config enables an unattended install (`autoinstall.enabled`), the deploy prints the location and HTTP URL of the generated auto-install profile right after provisioning finishes. The file is served from a temporary directory while the VM installs, so you can inspect it (packages, SCC, baked-in post-install commands) if the auto-install does not behave as expected.
 
@@ -362,10 +376,14 @@ for extra packages and SCC registration):
 
 `vm_type` selects a *profile* — `secure`, `computation`, `desktop`,
 `low_resource`, `wdesktop`, `wldesktop` or `server` — and the memory, disk and
-vCPU are taken from that profile (the same defaults the GUI uses), so you do
-not have to specify them. To set them manually, use `"vm_type": "custom"` and
-add `memory_mb`, `vcpu` and `disk_size_gb` (all required in that case). You may
-also add these fields to a profile to override its defaults.
+vCPU are taken from that profile, so you do not have to specify them. The memory
+and vCPU a profile means are written down once, in `VM_TYPE_DEFAULTS`
+(`src/vmanager/vm_provisioner.py`), and the interactive *Install VM* screen
+pre-fills its expert settings from that same table, so the two cannot drift
+apart; the disk size a profile gets is the neighbouring `DEFAULT_DISK_SIZE_GB`.
+To set them manually, use `"vm_type": "custom"` and add `memory_mb`, `vcpu` and
+`disk_size_gb` (all required in that case). You may also add these fields to a
+profile to override its defaults.
 
 The `iso.source` field can be `url`, `cached`, `pool` or `repository` (mirroring
 the ISO sources offered by `installvm`). `autoinstall.packages` adds extra
@@ -391,6 +409,91 @@ system after the packages are installed but before the first boot, so they can
 enable services and write files but cannot start them (systemd is not running
 yet).
 
+### Booting a disk instead of installing
+
+A deployment does not have to install anything. `disk.volume` names a volume in
+the storage pool — one that `volume upload` put there, or one that
+`volume create-overlay` made from a base — and the machine boots from it:
+
+```json
+{
+  "server": "Localhost",
+  "vm_name": "worker01",
+  "vm_type": "custom",
+  "memory_mb": 2048,
+  "vcpu": 2,
+  "disk_size_gb": 20,
+  "storage_pool": "default",
+  "disk": { "volume": "worker01-disk" },
+  "seed": { "volume": "worker01-seed" },
+  "metadata": { "mcp-sidekick": "instance", "instance": "worker01" },
+  "start": true
+}
+```
+
+*   **`disk.volume`** — the name of the volume in `storage_pool` to boot from.
+    With `disk.backing_volume`, the disk is created first as a qcow2 overlay of
+    that base volume, so a machine starts from a shared base and writes nowhere
+    else.
+*   **`seed.volume`** — a volume attached as a second, read-only `cdrom`.
+    Whatever is in it (cloud-init, Ignition, a tarball) is what the image on the
+    disk reads on first boot. It belongs to the machine rather than to the way the
+    machine was made, so both halves of the deploy file take it: a machine being
+    installed carries the disc alongside its install media, and reads it when it
+    first boots the disk it was installed onto. There it is data only — the media
+    is what boots — and `boot` decides the order for a machine that boots a volume
+    it already has. A seed the pool has not got is a missing resource (status 5),
+    said before anything is defined.
+*   **`metadata`** — strings stored on the domain, in its own namespace, so a
+    caller can find its machines again and know what each is for. Both halves of
+    the deploy file keep them, booting a volume and installing from media, and
+    `domain metadata <name>` reads them back. A key becomes an element name, so
+    one XML cannot use is refused as a bad file (status 3) before anything is
+    defined; a value cannot escape the element it is written into.
+*   **`boot`** — `disk` (default when there is no installer) or `cdrom`; with a
+    seed present this decides which of the two the firmware tries first.
+
+An `iso` and a `disk.volume` are two ways of making a machine and cannot both
+be in one file; `autoinstall` needs an `iso`, since there is nothing to answer
+for a disk that is already installed. This path asks for no screen: pass
+`graphics` (`vnc` or `spice`) when you want one. Any other word there is a bad
+deploy file (status 3) rather than a device libvirt will refuse later; `null` is
+the way to ask for no screen.
+
+What goes into the machine's XML is escaped on the way in — pool and volume
+paths, the network's name, the firmware paths — so a pool directory holding a
+`&` or a quote boots a machine instead of producing XML that does not parse.
+
+The volumes have to be in the pool before the deploy runs, and libvirt has to
+see them — `volume upload` and `volume create-overlay` do that, or the files
+were put in the pool's directory and the pool refreshed.
+
+`--dryrun` asks the question and changes nothing, on either route: no pool is
+made or started, no overlay volume is created, no domain is defined. The summary
+says what would be made — a disk that is not in the pool yet is reported as the
+overlay of its base that the deploy would create, and a pool that is defined but
+not started is reported as one the deploy would start. While a pool is down its
+volumes cannot be read at all, so a dry run does not answer whether they are in
+it and does not refuse a deploy for a volume it was never allowed to see; a
+volume a started pool does not have is still the deploy that cannot happen, and
+is answered 5 as it is without `--dryrun`.
+
+Both routes print the same summary, so a line means the same thing whichever
+machine you asked about and sits in the same place: `VM Name`, `Server`, the
+hardware (`Memory: 2048 MB, vCPU: 2`), what the machine boots from, `Seed CD-ROM`
+when it has one, `Network`, `Storage Pool`, `Boot Mode`, `Graphics` — `none` for a
+file that asked for no screen — and last whether the machine would be started once
+it is defined or left stopped, which is the file's `start`. Each route then adds
+what only it can answer: an install names the `VM Type` profile, the `ISO`, the
+size it would give the disk, and what the automated install would be fed; a machine
+booted from a volume names the volume, says whether it would be made as an overlay
+of a base, and names the `Boot order` the firmware would try — but no disk size,
+because the disk it boots already exists and the size in the file is ignored.
+Anything the deploy would *do*, rather than what the machine would *be*, is written
+as what would happen — `Storage pool: default would be started`,
+`would be made as an overlay of: base` — so a summary cannot be misread as a change
+the dry run already made.
+
 ### Managing deployment JSON files
 
 *   **`list_json`** (inside the CLI): lists all deployment JSON files you have
@@ -399,7 +502,7 @@ yet).
 *   **`show_json <file>`** (inside the CLI): pretty-prints a deployment JSON
     file. `<file>` may be a full path or a bare filename looked up in the
     deploy directory (tab-completes the available files).
-*   **`deploy_vm <file_or_name> [--dryrun]`** (inside the CLI): deploys the VM
+*   **`deploy_vm <file_or_name> [--dryrun|--show]`** (inside the CLI): deploys the VM
     described by a deployment JSON file — the in-shell equivalent of
     `vmc --json`. `<file_or_name>` may be a full path or a bare filename looked
     up in the deploy directory (tab-completes the available files); the server
@@ -424,6 +527,252 @@ web01.json               web01              server           789 B  2026-11-03 1
 
 (vmc) deploy_vm web01.json
 ```
+
+## Machine-Readable Output
+
+`--machine` turns `vmc` into something a program can drive. Reading the prose
+of `vmc -c "deploy"` is not a contract, and neither is an exit status of 0 for
+a deployment that failed: in machine mode one JSON object goes to stdout,
+everything a command prints goes to stderr as a log line, and the exit status
+says what happened.
+
+```bash
+# Deploy from a JSON file and get the result as JSON
+$ vmc --machine --json ~/deploy/web01.json
+{"ok": true, "command": "deploy", "data": {"domain": "web01", "server": "localhost", ...}}
+
+# Ask what this vmc is, and which commands it answers to
+$ vmc --machine -c "machine info"
+{"ok": true, "command": "machine info", "data": {"protocol": 1, "name": "virtui-manager", "version": "3.4.0", "commands": ["machine"]}}
+
+# A deployment can be tried out the same way
+$ vmc --machine --dryrun --json ~/deploy/web01.json
+{"ok": true, "command": "deploy", "data": {"domain": "web01", "dryrun": true, ...}}
+```
+
+*   stdout carries **only** the JSON objects below — no progress bar, no
+    connection chatter, no libvirt noise. Those go to stderr, and are still
+    written to the log file.
+*   Messages and data are sanitized the same way as the log: a password or the
+    credentials in a hypervisor URI never reach the answer.
+*   `--machine` needs `-c/--command` or `--json`; without one it is a usage
+    error (status 2).
+
+### The answer
+
+The last object on stdout is the result of the call:
+
+```json
+{"ok": true, "command": "deploy", "data": {"domain": "web01", "storage_pool": "default", "firmware": "uefi", "running": true}}
+```
+
+```json
+{"ok": false, "command": "deploy", "code": "already_exists", "message": "VM 'web01' already exists."}
+```
+
+What a `deploy` answers, in `data`:
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `domain` | string | the machine the command made. |
+| `server` | string | the hypervisor it was actually made on — the file's `server`, or the `-u` that overrode it. |
+| `storage_pool` | string | the pool its disk lives in. |
+| `network` | string | the network it is attached to. |
+| `firmware` | string | `uefi` or `bios`. |
+| `graphics` | string or null | the screen the machine was given: `vnc` or `spice`, or `null` when the file asked for no screen by setting `graphics` to `null` — an absent `graphics` is not that, it means `vnc`. It is the file's value read back, so an answer can be pasted into the next file; the word `none` is what a *summary* puts where there is no screen, and a file that holds it is refused as a bad `graphics`. |
+| `memory_mb` | number | memory in megabytes. |
+| `vcpu` | number | virtual CPUs. |
+| `disk_gb` | number | the disk size the file asked for, in gigabytes. A deploy that took its size from the `vm_type` profile answers no `disk_gb`, and the machine is not diskless for all that: the number it got is the profile's. A deploy that boots a volume answers no `disk_gb` either, because the size belongs to the volume it was handed. |
+| `volume` | string | the disk this machine boots, when the deploy boots the volume the file names (`disk.volume`) instead of installing — a deploy that installs makes its own disk and answers no `volume`. |
+| `automated_install` | boolean | whether an auto-install profile was generated. |
+| `seed` | string | the seed volume attached, when the file named one. |
+| `autoinstall` | object | where that profile is and the URL the guest was told to fetch it from: `directory`, `file`, `url`. Only there when one was generated, never an empty object. |
+| `dryrun` | boolean | `true` when nothing was changed. |
+| `running` | boolean | whether the machine runs as the command answers — `true` or `false` on both routes, never a number. |
+
+A deploy that boots a volume has no `autoinstall` to report: nothing was
+generated and nothing was served. The same three values are written to the log at
+info, so a run's log says what was served even when nobody was watching the
+terminal — which is the case for a caller whose install then failed, the moment
+the profile is most wanted.
+
+These are the two answers to two files naming one machine with `graphics` set to
+`null`, one booting `16-gnome.qcow2` and one installing from an ISO — dry runs on
+a live hypervisor, so nothing was changed and `running` is `false`:
+
+```json
+{"ok": true, "command": "deploy", "data": {"domain": "tt-x-probe", "server": "Local", "storage_pool": "fcrozat-images", "network": "default", "firmware": "uefi", "graphics": null, "memory_mb": 4096, "vcpu": 4, "automated_install": false, "dryrun": true, "running": false, "volume": "16-gnome.qcow2"}}
+{"ok": true, "command": "deploy", "data": {"domain": "tt-x-probe", "server": "Local", "storage_pool": "fcrozat-images", "network": "default", "firmware": "uefi", "graphics": null, "memory_mb": 4096, "vcpu": 4, "automated_install": false, "dryrun": true, "running": false}}
+```
+
+One `graphics` for one file, and the volume only on the route that was handed
+one. Both routes print `Graphics: none` in the summary above these lines: that
+line is prose, and the field a program reads back is `null` because `null` is
+what the file said.
+
+### Progress events
+
+Before the answer, a long command may report what it is doing, one event per line:
+
+```json
+{"event": "progress", "stage": "install", "message": "Downloading the ISO", "percent": 45}
+```
+
+`stage` says which part of the command is talking. These are the words it holds,
+and all of them: a program switches on the stage the way it switches on an exit
+status, so no command gets to add one quietly.
+
+| Stage | Emitted by |
+| --- | --- |
+| `install` | a deploy building a machine from install media. |
+| `boot` | a deploy booting a machine from a volume the pool already holds. |
+| `upload` | `volume upload`, as the bytes go into the pool. |
+| `start` | `domain start`, once the machine is on. |
+| `shutdown` | `domain shutdown`, once the guest has been asked. |
+| `reboot` | `domain reboot`, once the guest has been asked. |
+| `destroy` | `domain destroy`, once the machine is off. |
+
+The words are the set in `MachineProgressStage` in `src/vmanager/constants.py`, and
+every command takes its stage from there. A stage added to the set needs its row
+here: `tests/test_cli_docs.py` reads the commands, the set and this table, and fails
+when they stop saying the same thing — a stage emitted and not listed leaves a
+script branching on a word it was never told about. `domain undefine` reports nothing
+at all, because the machine it removes has no state left to report afterwards.
+
+`message` is the detail — text for a human, never the stage repeated — and `percent`
+is how far along the command thinks it is, from 0 to 100.
+
+`message` is not a word to branch on, and it does not pretend to be one: `stage` is
+English in every environment because a program switches on it, while `message` is the
+project's own prose and, on a deploy, is translated — so the same step can arrive in
+the caller's language. What the two deploy routes do share is the vocabulary: a
+machine built from install media and a machine booted from a volume both report
+`Defining VM` while they define one, and `Provisioning Complete` when they are done,
+so watching a machine come into being takes one set of words, not one per route.
+
+It is a number for a progress bar, so it only ever rises within one command: a
+step that would fall behind the highest percent already sent is reported at that
+percent, and a stage repeated without going further — finding the same ISO a
+second time — is not reported at all. And it is the only percentage on an event:
+a message does not carry one of its own to compete with it.
+
+### Resource commands
+
+The commands a program needs to prepare a machine, and to ask what the
+hypervisor has, answer the same way as `deploy` does — one JSON object, an exit
+status that means something:
+
+```bash
+$ vmc -u qemu:///system --machine -c "host capabilities"
+{"ok": true, "command": "host capabilities", "data": {"hostname": "h1", "architectures": ["x86_64", "aarch64"], "host_cpus": 8, "memory_mb": 32768, "uefi": true}}
+
+$ vmc -u qemu:///system --machine -c "pool list"
+{"ok": true, "command": "pool list", "data": {"pools": [{"name": "default", "state": "running", "path": "/var/lib/libvirt/images", ...}]}}
+
+# Put an image in a pool, then make a machine that starts from it and writes nowhere else
+$ vmc --machine -c "volume upload --pool default --name base.qcow2 --file /tmp/base.qcow2 --format qcow2"
+$ vmc --machine -c "volume create-overlay --pool default --name worker01 --backing base.qcow2 --size 20"
+
+# A name that is taken is status 6, and the machine that is not there is status 5
+$ vmc --machine -c "pool create sidekick --path /srv/sidekick"
+{"ok": false, "command": "pool create", "code": "already_exists", "message": "A pool named 'sidekick' already exists."}
+```
+
+| Command | Answers with |
+| --- | --- |
+| `host capabilities` | hostname, the architectures guests can have, host CPUs, memory, UEFI. |
+| `host resources` | the same CPUs and memory, plus what a new machine could be given. |
+| `pool list` / `pool info <name>` | the pools and their state, path and free space. |
+| `pool create <name> [--path D]` | the pool it made. Without `--path`, a directory named after the pool. |
+| `volume list --pool P` / `volume info --pool P --name V` | volumes with their size, format and path. |
+| `volume upload --pool P --name V --file F [--format raw\|qcow2] [--force]` | the volume, with the bytes it wrote. Streams; a whole image is never in memory. |
+| `volume create-overlay --pool P --name V --backing B [--size GB] [--force]` | the new volume, whose backing file is `B`. |
+| `volume delete --pool P --name V [--force]` | what happened to the volume. |
+| `volume rename --pool P --name V --new-name W [--force]` | status 9, and the reason: the libvirt binding cannot rename a volume. |
+| `domain list [--prefix X]` | the domains and their state; `--prefix` keeps the names that start with it. |
+| `domain state <name>` | whether it runs, and whether libvirt has it at all. |
+| `domain address <name>` | its lease address, `ipv4` null when it has none yet. |
+| `domain metadata <name>` | the strings the caller stored on it, empty when it stored none. |
+| `domain start\|shutdown\|destroy\|reboot <name>` | the domain, after it was told. |
+| `domain undefine <name>` | the domain, `undefined`; a running one is refused (status 7). |
+| `network list` / `network info <name>` | the networks and their state, and `active` for a network without libvirt state. |
+| `machine info` | protocol version, name, version, and every command this vmc answers. |
+
+`--force` takes no value: written means yes, and `--force yes` is a bad argument
+(status 2) rather than a yes. Where it is offered it means the name is the
+caller's to overwrite — `upload` and `create-overlay` delete the volume standing
+on the name and make the new one in its place — and without it a name in use is
+status 6. A flag the command
+has never heard of is status 2 too, naming the flag.
+
+`volume delete` will not remove a volume a running machine is using — that is
+status 7, not a libvirt traceback.
+
+A command that changed the hypervisor is followed by the tool forgetting what it
+remembered about it: the state of the machine it told, and the volumes of the
+pool it wrote to along with the space those volumes leave. So a caller that asks
+for two things in one session — start a machine, then ask its state — is answered
+with what is true now, not with what was cached before the first command. A
+command that refused changed no hypervisor and forgets nothing.
+
+### Choosing the hypervisor
+
+`-u/--uri` says which hypervisor the call means, and connects to that one
+only — the servers marked `autoconnect` in the configuration are left alone, so
+what a command sees does not depend on the local configuration:
+
+```bash
+$ vmc -u qemu:///system --machine -c "machine info"
+$ vmc -u qemu+ssh://root@h1/system --machine --json ~/deploy/web01.json
+```
+
+With `--json` the uri **takes precedence over** the `server` field of the
+deployment file: the file says what machine to build, `-u` says which
+hypervisor builds it, and one file can be deployed to as many of them as you
+like. Without `-u`, `--json` connects to the `server` of the file, and `-c` to
+the configured servers as before.
+
+`-u` replaces the `server`, it does not remove the requirement: a file with no
+`server` is refused as a bad deployment file (status 3) even when `-u` names a
+hypervisor. Whether a file is a valid one is decided by its own bytes, not by
+the flags of the call that happens to read it, so the same file is not good in
+one call and rejected in the next. The `server` of the answer is the hypervisor
+the command actually used, so a caller can check the override took effect rather
+than take it on trust. A `-u` the hypervisor refuses is status 4. Like every other message, the uri is sanitized:
+credentials it carries are not repeated back.
+
+### Exit statuses
+
+| Status | Meaning |
+| --- | --- |
+| 0 | The call succeeded. |
+| 2 | Unknown command, unknown flag, or a value that cannot be parsed. |
+| 3 | A deployment file is missing, malformed or invalid. |
+| 4 | The hypervisor cannot be reached. |
+| 5 | No such domain, volume, pool or network. |
+| 6 | The name is taken. |
+| 7 | The hypervisor refused, or the operation failed. |
+| 8 | A wait ran out — install media that stops downloading, for instance. |
+| 9 | The command has no machine-readable result in this version of vmc. |
+
+Status 2 covers three mistakes, and the message names the word it stumbled on
+(`machine info has no --verbose flag.`, `--size must be a number of gigabytes
+(got 'abc').`), so a caller can tell which argument to fix. A flag a command
+does not take is answered as a mistake rather than ignored: no command reports
+success for a flag it did not act on.
+
+Status 5 is the resource's own answer: a deploy naming a storage pool that is
+not there leaves 5, the same status `pool info` gives for that pool.
+
+Status 9 is how a caller tells a command that does not exist *here* from a
+command that ran and failed: a command gains a machine-readable result one at
+a time, and until then it is reported as unsupported rather than as a success
+with an empty payload. A word that is not a command at all is status 2, not 9.
+`machine info` lists the commands this vmc answers to.
+
+`volume rename` is a status 9 that will not change: the libvirt binding has no
+way to rename a volume, so the message says so and names `virsh vol-rename` as
+the way that does work, rather than failing as an unknown error.
 
 ## Advanced Tools
 
@@ -533,7 +882,7 @@ Snapshot 'pre-update' created for 'web-01'.
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `network_usage`, `net_autostart` |
-| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `volume_usage` |
+| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `volume_usage`, `delete_volume` |
 | Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json`, `list_isos`, `list_cached_isos` |
 | Pipelines | `pipeline` (with `|` chaining) |
-| Shell/Utils | `bash`, `history`, `!<number>`, `version`, `quit`, `help` |
+| Shell/Utils | `bash`, `history`, `!<number>`, `version`, `about`, `quit`, `help` |
