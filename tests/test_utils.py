@@ -13,10 +13,13 @@ from vmanager.utils import (
     check_r_viewer,
     check_websockify,
     extract_server_name_from_uri,
+    format_uptime,
     get_server_color_cached,
+    humanize_bytes,
     is_running_under_flatpak,
     setup_cache_monitoring,
     setup_logging,
+    snake_case_keys,
     strip_ansi_codes,
 )
 
@@ -149,6 +152,59 @@ class TestUtils(unittest.TestCase):
             self.assertTrue(True)
         except Exception as e:
             self.fail(f"setup_cache_monitoring raised an exception: {e}")
+
+
+class TestHumanizeBytes(unittest.TestCase):
+    def test_bytes(self):
+        self.assertEqual(humanize_bytes(512), "512 B")
+
+    def test_kib(self):
+        self.assertEqual(humanize_bytes(1024), "1.0 KiB")
+
+    def test_mib(self):
+        self.assertEqual(humanize_bytes(10 * 1024 * 1024), "10.0 MiB")
+
+    def test_gib(self):
+        self.assertEqual(humanize_bytes(1.5 * 1024**3), "1.5 GiB")
+
+    def test_none(self):
+        self.assertEqual(humanize_bytes(None), "N/A")
+
+    def test_zero(self):
+        self.assertEqual(humanize_bytes(0), "0 B")
+
+
+class TestFormatUptime(unittest.TestCase):
+    def test_zero(self):
+        self.assertEqual(format_uptime(0), "00:00:00")
+
+    def test_hours_minutes_seconds(self):
+        self.assertEqual(format_uptime(3661), "01:01:01")
+
+    def test_one_day(self):
+        self.assertEqual(format_uptime(90061), "1 day, 01:01:01")
+
+    def test_multiple_days(self):
+        self.assertEqual(format_uptime(180000), "2 days, 02:00:00")
+
+
+class TestSnakeCaseKeys(unittest.TestCase):
+    def test_dict_keys(self):
+        self.assertEqual(
+            snake_case_keys({"total-bytes": 1, "pretty-name": "x"}),
+            {"total_bytes": 1, "pretty_name": "x"},
+        )
+
+    def test_nested(self):
+        self.assertEqual(
+            snake_case_keys({"outer-key": {"inner-key": ["a-b"]}}),
+            {"outer_key": {"inner_key": ["a-b"]}},
+        )
+
+    def test_non_container_passthrough(self):
+        self.assertEqual(snake_case_keys("a-b"), "a-b")
+        self.assertEqual(snake_case_keys(42), 42)
+        self.assertIsNone(snake_case_keys(None))
 
 
 if __name__ == "__main__":

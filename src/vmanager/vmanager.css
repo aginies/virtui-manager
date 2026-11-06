@@ -69,11 +69,60 @@ Toast.-inprogress {
 #edit-disk-dialog,
 #migration-dialog,
 #move-volume-dialog,
-#attach-volume-dialog {
+#attach-volume-dialog,
+#guest-exec-dialog,
+#guest-ssh-dialog,
+#guest-set-password-dialog,
+#guest-upload-dialog,
+#guest-download-dialog {
     height: auto;
     border: round $primary;
     background: $surface;
     padding: 1 2;
+}
+
+#guest-agent-dialog {
+    height: auto;
+    max-height: 96%;
+    border: round $primary;
+    background: $surface;
+    padding: 1 2;
+    overflow: auto;
+}
+
+/* Keep the guest agent dialog compact: Textual stretches height-less
+   children in a vertical layout, so on a tall terminal the button rows
+   would otherwise spread over the whole window. */
+GuestAgentModal {
+    align: center middle;
+}
+#guest-agent-dialog Horizontal {
+    height: auto;
+}
+#guest-agent-dialog .guest-op-row {
+    margin-bottom: 1;
+}
+
+/* Same compact treatment for the SSH keys, guest exec, upload and download dialogs. */
+GuestSSHKeysModal,
+GuestExecModal,
+GuestUploadModal,
+GuestDownloadModal {
+    align: center middle;
+}
+#guest-ssh-dialog Horizontal,
+#guest-exec-dialog Horizontal,
+#guest-upload-dialog Horizontal,
+#guest-download-dialog Horizontal {
+    height: auto;
+}
+
+/* Guest agent info rows: "Label: value" on a single line */
+#guest-agent-dialog .guest-info-label {
+    margin: 0 1 0 0;
+}
+#guest-agent-dialog .guest-info-value {
+    width: 1fr;
 }
 
 /* Common centered alignment for various elements (merged from several groups) */
@@ -103,6 +152,50 @@ FilterModal {
 #custom-iso-container,
 SelectOneServerModal > #select-one-server-container {
     height: 10;
+}
+
+/* Guest exec output area */
+#guest-exec-dialog #guest-exec-output {
+    height: 12;
+    border: round $primary;
+}
+
+/* SSH keys table */
+#guest-ssh-dialog #guest-ssh-keys-table {
+    height: 8;
+    border: round $primary;
+}
+
+#guest-ssh-dialog #guest-ssh-key-input {
+    width: 70%;
+}
+
+#guest-ssh-dialog #guest-ssh-browse {
+    width: 25%;
+}
+
+/* Upload dialog: keep the browse button visible next to the local file input */
+#guest-upload-dialog #guest-upload-local {
+    width: 70%;
+}
+
+#guest-upload-dialog #guest-upload-browse {
+    width: 25%;
+}
+
+/* Download dialog: keep the browse button visible next to the save-path input */
+#guest-download-dialog #guest-download-local {
+    width: 70%;
+}
+
+#guest-download-dialog #guest-download-browse {
+    width: 25%;
+}
+
+/* Guest agent modal tables */
+#guest-agent-dialog #guest-fs-table {
+    height: 6;
+    border: round $primary;
 }
 #server-list-title {
 }

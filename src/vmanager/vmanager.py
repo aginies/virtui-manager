@@ -2106,13 +2106,19 @@ class VMManagerTUI(App):
                     self.config["servers"] = self.servers
                     save_config(self.config)
 
-                # Main tittle with Servers name
-                filter_summary = self._get_filter_summary()
-                filter_display = f" [{filter_summary}]" if filter_summary else ""
-                self.title = (
-                    f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
-                    + filter_display
-                )
+                # Main tittle with Servers name.
+                # Skip when a modal is on top: modals such as the guest
+                # agent dialog set their own title, and a background
+                # refresh must not clobber it. The app's own widgets live
+                # on the default screen (stack[0]), so the title is only
+                # updated when nothing is pushed on top of it.
+                if self.screen is self.screen_stack[0]:
+                    filter_summary = self._get_filter_summary()
+                    filter_display = f" [{filter_summary}]" if filter_summary else ""
+                    self.title = (
+                        f"{AppInfo.namecase} {self.devel} - {'| '.join(sorted(server_names))}"
+                        + filter_display
+                    )
                 self.update_pagination_controls(
                     total_filtered_vms, total_vms_unfiltered=len(domains_to_display)
                 )

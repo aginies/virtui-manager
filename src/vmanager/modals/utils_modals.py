@@ -22,7 +22,8 @@ from textual.widgets import (
     ProgressBar,
 )
 
-from ..constants import ButtonLabels, StaticText
+from ..constants import ButtonLabels, ErrorMessages, StaticText
+from ..guest_agent import GuestAgentError
 from .base_modals import BaseDialog, BaseModal
 
 
@@ -127,6 +128,26 @@ def show_warning_message(app, message: str):
     if _should_skip_notification(app, message):
         return
     app.notify(_sanitize_message(message), severity="warning", timeout=10, title="Warning")
+
+
+def show_guest_agent_error(app, error: GuestAgentError) -> None:
+    """Show a user-friendly notification for a GuestAgentError."""
+    if error.reason == "not_configured":
+        app.show_error_message(ErrorMessages.GUEST_AGENT_NOT_CONFIGURED)
+    elif error.reason == "not_connected":
+        app.show_error_message(ErrorMessages.GUEST_AGENT_NOT_CONNECTED)
+    elif error.reason == "timeout":
+        app.show_error_message(ErrorMessages.GUEST_AGENT_TIMEOUT)
+    elif error.reason == "unsupported":
+        app.show_error_message(
+            ErrorMessages.GUEST_COMMAND_UNSUPPORTED_TEMPLATE.format(command=error.command or "")
+        )
+    else:
+        app.show_error_message(
+            ErrorMessages.GUEST_COMMAND_FAILED_TEMPLATE.format(
+                command=error.command or "", error=str(error)
+            )
+        )
 
 
 class SafeDirectoryTree(DirectoryTree):
