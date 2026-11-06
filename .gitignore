@@ -24,6 +24,7 @@ tests/.coverage
 TODO
 .coverage
 GEMINI.md
+plan/
 .bash_profile
 .bashrc
 .claude/agents
