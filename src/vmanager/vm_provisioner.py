@@ -2431,110 +2431,6 @@ class VMProvisioner:
                 missing.append(tool)
         return missing
 
-    def _start_console_drainer(
-        self,
-        dom: libvirt.virDomain,
-        vm_name: str,
-        max_seconds: int = 3600,
-        on_output=None,
-    ):
-        """Start a background thread that drains the VM's serial console.
-
-        A guest booted with ``console=ttyS0`` blocks on serial output when
-        nobody reads the pty (the pty buffer holds only a few KB), so an
-        unattended installer would stall at boot. The drainer reads and
-        discards console output while the installer runs (stage 1), then
-        stops and releases the console for the installed system.
-
-        libvirt allows only one console client per domain at a time, so the
-        drainer runs exclusively during the install phase; after the
-        installer reboots (domain shutoff), a user can attach to the console
-        of the installed system.
-
-        ``on_output`` (optional) receives each chunk of bytes as a hook for a
-        live install-progress feed; by default the data is discarded.
-        """
-
-        def drainer():
-            logger = self.logger
-            # 1. Wait for the domain to start (it might still be defining)
-            timeout = 120
-            while timeout > 0:
-                try:
-                    if dom.isActive():
-                        break
-                except Exception:
-                    return
-                time.sleep(1)
-                timeout -= 1
-            else:
-                logger.warning(
-                    f"Console drainer for {vm_name}: VM never became active, aborting"
-                )
-                return
-
-            stream = None
-            try:
-                stream = dom.connect().newStream(libvirt.VIR_STREAM_NONBLOCK)
-                dom.openConsole("serial0", stream, 0)
-            except Exception as e:
-                logger.warning(
-                    f"Console drainer for {vm_name}: cannot attach to serial0: {e}"
-                )
-                if stream is not None:
-                    try:
-                        stream.finish()
-                    except Exception:
-                        pass
-                return
-
-            logger.info(f"Console drainer for {vm_name}: attached to serial0")
-            drained = 0
-            start = time.time()
-            last_state_check = 0.0
-            try:
-                while time.time() - start < max_seconds:
-                    try:
-                        chunk = stream.recv(65536)
-                    except libvirt.libvirtError:
-                        break  # stream closed (VM stopped or deleted)
-                    if chunk == -2:  # non-blocking: no data available
-                        time.sleep(0.05)
-                        now = time.time()
-                        if now - last_state_check >= 1.0:
-                            last_state_check = now
-                            try:
-                                state, _reason = dom.state()
-                            except libvirt.libvirtError:
-                                break  # domain no longer exists
-                            if state == libvirt.VIR_DOMAIN_SHUTOFF:
-                                break  # installer rebooted or user stopped the VM
-                        continue
-                    if chunk == 0:
-                        break  # stream EOF (console closed)
-                    if chunk:
-                        drained += len(chunk)
-                        if on_output:
-                            try:
-                                on_output(chunk)
-                            except Exception:
-                                pass
-            finally:
-                try:
-                    stream.finish()
-                except Exception:
-                    pass
-                logger.info(
-                    f"Console drainer for {vm_name}: released console "
-                    f"({drained} bytes drained during install)"
-                )
-
-        threading.Thread(
-            target=drainer,
-            name=f"console-drain-{vm_name}",
-            daemon=True,
-        ).start()
-
     def provision_vm(
         self,
         vm_name: str,
@@ -3408,12 +3304,6 @@ class VMProvisioner:
         # or when explicitly stopped by the caller
         if http_server:
             self.logger.info(f"HTTP server still running at {auto_url} for installation")
-
-        # Drain the serial console during installation: a guest booted with
-        # console=ttyS0 blocks on serial output when nobody reads the pty,
-        # which would stall the unattended installer at boot.
-        if automation_config and serial_console:
-            self._start_console_drainer(dom, vm_name)
 
         # Auto-restart watcher for AutoYaST (Stage 1 -> Stage 2)
         # Since we set on_reboot='destroy', the VM stops after Stage 1.

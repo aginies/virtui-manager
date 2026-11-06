@@ -3,10 +3,11 @@
 Thank you for your interest in improving Virtui Manager! This project provides a TUI for libvirt, and maintaining stability is top priority.
 
 ## General Rules
-* **Code Review:** All submissions must be via Pull Request and require a manual **human** review by a maintainer.
+* **Code Review:** All submissions must be via Pull Request and require a manual **human** review (by a maintainer).
 * **Testing:** You must test your code against a live libvirt environment.
 * **Code change** should be one feature, not a bundle or a mix of features. Of course if you improve some area, this is possible to do a "big" modification, but do not mix vmc, TUI, or anything else in one PR.
 * **Again: human eye**: there is no automatic acceptance of any code without a human review.
+* **Human are no robot**: a human can not review thousands of line of code easily and quickly. You must be comprehensive as this project is human driven.
 
 
 ## Technical Constraints (Workers, Caching, Text)
@@ -16,6 +17,7 @@ Virtui Manager uses an asynchronous worker system and metadata caching to preven
 * **Use Workers:** Long-running tasks (cloning, migration) must be wrapped in Textual workers.
 * **Cache Awareness:** Ensure that actions modifying a VM's state invalidate the corresponding cache.
 * **Text:** All text must be put into `constants.py` file for translation, don't hard code text into the phyton code
+* **vmc / virtui-manager-cmd**: no translation yet, on purpose. this will change when it will be ready and use most of the virtui-manager API.
 
 ## Security Note
 

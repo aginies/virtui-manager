@@ -26,11 +26,3 @@ When installing a VM with automated installation, check the **"Redirect console 
 The option is **on by default for Secure VMs**, which have no video output, but can be unchecked.
 
 For existing VMs, the serial port can be added or removed from the VM details (Serial & Channels section); the guest still needs the `console=` kernel parameter, which for an installed system means editing its bootloader configuration (e.g. `/etc/default/grub` + `grub2-mkconfig` on SUSE).
-
-## Note: pty backpressure (unattended installs)
-
-A guest with `console=ttyS0` **blocks on serial output when nobody is reading the pty**: the pty buffer holds only a few KB, and once it is full the guest kernel stalls on its next console write. During an unattended installation this would stall the installer at boot.
-
-VirtUI Manager handles this: when the serial console option is enabled for an automated install, a background console drainer reads (and discards) the serial output while the installer runs, keeping the guest from stalling. Once the installer reboots into the installed system, the drainer stops and releases the console, so you can attach to it.
-
-Because libvirt allows only **one console client per domain at a time**, the console cannot be attached manually while the installer is running: the drainer holds it, and a manual attach fails with "Active console session exists" until the drainer releases it. The drainer releases the console when the VM shuts down (the installer's stage-1 reboot), on a stream error, or after **1 hour** as a safety cap — whichever comes first. After installation completes, the console is free.
