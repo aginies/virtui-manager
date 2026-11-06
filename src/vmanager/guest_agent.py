@@ -13,6 +13,7 @@ thread.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import logging
 import os
@@ -41,8 +42,9 @@ except ImportError:  # pragma: no cover - depends on the libvirt build
 PING_TIMEOUT = 5
 QUERY_TIMEOUT = 10
 EXEC_STATUS_POLL_INTERVAL = 0.5
-# Chunk size for guest file uploads (256 KiB per guest-file-write)
+# Chunk size for guest file uploads/downloads (256 KiB per guest-file-write/read)
 UPLOAD_CHUNK_SIZE = 256 * 1024
+DOWNLOAD_CHUNK_SIZE = 256 * 1024
 
 
 class GuestAgentError(Exception):
@@ -72,6 +74,20 @@ class UploadCancelled(Exception):
         super().__init__(f"Upload cancelled after {bytes_written} of {total_bytes} bytes")
         self.bytes_written = bytes_written
         self.total_bytes = total_bytes
+
+
+class DownloadCancelled(Exception):
+    """Raised when a file download is cancelled between chunks.
+
+    Attributes:
+        bytes_read: bytes read from the guest before the cancel. The total
+            size of the remote file is not known ahead of time (the QGA
+            protocol has no stat command), so it is not recorded here.
+    """
+
+    def __init__(self, bytes_read: int) -> None:
+        super().__init__(f"Download cancelled after {bytes_read} bytes")
+        self.bytes_read = bytes_read
 
 
 def _classify_libvirt_error(error: libvirt.libvirtError, command: str | None) -> GuestAgentError:
@@ -359,6 +375,80 @@ def ga_upload_file(
         except GuestAgentError:
             pass
     return bytes_written
+
+
+def ga_download_file(
+    domain: libvirt.virDomain,
+    remote_path: str,
+    local_path: str,
+    mode: str = "w",
+    timeout: int = QUERY_TIMEOUT,
+    progress_callback: Callable[[int], None] | None = None,
+    cancel_event: threading.Event | None = None,
+) -> int:
+    """Download a file from the guest to the host via the QGA file commands.
+
+    The agent runs as root inside the guest, so any file the agent can read
+    can be downloaded. The total size of the remote file is not known ahead
+    of time, so progress callbacks receive only the cumulative bytes read.
+
+    Returns the number of bytes written. Raises DownloadCancelled if
+    cancel_event is set between chunks (the guest handle is closed).
+    """
+    if mode not in ("w", "a"):
+        raise ValueError(f"invalid download mode: {mode}")
+
+    parent_dir = os.path.dirname(os.path.abspath(local_path))
+    if not os.path.isdir(parent_dir):
+        raise GuestAgentError(f"Local directory does not exist: '{parent_dir}'") from None
+
+    handle = ga_command(
+        domain, "guest-file-open", {"path": remote_path, "mode": "r"}, timeout=timeout
+    )
+    if not isinstance(handle, int):
+        raise GuestAgentError(
+            f"Unexpected guest-file-open reply: {handle!r}", command="guest-file-open"
+        )
+
+    bytes_read = 0
+    try:
+        with open(local_path, "ab" if mode == "a" else "wb") as local_file:
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise DownloadCancelled(bytes_read)
+                result = ga_command(
+                    domain,
+                    "guest-file-read",
+                    {"handle": handle, "count": DOWNLOAD_CHUNK_SIZE},
+                    timeout=timeout,
+                )
+                if not isinstance(result, dict):
+                    raise GuestAgentError(
+                        f"Unexpected guest-file-read reply: {result!r}",
+                        command="guest-file-read",
+                    )
+                try:
+                    data = base64.b64decode(result.get("buf-b64", ""))
+                except (binascii.Error, ValueError) as e:
+                    raise GuestAgentError(
+                        f"Invalid base64 data from guest-file-read: {e}",
+                        reason="command_failed",
+                        command="guest-file-read",
+                    ) from e
+                if not data:
+                    break
+                local_file.write(data)
+                bytes_read += len(data)
+                if progress_callback is not None:
+                    progress_callback(bytes_read)
+                if result.get("eof"):
+                    break
+    finally:
+        try:
+            ga_command(domain, "guest-file-close", {"handle": handle}, timeout=timeout)
+        except GuestAgentError:
+            pass
+    return bytes_read
 
 
 def ga_fsinfo(domain: libvirt.virDomain, timeout: int = QUERY_TIMEOUT) -> list[dict]:

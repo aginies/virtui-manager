@@ -73,7 +73,8 @@ Toast.-inprogress {
 #guest-exec-dialog,
 #guest-ssh-dialog,
 #guest-set-password-dialog,
-#guest-upload-dialog {
+#guest-upload-dialog,
+#guest-download-dialog {
     height: auto;
     border: round $primary;
     background: $surface;
@@ -102,15 +103,17 @@ GuestAgentModal {
     margin-bottom: 1;
 }
 
-/* Same compact treatment for the SSH keys, guest exec and upload dialogs. */
+/* Same compact treatment for the SSH keys, guest exec, upload and download dialogs. */
 GuestSSHKeysModal,
 GuestExecModal,
-GuestUploadModal {
+GuestUploadModal,
+GuestDownloadModal {
     align: center middle;
 }
 #guest-ssh-dialog Horizontal,
 #guest-exec-dialog Horizontal,
-#guest-upload-dialog Horizontal {
+#guest-upload-dialog Horizontal,
+#guest-download-dialog Horizontal {
     height: auto;
 }
 
@@ -177,6 +180,15 @@ SelectOneServerModal > #select-one-server-container {
 }
 
 #guest-upload-dialog #guest-upload-browse {
+    width: 25%;
+}
+
+/* Download dialog: keep the browse button visible next to the save-path input */
+#guest-download-dialog #guest-download-local {
+    width: 70%;
+}
+
+#guest-download-dialog #guest-download-browse {
     width: 25%;
 }
 

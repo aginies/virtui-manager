@@ -32,6 +32,7 @@ from ..guest_agent import (
 )
 from ..utils import humanize_bytes
 from .base_modals import BaseModal
+from .guest_download_modal import GuestDownloadModal
 from .guest_exec_modal import GuestExecModal
 from .guest_ssh_keys_modal import GuestSSHKeysModal
 from .guest_upload_modal import GuestUploadModal
@@ -116,6 +117,9 @@ class GuestAgentModal(BaseModal[None]):
                 yield Button(ButtonLabels.RUN_COMMAND, id="guest-exec", classes="detail-disks")
                 yield Button(ButtonLabels.SSH_KEYS, id="guest-ssh-keys", classes="detail-disks")
                 yield Button(ButtonLabels.UPLOAD_FILE, id="guest-upload", classes="detail-disks")
+                yield Button(
+                    ButtonLabels.DOWNLOAD_FILE, id="guest-download", classes="detail-disks"
+                )
             yield Static(classes="button-separator")
             yield Button(ButtonLabels.CLOSE, id="guest-agent-close", classes="detail-disks")
 
@@ -141,6 +145,8 @@ class GuestAgentModal(BaseModal[None]):
             self.app.push_screen(GuestSSHKeysModal(self.domain, self.vm_name))
         elif event.button.id == "guest-upload":
             self.app.push_screen(GuestUploadModal(self.domain, self.vm_name))
+        elif event.button.id == "guest-download":
+            self.app.push_screen(GuestDownloadModal(self.domain, self.vm_name))
         elif event.button.id == "guest-trim":
             self._confirm_trim()
         elif event.button.id == "guest-sync-time":

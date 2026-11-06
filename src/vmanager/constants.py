@@ -244,6 +244,7 @@ class ButtonLabels:  # pylint: disable=too-few-public-methods
     SUSPEND_RAM = _("Suspend to RAM")
     SUSPEND_DISK = _("Suspend to Disk")
     UPLOAD_FILE = _("Upload File")
+    DOWNLOAD_FILE = _("Download File")
 
 
 class QBarIcons:  # pylint: disable=too-few-public-methods
@@ -968,6 +969,21 @@ Specify the NUMA nodes to use.
     GUEST_UPLOAD_MODE_OVERWRITE = _("Overwrite (create or truncate)")
     GUEST_UPLOAD_MODE_APPEND = _("Append")
     GUEST_UPLOAD_CANCELLED_TEMPLATE = _("Upload cancelled: {bytes} of {total} written.")
+    GUEST_DOWNLOAD_TITLE_TEMPLATE = _("Download file from {vm_name}")
+    GUEST_DOWNLOAD_WARNING = _(
+        "The file is read from inside the guest by the QEMU guest agent "
+        "(with the agent's privileges, usually root). Only download files "
+        "you are authorized to read."
+    )
+    GUEST_DOWNLOAD_REMOTE_LABEL = _("Guest file path")
+    GUEST_DOWNLOAD_REMOTE_PLACEHOLDER = _("/etc/hostname")
+    GUEST_DOWNLOAD_LOCAL_LABEL = _("Save to path")
+    GUEST_DOWNLOAD_LOCAL_PLACEHOLDER = _("/path/on/host/file")
+    GUEST_DOWNLOAD_LOCAL_HINT = _(
+        "The destination directory must already exist on the host."
+    )
+    GUEST_DOWNLOAD_CANCELLED_TEMPLATE = _("Download cancelled: {bytes} received.")
+    GUEST_DOWNLOAD_BYTES_TEMPLATE = _("[b]{bytes}[/b] received")
 
     # utils_modals.py strings
     IN_PROGRESS_TITLE = _("In Progress")
@@ -1303,6 +1319,12 @@ class ErrorMessages:  # pylint: disable=too-few-public-methods
     GUEST_UPLOAD_LOCAL_MISSING_TEMPLATE = _("The selected file no longer exists: {path}")
     GUEST_UPLOAD_DEST_REQUIRED = _("Enter the destination path in the guest.")
     GUEST_UPLOAD_FAILED_TEMPLATE = _("Upload to '{path}' failed: {error}")
+    GUEST_DOWNLOAD_REMOTE_REQUIRED = _("Enter the path of the file in the guest to download.")
+    GUEST_DOWNLOAD_LOCAL_REQUIRED = _("Enter a local destination path.")
+    GUEST_DOWNLOAD_LOCAL_DIR_MISSING_TEMPLATE = _(
+        "The destination directory does not exist: {dir}"
+    )
+    GUEST_DOWNLOAD_FAILED_TEMPLATE = _("Download from '{path}' failed: {error}")
 
 
 class DialogMessages:  # pylint: disable=too-few-public-methods
@@ -1340,6 +1362,9 @@ class DialogMessages:  # pylint: disable=too-few-public-methods
     )
     CONFIRM_GUEST_SUSPEND_TEMPLATE = _(
         "Suspend the guest from inside {vm_name}?\n\nMode: {mode}"
+    )
+    CONFIRM_GUEST_DOWNLOAD_OVERWRITE_TEMPLATE = _(
+        "The file '{path}' already exists on the host. Overwrite it?"
     )
 
 
@@ -1500,6 +1525,7 @@ class SuccessMessages:  # pylint: disable=too-few-public-methods
     GUEST_FS_FROZEN_TEMPLATE = _("{count} filesystem(s) frozen.")
     GUEST_FS_THAWED_TEMPLATE = _("{count} filesystem(s) thawed.")
     GUEST_UPLOAD_DONE_TEMPLATE = _("Uploaded {bytes} to [b]{path}[/b] in the guest.")
+    GUEST_DOWNLOAD_DONE_TEMPLATE = _("Downloaded {bytes} from [b]{path}[/b] in the guest.")
 
 
 class VMDetailConstants:  # pylint: disable=too-few-public-methods

@@ -27,7 +27,14 @@ import libvirt
 from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
 from .constants import AppInfo, ServerPalette
-from .guest_agent import GuestAgentError, agent_status, ga_set_user_password, ga_upload_file
+from .guest_agent import (
+    DownloadCancelled,
+    GuestAgentError,
+    agent_status,
+    ga_download_file,
+    ga_set_user_password,
+    ga_upload_file,
+)
 from .host_capabilities import has_secure_vm_capability
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import (
@@ -229,7 +236,7 @@ class VManagerCMD(cmd.Cmd):
                 "installvm",
                 "view",
             ],
-            "Guest Agent": ["set_password", "upload_file"],
+            "Guest Agent": ["set_password", "upload_file", "download_file"],
             "Snapshots": ["snapshot_list", "snapshot_create", "snapshot_delete", "snapshot_revert"],
             "Backups": [
                 "backup_create",
@@ -2363,6 +2370,97 @@ class VManagerCMD(cmd.Cmd):
         print(f"Uploaded {humanize_bytes(written)} to '{remote_path}' in '{vm_name}'.")
 
     def complete_upload_file(self, text, line, begidx, endidx):
+        return self._complete_first_vm(text, line, begidx, endidx)
+
+    def do_download_file(self, args):
+        """Downloads a file from a running VM to the host via the guest agent.
+        Usage: download_file <vm_name> <remote_path> [local_dir] [--append]
+        The file is saved in local_dir (default: current directory) with the
+        same name as the remote file. The local directory must already exist;
+        an existing file is never overwritten unless --append is given."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = args.split()
+        append = False
+        if "--append" in arg_list:
+            append = True
+            arg_list = [a for a in arg_list if a != "--append"]
+
+        if len(arg_list) not in (2, 3):
+            print("Usage: download_file <vm_name> <remote_path> [local_dir] [--append]")
+            return
+
+        vm_name, remote_path = arg_list[0], arg_list[1]
+        local_dir = arg_list[2] if len(arg_list) == 3 else os.getcwd()
+
+        if not os.path.basename(remote_path):
+            print(f"Invalid guest file path (not a file): {remote_path}")
+            return
+
+        domain, _server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        if not self._check_guest_agent(domain, vm_name):
+            return
+
+        local_path = (
+            local_dir + os.path.basename(remote_path)
+            if local_dir.endswith("/")
+            else local_dir + "/" + os.path.basename(remote_path)
+        )
+
+        if os.path.exists(local_path) and not append:
+            print(
+                f"Local file already exists: {local_path} "
+                "(use --append or remove it first)."
+            )
+            return
+
+        last_bytes = -1
+
+        def on_progress(bytes_read: int) -> None:
+            nonlocal last_bytes
+            if bytes_read == last_bytes:
+                return
+            last_bytes = bytes_read
+            print(
+                f"\rDownloading {remote_path} -> {local_path}: "
+                f"{humanize_bytes(bytes_read)}...",
+                end="",
+                flush=True,
+            )
+
+        try:
+            written = ga_download_file(
+                domain,
+                remote_path,
+                local_path,
+                mode="a" if append else "w",
+                progress_callback=on_progress,
+            )
+        except DownloadCancelled as e:
+            print()
+            print(f"Download cancelled after {humanize_bytes(e.bytes_read)}.")
+            return
+        except GuestAgentError as e:
+            print()
+            self._safe_print(f"Error downloading '{remote_path}' from '{vm_name}': {e}")
+            return
+        except OSError as e:
+            print()
+            self._safe_print(f"Error writing to '{local_path}': {e}")
+            return
+
+        print()
+        print(
+            f"Downloaded {humanize_bytes(written)} from '{remote_path}' "
+            f"in '{vm_name}' to '{local_path}'."
+        )
+
+    def complete_download_file(self, text, line, begidx, endidx):
         return self._complete_first_vm(text, line, begidx, endidx)
 
     def do_list_unused_volumes(self, args):

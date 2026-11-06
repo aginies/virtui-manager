@@ -19,10 +19,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from vmanager import guest_agent
 from vmanager.guest_agent import (
+    DownloadCancelled,
     GuestAgentError,
     UploadCancelled,
     agent_status,
     ga_command,
+    ga_download_file,
     ga_exec,
     ga_exec_status,
     ga_exec_wait,
@@ -835,6 +837,175 @@ class TestGuestUpload(unittest.TestCase):
         path = self._write_local_file("m.bin", b"x")
         with self.assertRaises(ValueError):
             ga_upload_file(_make_domain(), path, "/tmp/m.bin", mode="r")
+
+
+class TestGuestDownload(unittest.TestCase):
+    """ga_download_file: chunked guest-file-read with close and
+    handle cleanup on error or cancel."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmpdir = self._tmp.name
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _local_path(self, name: str) -> str:
+        return os.path.join(self.tmpdir, name)
+
+    @staticmethod
+    def _read_result(buf: bytes, eof: bool) -> dict:
+        return {"count": len(buf), "buf-b64": base64.b64encode(buf).decode(), "eof": eof}
+
+    def _fake_download(self, read_results: list[dict], calls: list[str]):
+        """ga_command fake that replays guest-file-read results in order."""
+
+        def fake(domain, name, arguments=None, timeout=10):
+            calls.append(name)
+            if name == "guest-file-open":
+                return 7
+            if name == "guest-file-read":
+                return read_results.pop(0)
+            if name == "guest-file-close":
+                return None
+            raise AssertionError(f"unexpected command {name}")
+
+        return fake
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_chunked_reads_round_trip(self, mock_ga):
+        data = os.urandom(600 * 1024)
+        chunk_size = guest_agent.DOWNLOAD_CHUNK_SIZE
+        chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
+        reads = [self._read_result(c, i == len(chunks) - 1) for i, c in enumerate(chunks)]
+        calls: list[str] = []
+        mock_ga.side_effect = self._fake_download(reads, calls)
+
+        local = self._local_path("big.bin")
+        total = ga_download_file(_make_domain(), "/etc/big.bin", local)
+        self.assertEqual(total, len(data))
+        with open(local, "rb") as f:
+            self.assertEqual(f.read(), data)
+        self.assertEqual(len([c for c in calls if c == "guest-file-read"]), 3)
+        self.assertEqual(calls[0], "guest-file-open")
+        self.assertEqual(calls[-1], "guest-file-close")
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_open_and_read_arguments(self, mock_ga):
+        calls: list[str] = []
+        mock_ga.side_effect = self._fake_download(
+            [self._read_result(b"hello", True)], calls
+        )
+        ga_download_file(_make_domain(), "/etc/hostname", self._local_path("h"))
+        self.assertEqual(mock_ga.call_args_list[0].args[2], {"path": "/etc/hostname", "mode": "r"})
+        self.assertEqual(mock_ga.call_args_list[1].args[2], {"handle": 7, "count": 256 * 1024})
+        self.assertEqual(mock_ga.call_args_list[-1].args[2], {"handle": 7})
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_stops_on_empty_buffer(self, mock_ga):
+        calls: list[str] = []
+        mock_ga.side_effect = self._fake_download([self._read_result(b"", True)], calls)
+        total = ga_download_file(_make_domain(), "/etc/f", self._local_path("f"))
+        self.assertEqual(total, 0)
+        self.assertEqual(calls, ["guest-file-open", "guest-file-read", "guest-file-close"])
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_closes_handle_on_read_error(self, mock_ga):
+        calls: list[str] = []
+
+        def fake(domain, name, arguments=None, timeout=10):
+            calls.append(name)
+            if name == "guest-file-open":
+                return 9
+            if name == "guest-file-read":
+                raise GuestAgentError("boom", reason="command_failed", command=name)
+            if name == "guest-file-close":
+                return None
+            raise AssertionError(f"unexpected command {name}")
+
+        mock_ga.side_effect = fake
+        with self.assertRaises(GuestAgentError):
+            ga_download_file(_make_domain(), "/etc/x", self._local_path("x"))
+        self.assertEqual(calls, ["guest-file-open", "guest-file-read", "guest-file-close"])
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_open_failure_no_close(self, mock_ga):
+        mock_ga.side_effect = GuestAgentError(
+            "failed to open file '/etc/nope': No such file or directory",
+            reason="command_failed",
+            command="guest-file-open",
+        )
+        with self.assertRaises(GuestAgentError):
+            ga_download_file(_make_domain(), "/etc/nope", self._local_path("nope"))
+        mock_ga.assert_called_once()
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_progress_callback_cumulative(self, mock_ga):
+        data = os.urandom(300 * 1024)
+        chunk_size = guest_agent.DOWNLOAD_CHUNK_SIZE
+        chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
+        reads = [self._read_result(c, i == len(chunks) - 1) for i, c in enumerate(chunks)]
+        mock_ga.side_effect = self._fake_download(reads, [])
+        progress: list[int] = []
+        ga_download_file(
+            _make_domain(),
+            "/etc/p.bin",
+            self._local_path("p.bin"),
+            progress_callback=progress.append,
+        )
+        self.assertEqual(progress[-1], len(data))
+        self.assertEqual(progress, sorted(progress))
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_cancel_between_chunks(self, mock_ga):
+        cancel = threading.Event()
+        calls: list[str] = []
+        data = os.urandom(600 * 1024)
+        chunk_size = guest_agent.DOWNLOAD_CHUNK_SIZE
+        chunks = [data[i : i + chunk_size] for i in range(0, len(data), chunk_size)]
+
+        def fake(domain, name, arguments=None, timeout=10):
+            calls.append(name)
+            if name == "guest-file-open":
+                return 5
+            if name == "guest-file-read":
+                if not chunks:
+                    raise AssertionError("no more chunks expected")
+                cancel.set()  # cancel after the first chunk
+                return self._read_result(chunks.pop(0), False)
+            if name == "guest-file-close":
+                return None
+            raise AssertionError(f"unexpected command {name}")
+
+        mock_ga.side_effect = fake
+        with self.assertRaises(DownloadCancelled) as ctx:
+            ga_download_file(
+                _make_domain(), "/etc/c.bin", self._local_path("c.bin"), cancel_event=cancel
+            )
+        self.assertEqual(ctx.exception.bytes_read, chunk_size)
+        self.assertEqual(calls, ["guest-file-open", "guest-file-read", "guest-file-close"])
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_append_mode(self, mock_ga):
+        local = self._local_path("app.bin")
+        with open(local, "wb") as f:
+            f.write(b"existing")
+        mock_ga.side_effect = self._fake_download([self._read_result(b"more", True)], [])
+        ga_download_file(_make_domain(), "/etc/app.bin", local, mode="a")
+        with open(local, "rb") as f:
+            self.assertEqual(f.read(), b"existingmore")
+        self.assertEqual(mock_ga.call_args_list[0].args[2], {"path": "/etc/app.bin", "mode": "r"})
+
+    def test_download_rejects_bad_mode(self):
+        with self.assertRaises(ValueError):
+            ga_download_file(_make_domain(), "/etc/x", self._local_path("x"), mode="r")
+
+    @patch.object(guest_agent, "ga_command")
+    def test_download_local_parent_missing(self, mock_ga):
+        local = os.path.join(self.tmpdir, "missing", "f.bin")
+        with self.assertRaises(GuestAgentError):
+            ga_download_file(_make_domain(), "/etc/f", local)
+        mock_ga.assert_not_called()
 
 
 class TestGuestOperations(unittest.TestCase):
