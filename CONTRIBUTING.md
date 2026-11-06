@@ -3,8 +3,11 @@
 Thank you for your interest in improving Virtui Manager! This project provides a TUI for libvirt, and maintaining stability is top priority.
 
 ## General Rules
-* **Code Review:** All submissions must be via Pull Request and require manual review by a maintainer.
+* **Code Review:** All submissions must be via Pull Request and require a manual **human** review (by a maintainer).
 * **Testing:** You must test your code against a live libvirt environment.
+* **Code change** should be one feature, not a bundle or a mix of features. Of course if you improve some area, this is possible to do a "big" modification, but do not mix vmc, TUI, or anything else in one PR.
+* **Again: human eye**: there is no automatic acceptance of any code without a human review.
+* **Human are no robot**: a human can not review thousands of line of code easily and quickly. You must be comprehensive as this project is human driven.
 
 
 ## Technical Constraints (Workers, Caching, Text)
@@ -31,6 +34,7 @@ This project includes Nix package definitions for easy installation and developm
 ## Linux Distribution
 
 Auto installation of Distribution are complex to manage, and being an expert on all process is difficult as they are not using same command line, configuration files etc... Help is warmly welcome to improve default configuration.
+The main developement is done on openSUSE Tumbleweed. Python3.9 is the minimal requirements. Even this is a no more supported version, effort is done to get virtui-manager able to run on this version
 
 ## Impact Analysis
 
