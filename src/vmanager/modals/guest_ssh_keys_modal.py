@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any, Callable
 
 import libvirt
 from textual import on
@@ -104,6 +105,37 @@ class GuestSSHKeysModal(BaseModal[None]):
     def _get_user(self) -> str:
         return self.query_one("#guest-ssh-user-input", Input).value.strip()
 
+    def _run_guest_op(
+        self,
+        name: str,
+        func: Callable[[], Any],
+        on_done: Callable[[Any], None],
+    ) -> None:
+        """Run a QGA operation in a worker; show an error notification on failure."""
+
+        def worker() -> None:
+            try:
+                result = func()
+            except GuestAgentError as exc:
+                # Capture before the except block deletes `exc`: the closure runs later.
+                logging.error("Guest agent operation failed in %s: %s", self.vm_name, exc)
+                error = exc
+
+                def on_error() -> None:
+                    show_guest_agent_error(self.app, error)
+
+                self.app.call_from_thread(on_error)
+                return
+
+            def done() -> None:
+                if not self.is_mounted:
+                    return
+                on_done(result)
+
+            self.app.call_from_thread(done)
+
+        self.app.worker_manager.run(worker, name=name)
+
     def _load_keys(self) -> None:
         if not is_available():
             self.app.show_error_message(ErrorMessages.GUEST_AGENT_NOT_AVAILABLE)
@@ -114,29 +146,16 @@ class GuestSSHKeysModal(BaseModal[None]):
             self.app.show_error_message(ErrorMessages.GUEST_SSH_USER_REQUIRED)
             return
 
-        def worker() -> None:
-            try:
-                keys = ga_ssh_get_authorized_keys(self.domain, user)
-            except GuestAgentError as exc:
-                logging.error("Failed to load SSH keys in %s: %s", self.vm_name, exc)
-                error = exc  # captured: 'exc' is deleted when the except block ends
+        def on_done(keys: list[str]) -> None:
+            self._loaded_keys = keys
+            self._loaded_user = user
+            self._populate_table(keys)
 
-                def on_error() -> None:
-                    show_guest_agent_error(self.app, error)
-
-                self.app.call_from_thread(on_error)
-                return
-
-            def on_done() -> None:
-                if not self.is_mounted:
-                    return
-                self._loaded_keys = keys
-                self._loaded_user = user
-                self._populate_table(keys)
-
-            self.app.call_from_thread(on_done)
-
-        self.app.worker_manager.run(worker, name=f"guest_ssh_load_{self.vm_name}")
+        self._run_guest_op(
+            f"guest_ssh_load_{self.vm_name}",
+            lambda: ga_ssh_get_authorized_keys(self.domain, user),
+            on_done,
+        )
 
     def _populate_table(self, keys: list[str]) -> None:
         table = self.query_one("#guest-ssh-keys-table", DataTable)
@@ -170,31 +189,18 @@ class GuestSSHKeysModal(BaseModal[None]):
             self.app.show_warning_message(WarningMessages.GUEST_SSH_KEY_ALREADY_PRESENT)
             return
 
-        def worker() -> None:
-            try:
-                ga_ssh_add_authorized_keys(self.domain, user, [new_key])
-            except GuestAgentError as exc:
-                logging.error("Failed to add SSH key in %s: %s", self.vm_name, exc)
-                error = exc  # captured: 'exc' is deleted when the except block ends
+        def on_done(_result: Any) -> None:
+            self.app.show_success_message(
+                SuccessMessages.GUEST_SSH_KEY_ADDED_TEMPLATE.format(user=user)
+            )
+            self.query_one("#guest-ssh-key-input", Input).value = ""
+            self._load_keys()
 
-                def on_error() -> None:
-                    show_guest_agent_error(self.app, error)
-
-                self.app.call_from_thread(on_error)
-                return
-
-            def on_done() -> None:
-                if not self.is_mounted:
-                    return
-                self.app.show_success_message(
-                    SuccessMessages.GUEST_SSH_KEY_ADDED_TEMPLATE.format(user=user)
-                )
-                self.query_one("#guest-ssh-key-input", Input).value = ""
-                self._load_keys()
-
-            self.app.call_from_thread(on_done)
-
-        self.app.worker_manager.run(worker, name=f"guest_ssh_add_{self.vm_name}")
+        self._run_guest_op(
+            f"guest_ssh_add_{self.vm_name}",
+            lambda: ga_ssh_add_authorized_keys(self.domain, user, [new_key]),
+            on_done,
+        )
 
     def _browse_key_file(self) -> None:
         """Open the file browser to load a public key file into the input."""
@@ -237,30 +243,17 @@ class GuestSSHKeysModal(BaseModal[None]):
             if not confirmed:
                 return
 
-            def worker() -> None:
-                try:
-                    ga_ssh_remove_authorized_keys(self.domain, user, [key])
-                except GuestAgentError as exc:
-                    logging.error("Failed to remove SSH key in %s: %s", self.vm_name, exc)
-                    error = exc  # captured: 'exc' is deleted when the except block ends
+            def on_done(_result: Any) -> None:
+                self.app.show_success_message(
+                    SuccessMessages.GUEST_SSH_KEY_REMOVED_TEMPLATE.format(user=user)
+                )
+                self._load_keys()
 
-                    def on_error() -> None:
-                        show_guest_agent_error(self.app, error)
-
-                    self.app.call_from_thread(on_error)
-                    return
-
-                def on_done() -> None:
-                    if not self.is_mounted:
-                        return
-                    self.app.show_success_message(
-                        SuccessMessages.GUEST_SSH_KEY_REMOVED_TEMPLATE.format(user=user)
-                    )
-                    self._load_keys()
-
-                self.app.call_from_thread(on_done)
-
-            self.app.worker_manager.run(worker, name=f"guest_ssh_remove_{self.vm_name}")
+            self._run_guest_op(
+                f"guest_ssh_remove_{self.vm_name}",
+                lambda: ga_ssh_remove_authorized_keys(self.domain, user, [key]),
+                on_done,
+            )
 
         prompt = _confirm_message(
             DialogMessages.CONFIRM_SSH_KEY_REMOVE_TEMPLATE.format(

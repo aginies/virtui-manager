@@ -120,7 +120,6 @@ class GuestAgentModal(BaseModal[None]):
             yield Button(ButtonLabels.CLOSE, id="guest-agent-close", classes="detail-disks")
 
     def on_mount(self) -> None:
-        # Show "Guest Agent: <vm>" as the window title while the modal is open.
         self._previous_app_title = self.app.title
         self.app.title = self.title
         self._load_guest_info()
@@ -203,12 +202,10 @@ class GuestAgentModal(BaseModal[None]):
                 pass
 
         def clear_tables() -> None:
-            for table_id in ("guest-fs-table",):
-                try:
-                    table = self.query_one(f"#{table_id}", DataTable)
-                    table.clear()
-                except Exception:
-                    pass
+            try:
+                self.query_one("#guest-fs-table", DataTable).clear()
+            except Exception:
+                pass
 
         try:
             self._populate_guest_info(data, set_label, clear_tables)
@@ -307,29 +304,21 @@ class GuestAgentModal(BaseModal[None]):
         def worker() -> None:
             try:
                 result = func()
-            except GuestAgentError as exc:
-                # Capture before the except block deletes `exc`: the
-                # closure runs later on the UI thread.
-                error = exc
-                logging.error("Guest operation failed in %s: %s", self.vm_name, exc)
-
-                def on_error() -> None:
-                    button.disabled = False
-                    show_guest_agent_error(self.app, error)
-
-                self.app.call_from_thread(on_error)
-                return
             except Exception as exc:
-                error = str(exc)
+                # Capture before the except block deletes `exc`: the closure runs later.
                 logging.error("Guest operation failed in %s: %s", self.vm_name, exc)
+                error = exc
 
                 def on_error() -> None:
                     button.disabled = False
-                    self.app.show_error_message(
-                        ErrorMessages.GUEST_COMMAND_FAILED_TEMPLATE.format(
-                            command=command, error=error
+                    if isinstance(error, GuestAgentError):
+                        show_guest_agent_error(self.app, error)
+                    else:
+                        self.app.show_error_message(
+                            ErrorMessages.GUEST_COMMAND_FAILED_TEMPLATE.format(
+                                command=command, error=str(error)
+                            )
                         )
-                    )
 
                 self.app.call_from_thread(on_error)
                 return

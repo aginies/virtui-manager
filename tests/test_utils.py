@@ -17,7 +17,6 @@ from vmanager.utils import (
     get_server_color_cached,
     humanize_bytes,
     is_running_under_flatpak,
-    parse_version,
     setup_cache_monitoring,
     setup_logging,
     snake_case_keys,
@@ -187,26 +186,6 @@ class TestFormatUptime(unittest.TestCase):
 
     def test_multiple_days(self):
         self.assertEqual(format_uptime(180000), "2 days, 02:00:00")
-
-
-class TestParseVersion(unittest.TestCase):
-    def test_full_version(self):
-        self.assertEqual(parse_version("11.0.4"), (11, 0, 4))
-
-    def test_two_parts(self):
-        self.assertEqual(parse_version("10.1"), (10, 1))
-
-    def test_trailing_suffix(self):
-        self.assertEqual(parse_version("2.12.0-rc1"), (2, 12, 0))
-
-    def test_unknown(self):
-        self.assertEqual(parse_version("unknown"), ())
-
-    def test_empty(self):
-        self.assertEqual(parse_version(""), ())
-
-    def test_none(self):
-        self.assertEqual(parse_version(None), ())
 
 
 class TestSnakeCaseKeys(unittest.TestCase):

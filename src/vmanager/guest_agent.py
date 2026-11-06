@@ -208,16 +208,7 @@ def agent_status(domain: libvirt.virDomain) -> str:
 
 
 def ga_supported(domain: libvirt.virDomain, timeout: int = PING_TIMEOUT) -> dict:
-    """Returns the agent version and the list of supported commands.
-
-    The data comes from 'guest-info' (agent version + supported_commands),
-    which has been the only source of this information since QEMU 0.15.
-    """
-    return _ga_supported_from_info(domain, timeout)
-
-
-def _ga_supported_from_info(domain: libvirt.virDomain, timeout: int) -> dict:
-    """Build the supported dict from a 'guest-info' reply."""
+    """Returns the agent version and the list of supported commands (from 'guest-info')."""
     result = ga_command(domain, "guest-info", timeout=timeout)
     if not isinstance(result, dict):
         return {}
@@ -236,18 +227,52 @@ def _ga_supported_from_info(domain: libvirt.virDomain, timeout: int) -> dict:
 def ga_info(domain: libvirt.virDomain, timeout: int = QUERY_TIMEOUT) -> dict:
     """Returns guest info: hostname, OS, uptime and load.
 
-    'guest-info' only carries the agent version and command list (as it
-    has since QEMU 0.15), so the guest data is fetched from the dedicated
-    'guest-get-*' commands instead.
+    Uptime is read from /proc/uptime via the file commands (the protocol
+    has no uptime command). Commands missing on the agent (e.g.
+    guest-get-load before QEMU 10) are skipped; other errors propagate.
     """
-    return _ga_info_split(domain, timeout)
+    info: dict[str, Any] = {
+        "hostname": "",
+        "os": {},
+        "uptime": 0,
+        "uptime_format": "",
+        "load": [],
+    }
+
+    def _fetch(command: str) -> Any:
+        try:
+            return ga_command(domain, command, timeout=timeout)
+        except GuestAgentError as e:
+            if e.reason == "unsupported":
+                return None
+            raise
+
+    result = _fetch("guest-get-host-name")
+    if isinstance(result, dict):
+        info["hostname"] = result.get("host-name", "")
+
+    result = _fetch("guest-get-osinfo")
+    if isinstance(result, dict):
+        info["os"] = snake_case_keys(result)
+
+    result = _fetch("guest-get-load")
+    if isinstance(result, dict):
+        info["load"] = [
+            result.get("load1m", 0),
+            result.get("load5m", 0),
+            result.get("load15m", 0),
+        ]
+
+    uptime = ga_uptime(domain, timeout)
+    if uptime is not None:
+        info["uptime"] = int(uptime)
+        info["uptime_format"] = format_uptime(uptime)
+
+    return info
 
 
 def ga_uptime(domain: libvirt.virDomain, timeout: int = QUERY_TIMEOUT) -> float | None:
     """Returns the guest uptime in seconds, read from /proc/uptime.
-
-    The QGA protocol has no uptime command, so it is read from the guest
-    proc filesystem via the file commands (available on all agents).
 
     Returns None if it cannot be read (non-Linux guest, agent error...).
     """
@@ -287,29 +312,11 @@ def ga_upload_file(
 ) -> int:
     """Upload a local file to the guest via the QGA file commands.
 
-    The file commands (guest-file-open/write/flush/close) exist on every
-    agent, so no version check is needed. The agent runs as root inside
-    the guest: the destination file is created root-owned and its parent
-    directory must already exist.
+    The agent runs as root inside the guest: the destination file is
+    created root-owned and its parent directory must already exist.
 
-    Args:
-        domain: a running libvirt domain
-        local_path: path of the local file to upload
-        remote_path: destination path inside the guest
-        mode: "w" (create or truncate) or "a" (append)
-        timeout: per-command timeout in seconds
-        progress_callback: optional callable(bytes_written, total_bytes),
-            invoked from the calling thread after each chunk
-        cancel_event: optional threading.Event; when set between chunks,
-            the guest handle is closed and UploadCancelled is raised
-
-    Returns:
-        Number of bytes written to the guest
-
-    Raises:
-        ValueError: if mode is not "w" or "a"
-        GuestAgentError: if the agent cannot open, write or close the file
-        UploadCancelled: if cancel_event is set between chunks
+    Returns the number of bytes written. Raises UploadCancelled if
+    cancel_event is set between chunks (the guest handle is closed).
     """
     if mode not in ("w", "a"):
         raise ValueError(f"invalid upload mode: {mode}")
@@ -354,60 +361,8 @@ def ga_upload_file(
     return bytes_written
 
 
-def _ga_info_split(domain: libvirt.virDomain, timeout: int) -> dict:
-    """Fetch guest info from the dedicated 'guest-get-*' commands.
-
-    The QGA protocol has no uptime command, so the uptime is read from
-    /proc/uptime via the file commands instead.
-    Commands that do not exist on the agent (e.g. guest-get-load before
-    QEMU 10) are skipped; any other error is propagated.
-    """
-    info: dict[str, Any] = {
-        "hostname": "",
-        "os": {},
-        "uptime": 0,
-        "uptime_format": "",
-        "load": [],
-    }
-
-    def _fetch(command: str) -> Any:
-        try:
-            return ga_command(domain, command, timeout=timeout)
-        except GuestAgentError as e:
-            if e.reason == "unsupported":
-                return None
-            raise
-
-    result = _fetch("guest-get-host-name")
-    if isinstance(result, dict):
-        info["hostname"] = result.get("host-name", "")
-
-    result = _fetch("guest-get-osinfo")
-    if isinstance(result, dict):
-        info["os"] = snake_case_keys(result)
-
-    result = _fetch("guest-get-load")
-    if isinstance(result, dict):
-        info["load"] = [
-            result.get("load1m", 0),
-            result.get("load5m", 0),
-            result.get("load15m", 0),
-        ]
-
-    uptime = ga_uptime(domain, timeout)
-    if uptime is not None:
-        info["uptime"] = int(uptime)
-        info["uptime_format"] = format_uptime(uptime)
-
-    return info
-
-
 def ga_fsinfo(domain: libvirt.virDomain, timeout: int = QUERY_TIMEOUT) -> list[dict]:
-    """Returns the list of mounted filesystems with usage stats.
-
-    Uses 'guest-get-fsinfo', the command name in every QGA version since
-    2.2.
-    """
+    """Returns the list of mounted filesystems with usage stats."""
     result = ga_command(domain, "guest-get-fsinfo", timeout=timeout)
     if not isinstance(result, list):
         return []
@@ -420,17 +375,7 @@ def ga_fstrim(
     maximum: int | None = None,
     timeout: int = QUERY_TIMEOUT,
 ) -> int:
-    """Run fstrim on the guest's writable filesystems.
-
-    Args:
-        domain: a running libvirt domain
-        minimum: minimum extent size in bytes to trim (agent default if None)
-        maximum: maximum extent size in bytes to trim (agent default if None)
-        timeout: timeout in seconds
-
-    Returns:
-        Number of bytes trimmed
-    """
+    """Run fstrim on the guest's writable filesystems. Returns the number of bytes trimmed."""
     arguments: dict[str, Any] = {}
     if minimum is not None:
         arguments["minimum"] = minimum
@@ -454,19 +399,7 @@ def ga_set_user_password(
     crypted: bool = False,
     timeout: int = QUERY_TIMEOUT,
 ) -> None:
-    """Set a user's password inside the guest.
-
-    Args:
-        domain: a running libvirt domain
-        username: guest user name
-        password: new password (or hash if crypted=True)
-        crypted: True if the given password is already crypted/hashed
-        timeout: timeout in seconds
-
-    The agent requires the password to be base64 encoded (since QEMU
-    2.5); a raw password would either be rejected or, for passwords
-    that happen to be valid base64, silently set the wrong password.
-    """
+    """Set a user's password inside the guest (base64-encoded for the agent)."""
     encoded = base64.b64encode(password.encode("utf-8")).decode("ascii")
     ga_command(
         domain,
@@ -551,14 +484,7 @@ def ga_suspend(domain: libvirt.virDomain, mode: str = "ram", timeout: int = 30) 
 
 
 def _agent_lost(exc: GuestAgentError) -> bool:
-    """True if the error looks like the agent vanishing mid-command.
-
-    The guest suspends / powers off before the agent can reply (QGA blocks
-    in the suspend itself), so libvirt reports e.g. "guest agent didn't
-    respond to command within '30' seconds" or "Guest agent disappeared
-    while executing command" while the operation actually succeeded. Both
-    wordings are classified as reason="timeout" by _classify_libvirt_error.
-    """
+    """True if the error looks like the agent vanishing mid-command (see ga_shutdown)."""
     return exc.reason == "timeout"
 
 
@@ -604,20 +530,9 @@ def ga_exec(
     command: str,
     env: list[str] | None = None,
 ) -> int:
-    """Start a command in the guest and return its PID.
+    """Start a command in the guest (shlex-split into path + args) and return its PID.
 
-    Args:
-        domain: a running libvirt domain
-        command: the command line to run, split with shlex (path + args)
-        env: optional list of "KEY=VALUE" environment variables
-
-    The guest-exec schema has been stable since QEMU 2.5: 'path', 'arg',
-    'env' and a 'capture-output' flag, returning a GuestExec object with
-    the PID. The protocol has no guest-side timeout or working directory;
-    to bound a run, use ga_exec_wait's overall_timeout.
-
-    Raises:
-        GuestAgentError: if the command cannot be started
+    The protocol has no guest-side timeout; to bound a run, use ga_exec_wait.
     """
     tokens = shlex.split(command)
     if not tokens:
@@ -637,15 +552,12 @@ def ga_exec(
 
 
 def ga_exec_status(domain: libvirt.virDomain, pid: int, timeout: int = QUERY_TIMEOUT) -> dict:
-    """Returns the status of a guest-exec process.
+    """Returns the status of a guest-exec process, normalized to:
 
-    The returned dict is normalized to:
-        {"exited": bool, "exitcode": int | None, "signal": int | None,
-         "stdout": str, "stderr": str, "truncated": bool}
+    {"exited": bool, "exitcode": int | None, "signal": int | None,
+     "stdout": str, "stderr": str, "truncated": bool}
 
-    'exitcode' is set when the process exited normally; 'signal' is set
-    when it was killed by a signal. The protocol has no guest-side
-    timeout, so no timed-out flag is reported.
+    'exitcode' is set on normal exit, 'signal' when killed by a signal.
     """
     result = ga_command(domain, "guest-exec-status", arguments={"pid": pid}, timeout=timeout)
     if not isinstance(result, dict):
@@ -681,17 +593,11 @@ def ga_exec_wait(
     overall_timeout: float = 300.0,
     env: list[str] | None = None,
 ) -> dict:
-    """Run a command in the guest and wait for it to finish.
+    """Run a command in the guest and wait for it to finish (worker-only, it sleeps).
 
-    Must be called from a worker thread (it sleeps while polling).
-
-    The protocol has no guest-side timeout: overall_timeout only bounds
-    how long we wait here, the process keeps running in the guest if the
-    deadline is exceeded.
-
-    Returns the normalized status dict from ga_exec_status.
-    Raises GuestAgentError if the command cannot be started or the
-    overall wait deadline is exceeded.
+    overall_timeout only bounds the wait here: the process keeps running
+    in the guest if the deadline is exceeded. Returns the normalized
+    status dict from ga_exec_status.
     """
     pid = ga_exec(domain, command, env=env)
     deadline = time.monotonic() + overall_timeout
@@ -719,9 +625,6 @@ def ga_ssh_add_authorized_keys(
         )
     except GuestAgentError as e:
         if _is_ssh_dir_exists_error(e):
-            # The .ssh path exists in the guest but is not a directory
-            # (e.g. a regular file or a broken symlink), so the agent
-            # cannot create it. The user must fix it inside the guest.
             match = re.search(r"failed to create directory '([^']+)'", str(e))
             path = match.group(1) if match else "the user's .ssh directory"
             raise GuestAgentError(

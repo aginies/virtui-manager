@@ -156,48 +156,33 @@ class GuestUploadModal(BaseModal[None]):
                     progress_callback=on_progress,
                     cancel_event=self._cancel_event,
                 )
-            except UploadCancelled as exc:
-                error = exc  # captured: 'exc' is deleted when the except block ends
-                logging.info("Upload to %s cancelled: %s", self.vm_name, exc)
-
-                def on_cancelled() -> None:
-                    self._finish_upload_ui()
-                    if not self.is_mounted:
-                        return
-                    self.app.show_warning_message(
-                        StaticText.GUEST_UPLOAD_CANCELLED_TEMPLATE.format(
-                            bytes=humanize_bytes(error.bytes_written),
-                            total=humanize_bytes(error.total_bytes),
-                        )
-                    )
-
-                self.app.call_from_thread(on_cancelled)
-                return
-            except GuestAgentError as exc:
-                error = exc  # captured: 'exc' is deleted when the except block ends
-                logging.error("Upload to %s failed: %s", self.vm_name, exc)
-
-                def on_error() -> None:
-                    self._finish_upload_ui()
-                    if not self.is_mounted:
-                        return
-                    show_guest_agent_error(self.app, error)
-
-                self.app.call_from_thread(on_error)
-                return
             except Exception as exc:
-                error = str(exc)
-                logging.error("Upload to %s failed: %s", self.vm_name, exc)
+                # Capture before the except block deletes `exc`: the closure runs later.
+                if isinstance(exc, UploadCancelled):
+                    logging.info("Upload to %s cancelled: %s", self.vm_name, exc)
+                else:
+                    logging.error("Upload to %s failed: %s", self.vm_name, exc)
+                error = exc
 
                 def on_error() -> None:
                     self._finish_upload_ui()
                     if not self.is_mounted:
                         return
-                    self.app.show_error_message(
-                        ErrorMessages.GUEST_UPLOAD_FAILED_TEMPLATE.format(
-                            path=remote_path, error=error
+                    if isinstance(error, UploadCancelled):
+                        self.app.show_warning_message(
+                            StaticText.GUEST_UPLOAD_CANCELLED_TEMPLATE.format(
+                                bytes=humanize_bytes(error.bytes_written),
+                                total=humanize_bytes(error.total_bytes),
+                            )
                         )
-                    )
+                    elif isinstance(error, GuestAgentError):
+                        show_guest_agent_error(self.app, error)
+                    else:
+                        self.app.show_error_message(
+                            ErrorMessages.GUEST_UPLOAD_FAILED_TEMPLATE.format(
+                                path=remote_path, error=str(error)
+                            )
+                        )
 
                 self.app.call_from_thread(on_error)
                 return

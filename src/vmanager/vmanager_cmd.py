@@ -2228,6 +2228,26 @@ class VManagerCMD(cmd.Cmd):
 
         return self.complete_select_vm(text, line, begidx, endidx)
 
+    def _check_guest_agent(self, domain, vm_name) -> bool:
+        """Print why the guest agent is unavailable; return True if it is ready."""
+        status = agent_status(domain)
+        if status == "not_running":
+            print(f"VM '{vm_name}' is not running.")
+        elif status == "not_configured":
+            print(f"No guest agent channel configured on '{vm_name}'.")
+        elif status == "down":
+            print(f"Guest agent on '{vm_name}' is not responding.")
+        else:
+            return True
+        return False
+
+    def _complete_first_vm(self, text, line, begidx, endidx):
+        """Auto-completion for the VM name (first argument only)."""
+        words = line.split()
+        if len(words) > 2 or (len(words) == 2 and not line.endswith(" ")):
+            return []
+        return self.complete_select_vm(text, line, begidx, endidx)
+
     def do_set_password(self, args):
         """Sets a user's password inside a running VM via the guest agent.
         Usage: set_password <vm_name> <user>"""
@@ -2246,15 +2266,7 @@ class VManagerCMD(cmd.Cmd):
         if not domain:
             return
 
-        status = agent_status(domain)
-        if status == "not_running":
-            print(f"VM '{vm_name}' is not running.")
-            return
-        if status == "not_configured":
-            print(f"No guest agent channel configured on '{vm_name}'.")
-            return
-        if status == "down":
-            print(f"Guest agent on '{vm_name}' is not responding.")
+        if not self._check_guest_agent(domain, vm_name):
             return
 
         password = getpass.getpass(f"New password for '{user}' in '{vm_name}': ")
@@ -2273,12 +2285,7 @@ class VManagerCMD(cmd.Cmd):
             self._safe_print(f"Error setting password in '{vm_name}': {e}")
 
     def complete_set_password(self, text, line, begidx, endidx):
-        """Auto-completion for the VM (first argument only)."""
-        words = line.split()
-        if len(words) > 2 or (len(words) == 2 and not line.endswith(" ")):
-            return []
-
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self._complete_first_vm(text, line, begidx, endidx)
 
     def do_upload_file(self, args):
         """Uploads a local file to a running VM via the guest agent.
@@ -2306,15 +2313,7 @@ class VManagerCMD(cmd.Cmd):
         if not domain:
             return
 
-        status = agent_status(domain)
-        if status == "not_running":
-            print(f"VM '{vm_name}' is not running.")
-            return
-        if status == "not_configured":
-            print(f"No guest agent channel configured on '{vm_name}'.")
-            return
-        if status == "down":
-            print(f"Guest agent on '{vm_name}' is not responding.")
+        if not self._check_guest_agent(domain, vm_name):
             return
 
         if not os.path.isfile(local_path):
@@ -2364,12 +2363,7 @@ class VManagerCMD(cmd.Cmd):
         print(f"Uploaded {humanize_bytes(written)} to '{remote_path}' in '{vm_name}'.")
 
     def complete_upload_file(self, text, line, begidx, endidx):
-        """Auto-completion for the VM (first argument only)."""
-        words = line.split()
-        if len(words) > 2 or (len(words) == 2 and not line.endswith(" ")):
-            return []
-
-        return self.complete_select_vm(text, line, begidx, endidx)
+        return self._complete_first_vm(text, line, begidx, endidx)
 
     def do_list_unused_volumes(self, args):
         """Lists all storage volumes that are not attached to any VM.

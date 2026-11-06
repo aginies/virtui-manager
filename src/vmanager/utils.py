@@ -924,25 +924,6 @@ def snake_case_keys(value: Any) -> Any:
     return value
 
 
-def parse_version(version: str) -> tuple[int, ...]:
-    """Parse a version string like '10.1.0' into a comparable tuple.
-
-    Returns an empty tuple if the string does not start with a number.
-    """
-    parts: list[int] = []
-    for part in (version or "").split("."):
-        digits = ""
-        for ch in part:
-            if ch.isdigit():
-                digits += ch
-            else:
-                break
-        if not digits:
-            break
-        parts.append(int(digits))
-    return tuple(parts)
-
-
 @lru_cache(maxsize=8)
 def format_server_names(server_uris: tuple[str]) -> str:
     """
