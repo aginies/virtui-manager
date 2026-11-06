@@ -17,6 +17,7 @@ Virtui Manager uses an asynchronous worker system and metadata caching to preven
 * **Use Workers:** Long-running tasks (cloning, migration) must be wrapped in Textual workers.
 * **Cache Awareness:** Ensure that actions modifying a VM's state invalidate the corresponding cache.
 * **Text:** All text must be put into `constants.py` file for translation, don't hard code text into the phyton code
+* **vmc / virtui-manager-cmd**: no translation yet, on purpose. this will change when it will be ready and use most of the virtui-manager API.
 
 ## Security Note
 
