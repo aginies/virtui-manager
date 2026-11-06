@@ -8,6 +8,7 @@ secrets in command-line output, logs, and error messages. All sensitive data is
 redacted with "***" placeholders while preserving enough context for debugging.
 """
 
+import argparse
 import atexit
 import cmd
 import datetime
@@ -20,13 +21,23 @@ import shlex
 import shutil
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import libvirt
 
+from . import machine_resources  # noqa: F401  registers the pool/volume/domain/host commands
 from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
-from .constants import AppInfo, ServerPalette
+from .constants import (
+    AppInfo,
+    DeploySummaryText,
+    DeployText,
+    MachineProgressStage,
+    ServerPalette,
+    StaticText,
+)
+from .deploy_config import DeployConfigError, MachinePlan, load_deploy_config
 from .host_capabilities import has_secure_vm_capability
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import (
@@ -37,6 +48,20 @@ from .libvirt_utils import (
     get_latest_machine_types,
     get_network_info,
     get_video_domain_capabilities,
+)
+from .machine_mode import (
+    EXIT_CONFIG,
+    EXIT_CONNECTION,
+    EXIT_EXISTS,
+    EXIT_NOT_FOUND,
+    EXIT_OK,
+    EXIT_OPERATION,
+    EXIT_TIMEOUT,
+    EXIT_USAGE,
+    TIMEOUT_ERRORS,
+    MachineError,
+    MachineSession,
+    run_command,
 )
 from .modals.input_modals import _sanitize_domain_name
 from .network_manager import (
@@ -51,13 +76,17 @@ from .pipeline import PipelineExecutor, PipelineMode
 from .provisioning.os_provider import OSType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
+    _ensure_pool_active,
+    _safe_is_pool_active,
+    create_overlay_volume,
     delete_volume,
     ensure_default_pool,
-    find_volume,
     find_vms_using_volume,
+    find_volume,
     list_storage_pools,
     list_storage_volumes,
     list_unused_volumes,
+    volume_facts,
 )
 from .utils import (
     extract_server_name_from_uri,
@@ -151,6 +180,12 @@ class VManagerCMD(cmd.Cmd):
     def __init__(self, vm_service=None):
         super().__init__()
         self.yes_mode = False
+        # The uri a scripted caller named with -u/--uri, None when it did not.
+        # Set before preloop, so it replaces the configured autoconnect.
+        self.default_uri = None
+        # The MachineSession of a --machine run, None for a human. Commands
+        # that can be driven this way answer through it instead of printing.
+        self.machine = None
 
         # Setup logging
         try:
@@ -196,14 +231,14 @@ class VManagerCMD(cmd.Cmd):
         # Categories for help and completion
         self.categories = {
             "Connection": [
-            "connect",
-            "disconnect",
-            "list_servers",
-            "list_connected_servers",
-            "host_info",
-            "host_capabilities",
-            "virsh",
-        ],
+                "connect",
+                "disconnect",
+                "list_servers",
+                "list_connected_servers",
+                "host_info",
+                "host_capabilities",
+                "virsh",
+            ],
             "VM Selection": [
                 "list_vms",
                 "select_vm",
@@ -251,7 +286,13 @@ class VManagerCMD(cmd.Cmd):
                 "volume_usage",
                 "delete_volume",
             ],
-            "Installation": ["prepare_json", "list_json", "show_json", "list_isos", "list_cached_isos"],
+            "Installation": [
+                "prepare_json",
+                "list_json",
+                "show_json",
+                "list_isos",
+                "list_cached_isos",
+            ],
             "Pipelines": ["pipeline"],
             "Shell/Utils": ["bash", "history", "version", "about", "quit"],
         }
@@ -270,7 +311,19 @@ class VManagerCMD(cmd.Cmd):
         self._perform_autoconnect()
 
     def _perform_autoconnect(self):
-        """Auto-connect to servers that have autoconnect enabled."""
+        """Connect to the uri given on the command line, or to the configured ones.
+
+        ``-u/--uri`` is what a scripted caller uses to say which hypervisor it
+        means. It then connects to that one only: a run that named its
+        hypervisor should not also open the servers of the developer's
+        configuration, whose state would decide what the command sees.
+        """
+        if self.default_uri:
+            server_name = self._connect_one(self.default_uri)
+            if server_name:
+                self.selected_vms[server_name] = []
+            return
+
         for server in self.servers:
             if server.get("autoconnect", False):
                 try:
@@ -2423,9 +2476,7 @@ class VManagerCMD(cmd.Cmd):
         for conn in self.active_connections.values():
             for pool_info in list_storage_pools(conn):
                 if pool_info["name"] == pool_name:
-                    all_volumes.update(
-                        v["name"] for v in list_storage_volumes(pool_info["pool"])
-                    )
+                    all_volumes.update(v["name"] for v in list_storage_volumes(pool_info["pool"]))
                     break
 
         if not text:
@@ -4111,9 +4162,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 print(f"Error: unknown VM type '{selected_vm_type}'.")
                 return
             if selected_vm_type == VMType.SECURE and not secure_capable:
-                print(
-                    "Error: Secure VMs require a host with AMD SEV or Intel TDX support."
-                )
+                print("Error: Secure VMs require a host with AMD SEV or Intel TDX support.")
                 return
 
             # 3. Select Distribution
@@ -4173,7 +4222,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 return
 
             if iso_source == "Distribution repository":
-                print(f"\nFetching available ISOs for {selected_version.display_name}...")
+                fetching = StaticText.PREPARE_FETCHING_ISOS_TEMPLATE
+                print(f"\n{fetching.format(version=selected_version.display_name)}")
                 iso_list = provisioner.get_iso_list(selected_version)
                 if not iso_list:
                     print("No ISOs found for this distribution/version.")
@@ -4189,7 +4239,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     return f"{label} [Size: {size}]"
 
                 selected_iso_obj = self._select_choice(
-                    "Select ISO Image",
+                    StaticText.PREPARE_SELECT_ISO_IMAGE,
                     iso_list,
                     choices_provided=choices_provided,
                     choices_used=choices_used,
@@ -4238,7 +4288,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                     print("No ISO volumes found in active pools.")
                     return
                 selected_vol = self._select_choice(
-                    "Select ISO Volume",
+                    StaticText.PREPARE_SELECT_ISO_VOLUME,
                     vol_options,
                     choices_provided=choices_provided,
                     choices_used=choices_used,
@@ -4300,7 +4350,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 choices_used.append("default")
             else:
                 selected_network = self._select_choice(
-                    "Select Network",
+                    StaticText.PREPARE_SELECT_NETWORK,
                     active_networks,
                     choices_provided=choices_provided,
                     choices_used=choices_used,
@@ -4381,9 +4431,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                         or "preseed" in t["filename"].lower()
                     ]
                 elif "debian" in os_lower:
-                    templates = [
-                        t for t in all_templates if "preseed" in t["filename"].lower()
-                    ]
+                    templates = [t for t in all_templates if "preseed" in t["filename"].lower()]
                 elif "suse" in os_lower or "sles" in os_lower:
                     templates = [
                         t
@@ -4490,14 +4538,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         # 8. Provisioning
-        def cli_progress_callback(stage, percent):
-            columns, _ = shutil.get_terminal_size()
-            # Use carriage return to overwrite the same line
-            sys.stdout.write(f"\r[{percent}%] {stage}".ljust(columns - 1))
-            sys.stdout.flush()
-            if percent >= 100:
-                sys.stdout.write("\n")
-                sys.stdout.flush()
+        cli_progress_callback = self._progress_reporter(MachineProgressStage.INSTALL)
 
         print(f"\nProvisioning VM '{vm_name}' on server '{target_server}'...")
         try:
@@ -4523,35 +4564,86 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         except Exception as e:
             print(f"\nFailed to provision VM: {e}")
 
-    def deploy_from_config(self, path, dryrun=False):
+    def _deploy_fail(self, message, status, code):
+        """Report a deployment failure: prose for a human, MachineError for --machine.
+
+        A deployment that did not happen has to leave the process with a
+        status saying so (``machine_mode``), which printing alone cannot do.
+        """
+        if self.machine is not None:
+            raise MachineError(message, status=status, code=code)
+        print(message)
+
+    def _progress_reporter(self, stage):
+        """What a long operation calls to say how far it has got.
+
+        One definition for every route: under ``--machine`` the line becomes a
+        progress event carrying `stage`, the name of the route doing the work,
+        and the operation's own text as the message; otherwise the same line is
+        drawn over itself on the terminal and the answer stays a human's. A
+        line without a percentage is progress too, but there is nothing to draw.
+        """
+
+        def report(text, percent=None):
+            if self.machine is not None:
+                self.machine.progress(stage, text, percent)
+                return
+            if percent is None:
+                return
+            columns, _ = shutil.get_terminal_size()
+            # Use carriage return to overwrite the same line
+            sys.stdout.write(f"\r[{percent}%] {text}".ljust(columns - 1))
+            sys.stdout.flush()
+            if percent >= 100:
+                sys.stdout.write("\n")
+                sys.stdout.flush()
+
+        return report
+
+    def deploy_from_config(self, path, dryrun=False, session=None):
         """Deploy a single VM from a JSON config file (see ``prepare_json``).
 
         Non-interactive counterpart of ``installvm``: the JSON describes every
         choice, so no prompts are shown. Reuses the same
         ``VMProvisioner.provision_vm`` path as the interactive command.
+
+        Returns what was deployed (or, with ``dryrun``, what would be), so a
+        machine caller gets the result instead of reading the prose. Pass
+        ``session`` to run under ``--machine``: failures then raise
+        :class:`MachineError` and progress is reported as it happens.
         """
-        from .deploy_config import DeployConfigError, load_deploy_config, resolve_vm_resources
+        self.machine = session
 
         try:
             cfg = load_deploy_config(path)
         except DeployConfigError as e:
-            print(f"Config error: {e}")
+            self._deploy_fail(
+                DeployText.CONFIG_ERROR_TEMPLATE.format(error=e), EXIT_CONFIG, "config_invalid"
+            )
             return
 
         vm_name = cfg["vm_name"]
         try:
             vm_name, _was_modified = _sanitize_domain_name(vm_name)
         except ValueError as e:
-            print(f"Invalid VM name: {e}")
+            self._deploy_fail(
+                DeployText.INVALID_VM_NAME_TEMPLATE.format(error=e), EXIT_CONFIG, "config_invalid"
+            )
             return
         if not vm_name:
-            print("VM name cannot be empty.")
+            self._deploy_fail(DeployText.VM_NAME_EMPTY, EXIT_CONFIG, "config_invalid")
             return
 
-        server = cfg["server"]
+        # A caller that named its hypervisor with -u/--uri means that one, even
+        # though the deployment file names a server too.
+        server = self.default_uri or cfg["server"]
         server_name = self._connect_one(server)
         if not server_name:
-            print(f"Could not connect to server '{server}'.")
+            self._deploy_fail(
+                DeployText.CANNOT_CONNECT_TEMPLATE.format(server=server),
+                EXIT_CONNECTION,
+                "connection_failed",
+            )
             return
         conn = self.active_connections[server_name]
         provisioner = VMProvisioner(conn)
@@ -4559,71 +4651,122 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         # Fail fast before creating any artifacts
         try:
             conn.lookupByName(vm_name)
-            print(f"VM '{vm_name}' already exists.")
+            self._deploy_fail(
+                DeployText.VM_ALREADY_EXISTS_TEMPLATE.format(name=vm_name),
+                EXIT_EXISTS,
+                "already_exists",
+            )
             return
         except libvirt.libvirtError as e:
             if e.get_error_code() != libvirt.VIR_ERR_NO_DOMAIN:
-                print(f"Error checking VM name: {e}")
+                self._deploy_fail(
+                    DeployText.VM_NAME_CHECK_FAILED_TEMPLATE.format(error=e),
+                    EXIT_OPERATION,
+                    "operation_failed",
+                )
                 return
 
-        # Ensure default pool and network exist and are active
-        if not ensure_default_pool(conn):
-            print("No storage pool available and could not create default pool.")
-            return
-        ensure_default_network(conn)
-        list_storage_pools.cache_clear()
-        list_networks.cache_clear()
+        # A deployment may have to make the pool and the network the machine lands
+        # in. A dry run answers without changing anything: the pool the config names
+        # is looked up below, which is all a caller can ask of it beforehand.
+        if not dryrun:
+            if not ensure_default_pool(conn):
+                self._deploy_fail(
+                    DeployText.NO_DEFAULT_POOL,
+                    EXIT_OPERATION,
+                    "pool_unavailable",
+                )
+                return
+            ensure_default_network(conn)
+            list_storage_pools.cache_clear()
+            list_networks.cache_clear()
 
-        iso_url = self._resolve_iso_url(provisioner, cfg)
-        if not iso_url:
-            print("Could not resolve ISO from config.")
-            return
-
-        vm_type, memory_mb, vcpu, disk_size_gb = resolve_vm_resources(cfg)
-
-        network = cfg["network"]
-        storage_pool = cfg["storage_pool"]
-        boot_uefi = cfg["boot_uefi"]
-        graphics_type = cfg["graphics"]
-        disk_format = cfg.get("disk_format")
-
-        automation_config = self._build_automation_config(cfg, vm_name)
-
-        if dryrun:
-            self._print_deploy_summary(
-                cfg, vm_name, server_name, iso_url, network, storage_pool,
-                boot_uefi, graphics_type, memory_mb, vcpu, disk_size_gb, automation_config,
+        # The pool the config names is the pool the machine lands in, so a name
+        # that is not there is the pool's own answer, not a bad file.
+        try:
+            pool = conn.storagePoolLookupByName(cfg["storage_pool"])
+        except libvirt.libvirtError:
+            self._deploy_fail(
+                DeployText.NO_SUCH_POOL_TEMPLATE.format(
+                    pool=cfg["storage_pool"], server=server_name
+                ),
+                EXIT_NOT_FOUND,
+                "not_found",
             )
             return
 
-        def cli_progress_callback(stage, percent):
-            columns, _ = shutil.get_terminal_size()
-            sys.stdout.write(f"\r[{percent}%] {stage}".ljust(columns - 1))
-            sys.stdout.flush()
-            if percent >= 100:
-                sys.stdout.write("\n")
-                sys.stdout.flush()
+        # A machine that boots a disk it already has is a different deployment
+        # from an install, and shares nothing with one below this point.
+        if cfg["disk_volume"]:
+            return self._deploy_existing_volume(
+                cfg, conn, provisioner, vm_name, server_name, dryrun
+            )
+
+        iso_url = self._resolve_iso_url(provisioner, cfg)
+        if not iso_url:
+            self._deploy_fail(DeployText.ISO_UNRESOLVABLE, EXIT_CONFIG, "iso_unresolvable")
+            return
+
+        # A seed is a disc the guest reads its own configuration from, and it
+        # belongs to the machine rather than to the way the machine was made: an
+        # install attaches it read-only beside the media, as booting a volume
+        # does. A deploy that was given one and ignored it would start a machine
+        # with no data on purpose and say nothing about it.
+        seed_path = None
+        if cfg["seed_volume"]:
+            seed_path, _ = self._volume_path(pool, cfg["seed_volume"])
+            if seed_path is None:
+                self._deploy_fail(
+                    DeployText.NO_SUCH_SEED_TEMPLATE.format(
+                        seed=cfg["seed_volume"], pool=cfg["storage_pool"]
+                    ),
+                    EXIT_NOT_FOUND,
+                    "not_found",
+                )
+                return
+
+        plan = MachinePlan.of(
+            cfg,
+            server_name=server_name,
+            vm_name=vm_name,
+            automation_config=self._build_automation_config(cfg, vm_name),
+        )
+        disk_format = cfg.get("disk_format")
+
+        if dryrun:
+            self._print_deploy_summary(cfg, plan, iso_url)
+            return _deploy_result(plan, dryrun=True, seed=cfg["seed_volume"])
+
+        cli_progress_callback = self._progress_reporter(MachineProgressStage.INSTALL)
 
         print(f"\nProvisioning VM '{vm_name}' on server '{server_name}'...")
+        # Filled in by the provisioner while it serves the auto-install profile;
+        # empty when there was no profile to serve.
+        served_profile: dict[str, str] = {}
         try:
             domain = provisioner.provision_vm(
                 vm_name=vm_name,
-                vm_type=vm_type,
+                vm_type=plan.vm_type,
                 iso_url=iso_url,
-                storage_pool_name=storage_pool,
-                memory_mb=memory_mb,
-                vcpu=vcpu,
-                disk_size_gb=disk_size_gb,
+                storage_pool_name=plan.storage_pool,
+                memory_mb=plan.memory_mb,
+                vcpu=plan.vcpu,
+                disk_size_gb=plan.disk_size_gb,
                 disk_format=disk_format,
-                graphics_type=graphics_type,
-                boot_uefi=boot_uefi,
+                graphics_type=plan.graphics,
+                boot_uefi=plan.boot_uefi,
                 configure_before_install=False,
-                automation_config=automation_config,
+                automation_config=plan.automation_config,
                 # Surface the generated auto-install file path only when an
                 # unattended install profile is actually generated.
-                show_automation_path=bool(automation_config),
+                show_automation_path=bool(plan.automation_config),
+                # Collect the profile it serves into the answer, so a caller can
+                # read the URL back instead of scraping it off the terminal.
+                autoinstall_report=served_profile.update,
                 progress_callback=cli_progress_callback,
-                network_name=network,
+                network_name=plan.network,
+                metadata=cfg["metadata"],
+                seed_path=seed_path,
             )
             if domain:
                 print(f"\nSuccessfully provisioned VM '{vm_name}'.")
@@ -4632,39 +4775,291 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 elif cfg.get("start", True):
                     start_vm(domain)
                     print(f"VM '{vm_name}' started.")
-            else:
-                print("\nProvisioning did not return a domain.")
+                # The machine is on the hypervisor now, and started: what a caller
+                # reads next has to come from there, not from before this deploy.
+                machine_resources.machine_created(self, domain)
+                return _deploy_result(
+                    plan,
+                    running=bool(domain.isActive()),
+                    autoinstall=served_profile,
+                    seed=cfg["seed_volume"],
+                )
+            self._deploy_fail(DeployText.NO_DOMAIN, EXIT_OPERATION, "provision_failed")
+        except MachineError:
+            # Already a failure with its own status; do not re-wrap it.
+            raise
+        except TIMEOUT_ERRORS as e:
+            # Media that stopped answering is not a hypervisor that refused: the
+            # wait that ran out keeps the status the caller switches on.
+            self._deploy_fail(str(e), EXIT_TIMEOUT, "timeout")
         except Exception as e:
-            print(f"\nFailed to provision VM: {e}")
+            self._deploy_fail(
+                DeployText.PROVISION_FAILED_TEMPLATE.format(error=e),
+                EXIT_OPERATION,
+                "provision_failed",
+            )
 
-    def _print_deploy_summary(self, cfg, vm_name, server_name, iso_url,
-                              network, storage_pool, boot_uefi, graphics_type,
-                              memory_mb, vcpu, disk_size_gb, automation_config):
-        """Print a dry-run summary of what ``deploy_from_config`` would do."""
-        print("\n--- Summary of Actions (dry run) ---")
-        print(f"VM Name: {vm_name}")
-        print(f"Server: {server_name}")
-        print(f"VM Type: {cfg['vm_type']}")
-        disk = disk_size_gb if disk_size_gb else "default"
-        print(f"Memory: {memory_mb} MB, vCPU: {vcpu}, Disk: {disk} GB")
-        print(f"ISO: {iso_url}")
-        print(f"Network: {network}")
-        print(f"Storage Pool: {storage_pool}")
-        print(f"Boot Mode: {'UEFI' if boot_uefi else 'BIOS'}")
-        print(f"Graphics: {graphics_type}")
+    def _print_deploy_summary(self, cfg, plan, iso_url):
+        """Print a dry-run summary of what ``deploy_from_config`` would do.
+
+        The machine itself comes from `plan`; `cfg` is here for the parts of the
+        deploy file a plan does not carry: the profile name as written, and the
+        packages and registration the automation profile was built from.
+
+        The words are `DeploySummaryText`'s, and so is the order of the lines: the
+        summary of the other deployment, the one that boots a volume, prints the
+        same labels in the same places and adds only what an install has no
+        equivalent of. A line about what the deploy would *do* rather than what the
+        machine would *be* says so (`_start_line`, the overlay, a pool to start).
+        """
+        automation_config = plan.automation_config
+        print(DeploySummaryText.HEADER)
+        print(DeploySummaryText.VM_NAME_TEMPLATE.format(name=plan.vm_name))
+        print(DeploySummaryText.SERVER_TEMPLATE.format(server=plan.server_name))
+        print(DeploySummaryText.VM_TYPE_TEMPLATE.format(vm_type=cfg["vm_type"]))
+        disk = plan.disk_size_gb or DeploySummaryText.DISK_SIZE_DEFAULT
+        print(
+            DeploySummaryText.MEMORY_VCPU_DISK_TEMPLATE.format(
+                memory_mb=plan.memory_mb, vcpu=plan.vcpu, disk=disk
+            )
+        )
+        print(DeploySummaryText.ISO_TEMPLATE.format(iso=iso_url))
+        if cfg["seed_volume"]:
+            print(DeploySummaryText.SEED_TEMPLATE.format(seed=cfg["seed_volume"]))
+        print(DeploySummaryText.NETWORK_TEMPLATE.format(network=plan.network))
+        print(DeploySummaryText.STORAGE_POOL_TEMPLATE.format(pool=plan.storage_pool))
+        print(
+            DeploySummaryText.BOOT_MODE_TEMPLATE.format(mode="UEFI" if plan.boot_uefi else "BIOS")
+        )
+        print(DeploySummaryText.GRAPHICS_TEMPLATE.format(graphics=_graphics_word(plan)))
         if automation_config:
-            print(f"Automated Install: Yes (Template: {automation_config['template_name']})")
+            print(
+                DeploySummaryText.AUTOMATED_INSTALL_TEMPLATE.format(
+                    template=automation_config["template_name"]
+                )
+            )
             ai = cfg.get("autoinstall") or {}
             if ai.get("packages"):
-                print(f"Extra Packages: {', '.join(ai.get('packages', []))}")
+                print(
+                    DeploySummaryText.EXTRA_PACKAGES_TEMPLATE.format(
+                        packages=", ".join(ai.get("packages", []))
+                    )
+                )
             scc = ai.get("scc") or {}
             if any(scc.get(k) for k in ("scc_email", "scc_reg_code")):
-                print("SCC Registration: Yes")
+                print(DeploySummaryText.SCC_YES)
             pi = cfg.get("post_install") or {}
             if pi.get("commands"):
-                print(f"Post-install: Yes ({len(pi['commands'])} commands, baked into template)")
+                print(DeploySummaryText.POST_INSTALL_TEMPLATE.format(count=len(pi["commands"])))
         else:
-            print("Automated Install: No")
+            print(DeploySummaryText.AUTOMATED_INSTALL_NONE)
+        print(_start_line(cfg))
+
+    @staticmethod
+    def _volume_path(pool, name):
+        """Where a volume of this pool is on the host, and how it is formatted."""
+        try:
+            volume = pool.storageVolLookupByName(name)
+        except libvirt.libvirtError:
+            return None, None
+        facts = volume_facts(volume)
+        return facts["path"], facts["format"]
+
+    def _deploy_existing_volume(self, cfg, conn, provisioner, vm_name, server_name, dryrun=False):
+        """Deploy the machine described by a `disk.volume` config: boot a disk, install nothing.
+
+        The disk is a volume in a pool libvirt already sees — the caller put it
+        there (`volume upload`, `volume create-overlay`) and this names it. When
+        the config also names a `backing_volume`, the disk is made as an overlay
+        of it first, so one config file describes a machine that starts from a
+        base and writes nowhere else.
+        """
+        pool_name = cfg["storage_pool"]
+        disk_volume = cfg["disk_volume"]
+        try:
+            pool = conn.storagePoolLookupByName(pool_name)
+        except libvirt.libvirtError:
+            self._deploy_fail(
+                DeployText.NO_SUCH_POOL_TEMPLATE.format(pool=pool_name, server=server_name),
+                EXIT_NOT_FOUND,
+                "not_found",
+            )
+            return
+        # The pool a dry run would have to bring up but may not touch: while it
+        # is down its volumes cannot be read at all, so the dry run has to say
+        # that instead of asking the pool a question it cannot answer.
+        would_start_pool = False
+        if not dryrun:
+            # Bringing a pool up is a change of its own, so a dry run only reads.
+            _ensure_pool_active(pool)
+        elif not _safe_is_pool_active(pool):
+            would_start_pool = True
+
+        def volume_path(name):
+            """Where a volume of this pool is, and how it is formatted."""
+            return self._volume_path(pool, name)
+
+        # While a pool is down it cannot answer about any volume of it, and
+        # "cannot answer" is not "not there": a dry run may not start the pool,
+        # so it must not refuse a deploy over a volume it was never allowed to
+        # see. Each check that reads a missing volume as a refusal is therefore
+        # asked only of a pool that could answer. A path a dry run leaves unread
+        # is of no use below its own summary, which names volumes.
+        disk_path, disk_format = volume_path(disk_volume)
+        would_create = False
+        if not would_start_pool and disk_path is None and cfg["backing_volume"]:
+            backing_path, _ = volume_path(cfg["backing_volume"])
+            if backing_path is None:
+                self._deploy_fail(
+                    DeployText.NO_SUCH_BACKING_TEMPLATE.format(
+                        backing=cfg["backing_volume"], pool=pool_name
+                    ),
+                    EXIT_NOT_FOUND,
+                    "not_found",
+                )
+                return
+            if dryrun:
+                # The volume is the thing a dry run is asked about most: say it
+                # would be made, and make nothing. An overlay is made qcow2.
+                would_create = True
+                disk_format = "qcow2"
+            else:
+                try:
+                    volume = create_overlay_volume(pool, disk_volume, backing_path)
+                    facts = volume_facts(volume)
+                    disk_path, disk_format = facts["path"], facts["format"]
+                except Exception as e:
+                    self._deploy_fail(
+                        DeployText.OVERLAY_FAILED_TEMPLATE.format(
+                            volume=disk_volume, backing=cfg["backing_volume"], error=e
+                        ),
+                        EXIT_OPERATION,
+                        "operation_failed",
+                    )
+                    return
+        if not would_start_pool and disk_path is None and not would_create:
+            self._deploy_fail(
+                DeployText.NO_SUCH_VOLUME_TEMPLATE.format(volume=disk_volume, pool=pool_name),
+                EXIT_NOT_FOUND,
+                "not_found",
+            )
+            return
+
+        seed_path = None
+        if cfg["seed_volume"]:
+            seed_path, _ = volume_path(cfg["seed_volume"])
+            if not would_start_pool and seed_path is None:
+                self._deploy_fail(
+                    DeployText.NO_SUCH_SEED_TEMPLATE.format(
+                        seed=cfg["seed_volume"], pool=pool_name
+                    ),
+                    EXIT_NOT_FOUND,
+                    "not_found",
+                )
+                return
+
+        # The machine a boot deploys asks for is the file's, less the one thing this
+        # route answers its own way: a disk booted from a volume has no size of its
+        # own to report. The screen is the file's, verbatim, as on the install route:
+        # `null` is how a file asks for no screen, and it is what the answer carries,
+        # because the word a summary puts there (`_graphics_word`) is prose for the
+        # person reading a terminal, and a value a program reads back has to be one
+        # the file could have held.
+        plan = replace(
+            MachinePlan.of(cfg, server_name=server_name, vm_name=vm_name),
+            disk_size_gb=None,
+        )
+
+        # The words are DeploySummaryText's, and so is their place: what an install
+        # summary says about the same machine, this one says the same way, in the
+        # same spot. Three lines here belong to this route alone — the volume it
+        # boots, the pool it would have to start to read that volume, and the boot
+        # order it would set — and the lines an install has that this one has no
+        # equivalent for (the profile name, the install media, the disk size) are
+        # simply absent: a machine booted from a volume has no template to report and
+        # no disk of its own to size, and a summary that printed `None` for either
+        # would be describing a deploy this file does not ask for.
+        if dryrun:
+            print(DeploySummaryText.HEADER)
+            print(DeploySummaryText.VM_NAME_TEMPLATE.format(name=vm_name))
+            print(DeploySummaryText.SERVER_TEMPLATE.format(server=server_name))
+            if would_start_pool:
+                print(DeploySummaryText.POOL_WOULD_START_TEMPLATE.format(pool=pool_name))
+            print(
+                DeploySummaryText.MEMORY_VCPU_TEMPLATE.format(
+                    memory_mb=plan.memory_mb, vcpu=plan.vcpu
+                )
+            )
+            print(
+                DeploySummaryText.BOOT_VOLUME_TEMPLATE.format(
+                    volume=disk_volume, format=disk_format or DeploySummaryText.UNKNOWN_FORMAT
+                )
+            )
+            if cfg["backing_volume"]:
+                overlay = (
+                    DeploySummaryText.OVERLAY_WOULD_BE_MADE_TEMPLATE
+                    if would_create
+                    else DeploySummaryText.OVERLAY_IS_TEMPLATE
+                )
+                print(overlay.format(backing=cfg["backing_volume"]))
+            if cfg["seed_volume"]:
+                print(DeploySummaryText.SEED_TEMPLATE.format(seed=cfg["seed_volume"]))
+            print(DeploySummaryText.NETWORK_TEMPLATE.format(network=cfg["network"]))
+            print(DeploySummaryText.STORAGE_POOL_TEMPLATE.format(pool=pool_name))
+            print(
+                DeploySummaryText.BOOT_MODE_TEMPLATE.format(
+                    mode="UEFI" if cfg["boot_uefi"] else "BIOS"
+                )
+            )
+            print(DeploySummaryText.GRAPHICS_TEMPLATE.format(graphics=_graphics_word(plan)))
+            print(DeploySummaryText.BOOT_ORDER_TEMPLATE.format(boot=cfg["boot"]))
+            print(_start_line(cfg))
+
+            # What would be, and no more: no volume, no domain, nothing started.
+            result = _deploy_result(plan, dryrun=True, seed=cfg["seed_volume"])
+            result["volume"] = disk_volume
+            return result
+
+        cli_progress_callback = self._progress_reporter(MachineProgressStage.BOOT)
+
+        try:
+            domain = provisioner.provision_existing_volume(
+                vm_name=vm_name,
+                disk_path=disk_path,
+                disk_format=disk_format or "qcow2",
+                seed_path=seed_path,
+                memory_mb=plan.memory_mb,
+                vcpu_count=plan.vcpu,
+                network_name=plan.network,
+                storage_pool_name=plan.storage_pool,
+                boot_uefi=plan.boot_uefi,
+                graphics=plan.graphics,
+                boot_device=cfg["boot"],
+                metadata=cfg["metadata"],
+                start=cfg["start"],
+                progress_callback=cli_progress_callback,
+            )
+        except MachineError:
+            raise
+        except Exception as e:
+            self._deploy_fail(
+                DeployText.BOOT_FAILED_TEMPLATE.format(error=e),
+                EXIT_OPERATION,
+                "provision_failed",
+            )
+            return
+
+        if not domain:
+            self._deploy_fail(DeployText.NO_DOMAIN, EXIT_OPERATION, "provision_failed")
+            return
+
+        print(f"\nSuccessfully booted VM '{vm_name}'.")
+        machine_resources.machine_created(self, domain)
+        result = _deploy_result(
+            plan, dryrun=dryrun, running=bool(domain.isActive()), seed=cfg["seed_volume"]
+        )
+        result["volume"] = disk_volume
+        return result
 
     def _resolve_iso_url(self, provisioner, cfg):
         """Resolve the ISO url/path from the config's ``iso`` block.
@@ -4706,10 +5101,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             if not version:
                 print(f"No openSUSE/SLES version matching '{iso.get('version')}' found.")
                 return None
-            print(f"Fetching available ISOs for {version.display_name}...")
+            print(StaticText.PREPARE_FETCHING_ISOS_TEMPLATE.format(version=version.display_name))
             iso_list = provisioner.get_iso_list(version)
             if not iso_list:
-                print("No ISOs found for this version.")
+                print(StaticText.PREPARE_NO_ISOS_FOR_VERSION)
                 return None
             name = iso.get("name")
             chosen = None
@@ -4881,12 +5276,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return
 
         if not self.active_connections:
-            print("Not connected to any server. Use 'connect <server_name>' first.")
+            print(StaticText.PREPARE_NOT_CONNECTED)
             return
 
         # 1. Server
         target_server = self._select_choice(
-            "Select Server", list(self.active_connections.keys()), auto_select=True
+            StaticText.PREPARE_SELECT_SERVER,
+            list(self.active_connections.keys()),
+            auto_select=True,
         )
         if not target_server:
             return
@@ -4894,9 +5291,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         provisioner = VMProvisioner(conn)
 
         # 2. VM name
-        vm_name = self._get_input("Enter VM name: ")
+        vm_name = self._get_input(StaticText.PREPARE_ENTER_VM_NAME)
         if not vm_name:
-            print("VM name is required.")
+            print(StaticText.PREPARE_VM_NAME_REQUIRED)
             return
         try:
             vm_name, _was_modified = _sanitize_domain_name(vm_name)
@@ -4910,7 +5307,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if not has_secure_vm_capability(conn):
             vm_type_options = [t for t in vm_type_options if t != VMType.SECURE]
         vm_type = self._select_choice(
-            "Select VM Type",
+            StaticText.PREPARE_SELECT_VM_TYPE,
             vm_type_options,
             display_func=lambda t: "Custom" if t == "custom" else t.value,
             value_func=lambda t: "custom" if t == "custom" else t.name.lower(),
@@ -4922,9 +5319,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         # 4. Hardware: taken from the chosen profile, or asked when "custom".
         hardware = {}
         if vm_type == "custom":
-            memory_gb = self._get_positive_float("Memory (GB)", 4)
-            vcpu = self._get_positive_int("vCPU", 2)
-            disk_size_gb = self._get_positive_int("Disk size (GB)", 30)
+            memory_gb = self._get_positive_float(StaticText.PREPARE_MEMORY_GB, 4)
+            vcpu = self._get_positive_int(StaticText.PREPARE_VCPU, 2)
+            disk_size_gb = self._get_positive_int(StaticText.PREPARE_DISK_SIZE_GB, 30)
             hardware = {
                 "memory_mb": int(memory_gb * 1024),
                 "vcpu": vcpu,
@@ -4934,7 +5331,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         # 5. ISO
         iso = self._prepare_iso(provisioner)
         if not iso:
-            print("Could not select an ISO.")
+            print(StaticText.PREPARE_NO_ISO)
             return
 
         # 6. Network
@@ -4943,7 +5340,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if active_networks:
             network = (
                 self._select_choice(
-                    "Select Network",
+                    StaticText.PREPARE_SELECT_NETWORK,
                     active_networks,
                     display_func=lambda n: f"{n['name']} (Mode: {n['mode']})",
                     value_func=lambda n: n["name"],
@@ -4958,7 +5355,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if pools:
             storage_pool = (
                 self._select_choice(
-                    "Select Storage Pool",
+                    StaticText.STORAGE_POOL_PROMPT,
                     pools,
                     display_func=lambda p: p["name"],
                     value_func=lambda p: p["name"],
@@ -4968,12 +5365,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             )
 
         # 8. Boot mode
-        boot_mode = self._select_choice("Select Boot Mode", ["UEFI", "BIOS"], auto_select=False)
+        boot_mode = self._select_choice(
+            StaticText.PREPARE_SELECT_BOOT_MODE, ["UEFI", "BIOS"], auto_select=False
+        )
         boot_uefi = (boot_mode or "UEFI") == "UEFI"
 
         # 9. Graphics
         graphics = self._select_choice(
-            "Select Graphics", ["VNC", "Spice"], value_func=lambda g: g.lower(), auto_select=False
+            StaticText.PREPARE_SELECT_GRAPHICS,
+            ["VNC", "Spice"],
+            value_func=lambda g: g.lower(),
+            auto_select=False,
         )
         graphics = graphics or "vnc"
 
@@ -4985,7 +5387,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
         # 11. Start after install
         start = (
-            self._select_choice("Start VM after installation?", ["yes", "no"], auto_select=False)
+            self._select_choice(
+                StaticText.PREPARE_START_AFTER_INSTALL, ["yes", "no"], auto_select=False
+            )
             or "yes"
         ) == "yes"
 
@@ -5025,10 +5429,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             try:
                 iv = int(val)
             except ValueError:
-                print("Please enter a number.")
+                print(StaticText.PREPARE_ENTER_A_NUMBER)
                 continue
             if iv < 0:
-                print("Must be a non-negative integer.")
+                print(StaticText.PREPARE_NON_NEGATIVE_INTEGER)
                 continue
             return iv
 
@@ -5044,10 +5448,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             try:
                 fv = float(val)
             except ValueError:
-                print("Please enter a number.")
+                print(StaticText.PREPARE_ENTER_A_NUMBER)
                 continue
             if fv <= 0:
-                print("Must be a positive number.")
+                print(StaticText.PREPARE_POSITIVE_NUMBER)
                 continue
             return fv
 
@@ -5060,25 +5464,35 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     def _prepare_iso(self, provisioner):
         """Interactively pick an ISO source and return the config ``iso`` block."""
-        sources = ["Distribution repository", "Cached ISOs", "Pool volumes", "Custom URL/Path"]
-        source = self._select_choice("Select ISO Source", sources, auto_select=False)
+        sources = [
+            StaticText.PREPARE_ISO_SOURCE_REPOSITORY,
+            StaticText.CACHED_ISOS,
+            StaticText.PREPARE_ISO_SOURCE_POOL,
+            StaticText.PREPARE_ISO_SOURCE_CUSTOM,
+        ]
+        source = self._select_choice(
+            StaticText.PREPARE_SELECT_ISO_SOURCE, sources, auto_select=False
+        )
         if not source:
             return None
 
-        if source == "Distribution repository":
+        if source == StaticText.PREPARE_ISO_SOURCE_REPOSITORY:
             versions = provisioner.provider_registry.get_supported_versions(OSType.OPENSUSE)
             if not versions:
-                print("No openSUSE/SLES versions found.")
+                print(StaticText.PREPARE_NO_VERSIONS)
                 return None
             version = self._select_choice(
-                "Select Version", versions, display_func=lambda v: v.display_name, auto_select=False
+                StaticText.PREPARE_SELECT_VERSION,
+                versions,
+                display_func=lambda v: v.display_name,
+                auto_select=False,
             )
             if not version:
                 return None
-            print(f"Fetching available ISOs for {version.display_name}...")
+            print(StaticText.PREPARE_FETCHING_ISOS_TEMPLATE.format(version=version.display_name))
             iso_list = provisioner.get_iso_list(version)
             if not iso_list:
-                print("No ISOs found for this version.")
+                print(StaticText.PREPARE_NO_ISOS_FOR_VERSION)
                 return None
 
             def iso_display(iso):
@@ -5088,7 +5502,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 )
 
             chosen = self._select_choice(
-                "Select ISO Image", iso_list, display_func=iso_display, auto_select=False
+                StaticText.PREPARE_SELECT_ISO_IMAGE,
+                iso_list,
+                display_func=iso_display,
+                auto_select=False,
             )
             if not chosen:
                 return None
@@ -5098,13 +5515,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 "url": chosen.get("url"),
             }
 
-        if source == "Cached ISOs":
+        if source == StaticText.CACHED_ISOS:
             cached = provisioner.get_cached_isos()
             if not cached:
-                print("No cached ISOs found.")
+                print(StaticText.PREPARE_NO_CACHED_ISOS)
                 return None
             chosen = self._select_choice(
-                "Select Cached ISO",
+                StaticText.PREPARE_SELECT_CACHED_ISO,
                 cached,
                 display_func=lambda c: f"{c['name']} ({c['date']})",
                 value_func=lambda c: c["name"],
@@ -5114,17 +5531,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 return None
             return {"source": "cached", "volume": chosen}
 
-        if source == "Pool volumes":
+        if source == StaticText.PREPARE_ISO_SOURCE_POOL:
             vol_options = []
             for p in [p for p in list_storage_pools(provisioner.conn) if p["status"] == "active"]:
                 for v in list_storage_volumes(p["pool"]):
                     if v["name"].lower().endswith(".iso"):
                         vol_options.append((p["name"], v["name"]))
             if not vol_options:
-                print("No ISO volumes found in active pools.")
+                print(StaticText.PREPARE_NO_ISO_VOLUMES)
                 return None
             selected = self._select_choice(
-                "Select ISO Volume",
+                StaticText.PREPARE_SELECT_ISO_VOLUME,
                 vol_options,
                 display_func=lambda pv: f"{pv[1]} (pool: {pv[0]})",
                 auto_select=False,
@@ -5135,7 +5552,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return {"source": "pool", "pool": pool_name, "volume": vol_name}
 
         # Custom URL/Path
-        url = self._get_input("Enter custom ISO URL or absolute path: ")
+        url = self._get_input(StaticText.PREPARE_ENTER_CUSTOM_ISO)
         if not url:
             return None
         return {"source": "url", "url": url}
@@ -5143,7 +5560,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     def _prepare_autoinstall(self, provisioner, vm_name):
         """Interactively build the config ``autoinstall`` block (openSUSE/SLES)."""
         use_auto = self._select_choice(
-            "Use automated installation?", ["yes", "no"], auto_select=False
+            StaticText.PREPARE_USE_AUTOINSTALL, ["yes", "no"], auto_select=False
         )
         if use_auto != "yes":
             return None
@@ -5156,11 +5573,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             if "autoyast" in t["filename"].lower() or "agama" in t["filename"].lower()
         ]
         if not templates:
-            print("No openSUSE/SLES auto-install templates found.")
+            print(StaticText.PREPARE_NO_TEMPLATES)
             return None
 
         selected = self._select_choice(
-            "Select Template",
+            StaticText.PREPARE_SELECT_TEMPLATE,
             templates,
             display_func=lambda t: f"{t['display_name']} - {t['description']}",
             value_func=lambda t: t["filename"],
@@ -5169,7 +5586,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         if not selected:
             return None
 
-        packages = self._get_input("Extra packages (comma-separated, optional): ").strip()
+        packages = self._get_input(StaticText.PREPARE_EXTRA_PACKAGES).strip()
         package_list = [p.strip() for p in packages.split(",") if p.strip()] if packages else []
 
         prefill = self.config.get("AUTO_INSTALL_PRE_FILL", {})
@@ -5179,9 +5596,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             prefill, scc_config, selected, package_list, vm_name
         )
 
-    def _prepare_autoinstall_settings(
-        self, prefill, scc_config, selected, package_list, vm_name
-    ):
+    def _prepare_autoinstall_settings(self, prefill, scc_config, selected, package_list, vm_name):
         """Collect the auto-install settings, proposing the config pre-fill first.
 
         If the config has any pre-fill (credentials, locale or SCC), the user is
@@ -5205,7 +5620,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         use_prefill = False
         if has_prefill:
             use = self._select_choice(
-                "Use pre-filled auto-install settings from config?",
+                StaticText.PREPARE_USE_PREFILL,
                 ["yes", "no"],
                 auto_select=False,
             )
@@ -5224,12 +5639,12 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             }
         else:
             # No pre-fill (or declined): ask each field.
-            username = self._get_input("Username: ") or "admin"
-            user_password = self._get_password("User password: ")
-            root_password = self._get_password("Root password: ")
-            timezone = self._get_input("Timezone (e.g. Europe/Zurich): ") or "UTC"
-            keyboard = self._get_input("Keyboard layout (e.g. ch, us): ") or "us"
-            language = self._get_input("Language (e.g. German (Germany)): ") or "English (US)"
+            username = self._get_input(StaticText.PREPARE_USERNAME) or "admin"
+            user_password = self._get_password(StaticText.PREPARE_USER_PASSWORD)
+            root_password = self._get_password(StaticText.PREPARE_ROOT_PASSWORD)
+            timezone = self._get_input(StaticText.PREPARE_TIMEZONE) or "UTC"
+            keyboard = self._get_input(StaticText.PREPARE_KEYBOARD) or "us"
+            language = self._get_input(StaticText.PREPARE_LANGUAGE) or "English (US)"
             scc = self._ask_scc()
 
         return {
@@ -5250,15 +5665,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         """Ask for SCC registration interactively (no pre-fill proposal)."""
         enabled = (
             self._select_choice(
-                "Register with SUSE Customer Center (SCC)?", ["yes", "no"], auto_select=False
+                StaticText.PREPARE_SCC_REGISTER,
+                ["yes", "no"],
+                auto_select=False,
             )
             or "no"
         ) == "yes"
         if not enabled:
             return {}
         return {
-            "scc_email": self._get_input("SCC email: ") or "",
-            "scc_reg_code": self._get_password("SCC registration code: ") or "",
+            "scc_email": self._get_input(StaticText.PREPARE_SCC_EMAIL) or "",
+            "scc_reg_code": self._get_password(StaticText.PREPARE_SCC_REG_CODE) or "",
         }
 
     def _prepare_post_install(self):
@@ -5271,13 +5688,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         shell redirection are not mangled.
         """
         use = self._select_choice(
-            "Add post-install commands (run during auto-install)?",
+            StaticText.PREPARE_POST_INSTALL_ASK,
             ["yes", "no"],
             auto_select=False,
         )
         if use != "yes":
             return None
-        print("Enter one post-install command per line (blank line to finish):")
+        print(StaticText.PREPARE_POST_INSTALL_HELP)
         commands = []
         while True:
             line = self._get_input("  ").strip()
@@ -5289,17 +5706,27 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         return {"commands": commands}
 
     def _write_json(self, path, cfg):
-        """Write a config dict as pretty JSON, creating parent dirs as needed."""
+        """Write a config dict as pretty JSON, creating parent dirs as needed.
+
+        Returns whether the answer reached the disk. A path that cannot be written is
+        answered with a sentence rather than a traceback reaching the prompt, so the
+        caller knows to stop talking about a file it did not write.
+        """
         p = Path(path).expanduser()
-        p.parent.mkdir(parents=True, exist_ok=True)
-        with open(p, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2)
-            f.write("\n")
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                json.dump(cfg, f, indent=2)
+                f.write("\n")
+        except OSError as e:
+            print(StaticText.PREPARE_CONFIG_WRITE_FAILED_TEMPLATE.format(path=p, error=e))
+            return False
         deploy_dir = (Path.home() / ".config" / AppInfo.name / "deploy").resolve()
         hint = p.name if p.resolve().parent == deploy_dir else str(p)
-        print(f"\nDeployment config written to: {p}")
-        print(f"Run it with: vmc --json {p}")
-        print(f"or, interactively: deploy_vm {hint}")
+        print(StaticText.PREPARE_CONFIG_WRITTEN_TEMPLATE.format(path=p))
+        print(StaticText.PREPARE_CONFIG_RUN_TEMPLATE.format(path=p))
+        print(StaticText.PREPARE_CONFIG_DEPLOY_VM_TEMPLATE.format(command=hint))
+        return True
 
     def _write_skeleton_json(self, path):
         """Write an example deployment JSON skeleton (no server probing)."""
@@ -5355,7 +5782,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     def do_list_json(self, args):
         """List all deployment JSON files created by 'prepare_json'.
         Usage: list_json"""
-        deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
+        deploy_dir = _deploy_directory()
         if not deploy_dir.is_dir():
             print("No deployment JSON files found.")
             print("Create one with: prepare_json [output_path]")
@@ -5384,9 +5811,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             try:
                 st = path.stat()
                 size = st.st_size
-                mtime = datetime.datetime.fromtimestamp(st.st_mtime).strftime(
-                    "%Y-%m-%d %H:%M"
-                )
+                mtime = datetime.datetime.fromtimestamp(st.st_mtime).strftime("%Y-%m-%d %H:%M")
             except OSError:
                 size, mtime = 0, "?"
             size_str = f"{size} B" if size < 1024 else f"{size / 1024:.1f} KB"
@@ -5405,15 +5830,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print("Use 'list_json' to see available files.")
             return
 
-        p = Path(arg).expanduser()
-        if not p.exists():
-            candidate = Path.home() / ".config" / AppInfo.name / "deploy" / arg
-            if candidate.exists():
-                p = candidate
-            else:
-                print(f"Error: JSON file not found: {arg}")
-                print("Use 'list_json' to see available files.")
-                return
+        p = self._deploy_file(arg)
+        if p is None:
+            return
 
         try:
             with open(p, encoding="utf-8") as f:
@@ -5433,7 +5852,11 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
     def do_deploy_vm(self, args):
         """Deploy a single VM from a deployment JSON file (see 'prepare_json').
 
-        Usage: deploy_vm <file_or_name> [--dryrun]
+        Usage: deploy_vm <file_or_name> [--dryrun|--show]
+
+        Options:
+          --dryrun   Show a summary of the deployment without provisioning.
+          --show     Show a summary of the deployment without provisioning.
 
         <file_or_name> may be a full path, or a filename looked up in the
         default deploy directory (~/.config/virtui-manager/deploy/).
@@ -5445,20 +5868,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
         arg_list = [a for a in arg_list if a not in ("--dryrun", "--show")]
 
         if not arg_list:
-            print("Usage: deploy_vm <file_or_name> [--dryrun]")
+            print("Usage: deploy_vm <file_or_name> [--dryrun|--show]")
             print("Use 'list_json' to see available files.")
             return
 
         arg = arg_list[0]
-        p = Path(arg).expanduser()
-        if not p.exists():
-            candidate = Path.home() / ".config" / AppInfo.name / "deploy" / arg
-            if candidate.exists():
-                p = candidate
-            else:
-                print(f"Error: JSON file not found: {arg}")
-                print("Use 'list_json' to see available files.")
-                return
+        p = self._deploy_file(arg)
+        if p is None:
+            return
 
         self.deploy_from_config(str(p), dryrun=dryrun)
 
@@ -5468,7 +5885,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
     def complete_show_json(self, text, line, begidx, endidx):
         """Tab completion for show_json (filenames in the deploy directory)."""
-        deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
+        return self._complete_deploy_files(text)
+
+    def complete_deploy_vm(self, text, line, begidx, endidx):
+        """Tab completion for deploy_vm (filenames in the deploy directory)."""
+        return self._complete_deploy_files(text)
+
+    @staticmethod
+    def _complete_deploy_files(text):
+        """The deployment files a command can be offered: the JSON files in the default
+        deploy directory, which is what `list_json` lists. `show_json` and `deploy_vm`
+        take the same argument, so they complete the same names."""
+        deploy_dir = _deploy_directory()
         if not deploy_dir.is_dir():
             return []
         names = [p.name for p in deploy_dir.glob("*.json")]
@@ -5476,21 +5904,98 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             return sorted(names)
         return [n for n in sorted(names) if n.startswith(text)]
 
-    def complete_deploy_vm(self, text, line, begidx, endidx):
-        """Tab completion for deploy_vm (filenames in the deploy directory)."""
-        deploy_dir = Path.home() / ".config" / AppInfo.name / "deploy"
-        if not deploy_dir.is_dir():
-            return []
-        names = [p.name for p in deploy_dir.glob("*.json")]
-        if not text:
-            return sorted(names)
-        return [n for n in sorted(names) if n.startswith(text)]
+    @staticmethod
+    def _deploy_file(arg):
+        """The deployment file a command was given, resolved the one way both commands
+        that take one resolve it: a full path, or a name in the default deploy
+        directory.
+
+        The two lines a person reads when it is neither are printed here for the same
+        reason: the same mistake in either command is the same mistake, and the words
+        that correct it belong to the shape, not to the command. Returns None once they
+        are printed, so a caller only has to stop.
+        """
+        path = Path(arg).expanduser()
+        if not path.exists():
+            path = _deploy_directory() / arg
+        if not path.exists():
+            print(f"Error: JSON file not found: {arg}")
+            print("Use 'list_json' to see available files.")
+            return None
+        return path
+
+
+def _deploy_directory():
+    """Where a deployment file is kept: the directory `prepare_json` writes to, `list_json`
+    lists, and the two commands that take a deployment file look a bare name up in."""
+    return Path.home() / ".config" / AppInfo.name / "deploy"
+
+
+def _graphics_word(plan):
+    """The screen a deploy gives the machine, in the one word both summaries use.
+
+    Both routes carry `graphics` from the file verbatim, so both hold a `None` for a
+    file that asks for no screen, and both answer it as `null`. The answer is a field
+    a program reads; this word is for the person reading a summary, and a line that
+    printed `None` on one route and `none` on the other would read as two different
+    machines.
+    """
+    return plan.graphics or DeploySummaryText.NO_SCREEN
+
+
+def _start_line(cfg):
+    """The last line of a dry run: what becomes of the machine once it is defined.
+
+    A deploy ends by booting the machine unless the file said `start: false`, which
+    is a different answer to "what would this do" than leaving it stopped — and it
+    is the file's own answer, read the same way each route reads it when it deploys.
+    """
+    return (
+        DeploySummaryText.MACHINE_WOULD_START
+        if cfg.get("start", True)
+        else DeploySummaryText.MACHINE_WOULD_NOT_START
+    )
+
+
+def _deploy_result(plan, dryrun=False, running=False, autoinstall=None, seed=None):
+    """What a deployment made, as the ``data`` of a ``--machine`` answer.
+
+    The machine is `plan`, so an answer cannot disagree with what was asked for:
+    the same values a route deployed are the ones it reports.
+
+    `seed` is the volume a file named for the machine to read its own configuration
+    from, and it is put here rather than by each route because a seed belongs to the
+    machine, not to the way the machine was made. It is absent rather than empty when
+    the file named none: "no seed" is a fact a caller can tell apart from a name it
+    failed to read.
+    """
+    result = {
+        "domain": plan.vm_name,
+        "server": plan.server_name,
+        "storage_pool": plan.storage_pool,
+        "network": plan.network,
+        "firmware": "uefi" if plan.boot_uefi else "bios",
+        "graphics": plan.graphics,
+        "memory_mb": plan.memory_mb,
+        "vcpu": plan.vcpu,
+        "automated_install": bool(plan.automation_config),
+        "dryrun": dryrun,
+        "running": running,
+    }
+    if plan.disk_size_gb:
+        result["disk_gb"] = plan.disk_size_gb
+    if autoinstall:
+        # Where the generated profile sits and the URL the guest was told to
+        # fetch it from. Omitted rather than empty: no profile is a fact, and
+        # an empty object would read as a profile with nothing in it.
+        result["autoinstall"] = autoinstall
+    if seed:
+        result["seed"] = seed
+    return result
 
 
 def main():
     """Entry point for Virtui Manager command-line interface."""
-    import argparse
-
     # Route libvirt errors to the logging framework instead of raw stderr
     # (same as TUI). Expected probe failures (e.g. "volume not found" during
     # upload_file) otherwise leak as C-level stderr noise.
@@ -5509,9 +6014,34 @@ def main():
         help="Deploy a single VM from a JSON config file (see the 'prepare_json' command)",
     )
     parser.add_argument(
+        "-u",
+        "--uri",
+        metavar="URI",
+        help=(
+            "Connect to this libvirt uri (qemu:///system, qemu+ssh://user@host/system) "
+            "and to nothing else, instead of the servers marked autoconnect in the "
+            "configuration; with --json, instead of the server field of the "
+            "deployment file, which the file still has to name"
+        ),
+    )
+    parser.add_argument(
         "--dryrun",
         action="store_true",
         help="With --json: show a summary of the deployment without provisioning",
+    )
+    parser.add_argument(
+        "--machine",
+        action="store_true",
+        help=(
+            "With -c or --json: answer with one JSON object on stdout, send prose to stderr, "
+            "report progress as it happens, and exit with a status that says what happened"
+        ),
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {AppInfo.version}",
+        help="Show the version and exit",
     )
     args = parser.parse_args()
 
@@ -5520,24 +6050,68 @@ def main():
         parser.print_help()
         return
 
+    if args.machine and not (args.command or args.json):
+        print("Error: --machine needs -c/--command or -C/--json.", file=sys.stderr)
+        return EXIT_USAGE
+
+    if args.uri and not (args.command or args.json):
+        print("Error: --uri needs -c/--command or -C/--json.", file=sys.stderr)
+        return EXIT_USAGE
+
+    # Machine-readable mode sends prose to stderr from the start: setting up
+    # the command shell prints a terminal title, and stdout is for the answer.
+    human_stdout = sys.stdout
+    if args.machine:
+        sys.stdout = sys.stderr
+
     cmd_app = VManagerCMD()
     cmd_app.yes_mode = bool(args.command)
+    cmd_app.default_uri = args.uri
 
-    # Config-driven deployment (non-interactive): load JSON, connect, provision.
-    if args.json:
-        cmd_app.deploy_from_config(args.json, dryrun=args.dryrun)
+    if not args.machine:
+        # Config-driven deployment (non-interactive): load JSON, connect, provision.
+        if args.json:
+            deployed = cmd_app.deploy_from_config(args.json, dryrun=args.dryrun)
+            # A deployment that did not happen fails, instead of printing its
+            # reason and exiting 0.
+            return EXIT_OK if deployed is not None else EXIT_OPERATION
+
+        if args.command:
+            cmd_app.preloop()
+            cmd_app.onecmd(args.command)
+            return
+
+        try:
+            cmd_app.cmdloop()
+        except KeyboardInterrupt:
+            print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
+            cmd_app.intro = ""
         return
 
-    if args.command:
-        cmd_app.preloop()
-        cmd_app.onecmd(args.command)
-        return
-
+    # From here on, everything the commands print is a log line; stdout
+    # carries only the JSON object the caller is waiting for.
+    session = MachineSession("deploy" if args.json else args.command)
     try:
-        cmd_app.cmdloop()
+        if args.json:
+            status = session.succeed(
+                cmd_app.deploy_from_config(args.json, dryrun=args.dryrun, session=session)
+            )
+        else:
+            cmd_app.preloop()
+            if args.uri and not cmd_app.active_connections:
+                raise MachineError(
+                    f"Could not connect to {cmd_app._sanitize_message(args.uri)}.",
+                    EXIT_CONNECTION,
+                    "connection_failed",
+                )
+            status = run_command(cmd_app, args.command, session)
     except KeyboardInterrupt:
-        print("\nKeyboardInterrupt caught. Use 'quit' to exit.")
-        cmd_app.intro = ""
+        status = session.fail(MachineError("Interrupted.", EXIT_OPERATION, "interrupted"))
+    except Exception as e:  # MachineError, or whatever a command let escape
+        status = session.fail(e)
+    finally:
+        sys.stdout = human_stdout
+    return status
 
 
 if __name__ == "__main__":

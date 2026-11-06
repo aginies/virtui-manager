@@ -3,6 +3,7 @@ Automation Template Manager
 Handles all automation template operations including CRUD, validation, and external editing.
 Supports multiple automation systems: AutoYaST (openSUSE/SLES), Agama, Ubuntu Autoinstall, and Ubuntu Preseed.
 """
+
 from __future__ import annotations
 
 import json
@@ -340,8 +341,6 @@ class AutoYaSTTemplateManager:
                 f.write(content)
 
             meta_file = template_path.with_suffix(template_path.suffix + ".meta")
-            import json
-
             meta_data = {
                 "name": name,
                 "description": description,

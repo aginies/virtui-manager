@@ -17,15 +17,18 @@ def main():
 
 
 def cmd_main():
-    """Entry point for the command-line interface."""
+    """Entry point for the command-line interface.
+
+    Exits with the status ``main`` returns, which is how ``--machine``
+    reports what happened (see vmanager/machine_mode.py).
+    """
     try:
         from vmanager import vmanager_cmd
 
         if hasattr(vmanager_cmd, "main"):
-            vmanager_cmd.main()
-        else:
-            print("Error: vmanager_cmd module has no 'main' function.")
-            sys.exit(1)
+            sys.exit(vmanager_cmd.main())
+        print("Error: vmanager_cmd module has no 'main' function.")
+        sys.exit(1)
     except ImportError as e:
         print(f"Error importing vmanager_cmd: {e}")
         sys.exit(1)

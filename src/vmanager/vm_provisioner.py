@@ -1,9 +1,11 @@
 """
 Library for VM creation and provisioning, supporting multiple Linux distributions.
 """
+
 from __future__ import annotations
 
 import base64
+import glob
 import hashlib
 import json
 import logging
@@ -21,6 +23,7 @@ import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from enum import Enum
@@ -32,9 +35,10 @@ import yaml
 
 from .auto_http_server import AutoHTTPServer, RemoteAutoHTTPServer
 from .config import load_config
-from .constants import AppInfo, StaticText
+from .constants import AppInfo, ErrorMessages, StaticText
 from .firmware_manager import get_uefi_files, select_best_firmware
 from .libvirt_utils import get_host_architecture, get_latest_machine_types
+from .machine_mode import TIMEOUT_ERRORS
 from .provisioning.automation_engine import AutomationEngine
 from .provisioning.libosinfo_manager import LibosinfoManager
 from .provisioning.os_provider import OSType, OSVersion
@@ -44,8 +48,28 @@ from .utils import (
     get_ssh_host_from_uri,
     manage_firewalld_port,
     run_command,
+    xml_value,
 )
 from .vm_actions import delete_boot_files, get_vm_boot_files, strip_installation_assets
+
+# Where a caller's own facts about a machine live in its XML: a namespace of
+# ours, so another tool's metadata sits beside it untouched.
+METADATA_NS = "https://virtui-manager/metadata/1"
+METADATA_ELEMENT = "properties"
+
+
+def transfer_stalled(error: BaseException) -> bool:
+    """Whether a failed transfer failed because a wait ran out.
+
+    The download sets a socket timeout, so a mirror that stops sending bytes is
+    met in two shapes: a stall in the middle of the transfer is a
+    ``socket.timeout`` out of the read, and a stall while connecting is a
+    ``URLError`` carrying that timeout as its ``reason``. A refused connection
+    or a missing file is neither, and stays the failure it was.
+    """
+    if isinstance(error, TIMEOUT_ERRORS):
+        return True
+    return isinstance(getattr(error, "reason", None), TIMEOUT_ERRORS)
 
 
 class VMType(Enum):
@@ -70,22 +94,93 @@ DEFAULT_DISK_SIZE_GB: Dict[VMType, int] = {
     VMType.COMPUTATION: 8,
 }
 
-# Per-profile resource defaults (memory in MiB, vCPU count), mirroring the GUI
-# expert defaults (ProvisioningModal._update_expert_defaults). Memory and vCPU
-# have no other reusable source; disk is intentionally left to DEFAULT_DISK_SIZE_GB
-# (provision_vm falls back to it when disk_size_gb is None), so there is a single
-# source of truth for disk size.
-# Used by the config-driven deploy path when a profile (not "custom") is chosen,
-# so memory/vCPU are taken from the profile instead of being asked each time.
+# What a profile means in hardware: memory in MiB and a vCPU count, one entry per
+# VMType. This is the only place those two numbers are written down, and both
+# routes that size a machine read them here - the config-driven deploy
+# (deploy_config.resolve_vm_resources, where a value in the deploy file wins) and
+# the interactive provisioning screen (InstallVMModal._update_expert_defaults,
+# which turns the memory back into the GB its expert input asks for).
+# tests/test_vm_type_profiles.py pins the two surfaces to each other.
+#
+# The numbers are the ones the screen offered before the two tables were joined:
+# the interactive tool defines a profile (maintainer's decision on issue #25).
+# That is a visible change for a deploy, not a refactor - a "server" profile now
+# starts a machine with 4 GB instead of 16, a "wldesktop" with 4 GB instead of 8.
+# Every other profile already agreed and is unchanged.
+#
+# Two facts about a profile stay in the screen, because only it asks them and
+# moving them here would silently change what a deploy creates: the disk format
+# (COMPUTATION is installed raw) and the firmware (COMPUTATION and WLDESKTOP boot
+# BIOS, and a deploy takes its boot mode from its own file). Disk size is the
+# table above, DEFAULT_DISK_SIZE_GB, which both routes already fall back to.
 VM_TYPE_DEFAULTS: Dict[VMType, Dict[str, int]] = {
     VMType.SECURE: {"memory_mb": 4096, "vcpu": 2},
     VMType.COMPUTATION: {"memory_mb": 8192, "vcpu": 4},
     VMType.DESKTOP: {"memory_mb": 4096, "vcpu": 4},
     VMType.LOW_RESOURCE: {"memory_mb": 512, "vcpu": 1},
     VMType.WDESKTOP: {"memory_mb": 16384, "vcpu": 8},
-    VMType.WLDESKTOP: {"memory_mb": 8192, "vcpu": 4},
+    VMType.WLDESKTOP: {"memory_mb": 4096, "vcpu": 4},
     VMType.SERVER: {"memory_mb": 16384, "vcpu": 6},
 }
+
+
+def progress_reporter(progress_callback: Optional[Callable[[str, int], None]]):
+    """A `report(message, percent)` for one deployment of a machine.
+
+    Two rules, both about what a percentage means to whoever watches it fill:
+
+    * a percent under the highest already sent is raised to it, so the bar only
+      ever advances. The install route looks the ISO up more than once, and a
+      lookup done after the automation configuration cannot be less done than
+      the stage that followed it;
+    * a stage already reported, at a percent that advances nothing, reports
+      nothing. Finding the same ISO a second time changed nothing, and an event
+      for it would rewind the bar to where that lookup was first announced.
+
+    A stage repeated with more done - a transfer - is progress and passes.
+    With nobody watching, the same numbers go to the log.
+    """
+    highest = -1
+    announced: set = set()
+
+    def report(message: str, percent: int) -> None:
+        nonlocal highest
+        if message in announced and percent <= highest:
+            return
+        announced.add(message)
+        highest = max(highest, percent)
+        if progress_callback:
+            progress_callback(message, highest)
+        else:
+            logging.info(f"[{highest}%] {message}")
+
+    return report
+
+
+@dataclass(frozen=True)
+class VolumeBoot:
+    """A machine that boots a disk it already has, decided once and carried whole.
+
+    These are not fourteen choices: they are one, seen from fourteen angles — the
+    firmware and the NVRAM file it needs, the seed and which of the two boots
+    first, the network the machine wakes up on. Listed as arguments they could
+    also arrive in the wrong order or half-finished without anything noticing.
+    """
+
+    vm_name: str
+    disk_path: str
+    disk_format: str
+    seed_path: str | None
+    memory_mb: int
+    vcpu: int
+    network_name: str
+    machine: str
+    boot_uefi: bool
+    loader_path: str | None
+    nvram_path: str | None
+    graphics: str | None
+    boot_device: str
+    metadata: Dict[str, Any] | None
 
 
 class VMProvisioner:
@@ -331,8 +426,6 @@ class VMProvisioner:
         Returns:
             Path to the downloaded ISO file.
         """
-        from .constants import ErrorMessages
-
         # Validate URL
         if not url.startswith(("http://", "https://")):
             raise ValueError(ErrorMessages.CUSTOM_ISO_INVALID_URL_TEMPLATE.format(url=url))
@@ -348,7 +441,7 @@ class VMProvisioner:
         if os.path.exists(dest_path) and os.path.getsize(dest_path) > 0:
             logging.info(f"ISO already exists at {dest_path}, skipping download.")
             if progress_callback:
-                progress_callback("ISO already exists", 100)
+                progress_callback(StaticText.PROVISIONING_ISO_ALREADY_EXISTS, 100)
             return dest_path
 
         logging.info(f"Downloading ISO from {url} to {dest_path}")
@@ -360,9 +453,10 @@ class VMProvisioner:
             req = urllib.request.Request(url)
             req.add_header("User-Agent", f"{AppInfo.namecase}/{AppInfo.version}")
 
-            with urllib.request.urlopen(req, context=context, timeout=30) as response, open(
-                dest_path, "wb"
-            ) as out_file:
+            with (
+                urllib.request.urlopen(req, context=context, timeout=30) as response,
+                open(dest_path, "wb") as out_file,
+            ):
                 content_length = response.getheader("Content-Length")
                 total_size = int(content_length.strip()) if content_length else 0
                 downloaded_size = 0
@@ -424,9 +518,16 @@ class VMProvisioner:
                     os.remove(dest_path)  # Clean up partial file
                 except Exception:
                     pass
-            raise Exception(
-                ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(url=url, error=str(e))
-            ) from e
+            message = ErrorMessages.CUSTOM_ISO_DOWNLOAD_FAILED_TEMPLATE.format(
+                url=url, error=str(e)
+            )
+            # A mirror that stopped answering is not a mirror that refused, and
+            # the caller has to be able to tell them apart: re-raising a bare
+            # Exception here would flatten a stalled transfer into the same
+            # failure as a missing file, so the timeout keeps its kind.
+            if transfer_stalled(e):
+                raise TimeoutError(message) from e
+            raise Exception(message) from e
 
     def upload_iso(
         self,
@@ -1123,9 +1224,15 @@ class VMProvisioner:
         os_version: str | None = None,
         network_name: str = "default",
         ovmf_debug: bool = False,
+        metadata: dict[str, Any] | None = None,
+        seed_path: str | None = None,
     ) -> str:
         """
         Generates the Libvirt XML for the VM based on the type and default settings.
+
+        `seed_path` is a read-only CD-ROM the guest reads its own configuration
+        from, attached beside the install media: a machine being installed can
+        still carry the data it will read on first boot.
         """
         # If boot_uefi is None, default to True for modern OSes
         if boot_uefi is None:
@@ -1156,7 +1263,7 @@ class VMProvisioner:
         # UUID generation handled by libvirt if omitted
         xml = f"""
 <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
-  <name>{vm_name}</name>
+  <name>{xml_value(vm_name)}</name>
   <memory unit='KiB'>{memory_mb * 1024}</memory>
   <currentMemory unit='KiB'>{memory_mb * 1024}</currentMemory>
   <vcpu placement='static'>{vcpu}</vcpu>
@@ -1173,7 +1280,7 @@ class VMProvisioner:
 
             xml += f"""
   <os{os_firmware}>
-    <type arch='x86_64' machine='{settings["machine"]}' >hvm</type>
+    <type arch='x86_64' machine='{xml_value(settings["machine"])}' >hvm</type>
 """
             # Feature-based autoselection: only used when firmware='efi' is present.
             if settings["boot_uefi"] and not use_manual_firmware:
@@ -1192,15 +1299,15 @@ class VMProvisioner:
             if settings["boot_uefi"]:
                 if use_manual_firmware:
                     secure_attr = "yes" if settings.get("secure_boot") else "no"
-                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
-    <nvram>{nvram_path}</nvram>
+                    xml += f"""    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{xml_value(loader_path)}</loader>
+    <nvram>{xml_value(nvram_path)}</nvram>
 """
                 else:
                     # Autoselection: let libvirt handle NVRAM, no format specified to avoid conversion errors
                     xml += "    <nvram/>\n"
 
-            xml += f"""    <kernel>{kernel_path}</kernel>
-    <initrd>{initrd_path}</initrd>
+            xml += f"""    <kernel>{xml_value(kernel_path)}</kernel>
+    <initrd>{xml_value(initrd_path)}</initrd>
 """
             cmdline = ""
             logging.info(
@@ -1287,7 +1394,7 @@ class VMProvisioner:
                 cmdline += "console=tty0 console=ttyS0,115200"
 
             if cmdline:
-                xml += f"    <cmdline>{cmdline}</cmdline>\n"
+                xml += f"    <cmdline>{xml_value(cmdline)}</cmdline>\n"
             xml += "  </os>"
         # Standard UEFI/BIOS boot
         elif settings["boot_uefi"]:
@@ -1298,9 +1405,9 @@ class VMProvisioner:
                 # Manual firmware selection: no firmware attribute or sub-element
                 xml += f"""
   <os>
-    <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
-    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{loader_path}</loader>
-    <nvram>{nvram_path}</nvram>
+    <type arch='x86_64' machine='{xml_value(settings["machine"])}'>hvm</type>
+    <loader readonly='yes' secure='{secure_attr}' type='pflash'>{xml_value(loader_path)}</loader>
+    <nvram>{xml_value(nvram_path)}</nvram>
   </os>
 """
             else:
@@ -1314,7 +1421,7 @@ class VMProvisioner:
 
                 xml += f"""
   <os{os_firmware}>
-    <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
+    <type arch='x86_64' machine='{xml_value(settings["machine"])}'>hvm</type>
 """
                 # Explicitly disable secure boot if requested OS has issues with it
                 if has_firmware_subelement:
@@ -1330,7 +1437,7 @@ class VMProvisioner:
         else:  # Standard BIOS
             xml += f"""
   <os>
-    <type arch='x86_64' machine='{settings["machine"]}'>hvm</type>
+    <type arch='x86_64' machine='{xml_value(settings["machine"])}'>hvm</type>
   </os>
 """
 
@@ -1369,13 +1476,18 @@ class VMProvisioner:
   </launchSecurity>
 """
 
+        # The caller's own facts about the machine, in a namespace of ours, where
+        # libvirt allows them: after the lifecycle elements, before the devices.
+        if metadata:
+            xml += self._metadata_xml(metadata)
+
         xml += "  <devices>\n"
 
         # Disk
         xml += f"""
     <disk type='file' device='disk'>
-      <driver name='qemu' type='{settings["disk_format"]}' cache='{settings["disk_cache"]}'/>
-      <source file='{disk_path}'/>
+      <driver name='qemu' type='{xml_value(settings["disk_format"])}' cache='{xml_value(settings["disk_cache"])}'/>
+      <source file='{xml_value(disk_path)}'/>
       <target dev='vda' bus='{settings["disk_bus"]}'/>
       <boot order='{hd_boot}'/>
     </disk>
@@ -1385,10 +1497,23 @@ class VMProvisioner:
         xml += f"""
     <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
-      <source file='{iso_path}'/>
+      <source file='{xml_value(iso_path)}'/>
       <target dev='sda' bus='sata'/>
       <readonly/>
       <boot order='{cd_boot}'/>
+    </disk>
+"""
+
+        # The seed the caller named, read-only beside the media. No boot order:
+        # the media is what installs, and the seed is data. `sdb` because the
+        # media already sits on `sda`.
+        if seed_path:
+            xml += f"""
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{xml_value(seed_path)}'/>
+      <target dev='sdb' bus='sata'/>
+      <readonly/>
     </disk>
 """
 
@@ -1397,7 +1522,7 @@ class VMProvisioner:
             xml += f"""
     <disk type='file' device='floppy'>
       <driver name='qemu' type='raw'/>
-      <source file='{automation_file_path}'/>
+      <source file='{xml_value(automation_file_path)}'/>
       <target dev='fda' bus='fdc'/>
       <readonly/>
     </disk>
@@ -1407,7 +1532,7 @@ class VMProvisioner:
         # Interface
         xml += f"""
     <interface type='network'>
-      <source network='{network_name}'/>
+      <source network='{xml_value(network_name)}'/>
       <model type='{settings["network_model"]}'/>
     </interface>
 """
@@ -1422,7 +1547,7 @@ class VMProvisioner:
         # Graphics (SECURE VMs have no graphics: serial console only)
         if settings["graphics_type"]:
             xml += f"""
-    <graphics type='{settings["graphics_type"]}' port='-1' autoport='yes' listen='0.0.0.0'>
+    <graphics type='{xml_value(settings["graphics_type"])}' port='-1' autoport='yes' listen='0.0.0.0'>
       <listen type='address' address='0.0.0.0'/>
     </graphics>
 """
@@ -2431,6 +2556,196 @@ class VMProvisioner:
                 missing.append(tool)
         return missing
 
+    def provision_existing_volume(
+        self,
+        vm_name: str,
+        disk_path: str,
+        disk_format: str = "qcow2",
+        seed_path: str | None = None,
+        memory_mb: int = 2048,
+        vcpu_count: int = 2,
+        network_name: str = "default",
+        storage_pool_name: str = "default",
+        boot_uefi: bool = False,
+        machine_type: str | None = None,
+        graphics: str | None = None,
+        boot_device: str = "disk",
+        metadata: Dict[str, Any] | None = None,
+        start: bool = True,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
+    ) -> libvirt.virDomain:
+        """Define a machine that boots a disk which already exists.
+
+        Nothing here installs: the disk is whatever the caller put in the pool,
+        and the machine is built around it. That is the difference from
+        `provision_vm`, which spends its time on install media, automation and
+        kernel extraction. A caller that has a qcow2 image - one it built, one it
+        copied from another host - wants a domain defined over it and started,
+        and nothing else.
+
+        Args:
+            disk_path: Path of the volume to boot, in a pool libvirt can see.
+            disk_format: `qcow2` or `raw`, as the volume is formatted.
+            seed_path: Path of an ISO to attach as a second, read-only CD-ROM -
+                the NoCloud seed a machine reads its name, key and user-data from.
+            boot_device: `disk`, or `cdrom` when the seed (or the media the
+                machine was built from) is what should boot first.
+            metadata: Kept in the domain's `<metadata>` and read back by
+                `vmc domain metadata <name>`; nothing here interprets it.
+            start: Whether to boot it, or only define it.
+
+        Returns the defined domain.
+        """
+
+        # (message, percent), the shape `provision_vm` and the machine contract
+        # use: a caller cannot put a percentage in a stage field.
+        report = progress_reporter(progress_callback)
+
+        machine_types = get_latest_machine_types(self.conn, self.host_arch)
+        default_machine = machine_types["pc-q35"] if boot_uefi else machine_types["pc-i440fx"]
+        machine = machine_type or default_machine
+
+        loader_path = nvram_path = None
+        if boot_uefi:
+            report(StaticText.PROVISIONING_SETTING_UP_UEFI_FIRMWARE, 20)
+            loader_path, nvram_path = self._setup_uefi_nvram(
+                vm_name, storage_pool_name, VMType.SERVER
+            )
+
+        report(StaticText.PROVISIONING_DEFINING_VM, 40)
+        xml = self._volume_boot_xml(
+            VolumeBoot(
+                vm_name=vm_name,
+                disk_path=disk_path,
+                disk_format=disk_format,
+                seed_path=seed_path,
+                memory_mb=memory_mb,
+                vcpu=vcpu_count,
+                network_name=network_name,
+                machine=machine,
+                boot_uefi=boot_uefi,
+                loader_path=loader_path,
+                nvram_path=nvram_path,
+                graphics=graphics,
+                boot_device=boot_device,
+                metadata=metadata,
+            )
+        )
+        try:
+            domain = self.conn.defineXML(xml)
+        except libvirt.libvirtError as e:
+            raise RuntimeError(f"libvirt refused the machine: {e}") from e
+
+        if start:
+            report(StaticText.PROVISIONING_STARTING_VM, 60)
+            try:
+                if not domain.isActive():
+                    domain.create(0)
+            except libvirt.libvirtError as e:
+                raise RuntimeError(f"The machine is defined but would not start: {e}") from e
+
+        # The shared word for "this deploy is done" when the machine is running, as an
+        # install's ending is; the ending a boot can be told to give has its own.
+        report(
+            (
+                StaticText.PROVISIONING_COMPLETE
+                if start
+                else StaticText.PROVISIONING_COMPLETE_NOT_STARTED
+            ),
+            100,
+        )
+        return domain
+
+    def _volume_boot_xml(self, boot: VolumeBoot) -> str:
+        """The domain XML for a machine that boots a disk it already has.
+
+        Small on purpose: a disk, the seed, one virtio NIC on the network the
+        caller named, a serial console, and nothing a headless machine has no use
+        for. `boot.graphics` names a graphics device when the caller wants one.
+        """
+        vm_name = boot.vm_name
+        # The seed boots first only when the caller says so; a built machine reads
+        # it once and then lives on its disk.
+        disk_boot, seed_boot = ("2", "1") if boot.boot_device == "cdrom" else ("1", "2")
+
+        os_element = f"  <os>\n    <type arch='{xml_value(self.host_arch)}' machine='{xml_value(boot.machine)}'>hvm</type>\n"
+        if boot.boot_uefi and boot.loader_path:
+            os_element += (
+                f"    <loader readonly='yes' type='pflash'>{xml_value(boot.loader_path)}</loader>\n"
+            )
+            os_element += f"    <nvram>{xml_value(boot.nvram_path)}</nvram>\n"
+        os_element += "    <boot dev='%s'/>\n" % ("cdrom" if boot.boot_device == "cdrom" else "hd")
+        os_element += "  </os>\n"
+
+        xml = f"""<domain type='kvm'>
+  <name>{xml_value(vm_name)}</name>
+  <memory unit='MiB'>{boot.memory_mb}</memory>
+  <currentMemory unit='MiB'>{boot.memory_mb}</currentMemory>
+  <vcpu placement='static'>{boot.vcpu}</vcpu>
+{os_element}  <features>
+    <acpi/>
+    <apic/>
+  </features>
+  <cpu mode='host-passthrough' check='none' migratable='on'/>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+"""
+        if boot.metadata:
+            xml += self._metadata_xml(boot.metadata)
+
+        xml += "  <devices>\n"
+        xml += f"""    <disk type='file' device='disk'>
+      <driver name='qemu' type='{xml_value(boot.disk_format)}' cache='none'/>
+      <source file='{xml_value(boot.disk_path)}'/>
+      <target dev='vda' bus='virtio'/>
+      <boot order='{disk_boot}'/>
+    </disk>
+"""
+        if boot.seed_path:
+            xml += f"""    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{xml_value(boot.seed_path)}'/>
+      <target dev='sda' bus='sata'/>
+      <readonly/>
+      <boot order='{seed_boot}'/>
+    </disk>
+"""
+        xml += f"""    <interface type='network'>
+      <source network='{xml_value(boot.network_name)}'/>
+      <model type='virtio'/>
+    </interface>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <memballoon model='virtio'/>
+"""
+        if boot.graphics:
+            xml += f"""    <video>
+      <model type='virtio'/>
+    </video>
+    <graphics type='{xml_value(boot.graphics)}' port='-1' autoport='yes' listen='127.0.0.1'>
+      <listen type='address' address='127.0.0.1'/>
+    </graphics>
+"""
+        xml += "  </devices>\n</domain>\n"
+        return xml
+
+    @staticmethod
+    def _metadata_xml(metadata: Dict[str, Any]) -> str:
+        """A caller's own facts about a machine, kept in its XML and read back.
+
+        They live in a namespace of ours so another tool's metadata sits beside
+        them untouched. Values are escaped: a name a caller typed cannot close the
+        element it is in.
+        """
+        lines = ["  <metadata>\n    <%s xmlns='%s'>\n" % (METADATA_ELEMENT, METADATA_NS)]
+        for key, value in metadata.items():
+            lines.append(f"      <{xml_value(key)}>{xml_value(value)}</{xml_value(key)}>\n")
+        lines.append(f"    </{METADATA_ELEMENT}>\n  </metadata>\n")
+        return "".join(lines)
+
     def provision_vm(
         self,
         vm_name: str,
@@ -2448,8 +2763,11 @@ class VMProvisioner:
         progress_callback: Optional[Callable[[str, int], None]] = None,
         automation_config: Optional[Dict[str, Any]] = None,
         show_automation_path: bool = False,
+        autoinstall_report: Optional[Callable[[Dict[str, str]], None]] = None,
         network_name: str = "default",
         ovmf_debug: bool = False,
+        metadata: dict[str, Any] | None = None,
+        seed_path: str | None = None,
     ) -> libvirt.virDomain:
         """
         Orchestrates the VM provisioning process.
@@ -2468,11 +2786,14 @@ class VMProvisioner:
             boot_uefi: Whether to use UEFI boot.
             configure_before_install: If True, defines VM and shows details modal before starting.
             show_config_modal_callback: Optional callback to show configuration modal. Takes (domain) as parameters.
+            metadata: Kept in the domain's `<metadata>` the way
+                `provision_existing_volume` keeps it; nothing here interprets it.
+            seed_path: Path of a volume to attach as a second, read-only CD-ROM,
+                the same second disc `provision_existing_volume` attaches. The
+                machine being installed reads it later; it does not boot from it.
         """
 
-        def report(stage, percent):
-            if progress_callback:
-                progress_callback(stage, percent)
+        report = progress_reporter(progress_callback)
 
         # Apply a type-appropriate default disk size when the caller did not
         # provide one (e.g. the CLI installvm command).
@@ -2649,10 +2970,9 @@ class VMProvisioner:
                 report(StaticText.UPLOADING_ISO, 55)
 
                 def upload_progress(p):
-                    report(
-                        StaticText.UPLOADING_PROGRESS_TEMPLATE.format(progress=p),
-                        55 + int(p * 0.2),
-                    )
+                    # The transfer's own percentage is not this event's, so it
+                    # stays out of the message: one number per event.
+                    report(StaticText.UPLOADING_ISO, 55 + int(p * 0.2))
 
                 iso_path = self.upload_iso(iso_path, storage_pool_name, upload_progress)
                 logging.info(f"ISO uploaded to storage pool: {iso_path}")
@@ -2715,6 +3035,7 @@ class VMProvisioner:
         automation_file_path = None
         serial_console = False
         temp_dir = None
+        autoinst_filename = None
 
         if automation_config:
             serial_console = automation_config.get("serial_console")
@@ -3086,7 +3407,7 @@ class VMProvisioner:
                             local_iso_path, self.host_arch, remote_host=ssh_host
                         )
 
-                    report("Uploading kernel and initrd", 81)
+                    report(StaticText.PROVISIONING_UPLOADING_KERNEL_INITRD, 81)
                     kernel_path = self.upload_file(
                         local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
                     )
@@ -3120,6 +3441,8 @@ class VMProvisioner:
                 os_version=os_version,
                 network_name=network_name,
                 ovmf_debug=ovmf_debug,
+                metadata=metadata,
+                seed_path=seed_path,
             )
 
             # Define the VM
@@ -3185,7 +3508,7 @@ class VMProvisioner:
                         local_iso_path, self.host_arch, remote_host=ssh_host
                     )
 
-                report("Uploading kernel and initrd", 81)
+                report(StaticText.PROVISIONING_UPLOADING_KERNEL_INITRD, 81)
                 kernel_path = self.upload_file(
                     local_kernel_path, storage_pool_name, f"{vm_name}-kernel"
                 )
@@ -3232,7 +3555,7 @@ class VMProvisioner:
                         internal_filename=internal_filename,
                         remote_host=ssh_host,
                     )
-                    report("Uploading automation floppy image", 82)
+                    report(StaticText.PROVISIONING_UPLOADING_AUTOMATION_IMAGE, 82)
                     automation_vol_name = f"{vm_name}-automation.img"
                     final_automation_path = self.upload_file(
                         floppy_image_path, storage_pool_name, volume_name=automation_vol_name
@@ -3277,9 +3600,11 @@ class VMProvisioner:
             os_version=os_version,
             network_name=network_name,
             ovmf_debug=ovmf_debug,
+            metadata=metadata,
+            seed_path=seed_path,
         )
 
-        report(StaticText.PROVISIONING_CONFIGURING_VM_XML, 90)
+        report(StaticText.PROVISIONING_DEFINING_VM, 90)
         dom = self.conn.defineXML(xml_desc)
         dom.create()
 
@@ -3415,12 +3740,27 @@ class VMProvisioner:
 
         report(StaticText.PROVISIONING_COMPLETE, 100)
 
-        # Surface the auto-install file location for non-interactive callers
-        # (vmc deploy), so the generated profile can be inspected while the
-        # HTTP server keeps serving it during the OS installation.
-        if show_automation_path and temp_dir and auto_url:
-            print(f"\nAuto-install file served from: {temp_dir}")
-            print(f"  URL: {auto_url}")
+        # Surface the auto-install profile that is being served, so it can be
+        # inspected while the HTTP server keeps serving it during the OS
+        # installation: printed for whoever is watching, written to the log for
+        # whoever reads it afterwards, and handed to the caller for whatever it
+        # answers with. A deploy that failed is exactly when it matters most.
+        if temp_dir and auto_url:
+            served = {
+                "directory": str(temp_dir),
+                # Empty for a guest pointed at the directory instead of a file.
+                "file": autoinst_filename or "",
+                "url": auto_url,
+            }
+            self.logger.info(
+                f"Auto-install profile served from {served['directory']} "
+                f"(file {served['file'] or 'the directory itself'}) at {served['url']}"
+            )
+            if show_automation_path:
+                print(f"\nAuto-install file served from: {served['directory']}")
+                print(f"  URL: {served['url']}")
+            if autoinstall_report:
+                autoinstall_report(served)
 
         return dom
 
@@ -3430,8 +3770,6 @@ class VMProvisioner:
         These are created by _extract_*_iso_kernel_initrd methods and should be
         cleaned up after the kernel/initrd files have been uploaded to storage.
         """
-        import glob
-
         temp_patterns = [
             "/tmp/virtui_iso_extract_*",
             "/tmp/virtui_debian_iso_extract_*",

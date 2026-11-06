@@ -8,8 +8,12 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONSTANTS_FILE = os.path.join(BASE_DIR, "../src/vmanager/constants.py")
 SEARCH_DIR = os.path.join(BASE_DIR, "../src")
 
+# vmanager_cmd.py is deliberately not listed. It used to be, while none of its strings
+# came from constants: the file has no tooltips, so the prose the exclusion was justified
+# by was never looked at either way. Its deploy failures now name DeployText constants, and
+# the constants census below cannot see a file it skips - with the entry in place it called
+# all eighteen of them unused. Covering the file is what makes that census tell the truth.
 dont_check_files = [
-    "vmanager_cmd.py",
     "gui_wrapper.py",
     "i18n.py",
     "virtui_dev.py",
@@ -171,6 +175,94 @@ def check_tooltips(search_dir, class_constants):
     return error_found
 
 
+# The calls that hand a deploy failure to whoever ran the command. The sentence is printed,
+# and under --machine it also ships as the `message` of the failure answer, so a sentence
+# typed at the call site moves the machine contract without anyone renaming a constant.
+#
+# Deliberately only these calls, not the whole file: vmanager_cmd.py holds 606 string
+# literals passed as the first argument to print, input and the prompt helpers, and a check
+# that reports all of them is a backlog rather than a check.
+DEPLOY_FAILURE_CALLS = ("_deploy_fail",)
+
+
+def _written_prose(node):
+    """The words spelled into an argument, or None when it names something instead.
+
+    None covers both a constant reference and a bare `str(e)`: neither adds wording of its
+    own, which is the distinction this pass cares about. An f-string made only of
+    placeholders reads the caller's own text, so it has no prose either.
+    """
+    if isinstance(node, ast.Constant):
+        return node.value if isinstance(node.value, str) else None
+    if isinstance(node, ast.JoinedStr):
+        parts = [
+            part.value
+            for part in node.values
+            if isinstance(part, ast.Constant) and isinstance(part.value, str)
+        ]
+        return "".join(parts) if parts else None
+    return None
+
+
+def find_hardcoded_deploy_wording(source, filename):
+    """Find deploy failures whose wording is written at the call site.
+
+    Returns [(line, text)] and reports nothing itself, so the suite can ask it about a
+    snippet as well as about the real file.
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+
+    findings = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        # Bound as a method or called plain: both reach a deploy failure.
+        called = (
+            node.func.id if isinstance(node.func, ast.Name) else getattr(node.func, "attr", None)
+        )
+        if called not in DEPLOY_FAILURE_CALLS or not node.args:
+            continue
+        text = _written_prose(node.args[0])
+        if text is not None:
+            findings.append((node.lineno, text.strip()))
+    return findings
+
+
+def check_deploy_wording(search_dir):
+    """Report deploy failures answered with a sentence written in place."""
+    print(f"Checking deploy failure wording in {search_dir}...")
+    error_found = False
+
+    for root, _, files in os.walk(search_dir):
+        for file in files:
+            if not file.endswith(".py"):
+                continue
+
+            file_path = os.path.join(root, file)
+
+            if file in dont_check_files:
+                continue
+
+            try:
+                with open(file_path, encoding="utf-8", errors="ignore") as f:
+                    content = f.read()
+            except OSError as e:
+                print(f"Warning: Could not read file {file_path}: {e}")
+                continue
+
+            for lineno, text in find_hardcoded_deploy_wording(content, file_path):
+                display_text = (text[:40] + "...") if len(text) > 40 else text
+                print(
+                    f"Error: Hardcoded deploy wording in '{file_path}:{lineno}': \"{display_text}\""
+                )
+                error_found = True
+
+    return error_found
+
+
 def check_usages(search_dir, class_constants):
     error_found = False
 
@@ -281,6 +373,7 @@ def main():
 
     constants_error = check_usages(SEARCH_DIR, class_constants)
     tooltip_error = check_tooltips(SEARCH_DIR, class_constants)
+    deploy_error = check_deploy_wording(SEARCH_DIR)
     unused_error = check_unused_constants(SEARCH_DIR, class_constants)
 
     print(f"Excluded: {dont_check_files}")
@@ -289,6 +382,9 @@ def main():
         sys.exit(1)
     elif tooltip_error:
         print("Failure: found untranslated tooltips.")
+        sys.exit(1)
+    elif deploy_error:
+        print("Failure: deploy failure wording must come from DeployText.")
         sys.exit(1)
     else:
         if unused_error:

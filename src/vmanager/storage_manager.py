@@ -1,6 +1,7 @@
 """
 Module for managing libvirt storage pools and volumes.
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,6 +19,84 @@ from .libvirt_utils import (
     _find_vol_by_path,
 )
 from .vm_queries import get_vm_disks_info
+
+
+def pool_target_path(pool: libvirt.virStoragePool) -> Optional[str]:
+    """
+    Where a pool keeps its files, read from its own XML.
+    Returns None if the XML cannot be read or says nothing.
+    """
+    try:
+        root = ET.fromstring(pool.XMLDesc(0))
+        target = root.find("target/path")
+        return target.text if target is not None else None
+    except (libvirt.libvirtError, ET.ParseError):
+        return None
+
+
+def pool_facts(pool: libvirt.virStoragePool) -> Dict[str, Any]:
+    """
+    What one pool is, read once: its name, whether it is up, its room, and
+    where its files live.
+
+    The interactive `list_pool` table, the pool pickers and the answers of
+    `vmc --machine` are drawn from here. That matters more than tidiness: a
+    field read in two places drifts, and the machine answers two fields the
+    table has no column for — a pool's free space and the directory behind it —
+    so those were read only for one of the two. A detail that will not answer is
+    the safe zero of the `_safe_*` helpers rather than a failure, which is what
+    both callers already made of it. The name is not protected that way: a pool
+    that cannot say its name is not a pool anyone could act on, so `pool.name()`
+    is left to raise and the caller says what it makes of it.
+    """
+    capacity, allocation, available = _safe_get_pool_info(pool)
+    return {
+        "name": pool.name(),
+        "pool": pool,
+        "status": "active" if _safe_is_pool_active(pool) else "inactive",
+        "autostart": _safe_get_pool_autostart(pool),
+        "capacity": capacity,
+        "allocation": allocation,
+        "available": available,
+        "path": pool_target_path(pool),
+    }
+
+
+def volume_target_format(vol: libvirt.virStorageVol) -> Optional[str]:
+    """
+    The format of a volume's own file (`qcow2`, `raw`, ...).
+
+    libvirt answers this only from the XML: `vol.info()` says what kind of
+    volume it is (file, block, directory), which is a different question.
+    """
+    try:
+        root = ET.fromstring(vol.XMLDesc(0))
+    except (libvirt.libvirtError, ET.ParseError):
+        return None
+    target = root.find("target/format")
+    return target.get("type") if target is not None else None
+
+
+def volume_facts(vol: libvirt.virStorageVol) -> Dict[str, Any]:
+    """
+    What one volume is, read once: its name, its size, where its bytes are and
+    how they are formatted.
+
+    The same reason as `pool_facts`: this is the reading behind the volume
+    tables of the TUI and the interactive tool, and behind `volume list` and
+    `volume info` of ``vmc --machine``. The format used to be read only for the
+    machine answer, because nothing else displayed it.
+    """
+    vol_type, capacity, allocation = _safe_get_volume_info(vol)
+    return {
+        "name": vol.name(),
+        "volume": vol,
+        "type": vol_type,
+        "capacity": capacity,
+        "allocation": allocation,
+        "path": _safe_get_volume_path(vol),
+        "format": volume_target_format(vol),
+    }
 
 
 def _safe_is_pool_active(pool: libvirt.virStoragePool) -> bool:
@@ -147,35 +226,13 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     try:
         pools = conn.listAllStoragePools(0)
         for pool in pools:
+            name = "Unknown Pool"
             try:
-                # Try to get basic info
-                try:
-                    name = pool.name()
-                except libvirt.libvirtError:
-                    name = "Unknown Pool"
-
-                is_active = _safe_is_pool_active(pool)
-                capacity, allocation, _ = _safe_get_pool_info(pool)
-                autostart = _safe_get_pool_autostart(pool)
-
-                pools_info.append(
-                    {
-                        "name": name,
-                        "pool": pool,
-                        "status": "active" if is_active else "inactive",
-                        "autostart": autostart,
-                        "capacity": capacity,
-                        "allocation": allocation,
-                    }
-                )
+                facts = pool_facts(pool)
+                name = facts["name"]
+                pools_info.append(facts)
             except libvirt.libvirtError as e:
                 # If we fail to get details (e.g. NFS down), still list the pool but as unavailable
-                if "name" not in locals():
-                    try:
-                        name = pool.name()
-                    except Exception:
-                        name = "Unknown Pool"
-
                 logging.warning(f"Failed to get details for pool '{name}': {e}")
                 pools_info.append(
                     {
@@ -207,17 +264,7 @@ def list_storage_volumes(pool: libvirt.virStoragePool) -> List[Dict[str, Any]]:
         vol_names = pool.listVolumes()
         for name in vol_names:
             try:
-                vol = pool.storageVolLookupByName(name)
-                vol_type, capacity, allocation = _safe_get_volume_info(vol)
-                volumes_info.append(
-                    {
-                        "name": name,
-                        "volume": vol,
-                        "type": vol_type,
-                        "capacity": capacity,
-                        "allocation": allocation,
-                    }
-                )
+                volumes_info.append(volume_facts(pool.storageVolLookupByName(name)))
             except libvirt.libvirtError:
                 continue
     except libvirt.libvirtError:
@@ -505,10 +552,15 @@ def create_overlay_volume(
     name: str,
     backing_vol_path: str,
     backing_vol_format: str = "qcow2",
+    size_bytes: int | None = None,
 ) -> libvirt.virStorageVol:
     """
     Creates a qcow2 overlay volume backed by another volume (backing file).
     The new volume will record changes, while the backing file remains untouched.
+
+    `size_bytes` is the capacity of the new volume: a caller that wants a machine
+    with more disk than its base was built with says so, and the overlay grows to
+    it. Left alone, the overlay is the size of its backing volume.
     """
     if not _ensure_pool_active(pool):
         msg = f"Pool '{pool.name()}' is not active and could not be activated."
@@ -524,6 +576,8 @@ def create_overlay_volume(
         )
 
     _, capacity, _ = _safe_get_volume_info(backing_vol)
+    if size_bytes:
+        capacity = max(int(size_bytes), capacity)
 
     vol_xml = f"""
     <volume>
