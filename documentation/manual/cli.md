@@ -523,6 +523,66 @@ Snapshot 'pre-update' created for 'web-01'.
 (Localhost) > select re:web-.* | stop | snapshot create maintenance-$(date) | start
 ```
 
+## Machine-Readable Output
+
+`vmc --machine -c <command>` answers a scripted caller with **one JSON object on
+stdout**, sends every line of prose to **stderr**, and exits with a status that
+says what happened. Parsing prose is the thing this avoids: without `--machine` a
+command that never ran still exits 0.
+
+```bash
+vmc --machine -c "machine info"
+```
+
+### Exit Statuses
+
+| Status | Meaning |
+|--------|---------|
+| 0 | The call succeeded. |
+| 2 | Unknown command, unknown flag, or a value that cannot be parsed. |
+| 3 | A deployment file is missing, malformed or invalid. |
+| 4 | The hypervisor cannot be reached. |
+| 5 | No such domain, volume, pool or network. |
+| 6 | The name is taken. |
+| 7 | The hypervisor refused, or the operation failed. |
+| 8 | A wait ran out. |
+| 9 | The command has no machine-readable result. |
+
+`machine info` is the command with a machine-readable result; any other command
+answers 9.
+
+### Answer Shape
+
+Success carries `data`:
+
+```json
+{"ok": true, "command": "machine info", "data": {"protocol": 1, "name": "virtui-manager", "version": "3.5.3", "commands": ["machine"]}}
+```
+
+Failure carries `code` and `message`. `code` is the stable key to branch on;
+`message` is for the human reading the log. Neither is translated.
+
+```json
+{"ok": false, "command": "list_vms", "code": "unsupported", "message": "The command 'list_vms' has no machine-readable result."}
+```
+
+### Progress Events
+
+A command may write progress lines on the same stream before its answer:
+
+```json
+{"event": "progress", "stage": "<stage>", "message": "<what it is doing>", "percent": 45}
+```
+
+Read the answer as the line carrying `ok`, not as the first line on the stream.
+
+### Discovering What Is Supported
+
+`machine info` reports the protocol version, this vmc's version, and the list of
+commands that have a machine-readable result. Ask it first: a command absent
+from that list answers status 9 rather than failing in a way a caller has to
+guess at.
+
 ## Command Reference Summary
 
 | Category | Commands |
