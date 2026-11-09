@@ -22,6 +22,15 @@ vmc -c "select_vm web-01 | start"
 
 `-c, --command <command>` — execute one command and exit. Prompts auto-select first option.
 
+`-u, --uri <uri>` — connect to this hypervisor and to nothing else, instead of the
+servers marked `autoconnect` in your configuration. Needs `-c` or `--json`.
+With `--json` it replaces the `server` field of the deployment file, which the file
+still has to name.
+
+```bash
+vmc -u qemu+ssh://admin@server.org/system -c "list_vms"
+```
+
 ## Core Concepts
 
 The CLI operates on a context-based system:

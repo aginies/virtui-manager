@@ -38,6 +38,7 @@ from .guest_agent import (
 from .host_capabilities import has_secure_vm_capability
 from .libvirt_error_handler import register_error_handler
 from .machine_mode import (
+    EXIT_CONNECTION,
     EXIT_OPERATION,
     EXIT_USAGE,
     MachineError,
@@ -167,6 +168,9 @@ class VManagerCMD(cmd.Cmd):
     def __init__(self, vm_service=None):
         super().__init__()
         self.yes_mode = False
+        # The uri a scripted caller named with -u/--uri, None when it did not.
+        # Set before preloop, so it replaces the configured autoconnect.
+        self.default_uri = None
         # The MachineSession of a --machine run, None for a human. A command that
         # can be driven either way answers through it instead of printing.
         self.machine = None
@@ -290,7 +294,17 @@ class VManagerCMD(cmd.Cmd):
         self._perform_autoconnect()
 
     def _perform_autoconnect(self):
-        """Auto-connect to servers that have autoconnect enabled."""
+        """Connect to the uri given on the command line, or to the configured ones.
+
+        ``-u/--uri`` is what a scripted caller uses to say which hypervisor it
+        means. It then connects to that one only: a run that named its
+        hypervisor should not also open the servers of the developer's
+        configuration, whose state would decide what the command sees.
+        """
+        if self.default_uri:
+            self._connect_one(self.default_uri)
+            return
+
         for server in self.servers:
             if server.get("autoconnect", False):
                 try:
@@ -4796,10 +4810,15 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print("VM name cannot be empty.")
             return
 
-        server = cfg["server"]
+        # A caller that named its hypervisor with -u/--uri means that one, even
+        # though the deployment file names a server too. The file still has to
+        # name one, so the same bytes are not a good file in one call and a bad
+        # one in the next.
+        server = self.default_uri or cfg["server"]
         server_name = self._connect_one(server)
         if not server_name:
-            print(f"Could not connect to server '{server}'.")
+            # The uri may carry credentials, and -u lets a caller type them here.
+            print(f"Could not connect to server '{self._sanitize_message(server)}'.")
             return
         conn = self.active_connections[server_name]
         provisioner = VMProvisioner(conn)
@@ -5757,6 +5776,17 @@ def main():
         help="Deploy a single VM from a JSON config file (see the 'prepare_json' command)",
     )
     parser.add_argument(
+        "-u",
+        "--uri",
+        metavar="URI",
+        help=(
+            "Connect to this libvirt uri (qemu:///system, qemu+ssh://user@host/system) "
+            "and to nothing else, instead of the servers marked autoconnect in the "
+            "configuration; with --json, instead of the server field of the "
+            "deployment file, which the file still has to name"
+        ),
+    )
+    parser.add_argument(
         "--dryrun",
         action="store_true",
         help="With --json: show a summary of the deployment without provisioning",
@@ -5781,6 +5811,10 @@ def main():
         print("Error: --machine needs -c/--command.", file=sys.stderr)
         return EXIT_USAGE
 
+    if args.uri and not (args.command or args.json):
+        print("Error: --uri needs -c/--command or -C/--json.", file=sys.stderr)
+        return EXIT_USAGE
+
     # Machine-readable mode sends prose to stderr from the start: setting up the
     # command shell prints a terminal title, and stdout is for the answer.
     human_stdout = sys.stdout
@@ -5789,6 +5823,7 @@ def main():
 
     cmd_app = VManagerCMD()
     cmd_app.yes_mode = bool(args.command)
+    cmd_app.default_uri = args.uri
 
     if args.machine:
         # From here on everything the command prints is a log line; stdout carries
@@ -5796,6 +5831,12 @@ def main():
         session = MachineSession(args.command)
         try:
             cmd_app.preloop()
+            if args.uri and not cmd_app.active_connections:
+                raise MachineError(
+                    f"Could not connect to {cmd_app._sanitize_message(args.uri)}.",
+                    EXIT_CONNECTION,
+                    "connection_failed",
+                )
             status = run_command(cmd_app, args.command, session)
         except KeyboardInterrupt:
             status = session.fail(MachineError("Interrupted.", EXIT_OPERATION, "interrupted"))
