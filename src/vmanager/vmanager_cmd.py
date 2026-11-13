@@ -27,6 +27,14 @@ import libvirt
 from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
 from .constants import AppInfo, ServerPalette
+from .guest_agent import (
+    DownloadCancelled,
+    GuestAgentError,
+    agent_status,
+    ga_download_file,
+    ga_set_user_password,
+    ga_upload_file,
+)
 from .host_capabilities import has_secure_vm_capability
 from .libvirt_error_handler import register_error_handler
 from .libvirt_utils import (
@@ -61,6 +69,7 @@ from .storage_manager import (
 )
 from .utils import (
     extract_server_name_from_uri,
+    humanize_bytes,
     remote_viewer_cmd,
     sanitize_sensitive_data,
     strip_ansi_codes,
@@ -227,6 +236,7 @@ class VManagerCMD(cmd.Cmd):
                 "installvm",
                 "view",
             ],
+            "Guest Agent": ["set_password", "upload_file", "download_file"],
             "Snapshots": ["snapshot_list", "snapshot_create", "snapshot_delete", "snapshot_revert"],
             "Backups": [
                 "backup_create",
@@ -2224,6 +2234,234 @@ class VManagerCMD(cmd.Cmd):
             return []
 
         return self.complete_select_vm(text, line, begidx, endidx)
+
+    def _check_guest_agent(self, domain, vm_name) -> bool:
+        """Print why the guest agent is unavailable; return True if it is ready."""
+        status = agent_status(domain)
+        if status == "not_running":
+            print(f"VM '{vm_name}' is not running.")
+        elif status == "not_configured":
+            print(f"No guest agent channel configured on '{vm_name}'.")
+        elif status == "down":
+            print(f"Guest agent on '{vm_name}' is not responding.")
+        else:
+            return True
+        return False
+
+    def _complete_first_vm(self, text, line, begidx, endidx):
+        """Auto-completion for the VM name (first argument only)."""
+        words = line.split()
+        if len(words) > 2 or (len(words) == 2 and not line.endswith(" ")):
+            return []
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_set_password(self, args):
+        """Sets a user's password inside a running VM via the guest agent.
+        Usage: set_password <vm_name> <user>"""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = args.split()
+        if len(arg_list) != 2:
+            print("Usage: set_password <vm_name> <user>")
+            return
+
+        vm_name, user = arg_list
+
+        domain, _server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        if not self._check_guest_agent(domain, vm_name):
+            return
+
+        password = getpass.getpass(f"New password for '{user}' in '{vm_name}': ")
+        if not password:
+            print("No password entered, aborting.")
+            return
+        repeat = getpass.getpass("Repeat the password: ")
+        if password != repeat:
+            print("Passwords do not match, aborting.")
+            return
+
+        try:
+            ga_set_user_password(domain, user, password)
+            print(f"Password for '{user}' updated in the guest.")
+        except (GuestAgentError, libvirt.libvirtError) as e:
+            self._safe_print(f"Error setting password in '{vm_name}': {e}")
+
+    def complete_set_password(self, text, line, begidx, endidx):
+        return self._complete_first_vm(text, line, begidx, endidx)
+
+    def do_upload_file(self, args):
+        """Uploads a local file to a running VM via the guest agent.
+        Usage: upload_file <vm_name> <local_path> <remote_dir> [--append]
+        The file is placed in remote_dir with the same name as the local
+        file. The directory must already exist in the guest and the file
+        is created root-owned."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = args.split()
+        append = False
+        if "--append" in arg_list:
+            append = True
+            arg_list = [a for a in arg_list if a != "--append"]
+
+        if len(arg_list) != 3:
+            print("Usage: upload_file <vm_name> <local_path> <remote_dir> [--append]")
+            return
+
+        vm_name, local_path, remote_dir = arg_list
+
+        domain, _server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        if not self._check_guest_agent(domain, vm_name):
+            return
+
+        if not os.path.isfile(local_path):
+            print(f"Local file not found: {local_path}")
+            return
+
+        # The destination is a directory: the file keeps its local name
+        remote_path = (
+            remote_dir + os.path.basename(local_path)
+            if remote_dir.endswith("/")
+            else remote_dir + "/" + os.path.basename(local_path)
+        )
+
+        last_pct = -1
+
+        def on_progress(bytes_written: int, total: int) -> None:
+            nonlocal last_pct
+            pct = bytes_written * 100 // total if total else 100
+            if pct == last_pct:
+                return
+            last_pct = pct
+            print(
+                f"\rUploading {local_path} -> {remote_path}: {pct}% "
+                f"({humanize_bytes(bytes_written)}/{humanize_bytes(total)})",
+                end="",
+                flush=True,
+            )
+
+        try:
+            written = ga_upload_file(
+                domain,
+                local_path,
+                remote_path,
+                mode="a" if append else "w",
+                progress_callback=on_progress,
+            )
+        except GuestAgentError as e:
+            print()
+            self._safe_print(f"Error uploading '{local_path}' to '{vm_name}': {e}")
+            return
+        except OSError as e:
+            print()
+            self._safe_print(f"Error reading '{local_path}': {e}")
+            return
+
+        print()
+        print(f"Uploaded {humanize_bytes(written)} to '{remote_path}' in '{vm_name}'.")
+
+    def complete_upload_file(self, text, line, begidx, endidx):
+        return self._complete_first_vm(text, line, begidx, endidx)
+
+    def do_download_file(self, args):
+        """Downloads a file from a running VM to the host via the guest agent.
+        Usage: download_file <vm_name> <remote_path> [local_dir] [--append]
+        The file is saved in local_dir (default: current directory) with the
+        same name as the remote file. The local directory must already exist;
+        an existing file is never overwritten unless --append is given."""
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        arg_list = args.split()
+        append = False
+        if "--append" in arg_list:
+            append = True
+            arg_list = [a for a in arg_list if a != "--append"]
+
+        if len(arg_list) not in (2, 3):
+            print("Usage: download_file <vm_name> <remote_path> [local_dir] [--append]")
+            return
+
+        vm_name, remote_path = arg_list[0], arg_list[1]
+        local_dir = arg_list[2] if len(arg_list) == 3 else os.getcwd()
+
+        if not os.path.basename(remote_path):
+            print(f"Invalid guest file path (not a file): {remote_path}")
+            return
+
+        domain, _server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        if not self._check_guest_agent(domain, vm_name):
+            return
+
+        local_path = (
+            local_dir + os.path.basename(remote_path)
+            if local_dir.endswith("/")
+            else local_dir + "/" + os.path.basename(remote_path)
+        )
+
+        if os.path.exists(local_path) and not append:
+            print(
+                f"Local file already exists: {local_path} "
+                "(use --append or remove it first)."
+            )
+            return
+
+        last_bytes = -1
+
+        def on_progress(bytes_read: int) -> None:
+            nonlocal last_bytes
+            if bytes_read == last_bytes:
+                return
+            last_bytes = bytes_read
+            print(
+                f"\rDownloading {remote_path} -> {local_path}: "
+                f"{humanize_bytes(bytes_read)}...",
+                end="",
+                flush=True,
+            )
+
+        try:
+            written = ga_download_file(
+                domain,
+                remote_path,
+                local_path,
+                mode="a" if append else "w",
+                progress_callback=on_progress,
+            )
+        except DownloadCancelled as e:
+            print()
+            print(f"Download cancelled after {humanize_bytes(e.bytes_read)}.")
+            return
+        except GuestAgentError as e:
+            print()
+            self._safe_print(f"Error downloading '{remote_path}' from '{vm_name}': {e}")
+            return
+        except OSError as e:
+            print()
+            self._safe_print(f"Error writing to '{local_path}': {e}")
+            return
+
+        print()
+        print(
+            f"Downloaded {humanize_bytes(written)} from '{remote_path}' "
+            f"in '{vm_name}' to '{local_path}'."
+        )
+
+    def complete_download_file(self, text, line, begidx, endidx):
+        return self._complete_first_vm(text, line, begidx, endidx)
 
     def do_list_unused_volumes(self, args):
         """Lists all storage volumes that are not attached to any VM.

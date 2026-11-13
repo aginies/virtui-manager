@@ -44,6 +44,7 @@ from .events import (
     VMSelectionChanged,
 )
 from .modals.disk_pool_modals import SelectDiskModal
+from .modals.guest_agent_modal import GuestAgentModal
 from .modals.howto_modals import HowToModal
 from .modals.input_modals import InputModal, _sanitize_input
 from .modals.utils_modals import ConfirmationDialog, LoadingModal, ProgressModal, _confirm_message
@@ -118,6 +119,11 @@ class VMCardActions(Static):
                         )
                         yield Button(
                             ButtonLabels.DELETE_SNAPSHOT, id="snapshot_delete", variant="error"
+                        )
+                        yield Button(
+                            ButtonLabels.GUEST_AGENT,
+                            id="guest_agent",
+                            variant="default",
                         )
                     with Vertical():
                         yield Button(ButtonLabels.HIBERNATE_VM, id="hibernate", variant="primary")
@@ -1231,6 +1237,7 @@ class VMCard(Static):
             "connect": self._handle_connect_button,
             "web_console": self._handle_web_console_button,
             "tmux_console": self._handle_tmux_console_button,
+            "guest_agent": self._handle_guest_agent_button,
             "snapshot_take": self._handle_snapshot_take_button,
             "snapshot_restore": self._handle_snapshot_restore_button,
             "snapshot_delete": self._handle_snapshot_delete_button,
@@ -1251,6 +1258,12 @@ class VMCard(Static):
     def _handle_overlay_help(self) -> None:
         """Handles the overlay help button press."""
         self.app.push_screen(HowToModal("overlay"))
+
+    def _handle_guest_agent_button(self) -> None:
+        """Opens the guest agent modal (status, info, command, SSH keys)."""
+        if not self.vm:
+            return
+        self.app.push_screen(GuestAgentModal(self.vm, self.name))
 
     def _handle_create_overlay(self) -> None:
         """Handles the create overlay button press."""

@@ -101,6 +101,9 @@ class VMActionsModal(BaseModal[Optional[str]]):
         update("#configure-button", not is_loading)
         update("#snap_overlay_help", not is_loading)
         update("#snapshot_take", not is_loading)
+        # Guest agent is shown while the VM is up; the modal displays the
+        # agent's actual state (e.g. "not responding" while the guest is paused)
+        update("#guest_agent", is_running or is_paused)
 
         # XML button label
         for xml_button in self.query("#xml"):

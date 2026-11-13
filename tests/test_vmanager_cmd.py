@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from vmanager.vmanager_cmd import VManagerCMD
 from vmanager.deploy_config import DeployConfigError, load_deploy_config
+from vmanager.guest_agent import GuestAgentError
 from vmanager.constants import AppInfo
 from vmanager.provisioning.os_provider import OSType
 
@@ -1234,6 +1235,150 @@ class TestListShowJson(unittest.TestCase):
 
     def test_complete_list_json(self):
         self.assertEqual(self.cmd.complete_list_json("", None, None, None), [])
+
+
+class TestUploadFile(unittest.TestCase):
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_config = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_load_config.return_value = mock_config
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _connect_with_vm(self, vm_name="testvm"):
+        self.cmd.active_connections["local"] = MagicMock()
+        self.cmd.active_connections["local"].lookupByName.return_value = MagicMock(name=f"domain-{vm_name}")
+        return self.cmd.active_connections["local"].lookupByName.return_value
+
+    def test_upload_success(self):
+        domain = self._connect_with_vm()
+        with tempfile.NamedTemporaryFile() as f:
+            with patch("vmanager.vmanager_cmd.ga_upload_file", return_value=1) as mock_upload, \
+                 patch("vmanager.vmanager_cmd.agent_status", return_value="up"):
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_upload_file(f"testvm {f.name} /var/tmp")
+
+        mock_upload.assert_called_once()
+        args, kwargs = mock_upload.call_args
+        self.assertIs(args[0], domain)
+        self.assertEqual(args[1], f.name)
+        # Destination is a directory: the file keeps its local name
+        self.assertEqual(args[2], f"/var/tmp/{os.path.basename(f.name)}")
+        self.assertEqual(kwargs["mode"], "w")
+        self.assertIn("Uploaded", buf.getvalue())
+
+    def test_upload_destination_trailing_slash(self):
+        self._connect_with_vm()
+        with tempfile.NamedTemporaryFile() as f:
+            with patch("vmanager.vmanager_cmd.ga_upload_file", return_value=1) as mock_upload, \
+                 patch("vmanager.vmanager_cmd.agent_status", return_value="up"):
+                with redirect_stdout(io.StringIO()):
+                    self.cmd.do_upload_file(f"testvm {f.name} /var/tmp/")
+
+        args, _kwargs = mock_upload.call_args
+        self.assertEqual(args[2], f"/var/tmp/{os.path.basename(f.name)}")
+
+    def test_upload_append(self):
+        self._connect_with_vm()
+        with tempfile.NamedTemporaryFile() as f:
+            with patch("vmanager.vmanager_cmd.ga_upload_file", return_value=1) as mock_upload, \
+                 patch("vmanager.vmanager_cmd.agent_status", return_value="up"):
+                with redirect_stdout(io.StringIO()):
+                    self.cmd.do_upload_file(f"testvm {f.name} /var/tmp --append")
+
+        args, kwargs = mock_upload.call_args
+        self.assertEqual(args[2], f"/var/tmp/{os.path.basename(f.name)}")
+        self.assertEqual(kwargs["mode"], "a")
+
+    def test_upload_progress_callback(self):
+        self._connect_with_vm()
+        with tempfile.NamedTemporaryFile() as f:
+            with patch("vmanager.vmanager_cmd.ga_upload_file", return_value=1) as mock_upload, \
+                 patch("vmanager.vmanager_cmd.agent_status", return_value="up"):
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_upload_file(f"testvm {f.name} /var/tmp")
+                    # Simulate a progress report from inside the upload
+                    mock_upload.call_args.kwargs["progress_callback"](50, 100)
+
+        self.assertIn("50%", buf.getvalue())
+
+    def test_upload_not_connected(self):
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_upload_file("testvm /tmp/a /tmp")
+        self.assertIn("Not connected", buf.getvalue())
+
+    def test_upload_usage(self):
+        self._connect_with_vm()
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_upload_file("testvm /tmp/a")
+        self.assertIn("Usage: upload_file <vm_name> <local_path> <remote_dir> [--append]", buf.getvalue())
+
+    def test_upload_missing_local_file(self):
+        self._connect_with_vm()
+        with patch("vmanager.vmanager_cmd.ga_upload_file") as mock_upload, \
+             patch("vmanager.vmanager_cmd.agent_status", return_value="up"):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_upload_file("testvm /nonexistent/file /tmp")
+
+        mock_upload.assert_not_called()
+        self.assertIn("Local file not found", buf.getvalue())
+
+    def test_upload_vm_not_found(self):
+        with patch.object(self.cmd, "_find_domain", return_value=(None, None)):
+            with patch("vmanager.vmanager_cmd.ga_upload_file") as mock_upload:
+                with redirect_stdout(io.StringIO()):
+                    self.cmd.do_upload_file("testvm /tmp/a /tmp")
+
+        mock_upload.assert_not_called()
+
+    def test_upload_agent_not_configured(self):
+        self._connect_with_vm()
+        with patch("vmanager.vmanager_cmd.ga_upload_file") as mock_upload, \
+             patch("vmanager.vmanager_cmd.agent_status", return_value="not_configured"):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_upload_file("testvm /tmp/a /tmp")
+
+        mock_upload.assert_not_called()
+        self.assertIn("No guest agent channel configured", buf.getvalue())
+
+    def test_upload_agent_down(self):
+        self._connect_with_vm()
+        with patch("vmanager.vmanager_cmd.ga_upload_file") as mock_upload, \
+             patch("vmanager.vmanager_cmd.agent_status", return_value="down"):
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_upload_file("testvm /tmp/a /tmp")
+
+        mock_upload.assert_not_called()
+        self.assertIn("not responding", buf.getvalue())
+
+    def test_upload_guest_error(self):
+        self._connect_with_vm()
+        with tempfile.NamedTemporaryFile() as f:
+            with patch(
+                "vmanager.vmanager_cmd.ga_upload_file",
+                side_effect=GuestAgentError("guest-file-open failed: No such file or directory"),
+            ), patch("vmanager.vmanager_cmd.agent_status", return_value="up"):
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_upload_file(f"testvm {f.name} /no/such/dir")
+
+        self.assertIn("Error uploading", buf.getvalue())
+        self.assertIn("No such file or directory", buf.getvalue())
+
+    def test_complete_upload_file(self):
+        self._connect_with_vm("web01")
+        # First-argument completion is delegated to complete_select_vm; with no
+        # listed VMs it returns an empty list rather than raising.
+        self.assertEqual(self.cmd.complete_upload_file("", "upload_file ", 12, 12), [])
+        # Beyond the first argument: no completions
+        self.assertEqual(self.cmd.complete_upload_file("/tmp/x", "upload_file web01 /tmp/x", 24, 29), [])
 
 
 if __name__ == "__main__":
