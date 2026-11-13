@@ -14,7 +14,7 @@ from textual.screen import ScreenResultType
 from textual.widgets import Button, Input, Label, Markdown, ProgressBar, Select
 
 from ..constants import ButtonLabels, ErrorMessages, StaticText, SuccessMessages
-from ..guest_agent import GuestAgentError, UploadCancelled, ga_upload_file, is_available
+from ..guest_agent import GuestAgentError, UploadCancelledError, ga_upload_file, is_available
 from ..utils import humanize_bytes
 from .base_modals import BaseModal
 from .utils_modals import FileSelectionModal, show_guest_agent_error
@@ -158,7 +158,7 @@ class GuestUploadModal(BaseModal[None]):
                 )
             except Exception as exc:
                 # Capture before the except block deletes `exc`: the closure runs later.
-                if isinstance(exc, UploadCancelled):
+                if isinstance(exc, UploadCancelledError):
                     logging.info("Upload to %s cancelled: %s", self.vm_name, exc)
                 else:
                     logging.error("Upload to %s failed: %s", self.vm_name, exc)
@@ -168,7 +168,7 @@ class GuestUploadModal(BaseModal[None]):
                     self._finish_upload_ui()
                     if not self.is_mounted:
                         return
-                    if isinstance(error, UploadCancelled):
+                    if isinstance(error, UploadCancelledError):
                         self.app.show_warning_message(
                             StaticText.GUEST_UPLOAD_CANCELLED_TEMPLATE.format(
                                 bytes=humanize_bytes(error.bytes_written),

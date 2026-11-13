@@ -19,9 +19,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from vmanager import guest_agent
 from vmanager.guest_agent import (
-    DownloadCancelled,
+    DownloadCancelledError,
     GuestAgentError,
-    UploadCancelled,
+    UploadCancelledError,
     agent_status,
     ga_command,
     ga_download_file,
@@ -621,6 +621,25 @@ class TestGuestSSHKeys(unittest.TestCase):
         self.assertEqual(keys, [])
 
     @patch.object(guest_agent, "libvirt_qemu")
+    def test_get_keys_duplicates_collapsed(self, mock_lq):
+        # Duplicate lines in authorized_keys are common; they must be
+        # collapsed (order-preserving) or the UI table would crash with
+        # DuplicateKey.
+        mock_lq.qemuAgentCommand.return_value = _reply_json(
+            {
+                "return": {
+                    "keys": [
+                        "ssh-ed25519 AAAA user@host",
+                        "ssh-rsa BBBB other@host",
+                        "ssh-ed25519 AAAA user@host",
+                    ]
+                }
+            }
+        )
+        keys = ga_ssh_get_authorized_keys(_make_domain(), "root")
+        self.assertEqual(keys, ["ssh-ed25519 AAAA user@host", "ssh-rsa BBBB other@host"])
+
+    @patch.object(guest_agent, "libvirt_qemu")
     def test_get_keys_other_errors_still_raise(self, mock_lq):
         mock_lq.qemuAgentCommand.side_effect = libvirt.libvirtError(
             "guest agent command failed: unable to execute QEMU agent command "
@@ -812,7 +831,7 @@ class TestGuestUpload(unittest.TestCase):
             raise AssertionError(f"unexpected command {name}")
 
         mock_ga.side_effect = fake
-        with self.assertRaises(UploadCancelled) as ctx:
+        with self.assertRaises(UploadCancelledError) as ctx:
             ga_upload_file(_make_domain(), path, "/tmp/c.bin", cancel_event=cancel)
         # one chunk written, then the handle is closed and no more writes
         self.assertEqual(len(written), 1)
@@ -978,7 +997,7 @@ class TestGuestDownload(unittest.TestCase):
             raise AssertionError(f"unexpected command {name}")
 
         mock_ga.side_effect = fake
-        with self.assertRaises(DownloadCancelled) as ctx:
+        with self.assertRaises(DownloadCancelledError) as ctx:
             ga_download_file(
                 _make_domain(), "/etc/c.bin", self._local_path("c.bin"), cancel_event=cancel
             )

@@ -28,7 +28,7 @@ from .backup_manager import BackupManager, BackupOptions, BackupType
 from .config import get_log_path, load_config
 from .constants import AppInfo, ServerPalette
 from .guest_agent import (
-    DownloadCancelled,
+    DownloadCancelledError,
     GuestAgentError,
     agent_status,
     ga_download_file,
@@ -2441,7 +2441,7 @@ class VManagerCMD(cmd.Cmd):
                 mode="a" if append else "w",
                 progress_callback=on_progress,
             )
-        except DownloadCancelled as e:
+        except DownloadCancelledError as e:
             print()
             print(f"Download cancelled after {humanize_bytes(e.bytes_read)}.")
             return

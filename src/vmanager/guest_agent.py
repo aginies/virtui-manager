@@ -62,7 +62,7 @@ class GuestAgentError(Exception):
         self.command = command
 
 
-class UploadCancelled(Exception):
+class UploadCancelledError(Exception):
     """Raised when a file upload is cancelled between chunks.
 
     Attributes:
@@ -76,7 +76,7 @@ class UploadCancelled(Exception):
         self.total_bytes = total_bytes
 
 
-class DownloadCancelled(Exception):
+class DownloadCancelledError(Exception):
     """Raised when a file download is cancelled between chunks.
 
     Attributes:
@@ -331,7 +331,7 @@ def ga_upload_file(
     The agent runs as root inside the guest: the destination file is
     created root-owned and its parent directory must already exist.
 
-    Returns the number of bytes written. Raises UploadCancelled if
+    Returns the number of bytes written. Raises UploadCancelledError if
     cancel_event is set between chunks (the guest handle is closed).
     """
     if mode not in ("w", "a"):
@@ -355,7 +355,7 @@ def ga_upload_file(
         with open(local_path, "rb") as local_file:
             while True:
                 if cancel_event is not None and cancel_event.is_set():
-                    raise UploadCancelled(bytes_written, total_size)
+                    raise UploadCancelledError(bytes_written, total_size)
                 chunk = local_file.read(UPLOAD_CHUNK_SIZE)
                 if not chunk:
                     break
@@ -392,7 +392,7 @@ def ga_download_file(
     can be downloaded. The total size of the remote file is not known ahead
     of time, so progress callbacks receive only the cumulative bytes read.
 
-    Returns the number of bytes written. Raises DownloadCancelled if
+    Returns the number of bytes read. Raises DownloadCancelledError if
     cancel_event is set between chunks (the guest handle is closed).
     """
     if mode not in ("w", "a"):
@@ -415,7 +415,7 @@ def ga_download_file(
         with open(local_path, "ab" if mode == "a" else "wb") as local_file:
             while True:
                 if cancel_event is not None and cancel_event.is_set():
-                    raise DownloadCancelled(bytes_read)
+                    raise DownloadCancelledError(bytes_read)
                 result = ga_command(
                     domain,
                     "guest-file-read",
@@ -753,7 +753,10 @@ def ga_ssh_get_authorized_keys(domain: libvirt.virDomain, user: str) -> list[str
         result = result.get("keys")
     if not isinstance(result, list):
         return []
-    return [k for k in result if isinstance(k, str)]
+    # Deduplicate (order-preserving): duplicate lines in authorized_keys are
+    # common, and the UI uses the key as a DataTable row key, where duplicates
+    # would raise DuplicateKey.
+    return list(dict.fromkeys(k for k in result if isinstance(k, str)))
 
 
 def ga_ssh_remove_authorized_keys(domain: libvirt.virDomain, user: str, keys: list[str]) -> None:

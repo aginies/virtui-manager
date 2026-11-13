@@ -52,7 +52,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.6.0"
+    version = "3.6.1"
     author = "Antoine Ginies"
     copyright_years = "2025-2026"
 
@@ -902,6 +902,7 @@ Specify the NUMA nodes to use.
     GUEST_AGENT_TITLE_TEMPLATE = _("Guest Agent: {vm_name}")
     GUEST_AGENT_STATUS_LABEL = _("Guest agent")
     GUEST_AGENT_STATUS_RUNNING = _("[green]Running[/green] (v{version})")
+    GUEST_AGENT_STATUS_RUNNING_UNKNOWN = _("[green]Running[/green] (version unknown)")
     GUEST_AGENT_STATUS_DOWN = _("[yellow]Configured, not responding[/yellow]")
     GUEST_AGENT_STATUS_NOT_CONFIGURED = _("[red]Not configured[/red] (no agent channel)")
     GUEST_AGENT_STATUS_NOT_RUNNING = _("[red]VM not running[/red]")

@@ -15,7 +15,7 @@ from textual.screen import ScreenResultType
 from textual.widgets import Button, Input, Label, Markdown, ProgressBar, Select
 
 from ..constants import ButtonLabels, DialogMessages, ErrorMessages, StaticText, SuccessMessages
-from ..guest_agent import DownloadCancelled, GuestAgentError, ga_download_file, is_available
+from ..guest_agent import DownloadCancelledError, GuestAgentError, ga_download_file, is_available
 from ..utils import humanize_bytes
 from .base_modals import BaseModal
 from .utils_modals import (
@@ -197,7 +197,7 @@ class GuestDownloadModal(BaseModal[None]):
                 )
             except Exception as exc:
                 # Capture before the except block deletes `exc`: the closure runs later.
-                if isinstance(exc, DownloadCancelled):
+                if isinstance(exc, DownloadCancelledError):
                     logging.info("Download from %s cancelled: %s", self.vm_name, exc)
                 else:
                     logging.error("Download from %s failed: %s", self.vm_name, exc)
@@ -207,7 +207,7 @@ class GuestDownloadModal(BaseModal[None]):
                     self._finish_download_ui()
                     if not self.is_mounted:
                         return
-                    if isinstance(error, DownloadCancelled):
+                    if isinstance(error, DownloadCancelledError):
                         self.app.show_warning_message(
                             StaticText.GUEST_DOWNLOAD_CANCELLED_TEMPLATE.format(
                                 bytes=humanize_bytes(error.bytes_read)

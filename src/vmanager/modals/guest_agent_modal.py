@@ -182,7 +182,14 @@ class GuestAgentModal(BaseModal[None]):
                 status = agent_status(self.domain)
                 data["status"] = status
                 if status == "running":
-                    data["supported"] = ga_supported(self.domain)
+                    try:
+                        data["supported"] = ga_supported(self.domain)
+                    except GuestAgentError as e:
+                        if e.reason != "unsupported":
+                            raise
+                        # 'guest-info' only exists on QEMU >= 9.2 agents; older
+                        # agents still work, we just cannot report a version.
+                        data["supported"] = {}
                     data["info"] = ga_info(self.domain)
                     data["fsinfo"] = ga_fsinfo(self.domain)
                     try:
@@ -227,10 +234,13 @@ class GuestAgentModal(BaseModal[None]):
         hint_display = False
         if status == "running":
             version = data.get("supported", {}).get("version", "unknown")
-            set_label(
-                "guest-agent-status",
-                StaticText.GUEST_AGENT_STATUS_RUNNING.format(version=version),
-            )
+            if version == "unknown":
+                set_label("guest-agent-status", StaticText.GUEST_AGENT_STATUS_RUNNING_UNKNOWN)
+            else:
+                set_label(
+                    "guest-agent-status",
+                    StaticText.GUEST_AGENT_STATUS_RUNNING.format(version=version),
+                )
             info = data.get("info", {})
             osinfo = info.get("os", {})
             set_label("guest-hostname", info.get("hostname") or "N/A")
