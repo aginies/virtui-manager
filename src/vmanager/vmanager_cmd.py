@@ -37,6 +37,13 @@ from .guest_agent import (
 )
 from .host_capabilities import has_secure_vm_capability
 from .libvirt_error_handler import register_error_handler
+from .machine_mode import (
+    EXIT_OPERATION,
+    EXIT_USAGE,
+    MachineError,
+    MachineSession,
+    run_command,
+)
 from .libvirt_utils import (
     get_cpu_models,
     get_host_architecture,
@@ -160,6 +167,9 @@ class VManagerCMD(cmd.Cmd):
     def __init__(self, vm_service=None):
         super().__init__()
         self.yes_mode = False
+        # The MachineSession of a --machine run, None for a human. A command that
+        # can be driven either way answers through it instead of printing.
+        self.machine = None
 
         # Setup logging
         try:
@@ -5751,6 +5761,15 @@ def main():
         action="store_true",
         help="With --json: show a summary of the deployment without provisioning",
     )
+    parser.add_argument(
+        "--machine",
+        action="store_true",
+        help=(
+            "With -c: answer with one JSON object on stdout, send prose to stderr, "
+            "report progress as it happens, and exit with a status that says what "
+            "happened"
+        ),
+    )
     args = parser.parse_args()
 
     # Show help if -c/--command passed with no value
@@ -5758,8 +5777,33 @@ def main():
         parser.print_help()
         return
 
+    if args.machine and not args.command:
+        print("Error: --machine needs -c/--command.", file=sys.stderr)
+        return EXIT_USAGE
+
+    # Machine-readable mode sends prose to stderr from the start: setting up the
+    # command shell prints a terminal title, and stdout is for the answer.
+    human_stdout = sys.stdout
+    if args.machine:
+        sys.stdout = sys.stderr
+
     cmd_app = VManagerCMD()
     cmd_app.yes_mode = bool(args.command)
+
+    if args.machine:
+        # From here on everything the command prints is a log line; stdout carries
+        # only the JSON object the caller is waiting for.
+        session = MachineSession(args.command)
+        try:
+            cmd_app.preloop()
+            status = run_command(cmd_app, args.command, session)
+        except KeyboardInterrupt:
+            status = session.fail(MachineError("Interrupted.", EXIT_OPERATION, "interrupted"))
+        except Exception as e:  # MachineError, or whatever a command let escape
+            status = session.fail(e)
+        finally:
+            sys.stdout = human_stdout
+        return status
 
     # Config-driven deployment (non-interactive): load JSON, connect, provision.
     if args.json:

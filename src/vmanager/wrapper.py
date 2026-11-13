@@ -22,7 +22,8 @@ def cmd_main():
         from vmanager import vmanager_cmd
 
         if hasattr(vmanager_cmd, "main"):
-            vmanager_cmd.main()
+            # main() returns the exit status a --machine caller reads.
+            sys.exit(vmanager_cmd.main())
         else:
             print("Error: vmanager_cmd module has no 'main' function.")
             sys.exit(1)
