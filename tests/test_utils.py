@@ -17,6 +17,7 @@ from vmanager.utils import (
     get_server_color_cached,
     humanize_bytes,
     is_running_under_flatpak,
+    sanitize_credentials,
     setup_cache_monitoring,
     setup_logging,
     snake_case_keys,
@@ -205,6 +206,40 @@ class TestSnakeCaseKeys(unittest.TestCase):
         self.assertEqual(snake_case_keys("a-b"), "a-b")
         self.assertEqual(snake_case_keys(42), 42)
         self.assertIsNone(snake_case_keys(None))
+
+
+class TestSanitizeCredentials(unittest.TestCase):
+    """The hostname lookahead used to stop at a port, so the commonest real URI
+    (``@host:port``) came back with its password intact."""
+
+    def test_password_is_redacted(self):
+        self.assertEqual(
+            sanitize_credentials("qemu+ssh://admin:s3cret@host/system"),
+            "qemu+ssh://admin:***@host/system",
+        )
+
+    def test_password_is_redacted_when_the_host_has_a_port(self):
+        self.assertEqual(
+            sanitize_credentials("qemu+ssh://admin:s3cret@192.168.1.5:16514/system"),
+            "qemu+ssh://admin:***@192.168.1.5:16514/system",
+        )
+
+    def test_password_is_redacted_inside_quotes(self):
+        # how the connection manager words its failure log
+        message = "Failed to connect to 'qemu+ssh://admin:s3cret@host:22' (Attempt 1/3)"
+        self.assertNotIn("s3cret", sanitize_credentials(message))
+
+    def test_password_with_an_at_sign_is_redacted(self):
+        self.assertEqual(
+            sanitize_credentials("qemu+ssh://admin:p@ss@host/system"),
+            "qemu+ssh://admin:***@host/system",
+        )
+
+    def test_a_username_without_a_password_is_left_alone(self):
+        self.assertEqual(
+            sanitize_credentials("qemu+ssh://admin@host:22/system"),
+            "qemu+ssh://admin@host:22/system",
+        )
 
 
 if __name__ == "__main__":
