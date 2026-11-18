@@ -234,6 +234,7 @@ class VManagerCMD(cmd.Cmd):
                 "status",
                 "vm_info",
                 "vm_stats",
+                "show_vm_xml",
                 "show_selection",
             ],
             "VM Operations": [
@@ -1738,6 +1739,41 @@ class VManagerCMD(cmd.Cmd):
                     print(f"Could not retrieve info for '{vm_name}': {e}")
 
     def complete_vm_info(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_show_vm_xml(self, args):
+        """Show the libvirt XML configuration of one or more VMs.
+        Usage: show_vm_xml [--config] [vm_name_1] [vm_name_2] ...
+        If no VM names are provided, it will show XML for the selected VMs.
+        --config shows the persistent configuration of a running VM
+        instead of its current runtime state."""
+        arg_list = args.split()
+        show_config = "--config" in arg_list
+        args = " ".join(a for a in arg_list if a != "--config")
+
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vms_to_check = self._get_vms_to_operate(args)
+        if not vms_to_check:
+            return
+
+        flags = libvirt.VIR_DOMAIN_XML_INACTIVE if show_config else 0
+        for server_name, vm_list in vms_to_check.items():
+            conn = self.active_connections[server_name]
+            for vm_name in vm_list:
+                try:
+                    domain = conn.lookupByName(vm_name)
+                    xml = domain.XMLDesc(flags)
+                    print(
+                        f"\n--- XML for {self._colorize(vm_name, server_name)} on {server_name} ---"
+                    )
+                    print(xml)
+                except libvirt.libvirtError as e:
+                    print(f"Could not retrieve XML for '{vm_name}': {e}")
+
+    def complete_show_vm_xml(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_vm_stats(self, args):
