@@ -27,7 +27,7 @@ _URI_CREDENTIAL_PATTERN = re.compile(
     r"([^:@/]+)"  # username
     r":(.+?)"  # password (non-greedy capture to redact)
     r"(@)"  # @ before host
-    r"(?=[a-zA-Z0-9.\-]+(?:/|$|\s))",  # lookahead for hostname pattern
+    r"(?=[a-zA-Z0-9.\-]+(?::[0-9]+)?(?:/|$|\s|[\"']))",  # host, optional :port, then a delimiter
     re.IGNORECASE,
 )
 

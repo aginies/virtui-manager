@@ -1381,5 +1381,109 @@ class TestUploadFile(unittest.TestCase):
         self.assertEqual(self.cmd.complete_upload_file("/tmp/x", "upload_file web01 /tmp/x", 24, 29), [])
 
 
+class TestUriOption(unittest.TestCase):
+    """Tests for ``vmc -u/--uri``, the hypervisor a scripted caller names."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": True},
+                {"name": "other", "uri": "qemu+ssh://user@other/system", "autoconnect": True},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def test_without_uri_the_configured_servers_connect(self):
+        self.mock_vm_service.connect.return_value = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd._perform_autoconnect()
+        self.assertEqual(self.mock_vm_service.connect.call_count, 2, "both autoconnect servers")
+
+    def test_uri_connects_to_that_hypervisor_only(self):
+        self.mock_vm_service.connect.return_value = MagicMock()
+        self.cmd.default_uri = "qemu+ssh://root@h1/system"
+        with patch("sys.stdout", MagicMock()):
+            self.cmd._perform_autoconnect()
+        self.mock_vm_service.connect.assert_called_once_with("qemu+ssh://root@h1/system")
+        self.assertIn("h1", self.cmd.active_connections)
+
+    def test_a_uri_that_does_not_connect_leaves_nothing_selected(self):
+        """A caller that named a hypervisor it cannot reach gets no half-open run."""
+        self.mock_vm_service.connect.return_value = None
+        self.cmd.default_uri = "qemu+ssh://root@down/system"
+        with patch("sys.stdout", MagicMock()):
+            self.cmd._perform_autoconnect()
+        self.assertEqual(self.cmd.active_connections, {})
+        self.assertEqual(self.cmd.selected_vms, {})
+
+    def test_uri_replaces_the_server_of_a_deployment_file(self):
+        """``-u`` wins over the file, so one file can go to any hypervisor."""
+        calls = []
+
+        def stop(target):
+            calls.append(target)
+            raise RuntimeError("enough of the deployment")
+
+        self.cmd._connect_one = stop
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(
+                {
+                    "server": "local",
+                    "vm_name": "v",
+                    "vm_type": "server",
+                    "iso": {"source": "url", "url": "http://h/x.iso"},
+                },
+                f,
+            )
+            cfg = f.name
+        self.addCleanup(os.unlink, cfg)
+
+        self.cmd.default_uri = "qemu:///system"
+        with patch("sys.stdout", MagicMock()), self.assertRaises(RuntimeError):
+            self.cmd.deploy_from_config(cfg)
+        self.assertEqual(calls, ["qemu:///system"])
+
+    def test_a_uri_that_will_not_connect_is_echoed_without_its_password(self):
+        """The uri comes back when the connect fails, so it comes back masked."""
+        self.cmd._connect_one = lambda target: None
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(
+                {
+                    "server": "local",
+                    "vm_name": "v",
+                    "vm_type": "server",
+                    "iso": {"source": "url", "url": "http://h/x.iso"},
+                },
+                f,
+            )
+            cfg = f.name
+        self.addCleanup(os.unlink, cfg)
+
+        self.cmd.default_uri = "qemu+ssh://admin:SUP3RSECRET@h/system"
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.deploy_from_config(cfg)
+
+        answer = buf.getvalue()
+        self.assertIn("Could not connect to server", answer)
+        self.assertNotIn("SUP3RSECRET", answer)
+
+    def test_a_named_hypervisor_selects_no_vms(self):
+        """Reaching a hypervisor is not the same as having picked a VM on it."""
+        conn = MagicMock()
+        self.mock_vm_service.connect.return_value = conn
+        self.cmd.default_uri = "qemu:///system"
+        with patch("sys.stdout", MagicMock()):
+            self.cmd._perform_autoconnect()
+        self.assertEqual(list(self.cmd.active_connections), ["Local"])
+        self.assertIs(self.cmd.active_connections["Local"], conn)
+        self.assertEqual(self.cmd.selected_vms, {})
+
+
 if __name__ == "__main__":
     unittest.main()
