@@ -27,6 +27,8 @@ try:
 except (ValueError, ImportError):
     SPICE_AVAILABLE = False
 
+from ..constants import SPICE_CLIPBOARD_SYNC_ENABLED
+
 
 class ClipboardHandler:
     """
@@ -42,6 +44,7 @@ class ClipboardHandler:
         vnc_display,
         spice_gtk_session,
         display_widget=None,
+        spice_agent_connected: Optional[Callable[[], bool]] = None,
         log_callback: Optional[Callable[[str], None]] = None,
         notification_callback: Optional[Callable[[str, Gtk.MessageType], None]] = None,
         verbose: bool = False,
@@ -55,6 +58,8 @@ class ClipboardHandler:
             vnc_display: VNC display widget (if using VNC)
             spice_gtk_session: SPICE GTK session (if using SPICE)
             display_widget: Current display widget (for typing)
+            spice_agent_connected: Callable returning whether the guest SPICE
+                agent is connected (clipboard actions are only supported then)
             log_callback: Function to call for logging
             notification_callback: Function to call for notifications
             verbose: Whether to print verbose output
@@ -64,6 +69,7 @@ class ClipboardHandler:
         self.vnc_display = vnc_display
         self.spice_gtk_session = spice_gtk_session
         self.display_widget = display_widget
+        self.spice_agent_connected = spice_agent_connected
         self.verbose = verbose
 
         self.log = log_callback if log_callback else lambda msg: None
@@ -73,6 +79,12 @@ class ClipboardHandler:
         self.last_clipboard_content: Optional[str] = None
         self.last_guest_clipboard: Optional[str] = None
         self.clipboard_update_in_progress: bool = False
+
+    def _spice_clipboard_supported(self) -> bool:
+        """Check whether the guest supports clipboard actions (agent connected)."""
+        if self.spice_agent_connected is None:
+            return True  # Unknown; let spice-gtk decide
+        return self.spice_agent_connected()
 
     def on_server_cut_text(self, vnc, text):
         """
@@ -168,11 +180,22 @@ class ClipboardHandler:
                     self.vnc_display.client_cut_text(text)
                     self.log(f"Clipboard: Manually pushed {len(text)} characters to guest (VNC)")
                 elif self.protocol == "spice" and self.spice_gtk_session:
-                    try:
-                        self.spice_gtk_session.copy_to_guest()
-                        self.log(f"Clipboard: Triggered manual SPICE push ({len(text)} chars)")
-                    except Exception as e:
-                        self.log(f"Manual SPICE push failed: {e}")
+                    if not SPICE_CLIPBOARD_SYNC_ENABLED:
+                        self.notify(
+                            "SPICE clipboard sync is disabled. Use 'Type' to send text to the guest.",
+                            Gtk.MessageType.WARNING,
+                        )
+                    elif not self._spice_clipboard_supported():
+                        self.notify(
+                            "Guest does not support clipboard (SPICE agent not connected).",
+                            Gtk.MessageType.WARNING,
+                        )
+                    else:
+                        try:
+                            self.spice_gtk_session.copy_to_guest()
+                            self.log(f"Clipboard: Triggered manual SPICE push ({len(text)} chars)")
+                        except Exception as e:
+                            self.log(f"Manual SPICE push failed: {e}")
             else:
                 self.notify("Local clipboard is empty.", Gtk.MessageType.WARNING)
 
@@ -201,12 +224,23 @@ class ClipboardHandler:
                 f"Restored {len(text)} chars from guest clipboard cache.", Gtk.MessageType.INFO
             )
         elif self.protocol == "spice" and self.spice_gtk_session:
-            try:
-                self.spice_gtk_session.paste_from_guest()
-                self.log("Clipboard: Triggered manual SPICE pull")
-                self.notify("Requested guest clipboard (SPICE).", Gtk.MessageType.INFO)
-            except Exception as e:
-                self.log(f"Manual SPICE pull failed: {e}")
+            if not SPICE_CLIPBOARD_SYNC_ENABLED:
+                self.notify(
+                    "SPICE clipboard sync is disabled. Use 'Type' to send text to the guest.",
+                    Gtk.MessageType.WARNING,
+                )
+            elif not self._spice_clipboard_supported():
+                self.notify(
+                    "Guest does not support clipboard (SPICE agent not connected).",
+                    Gtk.MessageType.WARNING,
+                )
+            else:
+                try:
+                    self.spice_gtk_session.paste_from_guest()
+                    self.log("Clipboard: Triggered manual SPICE pull")
+                    self.notify("Requested guest clipboard (SPICE).", Gtk.MessageType.INFO)
+                except Exception as e:
+                    self.log(f"Manual SPICE pull failed: {e}")
         else:
             self.notify("No clipboard content received from guest yet.", Gtk.MessageType.INFO)
 

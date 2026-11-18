@@ -26,7 +26,11 @@ try:
 except (ValueError, ImportError):
     SPICE_AVAILABLE = False
 
-from .constants import SSH_TUNNEL_CONNECT_DELAY_MS, RECONNECT_DELAY_MS
+from .constants import (
+    SSH_TUNNEL_CONNECT_DELAY_MS,
+    RECONNECT_DELAY_MS,
+    SPICE_CLIPBOARD_SYNC_ENABLED,
+)
 
 
 class DisplaySettings:
@@ -89,6 +93,8 @@ class DisplayManager:
         self.vnc_display: Optional[GtkVnc.Display] = None
         self.spice_session: Optional = None
         self.spice_gtk_session: Optional = None
+        # Whether the guest SPICE agent (vdagent) is connected
+        self.spice_agent_connected = False
 
         # Protocol state
         self.protocol: Optional[str] = None  # 'vnc' or 'spice'
@@ -294,7 +300,12 @@ class DisplayManager:
 
         try:
             self.spice_gtk_session = SpiceClientGtk.GtkSession.get(self.spice_session)
-            self.spice_gtk_session.set_property("auto-clipboard", True)
+            if SPICE_CLIPBOARD_SYNC_ENABLED:
+                # Only auto-sync clipboard when the guest agent supports it,
+                # otherwise spice-gtk warns about unsupported clipboard actions
+                self.spice_gtk_session.set_property(
+                    "auto-clipboard", self.spice_agent_connected
+                )
         except Exception as e:
             if self.verbose:
                 print(f"Failed to configure SPICE clipboard: {e}")
@@ -690,31 +701,44 @@ class DisplayManager:
 
         # Connect clipboard signals for Main channel
         if SPICE_AVAILABLE and isinstance(channel, SpiceClientGLib.MainChannel):
-            if self.verbose:
+            if SPICE_CLIPBOARD_SYNC_ENABLED and self.verbose:
                 print("Connecting to SPICE MainChannel clipboard signals")
-            
-            # Request data when guest grabs the clipboard
-            GObject.Object.connect(
-                channel, "main-clipboard-selection-grab", self.on_spice_clipboard_selection_grab
-            )
-            
-            # Handle received data
-            GObject.Object.connect(
-                channel, "main-clipboard-selection-data", self.on_spice_clipboard_selection_data
-            )
-            
+
+            if SPICE_CLIPBOARD_SYNC_ENABLED:
+                # Request data when guest grabs the clipboard
+                GObject.Object.connect(
+                    channel,
+                    "main-clipboard-selection-grab",
+                    self.on_spice_clipboard_selection_grab,
+                )
+
+                # Handle received data
+                GObject.Object.connect(
+                    channel,
+                    "main-clipboard-selection-data",
+                    self.on_spice_clipboard_selection_data,
+                )
+
             # Monitor agent status
             GObject.Object.connect(
                 channel, "notify::agent-connected", self.on_spice_agent_connected
             )
-            
+
             # Initial check
             if channel.get_property("agent-connected"):
+                self.spice_agent_connected = True
+                if SPICE_CLIPBOARD_SYNC_ENABLED and self.spice_gtk_session:
+                    self.spice_gtk_session.set_property("auto-clipboard", True)
                 self.log("SPICE Agent is connected and active.")
 
     def on_spice_agent_connected(self, channel, pspec):
         """Handle SPICE agent connection status changes."""
         connected = channel.get_property("agent-connected")
+        self.spice_agent_connected = connected
+        # The SPICE server only supports clipboard actions while the guest
+        # agent is connected; toggle auto-sync to avoid spice-gtk warnings
+        if SPICE_CLIPBOARD_SYNC_ENABLED and self.spice_gtk_session:
+            self.spice_gtk_session.set_property("auto-clipboard", connected)
         if connected:
             self.log("SPICE Agent connected.")
         else:
@@ -818,6 +842,7 @@ class DisplayManager:
         elif self.protocol == "spice" and self.spice_session:
             if self.spice_session.is_connected():
                 self.spice_session.disconnect()
+            self.spice_agent_connected = False
 
     def is_connected(self) -> bool:
         """Check if display is connected."""

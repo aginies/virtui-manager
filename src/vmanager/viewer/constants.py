@@ -51,6 +51,13 @@ RECONNECT_DELAY_MS = 500
 # Delay before reconnecting SPICE after manual disconnect (milliseconds)
 SPICE_RECONNECT_DELAY_MS = 800
 
+# Enable SPICE clipboard synchronization (auto-clipboard, guest clipboard
+# grab/data handling, and manual push/pull via copy_to_guest/paste_from_guest).
+# Disabled: some spice-gtk/server combinations log "Server does not support
+# clipboard" warnings for these actions. The 'Type' action still works as a
+# fallback to send text to the guest.
+SPICE_CLIPBOARD_SYNC_ENABLED = False
+
 
 # ============================================================================
 # Libvirt Event Processing Constants
@@ -74,5 +81,6 @@ __all__ = [
     "SHUTDOWN_CHECK_MAX_POLLS",
     "RECONNECT_DELAY_MS",
     "SPICE_RECONNECT_DELAY_MS",
+    "SPICE_CLIPBOARD_SYNC_ENABLED",
     "LIBVIRT_EVENT_TICK_INTERVAL_MS",
 ]

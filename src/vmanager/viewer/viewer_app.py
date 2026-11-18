@@ -542,6 +542,7 @@ class RemoteViewer(Gtk.Application):
             vnc_display=self.display_manager.vnc_display,
             spice_gtk_session=self.display_manager.spice_gtk_session,
             display_widget=self.display_manager.display_widget,
+            spice_agent_connected=self.display_manager.spice_agent_connected,
             log_callback=self._log_message,
             notification_callback=self._show_notification,
             verbose=self.verbose,
