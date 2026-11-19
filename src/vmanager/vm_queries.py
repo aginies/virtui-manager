@@ -155,18 +155,37 @@ def get_vm_firmware_info(root: ET.Element) -> dict:
         os_elem = root.find("os")
 
         if os_elem is not None:
+            # libvirt 9.0+ exposes the firmware type directly on <os>.
+            if os_elem.get("firmware") == "efi":
+                firmware_info["type"] = "UEFI"
+
+            # Any <loader> element points at an EFI firmware image (OVMF,
+            # etc.). The type attribute (pflash, rom, elf, raw) does not
+            # change that, so do not restrict the check to 'pflash'.
             loader_elem = os_elem.find("loader")
-            if loader_elem is not None and loader_elem.get("type") == "pflash":
+            if loader_elem is not None:
+                firmware_info["type"] = "UEFI"
                 loader_path = loader_elem.text
                 if loader_path:
-                    firmware_info["type"] = "UEFI"
                     firmware_info["path"] = loader_path
-                    if loader_elem.get("secure") == "yes":
+                if loader_elem.get("secure") == "yes":
+                    firmware_info["secure_boot"] = True
+
+            # libvirt 9.0+ lists secure-boot features under <firmware>.
+            firmware_elem = os_elem.find("firmware")
+            if firmware_elem is not None:
+                for feature in firmware_elem.findall("feature"):
+                    if (
+                        feature.get("name") == "secure-boot"
+                        and feature.get("enabled") == "yes"
+                    ):
                         firmware_info["secure_boot"] = True
-            else:
-                bootloader_elem = os_elem.find("bootloader")
-                if bootloader_elem is not None:
-                    firmware_info["type"] = "BIOS"
+
+            # <bootloader> (SeaBIOS-style) means BIOS. It is mutually
+            # exclusive with <loader>, so only apply it when no loader was
+            # found.
+            if loader_elem is None and os_elem.find("bootloader") is not None:
+                firmware_info["type"] = "BIOS"
 
     except Exception:
         pass  # Return default values if error

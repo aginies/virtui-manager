@@ -149,6 +149,50 @@ class TestVMQueries(unittest.TestCase):
         self.assertIsInstance(firmware, dict)
         self.assertEqual(firmware["type"], "UEFI")
 
+    def test_get_vm_firmware_info_rom_loader(self):
+        """A <loader> with type='rom' (or no type) is still UEFI, not just pflash."""
+        xml = (
+            "<domain><os><type arch='x86_64'>hvm</type>"
+            "<loader type='rom' stateless='yes'>/usr/share/OVMF/OVMF_CODE.fd</loader>"
+            "</os></domain>"
+        )
+        firmware = get_vm_firmware_info(ET.fromstring(xml))
+        self.assertEqual(firmware["type"], "UEFI")
+        self.assertEqual(firmware["path"], "/usr/share/OVMF/OVMF_CODE.fd")
+
+    def test_get_vm_firmware_info_tdx(self):
+        """TDX guest: <os firmware='efi'> + <firmware> secure-boot feature."""
+        xml = """<domain><os firmware='efi'>
+          <type arch='x86_64' machine='pc-q35-11.0'>hvm</type>
+          <firmware>
+            <feature enabled='yes' name='enrolled-keys'/>
+            <feature enabled='yes' name='secure-boot'/>
+          </firmware>
+          <loader type='rom' stateless='yes' format='raw'>/usr/share/qemu/ovmf-x86_64-tdx-secureboot.bin</loader>
+        </os></domain>"""
+        firmware = get_vm_firmware_info(ET.fromstring(xml))
+        self.assertEqual(firmware["type"], "UEFI")
+        self.assertEqual(firmware["path"], "/usr/share/qemu/ovmf-x86_64-tdx-secureboot.bin")
+        self.assertTrue(firmware["secure_boot"])
+
+    def test_get_vm_firmware_info_bootloader_is_bios(self):
+        """A <bootloader> (SeaBIOS-style) with no loader is BIOS."""
+        xml = (
+            "<domain><os><type arch='x86_64'>hvm</type>"
+            "<bootloader>/usr/share/seabios/bios.bin</bootloader>"
+            "</os></domain>"
+        )
+        firmware = get_vm_firmware_info(ET.fromstring(xml))
+        self.assertEqual(firmware["type"], "BIOS")
+
+    def test_get_vm_firmware_info_default_bios(self):
+        """No loader/bootloader defaults to BIOS."""
+        xml = "<domain><os><type arch='x86_64'>hvm</type></os></domain>"
+        firmware = get_vm_firmware_info(ET.fromstring(xml))
+        self.assertEqual(firmware["type"], "BIOS")
+        self.assertIsNone(firmware["path"])
+        self.assertFalse(firmware["secure_boot"])
+
     def test_get_vm_network_dns_gateway_info(self):
         """Test getting VM network DNS gateway information."""
         mock_network = MagicMock()
