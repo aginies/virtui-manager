@@ -93,6 +93,7 @@ from .vm_actions import (
     pause_vm,
     rename_vm,
     restore_vm_snapshot,
+    set_vm_video_model,
     start_vm,
     stop_vm,
 )
@@ -248,6 +249,7 @@ class VManagerCMD(cmd.Cmd):
                 "delete",
                 "clone_vm",
                 "rename_vm",
+                "change_video",
                 "installvm",
                 "view",
             ],
@@ -2294,6 +2296,78 @@ class VManagerCMD(cmd.Cmd):
             return []
 
         return self.complete_select_vm(text, line, begidx, endidx)
+
+    def do_change_video(self, args):
+        """Change the video model of a stopped VM.
+        Usage: change_video <vm_name> <model> [--3d]
+        model is one of the host-supported models (see 'info'), or 'none'
+        to disable video (no default video device is added). 3D
+        acceleration (virtio and qxl only) is off unless --3d is given."""
+        arg_list = args.split()
+        if "--3d" in arg_list:
+            accel3d = True
+            arg_list = [a for a in arg_list if a != "--3d"]
+        else:
+            accel3d = False
+
+        if len(arg_list) != 2:
+            print("Usage: change_video <vm_name> <model> [--3d]")
+            return
+
+        vm_name, model = arg_list
+
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        domain, server_name = self._find_domain(vm_name)
+        if not domain:
+            return
+
+        # Validate against host capabilities when available; otherwise let
+        # libvirt reject an unknown model at define time.
+        if model != "none":
+            try:
+                caps = get_host_domain_capabilities(self.active_connections[server_name])
+                supported = get_video_domain_capabilities(caps or "").get("video_models", [])
+                if supported and model not in supported:
+                    self._safe_print(
+                        f"Model '{model}' is not supported by this host "
+                        f"(supported: {', '.join(supported)})."
+                    )
+                    return
+            except libvirt.libvirtError:
+                pass
+
+        if accel3d and model not in ("virtio", "qxl"):
+            self._safe_print(f"Note: 3D acceleration is only available for virtio and qxl, "
+                             f"ignoring --3d for '{model}'.")
+            accel3d = None
+
+        try:
+            set_vm_video_model(domain, model, accel3d=accel3d)
+            self.vm_service.invalidate_domain_cache()
+            print(f"Video model of '{vm_name}' set to "
+                  f"{'(disabled)' if model == 'none' else model} on '{server_name}'.")
+        except libvirt.libvirtError as e:
+            self._safe_print(f"Error changing video model of '{vm_name}': {e}")
+
+    def complete_change_video(self, text, line, begidx, endidx):
+        """Auto-completion: VM name first, then supported video models."""
+        words = line.split()
+        if len(words) > 3 or (len(words) == 3 and not line.endswith(" ")):
+            return []
+        if len(words) <= 2:
+            return self.complete_select_vm(text, line, begidx, endidx)
+
+        models = ["none"]
+        try:
+            for conn in self.active_connections.values():
+                caps = get_host_domain_capabilities(conn)
+                models.extend(get_video_domain_capabilities(caps or "").get("video_models", []))
+        except libvirt.libvirtError:
+            pass
+        return [m for m in dict.fromkeys(models) if m.startswith(text)]
 
     def _check_guest_agent(self, domain, vm_name) -> bool:
         """Print why the guest agent is unavailable; return True if it is ready."""
