@@ -1615,7 +1615,9 @@ def set_vm_video_model(domain: libvirt.virDomain, model: str | None, accel3d: bo
 
 
 def _do_set_vm_video_model(root: ET.Element, model: str | None, accel3d: bool | None = None):
-    if model is None or model == "none":
+    if model is None:
+        # "default": remove the explicit video element so libvirt adds its
+        # default video device (cirrus for kvm guests).
         devices = root.find("devices")
         if devices is None:
             return
@@ -1624,6 +1626,27 @@ def _do_set_vm_video_model(root: ET.Element, model: str | None, accel3d: bool | 
         # others (and their VGA args) behind in the XML. Remove all of them.
         for v in devices.findall("video"):
             devices.remove(v)
+        return
+
+    if model == "none":
+        # Explicitly disable video by writing <model type='none'/>. Simply
+        # removing the element is not enough: when no video device is present
+        # libvirt re-adds a default one (cirrus for kvm guests), so the VM
+        # would silently end up with a video device again.
+        devices = root.find("devices")
+        if devices is None:
+            return
+        videos = devices.findall("video")
+        insert_at = list(devices).index(videos[0]) if videos else None
+        for v in videos:
+            devices.remove(v)
+        video = ET.Element("video")
+        model_elem = ET.SubElement(video, "model")
+        model_elem.set("type", "none")
+        if insert_at is None:
+            devices.append(video)
+        else:
+            devices.insert(insert_at, video)
         return
 
     devices = _get_or_create_devices(root, required=False)
