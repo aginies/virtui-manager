@@ -257,6 +257,116 @@ class TestVManagerCMD(unittest.TestCase):
         self.assertIn("CPU 12.5%", out)
         self.assertIn("Mem 30.0%", out)
 
+    def _make_diff_conn(self, server, vms):
+        """Helper: a connected server with the given (name, uuid, xml) VMs."""
+        domains = []
+        for name, uuid, xml in vms:
+            d = MagicMock()
+            d.name.return_value = name
+            d.UUIDString.return_value = uuid
+            d.XMLDesc.return_value = xml
+            domains.append(d)
+        conn = MagicMock()
+        conn.listAllDomains.return_value = domains
+        by_name = {d.name.return_value: d for d in domains}
+        conn.lookupByName.side_effect = by_name.get
+        self.cmd.active_connections[server] = conn
+        return conn
+
+    def test_diff_xml_usage(self):
+        """Test diff_xml with a wrong number of arguments."""
+        self._make_diff_conn("local", [("vm1", "uuid-1", "<domain/>")])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1")
+
+        self.assertIn("Usage: diff_xml <vm1> <vm2> [--config]", buf.getvalue())
+
+    def test_diff_xml_identical(self):
+        """Test diff_xml reports identical XML without a diff."""
+        xml = "<domain>\n  <name>vm</name>\n</domain>"
+        self._make_diff_conn("local", [("vm1", "uuid-1", xml), ("vm2", "uuid-2", xml)])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1 vm2")
+
+        self.assertIn("XML definitions are identical", buf.getvalue())
+
+    def test_diff_xml_different(self):
+        """Test diff_xml prints a unified diff with both VM labels."""
+        xml1 = "<domain>\n  <name>vm1</name>\n  <memory>1024</memory>\n</domain>"
+        xml2 = "<domain>\n  <name>vm2</name>\n  <memory>2048</memory>\n</domain>"
+        self._make_diff_conn("local", [("vm1", "uuid-1", xml1), ("vm2", "uuid-2", xml2)])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1 vm2")
+
+        out = buf.getvalue()
+        self.assertIn("vm1 on local", out)
+        self.assertIn("vm2 on local", out)
+        self.assertIn("-  <name>vm1</name>", out)
+        self.assertIn("+  <name>vm2</name>", out)
+        self.assertIn("-  <memory>1024</memory>", out)
+        self.assertIn("+  <memory>2048</memory>", out)
+
+    def test_diff_xml_not_found(self):
+        """Test diff_xml with an unknown VM identifier."""
+        self._make_diff_conn("local", [("vm1", "uuid-1", "<domain/>")])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1 nosuchvm")
+
+        self.assertIn("'nosuchvm' not found on any connected server", buf.getvalue())
+
+    def test_diff_xml_config_flag(self):
+        """Test diff_xml --config uses the persistent configuration."""
+        self._make_diff_conn(
+            "local",
+            [("vm1", "uuid-1", "<domain>\na</domain>"), ("vm2", "uuid-2", "<domain>\nb</domain>")],
+        )
+
+        with redirect_stdout(io.StringIO()):
+            self.cmd.do_diff_xml("vm1 vm2 --config")
+
+        conn = self.cmd.active_connections["local"]
+        for name in ("vm1", "vm2"):
+            domain = conn.lookupByName(name)
+            domain.XMLDesc.assert_called_once_with(libvirt.VIR_DOMAIN_XML_INACTIVE)
+
+    def test_diff_xml_cross_server(self):
+        """Test diff_xml between VMs on two different servers."""
+        self._make_diff_conn("srv1", [("vm1", "uuid-1", "<domain>\na</domain>")])
+        self._make_diff_conn("srv2", [("vm2", "uuid-2", "<domain>\nb</domain>")])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1 vm2")
+
+        out = buf.getvalue()
+        self.assertIn("vm1 on srv1", out)
+        self.assertIn("vm2 on srv2", out)
+
+    def test_diff_xml_ambiguous(self):
+        """Test diff_xml refuses a name present on several servers."""
+        self._make_diff_conn("srv1", [("vm1", "uuid-1", "<domain>\na</domain>")])
+        self._make_diff_conn("srv2", [("vm1", "uuid-2", "<domain>\nb</domain>")])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1 vm1")
+
+        self.assertIn("exists on multiple servers", buf.getvalue())
+
+    def test_diff_xml_full_form(self):
+        """Test diff_xml with the VMNAME:UUID:SERVER form."""
+        self._make_diff_conn("srv1", [("vm1", "uuid-1", "<domain>\na</domain>")])
+        self._make_diff_conn("srv2", [("vm1", "uuid-2", "<domain>\nb</domain>")])
+
+        with redirect_stdout(io.StringIO()) as buf:
+            self.cmd.do_diff_xml("vm1:uuid-1:srv1 vm1:uuid-2:srv2")
+
+        out = buf.getvalue()
+        self.assertIn("vm1 on srv1", out)
+        self.assertIn("vm1 on srv2", out)
+
     def test_rename_vm(self):
         """Test rename_vm renames a stopped VM and invalidates the cache."""
         conn, domain = self._make_vm_conn(vm_name="old")

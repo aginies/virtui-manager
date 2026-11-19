@@ -11,6 +11,7 @@ redacted with "***" placeholders while preserving enough context for debugging.
 import atexit
 import cmd
 import datetime
+import difflib
 import getpass
 import json
 import os
@@ -236,6 +237,7 @@ class VManagerCMD(cmd.Cmd):
                 "vm_info",
                 "vm_stats",
                 "show_vm_xml",
+                "diff_xml",
                 "show_selection",
             ],
             "VM Operations": [
@@ -1154,26 +1156,31 @@ class VManagerCMD(cmd.Cmd):
         except InterruptionRequested:
             return None, None
 
+    def _build_vm_lookup(self):
+        """Build a map of VM name/UUID to {"servers": [...], "name": ...}
+        across all active connections."""
+        vm_lookup = {}
+        for server_name, conn in self.active_connections.items():
+            try:
+                domains = conn.listAllDomains(0)
+                for dom in domains:
+                    name = dom.name()
+                    uuid = dom.UUIDString()
+                    for identifier in [name, uuid]:
+                        if identifier not in vm_lookup:
+                            vm_lookup[identifier] = {"servers": [], "name": name}
+                        if server_name not in vm_lookup[identifier]["servers"]:
+                            vm_lookup[identifier]["servers"].append(server_name)
+            except libvirt.libvirtError:
+                continue
+        return vm_lookup
+
     def _get_vms_to_operate(self, args):
         vms_to_operate = {}
         args_list = args.split()
 
         if args_list:
-            # Map of name/UUID to list of servers and actual VM name
-            vm_lookup = {}
-            for server_name, conn in self.active_connections.items():
-                try:
-                    domains = conn.listAllDomains(0)
-                    for dom in domains:
-                        name = dom.name()
-                        uuid = dom.UUIDString()
-                        for identifier in [name, uuid]:
-                            if identifier not in vm_lookup:
-                                vm_lookup[identifier] = {"servers": [], "name": name}
-                            if server_name not in vm_lookup[identifier]["servers"]:
-                                vm_lookup[identifier]["servers"].append(server_name)
-                except libvirt.libvirtError:
-                    continue
+            vm_lookup = self._build_vm_lookup()
 
             for identifier in args_list:
                 parts = identifier.split(":")
@@ -1780,6 +1787,108 @@ class VManagerCMD(cmd.Cmd):
                     print(f"Could not retrieve XML for '{vm_name}': {e}")
 
     def complete_show_vm_xml(self, text, line, begidx, endidx):
+        return self.complete_select_vm(text, line, begidx, endidx)
+
+    def _resolve_vm_identifier(self, identifier, vm_lookup):
+        """Resolve a VM identifier to (server_name, vm_name).
+
+        Accepts the full VMNAME:UUID:SERVER form, a VM name, or a UUID.
+        Returns None (after printing an error) if it cannot be resolved
+        unambiguously.
+        """
+        parts = identifier.split(":")
+        if len(parts) == 3:
+            name, _uuid, server = parts
+            if server not in self.active_connections:
+                print(f"Error: Not connected to '{server}'.")
+                return None
+            return server, name
+
+        target = vm_lookup.get(identifier)
+        if target is None:
+            print(f"Warning: VM/UUID '{identifier}' not found on any connected server.")
+            return None
+        if len(target["servers"]) > 1:
+            print(
+                f"Error: VM '{target['name']}' exists on multiple servers "
+                f"({', '.join(target['servers'])}). Use the VMNAME:UUID:SERVER form."
+            )
+            return None
+        return target["servers"][0], target["name"]
+
+    def _print_diff_line(self, line):
+        """Print one diff line, colorized when the terminal supports colors."""
+        if not self._supports_colors():
+            print(line)
+            return
+        if line.startswith("+++") or line.startswith("---"):
+            print(f"\033[1;36m{line}\033[0m")
+        elif line.startswith("@@"):
+            print(f"\033[36m{line}\033[0m")
+        elif line.startswith("+"):
+            print(f"\033[32m{line}\033[0m")
+        elif line.startswith("-"):
+            print(f"\033[31m{line}\033[0m")
+        else:
+            print(line)
+
+    def do_diff_xml(self, args):
+        """Show a unified diff between the libvirt XML of two VMs.
+        Usage: diff_xml <vm1> <vm2> [--config]
+        VM identifiers can be names, UUIDs, or the full VMNAME:UUID:SERVER
+        form. The two VMs may be on different servers.
+        --config diffs the persistent configuration of a running VM
+        instead of its current runtime state."""
+        arg_list = args.split()
+        show_config = "--config" in arg_list
+        identifiers = [a for a in arg_list if a != "--config"]
+
+        if len(identifiers) != 2:
+            print("Usage: diff_xml <vm1> <vm2> [--config]")
+            return
+
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return
+
+        vm_lookup = self._build_vm_lookup()
+        targets = []
+        for identifier in identifiers:
+            target = self._resolve_vm_identifier(identifier, vm_lookup)
+            if target is None:
+                return
+            targets.append(target)
+
+        (server1, name1), (server2, name2) = targets
+        flags = libvirt.VIR_DOMAIN_XML_INACTIVE if show_config else 0
+        try:
+            xml1 = self.active_connections[server1].lookupByName(name1).XMLDesc(flags)
+        except libvirt.libvirtError as e:
+            print(f"Could not retrieve XML for '{name1}' on {server1}: {e}")
+            return
+        try:
+            xml2 = self.active_connections[server2].lookupByName(name2).XMLDesc(flags)
+        except libvirt.libvirtError as e:
+            print(f"Could not retrieve XML for '{name2}' on {server2}: {e}")
+            return
+
+        label1 = f"{name1} on {server1}"
+        label2 = f"{name2} on {server2}"
+        if xml1 == xml2:
+            print(f"XML definitions are identical: {label1} vs {label2}")
+            return
+
+        diff = difflib.unified_diff(
+            xml1.splitlines(),
+            xml2.splitlines(),
+            fromfile=label1,
+            tofile=label2,
+            lineterm="",
+        )
+        for line in diff:
+            self._print_diff_line(line)
+
+    def complete_diff_xml(self, text, line, begidx, endidx):
         return self.complete_select_vm(text, line, begidx, endidx)
 
     def do_vm_stats(self, args):

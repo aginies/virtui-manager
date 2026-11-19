@@ -293,6 +293,8 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 *   **`host_capabilities [server]`**: Displays hypervisor capabilities (architecture, CPU models, latest machine types, supported video models).
 *   **`list_isos [distro [version]]`**: Lists available ISOs for a distribution and version (e.g. `list_isos openSUSE 15.6`). Distro names with spaces work as-is (e.g. `list_isos Arch Linux`). If no distro is given, the supported distros are listed; if no version is given, the supported versions are listed.
 *   **`list_cached_isos`**: Lists ISOs already downloaded to the local cache.
+*   **`show_vm_xml [vm_name_1] [vm_name_2] ...]`**: Shows the libvirt XML configuration of one or more VMs. `--config` shows the persistent configuration of a running VM instead of its current runtime state.
+*   **`diff_xml <vm1> <vm2> [--config]`**: Shows a unified diff between the libvirt XML of two VMs, which may be on different servers. `--config` diffs the persistent configuration instead of the live state.
 
 ```bash
 (ryzen7,g.org) list_pool
@@ -310,6 +312,17 @@ default                        active          58              44              7
 Pool Name                      Status          Capacity (GiB)  Allocation (GiB) Usage %   
 ------------------------------ --------------- --------------- --------------- ----------
 default                        active          899             375             41.71%    
+```
+
+```bash
+(ryzen7) diff_xml web1 web1-clone
+--- web1 on ryzen7
++++ web1-clone on ryzen7
+@@ -1,5 +1,5 @@
+ <domain type='kvm'>
+-  <name>web1</name>
++  <name>web1-clone</name>
+   <uuid>...</uuid>
 ```
 
 ## Config-Driven Deployment
@@ -597,7 +610,7 @@ guess at.
 | Category | Commands |
 |----------|----------|
 | Connection | `connect`, `disconnect`, `list_servers`, `list_connected_servers`, `host_info`, `host_capabilities`, `virsh` |
-| VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `vm_stats`, `show_selection` |
+| VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `vm_stats`, `show_vm_xml`, `diff_xml`, `show_selection` |
 | VM Operations | `start`, `stop`, `force_off`, `reboot`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `rename_vm`, `installvm`, `view` |
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
