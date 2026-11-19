@@ -7,6 +7,7 @@ A powerful, text-based Terminal User Interface (TUI) application for managing QE
 ![Main](documentation/manual/images/main.png)
 
 **NOTE** Since the raise of AI agent: This is a **Human driven** project. None of PR will be accepted without a human review, and **Human are not robot**, human can not review thousands of line of code easily and quickly. Thanks.
+
 Rules to contribute are available at: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Why VirtUI Manager?
