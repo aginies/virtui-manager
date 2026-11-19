@@ -1715,6 +1715,10 @@ class VManagerCMD(cmd.Cmd):
                                 f"    - {interface_name} (MAC: {mac_address}): "
                                 f"{ipv4_count} IPv4 address(es), {ipv6_count} IPv6 address(es)"
                             )
+                            if ipv4_list:
+                                print(f"        IPv4: {', '.join(ipv4_list)}")
+                            if ipv6_list:
+                                print(f"        IPv6: {', '.join(ipv6_list)}")
 
                     print("  Disks:")
                     disks = info.get("disks", [])
