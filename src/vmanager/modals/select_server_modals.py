@@ -3,7 +3,7 @@ Main interface
 """
 
 from textual.app import ComposeResult, on
-from textual.containers import Grid, Horizontal, Vertical
+from textual.containers import Grid, Horizontal, ScrollableContainer, Vertical
 from textual.widgets import Button, Checkbox, Label, Select
 
 from ..connection_manager import ConnectionManager
@@ -35,11 +35,12 @@ class SelectServerModal(BaseModal[None]):
                 cb.styles.border = ("solid", server.get("color", "white"))
                 checkboxes.append(cb)
 
-            grid = Grid(*checkboxes, id="server-checkboxes-grid")
-            grid.styles.grid_size_columns = 2
-            grid.styles.height = "auto"
-            grid.styles.grid_gutter_horizontal = 1
-            yield grid
+            with ScrollableContainer(id="select-server-scroll"):
+                grid = Grid(*checkboxes, id="server-checkboxes-grid")
+                grid.styles.grid_size_columns = 2
+                grid.styles.height = "auto"
+                grid.styles.grid_gutter_horizontal = 1
+                yield grid
 
             with Horizontal(classes="button-details"):
                 yield Button(

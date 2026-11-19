@@ -26,11 +26,23 @@ class ServerPalette:  # pylint: disable=too-few-public-methods
         "#FFB833",  # Amber
         "#8C33FF",  # Violet
         "#33A1FF",  # Sky Blue
-        "#33FFB8",  # Spearmint
+        "#D2B48C",  # Tan
         "#FFD133",  # Golden Yellow
-        "#33FFA5",  # Light Green
+        "#B0E0E6",  # Powder Blue
         "#C70039",  # Deep Red
         "#00B8FF",  # Electric Blue
+        "#B8860B",  # Dark Goldenrod
+        "#8B4513",  # Saddle Brown
+        "#008B8B",  # Dark Cyan
+        "#9ACD32",  # Yellow Green
+        "#FA8072",  # Salmon
+        "#DDA0DD",  # Plum
+        "#808080",  # Gray
+        "#4169E1",  # Royal Blue
+        "#800000",  # Maroon
+        "#808000",  # Olive
+        "#4B0082",  # Indigo
+        "#2E8B57",  # Sea Green
     ]
 
 

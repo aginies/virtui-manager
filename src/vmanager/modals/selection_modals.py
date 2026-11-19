@@ -8,7 +8,7 @@ import re
 
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
+from textual.containers import Grid, Horizontal, ScrollableContainer, VerticalScroll
 from textual.widgets import Button, Checkbox, DataTable, Input, Label
 
 from ..constants import ButtonLabels, StaticText
@@ -31,7 +31,7 @@ class PatternSelectModal(BaseModal[Optional[set[str]]]):
         self.matching_uuids: set[str] = set()
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="pattern-select-container", classes="modal-container"):
+        with ScrollableContainer(id="pattern-select-container", classes="modal-container"):
             yield Label(StaticText.SELECT_VMS_BY_PATTERN, id="pattern-select-title")
 
             with Horizontal(classes="pattern-input-row"):
@@ -53,11 +53,12 @@ class PatternSelectModal(BaseModal[Optional[set[str]]]):
                     cb.styles.border = ("solid", server.get("color", "white"))
                     checkboxes.append(cb)
 
-                grid = Grid(*checkboxes, id="server-checkboxes-grid")
-                grid.styles.grid_size_columns = 3
-                grid.styles.height = "auto"
-                grid.styles.grid_gutter_horizontal = 0
-                yield grid
+                with ScrollableContainer(id="pattern-server-scroll"):
+                    grid = Grid(*checkboxes, id="server-checkboxes-grid")
+                    grid.styles.grid_size_columns = 3
+                    grid.styles.height = "auto"
+                    grid.styles.grid_gutter_horizontal = 0
+                    yield grid
 
             yield Button(ButtonLabels.SEARCH_VMS, variant="primary", id="search-vms-btn")
 

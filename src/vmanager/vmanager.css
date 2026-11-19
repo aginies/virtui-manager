@@ -208,7 +208,8 @@ SelectOneServerModal > #select-one-server-container {
 /* --- Dialog Width & Height Overrides --- */
 #connection-dialog { width: 60; }
 #filter-dialog {
-    height: 32;
+    height: auto;
+    max-height: 90vh;
     width: 64;
 }
 #move-volume-dialog, #server-management-dialog, SelectSnapshotDialog > #dialog, SnapshotNameDialog > #dialog { height: 20; }
@@ -812,6 +813,31 @@ RadioButton { padding: 0 0 0 1; }
     align: center middle;
 }
 #network-modal-buttons Button { width: 50%; margin: 0 1; }
+
+/* Select-server modal: same scrollable-middle pattern as the network modal.
+   The dialog is height-bounded so the server list scrolls when it overflows
+   the window; the Done/Cancel buttons stay pinned at the bottom and visible. */
+#select-server-container {
+    max-height: 90vh;
+}
+#select-server-scroll {
+    height: auto;
+    max-height: 1fr;
+    min-height: 4;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 1;
+}
+/* Pattern-select modal: the server grid shares the dialog with the results
+   table, so it is capped at a fixed height and scrolls when it overflows,
+   leaving the rest of the space to the results table. */
+#pattern-server-scroll {
+    height: auto;
+    max-height: 8;
+    overflow-y: auto;
+    overflow-x: hidden;
+    margin-bottom: 1;
+}
 .tabd-warning { margin: 0 1; background: red 40%; }
 .disk-info { margin: 0 2; padding: 0 0; height: 40; border-left: round; }
 .detail-disks { width: 15%; background: $primary; }
@@ -1590,7 +1616,8 @@ FilterModal Checkbox {
 
 PatternSelectModal > #pattern-select-container {
     width: 80;
-    height: 80%;
+    height: auto;
+    max-height: 90vh;
     padding: 1;
     border: round $primary;
 }
