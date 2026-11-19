@@ -1,21 +1,21 @@
 #!/bin/bash
 # Script to update the version of VirtUI Manager in all required files.
 
-if [ -z "$1" ]; then
-    echo "Usage: $0 <new_version>"
-    echo "Example: $0 2.4.1"
-    exit 1
-fi
-
-NEW_VERSION=$1
-
 # Detect current version from src/vmanager/constants.py as the source of truth
-CURRENT_VERSION=$(grep 'version =' src/vmanager/constants.py | sed -E 's/.*version = "([^"]+)".*/\1/')
+CURRENT_VERSION=$(grep 'version =' src/vmanager/constants.py | sed -E 's/.*version = "([^"]+)".*/\1/' | head -1)
 
 if [ -z "$CURRENT_VERSION" ]; then
     echo "Error: Could not detect current version from src/vmanager/constants.py"
     exit 1
 fi
+
+# With no arguments, show the current version and exit.
+if [ -z "$1" ]; then
+    echo "Current version: $CURRENT_VERSION"
+    exit 0
+fi
+
+NEW_VERSION=$1
 
 if [ "$CURRENT_VERSION" == "$NEW_VERSION" ]; then
     echo "Version is already $NEW_VERSION. Nothing to do."
