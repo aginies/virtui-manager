@@ -233,13 +233,37 @@ class VMCard(Static):
             return "", ""
         return self.app.vm_service.get_vm_identity(self.vm, self.conn)
 
+    def _get_server_display_name(self, uri: str) -> str:
+        """User-defined server name from the server list, falling back to the URI host."""
+        servers = getattr(self.app, "servers", None)
+        if isinstance(servers, list):
+            for server in servers:
+                if isinstance(server, dict) and server.get("uri") == uri and server.get("name"):
+                    return server["name"]
+        return extract_server_name_from_uri(uri)
+
     def _get_vm_display_name(self) -> str:
         """Returns the formatted VM name including server name if available."""
         if hasattr(self, "conn") and self.conn:
             uri = self._get_uri()
-            server_display = extract_server_name_from_uri(uri)
+            server_display = self._get_server_display_name(uri)
             return f"{self.name} ({server_display})"
         return self.name
+
+    def _get_first_ipv4(self) -> str:
+        """First IPv4 address (without prefix) for the status strip, '' if not available."""
+        if self.status != StatusText.RUNNING:
+            return ""
+        for iface in self.ip_addresses:
+            if iface and isinstance(iface, dict):
+                ips = iface.get("ipv4", [])
+                if ips:
+                    return ips[0].split("/", 1)[0]
+        return ""
+
+    def _get_status_text(self) -> str:
+        """Text for the status strip: status and web console indicator."""
+        return f"{self.status}{self.webc_status_indicator}"
 
     def _cancel_all_workers(self, uuid: str = None) -> None:
         """
@@ -327,8 +351,7 @@ class VMCard(Static):
             return
         status_widget = self.ui.get("status")
         if status_widget:
-            status_text = f"{self.status}{new_value}"
-            status_widget.update(status_text)
+            status_widget.update(self._get_status_text())
 
     def compose(self):
         self.ui["checkbox"] = Checkbox(
@@ -339,7 +362,8 @@ class VMCard(Static):
             tooltip=StaticText.SELECT_VM,
         )
         self.ui["vmname"] = Static(self._get_vm_display_name(), id="vmname", classes="vmname")
-        self.ui["status"] = Static(f"{self.status}{self.webc_status_indicator}", id="status")
+        self.ui["status"] = Static(self._get_status_text(), id="status")
+        self.ui["vm_ip"] = Static("", id="vm-ip")
 
         # Quick action buttons — use ASCII fallback on limited terminals
         icons = QBarIcons.EMOJI if terminal_supports_emoji() else QBarIcons.ASCII
@@ -419,7 +443,9 @@ class VMCard(Static):
                 yield self.ui["checkbox"]
                 with Vertical():
                     yield self.ui["vmname"]
-                    yield self.ui["status"]
+                    with Horizontal(id="status-row"):
+                        yield self.ui["status"]
+                        yield self.ui["vm_ip"]
             with Horizontal(id="quick-action-bar"):
                 yield self.ui["qb_start"]
                 yield self.ui["qb_shutdown"]
@@ -507,7 +533,7 @@ class VMCard(Static):
         hypervisor = "Unknown"
         if self.conn:
             uri = self._get_uri()
-            hypervisor = extract_server_name_from_uri(uri)
+            hypervisor = self._get_server_display_name(uri)
 
         mem_display = f"{self.memory} MiB"
         if self.memory >= 1024:
@@ -659,6 +685,14 @@ class VMCard(Static):
             if vmname_widget:
                 vmname_widget.update(self._get_vm_display_name())
 
+    def refresh_display_name(self) -> None:
+        """Re-render the name and tooltip after a server list change (e.g. rename)."""
+        if self.ui:
+            vmname_widget = self.ui.get("vmname")
+            if vmname_widget:
+                vmname_widget.update(self._get_vm_display_name())
+            self._perform_tooltip_update()
+
     def watch_cpu(self, value: int) -> None:
         """Called when cpu count changes."""
         self._perform_tooltip_update()
@@ -669,6 +703,10 @@ class VMCard(Static):
 
     def watch_ip_addresses(self, value: list) -> None:
         """Called when IP addresses change."""
+        ip_widget = self.ui.get("vm_ip")
+        if ip_widget:
+            ip = self._get_first_ipv4()
+            ip_widget.update(f"({ip})" if ip else "")
         self._perform_tooltip_update()
 
     def watch_boot_device(self, value: str) -> None:
@@ -715,6 +753,7 @@ class VMCard(Static):
         sparklines = self.ui.get("sparklines_container")
         vmname = self.ui.get("vmname")
         vmstatus = self.ui.get("status")
+        vm_ip = self.ui.get("vm_ip")
         checkbox = self.ui.get("checkbox")
 
         # Find the quick action bar container
@@ -726,11 +765,15 @@ class VMCard(Static):
                 sparklines.display = False
             if qbar and qbar.is_mounted:
                 qbar.display = False
+            if vm_ip and vm_ip.is_mounted:
+                vm_ip.display = False
         else:
             if sparklines:
                 sparklines.display = True
             if qbar:
                 qbar.display = True
+            if vm_ip:
+                vm_ip.display = True
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
@@ -751,7 +794,7 @@ class VMCard(Static):
             if vmname:
                 vmname.styles.content_align = ("center", "middle")
             if vmstatus:
-                vmstatus.styles.content_align = ("center", "middle")
+                vmstatus.styles.content_align = ("left", "middle")
             if checkbox:
                 checkbox.styles.width = "5"
 
@@ -782,7 +825,7 @@ class VMCard(Static):
 
         status_widget = self.ui.get("status")
         if status_widget:
-            status_widget.update(f"{new_value}{self.webc_status_indicator}")
+            status_widget.update(self._get_status_text())
 
         if new_value == StatusText.RUNNING:
             # Only invalidate cache if transitioning from STOPPED (clean boot)

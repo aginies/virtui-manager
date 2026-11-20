@@ -515,6 +515,11 @@ class VMManagerTUI(App):
         self.config["servers"] = list(new_servers)
         save_config(self.config)
 
+        # Re-render card names with the (possibly renamed) server names
+        if getattr(self, "_is_mounted", False):
+            for card in self.query(VMCard):
+                card.refresh_display_name()
+
         new_autoconnect_uris = [s["uri"] for s in new_servers if s.get("autoconnect", False)]
 
         uris_to_connect = [uri for uri in new_autoconnect_uris if uri not in self.active_uris]

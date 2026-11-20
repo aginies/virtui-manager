@@ -72,6 +72,49 @@ class TestVMCard(unittest.TestCase):
             display_name = self.vm_card._get_vm_display_name()
             self.assertEqual(display_name, "test-vm (localhost)")
 
+    def test_get_server_display_name_uses_configured_name(self):
+        """The user-defined server name from the server list is used."""
+        self.mock_app.servers = [
+            {"name": "prod-1", "uri": "qemu+ssh://192.168.1.5/system", "autoconnect": True}
+        ]
+
+        self.assertEqual(
+            self.vm_card._get_server_display_name("qemu+ssh://192.168.1.5/system"), "prod-1"
+        )
+
+    def test_get_server_display_name_falls_back_to_uri(self):
+        """Unknown URIs fall back to the extracted host name."""
+        self.mock_app.servers = [{"name": "prod-1", "uri": "qemu+ssh://192.168.1.5/system"}]
+
+        with patch("vmanager.vmcard.extract_server_name_from_uri", return_value="10.0.0.1"):
+            self.assertEqual(
+                self.vm_card._get_server_display_name("qemu+tcp://10.0.0.1/system"), "10.0.0.1"
+            )
+
+    def test_get_server_display_name_invalid_servers_list(self):
+        """A non-list servers attribute falls back to the extracted host name."""
+        self.mock_app.servers = "not-a-list"
+
+        with patch("vmanager.vmcard.extract_server_name_from_uri", return_value="10.0.0.1"):
+            self.assertEqual(
+                self.vm_card._get_server_display_name("qemu+tcp://10.0.0.1/system"), "10.0.0.1"
+            )
+
+    def test_refresh_display_name_updates_widget(self):
+        """refresh_display_name re-renders the name widget with the server name."""
+        self.vm_card.name = "test-vm"
+        self.vm_card.conn = MagicMock()
+        self.mock_app.vm_service.get_uri_for_connection.return_value = "qemu:///system"
+        self.mock_app.servers = [{"name": "Local", "uri": "qemu:///system"}]
+
+        mock_vmname_widget = MagicMock()
+        self.vm_card.ui = {"vmname": mock_vmname_widget}
+
+        with patch.object(self.vm_card, "_perform_tooltip_update"):
+            self.vm_card.refresh_display_name()
+
+        mock_vmname_widget.update.assert_called_with("test-vm (Local)")
+
     def test_raw_uuid(self):
         """Test raw_uuid property."""
         # Patch side-effect methods to avoid issues when setting internal_id
@@ -741,6 +784,61 @@ class TestVMCard(unittest.TestCase):
         with patch.object(self.vm_card, "_perform_tooltip_update") as mock_tooltip:
             VMCard.watch_ip_addresses(self.vm_card, [{"ipv4": ["192.168.1.100"]}])
             mock_tooltip.assert_called_once()
+
+    def test_get_status_text_without_ip(self):
+        """Status strip shows only the status when no IP is available."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.ip_addresses = []
+
+        self.assertEqual(self.vm_card._get_status_text(), StatusText.STOPPED)
+
+    def test_get_status_text_running_without_ip(self):
+        """Running VM without a known IP shows only the status."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.ip_addresses = []
+
+        self.assertEqual(self.vm_card._get_status_text(), StatusText.RUNNING)
+
+    def test_get_first_ipv4(self):
+        """First IPv4 (without prefix) is returned when running, '' otherwise."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.ip_addresses = [{"ipv4": ["192.168.1.100/24"], "ipv6": []}]
+
+        self.assertEqual(self.vm_card._get_first_ipv4(), "192.168.1.100")
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+
+        self.assertEqual(self.vm_card._get_first_ipv4(), "")
+
+    def test_watch_ip_addresses_updates_ip_widget(self):
+        """IP changes update the IP widget on the status row."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+
+        mock_ip_widget = MagicMock()
+        self.vm_card.ui = {"vm_ip": mock_ip_widget}
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted, patch.object(
+            self.vm_card, "_perform_tooltip_update"
+        ):
+            mock_mounted.return_value = True
+            self.vm_card.ip_addresses = [{"ipv4": ["192.168.1.100/24"], "ipv6": []}]
+
+        mock_ip_widget.update.assert_called_with("(192.168.1.100)")
 
     def test_watch_boot_device_triggers_tooltip_update(self):
         """Test that watch_boot_device triggers tooltip update."""
@@ -1529,7 +1627,7 @@ class TestVMCard(unittest.TestCase):
 
         with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
             mock_mounted.return_value = True
-            VMCard.watch_webc_status_indicator(self.vm_card, "", " 🌐")
+            self.vm_card.webc_status_indicator = " 🌐"
 
         mock_status_widget.update.assert_called_with(f"{StatusText.RUNNING} 🌐")
 
