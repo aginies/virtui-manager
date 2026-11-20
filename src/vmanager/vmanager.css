@@ -386,9 +386,8 @@ TemplateNameModal Select {
 /* --- Specific & Complex Component Styles --- */
 
 #vms-container {
-    height: 80;
+    height: 1fr;
     width: 85;
-    max-height: 90vh;
     grid-rows: 9;
     grid-gutter: 0 1;
     layout: grid;
@@ -709,6 +708,10 @@ AddPoolModal #browse-dir-btn {
 /* Canonical global action-button style (used across modals + app bar).
    Consolidated here from the former base.css + components.css copies; the
    components.css copy was removed to avoid a duplicate/conflicting definition. */
+.top-controls {
+    height: 1;
+}
+
 .Buttonpage {
     height: 1;
     width: auto;

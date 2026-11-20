@@ -787,14 +787,20 @@ class VMManagerTUI(App):
             cols = 2
             container_width = 84
 
-        rows = 3  # Default to 3 rows (card height 9)
-        if height < 25:
-            rows = 2
-        elif height > 42:
-            rows = 4
+        # Scale rows to the available height (was capped at 4).
+        # A card is 9 rows tall (4 in compact view). Chrome around the
+        # grid: header (1) + top controls (1) + pagination (2, reserved
+        # even while hidden) + host stats (1 row per 3 connected hosts)
+        # + footer (1). The container itself is 1fr (CSS), so it absorbs
+        # whatever is left after the grid rows — the estimate above only
+        # decides how many card rows fit, and it over-reserves chrome so
+        # the grid content always fits without scrolling.
+        card_height = 4 if self.compact_view else 9
+        host_rows = (len(self.active_uris) + 2) // 3
+        chrome = 6 + host_rows
+        rows = max(2, (height - chrome) // card_height)
 
         if self.compact_view:
-            rows *= 3
             cols *= 2
 
         vms_container.styles.width = container_width
