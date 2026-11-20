@@ -264,7 +264,7 @@ class QBarIcons:  # pylint: disable=too-few-public-methods
 
     EMOJI = {
         "start": "▶",
-        "shutdown": "■",
+        "shutdown": "⏻",
         "stop": "⚡",
         "pause": "⏸",
         "resume": "⏯",
