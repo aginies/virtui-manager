@@ -17,6 +17,7 @@ from ..config import load_config
 from ..constants import AppInfo, ButtonLabels, ErrorMessages, StaticText, SuccessMessages
 from ..host_capabilities import has_secure_vm_capability
 from ..network_manager import ensure_default_network, list_networks
+from ..provisioning.automation_engine import template_supports_serial_console
 from ..provisioning.os_provider import OSType, OSVersion
 from ..provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from ..storage_manager import ensure_default_pool, list_storage_pools
@@ -1049,7 +1050,15 @@ class InstallVMModal(BaseModal[Optional[str]]):
             self.query_one("#automation-user-password", Input).disabled = not should_enable
             self.query_one("#automation-language", Select).disabled = not should_enable
             self.query_one("#automation-keyboard", Select).disabled = not should_enable
-            self.query_one("#automation-serial-console", Checkbox).disabled = not should_enable
+
+            # Only shown when the template can persist the serial console
+            serial_supported = should_enable and self._template_supports_serial_console(
+                template_id
+            )
+            serial_checkbox = self.query_one("#automation-serial-console", Checkbox)
+            serial_checkbox.disabled = not serial_supported
+            if not serial_supported:
+                serial_checkbox.value = False
 
             # If automation is enabled, prefill fields from config
             if should_enable:
@@ -1081,6 +1090,17 @@ class InstallVMModal(BaseModal[Optional[str]]):
         except Exception as e:
             # Widgets may not exist in all contexts
             logging.warning(f"Could not update automation config fields: {e}")
+
+    def _template_supports_serial_console(self, template_id) -> bool:
+        """True when the selected auto-install template can persist the
+        serial console into the installed system's bootloader."""
+        try:
+            for t in self.template_manager.get_all_templates():
+                if (t.get("template_id") or t.get("filename")) == template_id:
+                    return template_supports_serial_console(t.get("filename", ""))
+        except Exception:
+            pass
+        return False
 
     @on(Input.Changed, "#vm-name")
     def on_name_changed(self, event: Input.Changed):
@@ -1601,7 +1621,6 @@ class InstallVMModal(BaseModal[Optional[str]]):
                             "user_password": user_password,
                             "language": language,
                             "keyboard": keyboard,
-                            "serial_console": serial_console,  # Add serial console option
                             "scc_email": scc_config.get("scc_email", ""),
                             "scc_reg_code": scc_config.get("scc_reg_code", ""),
                             "scc_we_reg_code": scc_config.get("scc_we_reg_code", ""),
@@ -1611,6 +1630,10 @@ class InstallVMModal(BaseModal[Optional[str]]):
                             "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
                             "scc_product_arch": scc_config.get("scc_product_arch", ""),
                         }
+
+                        # Absent: the provisioner applies its own default
+                        if self._template_supports_serial_console(automation_template_id):
+                            automation_config["serial_console"] = serial_console
                     except Exception as e:
                         logging.warning(f"Could not retrieve automation config: {e}")
                         automation_config = {"template_name": automation_template_id}

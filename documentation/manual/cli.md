@@ -203,6 +203,11 @@ Select Template [1-5]: 1
 
 Using Automated Installation Credentials from configuration.
 
+Redirect console to serial port (ttyS0)?:
+  1. yes
+  2. no
+Redirect console to serial port (ttyS0)? [1-2]: 2
+
 --- Summary of Actions ---
 VM Name: fed43
 Server: ryzen7
@@ -213,9 +218,10 @@ ISO: https://download.fedoraproject.org/pub/fedora/linux/releases/43/Server/x86_
 Network: default
 Storage Pool: VM_images
 Automated Install: Yes (Template: kickstart-basic.cfg)
+Serial Console: No
 
 Command to run this unattended:
-installvm fed43 3 4 1 1 2 2 yes 1
+installvm fed43 3 4 1 1 2 2 yes 1 2
 ```
 
 ## Network Management
@@ -393,6 +399,12 @@ The `iso.source` field can be `url`, `cached`, `pool` or `repository` (mirroring
 the ISO sources offered by `installvm`). `autoinstall.packages` adds extra
 packages on top of the template defaults, and `autoinstall.scc` registers the
 installed system with the SUSE Customer Center.
+
+`autoinstall.serial_console` (default: on for Secure VMs, off otherwise) adds
+`console=ttyS0,115200` to the installer's kernel command line and, for
+AutoYaST, Agama, Kickstart and preseed templates, bakes it into the installed
+system's bootloader so the console survives the reboot from the installer.
+For other templates only the installer gets the serial console.
 
 ### Post-install commands
 

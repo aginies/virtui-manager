@@ -65,6 +65,7 @@ from .network_manager import (
     set_network_autostart,
 )
 from .pipeline import PipelineExecutor, PipelineMode
+from .provisioning.automation_engine import template_supports_serial_console
 from .provisioning.os_provider import OSType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
@@ -4944,6 +4945,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                             "scc_lpatching_reg_code": scc_config.get("scc_lpatching_reg_code", ""),
                             "scc_product_arch": scc_config.get("scc_product_arch", ""),
                         }
+
+                        if template_supports_serial_console(selected_template):
+                            auto_config["serial_console"] = (
+                                self._select_choice(
+                                    "Redirect console to serial port (ttyS0)?",
+                                    ["yes", "no"],
+                                    choices_provided=choices_provided,
+                                    choices_used=choices_used,
+                                    auto_select=False,
+                                )
+                                == "yes"
+                            )
                     else:
                         return
 
@@ -4968,6 +4981,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             print(f"Graphics: {'Spice' if graphics_type == 'spice' else 'VNC'}")
             if auto_config:
                 print(f"Automated Install: Yes (Template: {selected_template})")
+                if "serial_console" in auto_config:
+                    print(
+                        f"Serial Console: {'Yes' if auto_config['serial_console'] else 'No'}"
+                    )
             else:
                 print("Automated Install: No")
             print("\nCommand to run this unattended:")
@@ -5242,9 +5259,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             "scc_lpatching_reg_code": scc.get("scc_lpatching_reg_code", ""),
             "scc_product_arch": scc.get("scc_product_arch", ""),
         }
-        # Optional: serial console for the install (and, for openSUSE/SLES,
-        # for the installed system's bootloader). Absent here means the
-        # provisioner applies its own default (on for Secure VMs).
+        # Absent: the provisioner applies its own default (on for Secure VMs).
         if "serial_console" in ai:
             config["serial_console"] = ai["serial_console"]
         # Post-install commands are baked into the auto-install template's
@@ -5722,6 +5737,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             language = self._get_input("Language (e.g. German (Germany)): ") or "English (US)"
             scc = self._ask_scc()
 
+        if template_supports_serial_console(selected):
+            serial_console = (
+                self._select_choice(
+                    "Redirect console to serial port (ttyS0)?",
+                    ["yes", "no"],
+                    auto_select=False,
+                )
+                == "yes"
+            )
+        else:
+            serial_console = False
+
         return {
             "enabled": True,
             "template": selected,
@@ -5734,6 +5761,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
             "keyboard": keyboard,
             "language": language,
             "scc": scc,
+            "serial_console": serial_console,
         }
 
     def _ask_scc(self):
@@ -5819,6 +5847,8 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
                 "timezone": "UTC",
                 "keyboard": "us",
                 "language": "English (US)",
+                # Serial console (ttyS0)
+                "serial_console": False,
                 "scc": {
                     "scc_email": "",
                     "scc_reg_code": "",

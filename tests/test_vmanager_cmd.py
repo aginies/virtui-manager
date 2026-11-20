@@ -655,6 +655,22 @@ class TestDeployFromConfig(unittest.TestCase):
         self.assertIsNone(self.cmd._build_automation_config(cfg, "web01"))
         self.assertIsNone(self.cmd._build_automation_config({}, "web01"))
 
+    def test_build_automation_config_serial_console(self):
+        """serial_console from the autoinstall block is passed through."""
+        cfg = {
+            "autoinstall": {
+                "enabled": True,
+                "template": "autoyast-server.xml",
+                "serial_console": True,
+            }
+        }
+        ac = self.cmd._build_automation_config(cfg, "web01")
+        self.assertTrue(ac["serial_console"])
+        # Absent in the config: not forced, the provisioner applies its default
+        cfg["autoinstall"].pop("serial_console")
+        ac = self.cmd._build_automation_config(cfg, "web01")
+        self.assertNotIn("serial_console", ac)
+
     def test_resolve_iso_url_url(self):
         prov = MagicMock()
         cfg = {"iso": {"source": "url", "url": "https://x/y.iso"}}
@@ -916,6 +932,8 @@ class TestDeployFromConfig(unittest.TestCase):
         self.assertEqual(data["iso"]["source"], "url")
         self.assertIn("template", data["autoinstall"])
         self.assertIn("scc", data["autoinstall"])
+        self.assertIn("serial_console", data["autoinstall"])
+        self.assertFalse(data["autoinstall"]["serial_console"])
 
     def test_prepare_json_requires_connection(self):
         self.cmd.active_connections = {}
@@ -1029,8 +1047,9 @@ class TestDeployFromConfig(unittest.TestCase):
     def test_autoinstall_settings_asks_when_declined(self):
         prefill = {"username": "prefilluser", "user_password": "upw", "root_password": "rpw"}
         scc = {"scc_email": "a@b.c", "scc_reg_code": "XYZ"}
-        # 1st call (propose prefill) -> "no"; 2nd call (SCC register?) -> "no"
-        self.cmd._select_choice = MagicMock(side_effect=["no", "no"])
+        # 1st call (propose prefill) -> "no"; 2nd call (SCC register?) -> "no";
+        # 3rd call (serial console) -> "no"
+        self.cmd._select_choice = MagicMock(side_effect=["no", "no", "no"])
         self.cmd._get_input = MagicMock(
             side_effect=["askeduser", "Europe/Zurich", "ch", "German"]
         )
@@ -1074,6 +1093,36 @@ class TestDeployFromConfig(unittest.TestCase):
         self.assertEqual(result["username"], "onlyuser")
         self.assertEqual(result["user_password"], "")
         self.cmd._get_input.assert_not_called()
+
+    def test_autoinstall_settings_serial_console_asked(self):
+        # Supported template (autoyast): the serial console question is asked
+        # and the answer lands in the result.
+        self.cmd._select_choice = MagicMock(return_value="yes")
+        self.cmd._get_input = MagicMock()
+        self.cmd._get_password = MagicMock()
+        result = self.cmd._prepare_autoinstall_settings(
+            {}, {}, "autoyast-server.xml", [], "myvm"
+        )
+        self.assertTrue(result["serial_console"])
+
+    def test_autoinstall_settings_serial_console_options_order(self):
+        # Standard yes/no order, like every other yes/no question in the CLI.
+        self.cmd._select_choice = MagicMock(return_value="yes")
+        self.cmd._get_input = MagicMock()
+        self.cmd._get_password = MagicMock()
+        self.cmd._prepare_autoinstall_settings({}, {}, "autoyast-server.xml", [], "myvm")
+        prompt, options = self.cmd._select_choice.call_args[0][:2]
+        self.assertEqual(options, ["yes", "no"])
+
+    def test_autoinstall_settings_serial_console_not_asked_unsupported(self):
+        # Unsupported template (e.g. Ubuntu autoinstall): no question, False.
+        self.cmd._select_choice = MagicMock(return_value="no")  # SCC only
+        self.cmd._get_input = MagicMock()
+        self.cmd._get_password = MagicMock()
+        result = self.cmd._prepare_autoinstall_settings(
+            {}, {}, "autoinstall-basic.yaml", [], "myvm"
+        )
+        self.assertFalse(result["serial_console"])
 
     def test_ask_scc_register_yes(self):
         self.cmd._select_choice = MagicMock(return_value="yes")

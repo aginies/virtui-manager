@@ -14,7 +14,10 @@ from pathlib import Path
 # Add the src directory to the path to import vmanager modules
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "src"))
 
-from vmanager.provisioning.automation_engine import AutomationEngine  # noqa: E402
+from vmanager.provisioning.automation_engine import (  # noqa: E402
+    AutomationEngine,
+    template_supports_serial_console,
+)
 from vmanager.provisioning.os_provider import OSType  # noqa: E402
 
 TEMPLATES_DIR = Path(__file__).parent.parent / "src" / "vmanager" / "provisioning" / "templates"
@@ -168,6 +171,160 @@ class TestSerialConsoleTemplateInjection(unittest.TestCase):
             with open(out_path, encoding="utf-8") as f:
                 content = f.read()
         self.assertNotIn("console=ttyS0", content)
+
+    # --- Kickstart ---
+
+    def test_kickstart_with_bootloader(self):
+        """Template with a bootloader line: --append is added to it."""
+        content = self._read_template("kickstart-server.cfg")
+        self.assertIn("bootloader --location=mbr", content)
+        result = self.engine._apply_kickstart_serial_console(content)
+        self.assertIn(
+            f'bootloader --location=mbr --append="{SERIAL_CONSOLE_PARAMS}"', result
+        )
+
+    def test_kickstart_with_existing_append(self):
+        """Template already setting --append: no-op with warning."""
+        content = "bootloader --location=mbr --append=quiet\n"
+        result = self.engine._apply_kickstart_serial_console(content)
+        self.assertEqual(result, content)
+
+    def test_kickstart_without_bootloader(self):
+        """Template without a bootloader line: no-op with warning."""
+        content = "# no bootloader here\nautopart\n"
+        result = self.engine._apply_kickstart_serial_console(content)
+        self.assertEqual(result, content)
+
+    def test_kickstart_idempotent(self):
+        """Applying twice must not duplicate the console params."""
+        content = self._read_template("kickstart-server.cfg")
+        once = self.engine._apply_kickstart_serial_console(content)
+        twice = self.engine._apply_kickstart_serial_console(once)
+        self.assertEqual(twice, once)
+        self.assertEqual(twice.count("console=ttyS0"), 1)
+
+    def _generate_fedora(self, serial_console):
+        user_config = {
+            "hostname": "testvm",
+            "locale": "en_US.UTF-8",
+            "keyboard": "us",
+            "timezone": "UTC",
+            "root_password": "rootpw",
+            "username": "testuser",
+            "user_password": "userpw",
+            "network_interface": "eth0",
+            "serial_console": serial_console,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = self.engine.generate(
+                os_type=OSType.FEDORA,
+                version_id="42",
+                vm_name="testvm",
+                user_config=user_config,
+                output_path=Path(tmp),
+                template_name="kickstart-server.cfg",
+            )
+            with open(out_path, encoding="utf-8") as f:
+                return f.read()
+
+    def test_generate_fedora_flag_on(self):
+        content = self._generate_fedora(True)
+        self.assertIn(SERIAL_CONSOLE_PARAMS, content)
+
+    def test_generate_fedora_flag_off(self):
+        content = self._generate_fedora(False)
+        self.assertNotIn("console=ttyS0", content)
+
+    def test_generate_debian_flag_on_no_file_change(self):
+        """Preseed: no console params are injected into the file; the Debian
+        installer propagates the installer kernel's console= param itself."""
+        user_config = {
+            "hostname": "testvm",
+            "keyboard": "us",
+            "timezone": "UTC",
+            "password": "userpw",
+            "username": "testuser",
+            "serial_console": True,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = self.engine.generate(
+                os_type=OSType.DEBIAN,
+                version_id="12",
+                vm_name="testvm",
+                user_config=user_config,
+                output_path=Path(tmp),
+                template_name="preseed-basic.cfg",
+            )
+            with open(out_path, encoding="utf-8") as f:
+                content = f.read()
+        self.assertNotIn("console=ttyS0", content)
+
+    def test_generate_ubuntu_autoinstall_warns(self):
+        """Ubuntu autoinstall cannot persist the serial console: warn."""
+        user_config = {
+            "hostname": "testvm",
+            "keyboard": "us",
+            "timezone": "UTC",
+            "password": "userpw",
+            "username": "testuser",
+            "serial_console": True,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertLogs(self.engine.logger, level="WARNING") as logs:
+                self.engine.generate(
+                    os_type=OSType.UBUNTU,
+                    version_id="24.04",
+                    vm_name="testvm",
+                    user_config=user_config,
+                    output_path=Path(tmp),
+                    template_name="autoinstall-basic.yaml",
+                )
+        self.assertTrue(any("serial_console is not supported" in m for m in logs.output))
+
+    def test_generate_arch_warns(self):
+        """Arch Linux cannot persist the serial console: warn."""
+        user_config = {
+            "hostname": "testvm",
+            "keyboard": "us",
+            "timezone": "UTC",
+            "password": "userpw",
+            "username": "testuser",
+            "serial_console": True,
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertLogs(self.engine.logger, level="WARNING") as logs:
+                self.engine.generate(
+                    os_type=OSType.ARCHLINUX,
+                    version_id="latest",
+                    vm_name="testvm",
+                    user_config=user_config,
+                    output_path=Path(tmp),
+                    template_name="archinstall-basic.json",
+                )
+        self.assertTrue(any("serial_console is not supported" in m for m in logs.output))
+
+
+class TestTemplateSupportsSerialConsole(unittest.TestCase):
+    """Tests for the template_supports_serial_console helper."""
+
+    def test_supported_templates(self):
+        for name in (
+            "autoyast-server.xml",
+            "agama-basic.json",
+            "kickstart-server.cfg",
+            "preseed-basic.cfg",
+        ):
+            self.assertTrue(template_supports_serial_console(name), name)
+
+    def test_unsupported_templates(self):
+        for name in (
+            "autoinstall-basic.yaml",
+            "archinstall-basic.json",
+            "alpine-answers-basic.txt",
+            "",
+            None,
+        ):
+            self.assertFalse(template_supports_serial_console(name), name)
 
 
 class TestTemplateEditing(unittest.TestCase):

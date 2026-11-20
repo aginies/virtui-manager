@@ -15,6 +15,16 @@ from typing import Any, Dict, List, Optional
 
 from .os_provider import OSType, hash_password
 
+# Templates that can persist the serial console into the installed
+# system's bootloader (preseed: the Debian installer does it natively).
+SERIAL_CONSOLE_TEMPLATE_MARKERS = ("autoyast", "agama", "kickstart", "preseed")
+
+
+def template_supports_serial_console(template_name: str) -> bool:
+    """True when the engine can apply ``serial_console`` for this template."""
+    name = (template_name or "").lower()
+    return any(marker in name for marker in SERIAL_CONSOLE_TEMPLATE_MARKERS)
+
 
 class AutomationEngine:
     """Central engine for generating OS automation files."""
@@ -79,6 +89,9 @@ class AutomationEngine:
             with open(template_path, "r", encoding="utf-8") as f:
                 content = self._substitute_variables(f.read(), config, hash_fields=["user_password", "password", "root_password"])
 
+        if config.get("serial_console"):
+            content = self._apply_kickstart_serial_console(content)
+
         output_file = output_path / "ks.cfg"
         self._write_file(output_file, content)
         return output_file
@@ -95,6 +108,12 @@ class AutomationEngine:
         is_autoinstall = "autoinstall" in template_name.lower() or template_name.endswith((".yaml", ".yml"))
         
         if is_autoinstall:
+            if config.get("serial_console"):
+                self.logger.warning(
+                    "serial_console is not supported by Ubuntu autoinstall "
+                    "templates; the installed system's bootloader will not "
+                    "get the serial console"
+                )
             template_path = self._find_template(template_name, [".yaml", ".yml"])
             if not template_path:
                 raise FileNotFoundError(f"Ubuntu autoinstall template not found: {template_name}")
@@ -201,6 +220,12 @@ class AutomationEngine:
         config = user_config.copy()
         config["vm_name"] = vm_name
         config.setdefault("timezone", "UTC")
+
+        if config.get("serial_console"):
+            self.logger.warning(
+                "serial_console is not supported by Arch Linux templates; "
+                "the installed system's bootloader will not get the serial console"
+            )
         
         template_path = self._find_template(template_name, [".json"])
         if not template_path:
@@ -235,6 +260,13 @@ class AutomationEngine:
         config = user_config.copy()
         config["vm_name"] = vm_name
         config.setdefault("timezone", "UTC")
+
+        if config.get("serial_console"):
+            self.logger.warning(
+                "serial_console is not supported by Alpine Linux templates; "
+                "the installed system's bootloader will not get the serial console"
+            )
+
         config.setdefault("ssh_server", "openssh")
         config.setdefault("ntp_client", "chrony")
         config.setdefault("disk_device", "/dev/vda")
@@ -470,6 +502,34 @@ reboot
             extra = ""
         bootloader["extraKernelParams"] = f"{extra} {params}".strip()
         return json.dumps(data, indent=2, ensure_ascii=False)
+
+    def _apply_kickstart_serial_console(self, content: str) -> str:
+        """Add serial console kernel params via ``bootloader --append``.
+
+        No-op (with a warning) if the template has no bootloader line or
+        already sets --append.
+        """
+        params = self.SERIAL_CONSOLE_PARAMS
+        if "console=ttyS0" in content:
+            return content  # already configured (idempotent)
+        lines = content.splitlines(keepends=True)
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            if stripped == "bootloader" or stripped.startswith("bootloader "):
+                if "--append" in stripped:
+                    self.logger.warning(
+                        "Kickstart template already sets bootloader --append; "
+                        "serial console params not added"
+                    )
+                    return content
+                newline = "\n" if line.endswith("\n") else ""
+                lines[i] = f'{line.rstrip()} --append="{params}"{newline}'
+                return "".join(lines)
+        self.logger.warning(
+            "Kickstart template has no bootloader line; "
+            "serial console not configured for the installed system"
+        )
+        return content
 
     def _apply_autoyast_post_install(self, content: str, commands: List[str]) -> str:
         """Insert a ``<scripts><chroot-scripts>`` section running the commands.
