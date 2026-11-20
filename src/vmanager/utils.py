@@ -127,9 +127,10 @@ def sanitize_sensitive_data(message: str) -> str:
 
     # 7. Redact JSON password fields, including prefixed keys such as
     #    user_password and root_password (any JSON string value whose key
-    #    contains a password-like token is redacted).
+    #    contains a password-like token as a whole word is redacted, so
+    #    "api_key" is redacted but "keyboard" is not).
     sanitized = re.sub(
-        r'(?i)"([^"]*(?:passwd|password|pwd|pass|secret|key|token|auth|credential|cred)[^"]*)"\s*:\s*"[^"]*"',
+        r'(?i)"([^"]*(?:(?<![a-z0-9])(?:passwd|password|pwd|pass|secret|key|token|auth|credential|cred)(?![a-z0-9]))[^"]*)"\s*:\s*"[^"]*"',
         r'"\1":"***"',
         sanitized,
     )
@@ -149,9 +150,11 @@ def sanitize_sensitive_data(message: str) -> str:
         sanitized,
     )
 
-    # 10. Redact environment variable-style secrets
+    # 10. Redact environment variable-style secrets (the token must end the
+    #     variable name, optionally followed by _SUFFIX segments, so
+    #     SSH_KEY is redacted but KEYBOARD is not).
     sanitized = re.sub(
-        r"(?i)\b[A-Z_]*(PASSWORD|SECRET|KEY|TOKEN|CRED)[A-Z_]*\s*=\s*[^,\s;'\"]+",
+        r"(?i)\b[A-Z_]*(PASSWORD|SECRET|KEY|TOKEN|CRED)(?:_[A-Z0-9]+)*\s*=\s*[^,\s;'\"]+",
         r"\1=***",
         sanitized,
     )

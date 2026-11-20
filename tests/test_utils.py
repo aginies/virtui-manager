@@ -18,6 +18,7 @@ from vmanager.utils import (
     humanize_bytes,
     is_running_under_flatpak,
     sanitize_credentials,
+    sanitize_sensitive_data,
     setup_cache_monitoring,
     setup_logging,
     snake_case_keys,
@@ -240,6 +241,59 @@ class TestSanitizeCredentials(unittest.TestCase):
             sanitize_credentials("qemu+ssh://admin@host:22/system"),
             "qemu+ssh://admin@host:22/system",
         )
+
+
+class TestSanitizeSensitiveData(unittest.TestCase):
+    """The redaction tokens used to match as substrings, so innocent keys like
+    ``"keyboard"`` (containing ``key``) or ``KEYBOARD=`` (containing ``KEY``)
+    were redacted or mangled."""
+
+    def test_json_keyboard_is_not_redacted(self):
+        self.assertEqual(
+            sanitize_sensitive_data('{"keyboard":"pc","model":"q35"}'),
+            '{"keyboard":"pc","model":"q35"}',
+        )
+
+    def test_json_keyboard_layout_is_not_redacted(self):
+        self.assertEqual(
+            sanitize_sensitive_data('{"keyboard-layout":"us"}'),
+            '{"keyboard-layout":"us"}',
+        )
+
+    def test_json_secret_keys_are_still_redacted(self):
+        out = sanitize_sensitive_data('{"api_key":"abc","ssh_key":"xyz","password":"s3cret"}')
+        self.assertIn('"api_key":"***"', out)
+        self.assertIn('"ssh_key":"***"', out)
+        self.assertIn('"password":"***"', out)
+        self.assertNotIn("abc", out)
+        self.assertNotIn("xyz", out)
+        self.assertNotIn("s3cret", out)
+
+    def test_json_prefixed_password_keys_are_still_redacted(self):
+        out = sanitize_sensitive_data('{"root_password":"a","user_password":"b"}')
+        self.assertIn('"root_password":"***"', out)
+        self.assertIn('"user_password":"***"', out)
+
+    def test_json_token_and_auth_keys_are_still_redacted(self):
+        out = sanitize_sensitive_data('{"auth_token":"t","secret_key":"u","key":"v"}')
+        self.assertIn('"auth_token":"***"', out)
+        self.assertIn('"secret_key":"***"', out)
+        self.assertIn('"key":"***"', out)
+
+    def test_json_keys_with_token_substrings_are_not_redacted(self):
+        self.assertEqual(
+            sanitize_sensitive_data('{"author":"John","bypass":true}'),
+            '{"author":"John","bypass":true}',
+        )
+
+    def test_env_var_keyboard_is_not_mangled(self):
+        self.assertEqual(sanitize_sensitive_data("KEYBOARD=us"), "KEYBOARD=us")
+
+    def test_env_var_secrets_are_still_redacted(self):
+        out = sanitize_sensitive_data("SSH_KEY=abc DB_PASSWORD_2=x")
+        self.assertNotIn("abc", out)
+        self.assertIn("KEY=***", out)
+        self.assertIn("PASSWORD=***", out)
 
 
 if __name__ == "__main__":
