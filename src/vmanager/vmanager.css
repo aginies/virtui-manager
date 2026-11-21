@@ -1037,10 +1037,17 @@ VMCard {
   padding-right: 1;
 }
 
-#cpu-sparkline { color: $success; }
-#mem-sparkline { color: $warning; }
-#disk-sparkline { color: $accent; }
-#net-sparkline { color: $primary; }
+/* Sparkline bar colors: Sparkline.render() reads the
+   sparkline--min-color / sparkline--max-color component classes,
+   a plain `color:` rule on the widget is ignored. */
+#cpu-sparkline > .sparkline--max-color { color: $success; }
+#cpu-sparkline > .sparkline--min-color { color: $success 30%; }
+#mem-sparkline > .sparkline--max-color { color: $warning; }
+#mem-sparkline > .sparkline--min-color { color: $warning 30%; }
+#disk-sparkline > .sparkline--max-color { color: $accent; }
+#disk-sparkline > .sparkline--min-color { color: $accent 30%; }
+#net-sparkline > .sparkline--max-color { color: $primary; }
+#net-sparkline > .sparkline--min-color { color: $primary 30%; }
 
 /* .button-separator is used across modals, so it stays global. */
 .button-separator,

@@ -19,8 +19,9 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.events import Click
 from textual.reactive import reactive
-from textual.widgets import Button, Checkbox, Rule, Sparkline, Static, TabbedContent, TabPane
+from textual.widgets import Button, Checkbox, Rule, Static, TabbedContent, TabPane
 
+from .absolute_sparkline import AbsoluteSparkline, LogSparkline
 from .constants import (
     ButtonLabels,
     DialogMessages,
@@ -207,6 +208,8 @@ class VMCard(Static):
     latest_disk_write = reactive(0.0)
     latest_net_rx = reactive(0.0)
     latest_net_tx = reactive(0.0)
+    latest_cpu_percent = reactive(0.0)
+    latest_mem_percent = reactive(0.0)
 
     def __init__(self, is_selected: bool = False) -> None:
         self.ui = {}
@@ -394,7 +397,7 @@ class VMCard(Static):
 
         # Create all sparkline components
         self.ui["cpu_label"] = Static("", classes="sparkline-label")
-        self.ui["cpu_sparkline"] = Sparkline([], id="cpu-sparkline")
+        self.ui["cpu_sparkline"] = AbsoluteSparkline([], id="cpu-sparkline")
         self.ui["cpu_sparkline_container"] = Horizontal(
             self.ui["cpu_label"],
             self.ui["cpu_sparkline"],
@@ -403,7 +406,7 @@ class VMCard(Static):
         )
 
         self.ui["mem_label"] = Static("", classes="sparkline-label")
-        self.ui["mem_sparkline"] = Sparkline([], id="mem-sparkline")
+        self.ui["mem_sparkline"] = AbsoluteSparkline([], id="mem-sparkline")
         self.ui["mem_sparkline_container"] = Horizontal(
             self.ui["mem_label"],
             self.ui["mem_sparkline"],
@@ -412,7 +415,7 @@ class VMCard(Static):
         )
 
         self.ui["disk_label"] = Static("", classes="sparkline-label")
-        self.ui["disk_sparkline"] = Sparkline([], id="disk-sparkline")
+        self.ui["disk_sparkline"] = LogSparkline([], id="disk-sparkline")
         self.ui["disk_sparkline_container"] = Horizontal(
             self.ui["disk_label"],
             self.ui["disk_sparkline"],
@@ -421,7 +424,7 @@ class VMCard(Static):
         )
 
         self.ui["net_label"] = Static("", classes="sparkline-label")
-        self.ui["net_sparkline"] = Sparkline([], id="net-sparkline")
+        self.ui["net_sparkline"] = LogSparkline([], id="net-sparkline")
         self.ui["net_sparkline_container"] = Horizontal(
             self.ui["net_label"],
             self.ui["net_sparkline"],
@@ -609,6 +612,23 @@ class VMCard(Static):
         # Update sparkline data (shows idle state when not active)
         self.update_sparkline_data()
 
+    def _clear_sparkline_history(self) -> None:
+        """Clears the sparkline history for this VM.
+
+        Called when the VM stops, so a restarted VM does not render stale
+        bars from the previous run (storage is only deleted on
+        disconnect/delete otherwise).
+        """
+        uuid = self.internal_id
+        if not uuid or not hasattr(self.app, "sparkline_data"):
+            return
+        if uuid not in self.app.sparkline_data:
+            return
+        with self.app.vm_service._sparkline_lock:
+            storage = self.app.sparkline_data[uuid]
+            for key in ("cpu", "mem", "disk", "net"):
+                storage[key] = []
+
     def update_sparkline_data(self) -> None:
         """Updates the labels and data of the sparklines based on the current view mode."""
         if not self.is_mounted or not self.display or self.compact_view:
@@ -629,21 +649,19 @@ class VMCard(Static):
 
             if all([cpu_label, mem_label, cpu_sparkline, mem_sparkline]):
                 if is_active:
-                    if self.cpu > 0:
-                        cpu_text = SparklineLabels.VCPU.format(cpu=self.cpu)
-                    else:
-                        cpu_text = SparklineLabels.VCPU.split("}", 1)[1].strip()
-
-                    if self.memory > 0:
-                        mem_gb = round(self.memory / 1024, 1)
-                        mem_text = SparklineLabels.MEMORY_GB.format(mem=mem_gb)
-                    else:
-                        mem_text = SparklineLabels.MEMORY_GB.split("}", 1)[1].strip()
+                    cpu_text = SparklineLabels.CPU_PERCENT.format(
+                        cpu=self.latest_cpu_percent
+                    )
+                    mem_text = SparklineLabels.MEM_PERCENT.format(
+                        mem=self.latest_mem_percent
+                    )
 
                     cpu_label.update(cpu_text)
                     mem_label.update(mem_text)
 
                     with self.app.vm_service._sparkline_lock:
+                        # Absolute 0-100 scale: a single sample already
+                        # renders at its real height, no guard needed.
                         cpu_sparkline.data = list(storage.get("cpu", []))
                         mem_sparkline.data = list(storage.get("mem", []))
                 else:
@@ -672,6 +690,8 @@ class VMCard(Static):
                     disk_label.update(disk_text)
                     net_label.update(net_text)
                     with self.app.vm_service._sparkline_lock:
+                        # Log scale: a single sample already renders at its
+                        # real height, no guard needed.
                         disk_sparkline.data = list(storage.get("disk", []))
                         net_sparkline.data = list(storage.get("net", []))
                 else:
@@ -825,6 +845,7 @@ class VMCard(Static):
         # where stats worker tries to fetch stats from a stopped domain
         if new_value == StatusText.STOPPED:
             self.stop_background_activities()
+            self._clear_sparkline_history()
 
         self._update_status_styling()
         self.watch_stats_view_mode(
@@ -1122,6 +1143,8 @@ class VMCard(Static):
         self.latest_disk_write = stats.get("disk_write_kbps", 0)
         self.latest_net_rx = stats.get("net_rx_kbps", 0)
         self.latest_net_tx = stats.get("net_tx_kbps", 0)
+        self.latest_cpu_percent = stats.get("cpu_percent", 0.0)
+        self.latest_mem_percent = stats.get("mem_percent", 0.0)
 
         # Update web console status
         self._update_webc_status()
@@ -1138,12 +1161,16 @@ class VMCard(Static):
                     history.pop(0)
                 storage[key] = history
 
-            with self.app.vm_service._sparkline_lock:
-                # We check stats_view_mode from self since we are on main thread
-                if self.stats_view_mode == "resources":
+            # Only accumulate while the VM is active (same condition as the
+            # sparkline display): a stopped VM's zero-stats tick would
+            # otherwise append a stale flat sample after the history is
+            # cleared on stop.
+            if stats["status"] in (StatusText.RUNNING, StatusText.PAUSED):
+                with self.app.vm_service._sparkline_lock:
+                    # Accumulate all series every tick, regardless of the
+                    # displayed mode, so both views are always live.
                     update_history("cpu", stats["cpu_percent"])
                     update_history("mem", stats["mem_percent"])
-                else:  # io
                     update_history("disk", self.latest_disk_read + self.latest_disk_write)
                     update_history("net", self.latest_net_rx + self.latest_net_tx)
 

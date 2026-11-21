@@ -1008,10 +1008,10 @@ class SparklineLabels:  # pylint: disable=too-few-public-methods
 
     DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
     NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
-    VCPU = "{cpu} VCPU"
-    MEMORY_GB = "{mem} Gb"
-    IDLE_CPU = "-- VCPU"
-    IDLE_MEM = "-- Gb"
+    CPU_PERCENT = "CPU {cpu:.0f}%"
+    MEM_PERCENT = "Mem {mem:.0f}%"
+    IDLE_CPU = "CPU --%"
+    IDLE_MEM = "Mem --%"
     IDLE_DISK = "Disk --"
     IDLE_NET = "Net --"
 
