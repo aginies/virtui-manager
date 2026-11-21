@@ -19,7 +19,7 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.events import Click
 from textual.reactive import reactive
-from textual.widgets import Button, Checkbox, Sparkline, Static, TabbedContent, TabPane
+from textual.widgets import Button, Checkbox, Rule, Sparkline, Static, TabbedContent, TabPane
 
 from .constants import (
     ButtonLabels,
@@ -446,6 +446,7 @@ class VMCard(Static):
                     with Horizontal(id="status-row"):
                         yield self.ui["status"]
                         yield self.ui["vm_ip"]
+            yield Rule(id="card-separator", line_style="blank")
             with Horizontal(id="quick-action-bar"):
                 yield self.ui["qb_start"]
                 yield self.ui["qb_shutdown"]
@@ -458,6 +459,7 @@ class VMCard(Static):
                 yield self.ui["qb_migration"]
                 yield self.ui["qb_xml"]
                 yield self.ui["actions_button"]
+            yield Rule(id="card-separator-stats", line_style="blank")
             yield self.ui["sparklines_container"]
 
     def _open_actions_modal(self) -> None:
@@ -760,6 +762,9 @@ class VMCard(Static):
         qbar_results = self.query("#quick-action-bar") if self.is_mounted else []
         qbar = qbar_results[0] if qbar_results else None
 
+        # Find the separator rules (hidden in compact view: no room, quick bar hidden)
+        separators = list(self.query(Rule)) if self.is_mounted else []
+
         if value:
             if sparklines and sparklines.is_mounted:
                 sparklines.display = False
@@ -767,6 +772,9 @@ class VMCard(Static):
                 qbar.display = False
             if vm_ip and vm_ip.is_mounted:
                 vm_ip.display = False
+            for sep in separators:
+                if sep.is_mounted:
+                    sep.display = False
         else:
             if sparklines:
                 sparklines.display = True
@@ -774,6 +782,8 @@ class VMCard(Static):
                 qbar.display = True
             if vm_ip:
                 vm_ip.display = True
+            for sep in separators:
+                sep.display = True
 
             # Ensure sparklines visibility is correct
             self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)
