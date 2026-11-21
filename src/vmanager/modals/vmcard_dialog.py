@@ -25,7 +25,7 @@ from textual.widgets import (
 from ..config import load_config, save_config
 from ..constants import ButtonLabels, ErrorMessages, StaticText, StatusText, SuccessMessages
 from ..events import VMActionButtonPressed
-from ..vm_queries import is_qemu_agent_running
+from ..vm_queries import has_overlays, is_qemu_agent_running
 from .base_modals import BaseModal
 from .input_modals import _sanitize_input
 from .utils_modals import BaseDialog
@@ -63,12 +63,41 @@ class VMActionsModal(BaseModal[Optional[str]]):
             yield actions
 
     def on_mount(self) -> None:
-        """Schedule button visibility update after children are composed."""
-        self.set_timer(0.1, self._apply_button_visibility)
+        """Schedule state fetch after children are composed."""
+        self.set_timer(0.1, self._fetch_state_and_apply_visibility)
 
-    def _apply_button_visibility(self) -> None:
-        """Apply button visibility based on VM status and state."""
-        from ..vm_queries import has_overlays
+    def _fetch_state_and_apply_visibility(self) -> None:
+        """Fetch snapshot/overlay state in a worker, then apply button visibility.
+
+        snapshotNum() and has_overlays() are blocking libvirt calls and must
+        not run on the main thread.
+        """
+        vm = self.vm
+
+        def fetch_state() -> None:
+            has_snapshots = False
+            has_overlay_disks = False
+            if vm is not None:
+                try:
+                    has_snapshots = vm.snapshotNum(0) > 0
+                except Exception:
+                    pass
+                try:
+                    has_overlay_disks = has_overlays(vm)
+                except Exception:
+                    pass
+            self.app.call_from_thread(
+                self._apply_button_visibility, has_snapshots, has_overlay_disks
+            )
+
+        self.app.worker_manager.run(fetch_state, name=f"vm_actions_state_{self.vm_name}")
+
+    def _apply_button_visibility(
+        self, has_snapshots: bool, has_overlay_disks: bool
+    ) -> None:
+        """Apply button visibility based on VM status and state (main thread)."""
+        if not self.is_mounted:
+            return
 
         is_loading = self.vm_status == StatusText.LOADING
         is_stopped = self.vm_status == StatusText.STOPPED
@@ -110,20 +139,7 @@ class VMActionsModal(BaseModal[Optional[str]]):
             xml_button.label = ButtonLabels.EDIT_XML if is_stopped else ButtonLabels.VIEW_XML
             xml_button.display = not is_loading
 
-        # State Management tab: fetch snapshot/overlay state from the VM
-        has_snapshots = False
-        has_overlay_disks = False
-        if self.vm:
-            try:
-                snapshot_count = self.vm.snapshotNum(0)
-                has_snapshots = snapshot_count > 0
-            except Exception:
-                pass
-            try:
-                has_overlay_disks = has_overlays(self.vm)
-            except Exception:
-                pass
-
+        # State Management tab: use the state fetched by the worker
         update(
             "#snapshot_restore",
             has_snapshots and not is_running and not is_loading and not is_blocked,

@@ -16,7 +16,6 @@ import libvirt
 from rich.markdown import Markdown as RichMarkdown
 from textual import on
 from textual.containers import Horizontal, Vertical
-from textual.css.query import NoMatches
 from textual.events import Click
 from textual.reactive import reactive
 from textual.widgets import Button, Checkbox, Rule, Static, TabbedContent, TabPane
@@ -281,40 +280,15 @@ class VMCard(Static):
 
         logging.debug(f"Cancelling all workers for VM: {target_uuid}")
 
-        # Cancel all 9 worker types
+        # Cancel all 8 worker types
         self.app.worker_manager.cancel(f"update_stats_{target_uuid}")
         self.app.worker_manager.cancel(f"actions_state_{target_uuid}")
-        self.app.worker_manager.cancel(f"refresh_snapshot_tab_{target_uuid}")
         self.app.worker_manager.cancel(f"snapshot_take_{target_uuid}")
         self.app.worker_manager.cancel(f"snapshot_delete_fetch_{target_uuid}")
         self.app.worker_manager.cancel(f"save_{target_uuid}")
         self.app.worker_manager.cancel(f"delete_{target_uuid}")
         self.app.worker_manager.cancel(f"xml_tooltip_{target_uuid}")
         self.app.worker_manager.cancel(f"get_details_{target_uuid}")
-
-    def _get_snapshot_tab_title(self, num_snapshots: int = -1) -> str:
-        """Get snapshot tab title. Pass num_snapshots to avoid blocking libvirt call."""
-        if num_snapshots == -1:
-            # If no count provided, don't fetch it here to avoid blocking.
-            # For now, return default if we can't get it cheaply.
-            return TabTitles.SNAP_OVER_UPDATE
-
-        if self.vm and num_snapshots > 0:
-            return f"{TabTitles.STATE_MANAGEMENT}({num_snapshots})"
-        return TabTitles.STATE_MANAGEMENT
-
-    def update_snapshot_tab_title(self, num_snapshots: int = -1) -> None:
-        """Updates the snapshot tab title."""
-        try:
-            tabbed_content = self.query_one("#button-container", TabbedContent)
-            tabbed_content.get_tab("snapshot-tab").update(
-                self._get_snapshot_tab_title(num_snapshots)
-            )
-        except NoMatches:
-            # Actions not mounted
-            pass
-        except Exception as e:
-            logging.warning(f"Could not update snapshot tab title: {e}")
 
     def _update_webc_status(self) -> None:
         """Updates the web console status indicator and button."""
@@ -332,18 +306,6 @@ class VMCard(Static):
         new_indicator = f" {icons['webc']}" if webc_is_running else ""
         if self.webc_status_indicator != new_indicator:
             self.webc_status_indicator = new_indicator
-
-        # Update button label and style
-        try:
-            web_console_button = self.query_one("#web_console", Button)
-            if webc_is_running:
-                web_console_button.label = "Show Console"
-                web_console_button.variant = "success"
-            else:
-                web_console_button.label = ButtonLabels.WEB_CONSOLE
-                web_console_button.variant = "default"
-        except NoMatches:
-            pass
 
     def watch_webc_status_indicator(self, old_value: str, new_value: str) -> None:
         """Called when webc_status_indicator changes."""
@@ -482,10 +444,6 @@ class VMCard(Static):
             ),
             on_action_result,
         )
-
-    def _cleanup_actions(self):
-        for child in self.query(VMCardActions):
-            child.remove()
 
     def _is_remote_server(self) -> bool:
         """Checks if the VM is on a remote server."""
@@ -760,9 +718,6 @@ class VMCard(Static):
 
         if old_value != new_value:
             # Reset heavy state UI elements
-            # Don't set "Updating Data..." - let it show default title until data is fetched
-            # Reset heavy state UI elements
-            self.update_snapshot_tab_title(0)  # Show default "State Management" title
             self.update_button_layout()
             self.update_stats()
             self._perform_tooltip_update()
@@ -900,8 +855,6 @@ class VMCard(Static):
                 self._cancel_all_workers()
             except Exception:
                 pass
-
-        self._cleanup_actions()
 
     def reset_for_reuse(self) -> None:
         """Reset card state for reuse by another VM."""
@@ -1220,39 +1173,6 @@ class VMCard(Static):
         self.ui["qb_migration"].display = not is_loading
         self.ui["qb_xml"].display = not is_loading
 
-        if not self.query("#rename-button"):
-            return
-
-        def update(selector, visible):
-            for w in self.query(selector):
-                w.display = visible
-
-        update("#start", is_stopped)
-        update("#shutdown", is_running or is_blocked)
-        update("#hibernate", is_running or is_blocked)
-        update("#stop", is_running or is_paused or is_pmsuspended or is_blocked)
-        update("#delete", is_running or is_paused or is_stopped or is_pmsuspended or is_blocked)
-        update("#clone", is_stopped)
-        update("#migration", not is_loading)
-        update("#rename-button", is_stopped)
-        update("#pause", is_running)
-        update("#resume", is_paused or is_pmsuspended)
-        update("#connect", self.app.r_viewer_available)
-        update("#web_console", (is_running or is_paused or is_blocked))
-        update("#configure-button", not is_loading)
-        update("#snap_overlay_help", not is_loading)
-        update("#snapshot_take", not is_loading)
-        update("#snapshot_restore", not is_running and not is_loading and not is_blocked)
-
-        # XML Button Logic
-        for xml_button in self.query("#xml"):
-            if is_stopped:
-                xml_button.label = ButtonLabels.EDIT_XML
-                self.stats_view_mode = "resources"
-            else:
-                xml_button.label = ButtonLabels.VIEW_XML
-            xml_button.display = not is_loading
-
     def _update_status_styling(self):
         status_widget = self.ui.get("status")
         if status_widget:
@@ -1271,11 +1191,6 @@ class VMCard(Static):
                 status_widget.add_class("pmsuspended")
             elif self.status == StatusText.BLOCKED:
                 status_widget.add_class("blocked")
-
-    @on(VMActionButtonPressed)
-    def on_vm_action_button_pressed(self, event: VMActionButtonPressed) -> None:
-        """Handle actions from the VMCardActions component."""
-        self._dispatch_action(event.action_id)
 
     # Map quick action grid button IDs to action IDs
     QB_ACTION_MAP = {
@@ -1712,9 +1627,10 @@ class VMCard(Static):
                         f"{self.app.r_viewer} started with PID {proc.pid} for "
                         f"{domain_name} on {server_display} ({uri})"
                     )
-                    self.app.show_quick_message(
+                    self.app.call_from_thread(
+                        self.app.show_quick_message,
                         f"Remote viewer {self.app.r_viewer} started for "
-                        f"{domain_name} on {server_display}"
+                        f"{domain_name} on {server_display}",
                     )
                 except Exception as e:
                     logging.error(f"Failed to spawn {self.app.r_viewer} for {domain_name}: {e}")
@@ -1829,8 +1745,6 @@ class VMCard(Static):
         vm_name = self.name
 
         def handle_snapshot_result(result: dict | None) -> None:
-            # Always refresh tab title when modal closes, even if cancelled
-            self._refresh_snapshot_tab_async()
             if result:
                 name = result["name"]
                 description = result["description"]
@@ -1872,8 +1786,6 @@ class VMCard(Static):
                             self.app.show_success_message(
                                 SuccessMessages.SNAPSHOT_CREATED.format(snapshot_name=name)
                             )
-                            # Defer refresh and restart stats to avoid racing
-                            self.app.set_timer(0.5, self._refresh_snapshot_tab_async)
                         # Restart stats timer after a delay
                         self.app.set_timer(1.0, self.update_stats)
 
@@ -1906,7 +1818,6 @@ class VMCard(Static):
                     return
 
                 def restore_snapshot_callback(snapshot_name: str | None) -> None:
-                    self._refresh_snapshot_tab_async()
                     if snapshot_name:
                         # Stop all background activity for this card before starting the restore
                         if self.timer:
@@ -2008,7 +1919,6 @@ class VMCard(Static):
                     return
 
                 def delete_snapshot_callback(snapshot_name: str | None) -> None:
-                    self._refresh_snapshot_tab_async()
                     if snapshot_name:
 
                         def on_confirm(confirmed: bool) -> None:
@@ -2056,9 +1966,6 @@ class VMCard(Static):
                                             logging.info(
                                                 f"Successfully deleted snapshot '{snapshot_name}' for VM: {vm_name}"
                                             )
-                                            self.app.set_timer(
-                                                0.1, self._refresh_snapshot_tab_async
-                                            )
                                         # Restart stats timer
                                         self.update_stats()
 
@@ -2094,90 +2001,6 @@ class VMCard(Static):
 
         self.app.worker_manager.run(
             fetch_and_show_worker, name=f"snapshot_delete_fetch_{self.internal_id}"
-        )
-
-    def _refresh_snapshot_tab_async(self) -> None:
-        """Refreshes the snapshot tab title asynchronously in a worker."""
-
-        def fetch_and_update():
-            try:
-                if not self.is_mounted:
-                    return
-
-                if not self.vm:
-                    return
-
-                # Fetch current snapshot count and summary
-                snapshot_summary = {"count": 0, "latest": None}
-                try:
-                    # Optimization: only fetch full details if there are snapshots
-                    if self.vm.snapshotNum(0) > 0:
-                        snapshots = get_vm_snapshots(self.vm)
-                        if snapshots:
-                            snapshot_summary["count"] = len(snapshots)
-                            latest = snapshots[0]
-                            snapshot_summary["latest"] = {
-                                "name": latest["name"],
-                                "time": latest["creation_time"],
-                            }
-                except libvirt.libvirtError as e:
-                    if e.get_error_code() == libvirt.VIR_ERR_NO_DOMAIN:
-                        logging.info(f"Domain no longer exists for {self.name}")
-                        return
-                    else:
-                        logging.warning(f"Could not get snapshot details for {self.name}: {e}")
-                        return
-
-                snapshot_count = snapshot_summary.get("count", 0)
-
-                # Update UI on main thread
-                def update_ui():
-                    if self.is_mounted:
-                        self.update_snapshot_tab_title(snapshot_count)
-
-                        # Update Tooltip on TabPane
-                        try:
-                            tabbed_content = self.query_one("#button-container", TabbedContent)
-                            pane = tabbed_content.get_tab("snapshot-tab")
-                            if snapshot_count > 0:
-                                latest = snapshot_summary.get("latest")
-                                info = (
-                                    f"{StaticText.LATEST_SNAPSHOT} {latest['name']} ({latest['time']})"
-                                    if latest
-                                    else "Unknown"
-                                )
-                                pane.tooltip = TabTitles.TOTAL_TAB.format(
-                                    info=info, snapshot_count=snapshot_count
-                                )
-                            else:
-                                pane.tooltip = StaticText.NO_SNAPSHOTS_CREATED
-                        except Exception:
-                            pass
-
-                        # Also update button visibility
-                        if self.query("#rename-button"):
-                            has_snapshots = snapshot_count > 0
-                            is_running = self.status == StatusText.RUNNING
-                            is_loading = self.status == StatusText.LOADING
-
-                            def update_btn(selector, visible):
-                                for w in self.query(selector):
-                                    w.display = visible
-
-                            update_btn(
-                                "#snapshot_restore",
-                                has_snapshots and not is_running and not is_loading,
-                            )
-                            update_btn("#snapshot_delete", has_snapshots)
-
-                self.app.call_from_thread(update_ui)
-
-            except Exception as e:
-                logging.error(f"Error refreshing snapshot tab for {self.name}: {e}")
-
-        # Run in worker to avoid blocking UI
-        self.app.worker_manager.run(
-            fetch_and_update, name=f"refresh_snapshot_tab_{self.internal_id}", exclusive=True
         )
 
     def _handle_delete_button(self) -> None:
@@ -2433,11 +2256,9 @@ class VMCard(Static):
                 finally:
                     self.app.vm_service.unsuppress_vm_events(internal_id)
 
-            def on_confirm_rename(confirmed: bool, delete_snapshots=False) -> None:
+            def on_confirm_rename(confirmed: bool) -> None:
                 if confirmed:
                     self.app.worker_manager.run(do_rename, name=f"rename_{self.name}")
-                    if delete_snapshots:
-                        self.app.set_timer(0.1, self._refresh_snapshot_tab_async)
                 else:
                     self.app.show_success_message(SuccessMessages.VM_RENAME_CANCELLED)
 

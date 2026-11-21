@@ -134,10 +134,6 @@ class TestVMCard(unittest.TestCase):
         # Mock webconsole_manager to say it's running
         self.mock_app.webconsole_manager.is_running.return_value = True
 
-        # Mock the query_one to return a mock button
-        mock_button = MagicMock()
-        self.vm_card.query_one = MagicMock(return_value=mock_button)
-
         with patch.object(VMCard, "update_button_layout"), patch.object(
             VMCard, "update_stats"
         ), patch.object(VMCard, "_perform_tooltip_update"):
@@ -145,8 +141,6 @@ class TestVMCard(unittest.TestCase):
             self.vm_card._update_webc_status()
 
         self.assertEqual(self.vm_card.webc_status_indicator, " 🌐")
-        self.assertEqual(mock_button.variant, "success")
-        self.assertEqual(mock_button.label, "Show Console")
 
     def test_handle_shutdown_button(self):
         """Test _handle_shutdown_button method."""
@@ -243,26 +237,6 @@ class TestVMCard(unittest.TestCase):
 
         # Test that it can be called
         self.vm_card.update_stats()
-        # Should not raise an exception
-        self.assertTrue(True)
-
-    def test_on_vm_action_button_pressed(self):
-        """Test on_vm_action_button_pressed method."""
-        mock_event = MagicMock()
-        mock_event.action = VmAction.START
-
-        # Mock the internal methods
-        with patch.object(VMCard, "update_button_layout"), patch.object(
-            VMCard, "update_stats"
-        ), patch.object(VMCard, "_perform_tooltip_update"):
-            self.vm_card.status = StatusText.RUNNING
-            self.vm_card.internal_id = "uuid-123"
-
-        # Mock post_message to check if it's called
-        self.vm_card.post_message = MagicMock()
-
-        # Test that the method can be called
-        self.vm_card.on_vm_action_button_pressed(mock_event)
         # Should not raise an exception
         self.assertTrue(True)
 
@@ -573,7 +547,6 @@ class TestVMCard(unittest.TestCase):
         expected_cancellations = [
             f"update_stats_{self.vm_card.internal_id}",
             f"actions_state_{self.vm_card.internal_id}",
-            f"refresh_snapshot_tab_{self.vm_card.internal_id}",
         ]
 
         for worker_name in expected_cancellations:
@@ -712,11 +685,10 @@ class TestVMCard(unittest.TestCase):
         if self.vm_card.timer:
             self.vm_card.timer.stop.assert_called_once()
 
-        # Verify all 9 workers were cancelled to prevent stale updates
+        # Verify all 8 workers were cancelled to prevent stale updates
         expected_worker_cancellations = [
             f"update_stats_{self.vm_card.internal_id}",
             f"actions_state_{self.vm_card.internal_id}",
-            f"refresh_snapshot_tab_{self.vm_card.internal_id}",
             f"snapshot_take_{self.vm_card.internal_id}",
             f"snapshot_delete_fetch_{self.vm_card.internal_id}",
             f"save_{self.vm_card.internal_id}",
@@ -1257,28 +1229,6 @@ class TestVMCard(unittest.TestCase):
 
         self.assertEqual(result, "")
 
-    def test_get_snapshot_tab_title_with_snapshots(self):
-        """Test _get_snapshot_tab_title with snapshots."""
-        with patch.object(VMCard, "update_button_layout"), patch.object(
-            VMCard, "update_stats"
-        ), patch.object(VMCard, "_perform_tooltip_update"):
-            self.vm_card.vm = MagicMock()
-
-        result = self.vm_card._get_snapshot_tab_title(5)
-
-        self.assertIn("5", result)
-
-    def test_get_snapshot_tab_title_no_snapshots(self):
-        """Test _get_snapshot_tab_title with no snapshots."""
-        with patch.object(VMCard, "update_button_layout"), patch.object(
-            VMCard, "update_stats"
-        ), patch.object(VMCard, "_perform_tooltip_update"):
-            self.vm_card.vm = MagicMock()
-
-        result = self.vm_card._get_snapshot_tab_title(0)
-
-        self.assertEqual(result, "State Management")
-
     def test_is_remote_server_local(self):
         """Test _is_remote_server returns False for local connection."""
         with patch.object(VMCard, "update_button_layout"), patch.object(
@@ -1429,17 +1379,14 @@ class TestVMCard(unittest.TestCase):
 
         self.mock_app.worker_manager.cancel = MagicMock()
 
-        with patch.object(self.vm_card, "update_snapshot_tab_title"), patch.object(
-            self.vm_card, "update_button_layout"
-        ), patch.object(self.vm_card, "update_stats"), patch.object(
-            self.vm_card, "_perform_tooltip_update"
-        ):
+        with patch.object(self.vm_card, "update_button_layout"), patch.object(
+            self.vm_card, "update_stats"
+        ), patch.object(self.vm_card, "_perform_tooltip_update"):
             VMCard.watch_internal_id(self.vm_card, "old-uuid-123", "new-uuid-456")
 
         # Verify old workers were cancelled
         self.mock_app.worker_manager.cancel.assert_any_call("update_stats_old-uuid-123")
         self.mock_app.worker_manager.cancel.assert_any_call("actions_state_old-uuid-123")
-        self.mock_app.worker_manager.cancel.assert_any_call("refresh_snapshot_tab_old-uuid-123")
 
     # ========================================================================
     # ERROR HANDLING TESTS
@@ -1605,15 +1552,10 @@ class TestVMCard(unittest.TestCase):
 
         self.mock_app.webconsole_manager.is_running.return_value = False
 
-        mock_button = MagicMock()
-        self.vm_card.query_one = MagicMock(return_value=mock_button)
-
         VMCard._update_webc_status(self.vm_card)
 
         # Verify indicator was cleared
         self.assertEqual(self.vm_card.webc_status_indicator, "")
-        # Verify button was reset
-        self.assertEqual(mock_button.variant, "default")
 
     def test_watch_webc_status_indicator_updates_status_widget(self):
         """Test watch_webc_status_indicator updates status widget."""
