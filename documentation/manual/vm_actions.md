@@ -1,6 +1,6 @@
 # VM Actions
 
-The Actions panel is the control center for each Virtual Machine. It is revealed by clicking the "Actions" collapsible header on a VM card.
+The Actions panel is the control center for each Virtual Machine. It is opened by clicking the **Actions** button (⋯) on the VM card's quick action bar.
 
 The available operations are organized into three tabs: **Manage**, **State management**, and **Other**.
 
@@ -8,32 +8,23 @@ The available operations are organized into three tabs: **Manage**, **State mana
 
 ## Quick Actions Buttons
 
-For faster access to the most common VM operations, quick action buttons are displayed prominently on each VM card. These buttons provide one-click access to essential VM management functions without needing to expand the full Actions panel.
+For faster access to the most common VM operations, quick action buttons are displayed prominently on each VM card's quick action bar. These buttons provide one-click access to essential VM management functions without opening the Actions modal.
 
-The quick action buttons dynamically change based on the current VM state:
+The quick action buttons are shown as icons (emoji, with ASCII fallbacks) and dynamically change based on the current VM state:
 
-*   **Start Button:** 
-    *   Appears when the VM is stopped
-    *   Single click to immediately start the VM
-    *   Provides the fastest way to boot a VM
+*   **Start (▶):** Appears when the VM is stopped. Single click to immediately start the VM.
+*   **Shutdown (⏻):** Appears when the VM is running or blocked. Sends a graceful ACPI shutdown signal to the guest OS.
+*   **Force Off (⚡):** Appears when the VM is running, paused, suspended, or blocked. Immediately cuts power (hard shutdown).
+*   **Pause (⏸):** Appears when the VM is running. Freezes VM execution.
+*   **Resume (⏯):** Appears when the VM is paused or suspended. Restores the VM from its frozen state.
+*   **Connect (👁):** Appears when a desktop remote viewer is available. Launches the configured viewer (e.g., `virt-viewer`) for the VM's display. Equivalent to the "Connect" action in the Manage tab.
+*   **Snapshot (📷):** Always available (except while loading). Creates a new snapshot.
+*   **Hibernate (💤):** Appears when the VM is running or blocked. Saves the VM state to disk and stops it.
+*   **Migration (🔄):** Always available (except while loading). Moves the VM to another server.
+*   **XML (📄):** Always available (except while loading). Views or edits the raw libvirt XML.
+*   **Actions (⋯):** Always available. Opens the full Actions modal described in the next sections.
 
-*   **Shutdown Button:**
-    *   Appears when the VM is running
-    *   Sends a graceful ACPI shutdown signal to the guest OS
-    *   Equivalent to the shutdown action in the Manage tab
-
-*   **Resume Button:**
-    *   Appears when the VM is paused
-    *   Immediately resumes VM execution
-    *   Restores the VM from its frozen state
-
-*   **Viewer Button:**
-    *   Appears when the VM is running
-    *   Launches the configured desktop remote viewer (e.g., `virt-viewer`)
-    *   Provides quick access to the VM's display for high-performance native connection
-    *   Equivalent to the "Connect" action in the Manage tab
-
-These quick action buttons eliminate the need to expand the Actions panel for routine power management tasks, making VM operations more efficient and user-friendly.
+These quick action buttons eliminate the need to open the Actions modal for routine power management tasks, making VM operations more efficient and user-friendly.
 
 ## Manage Tab
 
@@ -45,7 +36,7 @@ This tab contains the most common power management and connectivity controls.
 
 *   **Shutdown:**
     *   Sends an ACPI shutdown signal to the guest operating system, requesting a graceful shutdown.
-    *   *Visible when the VM is Running.*
+    *   *Visible when the VM is Running or Blocked.*
 
   *   **Force Off:**
      *   Forcefully terminates the VM process. This is equivalent to pulling the power plug and may cause data loss.
@@ -59,13 +50,10 @@ This tab contains the most common power management and connectivity controls.
      *   Resumes execution of a paused VM.
      *   *Visible when the VM is Paused or Suspended.*
 
-*   **Configure:**
-    *   Opens a detailed view of the VM's hardware configuration (CPU, Memory, Disks, Networks, etc.).
-
 *   **Web Console / Show Console:**
      *   **Web Console:** Configures and starts a secure noVNC session, allowing you to access the VM's display via a web browser. Useful for remote access without a dedicated client. *Note: Web Console only works with VNC graphics (not SPICE).*
      *   **Show Console:** appears when a session is active; clicking it opens the browser or reconnects.
-     *   **Status Indicator:** Shows "(WebC On)" next to the VM status when a web console session is active.
+     *   **Status Indicator:** Shows a web console icon (🌐, or `[W]` in ASCII mode) next to the VM status when a web console session is active.
 
 *   **Text Console:**
     *   Opens a direct serial console (`virsh console`) to the VM in a new **tmux** window.
@@ -80,10 +68,10 @@ This tab contains the most common power management and connectivity controls.
 
 The VM card displays real-time performance data using sparklines. You can toggle between two different views:
 
-*   **Resource View:** Shows CPU usage and Memory usage sparklines
-*   **I/O View:** Shows Disk I/O (read/write) and Network I/O (receive/transmit) sparklines
+*   **Resource View:** Shows CPU usage and Memory usage sparklines, each labeled with the current percentage (e.g., `CPU 42%`, `Mem 63%`). When the VM is not running, the labels show `CPU --%` / `Mem --%` and the sparklines are empty.
+*   **I/O View:** Shows Disk I/O (read/write) and Network I/O (receive/transmit) sparklines, each labeled with the current rate in MB/s (e.g., `Disk R/W 1.25/0.75 MB/s`, `Net Rx/Tx 0.10/2.30 MB/s`). When the VM is not running, the labels show `Disk --` / `Net --`.
 
-**To toggle views:** Click on any sparkline area to switch between Resource and I/O views.
+**To toggle views:** Click on any sparkline area to switch between Resource and I/O views. The toggle is only available while the VM is running or paused.
 
 ### Detailed Tooltip Information
 
@@ -110,14 +98,14 @@ Saving a VM (also known as "Managed Save") stops the VM and writes its entire me
 
 *   **Hibernate VM:**
     *   Hibernates the virtual machine.
-    *   *Visible when the VM is Running.*
+    *   *Visible when the VM is Running or Blocked.*
 
 ### Snapshots
 Snapshots save the state of the virtual machine (disk and memory) at a specific point in time.
 
 *   **Snapshot:**
     *   Creates a new snapshot. You can provide a name and description.
-    *   *Visible when the VM is Running or Paused.*
+    *   *Visible in all VM states (except while loading).*
 
  *   **Restore Snapshot:**
      *   Reverts the VM to a selected snapshot state.
@@ -125,6 +113,12 @@ Snapshots save the state of the virtual machine (disk and memory) at a specific 
 
 *   **Del Snapshot:**
     *   Permanently deletes a selected snapshot.
+
+### Guest Agent
+
+*   **Guest Agent:**
+    *   Opens the guest agent modal, which shows the agent's status (hostname, OS, kernel, uptime, load), a filesystem usage table, and lets you run guest operations: freeze/thaw filesystem, trim, sync time, set user password, guest shutdown, suspend to RAM/disk, run a command, manage SSH keys, and upload/download files.
+    *   *Visible when the VM is Running or Paused.*
 
 ### Overlays
 Overlays (or "Linked Clones" for a single disk) allow you to create a temporary writable layer on top of your base disk image. This is ideal for testing potentially destructive changes.
@@ -135,7 +129,7 @@ Overlays (or "Linked Clones" for a single disk) allow you to create a temporary 
 
 *   **Commit Disk:**
     *   Merges changes from the active overlay back into the base backing file.
-    *   *Visible when the VM is Running and using an overlay.*
+    *   *Visible when the VM is Running or Blocked and using an overlay.*
 
 *   **Discard Overlay:**
     *   Deletes the overlay file, discarding all changes made since it was created, and reverts the VM to the base image.
@@ -169,6 +163,9 @@ This tab contains administrative actions for the VM lifecycle.
 *   **Migration:**
     *   Moves the VM to another server managed by VirtUI Manager.
     *   Requires SSH connectivity between hosts.
+
+*   **Configure:**
+    *   Opens a detailed view of the VM's hardware configuration (CPU, Memory, Disks, Networks, etc.).
 
 *   **View XML / Edit XML:**
      *   A single toggle button that displays "Edit XML" when the VM is Stopped (opens an editor to manually modify the VM's XML configuration) and "View XML" when the VM is Running (displays the raw Libvirt XML configuration for inspection).

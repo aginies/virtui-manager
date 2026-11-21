@@ -92,6 +92,7 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
 *   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
 *   **`rename_vm <vm_name> <new_name>`**: Renames a stopped VM (snapshots and NVRAM are preserved).
+*   **`change_video <vm_name> <model> [--3d]`**: Changes the video model of a stopped VM. `<model>` is one of the host-supported models (see `host_capabilities`), or `none` to disable video (no default video device is added). 3D acceleration (virtio and qxl only) is off unless `--3d` is given.
 *   **`installvm [--dryrun|--show] <vm_name> [choice1 choice2 ...]`**: Installs a new Virtual Machine. It can be used interactively or unattended by providing numerical choices as positional arguments.
     *   `--dryrun` / `--show`: Displays a summary of the selected configuration and the command required to run it unattended, without performing the actual installation.
     *   *Note*: Automated installation credentials (passwords, keyboard layout, etc.) are pulled directly from the `AUTO_INSTALL_PRE_FILL` section of your configuration.
@@ -224,6 +225,14 @@ Command to run this unattended:
 installvm fed43 3 4 1 1 2 2 yes 1 2
 ```
 
+### Guest Agent Operations
+
+These commands require the QEMU guest agent to be installed and running inside the target VM.
+
+*   **`set_password <vm_name> <user>`**: Sets a user's password inside a running VM via the guest agent.
+*   **`download_file <vm_name> <remote_path> [local_dir] [--append]`**: Downloads a file from a running VM to the host via the guest agent. The file is saved in `local_dir` (default: current directory) with the same name as the remote file. The local directory must already exist; an existing file is never overwritten unless `--append` is given.
+*   **`upload_file <vm_name> <local_path> <remote_dir> [--append]`**: Uploads a local file to a running VM via the guest agent. The file is placed in `remote_dir` with the same name as the local file. The directory must already exist in the guest and the file is created root-owned.
+
 ## Network Management
 
 *   **`list_networks`**: Lists all virtual networks on connected servers, showing their state and mode.
@@ -294,6 +303,7 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 *   **`list_pool`**: Displays all storage pools, their capacity, and usage.
 *   **`list_volumes [pool_name]`**: Lists all storage volumes in a pool (name, type, capacity, allocation).
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
+*   **`delete_volume <pool_name> <volume_name>`**: Deletes a storage volume from a pool.
 *   **`volume_usage <pool_name> <volume_name>`**: Lists the VMs that use a storage volume.
 *   **`host_info [server]`**: Displays host resource information (CPU models, topology, total/free memory).
 *   **`host_capabilities [server]`**: Displays hypervisor capabilities (architecture, CPU models, latest machine types, supported video models).
@@ -466,6 +476,7 @@ web01.json               web01              server           789 B  2026-11-03 1
 *   **`history [number|all|info]`**: Displays the command history. Use `history all` to see all history, `history <number>` for a specific number of recent commands, or `history info` for history file location.
 *   **`!<number>`**: Re-executes a command from the history by its number (e.g., `!15` runs command #15).
 *   **`version`**: Displays the version of VirtUI Manager (same version as the TUI).
+*   **`about`**: Displays the GPL license and copyright information.
 
 ```bash
 (ryzen7,g.org) virsh
@@ -505,7 +516,7 @@ pipeline [options] <command1> | <command2> | ...
 
 *   **Selection**: `select <vm1> [vm2...]` or `select re:<pattern>`
 *   **VM Operations**: `start`, `stop`, `force_off`, `pause`, `resume`, `hibernate`
-*   **Snapshots**: `snapshot create <name> [desc]`, `snapshot delete <name>`, `snapshot revert <name>`
+*   **Snapshots**: `snapshot create <name> [desc]`, `snapshot delete <name>`, `snapshot revert <name>`, `snapshot list`
 *   **Utilities**: `wait <seconds>`, `view`, `info`
 
 ### Variable Expansion
@@ -623,11 +634,12 @@ guess at.
 |----------|----------|
 | Connection | `connect`, `disconnect`, `list_servers`, `list_connected_servers`, `host_info`, `host_capabilities`, `virsh` |
 | VM Selection | `list_vms`, `select_vm`, `unselect_vm`, `status`, `vm_info`, `vm_stats`, `show_vm_xml`, `diff_xml`, `show_selection` |
-| VM Operations | `start`, `stop`, `force_off`, `reboot`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `rename_vm`, `installvm`, `view` |
+| VM Operations | `start`, `stop`, `force_off`, `reboot`, `pause`, `resume`, `hibernate`, `delete`, `clone_vm`, `rename_vm`, `change_video`, `installvm`, `view` |
+| Guest Agent | `set_password`, `download_file`, `upload_file` |
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `network_usage`, `net_autostart` |
-| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `volume_usage` |
+| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage` |
 | Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json`, `list_isos`, `list_cached_isos` |
 | Pipelines | `pipeline` (with `|` chaining) |
-| Shell/Utils | `bash`, `history`, `!<number>`, `version`, `quit`, `help` |
+| Shell/Utils | `bash`, `history`, `!<number>`, `version`, `about`, `quit`, `help` |

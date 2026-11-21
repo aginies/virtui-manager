@@ -23,13 +23,11 @@ When you enter Bulk Command mode, a menu appears presenting actions that can be 
 *   **Start:** Boot all selected stopped VMs.
 *   **Shutdown:** Send an ACPI shutdown signal to all running selected VMs.
 *   **Force Off:** Immediately terminate selected VMs (equivalent to pulling the power plug).
-*   **Reboot:** Perform a graceful reboot of all selected machines.
 
 ### Configuration & State
 
-*   **Pause / Resume:** Suspend or continue execution for the selected group.
+*   **Pause:** Suspend execution for the selected group.
 *   **Delete:** Remove multiple VMs at once. *Use with caution.*
-*   **State Management:** Create or manage snapshots for the entire selection (e.g., "Pre-patching" snapshot for all web servers).
 *   **Configuration:** It's possible to change the configuration for all VMs selected. This should be done with caution as this can lead to major issues for VMs.
 
 ## Safety and Feedback

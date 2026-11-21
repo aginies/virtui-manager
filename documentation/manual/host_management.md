@@ -75,4 +75,5 @@ The **Storage** tab allows you to manage Libvirt storage pools and their volumes
 *   **Volume Operations:**
     *   **New Volume:** Create new disk images within a pool.
     *   **Attach Vol:** Directly attach a volume to a virtual machine.
+    *   **Move Volume:** Move the selected volume to another pool.
     *   **XML Management:** View or edit the raw XML configuration for pools and volumes.

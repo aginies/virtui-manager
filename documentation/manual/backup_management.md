@@ -1,6 +1,6 @@
 # Backup Management
 
-Backup system supporting snapshot and overlay types with optional compression, encryption, and integrity verification. Backups are managed through both the CLI and the bulk operations interface.
+Backup system supporting snapshot and overlay types with optional compression and encryption. Overlay backups record SHA-256 checksums in their metadata. Backups are managed through the CLI.
 
 ## Backup Types
 
@@ -43,21 +43,15 @@ Each backup can be configured with multiple options:
 *   **`--type <snapshot|overlay>`:** Choose the backup type. Default is `snapshot`.
 *   **`--compress`:** Enable gzip compression of overlay files. Appends `.gz` extension. Does not apply to snapshot backups.
 *   **`--encrypt`:** Enable AES-256-CBC encryption via OpenSSL. Appends `.enc` extension. Requires OpenSSL to be installed. When combined with `--compress`, the pipeline is: original -> gzip -> encrypt.
-*   **`--verify`:** Run integrity verification immediately after creation. Checks snapshot existence or file checksums.
 *   **`--quiesce`:** Use QEMU Guest Agent to freeze the filesystem before taking a snapshot. Requires the guest agent to be installed and running. Ensures filesystem consistency.
 
 ## Creating Backups
-
-### Via CLI
 
 Create a backup using the `backup_create` command:
 
 ```bash
 # Basic snapshot backup
 backup_create myvm-backup
-
-# Snapshot backup with verification
-backup_create myvm-backup --type snapshot --verify
 
 # Overlay backup with compression
 backup_create myvm-backup --type overlay --compress
@@ -66,15 +60,8 @@ backup_create myvm-backup --type overlay --compress
 backup_create myvm-backup --type snapshot --encrypt --quiesce
 
 # Backup with timestamped name
-backup_create myvm-$(date) --type snapshot --compress --verify
+backup_create myvm-$(date) --type snapshot --compress
 ```
-
-### Via TUI
-
-1.  Select one or more VMs using the selection tools (manual click, `Ctrl+A`, or pattern selection).
-2.  Open **Bulk CMD** (`b`).
-3.  Choose **State Management** > **Snapshot** to create a snapshot backup.
-4.  Enter a backup name and optionally enable quiesce if the guest agent is available.
 
 ## Listing and Checking Backups
 
@@ -102,14 +89,7 @@ The status output includes:
 *   **Creation timestamp** and duration
 *   **Size in bytes** (for overlay backups)
 *   **Checksums** (SHA-256, for overlay backups)
-*   **Options** used (compress, encrypt, verify, quiesce)
-
-### Available Backups
-
-```bash
-# Get a simple list of backup names for restoration
-list_available_backups myvm
-```
+*   **Options** used (compress, encrypt, quiesce)
 
 ## Restoring Backups
 
@@ -118,11 +98,8 @@ list_available_backups myvm
 Snapshot backups restore the VM to the exact state captured at backup time:
 
 ```bash
-# Restore with pre-restore verification (default)
+# Restore with confirmation prompt (default)
 backup_restore myvm-backup
-
-# Restore without verification
-backup_restore myvm-backup --no-verify
 
 # Force restore without confirmation
 backup_restore myvm-backup --force
@@ -132,43 +109,34 @@ backup_restore myvm-backup --force
 
 **Warning:** Overlay backup restore is currently a **placeholder** and not fully implemented. The system verifies that overlay files exist but does not perform the actual merge/restore operation. Use snapshot backups for reliable restoration.
 
-### Pre-Restore Verification
-
-By default, VirtUI Manager verifies the backup integrity before restoring. This checks:
-
-*   For snapshot backups: The snapshot exists and is accessible.
-*   For overlay backups: All overlay files exist and checksums match.
-
-If verification fails, the restore is aborted to prevent data corruption.
-
 ## Cleanup and Retention Policies
 
 VirtUI Manager supports automated cleanup of old backups based on retention policies:
 
 ```bash
-# Clean up backups older than 30 days
-backup_cleanup --older-than 30
+# Clean up backups older than 30 days for a VM
+backup_cleanup myvm --keep-days 30
 
 # Clean up snapshot backups only
-backup_cleanup --type snapshot
+backup_cleanup myvm --backup-type snapshot
 
 # Clean up overlay backups only
-backup_cleanup --type overlay
+backup_cleanup myvm --backup-type overlay
 ```
 
 ### Retention Policies
 
 Retention policies are defined using two criteria:
 
-*   **`keep_count`:** Maximum number of backups to retain per VM.
-*   **`keep_days`:** Maximum age of backups in days.
+*   **`--keep-count N`:** Maximum number of backups to retain per VM.
+*   **`--keep-days N`:** Maximum age of backups in days.
 
-Both policies are applied: a backup is deleted if it exceeds either the count limit or the age limit.
+Both policies can be combined: a backup is deleted if it exceeds either the count limit or the age limit.
 
 ### How Cleanup Works
 
-1.  **Snapshot cleanup:** Queries VM snapshots, filters those with `_backup_` in the name, sorts by creation time, applies retention policies, then deletes via `delete_vm_snapshot` and removes the metadata JSON file.
-2.  **Overlay cleanup:** **Not implemented.** Returns an empty list with a TODO marker.
+1.  **Snapshot cleanup:** Queries VM snapshots, filters those with `_backup_` in the name, sorts by creation time, applies the retention policies (defaults to keeping the 3 most recent if neither `--keep-count` nor `--keep-days` is given), then deletes the snapshots and removes the metadata JSON file.
+2.  **Overlay cleanup:** Deletes the overlay volumes currently attached to the VM whose names contain `_backup_` or `_overlay_`. Retention policies do not apply to overlay backups.
 
 ## Encryption and Security
 
@@ -184,7 +152,7 @@ Both policies are applied: a backup is deleted if it exceeds either the count li
 
 *   **Algorithm:** SHA-256
 *   **Granularity:** Per-file checksums for overlay backup files
-*   **Verification:** Checksums are computed during backup creation and verified during backup verification and pre-restore checks
+*   **Verification:** Checksums are computed during backup creation and stored in the metadata. They are not re-verified automatically at restore time.
 *   **Storage:** Checksums are stored in the backup metadata JSON file
 
 ### Security Considerations
@@ -199,9 +167,9 @@ Both policies are applied: a backup is deleted if it exceeds either the count li
 
 Overlay backup restore is a placeholder. The system checks that overlay files exist but does not perform the actual merge/restore. Use snapshot backups for reliable restoration of overlay-based backups.
 
-### Overlay Cleanup Not Implemented
+### Overlay Cleanup Limited
 
-Overlay backup cleanup by retention policy is not yet implemented. Overlay backups must be cleaned up manually.
+Overlay backup cleanup does not apply retention policies. It deletes the overlay volumes currently attached to the VM whose names contain `_backup_` or `_overlay_`.
 
 ### Snapshot Name Collision
 

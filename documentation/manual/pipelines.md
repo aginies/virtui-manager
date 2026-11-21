@@ -89,10 +89,8 @@ Pipelines support multiple VM selection formats:
 
 | Command | Description |
 |---------|-------------|
-| `backup create [name] [options]` | Create a backup (options: `--type`, `--compress`, `--encrypt`, `--verify`, `--quiesce`) |
-| `backup schedule <cron_expression> [options]` | Schedule a recurring backup |
-| `backup list` | List backups for selected VMs |
-| `backup restore [options]` | Restore from a backup (options: `--no-verify`, `--force`) |
+| `backup create [name] [options]` | Create a backup (options: `--type`, `--compress`, `--encrypt`) |
+| `backup restore [backup_name]` | Restore from a backup |
 
 ### Utility Commands
 
@@ -233,7 +231,7 @@ pipeline --dry-run select re:prod-.* | pause | wait 30 | snapshot create backup-
 Create encrypted, compressed backups for production VMs:
 
 ```bash
-pipeline select re:prod-.* | backup create --type=snapshot --compress --encrypt --verify
+pipeline select re:prod-.* | backup create --type=snapshot --compress --encrypt
 ```
 
 ### Wait Between Operations
@@ -249,10 +247,6 @@ pipeline select web-01 | stop | wait 10 | snapshot create clean-snapshot | start
 ### Command Dependencies
 
 Some commands require VM selection to have been established first. For example, `start` requires VMs to be selected via a preceding `select` command. Validation ensures this dependency is met.
-
-### Backup Sub-Commands in Pipelines
-
-The `backup schedule` sub-command is supported in pipelines but creates a one-time scheduled backup rather than a recurring cron job. True recurring scheduling requires external tooling.
 
 ### No Variable Expansion in All Contexts
 

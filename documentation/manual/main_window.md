@@ -24,7 +24,7 @@ Located at the top-left, these tools control your connection contexts:
 The core view displaying your virtual machines.
 ![Select Server to Display](images/select_server_display.jpg)
 
-*   **Card View:** Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines, and IP addresses.
+*   **Card View:** Each VM is represented as a card showing real-time status, CPU/Memory usage sparklines (labeled with the current `CPU XX%` / `Mem XX%`), and the first IPv4 address on the status row. The card title shows the VM name followed by the server's display name.
 *   **Compact View (`k`):** Toggles a high-density view showing only selection, name, and status. Ideal for managing large numbers of VMs or when screen space is limited.
 *   **Interaction:**
     *   **Double-Click Name:** Triggers a background fetch of full VM data (in detailed view only).
@@ -69,7 +69,7 @@ Bulk commands apply to selected VMs.
 
 *   **Multi-Select:** Manually select cards or use **`Ctrl+a`** (Select All) / **`Ctrl+u`** (Unselect All).
 *   **Pattern Selection (`p`):** Select VMs based on name patterns (regex/glob).
-*   **Mass Actions:** Perform operations like `Start`, `Shutdown`, `Reboot`, or `Delete` on all selected VMs simultaneously.
+*   **Mass Actions:** Perform operations like `Start`, `Shutdown`, `Pause`, or `Delete` on all selected VMs simultaneously.
 
 ### Advanced Tools
 
