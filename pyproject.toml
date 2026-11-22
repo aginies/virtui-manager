@@ -56,6 +56,11 @@ webconsole = [
     "websockify>=0.10.0",
 ]
 
+web = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+]
+
 [project.urls]
 Homepage = "https://aginies.github.io/virtui-manager/"
 Documentation = "https://aginies.github.io/virtui-manager/manual"
@@ -69,6 +74,7 @@ virtui-manager-cmd = "vmanager.wrapper:cmd_main"
 vmc = "vmanager.wrapper:cmd_main"
 virtui-remote-viewer = "vmanager.wrapper:remote_viewer_main"
 virtui-gui = "vmanager.wrapper:gui_main"
+virtui-web = "vmanager.web.main:main"
 
 
 [tool.setuptools]
@@ -91,7 +97,8 @@ vmanager = [
     "provisioning/templates/*.yaml",
     "provisioning/templates/*.md",
     "provisioning/templates/*.json",
-    "provisioning/templates/*.txt"
+    "provisioning/templates/*.txt",
+    "web/static/*"
 ]
 
 [tool.black]

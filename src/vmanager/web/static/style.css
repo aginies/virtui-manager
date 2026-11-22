@@ -1,0 +1,220 @@
+/* Dark theme for the VirtUI web dashboard, loosely matching vmanager.css. */
+
+:root {
+  --bg: #12141a;
+  --bg-card: #1b1e27;
+  --bg-card-hover: #21252f;
+  --border: #2c313d;
+  --text: #d7dae0;
+  --text-dim: #8a90a0;
+  --accent: #5aa2ff;
+  --running: #4caf50;
+  --paused: #ffc107;
+  --stopped: #6b7280;
+  --unknown: #9e9e9e;
+  --error: #f44336;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+}
+
+/* -- header ---------------------------------------------------------- */
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+h1 {
+  font-size: 16px;
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+h1 span { color: var(--accent); }
+
+#servers { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+
+.server-chip {
+  padding: 2px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.server-chip.on { color: var(--text); border-color: var(--running); }
+.server-chip.off { border-color: var(--error); }
+
+.header-right { display: flex; align-items: center; gap: 10px; }
+
+#filter {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 10px;
+  width: 180px;
+}
+#filter:focus { outline: 1px solid var(--accent); }
+
+button {
+  background: var(--accent);
+  color: #0d1117;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+button.secondary {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.ws-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--error);
+  display: inline-block;
+}
+.ws-dot.online { background: var(--running); }
+
+/* -- card grid -------------------------------------------------------- */
+
+#cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+#empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 40px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  transition: background 0.15s;
+}
+.card:hover { background: var(--bg-card-hover); }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-name { font-weight: 600; font-size: 15px; }
+.vm-status { margin-left: auto; font-size: 12px; color: var(--text-dim); }
+.vm-server { font-size: 12px; color: var(--text-dim); margin: 2px 0 8px; }
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--unknown);
+  flex: none;
+}
+.status-dot.running { background: var(--running); box-shadow: 0 0 5px var(--running); }
+.status-dot.paused { background: var(--paused); }
+.status-dot.stopped { background: var(--stopped); }
+
+/* -- sparklines -------------------------------------------------------- */
+
+.sparks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  margin: 8px 0;
+}
+
+.spark-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.4px;
+}
+.spark-value { color: var(--text); font-weight: 600; }
+
+.spark-canvas {
+  width: 100%;
+  height: 26px;
+  display: block;
+}
+
+/* -- footer ------------------------------------------------------------ */
+
+.card-foot {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.vm-ip { margin-left: auto; font-family: monospace; }
+
+/* -- token modal -------------------------------------------------------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px;
+  width: min(400px, 90vw);
+}
+.modal-box h2 { margin: 0 0 8px; font-size: 16px; }
+.modal-box p { color: var(--text-dim); margin: 0 0 14px; }
+.modal-box code { color: var(--accent); }
+
+#token-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+@media (max-width: 640px) {
+  #cards { grid-template-columns: 1fr; padding: 10px; }
+  .header-right { width: 100%; }
+  #filter { flex: 1; width: auto; }
+}

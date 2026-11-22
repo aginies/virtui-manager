@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VirtUI Manager</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <h1>VirtUI <span>Manager</span></h1>
+    <nav id="servers" aria-label="Hypervisors"></nav>
+    <div class="header-right">
+      <input id="filter" type="search" placeholder="Filter VMs..." autocomplete="off">
+      <span id="ws-status" class="ws-dot" title="Live stats: disconnected"></span>
+      <button id="token-btn" type="button" title="API token">Token</button>
+    </div>
+  </header>
+
+  <main id="cards" aria-label="Virtual machines"></main>
+  <p id="empty" hidden>No VMs match the current filter.</p>
+
+  <div id="token-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>API token</h2>
+      <p>Enter the token printed by <code>virtui-web</code> at startup.</p>
+      <input id="token-input" type="password" autocomplete="off" placeholder="Token">
+      <div class="modal-actions">
+        <button id="token-cancel" type="button" class="secondary">Cancel</button>
+        <button id="token-save" type="button">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <template id="card-template">
+    <article class="card">
+      <div class="card-head">
+        <span class="status-dot"></span>
+        <span class="vm-name"></span>
+        <span class="vm-status"></span>
+      </div>
+      <div class="vm-server"></div>
+      <div class="sparks">
+        <div class="spark">
+          <div class="spark-label">CPU <b class="spark-value cpu-value">--</b></div>
+          <canvas class="spark-canvas cpu"></canvas>
+        </div>
+        <div class="spark">
+          <div class="spark-label">MEM <b class="spark-value mem-value">--</b></div>
+          <canvas class="spark-canvas mem"></canvas>
+        </div>
+        <div class="spark">
+          <div class="spark-label">NET <b class="spark-value net-value">--</b></div>
+          <canvas class="spark-canvas net"></canvas>
+        </div>
+        <div class="spark">
+          <div class="spark-label">DISK <b class="spark-value disk-value">--</b></div>
+          <canvas class="spark-canvas disk"></canvas>
+        </div>
+      </div>
+      <div class="card-foot">
+        <span class="vm-vcpus"></span>
+        <span class="vm-mem"></span>
+        <span class="vm-ip"></span>
+      </div>
+    </article>
+  </template>
+
+  <script src="/static/sparkline.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
