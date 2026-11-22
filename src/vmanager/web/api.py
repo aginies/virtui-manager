@@ -16,6 +16,7 @@ import asyncio
 import json
 import logging
 import secrets
+import threading
 import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -23,7 +24,15 @@ from typing import Optional
 from xml.sax.saxutils import escape
 
 import libvirt
-from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -31,6 +40,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..config import load_config
+from ..libvirt_utils import get_internal_id
 from ..modals.input_modals import _sanitize_domain_name
 from ..utils import extract_server_name_from_uri, natural_sort_key, sanitize_sensitive_data
 from ..vm_actions import (
@@ -101,6 +111,55 @@ class SnapshotRefRequest(BaseModel):
     name: str
 
 
+class ConsoleRequest(BaseModel):
+    """Body of POST /api/vms/console{,/stop}."""
+
+    id: str
+
+
+class _WebConsoleAppStub:
+    """Minimal stand-in for the Textual app expected by WebConsoleManager.
+
+    The manager was written for the TUI: it talks to ``app`` for dialogs,
+    messages and worker scheduling. For the web API everything runs inline
+    (already inside a worker thread) and messages are captured instead of
+    displayed. Sessions live in the same file as the TUI's, so consoles
+    are shared between both frontends.
+    """
+
+    def __init__(self, config: dict):
+        self.WC_PORT_RANGE_START = config.get("WC_PORT_RANGE_START", 40000)
+        self.WC_PORT_RANGE_END = config.get("WC_PORT_RANGE_END", 40050)
+        self.errors: list[str] = []
+        self.messages: list[str] = []
+        # WebConsoleManager schedules via app.worker_manager.run(fn, name=...);
+        # expose the same signature on self and point worker_manager at it.
+        self.worker_manager = self
+
+    def run(self, fn, name=None):  # pylint: disable=unused-argument
+        """Execute the worker inline: we are already in a worker thread."""
+        fn()
+
+    def call_from_thread(self, fn, *args, **kwargs):
+        return fn(*args, **kwargs)
+
+    def push_screen(self, dialog, callback=None):  # pylint: disable=unused-argument
+        # The TUI shows the console URL in a dialog; the web API reads the
+        # saved session instead, so just record it.
+        url = getattr(dialog, "url", None)
+        if url:
+            self.messages.append(url)
+
+    def show_error_message(self, message):
+        self.errors.append(str(message))
+
+    def show_success_message(self, message):
+        self.messages.append(str(message))
+
+    def post_message(self, message):  # pylint: disable=unused-argument
+        pass
+
+
 def _first_ipv4(domain: libvirt.virDomain) -> Optional[str]:
     """Return the first IPv4 address of a domain (lease-based), or None."""
     try:
@@ -138,6 +197,9 @@ class Backend:
             for server in self.config.get("servers", [])
             if server.get("uri")
         }
+        self._webconsole_manager = None
+        self._webconsole_stub = None
+        self._console_lock = threading.Lock()
 
     # -- connections -------------------------------------------------------
 
@@ -388,6 +450,100 @@ class Backend:
         delete_vm_snapshot(domain, name)
         return {"id": internal_id, "deleted": name}
 
+    # -- web console -----------------------------------------------------------
+
+    def _get_webconsole_manager(self):
+        """Lazily build a WebConsoleManager driven by the app stub."""
+        if self._webconsole_manager is None:
+            from ..webconsole_manager import WebConsoleManager  # heavy import
+
+            class _TunnelWebConsoleManager(WebConsoleManager):
+                """Force the SSH-tunnel + local-websockify path.
+
+                REMOTE_WEBCONSOLE (run websockify on the hypervisor) makes
+                sense for the TUI on the admin's workstation, but the web
+                dashboard is itself served from a host every browser can
+                reach: tunneling VNC here means noVNC and websockify are
+                only needed on the dashboard host, and browsers never
+                have to reach the hypervisors directly.
+                """
+
+                def _start_console_worker(self, vm, conn):
+                    from .. import webconsole_manager as wcm
+
+                    original = wcm.load_config
+
+                    def patched():
+                        cfg = original()
+                        cfg["REMOTE_WEBCONSOLE"] = False
+                        return cfg
+
+                    wcm.load_config = patched
+                    try:
+                        super()._start_console_worker(vm, conn)
+                    finally:
+                        wcm.load_config = original
+
+            stub = _WebConsoleAppStub(self.config)
+            self._webconsole_manager = _TunnelWebConsoleManager(stub)
+            self._webconsole_stub = stub
+        return self._webconsole_manager, self._webconsole_stub
+
+    @staticmethod
+    def _console_uuid(domain: libvirt.virDomain, conn) -> str:
+        """Session key used by WebConsoleManager (normalized internal id)."""
+        uuid = get_internal_id(domain, conn)
+        return uuid.split("?")[0] if "?" in uuid else uuid
+
+    @staticmethod
+    def _rewrite_console_url(url: str, browser_host: Optional[str]) -> str:
+        """Point the saved localhost URL at the host the browser used."""
+        if browser_host and "://localhost" in url:
+            return url.replace("://localhost", f"://{browser_host}", 1)
+        return url
+
+    def start_console(self, internal_id: str, browser_host: Optional[str] = None) -> dict:
+        """Start (or reuse) a noVNC websockify session for a VM."""
+        _uri, conn, domain = self._lookup_domain(internal_id)
+        manager, stub = self._get_webconsole_manager()
+        console_uuid = self._console_uuid(domain, conn)
+        with self._console_lock:
+            stub.errors.clear()
+            logger.info("Web console start for VM %s", domain.name())
+            # Runs inline through the stub's worker_manager.
+            manager.start_console_async(domain, conn)
+            if stub.errors:
+                raise ValueError("; ".join(stub.errors))
+            session = manager.load_sessions().get(console_uuid)
+        if not session or not session.get("url"):
+            raise ValueError("Web console session did not start")
+        return {
+            "url": self._rewrite_console_url(session["url"], browser_host),
+            "port": session.get("port"),
+            "running": True,
+        }
+
+    def console_status(self, internal_id: str, browser_host: Optional[str] = None) -> dict:
+        _uri, conn, domain = self._lookup_domain(internal_id)
+        manager, _stub = self._get_webconsole_manager()
+        console_uuid = self._console_uuid(domain, conn)
+        if manager.is_running(console_uuid):
+            session = manager.load_sessions().get(console_uuid, {})
+            return {
+                "running": True,
+                "port": session.get("port"),
+                "url": self._rewrite_console_url(session.get("url", ""), browser_host),
+            }
+        return {"running": False}
+
+    def stop_console(self, internal_id: str) -> dict:
+        _uri, conn, domain = self._lookup_domain(internal_id)
+        manager, _stub = self._get_webconsole_manager()
+        console_uuid = self._console_uuid(domain, conn)
+        with self._console_lock:
+            manager.stop_console(console_uuid, domain.name())
+        return {"stopped": console_uuid}
+
     # -- live statistics ---------------------------------------------------
 
     def stats_snapshot(self) -> dict:
@@ -513,6 +669,20 @@ def create_app(
     @app.post("/api/vms/snapshots/delete", dependencies=[Depends(require_token)])
     async def snapshots_delete(request: SnapshotRefRequest) -> dict:
         return await run_backend(backend.delete_snapshot, request.id, request.name)
+
+    @app.post("/api/vms/console", dependencies=[Depends(require_token)])
+    async def console_start(request: Request, payload: ConsoleRequest) -> dict:
+        return await run_backend(
+            backend.start_console, payload.id, request.url.hostname
+        )
+
+    @app.get("/api/vms/console", dependencies=[Depends(require_token)])
+    async def console_status(request: Request, id: str) -> dict:  # pylint: disable=redefined-builtin
+        return await run_backend(backend.console_status, id, request.url.hostname)
+
+    @app.post("/api/vms/console/stop", dependencies=[Depends(require_token)])
+    async def console_stop(payload: ConsoleRequest) -> dict:
+        return await run_backend(backend.stop_console, payload.id)
 
     @app.websocket("/ws/stats")
     async def ws_stats(websocket: WebSocket) -> None:

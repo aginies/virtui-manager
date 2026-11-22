@@ -334,5 +334,61 @@ class TestWebApiManage(unittest.TestCase):
         self.assertIn("Failed to restore", resp.json()["detail"])
 
 
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiConsole(unittest.TestCase):
+    """Web console endpoints (phase 5)."""
+
+    VM_ID = "aaaa-bbbb@qemu:///system"
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.start_console.return_value = {
+            "url": "http://browser-host:40000/vnc.html?path=websockify",
+            "port": 40000,
+            "running": True,
+        }
+        self.backend.console_status.return_value = {"running": False}
+        self.backend.stop_console.return_value = {"stopped": self.VM_ID}
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def _post(self, url, payload, headers=None):
+        return self.client.post(
+            url, json=payload, headers=headers if headers is not None else self.auth
+        )
+
+    def test_console_start(self):
+        resp = self._post("/api/vms/console", {"id": self.VM_ID})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["port"], 40000)
+        # browser host comes from the request URL
+        self.backend.start_console.assert_called_once_with(self.VM_ID, "testserver")
+
+    def test_console_start_requires_token(self):
+        resp = self._post("/api/vms/console", {"id": self.VM_ID}, headers={})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_console_start_error_maps_400(self):
+        self.backend.start_console.side_effect = ValueError(
+            "Web console supports VNC only"
+        )
+        resp = self._post("/api/vms/console", {"id": self.VM_ID})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_console_status(self):
+        resp = self.client.get(
+            "/api/vms/console", params={"id": self.VM_ID}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(resp.json()["running"])
+
+    def test_console_stop(self):
+        resp = self._post("/api/vms/console/stop", {"id": self.VM_ID})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.stop_console.assert_called_once_with(self.VM_ID)
+
+
 if __name__ == "__main__":
     unittest.main()

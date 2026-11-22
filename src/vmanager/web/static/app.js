@@ -33,6 +33,8 @@
     resume:    { icon: "\u23ef", label: "Resume",              states: ["Paused", "Guest Suspended"], confirm: false },
     hibernate: { icon: "\ud83d\udca4", label: "Hibernate (save state)", states: ["Running", "Blocked"], confirm: true },
     // ui: true -> opens the detail modal on a tab instead of calling the API
+    // ui: "console" -> opens the noVNC web console in a new tab
+    console:   { icon: "\ud83c\udf10", label: "Web Console", ui: "console", states: ["Running", "Blocked", "Paused"] },
     snapshots: { icon: "\ud83d\udcf7", label: "Snapshots", ui: true,
                  states: ["Running", "Blocked", "Paused", "Guest Suspended", "Stopped", "Unknown"] },
   };
@@ -454,6 +456,7 @@
       if (act === "menu") { openActMenu(card, btn); return; }
       const cfg = ACTIONS[act];
       if (!cfg) return;
+      if (cfg.ui === "console") { openConsole(card); return; }
       if (cfg.ui) { openDetail(card, "snapshots"); return; }
       if (cfg.confirm) {
         askConfirm(cfg.label, card.vm.name, () => doAction(card, act));
@@ -746,6 +749,8 @@
     else if (mact === "delete") askDelete(card);
     else if (mact === "xml") openDetail(card, "xml");
     else if (mact === "snapshots") openDetail(card, "snapshots");
+    else if (mact === "console") openConsole(card);
+    else if (mact === "stop-console") stopConsole(card);
   });
 
   // -- rename -------------------------------------------------------------------
@@ -822,6 +827,36 @@
     els.deleteModal.hidden = true;
     deleteCard = null;
   });
+
+  // -- web console (noVNC via websockify, same sessions as the TUI) -----------
+
+  async function openConsole(card) {
+    // Open the tab synchronously to bypass popup blockers; fill in the URL
+    // once the backend has started (or reused) the websockify session.
+    const tab = window.open("", "_blank");
+    try {
+      const data = await postJSON("/api/vms/console", { id: card.vm.id });
+      if (tab) tab.location = data.url;
+      else window.open(data.url, "_blank");
+      showToast(`Web console started for ${card.vm.name}`, "ok");
+    } catch (err) {
+      if (tab) tab.close();
+      if (err.message !== "unauthorized") {
+        showToast(`Web console failed: ${err.message}`, "error");
+      }
+    }
+  }
+
+  async function stopConsole(card) {
+    try {
+      await postJSON("/api/vms/console/stop", { id: card.vm.id });
+      showToast(`Web console stopped for ${card.vm.name}`, "ok");
+    } catch (err) {
+      if (err.message !== "unauthorized") {
+        showToast(`Stop console failed: ${err.message}`, "error");
+      }
+    }
+  }
 
   // -- snapshots -----------------------------------------------------------------
 
