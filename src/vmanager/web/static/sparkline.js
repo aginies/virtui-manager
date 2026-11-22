@@ -58,13 +58,31 @@ class Sparkline {
     this._resize();
     this._onResize = () => { this._resize(); this.draw(); };
     window.addEventListener("resize", this._onResize);
+    // Cards are built off-DOM (getBoundingClientRect is 0x0 at that point)
+    // and grid columns reflow without a window resize: observe the real
+    // layout size so the buffer is corrected as soon as it changes.
+    this._ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      this._ro = new ResizeObserver(this._onResize);
+      this._ro.observe(canvas);
+    }
+  }
+
+  destroy() {
+    window.removeEventListener("resize", this._onResize);
+    if (this._ro) { this._ro.disconnect(); this._ro = null; }
   }
 
   _resize() {
     const dpr = window.devicePixelRatio || 1;
     const rect = this.canvas.getBoundingClientRect();
-    this.canvas.width = Math.max(1, Math.round(rect.width * dpr));
-    this.canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const w = Math.max(1, Math.round(rect.width * dpr));
+    const h = Math.max(1, Math.round(rect.height * dpr));
+    // Setting width/height clears the canvas; only do it when it changed.
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
     this.dpr = dpr;
   }
 
@@ -78,6 +96,9 @@ class Sparkline {
   }
 
   draw() {
+    // The buffer size depends on layout, and the first draws can happen
+    // before/while the card is attached: re-check every draw (idempotent).
+    this._resize();
     const { ctx, canvas, data } = this;
     const w = canvas.width;
     const h = canvas.height;
@@ -86,6 +107,13 @@ class Sparkline {
     const bw = w / SPARK_POINTS;
     const gap = Math.max(1, bw * 0.2);
     const baseline = Math.max(1, Math.round(this.dpr));
+
+    // Faint reference gridlines at 25/50/75% so heights are readable.
+    ctx.fillStyle = "rgba(255,255,255,0.06)";
+    const gl = Math.max(1, Math.round(this.dpr * 0.5));
+    for (const gy of [0.25, 0.5, 0.75]) {
+      ctx.fillRect(0, Math.round(h * gy), w, gl);
+    }
 
     if (data.length === 0) {
       // Idle: faint baseline, like the TUI's empty sparkline.

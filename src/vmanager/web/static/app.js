@@ -330,7 +330,7 @@
     for (const [id, card] of cards) {
       if (!seen.has(id)) {
         for (const spark of Object.values(card.sparks)) {
-          window.removeEventListener("resize", spark._onResize);
+          spark.destroy();
         }
         card.el.remove();
         cards.delete(id);

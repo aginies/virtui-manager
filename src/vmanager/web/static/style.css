@@ -302,7 +302,7 @@ button.danger { background: var(--error); color: #fff; }
 
 .spark-canvas {
   width: 100%;
-  height: 26px;
+  height: 34px;
   display: block;
 }
 
