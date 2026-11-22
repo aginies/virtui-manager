@@ -10,16 +10,28 @@
 
 (() => {
   const TOKEN_KEY = "virtui_token";
+  const SERVERS_KEY = "virtui_servers";
   const INVENTORY_REFRESH_MS = 30000;
   const WS_RETRY_MS = 4000;
 
   const STATUS_COLORS = {
     Running: "running",
-    Blocked: "running",
+    Blocked: "blocked",
     Paused: "paused",
-    "PM Suspended": "paused",
-    "Shut off": "stopped",
+    "Guest Suspended": "paused",
+    Stopped: "stopped",
     Unknown: "unknown",
+  };
+
+  // Quick action bar, mirroring the TUI (icons from QBarIcons.EMOJI and
+  // visibility rules from VMCard._update_fast_buttons).
+  const ACTIONS = {
+    start:     { icon: "\u25b6", label: "Start VM",            states: ["Stopped"], confirm: false },
+    shutdown:  { icon: "\u23fb", label: "Shutdown",            states: ["Running", "Blocked"], confirm: true },
+    force_off: { icon: "\u26a1", label: "Force Off",           states: ["Running", "Paused", "Guest Suspended", "Blocked"], confirm: true, danger: true },
+    pause:     { icon: "\u23f8", label: "Pause",               states: ["Running"], confirm: false },
+    resume:    { icon: "\u23ef", label: "Resume",              states: ["Paused", "Guest Suspended"], confirm: false },
+    hibernate: { icon: "\ud83d\udca4", label: "Hibernate (save state)", states: ["Running", "Blocked"], confirm: true },
   };
 
   // Sparkline palettes [low, high] as RGB triplets.
@@ -48,6 +60,20 @@
     tokenInput: document.getElementById("token-input"),
     tokenSave: document.getElementById("token-save"),
     tokenCancel: document.getElementById("token-cancel"),
+    confirmModal: document.getElementById("confirm-modal"),
+    confirmTitle: document.getElementById("confirm-title"),
+    confirmText: document.getElementById("confirm-text"),
+    confirmOk: document.getElementById("confirm-ok"),
+    confirmCancel: document.getElementById("confirm-cancel"),
+    detailModal: document.getElementById("detail-modal"),
+    detailTitle: document.getElementById("detail-title"),
+    detailServer: document.getElementById("detail-server"),
+    detailDot: document.getElementById("detail-dot"),
+    detailTabs: document.getElementById("detail-tabs"),
+    detailContent: document.getElementById("detail-content"),
+    detailClose: document.getElementById("detail-close"),
+    detailRefresh: document.getElementById("detail-refresh"),
+    toast: document.getElementById("toast"),
     template: document.getElementById("card-template"),
   };
 
@@ -56,6 +82,18 @@
   let filterText = "";
   let ws = null;
   let refreshTimer = null;
+
+  // Selected servers (URIs). Nothing is displayed until the user picks
+  // at least one, like the TUI server selection. Persisted per browser.
+  let selectedServers = new Set();
+  try {
+    const saved = JSON.parse(localStorage.getItem(SERVERS_KEY) || "[]");
+    if (Array.isArray(saved)) selectedServers = new Set(saved);
+  } catch { /* corrupted entry: start empty */ }
+
+  function persistServers() {
+    localStorage.setItem(SERVERS_KEY, JSON.stringify([...selectedServers]));
+  }
 
   // -- API helpers ---------------------------------------------------------
 
@@ -74,13 +112,59 @@
 
   function renderServers(servers) {
     els.servers.textContent = "";
+
+    const all = document.createElement("button");
+    all.type = "button";
+    all.className = "chip-mini";
+    all.textContent = "All";
+    all.title = "Select all servers";
+    all.addEventListener("click", () => {
+      selectedServers = new Set(servers.map((s) => s.uri));
+      persistServers();
+      renderServers(servers);
+      reapplyVisibility();
+    });
+    els.servers.appendChild(all);
+
+    const none = document.createElement("button");
+    none.type = "button";
+    none.className = "chip-mini";
+    none.textContent = "None";
+    none.title = "Clear selection";
+    none.addEventListener("click", () => {
+      selectedServers = new Set();
+      persistServers();
+      renderServers(servers);
+      reapplyVisibility();
+    });
+    els.servers.appendChild(none);
+
     for (const s of servers) {
-      const chip = document.createElement("span");
-      chip.className = "server-chip " + (s.connected ? "on" : "off");
-      chip.title = s.connected ? s.uri : `${s.uri}\n${s.error || "not connected"}`;
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "server-chip " + (s.connected ? "on" : "off")
+        + (selectedServers.has(s.uri) ? " selected" : "");
+      chip.title = s.connected
+        ? `${s.uri}\nClick to ${selectedServers.has(s.uri) ? "hide" : "show"} its VMs`
+        : `${s.uri}\n${s.error || "not connected"}`;
       chip.textContent = `${s.name} (${s.vm_count})`;
+      chip.addEventListener("click", () => {
+        if (selectedServers.has(s.uri)) selectedServers.delete(s.uri);
+        else selectedServers.add(s.uri);
+        persistServers();
+        renderServers(servers);
+        reapplyVisibility();
+      });
       els.servers.appendChild(chip);
     }
+    lastServers = servers;
+  }
+
+  let lastServers = [];
+
+  function reapplyVisibility() {
+    for (const card of cards.values()) applyFilter(card);
+    updateEmptyState();
   }
 
   function makeSpark(card, metric) {
@@ -99,6 +183,18 @@
     el.querySelector(".vm-mem").textContent = vm.memory_mb >= 1024
       ? `${(vm.memory_mb / 1024).toFixed(1)} GiB`
       : `${vm.memory_mb} MiB`;
+
+    // Quick action bar (visibility updated per status).
+    const actionsEl = el.querySelector(".actions");
+    for (const [act, cfg] of Object.entries(ACTIONS)) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "act" + (cfg.danger ? " danger" : "");
+      btn.dataset.act = act;
+      btn.textContent = cfg.icon;
+      btn.title = cfg.label;
+      actionsEl.appendChild(btn);
+    }
 
     const sparks = {
       cpu: makeSpark(el, "cpu"),
@@ -133,12 +229,23 @@
     dot.className = "status-dot " + cls;
     label.textContent = statusText;
     card.el.dataset.status = cls;
+    updateActionButtons(card);
+  }
+
+  function updateActionButtons(card) {
+    const vmStatus = card.vm ? card.vm.status : null;
+    for (const btn of card.el.querySelectorAll(".actions .act")) {
+      const cfg = ACTIONS[btn.dataset.act];
+      btn.hidden = !cfg || !cfg.states.includes(vmStatus);
+    }
   }
 
   function applyFilter(card) {
-    const match = !filterText
+    const matchServer = selectedServers.has(card.vm.uri);
+    const matchText = !filterText
       || card.vm.name.toLowerCase().includes(filterText)
       || card.vm.server.toLowerCase().includes(filterText);
+    const match = matchServer && matchText;
     card.el.style.display = match ? "" : "none";
     return match;
   }
@@ -171,8 +278,15 @@
 
   function updateEmptyState() {
     const anyVisible = [...cards.values()].some((c) => c.el.style.display !== "none");
-    els.empty.hidden = cards.size === 0 || anyVisible;
-    if (cards.size === 0 && !filterText) els.empty.hidden = false;
+    if (selectedServers.size === 0) {
+      els.empty.textContent = "Select one or more servers above to display their VMs.";
+      els.empty.hidden = false;
+      return;
+    }
+    els.empty.textContent = filterText
+      ? "No VMs match the current filter."
+      : "No VMs found. Are the hypervisors connected?";
+    els.empty.hidden = anyVisible;
   }
 
   // -- live stats ----------------------------------------------------------
@@ -181,7 +295,13 @@
     let unknown = false;
     for (const [id, s] of Object.entries(stats)) {
       const card = cards.get(id);
-      if (!card) { unknown = true; continue; }
+      if (!card) {
+        // Only re-pull the inventory for new VMs on servers we display;
+        // stats for unselected servers are expected and must not loop.
+        const uri = id.slice(id.indexOf("@") + 1);
+        if (selectedServers.has(uri)) unknown = true;
+        continue;
+      }
       const net = Math.max(s.net_rx_kbps || 0, s.net_tx_kbps || 0);
       const disk = Math.max(s.disk_read_kbps || 0, s.disk_write_kbps || 0);
       const running = s.status === "Running" || s.status === "Blocked" || s.status === "Paused";
@@ -198,6 +318,8 @@
       if (s.status && s.status !== card.vm.status) {
         card.vm.status = s.status;
         setStatus(card, s.status);
+      } else if (s.status) {
+        updateActionButtons(card); // keep buttons in sync on re-push
       }
     }
     if (unknown) scheduleRefresh(2000); // new VM appeared; re-pull inventory
@@ -210,6 +332,9 @@
 
   function connectWS() {
     if (!token) return;
+    // Guard against parallel sockets (e.g. reconnect timer racing a manual
+    // connect after a token change).
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const url = `${proto}//${location.host}/ws/stats?token=${encodeURIComponent(token)}`;
     try {
@@ -263,6 +388,309 @@
     refreshTimer = setInterval(() => scheduleRefresh(), INVENTORY_REFRESH_MS);
   }
 
+  // -- VM actions -----------------------------------------------------------
+
+  function setCardBusy(card, busy) {
+    card.el.classList.toggle("busy", busy);
+    for (const btn of card.el.querySelectorAll(".actions .act")) btn.disabled = busy;
+  }
+
+  async function doAction(card, act) {
+    const cfg = ACTIONS[act];
+    setCardBusy(card, true);
+    try {
+      const resp = await fetch("/api/vms/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({ id: card.vm.id, action: act }),
+      });
+      if (resp.status === 401) { showTokenModal(); return; }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+      showToast(`${cfg.label} \u2014 ${card.vm.name}: OK`, "ok");
+      if (data.status) {
+        card.vm.status = data.status;
+        setStatus(card, data.status);
+      }
+      scheduleRefresh(1500); // settle: pull the post-action inventory
+    } catch (err) {
+      showToast(`${cfg.label} failed: ${err.message}`, "error");
+    } finally {
+      setCardBusy(card, false);
+    }
+  }
+
+  els.cards.addEventListener("click", (evt) => {
+    const btn = evt.target.closest(".act");
+    if (btn) {
+      if (btn.disabled) return;
+      const cardEl = btn.closest(".card");
+      const card = cardEl && cards.get(cardEl.dataset.id);
+      if (!card) return;
+      const act = btn.dataset.act;
+      const cfg = ACTIONS[act];
+      if (!cfg) return;
+      if (cfg.confirm) {
+        askConfirm(cfg.label, card.vm.name, () => doAction(card, act));
+      } else {
+        doAction(card, act);
+      }
+      return;
+    }
+    // Click anywhere else on the card opens the detail view.
+    const cardEl = evt.target.closest(".card");
+    const card = cardEl && cards.get(cardEl.dataset.id);
+    if (card) openDetail(card);
+  });
+
+  // -- detail modal ----------------------------------------------------------
+
+  let detailCard = null;
+  let detailData = null;
+  let detailTab = "overview";
+
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+
+  function fmtCell(v) {
+    return (v === null || v === undefined || v === "") ? "--" : String(v);
+  }
+
+  function kvTable(pairs) {
+    const table = el("table", "kv");
+    const tbody = el("tbody");
+    for (const [k, v] of pairs) {
+      const tr = el("tr");
+      tr.appendChild(el("th", null, k));
+      tr.appendChild(el("td", null, fmtCell(v)));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function gridTable(headers, rows) {
+    if (!rows.length) return el("p", "detail-loading", "None.");
+    const table = el("table", "grid");
+    const thead = el("thead");
+    const trh = el("tr");
+    headers.forEach((h) => trh.appendChild(el("th", null, h)));
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const row of rows) {
+      const tr = el("tr");
+      row.forEach((c) => tr.appendChild(el("td", null, fmtCell(c))));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    return table;
+  }
+
+  function renderOverview(d) {
+    const fw = d.firmware || {};
+    const boot = d.boot || {};
+    return kvTable([
+      ["Status", d.status],
+      ["Description", d.description],
+      ["UUID", d.uuid],
+      ["vCPUs", d.vcpus],
+      ["CPU model", d.cpu_model],
+      ["Memory", d.memory_mb >= 1024 ? `${(d.memory_mb / 1024).toFixed(1)} GiB` : `${d.memory_mb} MiB`],
+      ["Machine type", d.machine_type],
+      ["Firmware", fw.type + (fw.secure_boot ? " (Secure Boot)" : "")],
+      ["Firmware path", fw.path],
+      ["Boot order", (boot.order || []).join(" \u2192 ")],
+      ["Boot menu", boot.menu_enabled ? "enabled" : "disabled"],
+      ["Video model", d.video_model],
+      ["Shared memory", d.shared_memory ? "yes" : "no"],
+    ]);
+  }
+
+  function renderNetworks(d) {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(el("h3", null, "Interfaces (definition)"));
+    frag.appendChild(gridTable(
+      ["MAC", "Network", "Model"],
+      (d.networks || []).map((n) => [n.mac, n.network, n.model]),
+    ));
+    frag.appendChild(el("h3", null, "Lease IPs"));
+    frag.appendChild(gridTable(
+      ["Interface", "MAC", "IPv4", "IPv6"],
+      (d.detail_network || []).map((i) => [i.interface, i.mac, (i.ipv4 || []).join(", "), (i.ipv6 || []).join(", ")]),
+    ));
+    const dns = d.network_dns_gateway || [];
+    if (dns.length) {
+      frag.appendChild(el("h3", null, "DNS / Gateway"));
+      frag.appendChild(gridTable(
+        ["Network", "Gateway", "DNS servers"],
+        dns.map((n) => [n.network_name, n.gateway, (n.dns_servers || []).join(", ")]),
+      ));
+    }
+    return frag;
+  }
+
+  function renderDisks(d) {
+    return gridTable(
+      ["Path", "Bus", "Cache", "Discard", "Status"],
+      (d.disks || []).map((k) => [k.path, k.bus, k.cache_mode, k.discard_mode, k.status]),
+    );
+  }
+
+  function renderDevices(d) {
+    const frag = document.createDocumentFragment();
+    const devices = d.devices || {};
+    let any = false;
+    for (const [cat, items] of Object.entries(devices)) {
+      if (!items || !items.length) continue;
+      any = true;
+      frag.appendChild(el("h3", null, cat));
+      const list = el("ul", "device-list");
+      for (const item of items) {
+        const text = (item && typeof item === "object")
+          ? Object.entries(item).map(([k, v]) => `${k}=${v}`).join(", ")
+          : String(item);
+        list.appendChild(el("li", null, text));
+      }
+      frag.appendChild(list);
+    }
+    if (!any) frag.appendChild(el("p", "detail-loading", "No devices reported."));
+    return frag;
+  }
+
+  function renderXml(d) {
+    const wrap = el("div");
+    const btn = el("button", "secondary copy-btn", "Copy XML");
+    btn.type = "button";
+    btn.addEventListener("click", () => {
+      navigator.clipboard.writeText(d.xml || "").then(
+        () => showToast("XML copied to clipboard", "ok"),
+        () => showToast("Copy failed", "error"),
+      );
+    });
+    wrap.appendChild(btn);
+    wrap.appendChild(el("pre", "xml", d.xml));
+    return wrap;
+  }
+
+  const DETAIL_RENDERERS = {
+    overview: renderOverview,
+    networks: renderNetworks,
+    disks: renderDisks,
+    devices: renderDevices,
+    xml: renderXml,
+  };
+
+  function renderDetail() {
+    els.detailContent.textContent = "";
+    if (!detailData) {
+      els.detailContent.appendChild(el("p", "detail-loading", "Loading..."));
+      return;
+    }
+    const renderer = DETAIL_RENDERERS[detailTab] || renderOverview;
+    els.detailContent.appendChild(renderer(detailData));
+  }
+
+  function setDetailTab(tab) {
+    detailTab = tab;
+    for (const t of els.detailTabs.querySelectorAll(".tab")) {
+      t.classList.toggle("active", t.dataset.tab === tab);
+    }
+    renderDetail();
+  }
+
+  async function loadDetail() {
+    if (!detailCard) return;
+    detailData = null;
+    renderDetail();
+    try {
+      const resp = await fetch(
+        `/api/vms/detail?id=${encodeURIComponent(detailCard.vm.id)}`,
+        { headers: { Authorization: "Bearer " + token } },
+      );
+      if (resp.status === 401) { closeDetail(); showTokenModal(); return; }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      detailData = await resp.json();
+      els.detailTitle.textContent = detailData.name;
+      els.detailServer.textContent = detailData.server;
+      els.detailDot.className = "status-dot " + (STATUS_COLORS[detailData.status] || "unknown");
+      renderDetail();
+    } catch (err) {
+      els.detailContent.textContent = "";
+      els.detailContent.appendChild(el("p", "detail-loading", "Failed to load details: " + err.message));
+    }
+  }
+
+  function openDetail(card) {
+    detailCard = card;
+    els.detailModal.hidden = false;
+    els.detailTitle.textContent = card.vm.name;
+    els.detailServer.textContent = card.vm.server;
+    els.detailDot.className = "status-dot " + (STATUS_COLORS[card.vm.status] || "unknown");
+    setDetailTab("overview");
+    loadDetail();
+  }
+
+  function closeDetail() {
+    els.detailModal.hidden = true;
+    detailCard = null;
+    detailData = null;
+  }
+
+  els.detailClose.addEventListener("click", closeDetail);
+  els.detailRefresh.addEventListener("click", loadDetail);
+  els.detailTabs.addEventListener("click", (e) => {
+    const t = e.target.closest(".tab");
+    if (t) setDetailTab(t.dataset.tab);
+  });
+  els.detailModal.addEventListener("click", (e) => {
+    if (e.target === els.detailModal) closeDetail();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!els.detailModal.hidden) closeDetail();
+    else if (!els.confirmModal.hidden) els.confirmCancel.click();
+    else if (!els.tokenModal.hidden) hideTokenModal();
+  });
+
+  // -- confirm modal ---------------------------------------------------------
+
+  let confirmCallback = null;
+
+  function askConfirm(actionLabel, vmName, onConfirm) {
+    els.confirmTitle.textContent = actionLabel;
+    els.confirmText.textContent = `Apply "${actionLabel}" to "${vmName}"?`;
+    confirmCallback = onConfirm;
+    els.confirmModal.hidden = false;
+    els.confirmOk.focus();
+  }
+
+  els.confirmOk.addEventListener("click", () => {
+    els.confirmModal.hidden = true;
+    const cb = confirmCallback;
+    confirmCallback = null;
+    if (cb) cb();
+  });
+  els.confirmCancel.addEventListener("click", () => {
+    els.confirmModal.hidden = true;
+    confirmCallback = null;
+  });
+
+  // -- toast ------------------------------------------------------------------
+
+  let toastTimer = null;
+  function showToast(message, kind) {
+    els.toast.textContent = message;
+    els.toast.className = kind === "error" ? "error" : "ok";
+    els.toast.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { els.toast.hidden = true; }, 4000);
+  }
+
   // -- token modal ---------------------------------------------------------
 
   function showTokenModal() {
@@ -279,7 +707,11 @@
     token = value;
     localStorage.setItem(TOKEN_KEY, token);
     hideTokenModal();
-    if (ws) { try { ws.close(); } catch { /* ignore */ } }
+    if (ws) {
+      const old = ws;
+      ws = null; // detach first so onclose's retry timer hits the guard
+      try { old.close(); } catch { /* ignore */ }
+    }
     scheduleRefresh();
     connectWS();
   }
@@ -288,12 +720,8 @@
 
   els.filter.addEventListener("input", () => {
     filterText = els.filter.value.trim().toLowerCase();
-    let anyVisible = false;
-    for (const card of cards.values()) {
-      if (applyFilter(card)) anyVisible = true;
-    }
-    els.empty.hidden = anyVisible || cards.size === 0;
-    if (cards.size > 0 && !anyVisible) els.empty.hidden = false;
+    for (const card of cards.values()) applyFilter(card);
+    updateEmptyState();
   });
   els.tokenBtn.addEventListener("click", showTokenModal);
   els.tokenSave.addEventListener("click", saveToken);

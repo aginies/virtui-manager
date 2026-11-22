@@ -127,5 +127,119 @@ class TestWebApi(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 4401)
 
 
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiActions(unittest.TestCase):
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.perform_action.return_value = {
+            "id": "aaaa-bbbb@qemu:///system",
+            "action": "start",
+            "status": "Running",
+        }
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def _post(self, payload, headers=None):
+        return self.client.post(
+            "/api/vms/action",
+            json=payload,
+            headers=headers if headers is not None else self.auth,
+        )
+
+    def test_action_requires_token(self):
+        resp = self._post({"id": "aaaa-bbbb@qemu:///system", "action": "start"}, headers={})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_action_success(self):
+        resp = self._post({"id": "aaaa-bbbb@qemu:///system", "action": "start"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "Running")
+        self.backend.perform_action.assert_called_once_with(
+            "aaaa-bbbb@qemu:///system", "start"
+        )
+
+    def test_action_bad_request_mapping(self):
+        self.backend.perform_action.side_effect = ValueError("Unsupported action: explode")
+        resp = self._post({"id": "aaaa-bbbb@qemu:///system", "action": "explode"})
+        self.assertEqual(resp.status_code, 400)
+
+        self.backend.perform_action.side_effect = ConnectionError("Server not connected")
+        resp = self._post({"id": "aaaa-bbbb@qemu:///system", "action": "start"})
+        self.assertEqual(resp.status_code, 409)
+
+        self.backend.perform_action.side_effect = LookupError("no such domain")
+        resp = self._post({"id": "aaaa-bbbb@qemu:///system", "action": "start"})
+        self.assertEqual(resp.status_code, 404)
+
+    def test_action_body_validation(self):
+        resp = self._post({"action": "start"})  # missing id
+        self.assertEqual(resp.status_code, 422)
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiDetail(unittest.TestCase):
+    DETAIL = {
+        "id": "aaaa-bbbb@qemu:///system",
+        "name": "vm-web",
+        "uuid": "aaaa-bbbb",
+        "status": "Running",
+        "description": "web vm",
+        "server": "Localhost",
+        "vcpus": 4,
+        "cpu_model": "host-passthrough",
+        "memory_mb": 8192,
+        "machine_type": "q35",
+        "firmware": {"type": "UEFI", "path": None, "secure_boot": True},
+        "shared_memory": False,
+        "boot": {"menu_enabled": False, "order": ["hd"]},
+        "video_model": "virtio",
+        "networks": [{"mac": "52:54:00:12:34:56", "network": "default", "model": "virtio"}],
+        "detail_network": [],
+        "network_dns_gateway": [],
+        "disks": [
+            {"path": "/var/lib/libvirt/images/vm-web.qcow2", "status": "enabled",
+             "bus": "virtio", "cache_mode": "none", "discard_mode": "unmap"}
+        ],
+        "devices": {"graphics": [{"type": "vnc"}], "tpm": []},
+        "xml": "<domain></domain>",
+    }
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.vm_details.return_value = self.DETAIL
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def test_detail_requires_token(self):
+        resp = self.client.get("/api/vms/detail", params={"id": self.DETAIL["id"]})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_detail_success(self):
+        resp = self.client.get(
+            "/api/vms/detail", params={"id": self.DETAIL["id"]}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["name"], "vm-web")
+        self.assertTrue(data["firmware"]["secure_boot"])
+        self.assertEqual(data["disks"][0]["bus"], "virtio")
+        self.backend.vm_details.assert_called_once_with(self.DETAIL["id"])
+
+    def test_detail_not_found(self):
+        self.backend.vm_details.side_effect = LookupError("no such domain")
+        resp = self.client.get(
+            "/api/vms/detail", params={"id": "gone@qemu:///system"}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_detail_requires_id(self):
+        resp = self.client.get("/api/vms/detail", headers=self.auth)
+        self.assertEqual(resp.status_code, 422)
+
+
 if __name__ == "__main__":
     unittest.main()

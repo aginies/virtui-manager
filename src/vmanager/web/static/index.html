@@ -18,7 +18,7 @@
   </header>
 
   <main id="cards" aria-label="Virtual machines"></main>
-  <p id="empty" hidden>No VMs match the current filter.</p>
+  <p id="empty" hidden>No VMs found.</p>
 
   <div id="token-modal" class="modal" hidden>
     <div class="modal-box">
@@ -32,6 +32,39 @@
     </div>
   </div>
 
+  <div id="confirm-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2 id="confirm-title">Confirm action</h2>
+      <p id="confirm-text"></p>
+      <div class="modal-actions">
+        <button id="confirm-cancel" type="button" class="secondary">Cancel</button>
+        <button id="confirm-ok" type="button" class="danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="detail-modal" class="modal" hidden>
+    <div class="modal-box detail-box">
+      <div class="detail-head">
+        <span id="detail-dot" class="status-dot"></span>
+        <h2 id="detail-title"></h2>
+        <span id="detail-server" class="detail-server"></span>
+        <button id="detail-refresh" type="button" class="secondary" title="Refresh">&#x21bb;</button>
+        <button id="detail-close" type="button" class="secondary" title="Close">&#x2715;</button>
+      </div>
+      <nav id="detail-tabs">
+        <button type="button" class="tab active" data-tab="overview">Overview</button>
+        <button type="button" class="tab" data-tab="networks">Networks</button>
+        <button type="button" class="tab" data-tab="disks">Disks</button>
+        <button type="button" class="tab" data-tab="devices">Devices</button>
+        <button type="button" class="tab" data-tab="xml">XML</button>
+      </nav>
+      <div id="detail-content"><p class="detail-loading">Loading...</p></div>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+
   <template id="card-template">
     <article class="card">
       <div class="card-head">
@@ -40,6 +73,7 @@
         <span class="vm-status"></span>
       </div>
       <div class="vm-server"></div>
+      <div class="actions"></div>
       <div class="sparks">
         <div class="spark">
           <div class="spark-label">CPU <b class="spark-value cpu-value">--</b></div>
