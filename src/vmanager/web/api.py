@@ -43,6 +43,23 @@ from ..config import load_config, save_config
 from ..libvirt_utils import get_internal_id
 from ..modals.input_modals import _sanitize_domain_name
 from ..modals.server_modals import _is_valid_server_uri
+from ..network_manager import (
+    delete_network,
+    get_vms_using_network,
+    list_networks,
+    set_network_active,
+    set_network_autostart,
+)
+from ..storage_manager import (
+    _safe_get_volume_path,
+    delete_storage_pool,
+    delete_volume,
+    find_vms_using_volume,
+    list_storage_pools,
+    list_storage_volumes,
+    set_pool_active,
+    set_pool_autostart,
+)
 from ..utils import extract_server_name_from_uri, natural_sort_key, sanitize_sensitive_data
 from ..vm_actions import (
     create_vm_snapshot,
@@ -139,6 +156,40 @@ class ServerEditRequest(BaseModel):
     name: str
     uri: str
     autoconnect: bool = False
+
+
+class NetworkRequest(BaseModel):
+    """Body of network preference mutations."""
+
+    uri: str
+    name: str
+
+
+class NetworkActiveRequest(NetworkRequest):
+    active: bool
+
+
+class NetworkAutostartRequest(NetworkRequest):
+    autostart: bool
+
+
+class PoolRequest(BaseModel):
+    """Body of storage preference mutations."""
+
+    uri: str
+    pool: str
+
+
+class PoolActiveRequest(PoolRequest):
+    active: bool
+
+
+class PoolAutostartRequest(PoolRequest):
+    autostart: bool
+
+
+class VolumeRequest(PoolRequest):
+    volume: str
 
 
 class _WebConsoleAppStub:
@@ -350,6 +401,165 @@ class Backend:
         self.connection_manager.disconnect(uri)
         logger.info("Web deleted server %s", sanitize_sensitive_data(uri))
         return {"deleted": uri}
+
+    # -- server preferences: networks ------------------------------------------
+
+    # libvirt volume type constants -> readable names
+    VOLUME_TYPES = {0: "file", 1: "block", 2: "dir", 3: "network", 4: "netdir", 5: "ploop"}
+
+    def _get_conn(self, uri: str):
+        conn = self.connection_manager.get_connection(uri)
+        if conn is None:
+            raise ConnectionError(f"Server not connected: {uri}")
+        return conn
+
+    @staticmethod
+    def _clear_pref_caches() -> None:
+        """Drop lru_caches touched by the prefs views (TUI does the same)."""
+        list_storage_pools.cache_clear()
+        list_storage_volumes.cache_clear()
+        get_vms_using_network.cache_clear()
+        find_vms_using_volume.cache_clear()
+
+    def networks_list(self, uri: str) -> list[dict]:
+        conn = self._get_conn(uri)
+        return list_networks(conn)
+
+    def network_set_active(self, uri: str, name: str, active: bool) -> dict:
+        conn = self._get_conn(uri)
+        logger.info("Web network '%s' active=%s on %s", name, active, sanitize_sensitive_data(uri))
+        set_network_active(conn, name, active)
+        self._clear_pref_caches()
+        return {"name": name, "active": active}
+
+    def network_set_autostart(self, uri: str, name: str, autostart: bool) -> dict:
+        conn = self._get_conn(uri)
+        logger.info(
+            "Web network '%s' autostart=%s on %s", name, autostart, sanitize_sensitive_data(uri)
+        )
+        set_network_autostart(conn, name, autostart)
+        self._clear_pref_caches()
+        return {"name": name, "autostart": autostart}
+
+    def network_delete(self, uri: str, name: str) -> dict:
+        conn = self._get_conn(uri)
+        users = get_vms_using_network(conn, name)
+        if users:
+            raise ConnectionError(f"Network '{name}' is used by: {', '.join(users)}")
+        logger.info("Web delete network '%s' on %s", name, sanitize_sensitive_data(uri))
+        delete_network(conn, name)
+        self._clear_pref_caches()
+        return {"deleted": name}
+
+    def network_xml(self, uri: str, name: str) -> dict:
+        conn = self._get_conn(uri)
+        try:
+            net = conn.networkLookupByName(name)
+            return {"name": name, "xml": net.XMLDesc(0)}
+        except libvirt.libvirtError as exc:
+            raise LookupError(sanitize_sensitive_data(str(exc))) from exc
+
+    # -- server preferences: storage -------------------------------------------
+
+    def storage_snapshot(self, uri: str) -> list[dict]:
+        """Pools with nested volumes (live libvirt objects stripped)."""
+        conn = self._get_conn(uri)
+        pools = []
+        for pool_info in list_storage_pools(conn):
+            pool_obj = pool_info.get("pool")
+            entry = {
+                "name": pool_info.get("name"),
+                "status": pool_info.get("status"),
+                "autostart": pool_info.get("autostart", False),
+                "capacity": pool_info.get("capacity", 0),
+                "allocation": pool_info.get("allocation", 0),
+                "error": pool_info.get("error"),
+                "volumes": [],
+            }
+            if pool_obj is not None and entry["status"] == "active":
+                for vol_info in list_storage_volumes(pool_obj):
+                    vol_obj = vol_info.get("volume")
+                    entry["volumes"].append(
+                        {
+                            "name": vol_info.get("name"),
+                            "type": self.VOLUME_TYPES.get(vol_info.get("type"), "unknown"),
+                            "capacity": vol_info.get("capacity", 0),
+                            "allocation": vol_info.get("allocation", 0),
+                            "path": _safe_get_volume_path(vol_obj) if vol_obj else "",
+                        }
+                    )
+            pools.append(entry)
+        return pools
+
+    def _lookup_pool(self, uri: str, pool_name: str):
+        conn = self._get_conn(uri)
+        try:
+            return conn, conn.storagePoolLookupByName(pool_name)
+        except libvirt.libvirtError as exc:
+            raise LookupError(sanitize_sensitive_data(str(exc))) from exc
+
+    def pool_set_active(self, uri: str, pool_name: str, active: bool) -> dict:
+        _conn, pool = self._lookup_pool(uri, pool_name)
+        logger.info(
+            "Web pool '%s' active=%s on %s", pool_name, active, sanitize_sensitive_data(uri)
+        )
+        set_pool_active(pool, active)
+        self._clear_pref_caches()
+        return {"pool": pool_name, "active": active}
+
+    def pool_set_autostart(self, uri: str, pool_name: str, autostart: bool) -> dict:
+        _conn, pool = self._lookup_pool(uri, pool_name)
+        logger.info(
+            "Web pool '%s' autostart=%s on %s", pool_name, autostart, sanitize_sensitive_data(uri)
+        )
+        set_pool_autostart(pool, autostart)
+        self._clear_pref_caches()
+        return {"pool": pool_name, "autostart": autostart}
+
+    def pool_delete(self, uri: str, pool_name: str) -> dict:
+        _conn, pool = self._lookup_pool(uri, pool_name)
+        logger.info("Web delete pool '%s' on %s", pool_name, sanitize_sensitive_data(uri))
+        delete_storage_pool(pool)
+        self._clear_pref_caches()
+        return {"deleted": pool_name}
+
+    def pool_xml(self, uri: str, pool_name: str) -> dict:
+        _conn, pool = self._lookup_pool(uri, pool_name)
+        try:
+            return {"name": pool_name, "xml": pool.XMLDesc(0)}
+        except libvirt.libvirtError as exc:
+            raise LookupError(sanitize_sensitive_data(str(exc))) from exc
+
+    def _lookup_volume(self, uri: str, pool_name: str, volume_name: str):
+        conn, pool = self._lookup_pool(uri, pool_name)
+        try:
+            vol = pool.storageVolLookupByName(volume_name)
+            return conn, vol
+        except libvirt.libvirtError as exc:
+            raise LookupError(sanitize_sensitive_data(str(exc))) from exc
+
+    def volume_delete(self, uri: str, pool_name: str, volume_name: str) -> dict:
+        conn, vol = self._lookup_volume(uri, pool_name, volume_name)
+        path = _safe_get_volume_path(vol)
+        users = [d.name() for d in find_vms_using_volume(conn, path, volume_name)]
+        if users:
+            raise ConnectionError(f"Volume '{volume_name}' is used by: {', '.join(users)}")
+        logger.info(
+            "Web delete volume '%s' (pool %s) on %s",
+            volume_name,
+            pool_name,
+            sanitize_sensitive_data(uri),
+        )
+        delete_volume(vol)
+        self._clear_pref_caches()
+        return {"deleted": volume_name}
+
+    def volume_xml(self, uri: str, pool_name: str, volume_name: str) -> dict:
+        _conn, vol = self._lookup_volume(uri, pool_name, volume_name)
+        try:
+            return {"name": volume_name, "xml": vol.XMLDesc(0)}
+        except libvirt.libvirtError as exc:
+            raise LookupError(sanitize_sensitive_data(str(exc))) from exc
 
     # -- VM inventory ------------------------------------------------------
 
@@ -739,6 +949,68 @@ def create_app(
     @app.post("/api/servers/disconnect", dependencies=[Depends(require_token)])
     async def server_disconnect(payload: ServerConnectRequest) -> dict:
         return await run_backend(backend.disconnect_server, payload.uri)
+
+    # -- server preferences: networks --------------------------------------
+
+    @app.get("/api/prefs/networks", dependencies=[Depends(require_token)])
+    async def prefs_networks(uri: str) -> list[dict]:
+        return await run_backend(backend.networks_list, uri)
+
+    @app.post("/api/prefs/networks/active", dependencies=[Depends(require_token)])
+    async def prefs_network_active(payload: NetworkActiveRequest) -> dict:
+        return await run_backend(
+            backend.network_set_active, payload.uri, payload.name, payload.active
+        )
+
+    @app.post("/api/prefs/networks/autostart", dependencies=[Depends(require_token)])
+    async def prefs_network_autostart(payload: NetworkAutostartRequest) -> dict:
+        return await run_backend(
+            backend.network_set_autostart, payload.uri, payload.name, payload.autostart
+        )
+
+    @app.post("/api/prefs/networks/delete", dependencies=[Depends(require_token)])
+    async def prefs_network_delete(payload: NetworkRequest) -> dict:
+        return await run_backend(backend.network_delete, payload.uri, payload.name)
+
+    @app.get("/api/prefs/networks/xml", dependencies=[Depends(require_token)])
+    async def prefs_network_xml(uri: str, name: str) -> dict:
+        return await run_backend(backend.network_xml, uri, name)
+
+    # -- server preferences: storage ----------------------------------------
+
+    @app.get("/api/prefs/storage", dependencies=[Depends(require_token)])
+    async def prefs_storage(uri: str) -> list[dict]:
+        return await run_backend(backend.storage_snapshot, uri)
+
+    @app.post("/api/prefs/storage/pool/active", dependencies=[Depends(require_token)])
+    async def prefs_pool_active(payload: PoolActiveRequest) -> dict:
+        return await run_backend(
+            backend.pool_set_active, payload.uri, payload.pool, payload.active
+        )
+
+    @app.post("/api/prefs/storage/pool/autostart", dependencies=[Depends(require_token)])
+    async def prefs_pool_autostart(payload: PoolAutostartRequest) -> dict:
+        return await run_backend(
+            backend.pool_set_autostart, payload.uri, payload.pool, payload.autostart
+        )
+
+    @app.post("/api/prefs/storage/pool/delete", dependencies=[Depends(require_token)])
+    async def prefs_pool_delete(payload: PoolRequest) -> dict:
+        return await run_backend(backend.pool_delete, payload.uri, payload.pool)
+
+    @app.get("/api/prefs/storage/pool/xml", dependencies=[Depends(require_token)])
+    async def prefs_pool_xml(uri: str, pool: str) -> dict:
+        return await run_backend(backend.pool_xml, uri, pool)
+
+    @app.post("/api/prefs/storage/volume/delete", dependencies=[Depends(require_token)])
+    async def prefs_volume_delete(payload: VolumeRequest) -> dict:
+        return await run_backend(
+            backend.volume_delete, payload.uri, payload.pool, payload.volume
+        )
+
+    @app.get("/api/prefs/storage/volume/xml", dependencies=[Depends(require_token)])
+    async def prefs_volume_xml(uri: str, pool: str, volume: str) -> dict:
+        return await run_backend(backend.volume_xml, uri, pool, volume)
 
     @app.get("/api/vms", dependencies=[Depends(require_token)])
     async def vms() -> list[dict]:

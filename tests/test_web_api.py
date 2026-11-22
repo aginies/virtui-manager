@@ -579,5 +579,146 @@ class TestBackendServerConfig(unittest.TestCase):
             self.backend.connect_server("qemu:///nope")
 
 
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiPrefs(unittest.TestCase):
+    """Server preferences endpoints (networks / storage)."""
+
+    URI = "qemu:///system"
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.networks_list.return_value = [
+            {"name": "default", "mode": "nat", "active": True, "autostart": True},
+        ]
+        self.backend.storage_snapshot.return_value = [
+            {
+                "name": "default", "status": "active", "autostart": True,
+                "capacity": 100 * 2**30, "allocation": 10 * 2**30, "error": None,
+                "volumes": [
+                    {"name": "vm.qcow2", "type": "file", "capacity": 20 * 2**30,
+                     "allocation": 5 * 2**30, "path": "/var/lib/libvirt/images/vm.qcow2"},
+                ],
+            },
+        ]
+        self.backend.network_set_active.return_value = {"name": "default", "active": False}
+        self.backend.network_set_autostart.return_value = {"name": "default", "autostart": False}
+        self.backend.network_delete.return_value = {"deleted": "default"}
+        self.backend.pool_set_active.return_value = {"pool": "default", "active": False}
+        self.backend.pool_set_autostart.return_value = {"pool": "default", "autostart": True}
+        self.backend.pool_delete.return_value = {"deleted": "default"}
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def _send(self, method, url, payload=None, headers=None):
+        kwargs = {"headers": self.auth if headers is None else headers}
+        if payload is not None:
+            kwargs["json"] = payload
+        return self.client.request(method, url, **kwargs)
+
+    def test_networks_list(self):
+        resp = self.client.get(
+            "/api/prefs/networks", params={"uri": self.URI}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()[0]["name"], "default")
+        self.backend.networks_list.assert_called_once_with(self.URI)
+
+    def test_networks_list_requires_token(self):
+        resp = self.client.get("/api/prefs/networks", params={"uri": self.URI})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_network_toggles(self):
+        resp = self._send("POST", "/api/prefs/networks/active",
+                          {"uri": self.URI, "name": "default", "active": False})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.network_set_active.assert_called_once_with(self.URI, "default", False)
+
+        resp = self._send("POST", "/api/prefs/networks/autostart",
+                          {"uri": self.URI, "name": "default", "autostart": False})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.network_set_autostart.assert_called_once_with(self.URI, "default", False)
+
+    def test_network_delete_in_use_maps_409(self):
+        self.backend.network_delete.side_effect = ConnectionError(
+            "Network 'default' is used by: vm1, vm2"
+        )
+        resp = self._send("POST", "/api/prefs/networks/delete",
+                          {"uri": self.URI, "name": "default"})
+        self.assertEqual(resp.status_code, 409)
+        self.assertIn("used by", resp.json()["detail"])
+
+    def test_network_xml(self):
+        self.backend.network_xml.return_value = {"name": "default", "xml": "<network/>"}
+        resp = self.client.get(
+            "/api/prefs/networks/xml",
+            params={"uri": self.URI, "name": "default"},
+            headers=self.auth,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["xml"], "<network/>")
+
+    def test_storage_snapshot(self):
+        resp = self.client.get(
+            "/api/prefs/storage", params={"uri": self.URI}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        pools = resp.json()
+        self.assertEqual(pools[0]["name"], "default")
+        self.assertEqual(pools[0]["volumes"][0]["name"], "vm.qcow2")
+        self.backend.storage_snapshot.assert_called_once_with(self.URI)
+
+    def test_pool_operations(self):
+        resp = self._send("POST", "/api/prefs/storage/pool/active",
+                          {"uri": self.URI, "pool": "default", "active": False})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.pool_set_active.assert_called_once_with(self.URI, "default", False)
+
+        resp = self._send("POST", "/api/prefs/storage/pool/autostart",
+                          {"uri": self.URI, "pool": "default", "autostart": True})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.pool_set_autostart.assert_called_once_with(self.URI, "default", True)
+
+        resp = self._send("POST", "/api/prefs/storage/pool/delete",
+                          {"uri": self.URI, "pool": "default"})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.pool_delete.assert_called_once_with(self.URI, "default")
+
+    def test_pool_xml(self):
+        self.backend.pool_xml.return_value = {"name": "default", "xml": "<pool/>"}
+        resp = self.client.get(
+            "/api/prefs/storage/pool/xml",
+            params={"uri": self.URI, "pool": "default"},
+            headers=self.auth,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["xml"], "<pool/>")
+
+    def test_volume_delete_in_use_maps_409(self):
+        self.backend.volume_delete.side_effect = ConnectionError(
+            "Volume 'vm.qcow2' is used by: vm1"
+        )
+        resp = self._send("POST", "/api/prefs/storage/volume/delete",
+                          {"uri": self.URI, "pool": "default", "volume": "vm.qcow2"})
+        self.assertEqual(resp.status_code, 409)
+
+    def test_volume_delete_and_xml(self):
+        self.backend.volume_delete.return_value = {"deleted": "vm.qcow2"}
+        resp = self._send("POST", "/api/prefs/storage/volume/delete",
+                          {"uri": self.URI, "pool": "default", "volume": "vm.qcow2"})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.volume_delete.assert_called_once_with(self.URI, "default", "vm.qcow2")
+
+        self.backend.volume_xml.return_value = {"name": "vm.qcow2", "xml": "<volume/>"}
+        resp = self.client.get(
+            "/api/prefs/storage/volume/xml",
+            params={"uri": self.URI, "pool": "default", "volume": "vm.qcow2"},
+            headers=self.auth,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["xml"], "<volume/>")
+
+
 if __name__ == "__main__":
     unittest.main()

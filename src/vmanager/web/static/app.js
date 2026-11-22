@@ -102,6 +102,18 @@
     serverFormAutoconnect: document.getElementById("server-form-autoconnect"),
     serverFormSave: document.getElementById("server-form-save"),
     serverFormCancel: document.getElementById("server-form-cancel"),
+    prefsModal: document.getElementById("prefs-modal"),
+    prefsTitle: document.getElementById("prefs-title"),
+    prefsServer: document.getElementById("prefs-server"),
+    prefsRefresh: document.getElementById("prefs-refresh"),
+    prefsClose: document.getElementById("prefs-close"),
+    prefsTabs: document.getElementById("prefs-tabs"),
+    prefsContent: document.getElementById("prefs-content"),
+    xmlModal: document.getElementById("xml-modal"),
+    xmlTitle: document.getElementById("xml-title"),
+    xmlContent: document.getElementById("xml-content"),
+    xmlCopy: document.getElementById("xml-copy"),
+    xmlClose: document.getElementById("xml-close"),
     toast: document.getElementById("toast"),
     template: document.getElementById("card-template"),
   };
@@ -697,7 +709,9 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!els.actMenu.hidden) closeActMenu();
+    else if (!els.xmlModal.hidden) closeXmlModal();
     else if (!els.serverFormModal.hidden) els.serverFormCancel.click();
+    else if (!els.prefsModal.hidden) closePrefs();
     else if (!els.serversModal.hidden) els.serversClose.click();
     else if (!els.renameModal.hidden) els.renameCancel.click();
     else if (!els.deleteModal.hidden) els.deleteCancel.click();
@@ -929,6 +943,13 @@
       s.connected ? "Disconnect" : "Connect");
     connBtn.type = "button";
     connBtn.addEventListener("click", () => toggleServerConnection(s, connBtn));
+    const prefsBtn = el("button", "secondary mini", "Prefs");
+    prefsBtn.type = "button";
+    prefsBtn.title = s.connected
+      ? "Network & storage preferences"
+      : "Connect the server first";
+    prefsBtn.disabled = !s.connected;
+    prefsBtn.addEventListener("click", () => openPrefs(s));
     const editBtn = el("button", "secondary mini", "Edit");
     editBtn.type = "button";
     editBtn.addEventListener("click", () => openServerForm(s));
@@ -938,7 +959,7 @@
       askConfirm("Remove server", s.name, () => deleteServer(s),
         `Remove "${s.name}" (${s.uri}) from the configuration? VMs on it are not affected.`);
     });
-    tdAct.append(connBtn, editBtn, delBtn);
+    tdAct.append(prefsBtn, connBtn, editBtn, delBtn);
     tr.append(tdDot, tdName, tdUri, tdVms, tdAct);
     rows.push(tr);
 
@@ -1034,6 +1055,273 @@
   els.serverFormCancel.addEventListener("click", () => { els.serverFormModal.hidden = true; });
   els.serverFormUri.addEventListener("keydown", (e) => { if (e.key === "Enter") saveServerForm(); });
   els.serverFormName.addEventListener("keydown", (e) => { if (e.key === "Enter") saveServerForm(); });
+
+  // -- server preferences (network / storage) ----------------------------------
+
+  let prefsServer = null;
+  let prefsTab = "network";
+
+  function fmtBytes(bytes) {
+    if (!(bytes > 0)) return "0 B";
+    const units = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let v = bytes;
+    let i = 0;
+    while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+    return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
+  }
+
+  function openPrefs(server) {
+    prefsServer = server;
+    els.prefsServer.textContent = `${server.name} \u2014 ${server.uri}`;
+    els.prefsModal.hidden = false;
+    setPrefsTab(prefsTab);
+    loadPrefs();
+  }
+
+  function closePrefs() {
+    els.prefsModal.hidden = true;
+    prefsServer = null;
+  }
+
+  function setPrefsTab(tab) {
+    prefsTab = tab;
+    for (const t of els.prefsTabs.querySelectorAll(".tab")) {
+      t.classList.toggle("active", t.dataset.ptab === tab);
+    }
+  }
+
+  async function loadPrefs() {
+    if (!prefsServer) return;
+    els.prefsContent.textContent = "";
+    els.prefsContent.appendChild(el("p", "detail-loading", "Loading..."));
+    try {
+      if (prefsTab === "network") {
+        const nets = await api(`/api/prefs/networks?uri=${encodeURIComponent(prefsServer.uri)}`);
+        renderPrefsNetwork(nets);
+      } else {
+        const pools = await api(`/api/prefs/storage?uri=${encodeURIComponent(prefsServer.uri)}`);
+        renderPrefsStorage(pools);
+      }
+    } catch (err) {
+      els.prefsContent.textContent = "";
+      if (err.unauthorized) { closePrefs(); showTokenModal(); return; }
+      els.prefsContent.appendChild(el("p", "detail-loading", "Failed to load: " + err.message));
+    }
+  }
+
+  async function prefsAction(url, body, okMsg) {
+    try {
+      await postJSON(url, body);
+      showToast(okMsg, "ok");
+      loadPrefs();
+    } catch (err) {
+      if (err.message !== "unauthorized") showToast(`Failed: ${err.message}`, "error");
+    }
+  }
+
+  async function showXmlFrom(url, title) {
+    try {
+      const data = await api(url);
+      openXmlModal(title || data.name, data.xml);
+    } catch (err) {
+      if (err.unauthorized) { showTokenModal(); return; }
+      showToast(`Failed to load XML: ${err.message}`, "error");
+    }
+  }
+
+  function renderPrefsNetwork(nets) {
+    els.prefsContent.textContent = "";
+    if (!nets.length) {
+      els.prefsContent.appendChild(el("p", "detail-loading", "No networks on this server."));
+      return;
+    }
+    const table = el("table", "grid");
+    const thead = el("thead");
+    const trh = el("tr");
+    ["Name", "Forward mode", "Active", "Autostart", ""].forEach((h) => trh.appendChild(el("th", null, h)));
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const n of nets) {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, n.name));
+      tr.appendChild(el("td", null, n.mode));
+      const tdActive = el("td");
+      tdActive.appendChild(el("span", "state-pill " + (n.active ? "on" : "off"), n.active ? "active" : "inactive"));
+      tr.appendChild(tdActive);
+      tr.appendChild(el("td", null, n.autostart ? "yes" : "no"));
+      const tdAct = el("td", "snap-actions");
+
+      const toggleBtn = el("button", "secondary mini", n.active ? "Deactivate" : "Activate");
+      toggleBtn.type = "button";
+      toggleBtn.addEventListener("click", () => prefsAction(
+        "/api/prefs/networks/active",
+        { uri: prefsServer.uri, name: n.name, active: !n.active },
+        `Network ${n.name} ${n.active ? "deactivated" : "activated"}`,
+      ));
+      const autoBtn = el("button", "secondary mini", n.autostart ? "No-autostart" : "Autostart");
+      autoBtn.type = "button";
+      autoBtn.addEventListener("click", () => prefsAction(
+        "/api/prefs/networks/autostart",
+        { uri: prefsServer.uri, name: n.name, autostart: !n.autostart },
+        `Network ${n.name} autostart ${n.autostart ? "disabled" : "enabled"}`,
+      ));
+      const xmlBtn = el("button", "secondary mini", "XML");
+      xmlBtn.type = "button";
+      xmlBtn.addEventListener("click", () => showXmlFrom(
+        `/api/prefs/networks/xml?uri=${encodeURIComponent(prefsServer.uri)}&name=${encodeURIComponent(n.name)}`,
+        `Network ${n.name}`,
+      ));
+      const delBtn = el("button", "danger mini", "Delete");
+      delBtn.type = "button";
+      delBtn.addEventListener("click", () => {
+        askConfirm("Delete network", n.name, () => prefsAction(
+          "/api/prefs/networks/delete",
+          { uri: prefsServer.uri, name: n.name },
+          `Network ${n.name} deleted`,
+        ), `Delete network "${n.name}"? VMs using it would lose connectivity (they are checked first).`);
+      });
+      tdAct.append(toggleBtn, autoBtn, xmlBtn, delBtn);
+      tr.appendChild(tdAct);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    els.prefsContent.appendChild(table);
+  }
+
+  function renderPrefsStorage(pools) {
+    els.prefsContent.textContent = "";
+    if (!pools.length) {
+      els.prefsContent.appendChild(el("p", "detail-loading", "No storage pools on this server."));
+      return;
+    }
+    for (const p of pools) {
+      const section = el("div", "pool-section");
+      const head = el("div", "pool-head");
+      head.appendChild(el("span", "state-pill " + (p.status === "active" ? "on" : "off"), p.status));
+      head.appendChild(el("strong", null, p.name));
+      head.appendChild(el("span", "pool-meta",
+        `${fmtBytes(p.allocation)} used of ${fmtBytes(p.capacity)} \u00b7 autostart: ${p.autostart ? "yes" : "no"}`));
+      const act = el("span", "snap-actions");
+
+      const toggleBtn = el("button", "secondary mini", p.status === "active" ? "Deactivate" : "Activate");
+      toggleBtn.type = "button";
+      toggleBtn.addEventListener("click", () => prefsAction(
+        "/api/prefs/storage/pool/active",
+        { uri: prefsServer.uri, pool: p.name, active: p.status !== "active" },
+        `Pool ${p.name} ${p.status === "active" ? "deactivated" : "activated"}`,
+      ));
+      const autoBtn = el("button", "secondary mini", p.autostart ? "No-autostart" : "Autostart");
+      autoBtn.type = "button";
+      autoBtn.addEventListener("click", () => prefsAction(
+        "/api/prefs/storage/pool/autostart",
+        { uri: prefsServer.uri, pool: p.name, autostart: !p.autostart },
+        `Pool ${p.name} autostart ${p.autostart ? "disabled" : "enabled"}`,
+      ));
+      const xmlBtn = el("button", "secondary mini", "XML");
+      xmlBtn.type = "button";
+      xmlBtn.addEventListener("click", () => showXmlFrom(
+        `/api/prefs/storage/pool/xml?uri=${encodeURIComponent(prefsServer.uri)}&pool=${encodeURIComponent(p.name)}`,
+        `Pool ${p.name}`,
+      ));
+      const delBtn = el("button", "danger mini", "Delete");
+      delBtn.type = "button";
+      delBtn.addEventListener("click", () => {
+        askConfirm("Delete pool", p.name, () => prefsAction(
+          "/api/prefs/storage/pool/delete",
+          { uri: prefsServer.uri, pool: p.name },
+          `Pool ${p.name} deleted`,
+        ), `Delete pool "${p.name}"? Volume files on disk are NOT removed, but the pool definition is.`);
+      });
+      act.append(toggleBtn, autoBtn, xmlBtn, delBtn);
+      head.appendChild(act);
+      section.appendChild(head);
+
+      if (p.error) {
+        section.appendChild(el("p", "server-error", p.error));
+      }
+
+      if (p.status === "active") {
+        if (!p.volumes.length) {
+          section.appendChild(el("p", "detail-loading", "No volumes."));
+        } else {
+          const table = el("table", "grid");
+          const thead = el("thead");
+          const trh = el("tr");
+          ["Volume", "Type", "Capacity", "Used", "Path", ""].forEach((h) => trh.appendChild(el("th", null, h)));
+          thead.appendChild(trh);
+          table.appendChild(thead);
+          const tbody = el("tbody");
+          for (const v of p.volumes) {
+            const tr = el("tr");
+            tr.appendChild(el("td", null, v.name));
+            tr.appendChild(el("td", null, v.type));
+            tr.appendChild(el("td", null, fmtBytes(v.capacity)));
+            tr.appendChild(el("td", null, fmtBytes(v.allocation)));
+            const tdPath = el("td", "uri-cell", v.path);
+            tdPath.title = v.path;
+            tr.appendChild(tdPath);
+            const tdAct2 = el("td", "snap-actions");
+            const vXmlBtn = el("button", "secondary mini", "XML");
+            vXmlBtn.type = "button";
+            vXmlBtn.addEventListener("click", () => showXmlFrom(
+              `/api/prefs/storage/volume/xml?uri=${encodeURIComponent(prefsServer.uri)}`
+                + `&pool=${encodeURIComponent(p.name)}&volume=${encodeURIComponent(v.name)}`,
+              `Volume ${v.name}`,
+            ));
+            const vDelBtn = el("button", "danger mini", "Delete");
+            vDelBtn.type = "button";
+            vDelBtn.addEventListener("click", () => {
+              askConfirm("Delete volume", v.name, () => prefsAction(
+                "/api/prefs/storage/volume/delete",
+                { uri: prefsServer.uri, pool: p.name, volume: v.name },
+                `Volume ${v.name} deleted`,
+              ), `Delete volume "${v.name}" from pool "${p.name}"? This destroys its data. VMs using it are checked first.`);
+            });
+            tdAct2.append(vXmlBtn, vDelBtn);
+            tr.appendChild(tdAct2);
+            tbody.appendChild(tr);
+          }
+          table.appendChild(tbody);
+          section.appendChild(table);
+        }
+      }
+      els.prefsContent.appendChild(section);
+    }
+  }
+
+  els.prefsClose.addEventListener("click", closePrefs);
+  els.prefsRefresh.addEventListener("click", loadPrefs);
+  els.prefsTabs.addEventListener("click", (e) => {
+    const t = e.target.closest(".tab");
+    if (!t) return;
+    setPrefsTab(t.dataset.ptab);
+    loadPrefs();
+  });
+  els.prefsModal.addEventListener("click", (e) => {
+    if (e.target === els.prefsModal) closePrefs();
+  });
+
+  // -- generic XML modal ---------------------------------------------------------
+
+  function openXmlModal(title, xml) {
+    els.xmlTitle.textContent = title;
+    els.xmlContent.textContent = xml || "";
+    els.xmlModal.hidden = false;
+  }
+
+  function closeXmlModal() { els.xmlModal.hidden = true; }
+
+  els.xmlClose.addEventListener("click", closeXmlModal);
+  els.xmlCopy.addEventListener("click", () => {
+    navigator.clipboard.writeText(els.xmlContent.textContent || "").then(
+      () => showToast("XML copied to clipboard", "ok"),
+      () => showToast("Copy failed", "error"),
+    );
+  });
+  els.xmlModal.addEventListener("click", (e) => {
+    if (e.target === els.xmlModal) closeXmlModal();
+  });
 
   // -- snapshots -----------------------------------------------------------------
 

@@ -134,6 +134,34 @@
     </div>
   </div>
 
+  <div id="prefs-modal" class="modal" hidden>
+    <div class="modal-box detail-box">
+      <div class="detail-head">
+        <h2 id="prefs-title">Server Preferences</h2>
+        <span id="prefs-server" class="detail-server"></span>
+        <button id="prefs-refresh" type="button" class="secondary" title="Refresh">&#x21bb;</button>
+        <button id="prefs-close" type="button" class="secondary" title="Close">&#x2715;</button>
+      </div>
+      <nav id="prefs-tabs">
+        <button type="button" class="tab active" data-ptab="network">Network</button>
+        <button type="button" class="tab" data-ptab="storage">Storage</button>
+      </nav>
+      <div id="prefs-content"><p class="detail-loading">Loading...</p></div>
+    </div>
+  </div>
+
+  <div id="xml-modal" class="modal" hidden>
+    <div class="modal-box detail-box">
+      <div class="detail-head">
+        <h2 id="xml-title">XML</h2>
+        <span class="detail-server"></span>
+        <button id="xml-copy" type="button" class="secondary">Copy</button>
+        <button id="xml-close" type="button" class="secondary" title="Close">&#x2715;</button>
+      </div>
+      <pre id="xml-content" class="xml"></pre>
+    </div>
+  </div>
+
   <div id="toast" hidden></div>
 
   <template id="card-template">

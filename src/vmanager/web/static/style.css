@@ -500,6 +500,41 @@ label.field input:focus { outline: 1px solid var(--accent); }
 
 #servers-btn { padding: 6px 10px; }
 
+/* -- server preferences: pools & state pills ------------------------------ */
+
+.pool-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.pool-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.pool-head strong { font-size: 14px; }
+.pool-meta { color: var(--text-dim); font-size: 12px; }
+.pool-head .snap-actions { margin-left: auto; }
+
+.state-pill {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+}
+.state-pill.on { color: var(--running); border-color: var(--running); }
+.state-pill.off { color: var(--text-dim); }
+
+#prefs-content .server-error { padding: 4px 0 8px; }
+
+button.mini:disabled { opacity: 0.4; cursor: not-allowed; }
+
 @media (max-width: 640px) {
   #cards { grid-template-columns: 1fr; padding: 10px; }
   .header-right { width: 100%; }
