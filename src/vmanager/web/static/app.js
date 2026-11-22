@@ -89,6 +89,19 @@
     deleteNvram: document.getElementById("delete-nvram"),
     deleteOk: document.getElementById("delete-ok"),
     deleteCancel: document.getElementById("delete-cancel"),
+    serversBtn: document.getElementById("servers-btn"),
+    serversModal: document.getElementById("servers-modal"),
+    serversList: document.getElementById("servers-list"),
+    serversRefresh: document.getElementById("servers-refresh"),
+    serversClose: document.getElementById("servers-close"),
+    serverAddBtn: document.getElementById("server-add-btn"),
+    serverFormModal: document.getElementById("server-form-modal"),
+    serverFormTitle: document.getElementById("server-form-title"),
+    serverFormName: document.getElementById("server-form-name"),
+    serverFormUri: document.getElementById("server-form-uri"),
+    serverFormAutoconnect: document.getElementById("server-form-autoconnect"),
+    serverFormSave: document.getElementById("server-form-save"),
+    serverFormCancel: document.getElementById("server-form-cancel"),
     toast: document.getElementById("toast"),
     template: document.getElementById("card-template"),
   };
@@ -684,6 +697,8 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
     if (!els.actMenu.hidden) closeActMenu();
+    else if (!els.serverFormModal.hidden) els.serverFormCancel.click();
+    else if (!els.serversModal.hidden) els.serversClose.click();
     else if (!els.renameModal.hidden) els.renameCancel.click();
     else if (!els.deleteModal.hidden) els.deleteCancel.click();
     else if (!els.detailModal.hidden) closeDetail();
@@ -691,14 +706,18 @@
     else if (!els.tokenModal.hidden) hideTokenModal();
   });
 
-  // -- generic POST helper -----------------------------------------------------
+  // -- generic API helper -----------------------------------------------------
 
-  async function postJSON(url, body) {
-    const resp = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
-      body: JSON.stringify(body),
-    });
+  async function postJSON(url, body, method) {
+    const opts = {
+      method: method || "POST",
+      headers: { Authorization: "Bearer " + token },
+    };
+    if (body !== undefined && body !== null) {
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
+    const resp = await fetch(url, opts);
     if (resp.status === 401) {
       showTokenModal();
       throw new Error("unauthorized");
@@ -858,6 +877,164 @@
     }
   }
 
+  // -- server management -------------------------------------------------------
+
+  let editingServerUri = null; // null = add mode
+
+  function openServersModal() {
+    els.serversModal.hidden = false;
+    loadServersTable();
+  }
+
+  async function loadServersTable() {
+    els.serversList.textContent = "";
+    els.serversList.appendChild(el("p", "detail-loading", "Loading..."));
+    try {
+      const servers = await api("/api/servers");
+      els.serversList.textContent = "";
+      const table = el("table", "grid servers-table");
+      const thead = el("thead");
+      const trh = el("tr");
+      ["", "Name", "URI", "VMs", ""].forEach((h) => trh.appendChild(el("th", null, h)));
+      thead.appendChild(trh);
+      table.appendChild(thead);
+      const tbody = el("tbody");
+      for (const s of servers) {
+        for (const row of serverRows(s)) tbody.appendChild(row);
+      }
+      table.appendChild(tbody);
+      els.serversList.appendChild(table);
+    } catch (err) {
+      els.serversList.textContent = "";
+      if (err.unauthorized) { showTokenModal(); return; }
+      els.serversList.appendChild(el("p", "detail-loading", "Failed to load servers: " + err.message));
+    }
+  }
+
+  function serverRows(s) {
+    const rows = [];
+    const tr = el("tr");
+    const tdDot = el("td");
+    const dotCls = s.connected ? "running" : (s.error ? "blocked" : "stopped");
+    tdDot.appendChild(el("span", "status-dot " + dotCls));
+    const tdName = el("td");
+    tdName.appendChild(document.createTextNode(s.name));
+    if (s.autoconnect) tdName.appendChild(el("span", "badge", "auto"));
+    const tdUri = el("td", "uri-cell", s.uri);
+    tdUri.title = s.uri;
+    const tdVms = el("td", null, s.connected ? String(s.vm_count) : "--");
+    const tdAct = el("td", "snap-actions");
+
+    const connBtn = el("button", s.connected ? "secondary mini" : "mini",
+      s.connected ? "Disconnect" : "Connect");
+    connBtn.type = "button";
+    connBtn.addEventListener("click", () => toggleServerConnection(s, connBtn));
+    const editBtn = el("button", "secondary mini", "Edit");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => openServerForm(s));
+    const delBtn = el("button", "danger mini", "Delete");
+    delBtn.type = "button";
+    delBtn.addEventListener("click", () => {
+      askConfirm("Remove server", s.name, () => deleteServer(s),
+        `Remove "${s.name}" (${s.uri}) from the configuration? VMs on it are not affected.`);
+    });
+    tdAct.append(connBtn, editBtn, delBtn);
+    tr.append(tdDot, tdName, tdUri, tdVms, tdAct);
+    rows.push(tr);
+
+    if (s.error) {
+      const tr2 = el("tr");
+      const td = el("td", "server-error", s.error);
+      td.colSpan = 5;
+      tr2.appendChild(td);
+      rows.push(tr2);
+    }
+    return rows;
+  }
+
+  async function toggleServerConnection(s, btn) {
+    const connecting = !s.connected;
+    btn.disabled = true;
+    btn.textContent = connecting ? "Connecting..." : "Disconnecting...";
+    try {
+      const data = await postJSON(
+        connecting ? "/api/servers/connect" : "/api/servers/disconnect", { uri: s.uri });
+      showToast(`${data.connected ? "Connected to" : "Disconnected from"} ${s.name}`, "ok");
+    } catch (err) {
+      if (err.message !== "unauthorized") {
+        showToast(`Server ${connecting ? "connect" : "disconnect"} failed: ${err.message}`, "error");
+      }
+    } finally {
+      loadServersTable();
+      scheduleRefresh(); // keep the header chips in sync
+    }
+  }
+
+  function openServerForm(server) {
+    editingServerUri = server ? server.uri : null;
+    els.serverFormTitle.textContent = server ? "Edit server" : "Add server";
+    els.serverFormName.value = server ? server.name : "";
+    els.serverFormUri.value = server ? server.uri : "";
+    els.serverFormAutoconnect.checked = server ? !!server.autoconnect : false;
+    els.serverFormModal.hidden = false;
+    els.serverFormName.focus();
+  }
+
+  async function saveServerForm() {
+    const name = els.serverFormName.value.trim();
+    const uri = els.serverFormUri.value.trim();
+    if (!name || !uri) { showToast("Name and URI are required", "error"); return; }
+    if (!(uri.startsWith("qemu:///") || uri.startsWith("qemu+ssh://"))) {
+      showToast("Invalid URI (must start with qemu:/// or qemu+ssh://)", "error");
+      return;
+    }
+    const autoconnect = els.serverFormAutoconnect.checked;
+    try {
+      if (editingServerUri === null) {
+        await postJSON("/api/servers", { name, uri, autoconnect });
+        showToast(`Server ${name} added`, "ok");
+      } else {
+        await postJSON("/api/servers",
+          { original_uri: editingServerUri, name, uri, autoconnect }, "PUT");
+        showToast(`Server ${name} updated`, "ok");
+        if (uri !== editingServerUri && selectedServers.has(editingServerUri)) {
+          selectedServers.delete(editingServerUri);
+          selectedServers.add(uri);
+          persistServers();
+        }
+      }
+      els.serverFormModal.hidden = true;
+      loadServersTable();
+      scheduleRefresh();
+    } catch (err) {
+      if (err.message !== "unauthorized") showToast(`Save failed: ${err.message}`, "error");
+    }
+  }
+
+  async function deleteServer(s) {
+    try {
+      await postJSON(`/api/servers?uri=${encodeURIComponent(s.uri)}`, null, "DELETE");
+      showToast(`Server ${s.name} removed`, "ok");
+      if (selectedServers.has(s.uri)) {
+        selectedServers.delete(s.uri);
+        persistServers();
+      }
+      loadServersTable();
+      scheduleRefresh();
+    } catch (err) {
+      if (err.message !== "unauthorized") showToast(`Delete failed: ${err.message}`, "error");
+    }
+  }
+
+  els.serversBtn.addEventListener("click", openServersModal);
+  els.serversClose.addEventListener("click", () => { els.serversModal.hidden = true; });
+  els.serversRefresh.addEventListener("click", loadServersTable);
+  els.serverAddBtn.addEventListener("click", () => openServerForm(null));
+  els.serverFormSave.addEventListener("click", saveServerForm);
+  els.serverFormCancel.addEventListener("click", () => { els.serverFormModal.hidden = true; });
+  els.serverFormUri.addEventListener("keydown", (e) => { if (e.key === "Enter") saveServerForm(); });
+  els.serverFormName.addEventListener("keydown", (e) => { if (e.key === "Enter") saveServerForm(); });
+
   // -- snapshots -----------------------------------------------------------------
 
   async function loadSnapshots() {
@@ -985,9 +1162,9 @@
 
   let confirmCallback = null;
 
-  function askConfirm(actionLabel, vmName, onConfirm) {
+  function askConfirm(actionLabel, vmName, onConfirm, customText) {
     els.confirmTitle.textContent = actionLabel;
-    els.confirmText.textContent = `Apply "${actionLabel}" to "${vmName}"?`;
+    els.confirmText.textContent = customText || `Apply "${actionLabel}" to "${vmName}"?`;
     confirmCallback = onConfirm;
     els.confirmModal.hidden = false;
     els.confirmOk.focus();

@@ -1,7 +1,9 @@
 import builtins
+import copy
 import os
 import sys
 import unittest
+import urllib.parse
 from unittest.mock import MagicMock
 
 import pytest
@@ -388,6 +390,193 @@ class TestWebApiConsole(unittest.TestCase):
         resp = self._post("/api/vms/console/stop", {"id": self.VM_ID})
         self.assertEqual(resp.status_code, 200)
         self.backend.stop_console.assert_called_once_with(self.VM_ID)
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiServers(unittest.TestCase):
+    """Server management endpoints."""
+
+    ENTRY = {
+        "name": "nas", "uri": "qemu+ssh://root@nas/system", "autoconnect": False,
+        "connected": False, "vm_count": 0, "error": None,
+    }
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.add_server.return_value = self.ENTRY
+        self.backend.edit_server.return_value = self.ENTRY
+        self.backend.delete_server.return_value = {"deleted": self.ENTRY["uri"]}
+        self.backend.connect_server.return_value = dict(self.ENTRY, connected=True)
+        self.backend.disconnect_server.return_value = self.ENTRY
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def _send(self, method, url, payload=None, headers=None):
+        kwargs = {"headers": self.auth if headers is None else headers}
+        if payload is not None:
+            kwargs["json"] = payload
+        return self.client.request(method, url, **kwargs)
+
+    def test_add_server(self):
+        resp = self._send("POST", "/api/servers",
+                          {"name": "nas", "uri": "qemu+ssh://root@nas/system"})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.add_server.assert_called_once_with(
+            "nas", "qemu+ssh://root@nas/system", False
+        )
+
+    def test_add_server_requires_token(self):
+        resp = self._send("POST", "/api/servers",
+                          {"name": "nas", "uri": "qemu+ssh://root@nas/system"}, headers={})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_add_server_invalid_uri_maps_400(self):
+        self.backend.add_server.side_effect = ValueError("Invalid URI")
+        resp = self._send("POST", "/api/servers", {"name": "x", "uri": "bad://x"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_add_server_duplicate_maps_409(self):
+        self.backend.add_server.side_effect = ConnectionError("Server already configured")
+        resp = self._send("POST", "/api/servers",
+                          {"name": "nas", "uri": "qemu+ssh://root@nas/system"})
+        self.assertEqual(resp.status_code, 409)
+
+    def test_edit_server(self):
+        resp = self._send("PUT", "/api/servers", {
+            "original_uri": "qemu+ssh://root@nas/system",
+            "name": "nas2", "uri": "qemu+ssh://root@nas2/system", "autoconnect": True,
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.backend.edit_server.assert_called_once_with(
+            "qemu+ssh://root@nas/system", "nas2", "qemu+ssh://root@nas2/system", True
+        )
+
+    def test_delete_server(self):
+        resp = self._send(
+            "DELETE", "/api/servers?uri=" + urllib.parse.quote(self.ENTRY["uri"], safe="")
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.backend.delete_server.assert_called_once_with(self.ENTRY["uri"])
+
+    def test_delete_server_requires_uri(self):
+        resp = self._send("DELETE", "/api/servers")
+        self.assertEqual(resp.status_code, 422)
+
+    def test_connect_disconnect(self):
+        resp = self._send("POST", "/api/servers/connect", {"uri": self.ENTRY["uri"]})
+        self.assertEqual(resp.status_code, 200)
+        self.assertTrue(resp.json()["connected"])
+        self.backend.connect_server.assert_called_once_with(self.ENTRY["uri"])
+
+        resp = self._send("POST", "/api/servers/disconnect", {"uri": self.ENTRY["uri"]})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.disconnect_server.assert_called_once_with(self.ENTRY["uri"])
+
+    def test_connect_failure_maps_400(self):
+        self.backend.connect_server.side_effect = ValueError("No route to host")
+        resp = self._send("POST", "/api/servers/connect", {"uri": self.ENTRY["uri"]})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("No route to host", resp.json()["detail"])
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestBackendServerConfig(unittest.TestCase):
+    """Backend config read-modify-write logic against a fake config file."""
+
+    def setUp(self):
+        from vmanager.web import api as web_api
+
+        self.web_api = web_api
+        self.config = {
+            "servers": [
+                {"name": "Local", "uri": "qemu:///system", "autoconnect": True},
+            ]
+        }
+        self.saved = []
+
+        def fake_load():
+            return copy.deepcopy(self.config)
+
+        def fake_save(cfg):
+            self.saved.append(cfg)
+            self.config["servers"] = cfg["servers"]
+
+        self.load_patcher = unittest.mock.patch.object(web_api, "load_config", fake_load)
+        self.save_patcher = unittest.mock.patch.object(web_api, "save_config", fake_save)
+        self.load_patcher.start()
+        self.save_patcher.start()
+        self.addCleanup(self.load_patcher.stop)
+        self.addCleanup(self.save_patcher.stop)
+
+        vm_service = MagicMock()
+        # No live connections in these tests
+        vm_service.connection_manager.get_connection.return_value = None
+        vm_service.connection_manager.get_connection_error.return_value = None
+        self.backend = web_api.Backend(config=self.config, vm_service=vm_service)
+        self.cm = vm_service.connection_manager
+
+    def test_add_server_persists(self):
+        entry = self.backend.add_server("nas", "qemu+ssh://root@nas/system", True)
+        self.assertEqual(entry["name"], "nas")
+        self.assertTrue(entry["autoconnect"])
+        self.assertFalse(entry["connected"])
+        self.assertEqual(len(self.saved), 1)
+        self.assertIn(
+            {"name": "nas", "uri": "qemu+ssh://root@nas/system", "autoconnect": True},
+            self.config["servers"],
+        )
+        # adding does not connect
+        self.cm.connect.assert_not_called()
+
+    def test_add_server_rejects_invalid_uri(self):
+        with self.assertRaises(ValueError):
+            self.backend.add_server("x", "http://not-libvirt")
+        self.assertEqual(self.saved, [])
+
+    def test_add_server_rejects_duplicate(self):
+        with self.assertRaises(ConnectionError):
+            self.backend.add_server("dup", "qemu:///system")
+        self.assertEqual(self.saved, [])
+
+    def test_edit_server_changes_uri_and_disconnects_old(self):
+        entry = self.backend.edit_server("qemu:///system", "Local2", "qemu:///session", False)
+        self.assertEqual(entry["uri"], "qemu:///session")
+        self.cm.disconnect.assert_called_once_with("qemu:///system")
+        self.assertEqual(
+            self.config["servers"],
+            [{"name": "Local2", "uri": "qemu:///session", "autoconnect": False}],
+        )
+
+    def test_edit_server_unknown_404(self):
+        with self.assertRaises(LookupError):
+            self.backend.edit_server("qemu:///nope", "x", "qemu:///system")
+
+    def test_delete_server_removes_and_disconnects(self):
+        self.backend.add_server("nas", "qemu+ssh://root@nas/system")
+        result = self.backend.delete_server("qemu+ssh://root@nas/system")
+        self.assertEqual(result["deleted"], "qemu+ssh://root@nas/system")
+        self.cm.disconnect.assert_called_with("qemu+ssh://root@nas/system")
+        self.assertEqual(
+            [s["uri"] for s in self.config["servers"]], ["qemu:///system"]
+        )
+
+    def test_delete_server_unknown_404(self):
+        with self.assertRaises(LookupError):
+            self.backend.delete_server("qemu:///nope")
+
+    def test_connect_server_uses_force_retry_and_reports_failure(self):
+        self.cm.connect.return_value = None
+        self.cm.get_connection_error.return_value = "No route to host"
+        with self.assertRaises(ValueError) as ctx:
+            self.backend.connect_server("qemu:///system")
+        self.assertIn("No route to host", str(ctx.exception))
+        self.cm.connect.assert_called_once_with("qemu:///system", force_retry=True)
+
+    def test_connect_unknown_server_404(self):
+        with self.assertRaises(LookupError):
+            self.backend.connect_server("qemu:///nope")
 
 
 if __name__ == "__main__":

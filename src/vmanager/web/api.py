@@ -39,9 +39,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ..config import load_config
+from ..config import load_config, save_config
 from ..libvirt_utils import get_internal_id
 from ..modals.input_modals import _sanitize_domain_name
+from ..modals.server_modals import _is_valid_server_uri
 from ..utils import extract_server_name_from_uri, natural_sort_key, sanitize_sensitive_data
 from ..vm_actions import (
     create_vm_snapshot,
@@ -115,6 +116,29 @@ class ConsoleRequest(BaseModel):
     """Body of POST /api/vms/console{,/stop}."""
 
     id: str
+
+
+class ServerConnectRequest(BaseModel):
+    """Body of POST /api/servers/{connect,disconnect}."""
+
+    uri: str
+
+
+class ServerAddRequest(BaseModel):
+    """Body of POST /api/servers."""
+
+    name: str
+    uri: str
+    autoconnect: bool = False
+
+
+class ServerEditRequest(BaseModel):
+    """Body of PUT /api/servers."""
+
+    original_uri: str
+    name: str
+    uri: str
+    autoconnect: bool = False
 
 
 class _WebConsoleAppStub:
@@ -192,20 +216,25 @@ class Backend:
 
             self.vm_service = VMService()
         self.connection_manager = self.vm_service.connection_manager
-        self._server_names = {
-            server.get("uri"): server.get("name")
-            for server in self.config.get("servers", [])
-            if server.get("uri")
-        }
+        self._config_lock = threading.Lock()
         self._webconsole_manager = None
         self._webconsole_stub = None
         self._console_lock = threading.Lock()
 
     # -- connections -------------------------------------------------------
 
+    @staticmethod
+    def _configured_servers() -> list[dict]:
+        """Server entries from the on-disk config (picks up TUI/CLI edits)."""
+        return [s for s in load_config().get("servers", []) if s.get("uri")]
+
+    @classmethod
+    def _server_name_map(cls) -> dict:
+        return {s["uri"]: s.get("name") for s in cls._configured_servers()}
+
     def connect_configured_servers(self) -> None:
         """Connect to every server listed in the configuration."""
-        for uri in self._server_names:
+        for uri in self._server_name_map():
             if self.connection_manager.get_connection(uri) is None:
                 try:
                     self.connection_manager.connect(uri)
@@ -214,30 +243,113 @@ class Backend:
                         "Failed to connect to %s", sanitize_sensitive_data(uri), exc_info=True
                     )
 
+    def _server_entry(self, server: dict) -> dict:
+        """Build the API representation of one configured server."""
+        uri = server["uri"]
+        entry = {
+            "name": server.get("name") or extract_server_name_from_uri(uri),
+            "uri": uri,
+            "autoconnect": bool(server.get("autoconnect", False)),
+            "connected": False,
+            "vm_count": 0,
+            "error": self.connection_manager.get_connection_error(uri),
+        }
+        conn = self.connection_manager.get_connection(uri)
+        if conn is not None:
+            try:
+                entry["vm_count"] = len(conn.listAllDomains(0))
+                entry["connected"] = True
+                entry["error"] = None
+            except libvirt.libvirtError as exc:
+                entry["error"] = sanitize_sensitive_data(str(exc))
+        return entry
+
     def servers_snapshot(self) -> list[dict]:
         """Return the configured servers with their connection state."""
-        servers = []
-        for server in self.config.get("servers", []):
-            uri = server.get("uri")
-            if not uri:
-                continue
-            entry = {
-                "name": server.get("name") or extract_server_name_from_uri(uri),
-                "uri": uri,
-                "connected": False,
-                "vm_count": 0,
-                "error": self.connection_manager.get_connection_error(uri),
-            }
-            conn = self.connection_manager.get_connection(uri)
-            if conn is not None:
-                try:
-                    entry["vm_count"] = len(conn.listAllDomains(0))
-                    entry["connected"] = True
-                    entry["error"] = None
-                except libvirt.libvirtError as exc:
-                    entry["error"] = sanitize_sensitive_data(str(exc))
+        return [self._server_entry(server) for server in self._configured_servers()]
+
+    # -- server configuration ------------------------------------------------
+
+    def connect_server(self, uri: str) -> dict:
+        server = next((s for s in self._configured_servers() if s["uri"] == uri), None)
+        if server is None:
+            raise LookupError(f"No such server: {uri}")
+        logger.info("Web connect to %s", sanitize_sensitive_data(uri))
+        conn = self.connection_manager.connect(uri, force_retry=True)
+        entry = self._server_entry(server)
+        if conn is None and not entry["connected"]:
+            error = self.connection_manager.get_connection_error(uri) or "Connection failed"
+            raise ValueError(sanitize_sensitive_data(error))
+        return entry
+
+    def disconnect_server(self, uri: str) -> dict:
+        server = next((s for s in self._configured_servers() if s["uri"] == uri), None)
+        if server is None:
+            raise LookupError(f"No such server: {uri}")
+        logger.info("Web disconnect from %s", sanitize_sensitive_data(uri))
+        self.connection_manager.disconnect(uri)
+        return self._server_entry(server)
+
+    @staticmethod
+    def _validate_server_fields(name: str, uri: str) -> tuple[str, str]:
+        name = (name or "").strip()
+        uri = (uri or "").strip()
+        if not name:
+            raise ValueError("Server name is required")
+        if not _is_valid_server_uri(uri):
+            raise ValueError("Invalid URI (must start with qemu:/// or qemu+ssh://)")
+        return name, uri
+
+    def add_server(self, name: str, uri: str, autoconnect: bool = False) -> dict:
+        name, uri = self._validate_server_fields(name, uri)
+        with self._config_lock:
+            config = load_config()
+            servers = config.get("servers", [])
+            if any(s.get("uri") == uri for s in servers):
+                raise ConnectionError(f"Server already configured: {uri}")
+            entry = {"name": name, "uri": uri, "autoconnect": bool(autoconnect)}
             servers.append(entry)
-        return servers
+            config["servers"] = servers
+            save_config(config)
+        logger.info("Web added server %s", sanitize_sensitive_data(uri))
+        return self._server_entry(entry)
+
+    def edit_server(
+        self, original_uri: str, name: str, uri: str, autoconnect: bool = False
+    ) -> dict:
+        name, uri = self._validate_server_fields(name, uri)
+        with self._config_lock:
+            config = load_config()
+            servers = config.get("servers", [])
+            index = next(
+                (i for i, s in enumerate(servers) if s.get("uri") == original_uri), None
+            )
+            if index is None:
+                raise LookupError(f"No such server: {original_uri}")
+            if uri != original_uri and any(s.get("uri") == uri for s in servers):
+                raise ConnectionError(f"Server already configured: {uri}")
+            entry = {"name": name, "uri": uri, "autoconnect": bool(autoconnect)}
+            servers[index] = entry
+            config["servers"] = servers
+            save_config(config)
+        if uri != original_uri:
+            # The old connection (if any) points at the previous URI.
+            self.connection_manager.disconnect(original_uri)
+        logger.info("Web edited server %s", sanitize_sensitive_data(uri))
+        return self._server_entry(entry)
+
+    def delete_server(self, uri: str) -> dict:
+        with self._config_lock:
+            config = load_config()
+            servers = config.get("servers", [])
+            remaining = [s for s in servers if s.get("uri") != uri]
+            if len(remaining) == len(servers):
+                raise LookupError(f"No such server: {uri}")
+            config["servers"] = remaining
+            save_config(config)
+        self.connection_manager.disconnect(uri)
+        logger.info("Web deleted server %s", sanitize_sensitive_data(uri))
+        return {"deleted": uri}
 
     # -- VM inventory ------------------------------------------------------
 
@@ -256,7 +368,7 @@ class Backend:
                     sanitize_sensitive_data(str(exc)),
                 )
                 continue
-            server_name = self._server_names.get(uri) or extract_server_name_from_uri(uri)
+            server_names = self._server_name_map()
             for domain in domains:
                 try:
                     # Build the id from the connection-dict key, NOT
@@ -264,7 +376,9 @@ class Backend:
                     # (e.g. "?no_tty=1") that would not resolve back
                     # through get_connection(). Same reason VMService
                     # passes known_uri to get_vm_identity().
-                    yield f"{domain.UUIDString()}@{uri}", uri, server_name, conn, domain
+                    yield f"{domain.UUIDString()}@{uri}", uri, server_names.get(
+                        uri
+                    ) or extract_server_name_from_uri(uri), conn, domain
                 except libvirt.libvirtError:
                     continue
 
@@ -362,7 +476,7 @@ class Backend:
             "uuid": domain.UUIDString(),
             "status": get_status(domain, state=info[0]),
             "description": get_vm_description(domain, root=root),
-            "server": self._server_names.get(uri) or extract_server_name_from_uri(uri),
+            "server": self._server_name_map().get(uri) or extract_server_name_from_uri(uri),
             "vcpus": info[3],
             "cpu_model": get_vm_cpu_model(root),
             "memory_mb": int(info[1]) // 1024,
@@ -597,6 +711,34 @@ def create_app(
     @app.get("/api/servers", dependencies=[Depends(require_token)])
     async def servers() -> list[dict]:
         return await run_in_threadpool(backend.servers_snapshot)
+
+    @app.post("/api/servers", dependencies=[Depends(require_token)])
+    async def server_add(payload: ServerAddRequest) -> dict:
+        return await run_backend(
+            backend.add_server, payload.name, payload.uri, payload.autoconnect
+        )
+
+    @app.put("/api/servers", dependencies=[Depends(require_token)])
+    async def server_edit(payload: ServerEditRequest) -> dict:
+        return await run_backend(
+            backend.edit_server,
+            payload.original_uri,
+            payload.name,
+            payload.uri,
+            payload.autoconnect,
+        )
+
+    @app.delete("/api/servers", dependencies=[Depends(require_token)])
+    async def server_delete(uri: str) -> dict:
+        return await run_backend(backend.delete_server, uri)
+
+    @app.post("/api/servers/connect", dependencies=[Depends(require_token)])
+    async def server_connect(payload: ServerConnectRequest) -> dict:
+        return await run_backend(backend.connect_server, payload.uri)
+
+    @app.post("/api/servers/disconnect", dependencies=[Depends(require_token)])
+    async def server_disconnect(payload: ServerConnectRequest) -> dict:
+        return await run_backend(backend.disconnect_server, payload.uri)
 
     @app.get("/api/vms", dependencies=[Depends(require_token)])
     async def vms() -> list[dict]:

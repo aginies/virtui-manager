@@ -13,6 +13,7 @@
     <div class="header-right">
       <input id="filter" type="search" placeholder="Filter VMs..." autocomplete="off">
       <span id="ws-status" class="ws-dot" title="Live stats: disconnected"></span>
+      <button id="servers-btn" type="button" class="secondary" title="Manage servers">&#9881;</button>
       <button id="token-btn" type="button" title="API token">Token</button>
     </div>
   </header>
@@ -94,6 +95,41 @@
       <div class="modal-actions">
         <button id="delete-cancel" type="button" class="secondary">Cancel</button>
         <button id="delete-ok" type="button" class="danger">Delete</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="servers-modal" class="modal" hidden>
+    <div class="modal-box servers-box">
+      <div class="detail-head">
+        <h2>Servers</h2>
+        <span class="detail-server">Hypervisors in the configuration file</span>
+        <button id="servers-refresh" type="button" class="secondary" title="Refresh">&#x21bb;</button>
+        <button id="servers-close" type="button" class="secondary" title="Close">&#x2715;</button>
+      </div>
+      <div id="servers-list"></div>
+      <div class="modal-actions">
+        <button id="server-add-btn" type="button">+ Add server</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="server-form-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2 id="server-form-title">Add server</h2>
+      <label class="field">Name
+        <input id="server-form-name" type="text" autocomplete="off" placeholder="my-host">
+      </label>
+      <label class="field">URI
+        <input id="server-form-uri" type="text" autocomplete="off"
+               placeholder="qemu:///system or qemu+ssh://user@host/system">
+      </label>
+      <label class="check">
+        <input id="server-form-autoconnect" type="checkbox"> Autoconnect at startup
+      </label>
+      <div class="modal-actions">
+        <button id="server-form-cancel" type="button" class="secondary">Cancel</button>
+        <button id="server-form-save" type="button">Save</button>
       </div>
     </div>
   </div>
