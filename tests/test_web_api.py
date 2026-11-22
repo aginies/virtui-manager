@@ -241,5 +241,98 @@ class TestWebApiDetail(unittest.TestCase):
         self.assertEqual(resp.status_code, 422)
 
 
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiManage(unittest.TestCase):
+    """Rename / delete / snapshot endpoints (phase 3-4)."""
+
+    VM_ID = "aaaa-bbbb@qemu:///system"
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def _post(self, url, payload, headers=None):
+        return self.client.post(
+            url, json=payload, headers=headers if headers is not None else self.auth
+        )
+
+    def test_rename(self):
+        self.backend.perform_rename.return_value = {
+            "id": self.VM_ID, "old_name": "vm-old", "new_name": "vm-new",
+        }
+        resp = self._post("/api/vms/rename", {"id": self.VM_ID, "new_name": "vm-new"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["new_name"], "vm-new")
+        self.backend.perform_rename.assert_called_once_with(self.VM_ID, "vm-new")
+
+        resp = self._post("/api/vms/rename", {"id": self.VM_ID, "new_name": "x"}, headers={})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_rename_invalid_name_maps_400(self):
+        self.backend.perform_rename.side_effect = ValueError("Invalid new name")
+        resp = self._post("/api/vms/rename", {"id": self.VM_ID, "new_name": "!!!"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_delete_defaults(self):
+        self.backend.perform_delete.return_value = {"id": self.VM_ID, "deleted": "vm-old"}
+        resp = self._post("/api/vms/delete", {"id": self.VM_ID})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.perform_delete.assert_called_once_with(self.VM_ID, False, False)
+
+    def test_delete_with_flags(self):
+        self.backend.perform_delete.return_value = {"id": self.VM_ID, "deleted": "vm-old"}
+        resp = self._post(
+            "/api/vms/delete",
+            {"id": self.VM_ID, "delete_storage": True, "delete_nvram": True},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.backend.perform_delete.assert_called_once_with(self.VM_ID, True, True)
+
+    def test_snapshots_list(self):
+        self.backend.list_snapshots.return_value = [
+            {"name": "snap1", "description": "", "creation_time": "2026-01-01 00:00:00",
+             "state": "shutoff"},
+        ]
+        resp = self.client.get(
+            "/api/vms/snapshots", params={"id": self.VM_ID}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()[0]["name"], "snap1")
+
+        resp = self.client.get("/api/vms/snapshots", params={"id": self.VM_ID})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_snapshot_create(self):
+        self.backend.create_snapshot.return_value = {"id": self.VM_ID, "snapshot": "snap2"}
+        resp = self._post(
+            "/api/vms/snapshots",
+            {"id": self.VM_ID, "name": "snap2", "description": "pre-upgrade", "quiesce": True},
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.backend.create_snapshot.assert_called_once_with(
+            self.VM_ID, "snap2", "pre-upgrade", True
+        )
+
+    def test_snapshot_restore_and_delete(self):
+        self.backend.restore_snapshot.return_value = {"id": self.VM_ID, "restored": "snap1"}
+        self.backend.delete_snapshot.return_value = {"id": self.VM_ID, "deleted": "snap1"}
+        resp = self._post("/api/vms/snapshots/restore", {"id": self.VM_ID, "name": "snap1"})
+        self.assertEqual(resp.status_code, 200)
+        resp = self._post("/api/vms/snapshots/delete", {"id": self.VM_ID, "name": "snap1"})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_generic_backend_error_maps_500(self):
+        # vm_actions raises plain Exception on snapshot failures
+        self.backend.restore_snapshot.side_effect = Exception(
+            "Failed to restore snapshot 'snap1': disk error"
+        )
+        resp = self._post("/api/vms/snapshots/restore", {"id": self.VM_ID, "name": "snap1"})
+        self.assertEqual(resp.status_code, 500)
+        self.assertIn("Failed to restore", resp.json()["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()

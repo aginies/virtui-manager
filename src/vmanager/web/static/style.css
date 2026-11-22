@@ -385,6 +385,66 @@ ul.device-list li { margin-bottom: 2px; word-break: break-all; }
 
 .detail-loading { color: var(--text-dim); }
 
+/* -- \u22ef popup menu ------------------------------------------------------- */
+
+.popup {
+  position: fixed;
+  z-index: 300;
+  min-width: 160px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+}
+.popup button {
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-weight: 400;
+}
+.popup button:hover { background: var(--bg); }
+.popup button.danger-item { color: var(--error); }
+
+.actions .act.more { font-weight: 700; }
+
+/* -- snapshots / forms ----------------------------------------------------- */
+
+.snap-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.snap-form input[type="text"] {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+}
+.snap-name { width: 180px; }
+.snap-desc { flex: 1; min-width: 140px; }
+
+label.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+button.mini { padding: 3px 8px; font-size: 12px; }
+.snap-actions { white-space: nowrap; }
+.snap-actions button { margin-right: 4px; }
+
 @media (max-width: 640px) {
   #cards { grid-template-columns: 1fr; padding: 10px; }
   .header-right { width: 100%; }

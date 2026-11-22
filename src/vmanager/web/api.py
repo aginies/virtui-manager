@@ -20,6 +20,7 @@ import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Optional
+from xml.sax.saxutils import escape
 
 import libvirt
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect, status
@@ -30,7 +31,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..config import load_config
+from ..modals.input_modals import _sanitize_domain_name
 from ..utils import extract_server_name_from_uri, natural_sort_key, sanitize_sensitive_data
+from ..vm_actions import (
+    create_vm_snapshot,
+    delete_vm_snapshot,
+    rename_vm,
+    restore_vm_snapshot,
+)
 from ..vm_queries import (
     get_boot_info,
     get_status,
@@ -44,6 +52,7 @@ from ..vm_queries import (
     get_vm_network_ip,
     get_vm_networks_info,
     get_vm_shared_memory_info,
+    get_vm_snapshots,
     get_vm_video_model,
 )
 
@@ -59,6 +68,37 @@ class ActionRequest(BaseModel):
 
     id: str  # internal id, UUID@URI
     action: str
+
+
+class RenameRequest(BaseModel):
+    """Body of POST /api/vms/rename."""
+
+    id: str
+    new_name: str
+
+
+class DeleteRequest(BaseModel):
+    """Body of POST /api/vms/delete."""
+
+    id: str
+    delete_storage: bool = False
+    delete_nvram: bool = False
+
+
+class SnapshotCreateRequest(BaseModel):
+    """Body of POST /api/vms/snapshots."""
+
+    id: str
+    name: str
+    description: str = ""
+    quiesce: bool = False
+
+
+class SnapshotRefRequest(BaseModel):
+    """Body of POST /api/vms/snapshots/{restore,delete}."""
+
+    id: str
+    name: str
 
 
 def _first_ipv4(domain: libvirt.virDomain) -> Optional[str]:
@@ -277,6 +317,77 @@ class Backend:
             "xml": xml_content,
         }
 
+    # -- rename / delete -----------------------------------------------------
+
+    def perform_rename(self, internal_id: str, new_name: str) -> dict:
+        """Rename a (stopped) VM, preserving snapshots and NVRAM."""
+        sanitized, _modified = _sanitize_domain_name(new_name)
+        if not sanitized:
+            raise ValueError(
+                "Invalid new name (only letters, digits, hyphens and dots are allowed)"
+            )
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        old_name = domain.name()
+        logger.info("Web rename VM '%s' -> '%s'", old_name, sanitized)
+        rename_vm(domain, sanitized)
+        self.vm_service.invalidate_domain_cache()
+        return {"id": internal_id, "old_name": old_name, "new_name": sanitized}
+
+    def perform_delete(
+        self,
+        internal_id: str,
+        delete_storage: bool = False,
+        delete_nvram: bool = False,
+    ) -> dict:
+        """Undefine a VM, optionally removing its storage and NVRAM."""
+        _uri, conn, domain = self._lookup_domain(internal_id)
+        name = domain.name()
+        logger.info(
+            "Web delete VM '%s' (storage=%s, nvram=%s)", name, delete_storage, delete_nvram
+        )
+        self.vm_service.delete_vm(domain, delete_storage, delete_nvram, conn=conn)
+        return {"id": internal_id, "deleted": name}
+
+    # -- snapshots -------------------------------------------------------------
+
+    def list_snapshots(self, internal_id: str) -> list[dict]:
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        snapshots = get_vm_snapshots(domain)
+        for snap in snapshots:
+            snap.pop("snapshot_object", None)  # live libvirt object, not JSON
+        return snapshots
+
+    def create_snapshot(
+        self,
+        internal_id: str,
+        name: str,
+        description: str = "",
+        quiesce: bool = False,
+    ) -> dict:
+        sanitized, _modified = _sanitize_domain_name(name)
+        if not sanitized:
+            raise ValueError(
+                "Invalid snapshot name (only letters, digits, hyphens and dots are allowed)"
+            )
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info("Web snapshot create '%s' on %s", sanitized, internal_id.split("@", 1)[0])
+        # Escape the free-form description: it is interpolated into the
+        # snapshot XML by create_vm_snapshot.
+        create_vm_snapshot(domain, sanitized, escape(description or ""), quiesce)
+        return {"id": internal_id, "snapshot": sanitized}
+
+    def restore_snapshot(self, internal_id: str, name: str) -> dict:
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info("Web snapshot restore '%s' on %s", name, internal_id.split("@", 1)[0])
+        restore_vm_snapshot(domain, name)
+        return {"id": internal_id, "restored": name}
+
+    def delete_snapshot(self, internal_id: str, name: str) -> dict:
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info("Web snapshot delete '%s' on %s", name, internal_id.split("@", 1)[0])
+        delete_vm_snapshot(domain, name)
+        return {"id": internal_id, "deleted": name}
+
     # -- live statistics ---------------------------------------------------
 
     def stats_snapshot(self) -> dict:
@@ -352,6 +463,13 @@ def create_app(
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, sanitize_sensitive_data(str(exc))
             ) from exc
+        except Exception as exc:  # pylint: disable=broad-except
+            # vm_actions raises plain Exception with a message on some paths
+            # (e.g. snapshot restore/delete failures).
+            logger.error("Backend call failed: %s", sanitize_sensitive_data(str(exc)))
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR, sanitize_sensitive_data(str(exc))
+            ) from exc
 
     @app.post("/api/vms/action", dependencies=[Depends(require_token)])
     async def vm_action(request: ActionRequest) -> dict:
@@ -360,6 +478,41 @@ def create_app(
     @app.get("/api/vms/detail", dependencies=[Depends(require_token)])
     async def vm_detail(id: str) -> dict:  # pylint: disable=redefined-builtin
         return await run_backend(backend.vm_details, id)
+
+    @app.post("/api/vms/rename", dependencies=[Depends(require_token)])
+    async def vm_rename(request: RenameRequest) -> dict:
+        return await run_backend(backend.perform_rename, request.id, request.new_name)
+
+    @app.post("/api/vms/delete", dependencies=[Depends(require_token)])
+    async def vm_delete(request: DeleteRequest) -> dict:
+        return await run_backend(
+            backend.perform_delete,
+            request.id,
+            request.delete_storage,
+            request.delete_nvram,
+        )
+
+    @app.get("/api/vms/snapshots", dependencies=[Depends(require_token)])
+    async def snapshots_list(id: str) -> list[dict]:  # pylint: disable=redefined-builtin
+        return await run_backend(backend.list_snapshots, id)
+
+    @app.post("/api/vms/snapshots", dependencies=[Depends(require_token)])
+    async def snapshots_create(request: SnapshotCreateRequest) -> dict:
+        return await run_backend(
+            backend.create_snapshot,
+            request.id,
+            request.name,
+            request.description,
+            request.quiesce,
+        )
+
+    @app.post("/api/vms/snapshots/restore", dependencies=[Depends(require_token)])
+    async def snapshots_restore(request: SnapshotRefRequest) -> dict:
+        return await run_backend(backend.restore_snapshot, request.id, request.name)
+
+    @app.post("/api/vms/snapshots/delete", dependencies=[Depends(require_token)])
+    async def snapshots_delete(request: SnapshotRefRequest) -> dict:
+        return await run_backend(backend.delete_snapshot, request.id, request.name)
 
     @app.websocket("/ws/stats")
     async def ws_stats(websocket: WebSocket) -> None:

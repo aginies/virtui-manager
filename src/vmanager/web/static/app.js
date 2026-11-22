@@ -32,6 +32,9 @@
     pause:     { icon: "\u23f8", label: "Pause",               states: ["Running"], confirm: false },
     resume:    { icon: "\u23ef", label: "Resume",              states: ["Paused", "Guest Suspended"], confirm: false },
     hibernate: { icon: "\ud83d\udca4", label: "Hibernate (save state)", states: ["Running", "Blocked"], confirm: true },
+    // ui: true -> opens the detail modal on a tab instead of calling the API
+    snapshots: { icon: "\ud83d\udcf7", label: "Snapshots", ui: true,
+                 states: ["Running", "Blocked", "Paused", "Guest Suspended", "Stopped", "Unknown"] },
   };
 
   // Sparkline palettes [low, high] as RGB triplets.
@@ -73,6 +76,17 @@
     detailContent: document.getElementById("detail-content"),
     detailClose: document.getElementById("detail-close"),
     detailRefresh: document.getElementById("detail-refresh"),
+    actMenu: document.getElementById("act-menu"),
+    renameModal: document.getElementById("rename-modal"),
+    renameInput: document.getElementById("rename-input"),
+    renameOk: document.getElementById("rename-ok"),
+    renameCancel: document.getElementById("rename-cancel"),
+    deleteModal: document.getElementById("delete-modal"),
+    deleteText: document.getElementById("delete-text"),
+    deleteStorage: document.getElementById("delete-storage"),
+    deleteNvram: document.getElementById("delete-nvram"),
+    deleteOk: document.getElementById("delete-ok"),
+    deleteCancel: document.getElementById("delete-cancel"),
     toast: document.getElementById("toast"),
     template: document.getElementById("card-template"),
   };
@@ -195,6 +209,14 @@
       btn.title = cfg.label;
       actionsEl.appendChild(btn);
     }
+    // \u22ef more-actions menu (always visible, like the TUI actions button)
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "act more";
+    more.dataset.act = "menu";
+    more.textContent = "\u22ef";
+    more.title = "More actions";
+    actionsEl.appendChild(more);
 
     const sparks = {
       cpu: makeSpark(el, "cpu"),
@@ -235,6 +257,7 @@
   function updateActionButtons(card) {
     const vmStatus = card.vm ? card.vm.status : null;
     for (const btn of card.el.querySelectorAll(".actions .act")) {
+      if (btn.dataset.act === "menu") { btn.hidden = false; continue; }
       const cfg = ACTIONS[btn.dataset.act];
       btn.hidden = !cfg || !cfg.states.includes(vmStatus);
     }
@@ -428,8 +451,10 @@
       const card = cardEl && cards.get(cardEl.dataset.id);
       if (!card) return;
       const act = btn.dataset.act;
+      if (act === "menu") { openActMenu(card, btn); return; }
       const cfg = ACTIONS[act];
       if (!cfg) return;
+      if (cfg.ui) { openDetail(card, "snapshots"); return; }
       if (cfg.confirm) {
         askConfirm(cfg.label, card.vm.name, () => doAction(card, act));
       } else {
@@ -582,6 +607,7 @@
     networks: renderNetworks,
     disks: renderDisks,
     devices: renderDevices,
+    snapshots: renderSnapshots,
     xml: renderXml,
   };
 
@@ -601,6 +627,7 @@
       t.classList.toggle("active", t.dataset.tab === tab);
     }
     renderDetail();
+    if (tab === "snapshots") loadSnapshots();
   }
 
   async function loadDetail() {
@@ -619,19 +646,20 @@
       els.detailServer.textContent = detailData.server;
       els.detailDot.className = "status-dot " + (STATUS_COLORS[detailData.status] || "unknown");
       renderDetail();
+      if (detailTab === "snapshots") loadSnapshots();
     } catch (err) {
       els.detailContent.textContent = "";
       els.detailContent.appendChild(el("p", "detail-loading", "Failed to load details: " + err.message));
     }
   }
 
-  function openDetail(card) {
+  function openDetail(card, tab) {
     detailCard = card;
     els.detailModal.hidden = false;
     els.detailTitle.textContent = card.vm.name;
     els.detailServer.textContent = card.vm.server;
     els.detailDot.className = "status-dot " + (STATUS_COLORS[card.vm.status] || "unknown");
-    setDetailTab("overview");
+    setDetailTab(tab || "overview");
     loadDetail();
   }
 
@@ -652,10 +680,271 @@
   });
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (!els.detailModal.hidden) closeDetail();
+    if (!els.actMenu.hidden) closeActMenu();
+    else if (!els.renameModal.hidden) els.renameCancel.click();
+    else if (!els.deleteModal.hidden) els.deleteCancel.click();
+    else if (!els.detailModal.hidden) closeDetail();
     else if (!els.confirmModal.hidden) els.confirmCancel.click();
     else if (!els.tokenModal.hidden) hideTokenModal();
   });
+
+  // -- generic POST helper -----------------------------------------------------
+
+  async function postJSON(url, body) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify(body),
+    });
+    if (resp.status === 401) {
+      showTokenModal();
+      throw new Error("unauthorized");
+    }
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+    return data;
+  }
+
+  // -- \u22ef actions menu --------------------------------------------------------
+
+  let menuCard = null;
+
+  function openActMenu(card, anchor) {
+    menuCard = card;
+    els.actMenu.hidden = false;
+    const r = anchor.getBoundingClientRect();
+    const mw = els.actMenu.offsetWidth;
+    const mh = els.actMenu.offsetHeight;
+    let left = r.left;
+    let top = r.bottom + 4;
+    if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+    if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+    els.actMenu.style.left = `${left}px`;
+    els.actMenu.style.top = `${top}px`;
+  }
+
+  function closeActMenu() {
+    els.actMenu.hidden = true;
+    menuCard = null;
+  }
+
+  document.addEventListener("click", (e) => {
+    if (!els.actMenu.hidden && !e.target.closest("#act-menu") && !e.target.closest(".act.more")) {
+      closeActMenu();
+    }
+  });
+  window.addEventListener("resize", closeActMenu);
+  window.addEventListener("scroll", closeActMenu, true);
+
+  els.actMenu.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || !menuCard) return;
+    const card = menuCard;
+    closeActMenu();
+    const mact = b.dataset.mact;
+    if (mact === "rename") askRename(card);
+    else if (mact === "delete") askDelete(card);
+    else if (mact === "xml") openDetail(card, "xml");
+    else if (mact === "snapshots") openDetail(card, "snapshots");
+  });
+
+  // -- rename -------------------------------------------------------------------
+
+  let renameCard = null;
+
+  function askRename(card) {
+    renameCard = card;
+    els.renameInput.value = card.vm.name;
+    els.renameModal.hidden = false;
+    els.renameInput.focus();
+    els.renameInput.select();
+  }
+
+  async function doRename() {
+    const name = els.renameInput.value.trim();
+    const card = renameCard;
+    els.renameModal.hidden = true;
+    renameCard = null;
+    if (!name || !card) return;
+    try {
+      const data = await postJSON("/api/vms/rename", { id: card.vm.id, new_name: name });
+      showToast(`Renamed ${data.old_name} \u2192 ${data.new_name}`, "ok");
+      card.vm.name = data.new_name;
+      card.el.querySelector(".vm-name").textContent = data.new_name;
+      scheduleRefresh(1000);
+    } catch (err) {
+      if (err.message !== "unauthorized") showToast(`Rename failed: ${err.message}`, "error");
+    }
+  }
+
+  els.renameOk.addEventListener("click", doRename);
+  els.renameCancel.addEventListener("click", () => {
+    els.renameModal.hidden = true;
+    renameCard = null;
+  });
+  els.renameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doRename(); });
+
+  // -- delete -------------------------------------------------------------------
+
+  let deleteCard = null;
+
+  function askDelete(card) {
+    deleteCard = card;
+    els.deleteText.textContent =
+      `Permanently undefine "${card.vm.name}" from "${card.vm.server}"? This cannot be undone.`;
+    els.deleteStorage.checked = false;
+    els.deleteNvram.checked = false;
+    els.deleteModal.hidden = false;
+    els.deleteCancel.focus();
+  }
+
+  async function doDelete() {
+    const card = deleteCard;
+    els.deleteModal.hidden = true;
+    deleteCard = null;
+    if (!card) return;
+    const name = card.vm.name;
+    try {
+      await postJSON("/api/vms/delete", {
+        id: card.vm.id,
+        delete_storage: els.deleteStorage.checked,
+        delete_nvram: els.deleteNvram.checked,
+      });
+      showToast(`Deleted ${name}`, "ok");
+      scheduleRefresh(0);
+    } catch (err) {
+      if (err.message !== "unauthorized") showToast(`Delete failed: ${err.message}`, "error");
+    }
+  }
+
+  els.deleteOk.addEventListener("click", doDelete);
+  els.deleteCancel.addEventListener("click", () => {
+    els.deleteModal.hidden = true;
+    deleteCard = null;
+  });
+
+  // -- snapshots -----------------------------------------------------------------
+
+  async function loadSnapshots() {
+    if (!detailCard || !detailData) return;
+    detailData.snapshots = null;
+    detailData.snapshotsError = null;
+    try {
+      const resp = await fetch(
+        `/api/vms/snapshots?id=${encodeURIComponent(detailCard.vm.id)}`,
+        { headers: { Authorization: "Bearer " + token } },
+      );
+      if (resp.status === 401) { closeDetail(); showTokenModal(); return; }
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      detailData.snapshots = await resp.json();
+    } catch (err) {
+      detailData.snapshotsError = err.message;
+    }
+    if (detailTab === "snapshots") renderDetail();
+  }
+
+  async function snapshotOp(kind, payload, okMsg) {
+    const urls = {
+      create: "/api/vms/snapshots",
+      restore: "/api/vms/snapshots/restore",
+      delete: "/api/vms/snapshots/delete",
+    };
+    try {
+      await postJSON(urls[kind], payload);
+      showToast(okMsg, "ok");
+      loadSnapshots();
+      if (kind !== "create") scheduleRefresh(1500); // state may have changed
+    } catch (err) {
+      if (err.message !== "unauthorized") {
+        showToast(`Snapshot ${kind} failed: ${err.message}`, "error");
+      }
+    }
+  }
+
+  function renderSnapshots(d) {
+    const frag = document.createDocumentFragment();
+    const vmId = detailCard ? detailCard.vm.id : d.id;
+
+    // Create form
+    const form = el("div", "snap-form");
+    const nameIn = el("input", "snap-name");
+    nameIn.type = "text";
+    nameIn.placeholder = "Snapshot name";
+    const descIn = el("input", "snap-desc");
+    descIn.type = "text";
+    descIn.placeholder = "Description (optional)";
+    const qLabel = el("label", "check");
+    const qBox = document.createElement("input");
+    qBox.type = "checkbox";
+    qLabel.appendChild(qBox);
+    qLabel.appendChild(document.createTextNode("Quiesce"));
+    const createBtn = el("button", null, "\ud83d\udcf7 Create");
+    createBtn.type = "button";
+    createBtn.addEventListener("click", () => {
+      const name = nameIn.value.trim();
+      if (!name) { showToast("Snapshot name is required", "error"); return; }
+      snapshotOp(
+        "create",
+        { id: vmId, name, description: descIn.value.trim(), quiesce: qBox.checked },
+        `Snapshot "${name}" created`,
+      );
+      nameIn.value = "";
+      descIn.value = "";
+      qBox.checked = false;
+    });
+    form.append(nameIn, descIn, qLabel, createBtn);
+    frag.appendChild(form);
+
+    if (d.snapshotsError) {
+      frag.appendChild(el("p", "detail-loading", "Failed to load snapshots: " + d.snapshotsError));
+      return frag;
+    }
+    if (!d.snapshots) {
+      frag.appendChild(el("p", "detail-loading", "Loading..."));
+      return frag;
+    }
+    if (!d.snapshots.length) {
+      frag.appendChild(el("p", "detail-loading", "No snapshots for this VM."));
+      return frag;
+    }
+
+    const table = el("table", "grid");
+    const thead = el("thead");
+    const trh = el("tr");
+    ["Name", "Created", "State", "Description", ""].forEach((h) => trh.appendChild(el("th", null, h)));
+    thead.appendChild(trh);
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const s of d.snapshots) {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, s.name));
+      tr.appendChild(el("td", null, s.creation_time));
+      tr.appendChild(el("td", null, s.state));
+      tr.appendChild(el("td", null, s.description));
+      const td = el("td", "snap-actions");
+      const restoreB = el("button", "secondary mini", "Restore");
+      restoreB.type = "button";
+      restoreB.title = "Revert the VM to this snapshot";
+      restoreB.addEventListener("click", () => {
+        askConfirm(`Restore snapshot "${s.name}"`, d.name, () => {
+          snapshotOp("restore", { id: vmId, name: s.name }, `Restored snapshot "${s.name}"`);
+        });
+      });
+      const deleteB = el("button", "danger mini", "Delete");
+      deleteB.type = "button";
+      deleteB.addEventListener("click", () => {
+        askConfirm(`Delete snapshot "${s.name}"`, d.name, () => {
+          snapshotOp("delete", { id: vmId, name: s.name }, `Deleted snapshot "${s.name}"`);
+        });
+      });
+      td.append(restoreB, deleteB);
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    frag.appendChild(table);
+    return frag;
+  }
 
   // -- confirm modal ---------------------------------------------------------
 

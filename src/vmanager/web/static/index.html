@@ -57,9 +57,42 @@
         <button type="button" class="tab" data-tab="networks">Networks</button>
         <button type="button" class="tab" data-tab="disks">Disks</button>
         <button type="button" class="tab" data-tab="devices">Devices</button>
+        <button type="button" class="tab" data-tab="snapshots">Snapshots</button>
         <button type="button" class="tab" data-tab="xml">XML</button>
       </nav>
       <div id="detail-content"><p class="detail-loading">Loading...</p></div>
+    </div>
+  </div>
+
+  <div id="act-menu" class="popup" hidden>
+    <button type="button" data-mact="rename">Rename...</button>
+    <button type="button" data-mact="snapshots">Snapshots...</button>
+    <button type="button" data-mact="xml">View XML</button>
+    <button type="button" data-mact="delete" class="danger-item">Delete...</button>
+  </div>
+
+  <div id="rename-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>Rename VM</h2>
+      <p>The VM must be stopped. Only letters, digits, hyphens and dots are allowed; snapshots and NVRAM are preserved.</p>
+      <input id="rename-input" type="text" autocomplete="off" placeholder="New name">
+      <div class="modal-actions">
+        <button id="rename-cancel" type="button" class="secondary">Cancel</button>
+        <button id="rename-ok" type="button">Rename</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="delete-modal" class="modal" hidden>
+    <div class="modal-box">
+      <h2>Delete VM</h2>
+      <p id="delete-text"></p>
+      <label class="check"><input id="delete-storage" type="checkbox"> Also delete storage volume(s)</label>
+      <label class="check"><input id="delete-nvram" type="checkbox"> Also delete NVRAM file</label>
+      <div class="modal-actions">
+        <button id="delete-cancel" type="button" class="secondary">Cancel</button>
+        <button id="delete-ok" type="button" class="danger">Delete</button>
+      </div>
     </div>
   </div>
 
