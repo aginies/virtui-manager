@@ -40,6 +40,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..config import load_config, save_config
+from ..constants import VmAction
 from ..libvirt_utils import get_internal_id
 from ..modals.input_modals import _sanitize_domain_name
 from ..modals.server_modals import _is_valid_server_uri
@@ -133,6 +134,61 @@ class ConsoleRequest(BaseModel):
     """Body of POST /api/vms/console{,/stop}."""
 
     id: str
+
+
+class BulkRequest(BaseModel):
+    """Body of POST /api/vms/bulk."""
+
+    ids: list  # internal ids, UUID@URI
+    action: str
+
+
+class EventBus:
+    """Thread-safe fan-out of libvirt lifecycle events to WS subscribers.
+
+    VMService callbacks fire on the libvirt event-loop thread; subscribers
+    are asyncio queues owned by the uvicorn loop. Publishing therefore hops
+    threads with call_soon_threadsafe. Queues are bounded: on overflow the
+    oldest event is dropped (state is re-fetched by the client anyway).
+    """
+
+    QUEUE_SIZE = 256
+
+    def __init__(self):
+        self._subscribers: set = set()
+        self._loop = None
+
+    def bind_loop(self, loop) -> None:
+        self._loop = loop
+
+    def subscribe(self):
+        queue = asyncio.Queue(maxsize=self.QUEUE_SIZE)
+        self._subscribers.add(queue)
+        return queue
+
+    def unsubscribe(self, queue) -> None:
+        self._subscribers.discard(queue)
+
+    def publish_threadsafe(self, event: dict) -> None:
+        loop = self._loop
+        if loop is None or not self._subscribers:
+            return
+        for queue in list(self._subscribers):
+            try:
+                loop.call_soon_threadsafe(self._enqueue, queue, event)
+            except RuntimeError:
+                pass  # loop already closed
+
+    @staticmethod
+    def _enqueue(queue, event: dict) -> None:
+        try:
+            queue.put_nowait(event)
+        except asyncio.QueueFull:
+            try:
+                queue.get_nowait()
+                queue.put_nowait(event)
+            except Exception:  # pylint: disable=broad-except
+                pass
 
 
 class ServerConnectRequest(BaseModel):
@@ -235,6 +291,21 @@ class _WebConsoleAppStub:
         pass
 
 
+class NoCacheStaticFiles(StaticFiles):
+    """StaticFiles that forces browser revalidation on every request.
+
+    Without a Cache-Control header browsers apply heuristic caching and
+    can keep running stale JS/CSS after an upgrade (etag alone is not
+    revalidated). "no-cache" keeps the cheap 304 path but guarantees the
+    client always sees the current assets.
+    """
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 def _first_ipv4(domain: libvirt.virDomain) -> Optional[str]:
     """Return the first IPv4 address of a domain (lease-based), or None."""
     try:
@@ -267,12 +338,35 @@ class Backend:
 
             self.vm_service = VMService()
         self.connection_manager = self.vm_service.connection_manager
+        self.event_bus = EventBus()
+        # Route libvirt lifecycle events to WebSocket subscribers. The
+        # callbacks fire on the libvirt event thread; registration happens
+        # for connections made through VMService.connect().
+        try:
+            self.vm_service.set_vm_update_callback(self._on_vm_update)
+            self.vm_service.set_data_update_callback(self._on_data_update)
+            self.vm_service.set_message_callback(self._on_message)
+        except Exception:  # pylint: disable=broad-except
+            logger.debug("Could not register VMService event callbacks", exc_info=True)
         self._config_lock = threading.Lock()
         self._webconsole_manager = None
         self._webconsole_stub = None
         self._console_lock = threading.Lock()
 
     # -- connections -------------------------------------------------------
+
+    def _on_vm_update(self, internal_id: str) -> None:
+        self.event_bus.publish_threadsafe({"type": "vm", "id": internal_id, "ts": time.time()})
+
+    def _on_data_update(self) -> None:
+        self.event_bus.publish_threadsafe({"type": "inventory", "ts": time.time()})
+
+    def _on_message(self, level, message) -> None:
+        # VMService messages carry rich markup ([b]...[/b]); strip it.
+        text = str(message).replace("[b]", "").replace("[/b]", "")
+        self.event_bus.publish_threadsafe(
+            {"type": "message", "level": str(level), "text": text, "ts": time.time()}
+        )
 
     @staticmethod
     def _configured_servers() -> list[dict]:
@@ -284,11 +378,15 @@ class Backend:
         return {s["uri"]: s.get("name") for s in cls._configured_servers()}
 
     def connect_configured_servers(self) -> None:
-        """Connect to every server listed in the configuration."""
+        """Connect to every server listed in the configuration.
+
+        Uses VMService.connect (not ConnectionManager.connect) so libvirt
+        domain lifecycle events get registered for each connection.
+        """
         for uri in self._server_name_map():
             if self.connection_manager.get_connection(uri) is None:
                 try:
-                    self.connection_manager.connect(uri)
+                    self.vm_service.connect(uri)
                 except Exception:  # pylint: disable=broad-except
                     logger.error(
                         "Failed to connect to %s", sanitize_sensitive_data(uri), exc_info=True
@@ -326,7 +424,7 @@ class Backend:
         if server is None:
             raise LookupError(f"No such server: {uri}")
         logger.info("Web connect to %s", sanitize_sensitive_data(uri))
-        conn = self.connection_manager.connect(uri, force_retry=True)
+        conn = self.vm_service.connect(uri, force_retry=True)
         entry = self._server_entry(server)
         if conn is None and not entry["connected"]:
             error = self.connection_manager.get_connection_error(uri) or "Connection failed"
@@ -658,6 +756,53 @@ class Backend:
         except libvirt.libvirtError:
             new_status = None
         return {"id": internal_id, "action": action, "status": new_status}
+
+    # -- bulk actions ----------------------------------------------------------
+
+    BULK_ACTIONS = {
+        "start": VmAction.START,
+        "shutdown": VmAction.STOP,  # graceful
+        "force_off": VmAction.FORCE_OFF,
+        "pause": VmAction.PAUSE,
+        "resume": VmAction.RESUME,
+        "hibernate": VmAction.HIBERNATE,
+    }
+
+    def perform_bulk(self, ids: list, action: str) -> dict:
+        """Run one power action across several VMs via VMService.perform_bulk_action."""
+        action_type = self.BULK_ACTIONS.get(action)
+        if action_type is None:
+            raise ValueError(f"Unsupported bulk action: {action}")
+        if not ids:
+            raise ValueError("No VMs selected")
+        uris: list = []
+        for internal_id in ids:
+            _uuid, sep, uri = str(internal_id).partition("@")
+            if not sep:
+                raise ValueError(f"Malformed VM id: {internal_id}")
+            if uri not in uris:
+                uris.append(uri)
+        for uri in uris:
+            if self.connection_manager.get_connection(uri) is None:
+                raise ConnectionError(f"Server not connected: {uri}")
+
+        log_lines: list = []
+
+        def progress(kind, **kwargs):
+            message = kwargs.get("message")
+            if message:
+                log_lines.append(str(message))
+
+        logger.info("Web bulk '%s' on %d VM(s)", action, len(ids))
+        successful, failed = self.vm_service.perform_bulk_action(
+            uris, list(ids), action_type, False, progress
+        )
+        return {
+            "action": action,
+            "successful": successful,
+            "failed": failed,
+            "log": log_lines[-50:],
+        }
 
     # -- details ---------------------------------------------------------------
 
@@ -1045,6 +1190,10 @@ def create_app(
     async def vm_action(request: ActionRequest) -> dict:
         return await run_backend(backend.perform_action, request.id, request.action)
 
+    @app.post("/api/vms/bulk", dependencies=[Depends(require_token)])
+    async def vms_bulk(payload: BulkRequest) -> dict:
+        return await run_backend(backend.perform_bulk, payload.ids, payload.action)
+
     @app.get("/api/vms/detail", dependencies=[Depends(require_token)])
     async def vm_detail(id: str) -> dict:  # pylint: disable=redefined-builtin
         return await run_backend(backend.vm_details, id)
@@ -1121,11 +1270,38 @@ def create_app(
         except Exception:  # pylint: disable=broad-except
             logger.debug("Stats WebSocket closed", exc_info=True)
 
+    @app.websocket("/ws/events")
+    async def ws_events(websocket: WebSocket) -> None:
+        """Pushes libvirt lifecycle events (vm state, inventory, messages)."""
+        ws_token = websocket.query_params.get("token", "")
+        await websocket.accept()
+        if not secrets.compare_digest(ws_token, token):
+            await websocket.close(code=WS_INVALID_TOKEN_CODE)
+            return
+        bus = getattr(backend, "event_bus", None)
+        if bus is None:
+            await websocket.close()
+            return
+        bus.bind_loop(asyncio.get_running_loop())
+        queue = bus.subscribe()
+        try:
+            while True:
+                event = await queue.get()
+                await websocket.send_text(json.dumps(event))
+        except WebSocketDisconnect:
+            pass
+        except Exception:  # pylint: disable=broad-except
+            logger.debug("Events WebSocket closed", exc_info=True)
+        finally:
+            bus.unsubscribe(queue)
+
     # Static frontend (mounted last so /api/* always wins).
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+    app.mount("/static", NoCacheStaticFiles(directory=STATIC_DIR), name="static")
 
     @app.get("/", include_in_schema=False)
     async def index() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
+        return FileResponse(
+            STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"}
+        )
 
     return app

@@ -114,12 +114,17 @@
     xmlContent: document.getElementById("xml-content"),
     xmlCopy: document.getElementById("xml-copy"),
     xmlClose: document.getElementById("xml-close"),
+    bulkBar: document.getElementById("bulk-bar"),
+    bulkCount: document.getElementById("bulk-count"),
+    bulkClear: document.getElementById("bulk-clear"),
     toast: document.getElementById("toast"),
     template: document.getElementById("card-template"),
   };
 
   // id -> { vm, el, sparks: {cpu, mem, net, disk}, visible }
   const cards = new Map();
+  // Bulk selection: internal ids of checked cards (survives inventory refreshes)
+  const selection = new Set();
   let filterText = "";
   let ws = null;
   let refreshTimer = null;
@@ -251,6 +256,14 @@
       net: makeSpark(el, "net"),
       disk: makeSpark(el, "disk"),
     };
+    // Selection checkbox (does not open the detail view)
+    const check = el.querySelector(".vm-check");
+    check.checked = selection.has(vm.id);
+    check.addEventListener("click", (e) => e.stopPropagation());
+    check.addEventListener("change", () => {
+      toggleSelection(vm.id, check.checked);
+    });
+    el.classList.toggle("selected", selection.has(vm.id));
     // Carry over history if the card already existed (inventory refresh).
     const prev = cards.get(vm.id);
     if (prev) {
@@ -321,8 +334,10 @@
         }
         card.el.remove();
         cards.delete(id);
+        selection.delete(id);
       }
     }
+    updateBulkBar();
     updateEmptyState();
   }
 
@@ -471,6 +486,7 @@
   }
 
   els.cards.addEventListener("click", (evt) => {
+    if (evt.target.closest(".vm-check")) return; // checkbox has its own handler
     const btn = evt.target.closest(".act");
     if (btn) {
       if (btn.disabled) return;
@@ -1446,6 +1462,111 @@
     return frag;
   }
 
+  // -- bulk selection & actions ------------------------------------------------
+
+  const BULK_LABELS = {
+    start: "Start", shutdown: "Shutdown", force_off: "Force Off",
+    pause: "Pause", resume: "Resume", hibernate: "Hibernate",
+  };
+  const BULK_CONFIRM = { shutdown: true, force_off: true, hibernate: true };
+
+  function toggleSelection(id, checked) {
+    if (checked) selection.add(id);
+    else selection.delete(id);
+    const card = cards.get(id);
+    if (card) card.el.classList.toggle("selected", checked);
+    updateBulkBar();
+  }
+
+  function clearSelection() {
+    selection.clear();
+    for (const card of cards.values()) {
+      card.el.classList.remove("selected");
+      const chk = card.el.querySelector(".vm-check");
+      if (chk) chk.checked = false;
+    }
+    updateBulkBar();
+  }
+
+  function updateBulkBar() {
+    els.bulkBar.hidden = selection.size === 0;
+    els.bulkCount.textContent = `${selection.size} selected`;
+  }
+
+  async function doBulk(action) {
+    const ids = [...selection];
+    if (!ids.length) return;
+    const buttons = els.bulkBar.querySelectorAll("button");
+    buttons.forEach((b) => { b.disabled = true; });
+    try {
+      const data = await postJSON("/api/vms/bulk", { ids, action });
+      const ok = (data.successful || []).length;
+      const bad = data.failed || [];
+      if (bad.length) {
+        showToast(`Bulk ${BULK_LABELS[action]}: ${ok} OK, ${bad.length} failed (${bad.join(", ")})`, "error");
+      } else {
+        showToast(`Bulk ${BULK_LABELS[action]}: ${ok} VM(s) OK`, "ok");
+      }
+      scheduleRefresh(800);
+    } catch (err) {
+      if (err.message !== "unauthorized") {
+        showToast(`Bulk ${BULK_LABELS[action]} failed: ${err.message}`, "error");
+      }
+    } finally {
+      buttons.forEach((b) => { b.disabled = false; });
+    }
+  }
+
+  els.bulkBar.addEventListener("click", (evt) => {
+    const btn = evt.target.closest("button[data-bulk]");
+    if (!btn || btn.disabled) return;
+    const action = btn.dataset.bulk;
+    if (BULK_CONFIRM[action]) {
+      askConfirm(
+        `Bulk ${BULK_LABELS[action]}`, "",
+        () => doBulk(action),
+        `Apply "${BULK_LABELS[action]}" to ${selection.size} selected VM(s)?`,
+      );
+    } else {
+      doBulk(action);
+    }
+  });
+  els.bulkClear.addEventListener("click", clearSelection);
+
+  // -- libvirt lifecycle events (push) -------------------------------------------
+
+  let evws = null;
+
+  function connectEventsWS() {
+    if (!token) return;
+    if (evws && (evws.readyState === WebSocket.OPEN || evws.readyState === WebSocket.CONNECTING)) return;
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    const url = `${proto}//${location.host}/ws/events?token=${encodeURIComponent(token)}`;
+    try {
+      evws = new WebSocket(url);
+    } catch {
+      setTimeout(connectEventsWS, WS_RETRY_MS);
+      return;
+    }
+    evws.onmessage = (evt) => {
+      let msg;
+      try { msg = JSON.parse(evt.data); } catch { return; }
+      if (msg.type === "message") {
+        showToast(msg.text, msg.level === "error" ? "error" : "ok");
+      } else if (msg.type === "inventory" || msg.type === "vm") {
+        // A VM changed state or the inventory moved: re-pull (debounced by
+        // scheduleRefresh's pending flag, so bursts collapse into one fetch).
+        scheduleRefresh(900);
+      }
+    };
+    evws.onclose = (evt) => {
+      evws = null;
+      if (evt.code === 4401) { showTokenModal(); return; }
+      setTimeout(connectEventsWS, WS_RETRY_MS);
+    };
+    evws.onerror = () => { if (evws) evws.close(); };
+  }
+
   // -- confirm modal ---------------------------------------------------------
 
   let confirmCallback = null;
@@ -1501,8 +1622,14 @@
       ws = null; // detach first so onclose's retry timer hits the guard
       try { old.close(); } catch { /* ignore */ }
     }
+    if (evws) {
+      const oldEv = evws;
+      evws = null;
+      try { oldEv.close(); } catch { /* ignore */ }
+    }
     scheduleRefresh();
     connectWS();
+    connectEventsWS();
   }
 
   // -- init ----------------------------------------------------------------
@@ -1522,6 +1649,7 @@
   } else {
     scheduleRefresh();
     connectWS();
+    connectEventsWS();
   }
   startPeriodicRefresh();
 })();

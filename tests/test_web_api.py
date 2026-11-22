@@ -18,7 +18,7 @@ try:
     from fastapi.testclient import TestClient
     from starlette.websockets import WebSocketDisconnect
 
-    from vmanager.web.api import create_app
+    from vmanager.web.api import Backend, create_app
 
     HAS_WEB_DEPS = True
 except ImportError:
@@ -567,12 +567,15 @@ class TestBackendServerConfig(unittest.TestCase):
             self.backend.delete_server("qemu:///nope")
 
     def test_connect_server_uses_force_retry_and_reports_failure(self):
-        self.cm.connect.return_value = None
+        # connect goes through VMService.connect so lifecycle events get registered
+        self.backend.vm_service.connect.return_value = None
         self.cm.get_connection_error.return_value = "No route to host"
         with self.assertRaises(ValueError) as ctx:
             self.backend.connect_server("qemu:///system")
         self.assertIn("No route to host", str(ctx.exception))
-        self.cm.connect.assert_called_once_with("qemu:///system", force_retry=True)
+        self.backend.vm_service.connect.assert_called_once_with(
+            "qemu:///system", force_retry=True
+        )
 
     def test_connect_unknown_server_404(self):
         with self.assertRaises(LookupError):
@@ -718,6 +721,142 @@ class TestWebApiPrefs(unittest.TestCase):
         )
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["xml"], "<volume/>")
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiBulk(unittest.TestCase):
+    """Bulk action endpoint."""
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.perform_bulk.return_value = {
+            "action": "start", "successful": ["vm1", "vm2"], "failed": ["vm3"], "log": [],
+        }
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def test_bulk_success(self):
+        ids = ["u1@qemu:///system", "u2@qemu:///system", "u3@qemu:///system"]
+        resp = self.client.post(
+            "/api/vms/bulk", json={"ids": ids, "action": "start"}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["successful"], ["vm1", "vm2"])
+        self.assertEqual(data["failed"], ["vm3"])
+        self.backend.perform_bulk.assert_called_once_with(ids, "start")
+
+    def test_bulk_requires_token(self):
+        resp = self.client.post("/api/vms/bulk", json={"ids": ["a@b"], "action": "start"})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_bulk_bad_action_maps_400(self):
+        self.backend.perform_bulk.side_effect = ValueError("Unsupported bulk action: x")
+        resp = self.client.post(
+            "/api/vms/bulk", json={"ids": ["a@b"], "action": "x"}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 400)
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestBackendBulk(unittest.TestCase):
+    """Backend.perform_bulk logic against a mocked VMService."""
+
+    def setUp(self):
+        self.vm_service = MagicMock()
+        # every server is connected
+        self.vm_service.connection_manager.get_connection.return_value = MagicMock()
+        self.vm_service.perform_bulk_action.return_value = (["vm1"], ["vm2"])
+        self.backend = Backend(config={}, vm_service=self.vm_service)
+
+    def test_shutdown_maps_to_stop_action(self):
+        result = self.backend.perform_bulk(
+            ["u1@qemu:///system", "u2@qemu+ssh://h/system"], "shutdown"
+        )
+        self.assertEqual(result["successful"], ["vm1"])
+        self.assertEqual(result["failed"], ["vm2"])
+        args = self.vm_service.perform_bulk_action.call_args[0]
+        self.assertEqual(sorted(args[0]), sorted(["qemu:///system", "qemu+ssh://h/system"]))
+        self.assertEqual(args[2], "stop")  # VmAction.STOP
+        self.assertEqual(args[3], False)  # delete_storage_flag
+
+    def test_unsupported_action(self):
+        with self.assertRaises(ValueError):
+            self.backend.perform_bulk(["u1@qemu:///system"], "delete")
+
+    def test_empty_selection(self):
+        with self.assertRaises(ValueError):
+            self.backend.perform_bulk([], "start")
+
+    def test_malformed_id(self):
+        with self.assertRaises(ValueError):
+            self.backend.perform_bulk(["no-separator"], "start")
+
+    def test_disconnected_server_maps_connection_error(self):
+        self.vm_service.connection_manager.get_connection.return_value = None
+        with self.assertRaises(ConnectionError):
+            self.backend.perform_bulk(["u1@qemu:///system"], "start")
+
+    def test_progress_log_captured(self):
+        def fake_bulk(uris, ids, action, flag, progress):
+            progress("setup", total=len(ids))
+            progress("log", message="Starting bulk 'start' on 1 VMs...")
+            progress("log_error", message="Error performing 'start' on VM 'vm2': boom")
+            return (["vm1"], ["vm2"])
+
+        self.vm_service.perform_bulk_action.side_effect = fake_bulk
+        result = self.backend.perform_bulk(["u1@qemu:///system"], "start")
+        self.assertIn("Starting bulk", result["log"][0])
+        self.assertIn("boom", result["log"][1])
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiEventsWS(unittest.TestCase):
+    """Libvirt lifecycle event push over /ws/events."""
+
+    def setUp(self):
+        self.vm_service = MagicMock()
+        self.backend = Backend(config={"STATS_INTERVAL": 1}, vm_service=self.vm_service)
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+
+    def test_events_ws_rejects_bad_token(self):
+        with self.assertRaises(WebSocketDisconnect) as ctx:
+            with self.client.websocket_connect("/ws/events?token=nope") as ws:
+                ws.receive_json()
+        self.assertEqual(ctx.exception.code, 4401)
+
+    def test_events_ws_pushes_published_events(self):
+        import time as _time
+
+        with self.client.websocket_connect(f"/ws/events?token={TOKEN}") as ws:
+            # Wait until the handler has subscribed its queue
+            for _ in range(100):
+                if self.backend.event_bus._subscribers:  # noqa: SLF001
+                    break
+                _time.sleep(0.02)
+            self.assertTrue(self.backend.event_bus._subscribers)  # noqa: SLF001
+
+            self.backend._on_data_update()  # noqa: SLF001
+            msg = ws.receive_json()
+            self.assertEqual(msg["type"], "inventory")
+
+            self.backend._on_vm_update("u1@qemu:///system")  # noqa: SLF001
+            msg = ws.receive_json()
+            self.assertEqual(msg["type"], "vm")
+            self.assertEqual(msg["id"], "u1@qemu:///system")
+
+            self.backend._on_message("info", "VM [b]vm1[/b] on [b]local[/b]: Started")  # noqa: SLF001
+            msg = ws.receive_json()
+            self.assertEqual(msg["type"], "message")
+            self.assertEqual(msg["text"], "VM vm1 on local: Started")
+
+    def test_callbacks_registered_on_vm_service(self):
+        self.vm_service.set_vm_update_callback.assert_called_once()
+        self.vm_service.set_data_update_callback.assert_called_once()
+        self.vm_service.set_message_callback.assert_called_once()
 
 
 if __name__ == "__main__":

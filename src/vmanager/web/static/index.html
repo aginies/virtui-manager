@@ -162,11 +162,23 @@
     </div>
   </div>
 
+  <div id="bulk-bar" hidden>
+    <span id="bulk-count"></span>
+    <button type="button" class="act" data-bulk="start" title="Start selected">&#x25b6;</button>
+    <button type="button" class="act" data-bulk="shutdown" title="Shutdown selected (graceful)">&#x23fb;</button>
+    <button type="button" class="act danger" data-bulk="force_off" title="Force Off selected">&#x26a1;</button>
+    <button type="button" class="act" data-bulk="pause" title="Pause selected">&#x23f8;</button>
+    <button type="button" class="act" data-bulk="resume" title="Resume selected">&#x23ef;</button>
+    <button type="button" class="act" data-bulk="hibernate" title="Hibernate selected">&#x1f4a4;</button>
+    <button type="button" id="bulk-clear" class="secondary" title="Clear selection">&#x2715;</button>
+  </div>
+
   <div id="toast" hidden></div>
 
   <template id="card-template">
     <article class="card">
       <div class="card-head">
+        <input type="checkbox" class="vm-check" title="Select for bulk actions">
         <span class="status-dot"></span>
         <span class="vm-name"></span>
         <span class="vm-status"></span>
