@@ -73,6 +73,159 @@ class TestVMCard(unittest.TestCase):
             display_name = self.vm_card._get_vm_display_name()
             self.assertEqual(display_name, "test-vm (localhost)")
 
+    def test_secondary_info_shows_ip_count(self):
+        """With several IPv4 addresses, the first is shown with a +N suffix."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.ip_addresses = [
+                {"ipv4": ["192.168.1.100/24", "192.168.1.101/24"]},
+                {"ipv4": ["10.0.0.5/24"]},
+            ]
+        self.assertEqual(self.vm_card._get_secondary_info_text(), "(192.168.1.100 +2)")
+
+    def test_secondary_info_shows_vcpu_mem_without_ip(self):
+        """Without an IP, the status row shows the vCPU/RAM summary."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.cpu = 2
+            self.vm_card.memory = 4096
+        self.assertEqual(self.vm_card._get_secondary_info_text(), "2 vCPU · 4.0 GiB")
+
+        with patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.memory = 512
+        self.assertEqual(self.vm_card._get_secondary_info_text(), "2 vCPU · 512 MiB")
+
+        with patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.cpu = 0
+            self.vm_card.memory = 0
+        self.assertEqual(self.vm_card._get_secondary_info_text(), "")
+
+    def test_on_mount_renders_secondary_info(self):
+        """Data assigned before mount must still render: stopped VMs get no
+        IP/stats updates, so on_mount must paint the vCPU/RAM slot itself."""
+        mock_ip_widget = MagicMock()
+        self.vm_card.ui = {"vm_ip": mock_ip_widget}
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"), patch.object(
+            VMCard, "_update_webc_status"
+        ), patch.object(VMCard, "watch_stats_view_mode"), patch.object(
+            VMCard, "_apply_compact_view_styles"
+        ):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.cpu = 2
+            self.vm_card.memory = 4096
+
+        self.vm_card.on_mount()
+        mock_ip_widget.update.assert_called_with("2 vCPU · 4.0 GiB")
+
+    def test_watch_internal_id_refreshes_secondary_info(self):
+        """Card reuse must re-render the slot even when cpu/memory/status
+        values are identical to the previous VM's."""
+        mock_ip_widget = MagicMock()
+        self.vm_card.ui = {"vm_ip": mock_ip_widget}
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.status = StatusText.STOPPED
+            self.vm_card.cpu = 2
+            self.vm_card.memory = 4096
+
+        mock_ip_widget.update.reset_mock()
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            VMCard.watch_internal_id(self.vm_card, "uuid-123", "uuid-456")
+        mock_ip_widget.update.assert_called_with("2 vCPU · 4.0 GiB")
+
+    def test_qb_buttons_gating(self):
+        """Quick actions: connect needs a running/paused VM, migration needs
+        at least two servers; hidden buttons use display so the bar packs."""
+        buttons = {
+            key: MagicMock()
+            for key in (
+                "qb_start", "qb_shutdown", "qb_stop", "qb_pause", "qb_resume",
+                "qb_connect", "qb_snapshot", "qb_hibernate", "qb_migration", "qb_xml",
+            )
+        }
+        self.vm_card.ui = buttons
+        self.mock_app.r_viewer_available = True
+        self.mock_app.active_uris = ["qemu:///system"]
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.STOPPED
+        self.vm_card._update_fast_buttons()
+
+        self.assertTrue(buttons["qb_start"].display)
+        self.assertFalse(buttons["qb_connect"].display)
+        self.assertFalse(buttons["qb_migration"].display)
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.status = StatusText.RUNNING
+        self.mock_app.active_uris = ["qemu:///system", "qemu+ssh://remote/system"]
+        self.vm_card._update_fast_buttons()
+
+        self.assertTrue(buttons["qb_connect"].display)
+        self.assertTrue(buttons["qb_migration"].display)
+        self.assertFalse(buttons["qb_start"].display)
+
+    def test_sparkline_io_labels_use_kb_below_1mb(self):
+        """I/O labels switch to KB/s while both rates are below 1 MB/s."""
+        disk_label = MagicMock()
+        net_label = MagicMock()
+        self.vm_card.ui = {
+            "disk_label": disk_label,
+            "net_label": net_label,
+            "disk_sparkline": MagicMock(),
+            "net_sparkline": MagicMock(),
+        }
+        self.mock_app.sparkline_data = {"uuid-123": {"disk": [], "net": []}}
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"), patch.object(
+            VMCard, "watch_stats_view_mode"
+        ):
+            self.vm_card.display = True
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.stats_view_mode = "io"
+            self.vm_card.latest_disk_read = 100.0
+            self.vm_card.latest_disk_write = 200.0
+            self.vm_card.latest_net_rx = 50.0
+            self.vm_card.latest_net_tx = 75.0
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            self.vm_card.update_sparkline_data()
+
+        disk_label.update.assert_called_with("Disk 100/200 KB/s")
+        net_label.update.assert_called_with("Net 50/75 KB/s")
+
+    def test_sparkline_io_labels_fit_label_slot(self):
+        """I/O labels must fit the 22-column .sparkline-label-io slot."""
+        from vmanager.constants import SparklineLabels
+
+        labels = [
+            SparklineLabels.DISK_RW.format(read=123.4, write=67.8),
+            SparklineLabels.NET_RX_TX.format(rx=123.4, tx=67.8),
+            SparklineLabels.DISK_RW_KB.format(read=1023, write=1023),
+            SparklineLabels.NET_RX_TX_KB.format(rx=1023, tx=1023),
+            SparklineLabels.DISK_RW.format(read=999.9, write=999.9),
+        ]
+        for label in labels:
+            self.assertLessEqual(len(label), 22, label)
+
     def test_get_server_display_name_uses_configured_name(self):
         """The user-defined server name from the server list is used."""
         self.mock_app.servers = [

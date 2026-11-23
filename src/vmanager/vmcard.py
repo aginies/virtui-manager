@@ -263,6 +263,33 @@ class VMCard(Static):
                     return ips[0].split("/", 1)[0]
         return ""
 
+    def _get_secondary_info_text(self) -> str:
+        """Right side of the status row: first IPv4 (+N if more), or a
+        vCPU/RAM summary when no IP is available."""
+        ip = self._get_first_ipv4()
+        if ip:
+            count = sum(
+                len(iface.get("ipv4", []))
+                for iface in self.ip_addresses
+                if iface and isinstance(iface, dict)
+            )
+            if count > 1:
+                return f"({ip} +{count - 1})"
+            return f"({ip})"
+        if self.cpu or self.memory:
+            if self.memory >= 1024:
+                mem = f"{self.memory / 1024:.1f} GiB"
+            else:
+                mem = f"{self.memory} MiB"
+            return StaticText.VM_RESOURCE_INFO.format(cpu=self.cpu, mem=mem)
+        return ""
+
+    def _refresh_ip_display(self) -> None:
+        """Re-render the right side of the status row (IP or vCPU/RAM)."""
+        ip_widget = self.ui.get("vm_ip")
+        if ip_widget:
+            ip_widget.update(self._get_secondary_info_text())
+
     def _get_status_text(self) -> str:
         """Text for the status strip: status and web console indicator."""
         return f"{self.status}{self.webc_status_indicator}"
@@ -370,7 +397,7 @@ class VMCard(Static):
             classes="sparkline-container resources-sparkline",
         )
 
-        self.ui["disk_label"] = Static("", classes="sparkline-label")
+        self.ui["disk_label"] = Static("", classes="sparkline-label sparkline-label-io")
         self.ui["disk_sparkline"] = LogSparkline([], id="disk-sparkline")
         self.ui["disk_sparkline_container"] = Horizontal(
             self.ui["disk_label"],
@@ -379,7 +406,7 @@ class VMCard(Static):
             classes="sparkline-container io-sparkline",
         )
 
-        self.ui["net_label"] = Static("", classes="sparkline-label")
+        self.ui["net_label"] = Static("", classes="sparkline-label sparkline-label-io")
         self.ui["net_sparkline"] = LogSparkline([], id="net-sparkline")
         self.ui["net_sparkline_container"] = Horizontal(
             self.ui["net_label"],
@@ -535,6 +562,8 @@ class VMCard(Static):
         self.update_button_layout()
         self._update_status_styling()
         self._update_webc_status()
+        # Data watchers may have fired before compose created the widgets
+        self._refresh_ip_display()
         self.watch_stats_view_mode(self.stats_view_mode, self.stats_view_mode)  # Initial setup
         self._perform_tooltip_update()
 
@@ -635,10 +664,21 @@ class VMCard(Static):
                     net_rx_mb = self.latest_net_rx / 1024
                     net_tx_mb = self.latest_net_tx / 1024
 
-                    disk_text = SparklineLabels.DISK_RW.format(
-                        read=disk_read_mb, write=disk_write_mb
-                    )
-                    net_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
+                    # Adaptive units: KB/s while both rates are below 1 MB/s
+                    if max(disk_read_mb, disk_write_mb) < 1:
+                        disk_text = SparklineLabels.DISK_RW_KB.format(
+                            read=self.latest_disk_read, write=self.latest_disk_write
+                        )
+                    else:
+                        disk_text = SparklineLabels.DISK_RW.format(
+                            read=disk_read_mb, write=disk_write_mb
+                        )
+                    if max(net_rx_mb, net_tx_mb) < 1:
+                        net_text = SparklineLabels.NET_RX_TX_KB.format(
+                            rx=self.latest_net_rx, tx=self.latest_net_tx
+                        )
+                    else:
+                        net_text = SparklineLabels.NET_RX_TX.format(rx=net_rx_mb, tx=net_tx_mb)
 
                     disk_label.update(disk_text)
                     net_label.update(net_text)
@@ -670,18 +710,17 @@ class VMCard(Static):
 
     def watch_cpu(self, value: int) -> None:
         """Called when cpu count changes."""
+        self._refresh_ip_display()
         self._perform_tooltip_update()
 
     def watch_memory(self, value: int) -> None:
         """Called when memory changes."""
+        self._refresh_ip_display()
         self._perform_tooltip_update()
 
     def watch_ip_addresses(self, value: list) -> None:
         """Called when IP addresses change."""
-        ip_widget = self.ui.get("vm_ip")
-        if ip_widget:
-            ip = self._get_first_ipv4()
-            ip_widget.update(f"({ip})" if ip else "")
+        self._refresh_ip_display()
         self._perform_tooltip_update()
 
     def watch_boot_device(self, value: str) -> None:
@@ -717,6 +756,8 @@ class VMCard(Static):
 
             # Reset heavy state UI elements
             self.update_button_layout()
+            # Re-render even if cpu/memory/status values did not change
+            self._refresh_ip_display()
             self.update_stats()
             self._perform_tooltip_update()
 
@@ -770,7 +811,7 @@ class VMCard(Static):
             if vmstatus:
                 vmstatus.styles.content_align = ("left", "middle")
             if checkbox:
-                checkbox.styles.width = "2"
+                checkbox.styles.width = "3"
         else:  # Detailed view
             self.styles.height = 9
             self.styles.width = 41
@@ -779,7 +820,7 @@ class VMCard(Static):
             if vmstatus:
                 vmstatus.styles.content_align = ("left", "middle")
             if checkbox:
-                checkbox.styles.width = "5"
+                checkbox.styles.width = "3"
 
     def watch_compact_view(self, value: bool) -> None:
         """Called when compact_view changes."""
@@ -800,6 +841,7 @@ class VMCard(Static):
             self.stop_background_activities()
             self._clear_sparkline_history()
 
+        self._refresh_ip_display()
         self._update_status_styling()
         self.watch_stats_view_mode(
             self.stats_view_mode, self.stats_view_mode
@@ -1203,17 +1245,30 @@ class VMCard(Static):
         if not self.ui.get("qb_start"):
             return
 
-        # Quick actions grid visibility
-        self.ui["qb_start"].display = is_stopped
-        self.ui["qb_shutdown"].display = is_running or is_blocked
-        self.ui["qb_stop"].display = is_running or is_paused or is_pmsuspended or is_blocked
-        self.ui["qb_pause"].display = is_running
-        self.ui["qb_resume"].display = is_paused or is_pmsuspended
-        self.ui["qb_connect"].display = self.app.r_viewer_available
-        self.ui["qb_snapshot"].display = not is_loading
-        self.ui["qb_hibernate"].display = is_running or is_blocked
-        self.ui["qb_migration"].display = not is_loading
-        self.ui["qb_xml"].display = not is_loading
+        # Quick actions grid visibility (hidden buttons free their space so
+        # the remaining buttons stay packed together)
+        active_uris = getattr(self.app, "active_uris", None)
+        can_migrate = isinstance(active_uris, (list, tuple, set)) and len(active_uris) >= 2
+        self._set_qb_button_visible("qb_start", is_stopped)
+        self._set_qb_button_visible("qb_shutdown", is_running or is_blocked)
+        self._set_qb_button_visible(
+            "qb_stop", is_running or is_paused or is_pmsuspended or is_blocked
+        )
+        self._set_qb_button_visible("qb_pause", is_running)
+        self._set_qb_button_visible("qb_resume", is_paused or is_pmsuspended)
+        self._set_qb_button_visible(
+            "qb_connect", self.app.r_viewer_available and (is_running or is_paused)
+        )
+        self._set_qb_button_visible("qb_snapshot", not is_loading)
+        self._set_qb_button_visible("qb_hibernate", is_running or is_blocked)
+        self._set_qb_button_visible("qb_migration", not is_loading and can_migrate)
+        self._set_qb_button_visible("qb_xml", not is_loading)
+
+    def _set_qb_button_visible(self, key: str, visible: bool) -> None:
+        """Show/hide a quick action button."""
+        button = self.ui.get(key)
+        if button:
+            button.display = visible
 
     def _update_status_styling(self):
         status_widget = self.ui.get("status")

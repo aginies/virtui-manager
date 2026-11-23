@@ -674,6 +674,7 @@ Specify the NUMA nodes to use.
     PASSWORD_PLACEHOLDER = _("Password")
     BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
     SELECT_VM = _("Select VM")
+    VM_RESOURCE_INFO = "{cpu} vCPU · {mem}"
     CPU_MODEL_LABEL = _("CPU Model:")
     VIDEO_MODEL_LABEL = _("Video Model:")
     SOUND_MODEL_LABEL = _("Sound Model:")
@@ -1009,8 +1010,12 @@ Specify the NUMA nodes to use.
 class SparklineLabels:  # pylint: disable=too-few-public-methods
     """Constants for sparkline labels"""
 
-    DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
-    NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
+    # I/O labels must fit the 22-column io label slot (.sparkline-label-io):
+    # first number is read/rx, second is write/tx.
+    DISK_RW = _("Disk {read:.1f}/{write:.1f} MB/s")
+    NET_RX_TX = _("Net {rx:.1f}/{tx:.1f} MB/s")
+    DISK_RW_KB = _("Disk {read:.0f}/{write:.0f} KB/s")
+    NET_RX_TX_KB = _("Net {rx:.0f}/{tx:.0f} KB/s")
     CPU_PERCENT = "CPU {cpu:.0f}%"
     MEM_PERCENT = "Mem {mem:.0f}%"
     IDLE_CPU = "CPU --%"
