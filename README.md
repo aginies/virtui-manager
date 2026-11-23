@@ -3,6 +3,9 @@
 **WEB-DASHBOARD BRANCH IS EXPERIMENTAL AND VIBE CODED**
 There is no plan to use it or publish it officialy
 
+![Main Web](docs/manual/images/main-web.jpg)
+![VM detail](docs/manual/images/detail-web.jpg)
+
 
 [Project Website](https://aginies.github.io/virtui-manager/)
 
