@@ -402,17 +402,16 @@ class SelectSnapshotDialog(BaseDialog[Optional[str]]):
 class SnapshotNameDialog(BaseDialog[Optional[dict]]):
     """A dialog to ask for a snapshot name."""
 
-    def __init__(self, domain=None) -> None:
+    def __init__(self, domain=None, internal_id: str = "") -> None:
         super().__init__()
         self.domain = domain
+        self.internal_id = internal_id
 
     def compose(self):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         default_name = datetime.now().strftime("snap_%Y%m%d_%H%M%S")
-        agent_running = is_qemu_agent_running(self.domain) if self.domain else False
-
-        if not agent_running and self.domain:
-            self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)
+        # The guest-agent state is fetched in a worker (see on_mount);
+        # the quiesce option stays disabled until it is known.
 
         yield Vertical(
             Label(StaticText.CURRENT_TIME.format(now=now), id="timestamp-label"),
@@ -427,8 +426,8 @@ class SnapshotNameDialog(BaseDialog[Optional[dict]]):
             Input(placeholder=StaticText.SNAPSHOT_DESCRIPTION_PLACEHOLDER, id="description-input"),
             Checkbox(
                 StaticText.QUIESCE_GUEST,
-                value=agent_running,
-                disabled=not agent_running,
+                value=False,
+                disabled=True,
                 id="quiesce-checkbox",
                 tooltip=StaticText.PAUSE_THE_GUEST_FILESYSTEM_TO_ENSURE_A_CONSISTENT_BACKUP,
             ),
@@ -440,6 +439,32 @@ class SnapshotNameDialog(BaseDialog[Optional[dict]]):
             id="dialog",
             classes="info-container",
         )
+
+    def on_mount(self) -> None:
+        """Fetch the guest-agent state in a worker (blocking libvirt call)."""
+        if self.domain is None:
+            return
+
+        def fetch_agent_state():
+            try:
+                agent_running = is_qemu_agent_running(self.domain)
+            except Exception:
+                agent_running = False
+            self.app.call_from_thread(self._apply_agent_state, agent_running)
+
+        self.app.worker_manager.run(
+            fetch_agent_state, name=f"vmcard:{self.internal_id}:snapshot_agent"
+        )
+
+    def _apply_agent_state(self, agent_running: bool) -> None:
+        """Apply the guest-agent state to the quiesce checkbox (main thread)."""
+        if not self.is_mounted:
+            return
+        checkbox = self.query_one("#quiesce-checkbox", Checkbox)
+        checkbox.value = agent_running
+        checkbox.disabled = not agent_running
+        if not agent_running:
+            self.app.show_warning_message(ErrorMessages.QEMU_GUEST_AGENT_RECOMMENDATION)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "create":
