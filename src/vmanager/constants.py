@@ -10,38 +10,41 @@ from .i18n import _
 class ServerPalette:  # pylint: disable=too-few-public-methods
     """Color for server"""
 
+    # First 16: one color per hue family (a single green), interleaved so
+    # consecutive servers get maximally different colors.
+    # 17-32: extra variants for servers beyond the first 16.
     COLOR = [
-        "#33FF57",  # Green
-        "#F333FF",  # Magenta
-        "#3357FF",  # Blue
-        "#FF8C33",  # Orange
-        "#FF33A1",  # Pink
-        "#F3FF33",  # Yellow
-        "#33FF8C",  # Mint
-        "#FF5733",  # Red-Orange
-        "#33FFF3",  # Cyan
-        "#A133FF",  # Purple
         "#FF3333",  # Bright Red
-        "#33FFDA",  # Aqua
-        "#FFB833",  # Amber
+        "#3357FF",  # Blue
+        "#F3FF33",  # Yellow
+        "#FF33A1",  # Pink
+        "#33FFF3",  # Cyan
+        "#FF8C33",  # Orange
         "#8C33FF",  # Violet
+        "#00C9A7",  # Teal
+        "#FFB833",  # Amber
+        "#F333FF",  # Magenta
         "#33A1FF",  # Sky Blue
+        "#C70039",  # Deep Red
+        "#33FF57",  # Green
+        "#4B0082",  # Indigo
+        "#FA8072",  # Salmon
+        "#B8860B",  # Dark Goldenrod
+        "#66FF33",  # Spring Green
+        "#FF5733",  # Red-Orange
+        "#A133FF",  # Purple
         "#D2B48C",  # Tan
         "#FFD133",  # Golden Yellow
         "#B0E0E6",  # Powder Blue
-        "#C70039",  # Deep Red
         "#00B8FF",  # Electric Blue
-        "#B8860B",  # Dark Goldenrod
         "#8B4513",  # Saddle Brown
         "#008B8B",  # Dark Cyan
         "#9ACD32",  # Yellow Green
-        "#FA8072",  # Salmon
         "#DDA0DD",  # Plum
         "#808080",  # Gray
         "#4169E1",  # Royal Blue
         "#800000",  # Maroon
         "#808000",  # Olive
-        "#4B0082",  # Indigo
         "#2E8B57",  # Sea Green
     ]
 
