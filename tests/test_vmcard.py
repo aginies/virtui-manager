@@ -1427,11 +1427,12 @@ class TestVMCard(unittest.TestCase):
         args = self.mock_app.call_from_thread.call_args[0]
         self.assertEqual(args[0], self.vm_card._prepare_create_overlay)
         self.assertEqual(args[2], "uuid-123")
+        self.assertIs(args[3], self.vm_card.vm)
 
         # The continuation pushes the name input dialog
         self.mock_app.vm_service.get_vm_identity.return_value = ("uuid-123", "test-vm")
         self.vm_card._prepare_create_overlay(
-            [{"path": "/dev/vda", "device_type": "disk"}], "uuid-123"
+            [{"path": "/dev/vda", "device_type": "disk"}], "uuid-123", self.vm_card.vm
         )
         self.mock_app.push_screen.assert_called_once()
 
@@ -1443,7 +1444,7 @@ class TestVMCard(unittest.TestCase):
             self.vm_card.internal_id = "uuid-123"
 
         self.vm_card._prepare_create_overlay(
-            [{"path": "/dev/vda", "device_type": "disk"}], "other-uuid"
+            [{"path": "/dev/vda", "device_type": "disk"}], "other-uuid", MagicMock()
         )
         self.mock_app.push_screen.assert_not_called()
 
@@ -1489,7 +1490,7 @@ class TestVMCard(unittest.TestCase):
         self.assertEqual(args[0], self.vm_card._prepare_discard_overlay)
 
         # A single overlay disk goes straight to the confirmation dialog
-        self.vm_card._prepare_discard_overlay(["/dev/vda-overlay"], "uuid-123")
+        self.vm_card._prepare_discard_overlay(["/dev/vda-overlay"], "uuid-123", self.vm_card.vm)
         self.mock_app.push_screen.assert_called_once()
 
     def test_commit_disk_fetches_in_worker(self):
@@ -1512,7 +1513,7 @@ class TestVMCard(unittest.TestCase):
         args = self.mock_app.call_from_thread.call_args[0]
         self.assertEqual(args[0], self.vm_card._prepare_commit_disk)
 
-        self.vm_card._prepare_commit_disk([{"path": "/dev/vda"}], "uuid-123")
+        self.vm_card._prepare_commit_disk([{"path": "/dev/vda"}], "uuid-123", self.vm_card.vm)
         self.mock_app.push_screen.assert_called_once()
 
     def test_migration_button_scans_domains_in_worker(self):
@@ -1560,6 +1561,27 @@ class TestVMCard(unittest.TestCase):
 
         self.mock_app.initiate_migration.assert_called_once_with([self.vm_card.vm])
         self.mock_app.worker_manager.run.assert_not_called()
+
+    def test_migration_scan_error_reports_on_main_thread(self):
+        """A domain lookup failure must be reported, not crash the worker/app."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.vm = MagicMock()
+
+        self.mock_app.active_uris = ["qemu:///system", "qemu+ssh://remote/system"]
+        self.mock_app.selected_vm_uuids = {"uuid-a"}
+        self.mock_app.vm_service.find_domains_by_uuids.side_effect = Exception("boom")
+        self.mock_app.initiate_migration = MagicMock()
+
+        worker_calls = self._capture_worker()
+        self.vm_card._handle_migration_button()
+        worker_calls[0][0]()  # must not raise
+
+        args = self.mock_app.call_from_thread.call_args[0]
+        self.assertIs(args[0], self.mock_app.show_error_message)
+        self.mock_app.initiate_migration.assert_not_called()
 
     def test_snapshot_name_dialog_does_not_block_compose(self):
         """compose must not call the blocking guest-agent check."""
@@ -1758,17 +1780,88 @@ class TestVMCard(unittest.TestCase):
             worker_calls = self._capture_worker()
             self.mock_app.push_screen = MagicMock()
 
-            self.vm_card._prepare_commit_disk([{"path": "/dev/vda"}], "uuid-123")
+            self.vm_card._prepare_commit_disk([{"path": "/dev/vda"}], "uuid-123", vm_at_confirm)
             confirm_cb = self.mock_app.push_screen.call_args[0][1]
+
+            # Card is reused while the confirmation dialog is open: the commit
+            # must still target the VM whose disks were fetched
+            self.vm_card.vm = MagicMock()
+            self.vm_card.internal_id = "other-uuid"
             confirm_cb(True)
             self.assertEqual(worker_calls[0][1], "vmcard:uuid-123:commit")
 
-            # Card is reused while the commit runs
-            self.vm_card.vm = MagicMock()
-            self.vm_card.internal_id = "other-uuid"
             worker_calls[0][0]()
 
         mock_commit.assert_called_once_with(vm_at_confirm, "/dev/vda")
+        self.mock_app.vm_service.suppress_vm_events.assert_called_once_with("uuid-123")
+        self.mock_app.vm_service.unsuppress_vm_events.assert_called_once_with("uuid-123")
+
+    def test_discard_overlay_worker_uses_captured_vm(self):
+        """on_confirm must discard the overlay of the VM captured at dispatch,
+        in a worker (no blocking libvirt call on the main thread)."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"), patch(
+            "vmanager.vmcard.discard_overlay"
+        ) as mock_discard:
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.vm = MagicMock()
+            vm_at_dispatch = self.vm_card.vm
+
+            worker_calls = self._capture_worker()
+            self.mock_app.push_screen = MagicMock()
+
+            self.vm_card._prepare_discard_overlay(
+                ["/dev/vda-overlay"], "uuid-123", vm_at_dispatch
+            )
+            confirm_cb = self.mock_app.push_screen.call_args[0][1]
+
+            # Card is reused while the confirmation dialog is open
+            self.vm_card.vm = MagicMock()
+            self.vm_card.internal_id = "other-uuid"
+            confirm_cb(True)
+
+            self.assertEqual(worker_calls[0][1], "vmcard:uuid-123:discard_overlay")
+            mock_discard.assert_not_called()  # must not run on the main thread
+            worker_calls[0][0]()
+
+        mock_discard.assert_called_once_with(vm_at_dispatch, "/dev/vda-overlay")
+        self.mock_app.vm_service.suppress_vm_events.assert_called_once_with("uuid-123")
+        self.mock_app.vm_service.unsuppress_vm_events.assert_called_once_with("uuid-123")
+
+    def test_create_overlay_worker_uses_captured_vm(self):
+        """on_name_input must create the overlay on the VM captured at dispatch,
+        in a worker (no blocking libvirt call on the main thread)."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"), patch(
+            "vmanager.vmcard.create_external_overlay"
+        ) as mock_create:
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.vm = MagicMock()
+            vm_at_dispatch = self.vm_card.vm
+            self.mock_app.vm_service.get_vm_identity.return_value = ("uuid-123", "test-vm")
+
+            worker_calls = self._capture_worker()
+            self.mock_app.push_screen = MagicMock()
+
+            self.vm_card._prepare_create_overlay(
+                [{"path": "/dev/vda", "device_type": "disk"}], "uuid-123", vm_at_dispatch
+            )
+            name_cb = self.mock_app.push_screen.call_args[0][1]
+
+            # Card is reused while the name input dialog is open
+            self.vm_card.vm = MagicMock()
+            self.vm_card.internal_id = "other-uuid"
+            name_cb("my-overlay")
+
+            self.assertEqual(worker_calls[0][1], "vmcard:uuid-123:create_overlay")
+            mock_create.assert_not_called()  # must not run on the main thread
+            worker_calls[0][0]()
+
+        mock_create.assert_called_once_with(vm_at_dispatch, "/dev/vda", "my-overlay")
+        self.mock_app.vm_service.suppress_vm_events.assert_called_once_with("uuid-123")
+        self.mock_app.vm_service.unsuppress_vm_events.assert_called_once_with("uuid-123")
 
     def test_rename_worker_uses_captured_vm(self):
         """do_rename must rename the VM captured at dialog submission time."""

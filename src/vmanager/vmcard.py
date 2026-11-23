@@ -1316,11 +1316,11 @@ class VMCard(Static):
                     ErrorMessages.ERROR_PREPARING_OVERLAY_CREATION_TEMPLATE.format(error=e),
                 )
                 return
-            self.app.call_from_thread(self._prepare_create_overlay, disks, internal_id)
+            self.app.call_from_thread(self._prepare_create_overlay, disks, internal_id, vm)
 
         self.app.worker_manager.run(fetch_disks, name=f"vmcard:{internal_id}:disks")
 
-    def _prepare_create_overlay(self, disks: list[dict], expected_uuid: str) -> None:
+    def _prepare_create_overlay(self, disks: list[dict], expected_uuid: str, vm) -> None:
         """Main-thread continuation of the create-overlay disk fetch."""
         if expected_uuid and expected_uuid != self.internal_id:
             return
@@ -1359,22 +1359,45 @@ class VMCard(Static):
                     self.app.show_error_message(ErrorMessages.OVERLAY_NAME_EMPTY_AFTER_SANITIZATION)
                     return
 
-                self.app.vm_service.suppress_vm_events(self.internal_id)
-                try:
-                    create_external_overlay(self.vm, target_disk, overlay_name)
-                    self.app.show_success_message(
-                        SuccessMessages.OVERLAY_CREATED.format(overlay_name=overlay_name)
-                    )
-                    self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
-                    self._boot_device_checked = False
-                    self.post_message(VmCardUpdateRequest(self.internal_id))
-                    self.update_button_layout()
-                except Exception as e:
-                    self.app.show_error_message(
-                        ErrorMessages.ERROR_CREATING_OVERLAY_TEMPLATE.format(error=e)
-                    )
-                finally:
-                    self.app.vm_service.unsuppress_vm_events(self.internal_id)
+                # Use the VM captured at dispatch: the overlay must be created
+                # on that VM even if the card is reassigned while the dialog is open.
+                def do_create_overlay():
+                    self.app.vm_service.suppress_vm_events(expected_uuid)
+                    error = None
+                    try:
+                        create_external_overlay(vm, target_disk, overlay_name)
+                    except Exception as e:
+                        error = e
+                    finally:
+                        self.app.vm_service.unsuppress_vm_events(expected_uuid)
+
+                    # Invalidate cache in the worker thread to avoid blocking the main thread
+                    if error is None:
+                        try:
+                            self.app.vm_service.invalidate_vm_state_cache(expected_uuid)
+                        except Exception:
+                            pass
+
+                    def finalize_overlay():
+                        if error is not None:
+                            self.app.show_error_message(
+                                ErrorMessages.ERROR_CREATING_OVERLAY_TEMPLATE.format(error=error)
+                            )
+                            return
+                        self.app.show_success_message(
+                            SuccessMessages.OVERLAY_CREATED.format(overlay_name=overlay_name)
+                        )
+                        # Card-state writes only if the card still shows this VM
+                        if self._is_same_vm(expected_uuid):
+                            self._boot_device_checked = False
+                            self.post_message(VmCardUpdateRequest(expected_uuid))
+                            self.update_button_layout()
+
+                    self.app.call_from_thread(finalize_overlay)
+
+                self.app.worker_manager.run(
+                    do_create_overlay, name=f"vmcard:{expected_uuid}:create_overlay"
+                )
 
             self.app.push_screen(
                 InputModal(
@@ -1402,13 +1425,13 @@ class VMCard(Static):
                     ErrorMessages.ERROR_PREPARING_DISCARD_OVERLAY_TEMPLATE.format(error=e),
                 )
                 return
-            self.app.call_from_thread(self._prepare_discard_overlay, overlay_disks, internal_id)
+            self.app.call_from_thread(self._prepare_discard_overlay, overlay_disks, internal_id, vm)
 
         self.app.worker_manager.run(
             fetch_overlay_disks, name=f"vmcard:{internal_id}:overlay_disks"
         )
 
-    def _prepare_discard_overlay(self, overlay_disks: list[str], expected_uuid: str) -> None:
+    def _prepare_discard_overlay(self, overlay_disks: list[str], expected_uuid: str, vm) -> None:
         """Main-thread continuation of the discard-overlay disk fetch."""
         if expected_uuid and expected_uuid != self.internal_id:
             return
@@ -1423,22 +1446,47 @@ class VMCard(Static):
 
             def on_confirm(confirmed: bool):
                 if confirmed:
-                    self.app.vm_service.suppress_vm_events(self.internal_id)
-                    try:
-                        discard_overlay(self.vm, target_disk)
-                        self.app.show_success_message(
-                            SuccessMessages.OVERLAY_DISCARDED.format(target_disk=target_disk)
-                        )
-                        self.app.vm_service.invalidate_vm_state_cache(self.internal_id)
-                        self._boot_device_checked = False
-                        self.post_message(VmCardUpdateRequest(self.internal_id))
-                        self.update_button_layout()
-                    except Exception as e:
-                        self.app.show_error_message(
-                            ErrorMessages.ERROR_DISCARDING_OVERLAY_TEMPLATE.format(error=e)
-                        )
-                    finally:
-                        self.app.vm_service.unsuppress_vm_events(self.internal_id)
+                    # Use the VM captured at dispatch: the overlay must be discarded
+                    # on that VM even if the card is reassigned while the dialog is open.
+                    def do_discard_overlay():
+                        self.app.vm_service.suppress_vm_events(expected_uuid)
+                        error = None
+                        try:
+                            discard_overlay(vm, target_disk)
+                        except Exception as e:
+                            error = e
+                        finally:
+                            self.app.vm_service.unsuppress_vm_events(expected_uuid)
+
+                        # Invalidate cache in the worker thread to avoid blocking the main thread
+                        if error is None:
+                            try:
+                                self.app.vm_service.invalidate_vm_state_cache(expected_uuid)
+                            except Exception:
+                                pass
+
+                        def finalize_discard():
+                            if error is not None:
+                                self.app.show_error_message(
+                                    ErrorMessages.ERROR_DISCARDING_OVERLAY_TEMPLATE.format(
+                                        error=error
+                                    )
+                                )
+                                return
+                            self.app.show_success_message(
+                                SuccessMessages.OVERLAY_DISCARDED.format(target_disk=target_disk)
+                            )
+                            # Card-state writes only if the card still shows this VM
+                            if self._is_same_vm(expected_uuid):
+                                self._boot_device_checked = False
+                                self.post_message(VmCardUpdateRequest(expected_uuid))
+                                self.update_button_layout()
+
+                        self.app.call_from_thread(finalize_discard)
+
+                    self.app.worker_manager.run(
+                        do_discard_overlay, name=f"vmcard:{expected_uuid}:discard_overlay"
+                    )
 
             self.app.push_screen(
                 ConfirmationDialog(
@@ -1472,11 +1520,11 @@ class VMCard(Static):
                     ErrorMessages.ERROR_PREPARING_COMMIT_TEMPLATE.format(error=e),
                 )
                 return
-            self.app.call_from_thread(self._prepare_commit_disk, disks, internal_id)
+            self.app.call_from_thread(self._prepare_commit_disk, disks, internal_id, vm)
 
         self.app.worker_manager.run(fetch_disks, name=f"vmcard:{internal_id}:disks")
 
-    def _prepare_commit_disk(self, disks: list[dict], expected_uuid: str) -> None:
+    def _prepare_commit_disk(self, disks: list[dict], expected_uuid: str, vm) -> None:
         """Main-thread continuation of the commit-disk disk fetch."""
         if expected_uuid and expected_uuid != self.internal_id:
             return
@@ -1494,35 +1542,39 @@ class VMCard(Static):
 
             def on_confirm(confirmed: bool):
                 if confirmed:
-                    # Capture at dispatch: the worker must commit this VM's disk
-                    # even if the card is reassigned while the commit is running.
-                    vm = self.vm
-                    internal_id = self.internal_id
+                    # Use the VM captured at dispatch: target_disk was selected
+                    # from that VM's disks, so the commit must target it even if
+                    # the card is reassigned while the dialog is open.
                     progress_modal = ProgressModal(
-                        title=ProgressMessages.COMMITTING_CHANGES_FOR.format(name=self.name)
+                        title=ProgressMessages.COMMITTING_CHANGES_FOR.format(name=vm.name())
                     )
                     self.app.push_screen(progress_modal)
 
                     def do_commit():
-                        self.app.vm_service.suppress_vm_events(internal_id)
+                        self.app.vm_service.suppress_vm_events(expected_uuid)
                         try:
                             commit_disk_changes(vm, target_disk)
                             self.app.call_from_thread(
                                 self.app.show_success_message, SuccessMessages.DISK_COMMITTED
                             )
-                            self.app.call_from_thread(self.app.refresh_vm_list)
-                            self.app.call_from_thread(self.update_button_layout)
+
+                            def refresh_after_commit():
+                                if self._is_same_vm(expected_uuid):
+                                    self.update_button_layout()
+                                self.app.refresh_vm_list()
+
+                            self.app.call_from_thread(refresh_after_commit)
                         except Exception as e:
                             self.app.call_from_thread(
                                 self.app.show_error_message,
                                 ErrorMessages.ERROR_COMMITTING_DISK_TEMPLATE.format(error=e),
                             )
                         finally:
-                            self.app.vm_service.unsuppress_vm_events(internal_id)
+                            self.app.vm_service.unsuppress_vm_events(expected_uuid)
                             self.app.call_from_thread(progress_modal.dismiss)
 
                     self.app.worker_manager.run(
-                        do_commit, name=f"vmcard:{internal_id}:commit"
+                        do_commit, name=f"vmcard:{expected_uuid}:commit"
                     )
 
             self.app.push_screen(
@@ -1888,7 +1940,7 @@ class VMCard(Static):
                 description = result["description"]
                 quiesce = result.get("quiesce", False)
 
-                self.stop_background_activities()
+                self._stop_background_activities_if_same_vm(internal_id)
 
                 loading_modal = LoadingModal(message=f"Taking snapshot for {vm_name}...")
                 self.app.push_screen(loading_modal)
@@ -1923,8 +1975,10 @@ class VMCard(Static):
                             self.app.show_success_message(
                                 SuccessMessages.SNAPSHOT_CREATED.format(snapshot_name=name)
                             )
-                        # Restart stats timer after a delay
-                        self.app.set_timer(1.0, self.update_stats)
+                        # Restart stats timer after a delay, only if the card
+                        # still shows this VM
+                        if self._is_same_vm(internal_id):
+                            self.app.set_timer(1.0, self.update_stats)
 
                     self.app.call_from_thread(finalize_snapshot)
 
@@ -1943,12 +1997,14 @@ class VMCard(Static):
         loading_modal = LoadingModal(message="Fetching snapshots...")
         self.app.push_screen(loading_modal)
 
+        # Capture at dispatch: the fetch must target this VM even if the card
+        # is reassigned before the worker runs.
+        vm = self.vm
+        internal_id = self.internal_id
+        vm_name = self.name
+
         def fetch_and_show_worker():
             try:
-                vm = self.vm
-                internal_id = self.internal_id
-                vm_name = self.name
-
                 snapshots_info = get_vm_snapshots(vm)
                 self.app.call_from_thread(loading_modal.dismiss)
 
@@ -2033,7 +2089,7 @@ class VMCard(Static):
                 )
 
         self.app.worker_manager.run(
-            fetch_and_show_worker, name=f"vmcard:{self.internal_id}:snapshot_restore_fetch"
+            fetch_and_show_worker, name=f"vmcard:{internal_id}:snapshot_restore_fetch"
         )
 
     def _handle_snapshot_delete_button(self) -> None:
@@ -2043,12 +2099,14 @@ class VMCard(Static):
         loading_modal = LoadingModal(message="Fetching snapshots...")
         self.app.push_screen(loading_modal)
 
+        # Capture at dispatch: the fetch must target this VM even if the card
+        # is reassigned before the worker runs.
+        vm = self.vm
+        internal_id = self.internal_id
+        vm_name = self.name
+
         def fetch_and_show_worker():
             try:
-                vm = self.vm
-                internal_id = self.internal_id
-                vm_name = self.name
-
                 snapshots_info = get_vm_snapshots(vm)
                 self.app.call_from_thread(loading_modal.dismiss)
 
@@ -2140,7 +2198,7 @@ class VMCard(Static):
                 )
 
         self.app.worker_manager.run(
-            fetch_and_show_worker, name=f"vmcard:{self.internal_id}:snapshot_delete_fetch"
+            fetch_and_show_worker, name=f"vmcard:{internal_id}:snapshot_delete_fetch"
         )
 
     def _handle_delete_button(self) -> None:
@@ -2403,8 +2461,14 @@ class VMCard(Static):
                         SuccessMessages.VM_RENAMED.format(old_name=old_name, new_name=new_name),
                     )
                     self.app.vm_service.invalidate_domain_cache()
-                    self._boot_device_checked = False
-                    self.app.call_from_thread(self.app.refresh_vm_list, force=True)
+
+                    def after_rename():
+                        # Main thread: reactive write, guarded against card reuse
+                        if self._is_same_vm(internal_id):
+                            self._boot_device_checked = False
+                        self.app.refresh_vm_list(force=True)
+
+                    self.app.call_from_thread(after_rename)
                     logging.info(f"Successfully renamed VM '{old_name}' to '{new_name}'")
                 except Exception as e:
                     self.app.call_from_thread(
@@ -2417,7 +2481,7 @@ class VMCard(Static):
             def on_confirm_rename(confirmed: bool) -> None:
                 if confirmed:
                     self.app.worker_manager.run(
-                        do_rename, name=f"vmcard:{self.internal_id}:rename"
+                        do_rename, name=f"vmcard:{internal_id}:rename"
                     )
                 else:
                     self.app.show_success_message(SuccessMessages.VM_RENAME_CANCELLED)
@@ -2514,9 +2578,17 @@ class VMCard(Static):
         internal_id = self.internal_id
 
         def find_domains():
-            found_domains_dict = self.app.vm_service.find_domains_by_uuids(
-                self.app.active_uris, selected_vm_uuids
-            )
+            try:
+                found_domains_dict = self.app.vm_service.find_domains_by_uuids(
+                    self.app.active_uris, selected_vm_uuids
+                )
+            except Exception as e:
+                logging.error(f"Error finding domains for migration: {e}")
+                self.app.call_from_thread(
+                    self.app.show_error_message,
+                    ErrorMessages.UNEXPECTED_ERROR_OCCURRED_TEMPLATE.format(error=e),
+                )
+                return
             self.app.call_from_thread(
                 self._start_migration, found_domains_dict, selected_vm_uuids, internal_id
             )
