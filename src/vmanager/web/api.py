@@ -15,7 +15,9 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import secrets
+import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -27,8 +29,11 @@ import libvirt
 from fastapi import (
     Depends,
     FastAPI,
+    File,
+    Form,
     HTTPException,
     Request,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -38,9 +43,31 @@ from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from starlette.background import BackgroundTask
 
 from ..config import load_config, save_config
 from ..constants import VmAction
+from ..guest_agent import (
+    GuestAgentError,
+    agent_status,
+    ga_download_file,
+    ga_exec_wait,
+    ga_fsfreeze_freeze,
+    ga_fsfreeze_status,
+    ga_fsfreeze_thaw,
+    ga_fsinfo,
+    ga_fstrim,
+    ga_info,
+    ga_set_time,
+    ga_set_user_password,
+    ga_shutdown,
+    ga_ssh_add_authorized_keys,
+    ga_ssh_get_authorized_keys,
+    ga_ssh_remove_authorized_keys,
+    ga_supported,
+    ga_suspend,
+    ga_upload_file,
+)
 from ..libvirt_utils import (
     get_active_vm_allocation,
     get_host_resources,
@@ -92,6 +119,8 @@ from ..vm_queries import (
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 DEFAULT_STATS_INTERVAL = 5
 WS_INVALID_TOKEN_CODE = 4401
+MAX_GUEST_UPLOAD_BYTES = 64 * 1024 * 1024
+MAX_GUEST_EXEC_TIMEOUT = 300
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +167,38 @@ class ConsoleRequest(BaseModel):
     """Body of POST /api/vms/console{,/stop}."""
 
     id: str
+
+
+class GuestActionRequest(BaseModel):
+    """Body of POST /api/vms/guest/action."""
+
+    id: str
+    action: str
+
+
+class GuestPasswordRequest(BaseModel):
+    """Body of POST /api/vms/guest/password."""
+
+    id: str
+    username: str
+    password: str
+    crypted: bool = False
+
+
+class GuestExecRequest(BaseModel):
+    """Body of POST /api/vms/guest/exec."""
+
+    id: str
+    command: str
+    timeout: int = 30
+
+
+class GuestSshKeysRequest(BaseModel):
+    """Body of POST /api/vms/guest/ssh_keys{,/delete}."""
+
+    id: str
+    user: str
+    keys: list = []
 
 
 class BulkRequest(BaseModel):
@@ -1217,6 +1278,143 @@ class Backend:
             manager.stop_console(console_uuid, domain.name())
         return {"stopped": console_uuid}
 
+    # -- guest agent -------------------------------------------------------------
+
+    def guest_overview(self, internal_id: str) -> dict:
+        """Agent status plus, when responsive, guest info and filesystems."""
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        agent_state = agent_status(domain)
+        result = {"status": agent_state}
+        if agent_state != "running":
+            return result
+        result["supported"] = ga_supported(domain)
+        result["info"] = ga_info(domain)
+        try:
+            result["fsinfo"] = ga_fsinfo(domain)
+        except GuestAgentError:
+            result["fsinfo"] = []  # guest-get-fsinfo unsupported on this agent
+        try:
+            result["fsfreeze"] = ga_fsfreeze_status(domain)
+        except GuestAgentError:
+            result["fsfreeze"] = None
+        return result
+
+    def guest_action(self, internal_id: str, action: str) -> dict:
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        short_id = internal_id.split("@", 1)[0]
+        if action == "freeze":
+            logger.info("Web guest fsfreeze on %s", short_id)
+            return {"action": action, "frozen": ga_fsfreeze_freeze(domain)}
+        if action == "thaw":
+            logger.info("Web guest fsthaw on %s", short_id)
+            return {"action": action, "thawed": ga_fsfreeze_thaw(domain)}
+        if action == "trim":
+            logger.info("Web guest fstrim on %s", short_id)
+            return {"action": action, "trimmed": ga_fstrim(domain)}
+        if action == "sync_time":
+            logger.info("Web guest time sync on %s", short_id)
+            ga_set_time(domain)
+            return {"action": action}
+        if action == "shutdown":
+            logger.info("Web guest shutdown on %s", short_id)
+            ga_shutdown(domain, "powerdown")
+            return {"action": action}
+        if action == "suspend_ram":
+            logger.info("Web guest suspend-to-RAM on %s", short_id)
+            ga_suspend(domain, "ram")
+            return {"action": action}
+        if action == "suspend_disk":
+            logger.info("Web guest suspend-to-disk on %s", short_id)
+            ga_suspend(domain, "disk")
+            return {"action": action}
+        raise ValueError(f"Unsupported guest action: {action}")
+
+    def guest_set_password(
+        self, internal_id: str, username: str, password: str, crypted: bool = False
+    ) -> dict:
+        if not username:
+            raise ValueError("Username is required")
+        if not password:
+            raise ValueError("Password is required")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        # Never log the password itself.
+        logger.info(
+            "Web guest set-password for user '%s' on %s",
+            username,
+            internal_id.split("@", 1)[0],
+        )
+        ga_set_user_password(domain, username, password, crypted)
+        return {"username": username}
+
+    def guest_exec(self, internal_id: str, command: str, timeout: int = 30) -> dict:
+        command = (command or "").strip()
+        if not command:
+            raise ValueError("Command is required")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        bounded = max(1, min(int(timeout or 30), MAX_GUEST_EXEC_TIMEOUT))
+        logger.info(
+            "Web guest exec on %s: %.200s", internal_id.split("@", 1)[0], command
+        )
+        return ga_exec_wait(domain, command, overall_timeout=bounded)
+
+    def guest_ssh_keys(self, internal_id: str, user: str) -> dict:
+        if not user:
+            raise ValueError("User is required")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        return {"user": user, "keys": ga_ssh_get_authorized_keys(domain, user)}
+
+    def guest_ssh_add_keys(self, internal_id: str, user: str, keys: list) -> dict:
+        if not user:
+            raise ValueError("User is required")
+        clean = [str(k).strip() for k in (keys or []) if str(k).strip()]
+        if not clean:
+            raise ValueError("No keys provided")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info(
+            "Web guest ssh add %d key(s) for user '%s' on %s",
+            len(clean), user, internal_id.split("@", 1)[0],
+        )
+        ga_ssh_add_authorized_keys(domain, user, clean)
+        return {"user": user, "added": len(clean)}
+
+    def guest_ssh_remove_keys(self, internal_id: str, user: str, keys: list) -> dict:
+        if not user:
+            raise ValueError("User is required")
+        clean = [str(k).strip() for k in (keys or []) if str(k).strip()]
+        if not clean:
+            raise ValueError("No keys provided")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info(
+            "Web guest ssh remove %d key(s) for user '%s' on %s",
+            len(clean), user, internal_id.split("@", 1)[0],
+        )
+        ga_ssh_remove_authorized_keys(domain, user, clean)
+        return {"user": user, "removed": len(clean)}
+
+    def guest_upload(self, internal_id: str, remote_path: str, tmp_path: str) -> dict:
+        if not remote_path.startswith("/"):
+            raise ValueError("Remote path must be absolute")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info(
+            "Web guest upload -> '%s' on %s",
+            remote_path,
+            internal_id.split("@", 1)[0],
+        )
+        written = ga_upload_file(domain, tmp_path, remote_path)
+        return {"path": remote_path, "bytes": written}
+
+    def guest_download(self, internal_id: str, remote_path: str, tmp_path: str) -> dict:
+        if not remote_path.startswith("/"):
+            raise ValueError("Remote path must be absolute")
+        _uri, _conn, domain = self._lookup_domain(internal_id)
+        logger.info(
+            "Web guest download <- '%s' on %s",
+            remote_path,
+            internal_id.split("@", 1)[0],
+        )
+        read = ga_download_file(domain, remote_path, tmp_path)
+        return {"path": remote_path, "bytes": read}
+
     # -- live statistics ---------------------------------------------------
 
     def stats_snapshot(self, uris=None) -> dict:
@@ -1395,6 +1593,11 @@ def create_app(
             ) from exc
         except LookupError as exc:
             raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+        except GuestAgentError as exc:
+            logger.error("Guest agent error: %s", sanitize_sensitive_data(str(exc)))
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, sanitize_sensitive_data(str(exc))
+            ) from exc
         except libvirt.libvirtError as exc:
             logger.error("Backend call failed: %s", sanitize_sensitive_data(str(exc)))
             raise HTTPException(
@@ -1468,6 +1671,103 @@ def create_app(
     @app.post("/api/vms/console/stop", dependencies=[Depends(require_token)])
     async def console_stop(payload: ConsoleRequest) -> dict:
         return await run_backend(backend.stop_console, payload.id)
+
+    # -- guest agent -----------------------------------------------------------
+
+    @app.get("/api/vms/guest", dependencies=[Depends(require_token)])
+    async def guest_overview(id: str) -> dict:  # pylint: disable=redefined-builtin
+        return await run_backend(backend.guest_overview, id)
+
+    @app.post("/api/vms/guest/action", dependencies=[Depends(require_token)])
+    async def guest_action(payload: GuestActionRequest) -> dict:
+        return await run_backend(backend.guest_action, payload.id, payload.action)
+
+    @app.post("/api/vms/guest/password", dependencies=[Depends(require_token)])
+    async def guest_password(payload: GuestPasswordRequest) -> dict:
+        return await run_backend(
+            backend.guest_set_password,
+            payload.id,
+            payload.username,
+            payload.password,
+            payload.crypted,
+        )
+
+    @app.post("/api/vms/guest/exec", dependencies=[Depends(require_token)])
+    async def guest_exec(payload: GuestExecRequest) -> dict:
+        return await run_backend(
+            backend.guest_exec, payload.id, payload.command, payload.timeout
+        )
+
+    @app.get("/api/vms/guest/ssh_keys", dependencies=[Depends(require_token)])
+    async def guest_ssh_keys(id: str, user: str) -> dict:  # pylint: disable=redefined-builtin
+        return await run_backend(backend.guest_ssh_keys, id, user)
+
+    @app.post("/api/vms/guest/ssh_keys", dependencies=[Depends(require_token)])
+    async def guest_ssh_add(payload: GuestSshKeysRequest) -> dict:
+        return await run_backend(backend.guest_ssh_add_keys, payload.id, payload.user, payload.keys)
+
+    @app.post("/api/vms/guest/ssh_keys/delete", dependencies=[Depends(require_token)])
+    async def guest_ssh_remove(payload: GuestSshKeysRequest) -> dict:
+        return await run_backend(
+            backend.guest_ssh_remove_keys, payload.id, payload.user, payload.keys
+        )
+
+    @app.post("/api/vms/guest/upload", dependencies=[Depends(require_token)])
+    async def guest_upload(
+        id: str = Form(...),  # pylint: disable=redefined-builtin
+        path: str = Form(...),
+        file: UploadFile = File(...),
+    ) -> dict:
+        tmp = tempfile.NamedTemporaryFile(
+            delete=False, prefix="virtui-web-upload-", dir=tempfile.gettempdir()
+        )
+        size = 0
+        try:
+            while chunk := await file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_GUEST_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        f"File too large (max {MAX_GUEST_UPLOAD_BYTES // (1024 * 1024)} MB)",
+                    )
+                tmp.write(chunk)
+            tmp.close()
+            return await run_backend(backend.guest_upload, id, path, tmp.name)
+        finally:
+            try:
+                tmp.close()
+            except Exception:  # pylint: disable=broad-except
+                pass
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+
+    @app.get("/api/vms/guest/download", dependencies=[Depends(require_token)])
+    async def guest_download(id: str, path: str):  # pylint: disable=redefined-builtin
+        tmp = tempfile.NamedTemporaryFile(
+            delete=False, prefix="virtui-web-download-", dir=tempfile.gettempdir()
+        )
+        tmp.close()
+        try:
+            await run_backend(backend.guest_download, id, path, tmp.name)
+        except Exception:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+            raise
+        filename = os.path.basename(path) or "download"
+
+        def _cleanup() -> None:
+            try:
+                os.unlink(tmp.name)
+            except OSError:
+                pass
+
+        return FileResponse(
+            tmp.name, filename=filename, background=BackgroundTask(_cleanup)
+        )
 
     @app.websocket("/ws/stats")
     async def ws_stats(websocket: WebSocket) -> None:

@@ -733,6 +733,7 @@
     networks: renderNetworks,
     disks: renderDisks,
     devices: renderDevices,
+    guest: renderGuest,
     snapshots: renderSnapshots,
     xml: renderXml,
   };
@@ -754,6 +755,7 @@
     }
     renderDetail();
     if (tab === "snapshots") loadSnapshots();
+    if (tab === "guest") loadGuest();
   }
 
   async function loadDetail() {
@@ -773,6 +775,7 @@
       els.detailDot.className = "status-dot " + (STATUS_COLORS[detailData.status] || "unknown");
       renderDetail();
       if (detailTab === "snapshots") loadSnapshots();
+      if (detailTab === "guest") loadGuest();
     } catch (err) {
       els.detailContent.textContent = "";
       els.detailContent.appendChild(el("p", "detail-loading", "Failed to load details: " + err.message));
@@ -880,6 +883,7 @@
     else if (mact === "delete") askDelete(card);
     else if (mact === "xml") openDetail(card, "xml");
     else if (mact === "snapshots") openDetail(card, "snapshots");
+    else if (mact === "guest") openDetail(card, "guest");
     else if (mact === "console") openConsole(card);
     else if (mact === "stop-console") stopConsole(card);
   });
@@ -1681,6 +1685,401 @@
     els.toast.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { els.toast.hidden = true; }, 4000);
+  }
+
+  // -- guest agent ---------------------------------------------------------------
+
+  async function loadGuest() {
+    if (!detailCard || !detailData) return;
+    detailData.guest = null;
+    detailData.guestError = null;
+    if (detailTab === "guest") renderDetail();
+    try {
+      detailData.guest = await api(`/api/vms/guest?id=${encodeURIComponent(detailCard.vm.id)}`);
+    } catch (err) {
+      detailData.guestError = err.unauthorized ? "unauthorized" : err.message;
+    }
+    if (detailTab === "guest") renderDetail();
+  }
+
+  async function guestAction(vmId, action, label) {
+    try {
+      const data = await postJSON("/api/vms/guest/action", { id: vmId, action });
+      let msg = `${label}: OK`;
+      if (data.frozen != null) msg = `${label}: ${data.frozen} filesystem(s) frozen`;
+      else if (data.thawed != null) msg = `${label}: ${data.thawed} filesystem(s) thawed`;
+      else if (data.trimmed != null) msg = `${label}: ${fmtBytes(data.trimmed)} trimmed`;
+      showToast(msg, "ok");
+      loadGuest();
+      scheduleRefresh(1200); // shutdown/suspend may change the VM state
+    } catch (err) {
+      if (err.message !== "unauthorized") showToast(`${label} failed: ${err.message}`, "error");
+    }
+  }
+
+  function guestSection(title) {
+    const det = document.createElement("details");
+    det.className = "guest-section";
+    const sum = document.createElement("summary");
+    sum.textContent = title;
+    det.appendChild(sum);
+    return det;
+  }
+
+  function guestPasswordSection(vmId) {
+    const det = guestSection("Set password");
+    const user = el("input", "guest-input");
+    user.type = "text";
+    user.placeholder = "Username (e.g. root)";
+    const pass = el("input", "guest-input");
+    pass.type = "password";
+    pass.placeholder = "New password";
+    pass.autocomplete = "new-password";
+    const btn = el("button", null, "Set password");
+    btn.type = "button";
+    btn.addEventListener("click", async () => {
+      if (!user.value.trim() || !pass.value) {
+        showToast("Username and password are required", "error");
+        return;
+      }
+      try {
+        await postJSON("/api/vms/guest/password", {
+          id: vmId, username: user.value.trim(), password: pass.value,
+        });
+        showToast(`Password set for ${user.value.trim()}`, "ok");
+        pass.value = "";
+      } catch (err) {
+        if (err.message !== "unauthorized") showToast(`Set password failed: ${err.message}`, "error");
+      }
+    });
+    const row = el("div", "guest-row");
+    row.append(user, pass, btn);
+    det.appendChild(row);
+    return det;
+  }
+
+  function guestExecSection(vmId, cmds) {
+    const det = guestSection("Run command");
+    if (cmds && cmds.length && !cmds.includes("guest-exec")) {
+      det.appendChild(el("p", "server-error",
+        "guest-exec is disabled by this guest's agent configuration."));
+    }
+    const cmd = el("input", "guest-input guest-cmd");
+    cmd.type = "text";
+    cmd.placeholder = "e.g. systemctl status sshd  (shell-split; no pipes/redirects)";
+    const btn = el("button", null, "Run");
+    btn.type = "button";
+    const out = el("div", "guest-exec-out");
+
+    async function run() {
+      const command = cmd.value.trim();
+      if (!command) return;
+      btn.disabled = true;
+      out.textContent = "";
+      out.appendChild(el("p", "detail-loading", "Running..."));
+      try {
+        const res = await postJSON("/api/vms/guest/exec", { id: vmId, command });
+        out.textContent = "";
+        const summary = res.exited
+          ? `exit code ${res.exitcode}` + (res.signal != null ? ` (signal ${res.signal})` : "")
+              + (res.truncated ? " [output truncated]" : "")
+          : "process did not exit before the timeout";
+        out.appendChild(el("div", "guest-exec-status", summary));
+        if (res.stdout) {
+          out.appendChild(el("div", "guest-exec-label", "stdout"));
+          out.appendChild(el("pre", "guest-pre", res.stdout));
+        }
+        if (res.stderr) {
+          out.appendChild(el("div", "guest-exec-label", "stderr"));
+          out.appendChild(el("pre", "guest-pre err", res.stderr));
+        }
+        if (!res.stdout && !res.stderr) out.appendChild(el("p", "detail-loading", "(no output)"));
+      } catch (err) {
+        out.textContent = "";
+        if (err.message !== "unauthorized") {
+          out.appendChild(el("p", "server-error", "Exec failed: " + err.message));
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    btn.addEventListener("click", run);
+    cmd.addEventListener("keydown", (e) => { if (e.key === "Enter") run(); });
+    const row = el("div", "guest-row");
+    row.append(cmd, btn);
+    det.append(row, out);
+    return det;
+  }
+
+  function guestSshSection(vmId, cmds) {
+    const det = guestSection("SSH authorized keys");
+    if (cmds && cmds.length && !cmds.includes("guest-ssh-get-authorized-keys")) {
+      det.appendChild(el("p", "server-error",
+        "SSH key commands are disabled by this guest's agent configuration."));
+    }
+    const user = el("input", "guest-input");
+    user.type = "text";
+    user.placeholder = "Username";
+    user.value = "root";
+    const loadBtn = el("button", "secondary", "Load");
+    loadBtn.type = "button";
+    const list = el("div", "guest-keys");
+    const keyArea = document.createElement("textarea");
+    keyArea.className = "guest-textarea";
+    keyArea.placeholder = "Paste one or more public keys (one per line)";
+    keyArea.rows = 3;
+    const addBtn = el("button", null, "Add keys");
+    addBtn.type = "button";
+
+    async function loadKeys() {
+      const u = user.value.trim();
+      if (!u) { showToast("Username is required", "error"); return; }
+      list.textContent = "";
+      list.appendChild(el("p", "detail-loading", "Loading..."));
+      try {
+        const data = await api(
+          `/api/vms/guest/ssh_keys?id=${encodeURIComponent(vmId)}&user=${encodeURIComponent(u)}`,
+        );
+        list.textContent = "";
+        if (!data.keys.length) {
+          list.appendChild(el("p", "detail-loading", "No keys for this user."));
+          return;
+        }
+        for (const key of data.keys) {
+          const row = el("div", "guest-key-row");
+          row.appendChild(el("span", "guest-key", key));
+          const del = el("button", "danger mini", "Remove");
+          del.type = "button";
+          del.addEventListener("click", async () => {
+            try {
+              await postJSON("/api/vms/guest/ssh_keys/delete", { id: vmId, user: u, keys: [key] });
+              showToast("Key removed", "ok");
+              loadKeys();
+            } catch (err) {
+              if (err.message !== "unauthorized") showToast(`Remove failed: ${err.message}`, "error");
+            }
+          });
+          row.appendChild(del);
+          list.appendChild(row);
+        }
+      } catch (err) {
+        list.textContent = "";
+        if (err.unauthorized) { showTokenModal(); return; }
+        list.appendChild(el("p", "server-error", "Failed: " + err.message));
+      }
+    }
+
+    loadBtn.addEventListener("click", loadKeys);
+    addBtn.addEventListener("click", async () => {
+      const u = user.value.trim();
+      const keys = keyArea.value.split("\n").map((k) => k.trim()).filter(Boolean);
+      if (!u || !keys.length) {
+        showToast("User and at least one key are required", "error");
+        return;
+      }
+      try {
+        await postJSON("/api/vms/guest/ssh_keys", { id: vmId, user: u, keys });
+        showToast(`${keys.length} key(s) added`, "ok");
+        keyArea.value = "";
+        loadKeys();
+      } catch (err) {
+        if (err.message !== "unauthorized") showToast(`Add failed: ${err.message}`, "error");
+      }
+    });
+
+    const row = el("div", "guest-row");
+    row.append(user, loadBtn);
+    det.append(row, list, keyArea, addBtn);
+    return det;
+  }
+
+  function guestFilesSection(vmId, cmds) {
+    const det = guestSection("File transfer");
+    if (cmds && cmds.length && !cmds.includes("guest-file-open")) {
+      det.appendChild(el("p", "server-error",
+        "File commands are disabled by this guest's agent configuration."));
+    }
+
+    const upPath = el("input", "guest-input");
+    upPath.type = "text";
+    upPath.placeholder = "/root/destination-file";
+    const fileIn = document.createElement("input");
+    fileIn.type = "file";
+    fileIn.className = "guest-input";
+    const upBtn = el("button", null, "Upload");
+    upBtn.type = "button";
+    upBtn.addEventListener("click", async () => {
+      const path = upPath.value.trim();
+      const file = fileIn.files && fileIn.files[0];
+      if (!path || !file) { showToast("Remote path and a file are required", "error"); return; }
+      if (!path.startsWith("/")) { showToast("Remote path must be absolute", "error"); return; }
+      upBtn.disabled = true;
+      upBtn.textContent = "Uploading...";
+      try {
+        const form = new FormData();
+        form.append("id", vmId);
+        form.append("path", path);
+        form.append("file", file);
+        const resp = await fetch("/api/vms/guest/upload", {
+          method: "POST",
+          headers: { Authorization: "Bearer " + token },
+          body: form,
+        });
+        if (resp.status === 401) { showTokenModal(); return; }
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+        showToast(`Uploaded ${fmtBytes(data.bytes)} to ${data.path}`, "ok");
+      } catch (err) {
+        if (err.message !== "unauthorized") showToast(`Upload failed: ${err.message}`, "error");
+      } finally {
+        upBtn.disabled = false;
+        upBtn.textContent = "Upload";
+      }
+    });
+
+    const downPath = el("input", "guest-input");
+    downPath.type = "text";
+    downPath.placeholder = "/etc/hostname";
+    const downBtn = el("button", "secondary", "Download");
+    downBtn.type = "button";
+    downBtn.addEventListener("click", async () => {
+      const path = downPath.value.trim();
+      if (!path.startsWith("/")) { showToast("Remote path must be absolute", "error"); return; }
+      downBtn.disabled = true;
+      try {
+        const resp = await fetch(
+          `/api/vms/guest/download?id=${encodeURIComponent(vmId)}&path=${encodeURIComponent(path)}`,
+          { headers: { Authorization: "Bearer " + token } },
+        );
+        if (resp.status === 401) { showTokenModal(); return; }
+        if (!resp.ok) {
+          const data = await resp.json().catch(() => ({}));
+          throw new Error(data.detail || `HTTP ${resp.status}`);
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = path.split("/").pop() || "download";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast(`Downloaded ${fmtBytes(blob.size)}`, "ok");
+      } catch (err) {
+        if (err.message !== "unauthorized") showToast(`Download failed: ${err.message}`, "error");
+      } finally {
+        downBtn.disabled = false;
+      }
+    });
+
+    const upRow = el("div", "guest-row");
+    upRow.append(upPath, fileIn, upBtn);
+    const downRow = el("div", "guest-row");
+    downRow.append(downPath, downBtn);
+    det.append(
+      el("div", "guest-sublabel", "Upload \u2014 written root-owned; the parent directory must exist (max 64 MB)"),
+      upRow,
+      el("div", "guest-sublabel", "Download"),
+      downRow,
+    );
+    return det;
+  }
+
+  function renderGuest(d) {
+    const frag = document.createDocumentFragment();
+    const vmId = detailCard ? detailCard.vm.id : d.id;
+
+    if (d.guestError) {
+      if (d.guestError === "unauthorized") { showTokenModal(); return frag; }
+      frag.appendChild(el("p", "server-error", "Guest agent error: " + d.guestError));
+      return frag;
+    }
+    const g = d.guest;
+    if (!g) {
+      frag.appendChild(el("p", "detail-loading", "Loading..."));
+      return frag;
+    }
+
+    const head = el("div", "guest-head");
+    const labels = {
+      running: "Agent running",
+      down: "Agent not responding",
+      not_running: "VM is not running",
+      not_configured: "No agent channel",
+    };
+    head.appendChild(el("span", "state-pill " + (g.status === "running" ? "on" : "off"),
+      labels[g.status] || g.status));
+    if (g.status === "running" && g.supported && g.supported.version) {
+      head.appendChild(el("span", "pool-meta", `qemu-ga ${g.supported.version}`));
+    }
+    const refresh = el("button", "secondary mini", "\u21bb Refresh");
+    refresh.type = "button";
+    refresh.addEventListener("click", loadGuest);
+    head.appendChild(refresh);
+    frag.appendChild(head);
+
+    if (g.status !== "running") {
+      const hints = {
+        not_configured: "This VM has no qemu-guest-agent channel. Add one in the VM configuration and install qemu-guest-agent inside the guest.",
+        not_running: "Start the VM to use guest agent operations.",
+        down: "The agent channel exists but is not answering. Is qemu-guest-agent installed and running inside the guest?",
+      };
+      frag.appendChild(el("p", "detail-loading", hints[g.status] || ""));
+      return frag;
+    }
+
+    const info = g.info || {};
+    const os = info.os || {};
+    frag.appendChild(kvTable([
+      ["Hostname", info.hostname],
+      ["OS", os.pretty_name || [os.id, os.version_id].filter(Boolean).join(" ") || null],
+      ["Uptime", info.uptime_format],
+      ["Load (1/5/15m)", (info.load || []).length
+        ? info.load.map((x) => Number(x).toFixed(2)).join("  ") : null],
+      ["Freeze state", g.fsfreeze],
+    ]));
+
+    frag.appendChild(el("h3", null, "Actions"));
+    const acts = el("div", "guest-actions");
+    const mk = (label, action, confirmText) => {
+      const b = el("button", confirmText ? "danger mini" : "secondary mini", label);
+      b.type = "button";
+      b.addEventListener("click", () => {
+        const run = () => guestAction(vmId, action, label);
+        if (confirmText) askConfirm(label, d.name, run, confirmText);
+        else run();
+      });
+      return b;
+    };
+    acts.append(
+      mk("Freeze FS", "freeze"),
+      mk("Thaw FS", "thaw"),
+      mk("Trim", "trim"),
+      mk("Sync time", "sync_time"),
+      mk("Shutdown", "shutdown", `Shut down "${d.name}" from inside the guest (via agent)?`),
+      mk("Suspend to RAM", "suspend_ram", `Suspend "${d.name}" to RAM?`),
+      mk("Suspend to disk", "suspend_disk", `Hibernate "${d.name}" to disk?`),
+    );
+    frag.appendChild(acts);
+
+    frag.appendChild(el("h3", null, "Filesystems"));
+    frag.appendChild(gridTable(
+      ["Mountpoint", "Type", "Total", "Used"],
+      (g.fsinfo || []).map((f) => [
+        f.mountpoint, f.type,
+        f.total_bytes != null ? fmtBytes(f.total_bytes) : null,
+        f.used_bytes != null ? fmtBytes(f.used_bytes) : null,
+      ]),
+    ));
+
+    frag.appendChild(guestPasswordSection(vmId));
+    const cmds = (g.supported && g.supported.commands) || [];
+    frag.appendChild(guestExecSection(vmId, cmds));
+    frag.appendChild(guestSshSection(vmId, cmds));
+    frag.appendChild(guestFilesSection(vmId, cmds));
+    return frag;
   }
 
   // -- token modal ---------------------------------------------------------

@@ -1070,5 +1070,206 @@ class TestBackendCaching(unittest.TestCase):
         conn2.listAllDomains.assert_not_called()
 
 
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestBackendGuest(unittest.TestCase):
+    """Backend guest-agent logic with patched guest_agent functions."""
+
+    VM_ID = "aaaa@qemu:///system"
+
+    def setUp(self):
+        vm_service = MagicMock()
+        vm_service.connection_manager.get_connection.return_value = MagicMock()
+        self.backend = Backend(config={}, vm_service=vm_service)
+
+    def test_overview_short_circuits_when_agent_unavailable(self):
+        with patch("vmanager.web.api.agent_status", return_value="not_running"), \
+             patch("vmanager.web.api.ga_info") as gi:
+            result = self.backend.guest_overview(self.VM_ID)
+        self.assertEqual(result["status"], "not_running")
+        self.assertNotIn("info", result)
+        gi.assert_not_called()
+
+    def test_overview_running_includes_info_and_fs(self):
+        with patch("vmanager.web.api.agent_status", return_value="running"), \
+             patch("vmanager.web.api.ga_supported",
+                   return_value={"version": "5.2.0", "commands": []}), \
+             patch("vmanager.web.api.ga_info", return_value={"hostname": "guest1"}), \
+             patch("vmanager.web.api.ga_fsinfo", return_value=[{"mountpoint": "/"}]), \
+             patch("vmanager.web.api.ga_fsfreeze_status", return_value="thawed"):
+            result = self.backend.guest_overview(self.VM_ID)
+        self.assertEqual(result["status"], "running")
+        self.assertEqual(result["info"]["hostname"], "guest1")
+        self.assertEqual(result["fsinfo"], [{"mountpoint": "/"}])
+        self.assertEqual(result["fsfreeze"], "thawed")
+
+    def test_overview_survives_unsupported_fsinfo(self):
+        from vmanager.guest_agent import GuestAgentError
+
+        with patch("vmanager.web.api.agent_status", return_value="running"), \
+             patch("vmanager.web.api.ga_supported", return_value={}), \
+             patch("vmanager.web.api.ga_info", return_value={}), \
+             patch("vmanager.web.api.ga_fsinfo",
+                   side_effect=GuestAgentError("unsupported")), \
+             patch("vmanager.web.api.ga_fsfreeze_status",
+                   side_effect=GuestAgentError("unsupported")):
+            result = self.backend.guest_overview(self.VM_ID)
+        self.assertEqual(result["fsinfo"], [])
+        self.assertIsNone(result["fsfreeze"])
+
+    def test_password_validation(self):
+        with self.assertRaises(ValueError):
+            self.backend.guest_set_password(self.VM_ID, "", "pw")
+        with self.assertRaises(ValueError):
+            self.backend.guest_set_password(self.VM_ID, "root", "")
+
+    def test_exec_clamps_timeout(self):
+        with patch("vmanager.web.api.ga_exec_wait",
+                   return_value={"exited": True, "exitcode": 0}) as gew:
+            self.backend.guest_exec(self.VM_ID, "hostname", timeout=9999)
+        self.assertEqual(gew.call_args[1]["overall_timeout"], 300)
+
+    def test_upload_requires_absolute_path(self):
+        with self.assertRaises(ValueError):
+            self.backend.guest_upload(self.VM_ID, "relative/path", "/tmp/x")
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiGuest(unittest.TestCase):
+    """Guest-agent endpoints."""
+
+    VM_ID = "aaaa-bbbb@qemu:///system"
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.guest_overview.return_value = {
+            "status": "running", "supported": {"version": "5.2.0"},
+            "info": {}, "fsinfo": [], "fsfreeze": "thawed",
+        }
+        self.backend.guest_action.return_value = {"action": "trim", "trimmed": 1024}
+        self.backend.guest_set_password.return_value = {"username": "root"}
+        self.backend.guest_exec.return_value = {
+            "exited": True, "exitcode": 0, "signal": None,
+            "stdout": "guest1\n", "stderr": "", "truncated": False,
+        }
+        self.backend.guest_ssh_keys.return_value = {"user": "root", "keys": ["ssh-rsa AAA"]}
+        self.backend.guest_ssh_add_keys.return_value = {"user": "root", "added": 1}
+        self.backend.guest_ssh_remove_keys.return_value = {"user": "root", "removed": 1}
+        self.backend.guest_upload.return_value = {"path": "/root/test.txt", "bytes": 5}
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def _post(self, url, payload=None, headers=None):
+        return self.client.post(
+            url, json=payload, headers=self.auth if headers is None else headers
+        )
+
+    def test_guest_overview(self):
+        resp = self.client.get(
+            "/api/vms/guest", params={"id": self.VM_ID}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["status"], "running")
+        self.backend.guest_overview.assert_called_once_with(self.VM_ID)
+
+        resp = self.client.get("/api/vms/guest", params={"id": self.VM_ID})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_guest_action_dispatch(self):
+        resp = self._post("/api/vms/guest/action", {"id": self.VM_ID, "action": "trim"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["trimmed"], 1024)
+        self.backend.guest_action.assert_called_once_with(self.VM_ID, "trim")
+
+    def test_guest_action_errors(self):
+        self.backend.guest_action.side_effect = ValueError("Unsupported guest action: x")
+        resp = self._post("/api/vms/guest/action", {"id": self.VM_ID, "action": "x"})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_guest_agent_error_maps_400(self):
+        from vmanager.guest_agent import GuestAgentError
+
+        self.backend.guest_action.side_effect = GuestAgentError("agent is not responding")
+        resp = self._post("/api/vms/guest/action", {"id": self.VM_ID, "action": "freeze"})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("not responding", resp.json()["detail"])
+
+    def test_guest_password_does_not_echo_secret(self):
+        resp = self._post("/api/vms/guest/password",
+                          {"id": self.VM_ID, "username": "root", "password": "s3cret"})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.guest_set_password.assert_called_once_with(
+            self.VM_ID, "root", "s3cret", False
+        )
+        self.assertNotIn("s3cret", resp.text)
+
+    def test_guest_exec(self):
+        resp = self._post("/api/vms/guest/exec", {"id": self.VM_ID, "command": "hostname"})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["stdout"], "guest1\n")
+        self.backend.guest_exec.assert_called_once_with(self.VM_ID, "hostname", 30)
+
+    def test_guest_ssh_keys(self):
+        resp = self.client.get(
+            "/api/vms/guest/ssh_keys",
+            params={"id": self.VM_ID, "user": "root"},
+            headers=self.auth,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["keys"], ["ssh-rsa AAA"])
+
+        resp = self._post("/api/vms/guest/ssh_keys",
+                          {"id": self.VM_ID, "user": "root", "keys": ["ssh-ed25519 BBB"]})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.guest_ssh_add_keys.assert_called_once_with(
+            self.VM_ID, "root", ["ssh-ed25519 BBB"]
+        )
+
+        resp = self._post("/api/vms/guest/ssh_keys/delete",
+                          {"id": self.VM_ID, "user": "root", "keys": ["ssh-ed25519 BBB"]})
+        self.assertEqual(resp.status_code, 200)
+        self.backend.guest_ssh_remove_keys.assert_called_once_with(
+            self.VM_ID, "root", ["ssh-ed25519 BBB"]
+        )
+
+    def test_guest_upload_multipart(self):
+        resp = self.client.post(
+            "/api/vms/guest/upload",
+            data={"id": self.VM_ID, "path": "/root/test.txt"},
+            files={"file": ("test.txt", b"hello", "text/plain")},
+            headers=self.auth,
+        )
+        self.assertEqual(resp.status_code, 200)
+        args = self.backend.guest_upload.call_args[0]
+        self.assertEqual(args[0], self.VM_ID)
+        self.assertEqual(args[1], "/root/test.txt")
+        self.assertFalse(os.path.exists(args[2]))  # temp file cleaned up
+
+    def test_guest_upload_requires_token(self):
+        resp = self.client.post(
+            "/api/vms/guest/upload",
+            data={"id": self.VM_ID, "path": "/root/x"},
+            files={"file": ("x", b"x", "text/plain")},
+        )
+        self.assertEqual(resp.status_code, 401)
+
+    def test_guest_download_streams_file(self):
+        def fake_download(iid, path, tmp):
+            with open(tmp, "w", encoding="utf-8") as handle:
+                handle.write("guest-content")
+            return {"path": path, "bytes": 13}
+
+        self.backend.guest_download.side_effect = fake_download
+        resp = self.client.get(
+            "/api/vms/guest/download",
+            params={"id": self.VM_ID, "path": "/etc/hostname"},
+            headers=self.auth,
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content, b"guest-content")
+        self.assertIn("hostname", resp.headers.get("content-disposition", ""))
+
+
 if __name__ == "__main__":
     unittest.main()
