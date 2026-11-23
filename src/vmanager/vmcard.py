@@ -280,15 +280,9 @@ class VMCard(Static):
 
         logging.debug(f"Cancelling all workers for VM: {target_uuid}")
 
-        # Cancel all 8 worker types
-        self.app.worker_manager.cancel(f"update_stats_{target_uuid}")
-        self.app.worker_manager.cancel(f"actions_state_{target_uuid}")
-        self.app.worker_manager.cancel(f"snapshot_take_{target_uuid}")
-        self.app.worker_manager.cancel(f"snapshot_delete_fetch_{target_uuid}")
-        self.app.worker_manager.cancel(f"save_{target_uuid}")
-        self.app.worker_manager.cancel(f"delete_{target_uuid}")
-        self.app.worker_manager.cancel(f"xml_tooltip_{target_uuid}")
-        self.app.worker_manager.cancel(f"get_details_{target_uuid}")
+        # Card workers are named "vmcard:{uuid}:{kind}", so one prefix
+        # cancel covers every kind, including ones added later.
+        self.app.worker_manager.cancel_prefix(f"vmcard:{target_uuid}:")
 
     def _update_webc_status(self) -> None:
         """Updates the web console status indicator and button."""
@@ -439,6 +433,7 @@ class VMCard(Static):
                 vm_name=self.name,
                 vm_status=self.status,
                 vm=self.vm,
+                vm_internal_id=self.internal_id,
                 r_viewer_available=self.app.r_viewer_available,
                 graphics_type=self.graphics_type,
             ),
@@ -717,6 +712,9 @@ class VMCard(Static):
             self._actions_update_timers.clear()
 
         if old_value != new_value:
+            # Clear per-VM display state left over from the previous VM
+            self._reset_vm_display_state()
+
             # Reset heavy state UI elements
             self.update_button_layout()
             self.update_stats()
@@ -856,8 +854,35 @@ class VMCard(Static):
             except Exception:
                 pass
 
+    def _reset_vm_display_state(self) -> None:
+        """Clear per-VM display state so a reused card shows no stale data.
+
+        Core fields (name, status, cpu, memory) are managed by the caller;
+        this only clears the secondary state that would otherwise linger
+        from the previous VM until its first stats update arrives.
+        """
+        self.ip_addresses = []
+        self.boot_device = ""
+        self.cpu_model = ""
+        self.graphics_type = None
+        self.webc_status_indicator = ""
+        self.latest_disk_read = 0.0
+        self.latest_disk_write = 0.0
+        self.latest_net_rx = 0.0
+        self.latest_net_tx = 0.0
+        self.latest_cpu_percent = 0.0
+        self.latest_mem_percent = 0.0
+        self.stats_view_mode = "resources"
+        self._boot_device_checked = False
+        self._last_click_time = 0
+
     def reset_for_reuse(self) -> None:
         """Reset card state for reuse by another VM."""
+        # Drop libvirt references first so they can be garbage collected
+        # even if a later reset step fails.
+        self.vm = None
+        self.conn = None
+
         # Stop any running timers
         with self._timer_lock:
             if self.timer:
@@ -880,8 +905,14 @@ class VMCard(Static):
             # Defensive: ignore unexpected errors during worker cancellation
             pass
 
-        # Reset flags
-        self._boot_device_checked = False
+        # Reset per-VM display state and card data
+        self._reset_vm_display_state()
+        self.name = ""
+        self.status = StatusText.LOADING
+        self.cpu = 0
+        self.memory = 0
+        self.is_selected = False
+        self.server_border_color = VMCardConstants.DEFAULT_BORDER_COLOR
 
     def watch_is_selected(self, old_value: bool, new_value: bool) -> None:
         """Called when is_selected changes to update the checkbox."""
@@ -949,7 +980,8 @@ class VMCard(Static):
         # Run worker outside the lock to avoid holding it during potentially
         # blocking operations. The worker_manager handles its own concurrency.
         self.app.worker_manager.run(
-            partial(self._stats_data_fetch_worker, worker_context), name=f"update_stats_{uuid}"
+            partial(self._stats_data_fetch_worker, worker_context),
+            name=f"vmcard:{uuid}:update_stats",
         )
 
     def _stats_data_fetch_worker(self, ctx: dict) -> None:
@@ -1039,6 +1071,11 @@ class VMCard(Static):
 
     def _handle_stats_error(self, result: dict) -> None:
         """Handles errors returned from the stats worker."""
+        # Discard stale results if the card was reused for another VM while
+        # the worker was running.
+        if result["uuid"] != self.internal_id:
+            return
+
         error = result["error"]
         error_code = result.get("error_code")
 
@@ -1065,6 +1102,11 @@ class VMCard(Static):
     def _apply_stats_update(self, result: dict) -> None:
         """Updates UI with fetched stats. Executed on main thread."""
         if not self.is_mounted:
+            return
+
+        # Discard stale results if the card was reused for another VM while
+        # the worker was running.
+        if result["uuid"] != self.internal_id:
             return
 
         stats = result["stats"]
@@ -1422,7 +1464,9 @@ class VMCard(Static):
                             self.app.vm_service.unsuppress_vm_events(self.internal_id)
                             self.app.call_from_thread(progress_modal.dismiss)
 
-                    self.app.worker_manager.run(do_commit, name=f"commit_{self.name}")
+                    self.app.worker_manager.run(
+                        do_commit, name=f"vmcard:{self.internal_id}:commit"
+                    )
 
             self.app.push_screen(
                 ConfirmationDialog(
@@ -1450,7 +1494,9 @@ class VMCard(Static):
         logging.info(f"Attempting to save (hibernate) VM: {self.name}")
 
         def do_save():
-            self.stop_background_activities()
+            # Runs on the main thread: stopping the Textual timer is not
+            # thread-safe from the worker.
+            self.app.call_from_thread(self.stop_background_activities)
             self.app.vm_service.suppress_vm_events(self.internal_id)
             try:
                 hibernate_vm(self.vm)
@@ -1472,7 +1518,7 @@ class VMCard(Static):
                 self.app.vm_service.unsuppress_vm_events(self.internal_id)
 
         if self.status in (StatusText.RUNNING, StatusText.PAUSED):
-            self.app.worker_manager.run(do_save, name=f"save_{self.internal_id}")
+            self.app.worker_manager.run(do_save, name=f"vmcard:{self.internal_id}:save")
 
     def stop_background_activities(self):
         """Stop background activities before action"""
@@ -1595,7 +1641,7 @@ class VMCard(Static):
                 handle_xml_modal_result,
             )
 
-        self.app.worker_manager.run(fetch_xml_worker, name=f"xml_fetch_{internal_id}")
+        self.app.worker_manager.run(fetch_xml_worker, name=f"vmcard:{internal_id}:xml_fetch")
 
     def _handle_connect_button(self) -> None:
         """Handles the connect button press by running the remove virt viewer in a worker."""
@@ -1659,7 +1705,7 @@ class VMCard(Static):
                     self.app.show_error_message, ErrorMessages.UNEXPECTED_ERROR_CONNECTING
                 )
 
-        self.app.worker_manager.run(do_connect, name=f"r_viewer_{self.name}")
+        self.app.worker_manager.run(do_connect, name=f"vmcard:{self.internal_id}:r_viewer")
 
     def _handle_web_console_button(self) -> None:
         """Handles the web console button press by opening a config dialog."""
@@ -1751,7 +1797,6 @@ class VMCard(Static):
                 quiesce = result.get("quiesce", False)
 
                 self.stop_background_activities()
-                self.app.worker_manager.cancel(f"refresh_snapshot_tab_{internal_id}")
 
                 loading_modal = LoadingModal(message=f"Taking snapshot for {vm_name}...")
                 self.app.push_screen(loading_modal)
@@ -1791,7 +1836,9 @@ class VMCard(Static):
 
                     self.app.call_from_thread(finalize_snapshot)
 
-                self.app.worker_manager.run(do_snapshot, name=f"snapshot_take_{internal_id}")
+                self.app.worker_manager.run(
+                    do_snapshot, name=f"vmcard:{internal_id}:snapshot_take"
+                )
 
         self.app.push_screen(SnapshotNameDialog(vm), handle_snapshot_result)
 
@@ -1823,9 +1870,7 @@ class VMCard(Static):
                         if self.timer:
                             self.timer.stop()
                             self.timer = None
-                        self.app.worker_manager.cancel(f"update_stats_{internal_id}")
-                        self.app.worker_manager.cancel(f"actions_state_{internal_id}")
-                        self.app.worker_manager.cancel(f"refresh_snapshot_tab_{internal_id}")
+                        self.app.worker_manager.cancel_prefix(f"vmcard:{internal_id}:")
 
                         restore_loading_modal = LoadingModal(
                             message=f"Restoring snapshot {snapshot_name}..."
@@ -1876,7 +1921,7 @@ class VMCard(Static):
                             self.app.call_from_thread(finalize_ui)
 
                         self.app.worker_manager.run(
-                            do_restore, name=f"snapshot_restore_{internal_id}"
+                            do_restore, name=f"vmcard:{internal_id}:snapshot_restore"
                         )
 
                 self.app.call_from_thread(
@@ -1893,7 +1938,7 @@ class VMCard(Static):
                 )
 
         self.app.worker_manager.run(
-            fetch_and_show_worker, name=f"snapshot_restore_fetch_{self.internal_id}"
+            fetch_and_show_worker, name=f"vmcard:{self.internal_id}:snapshot_restore_fetch"
         )
 
     def _handle_snapshot_delete_button(self) -> None:
@@ -1972,7 +2017,7 @@ class VMCard(Static):
                                     self.app.call_from_thread(finalize_ui)
 
                                 self.app.worker_manager.run(
-                                    do_delete, name=f"snapshot_delete_{internal_id}"
+                                    do_delete, name=f"vmcard:{internal_id}:snapshot_delete"
                                 )
 
                         self.app.push_screen(
@@ -2000,7 +2045,7 @@ class VMCard(Static):
                 )
 
         self.app.worker_manager.run(
-            fetch_and_show_worker, name=f"snapshot_delete_fetch_{self.internal_id}"
+            fetch_and_show_worker, name=f"vmcard:{self.internal_id}:snapshot_delete_fetch"
         )
 
     def _handle_delete_button(self) -> None:
@@ -2030,8 +2075,7 @@ class VMCard(Static):
 
                 self.app.call_from_thread(stop_stats)
 
-                self.app.worker_manager.cancel(f"update_stats_{internal_id}")
-                self.app.worker_manager.cancel(f"actions_state_{internal_id}")
+                self.app.worker_manager.cancel_prefix(f"vmcard:{internal_id}:")
 
                 self.app.vm_service.suppress_vm_events(internal_id)
                 try:
@@ -2066,7 +2110,7 @@ class VMCard(Static):
                 finally:
                     self.app.call_from_thread(progress_modal.dismiss)
 
-            self.app.worker_manager.run(do_delete, name=f"delete_{internal_id}")
+            self.app.worker_manager.run(do_delete, name=f"vmcard:{internal_id}:delete")
 
         uri = self._get_uri()
         server_name = extract_server_name_from_uri(uri)
@@ -2097,8 +2141,7 @@ class VMCard(Static):
                     if self.timer:
                         self.timer.stop()
                         self.timer = None
-                    self.app.worker_manager.cancel(f"update_stats_{self.internal_id}")
-                    self.app.worker_manager.cancel(f"actions_state_{self.internal_id}")
+                    self.app.worker_manager.cancel_prefix(f"vmcard:{self.internal_id}:")
 
                 app.call_from_thread(stop_stats_workers)
 
@@ -2199,7 +2242,7 @@ class VMCard(Static):
                     # Restart stats worker
                     app.call_from_thread(self.update_stats)
 
-            app.worker_manager.run(do_clone, name=f"clone_{self.name}")
+            app.worker_manager.run(do_clone, name=f"vmcard:{self.internal_id}:clone")
 
         self.app.push_screen(AdvancedCloneDialog(self.name), handle_clone_results)
 
@@ -2258,7 +2301,9 @@ class VMCard(Static):
 
             def on_confirm_rename(confirmed: bool) -> None:
                 if confirmed:
-                    self.app.worker_manager.run(do_rename, name=f"rename_{self.name}")
+                    self.app.worker_manager.run(
+                        do_rename, name=f"vmcard:{self.internal_id}:rename"
+                    )
                 else:
                     self.app.show_success_message(SuccessMessages.VM_RENAME_CANCELLED)
 
@@ -2333,7 +2378,7 @@ class VMCard(Static):
 
                     self.app.call_from_thread(show_error, e)
 
-            self.app.worker_manager.run(get_details_worker, name=f"get_details_{uuid}")
+            self.app.worker_manager.run(get_details_worker, name=f"vmcard:{uuid}:get_details")
 
         except Exception as e:
             self.app.show_error_message(
@@ -2407,4 +2452,4 @@ class VMCard(Static):
             except Exception as e:
                 logging.error(f"Error fetching XML for tooltip: {e}")
 
-        self.app.worker_manager.run(fetch_worker, name=f"xml_tooltip_{self.internal_id}")
+        self.app.worker_manager.run(fetch_worker, name=f"vmcard:{self.internal_id}:xml_tooltip")

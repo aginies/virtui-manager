@@ -5,7 +5,6 @@ Create a VMcard pool
 import logging
 import threading
 
-from .constants import VmStatus
 from .vmcard import VMCard
 
 
@@ -67,19 +66,12 @@ class VMCardPool:
 
             card = self.active_cards.pop(uuid)
 
-            # Reset card state before returning to pool
+            # Reset card state before returning to pool (single source of
+            # truth for the reset, see VMCard.reset_for_reuse)
             try:
                 card.reset_for_reuse()
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logging.error("Error resetting card %s for reuse: %s", uuid, e)
-
-            card.vm = None
-            card.conn = None
-            card.name = ""
-            card.status = VmStatus.DEFAULT
-            card.cpu = 0
-            card.memory = 0
-            card.is_selected = False
 
             if len(self.available_cards) < self.pool_size:
                 self.available_cards.append(card)

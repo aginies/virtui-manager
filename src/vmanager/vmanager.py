@@ -175,6 +175,20 @@ class WorkerManager:
             return worker
         return None
 
+    def cancel_prefix(self, prefix: str) -> int:
+        """
+        Cancel all running workers whose name starts with the given prefix.
+
+        Returns the number of workers cancelled.
+        """
+        with self._lock:
+            names = [name for name in self.workers if name.startswith(prefix)]
+            workers = [self.workers.pop(name) for name in names]
+
+        for worker in workers:
+            worker.cancel()
+        return len(workers)
+
     def cancel_all(self) -> None:
         """Cancel all running workers."""
         with self._lock:
@@ -1695,8 +1709,7 @@ class VMManagerTUI(App):
                     if card.timer:
                         card.timer.stop()
                         card.timer = None
-                    self.worker_manager.cancel(f"update_stats_{card.internal_id}")
-                    self.worker_manager.cancel(f"actions_state_{card.internal_id}")
+                    self.worker_manager.cancel_prefix(f"vmcard:{card.internal_id}:")
 
                 self.call_from_thread(stop_card_workers)
 
@@ -1988,9 +2001,8 @@ class VMManagerTUI(App):
                     for widget in widgets_to_remove:
                         uuid = widget.internal_id
                         # Cancel any pending workers for this card before removing
-                        self.worker_manager.cancel(f"update_stats_{uuid}")
+                        self.worker_manager.cancel_prefix(f"vmcard:{uuid}:")
                         self.worker_manager.cancel(f"update_card_{uuid}")
-                        self.worker_manager.cancel(f"actions_state_{uuid}")
                         logging.debug(f"Cancelled workers for removed card {uuid}")
 
                         # Clean up sparkline data immediately

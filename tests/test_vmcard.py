@@ -15,6 +15,7 @@ builtins._ = lambda s: s
 from vmanager.constants import StatusText, VmAction, VMCardConstants
 from vmanager.events import VmActionRequest, VMNameClicked, VMSelectionChanged
 from vmanager.vmcard import VMCard
+from vmanager.vmcard_pool import VMCardPool
 
 
 class TestVMCard(unittest.TestCase):
@@ -378,9 +379,9 @@ class TestVMCard(unittest.TestCase):
         # Manually call update_stats (bypassing the patched version)
         VMCard.update_stats(self.vm_card)
 
-        # Verify worker was scheduled
+        # Verify worker was scheduled with the card-scoped name
         self.assertEqual(len(worker_called), 1)
-        self.assertIn("update_stats_uuid-123", worker_called[0][1])
+        self.assertEqual(worker_called[0][1], "vmcard:uuid-123:update_stats")
 
     def test_stats_data_fetch_worker_does_not_block_main_thread(self):
         """Test that _stats_data_fetch_worker properly offloads blocking operations."""
@@ -543,14 +544,10 @@ class TestVMCard(unittest.TestCase):
         if self.vm_card.timer:
             self.vm_card.timer.stop.assert_called_once()
 
-        # Verify all workers were cancelled
-        expected_cancellations = [
-            f"update_stats_{self.vm_card.internal_id}",
-            f"actions_state_{self.vm_card.internal_id}",
-        ]
-
-        for worker_name in expected_cancellations:
-            self.mock_app.worker_manager.cancel.assert_any_call(worker_name)
+        # Verify all workers for this VM were cancelled by prefix
+        self.mock_app.worker_manager.cancel_prefix.assert_called_once_with(
+            f"vmcard:{self.vm_card.internal_id}:"
+        )
 
     def test_timer_lock_prevents_race_conditions_in_update_stats(self):
         """Test that _timer_lock prevents concurrent timer creation."""
@@ -665,8 +662,41 @@ class TestVMCard(unittest.TestCase):
         # Call handler
         self.vm_card._handle_hibernate_button()
 
-        # Verify worker was scheduled
-        self.assertTrue(any("save_" in str(name) for name in worker_calls))
+        # Verify worker was scheduled with the card-scoped name
+        self.assertTrue(any("vmcard:uuid-123:save" == str(name) for name in worker_calls))
+
+    def test_hibernate_stops_background_activities_on_main_thread(self):
+        """Test that the hibernate worker stops background activities via the main thread."""
+        captured = {}
+
+        def mock_worker_run(func, name=None):
+            captured["func"] = func
+
+        self.mock_app.worker_manager.run = MagicMock(side_effect=mock_worker_run)
+        self.mock_app.call_from_thread = MagicMock()
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"), patch(
+            "vmanager.vmcard.hibernate_vm"
+        ) as mock_hibernate:
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.name = "test-vm"
+            self.vm_card.vm = MagicMock()
+
+            self.vm_card._handle_hibernate_button()
+
+            # Simulate the worker running and verify the timer stop is
+            # dispatched to the main thread instead of running in the
+            # worker thread.
+            self.vm_card.stop_background_activities = MagicMock()
+            captured["func"]()
+
+        self.mock_app.call_from_thread.assert_any_call(
+            self.vm_card.stop_background_activities
+        )
+        mock_hibernate.assert_called_once()
 
     def test_unmount_cancels_workers_to_prevent_stale_updates(self):
         """Test that on_unmount properly cancels workers."""
@@ -685,20 +715,10 @@ class TestVMCard(unittest.TestCase):
         if self.vm_card.timer:
             self.vm_card.timer.stop.assert_called_once()
 
-        # Verify all 8 workers were cancelled to prevent stale updates
-        expected_worker_cancellations = [
-            f"update_stats_{self.vm_card.internal_id}",
-            f"actions_state_{self.vm_card.internal_id}",
-            f"snapshot_take_{self.vm_card.internal_id}",
-            f"snapshot_delete_fetch_{self.vm_card.internal_id}",
-            f"save_{self.vm_card.internal_id}",
-            f"delete_{self.vm_card.internal_id}",
-            f"xml_tooltip_{self.vm_card.internal_id}",
-            f"get_details_{self.vm_card.internal_id}",
-        ]
-
-        for worker_name in expected_worker_cancellations:
-            self.mock_app.worker_manager.cancel.assert_any_call(worker_name)
+        # Verify all workers for this VM were cancelled by prefix
+        self.mock_app.worker_manager.cancel_prefix.assert_called_once_with(
+            f"vmcard:{self.vm_card.internal_id}:"
+        )
 
     # ========================================================================
     # REACTIVE PROPERTY WATCHER TESTS
@@ -1384,9 +1404,8 @@ class TestVMCard(unittest.TestCase):
         ), patch.object(self.vm_card, "_perform_tooltip_update"):
             VMCard.watch_internal_id(self.vm_card, "old-uuid-123", "new-uuid-456")
 
-        # Verify old workers were cancelled
-        self.mock_app.worker_manager.cancel.assert_any_call("update_stats_old-uuid-123")
-        self.mock_app.worker_manager.cancel.assert_any_call("actions_state_old-uuid-123")
+        # Verify old workers were cancelled by prefix
+        self.mock_app.worker_manager.cancel_prefix.assert_any_call("vmcard:old-uuid-123:")
 
     # ========================================================================
     # ERROR HANDLING TESTS
@@ -1437,6 +1456,33 @@ class TestVMCard(unittest.TestCase):
 
         # Verify force refresh was triggered
         self.mock_app.refresh_vm_list.assert_called_once_with(force=True)
+
+    def test_handle_stats_error_ignores_stale_uuid(self):
+        """Test _handle_stats_error discards errors for a reused card."""
+        import libvirt
+
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-new"
+            self.vm_card.timer = MagicMock()
+
+        mock_error = MagicMock()
+        mock_error.get_error_code.return_value = libvirt.VIR_ERR_NO_DOMAIN
+
+        result = {
+            "uuid": "uuid-old",
+            "error": mock_error,
+            "error_code": libvirt.VIR_ERR_NO_DOMAIN,
+        }
+
+        self.mock_app.refresh_vm_list = MagicMock()
+
+        VMCard._handle_stats_error(self.vm_card, result)
+
+        # Verify the stale error was ignored
+        self.vm_card.timer.stop.assert_not_called()
+        self.mock_app.refresh_vm_list.assert_not_called()
 
     # ========================================================================
     # APPLY STATS UPDATE TESTS
@@ -1512,6 +1558,42 @@ class TestVMCard(unittest.TestCase):
         self.assertEqual(self.vm_card.latest_disk_read, 100)
         self.assertEqual(self.vm_card.latest_disk_write, 200)
 
+    def test_apply_stats_update_ignores_stale_uuid(self):
+        """Test _apply_stats_update discards results for a reused card."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-new"
+            self.vm_card.status = StatusText.STOPPED
+
+        result = {
+            "uuid": "uuid-old",
+            "stats": {
+                "status": StatusText.RUNNING,
+                "cpu_percent": 50,
+                "mem_percent": 60,
+                "disk_read_kbps": 100,
+                "disk_write_kbps": 200,
+                "net_rx_kbps": 50,
+                "net_tx_kbps": 75,
+            },
+            "ips": [{"ipv4": ["192.168.1.100"]}],
+            "boot_device": "hd",
+            "cpu_model": "Skylake",
+            "graphics_type": "spice",
+            "boot_device_checked": True,
+        }
+
+        with patch.object(VMCard, "is_mounted", new_callable=PropertyMock) as mock_mounted:
+            mock_mounted.return_value = True
+            VMCard._apply_stats_update(self.vm_card, result)
+
+        # Verify nothing was applied from the stale result
+        self.assertEqual(self.vm_card.status, StatusText.STOPPED)
+        self.assertEqual(self.vm_card.ip_addresses, [])
+        self.assertEqual(self.vm_card.boot_device, "")
+        self.assertEqual(self.vm_card.cpu_model, "")
+
     # ========================================================================
     # RESET AND REUSE TESTS
     # ========================================================================
@@ -1531,11 +1613,62 @@ class TestVMCard(unittest.TestCase):
 
         # Verify timer was stopped
         self.assertIsNone(self.vm_card.timer)
-        # Verify workers were cancelled
-        self.mock_app.worker_manager.cancel.assert_any_call("update_stats_uuid-123")
-        self.mock_app.worker_manager.cancel.assert_any_call("actions_state_uuid-123")
+        # Verify workers were cancelled by prefix
+        self.mock_app.worker_manager.cancel_prefix.assert_any_call("vmcard:uuid-123:")
         # Verify flag was reset
         self.assertFalse(self.vm_card._boot_device_checked)
+
+    def test_reset_for_reuse_clears_display_state(self):
+        """Test reset_for_reuse clears all per-VM state so no stale data lingers."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.vm = MagicMock()
+            self.vm_card.conn = MagicMock()
+            self.vm_card.name = "test-vm"
+            self.vm_card.status = StatusText.RUNNING
+            self.vm_card.cpu = 2
+            self.vm_card.memory = 2048
+            self.vm_card.ip_addresses = [{"ipv4": ["192.168.1.100"]}]
+            self.vm_card.boot_device = "hd"
+            self.vm_card.cpu_model = "Skylake"
+            self.vm_card.graphics_type = "spice"
+            self.vm_card.webc_status_indicator = " 🌐"
+            self.vm_card.latest_cpu_percent = 42.0
+            self.vm_card.latest_mem_percent = 43.0
+            self.vm_card.latest_disk_read = 10.0
+            self.vm_card.latest_disk_write = 20.0
+            self.vm_card.latest_net_rx = 30.0
+            self.vm_card.latest_net_tx = 40.0
+            self.vm_card.stats_view_mode = "io"
+            self.vm_card.is_selected = True
+
+        self.mock_app.worker_manager.cancel = MagicMock()
+
+        VMCard.reset_for_reuse(self.vm_card)
+
+        # Verify libvirt references and core data were reset
+        self.assertIsNone(self.vm_card.vm)
+        self.assertIsNone(self.vm_card.conn)
+        self.assertEqual(self.vm_card.name, "")
+        self.assertEqual(self.vm_card.status, StatusText.LOADING)
+        self.assertEqual(self.vm_card.cpu, 0)
+        self.assertEqual(self.vm_card.memory, 0)
+        self.assertFalse(self.vm_card.is_selected)
+        # Verify per-VM display state was cleared
+        self.assertEqual(self.vm_card.ip_addresses, [])
+        self.assertEqual(self.vm_card.boot_device, "")
+        self.assertEqual(self.vm_card.cpu_model, "")
+        self.assertIsNone(self.vm_card.graphics_type)
+        self.assertEqual(self.vm_card.webc_status_indicator, "")
+        self.assertEqual(self.vm_card.latest_cpu_percent, 0.0)
+        self.assertEqual(self.vm_card.latest_mem_percent, 0.0)
+        self.assertEqual(self.vm_card.latest_disk_read, 0.0)
+        self.assertEqual(self.vm_card.latest_disk_write, 0.0)
+        self.assertEqual(self.vm_card.latest_net_rx, 0.0)
+        self.assertEqual(self.vm_card.latest_net_tx, 0.0)
+        self.assertEqual(self.vm_card.stats_view_mode, "resources")
 
     # ========================================================================
     # WEB CONSOLE STATUS TESTS
@@ -1674,6 +1807,41 @@ class TestVMCard(unittest.TestCase):
         with patch.object(self.vm_card, "_fetch_xml_and_update_tooltip") as mock_fetch:
             VMCard.on_click_vmname(self.vm_card)
             mock_fetch.assert_called_once()
+
+
+class TestVMCardPool(unittest.TestCase):
+    def setUp(self):
+        self._token = active_app.set(MagicMock())
+        with patch("textual.widgets.Static._on_mount"), patch(
+            "textual.widgets.Static.render"
+        ):
+            self.card = VMCard()
+
+    def tearDown(self):
+        active_app.reset(self._token)
+
+    def test_release_card_resets_state_for_reuse(self):
+        """Test release_card fully resets card state (status, refs, display data)."""
+        pool = VMCardPool(2)
+        self.card.internal_id = "uuid-123"
+        self.card.vm = MagicMock()
+        self.card.conn = MagicMock()
+        self.card.name = "test-vm"
+        self.card.status = StatusText.RUNNING
+        self.card.ip_addresses = [{"ipv4": ["192.168.1.100"]}]
+        self.card.boot_device = "hd"
+        pool.active_cards["uuid-123"] = self.card
+
+        pool.release_card("uuid-123")
+
+        # Status must be a valid StatusText value, not the filter constant
+        self.assertEqual(self.card.status, StatusText.LOADING)
+        self.assertIsNone(self.card.vm)
+        self.assertIsNone(self.card.conn)
+        self.assertEqual(self.card.name, "")
+        self.assertEqual(self.card.ip_addresses, [])
+        self.assertEqual(self.card.boot_device, "")
+        self.assertIn(self.card, pool.available_cards)
 
 
 if __name__ == "__main__":

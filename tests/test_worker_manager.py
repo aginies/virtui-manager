@@ -74,6 +74,35 @@ class TestWorkerManager(unittest.TestCase):
         cancelled_worker = self.worker_manager.cancel("non_existent")
         self.assertIsNone(cancelled_worker)
 
+    def test_cancel_prefix(self):
+        """Test canceling all workers matching a name prefix."""
+        mock_callable = MagicMock()
+
+        # Start a few workers with card-scoped names
+        worker_a = self.worker_manager.run(
+            mock_callable, name="vmcard:uuid-1:save", exclusive=True
+        )
+        worker_b = self.worker_manager.run(
+            mock_callable, name="vmcard:uuid-1:delete", exclusive=True
+        )
+        worker_c = self.worker_manager.run(
+            mock_callable, name="vmcard:uuid-2:save", exclusive=True
+        )
+        self.assertIsNotNone(worker_a)
+        self.assertIsNotNone(worker_b)
+        self.assertIsNotNone(worker_c)
+
+        # Cancel only the workers for uuid-1
+        count = self.worker_manager.cancel_prefix("vmcard:uuid-1:")
+
+        self.assertEqual(count, 2)
+        self.assertFalse(self.worker_manager.is_running("vmcard:uuid-1:save"))
+        self.assertFalse(self.worker_manager.is_running("vmcard:uuid-1:delete"))
+        self.assertTrue(self.worker_manager.is_running("vmcard:uuid-2:save"))
+
+        # Cancelling again finds nothing
+        self.assertEqual(self.worker_manager.cancel_prefix("vmcard:uuid-1:"), 0)
+
     def test_cancel_all(self):
         """Test canceling all workers."""
         mock_callable = MagicMock()

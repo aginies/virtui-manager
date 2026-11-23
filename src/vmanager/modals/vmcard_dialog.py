@@ -41,6 +41,7 @@ class VMActionsModal(BaseModal[Optional[str]]):
         vm_name: str,
         vm_status: str,
         vm=None,
+        vm_internal_id: str = "",
         r_viewer_available: bool = True,
         graphics_type: str | None = None,
     ) -> None:
@@ -48,6 +49,7 @@ class VMActionsModal(BaseModal[Optional[str]]):
         self.vm_name = vm_name
         self.vm_status = vm_status
         self.vm = vm
+        self.vm_internal_id = vm_internal_id
         self.r_viewer_available = r_viewer_available
         self.graphics_type = graphics_type
 
@@ -90,7 +92,10 @@ class VMActionsModal(BaseModal[Optional[str]]):
                 self._apply_button_visibility, has_snapshots, has_overlay_disks
             )
 
-        self.app.worker_manager.run(fetch_state, name=f"vm_actions_state_{self.vm_name}")
+        # Keyed by UUID (stable across renames) under the card worker prefix
+        # so the card can cancel it along with the VM's other workers.
+        key = self.vm_internal_id or self.vm_name
+        self.app.worker_manager.run(fetch_state, name=f"vmcard:{key}:actions_state")
 
     def _apply_button_visibility(
         self, has_snapshots: bool, has_overlay_disks: bool
