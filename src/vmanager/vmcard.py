@@ -2575,7 +2575,10 @@ class VMCard(Static):
             self.app.initiate_migration([self.vm])
             return
 
+        # Capture at dispatch: the fallback below must use this VM even if
+        # the card is reassigned while the lookup runs.
         internal_id = self.internal_id
+        vm = self.vm
 
         def find_domains():
             try:
@@ -2590,7 +2593,7 @@ class VMCard(Static):
                 )
                 return
             self.app.call_from_thread(
-                self._start_migration, found_domains_dict, selected_vm_uuids, internal_id
+                self._start_migration, found_domains_dict, selected_vm_uuids, internal_id, vm
             )
 
         self.app.worker_manager.run(
@@ -2602,6 +2605,7 @@ class VMCard(Static):
         found_domains_dict: dict,
         selected_vm_uuids: list[str],
         expected_uuid: str,
+        vm=None,
     ) -> None:
         """Main-thread continuation of the migration domain lookup."""
         if expected_uuid and expected_uuid != self.internal_id:
@@ -2619,7 +2623,12 @@ class VMCard(Static):
                     )
                 )
         if not selected_vms:
-            selected_vms = [self.vm]
+            # Fall back to the VM captured at dispatch, not the card's current
+            # VM (the card may have been reassigned while the lookup ran).
+            if vm is not None:
+                selected_vms = [vm]
+            else:
+                return
 
         logging.info(f"Migration initiated for VMs: {[vm.name() for vm in selected_vms]}")
 

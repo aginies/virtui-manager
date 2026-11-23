@@ -1540,10 +1540,55 @@ class TestVMCard(unittest.TestCase):
         self.mock_app.vm_service.find_domains_by_uuids.assert_called_once()
         args = self.mock_app.call_from_thread.call_args[0]
         self.assertEqual(args[0], self.vm_card._start_migration)
+        # The dispatch-time VM is passed through for the fallback
+        self.assertIs(args[4], self.vm_card.vm)
 
         domain = self.mock_app.vm_service.find_domains_by_uuids.return_value["uuid-a"]
         self.vm_card._start_migration({"uuid-a": domain}, ["uuid-a"], "uuid-123")
         self.mock_app.initiate_migration.assert_called_once_with([domain])
+
+    def test_start_migration_fallback_uses_captured_vm(self):
+        """When no selected VM is found, the fallback must migrate the VM
+        captured at dispatch, not the card's current self.vm (which may have
+        changed since dispatch, e.g. with an empty expected_uuid)."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            vm_at_dispatch = MagicMock()
+            self.vm_card.vm = vm_at_dispatch
+
+        self.mock_app.initiate_migration = MagicMock()
+
+        # self.vm changed after dispatch (guard passes for an empty expected_uuid)
+        self.vm_card.vm = MagicMock()
+
+        self.vm_card._start_migration({}, ["uuid-a"], "", vm_at_dispatch)
+        self.mock_app.initiate_migration.assert_called_once_with([vm_at_dispatch])
+
+    def test_start_migration_dropped_when_card_reused(self):
+        """A migration continuation for a reassigned card must not start."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "other-uuid"
+
+        self.mock_app.initiate_migration = MagicMock()
+        self.vm_card._start_migration({"uuid-a": MagicMock()}, ["uuid-a"], "uuid-123", MagicMock())
+        self.mock_app.initiate_migration.assert_not_called()
+
+    def test_start_migration_without_captured_vm_does_not_fallback(self):
+        """With no captured VM, the empty-result fallback must not migrate
+        the card's current VM."""
+        with patch.object(VMCard, "update_button_layout"), patch.object(
+            VMCard, "update_stats"
+        ), patch.object(VMCard, "_perform_tooltip_update"):
+            self.vm_card.internal_id = "uuid-123"
+            self.vm_card.vm = MagicMock()
+
+        self.mock_app.initiate_migration = MagicMock()
+        self.vm_card._start_migration({}, ["uuid-a"], "uuid-123")
+        self.mock_app.initiate_migration.assert_not_called()
 
     def test_migration_button_without_selection_migrates_card_vm(self):
         """With no selection, the card's own VM is migrated without a worker."""
