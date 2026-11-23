@@ -1,5 +1,9 @@
 # VirtUI Manager
 
+**WEB-DASHBOARD BRANCH IS EXPERIMENTAL AND VIBE CODED**
+There is no plan to use it or publish it officialy
+
+
 [Project Website](https://aginies.github.io/virtui-manager/)
 
 A powerful, text-based Terminal User Interface (TUI) application for managing QEMU/KVM virtual machines using the libvirt Python API. 
