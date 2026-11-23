@@ -1,10 +1,12 @@
+import asyncio
 import builtins
 import copy
+import json
 import os
 import sys
 import unittest
 import urllib.parse
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -857,6 +859,215 @@ class TestWebApiEventsWS(unittest.TestCase):
         self.vm_service.set_vm_update_callback.assert_called_once()
         self.vm_service.set_data_update_callback.assert_called_once()
         self.vm_service.set_message_callback.assert_called_once()
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestWebApiHostStats(unittest.TestCase):
+    """Host dashboard stats endpoint."""
+
+    STATS = {
+        "uri": "qemu:///system", "server": "Local", "model": "Xeon",
+        "mhz": 3000, "sockets": 2, "cores": 8, "threads": 16,
+        "total_cpus": 32, "used_cpus": 8, "cpu_percent": 25.0,
+        "total_memory_mb": 65536, "used_memory_mb": 16384,
+        "free_memory_mb": 40000, "mem_percent": 25.0,
+    }
+
+    def setUp(self):
+        self.backend = MagicMock()
+        self.backend.config = {"STATS_INTERVAL": 1}
+        self.backend.host_stats.return_value = dict(self.STATS)
+        self.app = create_app(self.backend, TOKEN, stats_interval=1)
+        self.client = TestClient(self.app)
+        self.auth = {"Authorization": f"Bearer {TOKEN}"}
+
+    def test_host_stats(self):
+        resp = self.client.get(
+            "/api/servers/stats", params={"uri": "qemu:///system"}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["used_cpus"], 8)
+        self.assertEqual(data["cpu_percent"], 25.0)
+        self.assertEqual(data["total_memory_mb"], 65536)
+        self.backend.host_stats.assert_called_once_with("qemu:///system")
+
+    def test_host_stats_requires_token(self):
+        resp = self.client.get("/api/servers/stats", params={"uri": "qemu:///system"})
+        self.assertEqual(resp.status_code, 401)
+
+    def test_host_stats_disconnected_maps_409(self):
+        self.backend.host_stats.side_effect = ConnectionError("Server not connected: x")
+        resp = self.client.get(
+            "/api/servers/stats", params={"uri": "qemu:///x"}, headers=self.auth
+        )
+        self.assertEqual(resp.status_code, 409)
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestStatsCollector(unittest.TestCase):
+    """Shared collector: scoped collection and per-subscriber filtering."""
+
+    def _run_scenario(self, uris):
+        from vmanager.web.api import StatsCollector
+
+        backend = MagicMock()
+        backend.stats_snapshot.return_value = {
+            "u1@qemu:///system": {"status": "Running"},
+            "u2@qemu:///other": {"status": "Running"},
+        }
+        collector = StatsCollector(backend, interval=60)
+
+        async def scenario():
+            sub = collector.subscribe()
+            sub.uris = uris
+            collector.ensure_running()
+            payload = await asyncio.wait_for(sub.queue.get(), timeout=5)
+            collector._task.cancel()  # noqa: SLF001
+            try:
+                await collector._task  # noqa: SLF001
+            except asyncio.CancelledError:
+                pass
+            collector.unsubscribe(sub)
+            return json.loads(payload), backend.stats_snapshot.call_args
+
+        return asyncio.run(scenario())
+
+    def test_scoped_collection_and_filtering(self):
+        data, call_args = self._run_scenario({"qemu:///system"})
+        self.assertIn("u1@qemu:///system", data["stats"])
+        self.assertNotIn("u2@qemu:///other", data["stats"])
+        self.assertEqual(call_args[0][0], ["qemu:///system"])
+
+    def test_empty_selection_collects_nothing(self):
+        data, call_args = self._run_scenario(set())
+        self.assertEqual(data["stats"], {})
+        self.assertIsNone(call_args)  # backend never hit
+
+    def test_none_selection_collects_all(self):
+        data, call_args = self._run_scenario(None)
+        self.assertEqual(len(data["stats"]), 2)
+        self.assertIsNone(call_args[0][0])  # uris=None -> every server
+
+
+@pytest.mark.skipif(not HAS_WEB_DEPS, reason="fastapi/uvicorn not installed")
+class TestBackendCaching(unittest.TestCase):
+    """Lease-IP and host-resource caches; scoped stats collection."""
+
+    @staticmethod
+    def _make_backend():
+        vm_service = MagicMock()
+        return Backend(config={"servers": []}, vm_service=vm_service), vm_service
+
+    def test_ip_cache_avoids_repeated_lookups(self):
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        domain.state.return_value = (5, 0)  # VIR_DOMAIN_SHUTOFF -> no lease lookup
+        self.assertIsNone(backend._cached_first_ipv4("id@uri", domain))  # noqa: SLF001
+        self.assertIsNone(backend._cached_first_ipv4("id@uri", domain))  # noqa: SLF001
+        domain.state.assert_called_once()  # second call served from cache
+
+    def test_ip_cache_invalidated_on_vm_event(self):
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        domain.state.return_value = (5, 0)
+        backend._cached_first_ipv4("id@uri", domain)  # noqa: SLF001
+        backend._on_vm_update("id@uri")  # noqa: SLF001
+        backend._cached_first_ipv4("id@uri", domain)  # noqa: SLF001
+        self.assertEqual(domain.state.call_count, 2)
+
+    def test_positive_ip_cached(self):
+        import libvirt as libvirt_mod
+
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        domain.state.return_value = (1, 0)  # VIR_DOMAIN_RUNNING
+        domain.interfaceAddresses.return_value = {
+            "vnet0": {
+                "hwaddr": "52:54:00:12:34:56",
+                "addrs": [
+                    {"addr": "192.168.122.5", "prefix": 24,
+                     "type": libvirt_mod.VIR_IP_ADDR_TYPE_IPV4}
+                ],
+            }
+        }
+        ip1 = backend._cached_first_ipv4("id@uri", domain)  # noqa: SLF001
+        ip2 = backend._cached_first_ipv4("id@uri", domain)  # noqa: SLF001
+        self.assertEqual(ip1, "192.168.122.5")
+        self.assertEqual(ip2, "192.168.122.5")
+        domain.interfaceAddresses.assert_called_once()  # second served from cache
+
+    def test_stopped_vm_skips_ip_lookup_entirely(self):
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        # state 5 = VIR_DOMAIN_SHUTOFF: caller passes it, no RPC needed
+        self.assertIsNone(backend._cached_first_ipv4("id@uri", domain, state=5))  # noqa: SLF001
+        domain.state.assert_not_called()
+        domain.interfaceAddresses.assert_not_called()
+
+    def test_info_cache_avoids_repeated_rpc(self):
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        domain.info.return_value = (1, 4096 * 1024, 2048 * 1024, 4, 0)
+        i1 = backend._cached_domain_info("id@uri", domain)  # noqa: SLF001
+        i2 = backend._cached_domain_info("id@uri", domain)  # noqa: SLF001
+        domain.info.assert_called_once()  # second call served from cache
+        self.assertEqual(i1, i2)
+
+    def test_info_cache_invalidated_on_vm_event(self):
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        domain.info.return_value = (1, 4096 * 1024, 2048 * 1024, 4, 0)
+        backend._cached_domain_info("id@uri", domain)  # noqa: SLF001
+        backend._on_vm_update("id@uri")  # noqa: SLF001
+        backend._cached_domain_info("id@uri", domain)  # noqa: SLF001
+        self.assertEqual(domain.info.call_count, 2)
+
+    def test_info_cache_cleared_on_inventory_event(self):
+        backend, _ = self._make_backend()
+        domain = MagicMock()
+        domain.info.return_value = (1, 4096 * 1024, 2048 * 1024, 4, 0)
+        backend._cached_domain_info("id@uri", domain)  # noqa: SLF001
+        backend._on_data_update()  # noqa: SLF001
+        backend._cached_domain_info("id@uri", domain)  # noqa: SLF001
+        self.assertEqual(domain.info.call_count, 2)
+
+    def test_host_resources_cached(self):
+        backend, vm_service = self._make_backend()
+        vm_service.connection_manager.get_connection.return_value = MagicMock()
+        host_res = {
+            "total_cpus": 8, "available_memory": 16384, "free_memory": 8192,
+            "model": "Xeon", "mhz": 3000, "sockets": 1, "cores": 8, "threads": 1,
+        }
+        alloc = {"active_allocated_vcpus": 2, "active_allocated_memory": 2048}
+        with patch("vmanager.web.api.load_config", return_value={"servers": []}), \
+             patch("vmanager.web.api.get_host_resources", return_value=host_res) as ghr, \
+             patch("vmanager.web.api.get_active_vm_allocation", return_value=alloc):
+            s1 = backend.host_stats("qemu:///system")
+            s2 = backend.host_stats("qemu:///system")
+        ghr.assert_called_once()  # second call served from cache
+        self.assertEqual(s1["cpu_percent"], 25.0)
+        self.assertEqual(s2["used_cpus"], 2)
+
+    def test_stats_snapshot_filters_uris(self):
+        backend, vm_service = self._make_backend()
+        cm = vm_service.connection_manager
+        conn1, conn2 = MagicMock(), MagicMock()
+        cm.get_all_uris.return_value = ["qemu:///one", "qemu:///two"]
+        cm.get_connection.side_effect = lambda uri: {
+            "qemu:///one": conn1, "qemu:///two": conn2,
+        }.get(uri)
+        d1, d2 = MagicMock(), MagicMock()
+        d1.UUIDString.return_value = "u1"
+        d2.UUIDString.return_value = "u2"
+        conn1.listAllDomains.return_value = [d1]
+        conn2.listAllDomains.return_value = [d2]
+        vm_service.get_vm_runtime_stats.side_effect = lambda domain: {"status": "Running"}
+        with patch("vmanager.web.api.load_config", return_value={"servers": []}):
+            stats = backend.stats_snapshot(uris=["qemu:///one"])
+        self.assertIn("u1@qemu:///one", stats)
+        self.assertNotIn("u2@qemu:///two", stats)
+        conn2.listAllDomains.assert_not_called()
 
 
 if __name__ == "__main__":

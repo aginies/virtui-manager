@@ -31,6 +31,61 @@ body {
 
 /* -- header ---------------------------------------------------------- */
 
+/* -- host stats strip ------------------------------------------------ */
+
+#hosts {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 16px 0;
+}
+
+.host-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 250px;
+  cursor: default;
+}
+.host-panel:hover { border-color: var(--text-dim); }
+
+.host-name { font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+
+.host-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.host-bar-label { width: 30px; flex: none; letter-spacing: 0.4px; }
+
+.host-bar {
+  flex: 1;
+  height: 8px;
+  min-width: 90px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.host-bar .fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s;
+}
+.host-bar .fill.green { background: var(--running); }
+.host-bar .fill.yellow { background: #e6d340; }
+.host-bar .fill.orange { background: #ff9800; }
+.host-bar .fill.red { background: var(--error); }
+
+.host-bar-text { white-space: nowrap; font-family: monospace; }
+
 header {
   display: flex;
   align-items: center;

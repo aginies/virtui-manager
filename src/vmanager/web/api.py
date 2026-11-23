@@ -41,7 +41,11 @@ from pydantic import BaseModel
 
 from ..config import load_config, save_config
 from ..constants import VmAction
-from ..libvirt_utils import get_internal_id
+from ..libvirt_utils import (
+    get_active_vm_allocation,
+    get_host_resources,
+    get_internal_id,
+)
 from ..modals.input_modals import _sanitize_domain_name
 from ..modals.server_modals import _is_valid_server_uri
 from ..network_manager import (
@@ -191,6 +195,92 @@ class EventBus:
                 pass
 
 
+class StatsSubscription:
+    """One /ws/stats client: its delivery queue and server selection."""
+
+    __slots__ = ("queue", "uris")
+
+    def __init__(self):
+        self.queue: asyncio.Queue = asyncio.Queue(maxsize=8)
+        self.uris = None  # None = all servers; set() = nothing selected
+
+
+class StatsCollector:
+    """Single background stats loop shared by all /ws/stats clients.
+
+    Previously each client ran its own collection loop, so N open tabs
+    meant N times the libvirt/SSH load. The collector runs once per
+    interval, gathers the union of the subscribers' server selections and
+    fans out filtered payloads (bounded queues, drop-oldest on overflow).
+    It starts lazily with the first subscriber and stops after the last
+    one leaves, so an idle dashboard costs nothing.
+    """
+
+    def __init__(self, backend: "Backend", interval: int):
+        self.backend = backend
+        self.interval = max(1, int(interval))
+        self._subs: set = set()
+        self._task = None
+
+    def subscribe(self) -> StatsSubscription:
+        sub = StatsSubscription()
+        self._subs.add(sub)
+        return sub
+
+    def unsubscribe(self, sub: StatsSubscription) -> None:
+        self._subs.discard(sub)
+
+    def ensure_running(self) -> None:
+        """(Re)start the loop; must be called from the event loop thread."""
+        if self._task is None or self._task.done():
+            self._task = asyncio.get_running_loop().create_task(self._run())
+
+    @staticmethod
+    def _deliver(sub: StatsSubscription, payload: str) -> None:
+        try:
+            sub.queue.put_nowait(payload)
+        except asyncio.QueueFull:
+            try:
+                sub.queue.get_nowait()
+                sub.queue.put_nowait(payload)
+            except Exception:  # pylint: disable=broad-except
+                pass
+
+    async def _run(self) -> None:
+        try:
+            while self._subs:
+                want_all = False
+                union: set = set()
+                for sub in list(self._subs):
+                    if sub.uris is None:
+                        want_all = True
+                        break
+                    union |= sub.uris
+
+                stats = {}
+                if want_all or union:
+                    stats = await run_in_threadpool(
+                        self.backend.stats_snapshot, None if want_all else sorted(union)
+                    )
+
+                ts = time.time()
+                for sub in list(self._subs):
+                    if sub.uris is None:
+                        payload = stats
+                    else:
+                        payload = {
+                            key: value
+                            for key, value in stats.items()
+                            if key.partition("@")[2] in sub.uris
+                        }
+                    self._deliver(sub, json.dumps({"ts": ts, "stats": payload}))
+                await asyncio.sleep(self.interval)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # pylint: disable=broad-except
+            logger.error("Stats collector crashed", exc_info=True)
+
+
 class ServerConnectRequest(BaseModel):
     """Body of POST /api/servers/{connect,disconnect}."""
 
@@ -329,6 +419,19 @@ class Backend:
     thread, never from the event loop directly.
     """
 
+    # Lease IPs: positive results change only across reboots (lifecycle
+    # events invalidate immediately), so cache them long; None results are
+    # retried soon because DHCP may still be pending after a VM boots.
+    IP_CACHE_TTL = 300
+    IP_CACHE_MISS_TTL = 30
+    # domain.info() is 1 RPC per VM (the dominant inventory cost). Freshness
+    # is guaranteed by lifecycle-event invalidation; the TTL is only a safety
+    # net, and must exceed the frontend's 30s refresh cycle so periodic
+    # refreshes stay warm.
+    INFO_CACHE_TTL = 120
+    NAME_MAP_TTL = 5       # seconds; URI->name read from config on every snapshot
+    HOST_RES_TTL = 60      # seconds; host hardware info is effectively static
+
     def __init__(self, config: Optional[dict] = None, vm_service=None):
         self.config = config if config is not None else load_config()
         if vm_service is not None:
@@ -349,6 +452,10 @@ class Backend:
         except Exception:  # pylint: disable=broad-except
             logger.debug("Could not register VMService event callbacks", exc_info=True)
         self._config_lock = threading.Lock()
+        self._ip_cache: dict = {}        # internal_id -> (ts, ipv4|None)
+        self._info_cache: dict = {}      # internal_id -> (ts, domain.info() tuple)
+        self._name_map_cache = None      # (ts, {uri: name})
+        self._host_res_cache: dict = {}  # uri -> (ts, host_resources dict)
         self._webconsole_manager = None
         self._webconsole_stub = None
         self._console_lock = threading.Lock()
@@ -356,9 +463,14 @@ class Backend:
     # -- connections -------------------------------------------------------
 
     def _on_vm_update(self, internal_id: str) -> None:
+        # State changed: cached info/IP for this VM may be stale.
+        self._info_cache.pop(internal_id, None)
+        self._ip_cache.pop(internal_id, None)
         self.event_bus.publish_threadsafe({"type": "vm", "id": internal_id, "ts": time.time()})
 
     def _on_data_update(self) -> None:
+        # VM defined/undefined: the whole inventory may have shifted.
+        self._info_cache.clear()
         self.event_bus.publish_threadsafe({"type": "inventory", "ts": time.time()})
 
     def _on_message(self, level, message) -> None:
@@ -373,9 +485,15 @@ class Backend:
         """Server entries from the on-disk config (picks up TUI/CLI edits)."""
         return [s for s in load_config().get("servers", []) if s.get("uri")]
 
-    @classmethod
-    def _server_name_map(cls) -> dict:
-        return {s["uri"]: s.get("name") for s in cls._configured_servers()}
+    def _server_name_map(self) -> dict:
+        """URI -> display name; briefly cached (read on every snapshot)."""
+        now = time.time()
+        hit = self._name_map_cache
+        if hit is not None and now - hit[0] < self.NAME_MAP_TTL:
+            return hit[1]
+        name_map = {s["uri"]: s.get("name") for s in self._configured_servers()}
+        self._name_map_cache = (now, name_map)
+        return name_map
 
     def connect_configured_servers(self) -> None:
         """Connect to every server listed in the configuration.
@@ -437,6 +555,7 @@ class Backend:
             raise LookupError(f"No such server: {uri}")
         logger.info("Web disconnect from %s", sanitize_sensitive_data(uri))
         self.connection_manager.disconnect(uri)
+        self._host_res_cache.pop(uri, None)
         return self._server_entry(server)
 
     @staticmethod
@@ -460,6 +579,7 @@ class Backend:
             servers.append(entry)
             config["servers"] = servers
             save_config(config)
+        self._name_map_cache = None
         logger.info("Web added server %s", sanitize_sensitive_data(uri))
         return self._server_entry(entry)
 
@@ -481,6 +601,7 @@ class Backend:
             servers[index] = entry
             config["servers"] = servers
             save_config(config)
+        self._name_map_cache = None
         if uri != original_uri:
             # The old connection (if any) points at the previous URI.
             self.connection_manager.disconnect(original_uri)
@@ -496,9 +617,46 @@ class Backend:
                 raise LookupError(f"No such server: {uri}")
             config["servers"] = remaining
             save_config(config)
+        self._name_map_cache = None
         self.connection_manager.disconnect(uri)
+        self._host_res_cache.pop(uri, None)
         logger.info("Web deleted server %s", sanitize_sensitive_data(uri))
         return {"deleted": uri}
+
+    # -- host statistics -------------------------------------------------------
+
+    def host_stats(self, uri: str) -> dict:
+        """Host-level CPU/RAM view, same numbers as the TUI host stats bar
+        (allocated vCPUs/RAM of active VMs vs host capacity)."""
+        conn = self._get_conn(uri)
+        now = time.time()
+        hit = self._host_res_cache.get(uri)
+        if hit is not None and now - hit[0] < self.HOST_RES_TTL:
+            host_res = hit[1]
+        else:
+            host_res = get_host_resources(conn)
+            self._host_res_cache[uri] = (now, host_res)
+        alloc = get_active_vm_allocation(conn)
+        total_cpus = int(host_res.get("total_cpus") or 0)
+        total_mem_mb = int(host_res.get("available_memory") or 0)
+        used_cpus = int(alloc.get("active_allocated_vcpus") or 0)
+        used_mem_mb = int(alloc.get("active_allocated_memory") or 0)
+        return {
+            "uri": uri,
+            "server": self._server_name_map().get(uri) or extract_server_name_from_uri(uri),
+            "model": host_res.get("model"),
+            "mhz": host_res.get("mhz"),
+            "sockets": host_res.get("sockets"),
+            "cores": host_res.get("cores"),
+            "threads": host_res.get("threads"),
+            "total_cpus": total_cpus,
+            "used_cpus": used_cpus,
+            "cpu_percent": round(used_cpus / total_cpus * 100, 1) if total_cpus else 0.0,
+            "total_memory_mb": total_mem_mb,
+            "used_memory_mb": used_mem_mb,
+            "free_memory_mb": int(host_res.get("free_memory") or 0),
+            "mem_percent": round(used_mem_mb / total_mem_mb * 100, 1) if total_mem_mb else 0.0,
+        }
 
     # -- server preferences: networks ------------------------------------------
 
@@ -661,9 +819,18 @@ class Backend:
 
     # -- VM inventory ------------------------------------------------------
 
-    def _iter_domains(self):
-        """Yield (internal_id, uri, server_name, conn, domain) for every VM."""
+    def _iter_domains(self, uris=None):
+        """Yield (internal_id, uri, server_name, conn, domain) for every VM.
+
+        Args:
+            uris: optional collection of server URIs to restrict iteration
+                to (None = every connected server).
+        """
+        wanted = set(uris) if uris else None
+        name_map = self._server_name_map()
         for uri in self.connection_manager.get_all_uris():
+            if wanted is not None and uri not in wanted:
+                continue
             conn = self.connection_manager.get_connection(uri)
             if conn is None:
                 continue
@@ -676,7 +843,6 @@ class Backend:
                     sanitize_sensitive_data(str(exc)),
                 )
                 continue
-            server_names = self._server_name_map()
             for domain in domains:
                 try:
                     # Build the id from the connection-dict key, NOT
@@ -684,18 +850,50 @@ class Backend:
                     # (e.g. "?no_tty=1") that would not resolve back
                     # through get_connection(). Same reason VMService
                     # passes known_uri to get_vm_identity().
-                    yield f"{domain.UUIDString()}@{uri}", uri, server_names.get(
+                    yield f"{domain.UUIDString()}@{uri}", uri, name_map.get(
                         uri
                     ) or extract_server_name_from_uri(uri), conn, domain
                 except libvirt.libvirtError:
                     continue
+
+    def _cached_domain_info(self, internal_id: str, domain: libvirt.virDomain) -> tuple:
+        """domain.info() with a short TTL cache: one SSH round-trip per VM is
+        the dominant cost of the inventory fetch. Lifecycle events drop the
+        entry immediately, so state changes still appear within ~1s."""
+        now = time.time()
+        hit = self._info_cache.get(internal_id)
+        if hit is not None and now - hit[0] < self.INFO_CACHE_TTL:
+            return hit[1]
+        info = tuple(domain.info())
+        self._info_cache[internal_id] = (now, info)
+        return info
+
+    def _cached_first_ipv4(self, internal_id: str, domain: libvirt.virDomain, state=None):
+        """Lease lookup with a short TTL cache (slow over SSH; lifecycle
+        events invalidate the entry as soon as a VM changes state)."""
+        # Not running -> no lease possible; skip the state() RPC when the
+        # caller already knows the state (mirrors _first_ipv4's early exit).
+        if state is not None and state not in (
+            libvirt.VIR_DOMAIN_RUNNING,
+            libvirt.VIR_DOMAIN_PAUSED,
+        ):
+            return None
+        now = time.time()
+        hit = self._ip_cache.get(internal_id)
+        if hit is not None:
+            ttl = self.IP_CACHE_MISS_TTL if hit[1] is None else self.IP_CACHE_TTL
+            if now - hit[0] < ttl:
+                return hit[1]
+        ipv4 = _first_ipv4(domain)
+        self._ip_cache[internal_id] = (now, ipv4)
+        return ipv4
 
     def vms_snapshot(self) -> list[dict]:
         """Return the full VM inventory across all connected servers."""
         vms = []
         for internal_id, uri, server_name, conn, domain in self._iter_domains():
             try:
-                info = domain.info()
+                info = self._cached_domain_info(internal_id, domain)
                 vms.append(
                     {
                         "id": internal_id,
@@ -706,7 +904,7 @@ class Backend:
                         "uri": uri,
                         "vcpus": info[3],
                         "memory_mb": int(info[2]) // 1024,
-                        "ipv4": _first_ipv4(domain),
+                        "ipv4": self._cached_first_ipv4(internal_id, domain, state=info[0]),
                     }
                 )
             except libvirt.libvirtError as exc:
@@ -714,6 +912,12 @@ class Backend:
                     "Skipping unreadable domain: %s", sanitize_sensitive_data(str(exc))
                 )
         vms.sort(key=lambda vm: natural_sort_key(vm["name"]))
+        # Drop cache entries for VMs that are gone.
+        live_ids = {vm["id"] for vm in vms}
+        for stale in [key for key in self._ip_cache if key not in live_ids]:
+            self._ip_cache.pop(stale, None)
+        for stale in [key for key in self._info_cache if key not in live_ids]:
+            self._info_cache.pop(stale, None)
         return vms
 
     def _lookup_domain(self, internal_id: str):
@@ -1015,10 +1219,15 @@ class Backend:
 
     # -- live statistics ---------------------------------------------------
 
-    def stats_snapshot(self) -> dict:
-        """Return runtime statistics keyed by internal id (UUID@URI)."""
+    def stats_snapshot(self, uris=None) -> dict:
+        """Return runtime statistics keyed by internal id (UUID@URI).
+
+        Args:
+            uris: optional list of server URIs to restrict collection to
+                (None = every connected server).
+        """
         stats = {}
-        for internal_id, _uri, _server_name, _conn, domain in self._iter_domains():
+        for internal_id, _uri, _server_name, _conn, domain in self._iter_domains(uris=uris):
             try:
                 vm_stats = self.vm_service.get_vm_runtime_stats(domain)
             except Exception:  # pylint: disable=broad-except
@@ -1048,6 +1257,15 @@ def create_app(
         openapi_url="/api/openapi.json",
     )
     bearer = HTTPBearer(auto_error=False)
+    interval = DEFAULT_STATS_INTERVAL
+    if stats_interval:
+        interval = stats_interval
+    else:
+        try:
+            interval = int(backend.config.get("STATS_INTERVAL", DEFAULT_STATS_INTERVAL))
+        except (TypeError, ValueError, AttributeError):
+            pass
+    collector = StatsCollector(backend, interval)
 
     def require_token(
         credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer),
@@ -1094,6 +1312,10 @@ def create_app(
     @app.post("/api/servers/disconnect", dependencies=[Depends(require_token)])
     async def server_disconnect(payload: ServerConnectRequest) -> dict:
         return await run_backend(backend.disconnect_server, payload.uri)
+
+    @app.get("/api/servers/stats", dependencies=[Depends(require_token)])
+    async def server_stats(uri: str) -> dict:
+        return await run_backend(backend.host_stats, uri)
 
     # -- server preferences: networks --------------------------------------
 
@@ -1249,6 +1471,12 @@ def create_app(
 
     @app.websocket("/ws/stats")
     async def ws_stats(websocket: WebSocket) -> None:
+        """Streams live VM statistics from the shared collector.
+
+        Clients may send {"type": "selection", "uris": [...]} messages to
+        restrict collection (and delivery) to the servers they display;
+        before the first selection message, all servers are covered.
+        """
         ws_token = websocket.query_params.get("token", "")
         # Accept first, then close with the custom code: closing before
         # accept() surfaces as an HTTP 403 handshake failure and browsers
@@ -1257,18 +1485,42 @@ def create_app(
         if not secrets.compare_digest(ws_token, token):
             await websocket.close(code=WS_INVALID_TOKEN_CODE)
             return
-        interval = stats_interval or backend.config.get(
-            "STATS_INTERVAL", DEFAULT_STATS_INTERVAL
-        )
-        try:
+
+        sub = collector.subscribe()
+        collector.ensure_running()
+
+        async def send_loop() -> None:
             while True:
-                stats = await run_in_threadpool(backend.stats_snapshot)
-                await websocket.send_text(json.dumps({"ts": time.time(), "stats": stats}))
-                await asyncio.sleep(max(1, int(interval)))
+                payload = await sub.queue.get()
+                await websocket.send_text(payload)
+
+        async def recv_loop() -> None:
+            while True:
+                text = await websocket.receive_text()
+                try:
+                    msg = json.loads(text)
+                except ValueError:
+                    continue
+                if isinstance(msg, dict) and msg.get("type") == "selection":
+                    uris = msg.get("uris")
+                    sub.uris = None if uris is None else {str(u) for u in uris}
+
+        sender = asyncio.create_task(send_loop())
+        receiver = asyncio.create_task(recv_loop())
+        try:
+            done, pending = await asyncio.wait(
+                {sender, receiver}, return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in pending:
+                task.cancel()
+            for task in done:
+                if not task.cancelled() and task.exception() is not None:
+                    logger.debug("Stats WS task ended: %s", task.exception())
         except WebSocketDisconnect:
-            pass
-        except Exception:  # pylint: disable=broad-except
-            logger.debug("Stats WebSocket closed", exc_info=True)
+            sender.cancel()
+            receiver.cancel()
+        finally:
+            collector.unsubscribe(sub)
 
     @app.websocket("/ws/events")
     async def ws_events(websocket: WebSocket) -> None:

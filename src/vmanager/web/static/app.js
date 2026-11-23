@@ -56,6 +56,7 @@
 
   const els = {
     servers: document.getElementById("servers"),
+    hosts: document.getElementById("hosts"),
     cards: document.getElementById("cards"),
     empty: document.getElementById("empty"),
     filter: document.getElementById("filter"),
@@ -204,6 +205,7 @@
       els.servers.appendChild(chip);
     }
     lastServers = servers;
+    sendSelection();
   }
 
   let lastServers = [];
@@ -211,6 +213,75 @@
   function reapplyVisibility() {
     for (const card of cards.values()) applyFilter(card);
     updateEmptyState();
+    refreshHosts();
+  }
+
+  // -- host stats strip (per selected+connected server, like the TUI host bar) --
+
+  let hostsRefreshing = false;
+
+  function fmtMemMB(mb) {
+    if (mb >= 1024) return `${(mb / 1024).toFixed(1)}G`;
+    return `${Math.round(mb)}M`;
+  }
+
+  function pctClass(pct) {
+    // Same thresholds as the TUI host stats colors
+    if (pct >= 90) return "red";
+    if (pct >= 75) return "orange";
+    if (pct >= 55) return "yellow";
+    return "green";
+  }
+
+  function hostBar(label, text, pct) {
+    const row = el("div", "host-bar-row");
+    row.appendChild(el("span", "host-bar-label", label));
+    const bar = el("div", "host-bar");
+    const fill = el("i", "fill " + pctClass(pct));
+    fill.style.width = Math.max(0, Math.min(100, pct)).toFixed(1) + "%";
+    bar.appendChild(fill);
+    row.appendChild(bar);
+    row.appendChild(el("span", "host-bar-text", `${text} \u00b7 ${pct.toFixed(0)}%`));
+    return row;
+  }
+
+  function hostPanel(st) {
+    const p = el("div", "host-panel");
+    p.title = `${st.model || ""} \u2014 ${st.sockets || "?"} sockets, ${st.cores || "?"} cores, `
+      + `${st.threads || "?"} threads @ ${st.mhz || 0} MHz\nFree RAM: ${fmtMemMB(st.free_memory_mb || 0)}`;
+    p.appendChild(el("div", "host-name", st.server));
+    p.appendChild(hostBar("CPU", `${st.used_cpus}/${st.total_cpus}`, st.cpu_percent || 0));
+    p.appendChild(hostBar("RAM",
+      `${fmtMemMB(st.used_memory_mb || 0)}/${fmtMemMB(st.total_memory_mb || 0)}`,
+      st.mem_percent || 0));
+    return p;
+  }
+
+  async function refreshHosts() {
+    const targets = lastServers.filter((s) => selectedServers.has(s.uri) && s.connected);
+    if (!targets.length) {
+      els.hosts.textContent = "";
+      els.hosts.hidden = true;
+      return;
+    }
+    if (hostsRefreshing) return; // skip overlap; next tick will pick it up
+    hostsRefreshing = true;
+    try {
+      const results = await Promise.allSettled(
+        targets.map((s) => api(`/api/servers/stats?uri=${encodeURIComponent(s.uri)}`)),
+      );
+      els.hosts.textContent = "";
+      let any = false;
+      for (const r of results) {
+        if (r.status === "fulfilled") {
+          els.hosts.appendChild(hostPanel(r.value));
+          any = true;
+        }
+      }
+      els.hosts.hidden = !any;
+    } finally {
+      hostsRefreshing = false;
+    }
   }
 
   function makeSpark(card, metric) {
@@ -395,6 +466,16 @@
     els.wsStatus.title = connected ? "Live stats: connected" : "Live stats: disconnected";
   }
 
+  // Tell the backend which servers this client displays: the shared stats
+  // collector then only polls those (and only sends us their stats).
+  function sendSelection() {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: "selection", uris: [...selectedServers] }));
+      } catch { /* socket went away mid-send; onopen will resend */ }
+    }
+  }
+
   function connectWS() {
     if (!token) return;
     // Guard against parallel sockets (e.g. reconnect timer racing a manual
@@ -408,7 +489,7 @@
       setTimeout(connectWS, WS_RETRY_MS);
       return;
     }
-    ws.onopen = () => setWsState(true);
+    ws.onopen = () => { setWsState(true); sendSelection(); };
     ws.onmessage = (evt) => {
       try {
         const msg = JSON.parse(evt.data);
@@ -441,6 +522,7 @@
         const [servers, vms] = await Promise.all([api("/api/servers"), api("/api/vms")]);
         renderServers(servers);
         renderInventory(vms);
+        refreshHosts();
       } catch (err) {
         if (err.unauthorized) showTokenModal();
         else console.error("Refresh failed", err);
