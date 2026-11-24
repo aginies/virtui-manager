@@ -22,6 +22,13 @@ vmc -c "select_vm web-01 | start"
 
 `-c, --command <command>` — execute one command and exit. Prompts auto-select first option.
 
+`--yes` — answer the confirmations with yes. A command that cannot run without
+one — `delete` and `delete_volume` — cancels itself when the command comes from
+`-c` and `--yes` is not given, so a scripted deletion is never a surprise:
+`vmc -c "delete old-vm" --yes` means it. `delete` still keeps the disks unless
+`--force-storage-delete` asks for them, because removing the disks is a second,
+more destructive answer with a flag of its own.
+
 `-u, --uri <uri>` — connect to this hypervisor and to nothing else, instead of the
 servers marked `autoconnect` in your configuration. Needs `-c` or `--json`.
 With `--json` it replaces the `server` field of the deployment file, which the file
@@ -89,7 +96,7 @@ All operations can take specific VM names or UUIDs as arguments. If omitted, the
 *   **`pause` / `resume`**: Freezes or unfreezes VM execution.
 *   **`hibernate`**: Saves the VM state to disk and stops it.
 *   **`view`**: Launches the graphical viewer (Spice or VNC) for the target VMs.
-*   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection.
+*   **`delete [--force-storage-delete]`**: Permanently deletes the VM. Optional flag removes associated disk images. Deleted VMs are automatically removed from the selection. A `-c` run cancels itself unless `--yes` is given, and the disks are kept unless `--force-storage-delete` is given.
 *   **`clone_vm <source>`**: Launches an interactive wizard to create one or more clones, allowing you to specify naming postfixes and whether to clone the storage.
 *   **`rename_vm <vm_name> <new_name>`**: Renames a stopped VM (snapshots and NVRAM are preserved).
 *   **`change_video <vm_name> <model> [--3d]`**: Changes the video model of a stopped VM. `<model>` is one of the host-supported models (see `host_capabilities`), or `none` to disable video (no default video device is added). 3D acceleration (virtio and qxl only) is off unless `--3d` is given.

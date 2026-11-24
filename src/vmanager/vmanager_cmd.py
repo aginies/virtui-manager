@@ -171,6 +171,10 @@ class VManagerCMD(cmd.Cmd):
     def __init__(self, vm_service=None):
         super().__init__()
         self.yes_mode = False
+        # Answer the confirmations with yes instead of asking, for --yes. Kept
+        # apart from yes_mode, which is what makes a prompt take its first
+        # option in a -c run: choosing an option is not agreeing to a deletion.
+        self.confirm_yes = False
         # The uri a scripted caller named with -u/--uri, None when it did not.
         # Set before preloop, so it replaces the configured autoconnect.
         self.default_uri = None
@@ -700,6 +704,17 @@ class VManagerCMD(cmd.Cmd):
         if choices_used is not None:
             choices_used.append(shlex.quote(val) if val else '""')
         return val
+
+    def _confirmed(self, prompt):
+        """Ask a yes/no question, or answer it when the caller said --yes.
+
+        A command that cannot run without a confirmation cancels itself when
+        nobody says yes, which is what a scripted caller wants by default: it
+        gets no destructive surprise, and says --yes when it means it.
+        """
+        if self.confirm_yes:
+            return "yes"
+        return self._get_input(prompt).lower()
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -2217,18 +2232,22 @@ class VManagerCMD(cmd.Cmd):
 
         vm_list_str = ", ".join(all_vm_names)
         try:
-            confirm_vm_delete = self._get_input(
+            # A command given with -c has nobody to ask: the caller named the VMs
+            # to delete, so that much is confirmed, and the storage is kept unless
+            # --force-storage-delete asks for it, as the interactive default does.
+            confirm_vm_delete = self._confirmed(
                 f"Are you sure you want to delete the following VMs: {vm_list_str}? (yes/no): "
-            ).lower()
+            )
 
             if confirm_vm_delete != "yes":
                 print("VM deletion cancelled.")
                 return
 
-            delete_storage_confirmed = False
-            if force_storage_delete:
-                delete_storage_confirmed = True
-            else:
+            # Deleting the disks is a separate, more destructive answer with a
+            # flag of its own, so --yes does not give it: without
+            # --force-storage-delete the storage stays, as it does interactively.
+            delete_storage_confirmed = force_storage_delete
+            if not force_storage_delete and not self.yes_mode:
                 confirm_storage = self._get_input(
                     "Do you want to delete associated storage for all selected VMs? (yes/no): "
                 ).lower()
@@ -2988,14 +3007,14 @@ class VManagerCMD(cmd.Cmd):
             if vms_using:
                 names = ", ".join(d.name() for d in vms_using)
                 print(f"Volume '{volume_name}' is in use by VM(s): {names}")
-                confirm = self._get_input(
+                confirm = self._confirmed(
                     "Delete this volume anyway? This cannot be undone. (yes/no): "
-                ).lower()
+                )
             else:
-                confirm = self._get_input(
+                confirm = self._confirmed(
                     f"Delete volume '{volume_name}' from pool '{pool_name}' on server "
                     f"'{server_name}'? This cannot be undone. (yes/no): "
-                ).lower()
+                )
         except InterruptionRequested:
             print("\nOperation cancelled.")
             return
@@ -6053,6 +6072,14 @@ def main():
             "happened"
         ),
     )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help=(
+            "With -c: answer the confirmations with yes instead of cancelling "
+            "(delete, delete_volume)"
+        ),
+    )
     args = parser.parse_args()
 
     # Show help if -c/--command passed with no value
@@ -6062,6 +6089,10 @@ def main():
 
     if args.machine and not args.command:
         print("Error: --machine needs -c/--command.", file=sys.stderr)
+        return EXIT_USAGE
+
+    if args.yes and not args.command:
+        print("Error: --yes needs -c/--command.", file=sys.stderr)
         return EXIT_USAGE
 
     if args.uri and not (args.command or args.json):
@@ -6076,6 +6107,7 @@ def main():
 
     cmd_app = VManagerCMD()
     cmd_app.yes_mode = bool(args.command)
+    cmd_app.confirm_yes = bool(args.yes)
     cmd_app.default_uri = args.uri
 
     if args.machine:

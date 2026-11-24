@@ -1644,5 +1644,125 @@ class TestUriOption(unittest.TestCase):
         self.assertEqual(self.cmd.selected_vms, {})
 
 
+class TestUnattendedDelete(unittest.TestCase):
+    """Deletions as a single command drives them.
+
+    A caller that runs ``vmc -c "delete ..."`` has nobody to answer the
+    confirmation, and ``_get_input`` answers "" in that mode, which the
+    confirmation used to read as "no" and cancel the deletion.
+    """
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _make_vm_conn(self, vm_name="vm1"):
+        """A connected server with one VM, and nothing else by that name."""
+        domain = MagicMock()
+        domain.name.return_value = vm_name
+        domain.UUIDString.return_value = "uuid-1"
+        domain.isActive.return_value = False
+        conn = MagicMock()
+        conn.listAllDomains.return_value = [domain]
+
+        def lookup(name):
+            if name == vm_name:
+                return domain
+            raise self._no_domain_error()
+
+        conn.lookupByName.side_effect = lookup
+        self.cmd.active_connections["local"] = conn
+        return conn, domain
+
+    def _no_domain_error(self):
+        import libvirt
+
+        class NoDomainError(libvirt.libvirtError):
+            def get_error_code(self):
+                return libvirt.VIR_ERR_NO_DOMAIN
+
+        return NoDomainError("no such object")
+
+    def test_delete_without_a_terminal_does_not_ask(self):
+        """A named VM is deleted instead of the confirmation cancelling it."""
+        self.cmd.yes_mode = True
+        self.cmd.confirm_yes = True
+        self._make_vm_conn()
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_delete("vm1")
+
+        mock_delete.assert_called_once()
+        args, kwargs = mock_delete.call_args
+        self.assertEqual(kwargs.get("delete_nvram"), False)
+        self.assertFalse(args[1], "storage must be kept without --force-storage-delete")
+        self.assertIn("deleted successfully", buf.getvalue())
+
+    def test_delete_with_storage_flag_deletes_the_storage(self):
+        """--force-storage-delete still decides the storage question."""
+        self.cmd.yes_mode = True
+        self.cmd.confirm_yes = True
+        self._make_vm_conn()
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()):
+                self.cmd.do_delete("vm1 --force-storage-delete")
+
+        args, kwargs = mock_delete.call_args
+        self.assertTrue(args[1])
+        self.assertEqual(kwargs.get("delete_nvram"), True)
+
+    def test_delete_with_a_terminal_still_asks(self):
+        """An answer that is not yes keeps cancelling the interactive form."""
+        self._make_vm_conn()
+        self.cmd._get_input = MagicMock(return_value="no")
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_delete("vm1")
+
+        mock_delete.assert_not_called()
+        self.assertIn("VM deletion cancelled.", buf.getvalue())
+
+    def test_delete_without_yes_still_cancels(self):
+        """-c alone does not confirm a deletion: no --yes, no deletion."""
+        self.cmd.yes_mode = True
+        self._make_vm_conn()
+
+        with patch("vmanager.vmanager_cmd.delete_vm") as mock_delete:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_delete("vm1")
+
+        mock_delete.assert_not_called()
+        self.assertIn("VM deletion cancelled.", buf.getvalue())
+
+    def test_delete_volume_without_a_terminal_deletes(self):
+        """A named volume is deleted instead of the confirmation cancelling it."""
+        self.cmd.yes_mode = True
+        self.cmd.confirm_yes = True
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        volume = MagicMock()
+
+        with patch("vmanager.vmanager_cmd.find_vms_using_volume", return_value=[]):
+            with patch("vmanager.vmanager_cmd.delete_volume") as mock_delete:
+                self.cmd._find_volume = MagicMock(return_value=("local", conn, volume))
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_delete_volume("sidekick base1")
+
+        mock_delete.assert_called_once_with(volume)
+        self.assertIn("deleted from pool", buf.getvalue())
+
 if __name__ == "__main__":
     unittest.main()
