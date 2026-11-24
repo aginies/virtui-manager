@@ -122,7 +122,7 @@ class TestVMCard(unittest.TestCase):
             self.vm_card.memory = 4096
 
         self.vm_card.on_mount()
-        mock_ip_widget.update.assert_called_with("2 vCPU · 4.0 GiB")
+        mock_ip_widget.update.assert_called_with(" 2 vCPU · 4.0 GiB")
 
     def test_watch_internal_id_refreshes_secondary_info(self):
         """Card reuse must re-render the slot even when cpu/memory/status
@@ -142,7 +142,7 @@ class TestVMCard(unittest.TestCase):
             VMCard, "update_stats"
         ), patch.object(VMCard, "_perform_tooltip_update"):
             VMCard.watch_internal_id(self.vm_card, "uuid-123", "uuid-456")
-        mock_ip_widget.update.assert_called_with("2 vCPU · 4.0 GiB")
+        mock_ip_widget.update.assert_called_with(" 2 vCPU · 4.0 GiB")
 
     def test_qb_buttons_gating(self):
         """Quick actions: connect needs a running/paused VM, migration needs
@@ -982,7 +982,7 @@ class TestVMCard(unittest.TestCase):
             mock_mounted.return_value = True
             self.vm_card.ip_addresses = [{"ipv4": ["192.168.1.100/24"], "ipv6": []}]
 
-        mock_ip_widget.update.assert_called_with("(192.168.1.100)")
+        mock_ip_widget.update.assert_called_with(" (192.168.1.100)")
 
     def test_watch_boot_device_triggers_tooltip_update(self):
         """Test that watch_boot_device triggers tooltip update."""

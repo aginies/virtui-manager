@@ -288,7 +288,8 @@ class VMCard(Static):
         """Re-render the right side of the status row (IP or vCPU/RAM)."""
         ip_widget = self.ui.get("vm_ip")
         if ip_widget:
-            ip_widget.update(self._get_secondary_info_text())
+            text = self._get_secondary_info_text()
+            ip_widget.update(f" {text}" if text else "")
 
     def _get_status_text(self) -> str:
         """Text for the status strip: status and web console indicator."""
