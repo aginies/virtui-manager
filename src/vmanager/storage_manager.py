@@ -26,7 +26,7 @@ def _safe_is_pool_active(pool: libvirt.virStoragePool) -> bool:
     Returns False if the check fails or times out.
     """
     try:
-        return pool.isActive()
+        return bool(pool.isActive())
     except libvirt.libvirtError as e:
         logging.debug(f"Failed to check if pool '{pool.name()}' is active: {e}")
         return False
@@ -109,9 +109,10 @@ def _safe_get_volume_info(vol: libvirt.virStorageVol) -> tuple[int, int, int]:
     """
     try:
         # Use vol.info() to get the volume information.
-        # This returns a tuple: (type, capacity, allocation)
+        # libvirt.py annotates info() as returning a str; it returns the tuple
+        # (type, capacity, allocation), so the ints are taken from it here.
         vol_type, capacity, allocation = vol.info()
-        return vol_type, capacity, allocation
+        return int(vol_type), int(capacity), int(allocation)
     except libvirt.libvirtError as e:
         logging.debug(f"Failed to get info for volume '{vol.name()}': {e}")
         return 0, 0, 0
@@ -147,12 +148,15 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
     try:
         pools = conn.listAllStoragePools(0)
         for pool in pools:
+            # Set per pool: the entries of a previous pool must not name this one
+            # when reading its details fails below.
+            name = "Unknown Pool"
             try:
                 # Try to get basic info
                 try:
                     name = pool.name()
                 except libvirt.libvirtError:
-                    name = "Unknown Pool"
+                    pass
 
                 is_active = _safe_is_pool_active(pool)
                 capacity, allocation, _ = _safe_get_pool_info(pool)
@@ -170,12 +174,6 @@ def list_storage_pools(conn: libvirt.virConnect) -> List[Dict[str, Any]]:
                 )
             except libvirt.libvirtError as e:
                 # If we fail to get details (e.g. NFS down), still list the pool but as unavailable
-                if "name" not in locals():
-                    try:
-                        name = pool.name()
-                    except Exception:
-                        name = "Unknown Pool"
-
                 logging.warning(f"Failed to get details for pool '{name}': {e}")
                 pools_info.append(
                     {
@@ -421,9 +419,9 @@ def create_volume(
     name: str,
     size_gb: int,
     vol_format: str,
-    preallocation: str = None,
+    preallocation: Optional[str] = None,
     lazy_refcounts: bool = False,
-    cluster_size: str = None,
+    cluster_size: Optional[str] = None,
 ):
     """
     Creates a new storage volume in a pool.
@@ -664,7 +662,7 @@ def move_volume(
     source_pool_name: str,
     dest_pool_name: str,
     volume_name: str,
-    new_volume_name: str = None,
+    new_volume_name: Optional[str] = None,
     progress_callback=None,
     log_callback=None,
 ) -> List[str]:
@@ -960,7 +958,7 @@ def get_all_storage_volumes(conn: libvirt.virConnect) -> List[libvirt.virStorage
 
 
 def list_unused_volumes(
-    conn: libvirt.virConnect, pool_name: str = None
+    conn: libvirt.virConnect, pool_name: Optional[str] = None
 ) -> List[libvirt.virStorageVol]:
     """
     Lists all storage volumes that are not attached to any VM.
@@ -1134,8 +1132,8 @@ def copy_volume_across_hosts(
     source_pool_name: str,
     dest_pool_name: str,
     volume_name: str,
-    new_volume_name: str = None,
-    new_backing_path: str = None,
+    new_volume_name: Optional[str] = None,
+    new_backing_path: Optional[str] = None,
     backing_format: str = "qcow2",
     progress_callback=None,
     log_callback=None,
