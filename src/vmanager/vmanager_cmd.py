@@ -69,6 +69,7 @@ from .provisioning.automation_engine import template_supports_serial_console
 from .provisioning.os_provider import OSType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
+    create_overlay_volume,
     create_storage_pool,
     delete_volume,
     ensure_default_pool,
@@ -287,6 +288,7 @@ class VManagerCMD(cmd.Cmd):
                 "list_unused_volumes",
                 "volume_usage",
                 "volume_upload",
+                "volume_create_overlay",
                 "delete_volume",
             ],
             "Installation": ["prepare_json", "list_json", "show_json", "list_isos", "list_cached_isos"],
@@ -3185,6 +3187,61 @@ class VManagerCMD(cmd.Cmd):
         args = line.split()
         if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
             return self._complete_pools(text)
+        return []
+
+    def do_volume_create_overlay(self, args):
+        """Creates a qcow2 volume backed by an existing volume.
+        Usage: volume_create_overlay <pool_name> <volume_name> <backing_volume_name>
+
+        The new volume records the changes and leaves the backing volume
+        untouched, which is what makes an instance on a base cheap."""
+        arg_list = shlex.split(args)
+        usage = "Usage: volume_create_overlay <pool_name> <volume_name> <backing_volume_name>"
+        if len(arg_list) != 3:
+            print(usage)
+            return
+
+        pool_name, volume_name, backing_name = arg_list
+
+        server_name, conn = self._one_connection("create an overlay")
+        if not conn:
+            return
+
+        try:
+            pool = conn.storagePoolLookupByName(pool_name)
+        except libvirt.libvirtError:
+            print(f"Pool '{pool_name}' not found on server '{server_name}'.")
+            return
+
+        # A taken name is refused rather than written over: createXML on an
+        # existing name reuses the file, which on an instance disk means
+        # truncating the disk of a running guest.
+        if volume_name in [volume["name"] for volume in list_storage_volumes(pool)]:
+            print(f"Volume '{volume_name}' already exists in pool '{pool_name}'.")
+            return
+
+        try:
+            backing = pool.storageVolLookupByName(backing_name)
+        except libvirt.libvirtError:
+            print(f"Volume '{backing_name}' not found in pool '{pool_name}'.")
+            return
+
+        try:
+            create_overlay_volume(pool, volume_name, backing.path())
+            print(
+                f"Volume '{volume_name}' created in pool '{pool_name}', "
+                f"backed by '{backing_name}'."
+            )
+        except Exception as e:
+            self._safe_print(f"Error creating overlay '{volume_name}': {e}")
+
+    def complete_volume_create_overlay(self, text, line, begidx, endidx):
+        """Auto-completion for volume_create_overlay: pool, then backing volume."""
+        args = line.split()
+        if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
+            return self._complete_pools(text)
+        if len(args) == 3 and line.endswith(" "):
+            return self._complete_volumes(text, args[1])
         return []
 
     def do_help(self, arg):

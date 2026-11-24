@@ -1939,6 +1939,80 @@ class TestVolumeUpload(unittest.TestCase):
                     self.assertIn("Usage: volume_upload", buf.getvalue())
 
         mock_upload.assert_not_called()
+class TestVolumeCreateOverlay(unittest.TestCase):
+    """volume_create_overlay, a volume backed by another one."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _no_domain_error(self):
+        import libvirt
+
+        class NoDomainError(libvirt.libvirtError):
+            def get_error_code(self):
+                return libvirt.VIR_ERR_NO_DOMAIN
+
+        return NoDomainError("no such object")
+
+    def test_volume_create_overlay_uses_the_backing_path(self):
+        """The overlay is created on the backing volume's path."""
+        conn = MagicMock()
+        pool = MagicMock()
+        backing = MagicMock()
+        backing.path.return_value = "/var/lib/sidekick/base1.qcow2"
+        pool.storageVolLookupByName.return_value = backing
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+
+        mock_overlay.assert_called_once_with(pool, "inst1", "/var/lib/sidekick/base1.qcow2")
+        self.assertIn("backed by 'base1'", buf.getvalue())
+
+    def test_volume_create_overlay_refuses_a_taken_name(self):
+        """A name that exists is refused rather than written over."""
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+        # list_storage_volumes answers with dicts, not with volume objects.
+        existing = [{"name": "inst1", "type": "file", "capacity": 0}]
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=existing):
+            with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+
+        mock_overlay.assert_not_called()
+        self.assertIn("already exists", buf.getvalue())
+
+    def test_volume_create_overlay_reports_a_missing_backing(self):
+        """A backing volume that is not there is named."""
+        conn = MagicMock()
+        pool = MagicMock()
+        pool.storageVolLookupByName.side_effect = self._no_domain_error()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.create_overlay_volume") as mock_overlay:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_volume_create_overlay("sidekick inst1 base1")
+
+        mock_overlay.assert_not_called()
+        self.assertIn("not found in pool", buf.getvalue())
 
 if __name__ == "__main__":
     unittest.main()
