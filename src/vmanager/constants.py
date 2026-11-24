@@ -10,38 +10,41 @@ from .i18n import _
 class ServerPalette:  # pylint: disable=too-few-public-methods
     """Color for server"""
 
+    # First 16: one color per hue family (a single green), interleaved so
+    # consecutive servers get maximally different colors.
+    # 17-32: extra variants for servers beyond the first 16.
     COLOR = [
-        "#33FF57",  # Green
-        "#F333FF",  # Magenta
-        "#3357FF",  # Blue
-        "#FF8C33",  # Orange
-        "#FF33A1",  # Pink
-        "#F3FF33",  # Yellow
-        "#33FF8C",  # Mint
-        "#FF5733",  # Red-Orange
-        "#33FFF3",  # Cyan
-        "#A133FF",  # Purple
         "#FF3333",  # Bright Red
-        "#33FFDA",  # Aqua
-        "#FFB833",  # Amber
+        "#3357FF",  # Blue
+        "#F3FF33",  # Yellow
+        "#FF33A1",  # Pink
+        "#33FFF3",  # Cyan
+        "#FF8C33",  # Orange
         "#8C33FF",  # Violet
+        "#00C9A7",  # Teal
+        "#FFB833",  # Amber
+        "#F333FF",  # Magenta
         "#33A1FF",  # Sky Blue
+        "#C70039",  # Deep Red
+        "#33FF57",  # Green
+        "#4B0082",  # Indigo
+        "#FA8072",  # Salmon
+        "#B8860B",  # Dark Goldenrod
+        "#66FF33",  # Spring Green
+        "#FF5733",  # Red-Orange
+        "#A133FF",  # Purple
         "#D2B48C",  # Tan
         "#FFD133",  # Golden Yellow
         "#B0E0E6",  # Powder Blue
-        "#C70039",  # Deep Red
         "#00B8FF",  # Electric Blue
-        "#B8860B",  # Dark Goldenrod
         "#8B4513",  # Saddle Brown
         "#008B8B",  # Dark Cyan
         "#9ACD32",  # Yellow Green
-        "#FA8072",  # Salmon
         "#DDA0DD",  # Plum
         "#808080",  # Gray
         "#4169E1",  # Royal Blue
         "#800000",  # Maroon
         "#808000",  # Olive
-        "#4B0082",  # Indigo
         "#2E8B57",  # Sea Green
     ]
 
@@ -64,7 +67,7 @@ class AppInfo:  # pylint: disable=too-few-public-methods
 
     name = "virtui-manager"
     namecase = "VirtUI Manager"
-    version = "3.6.4"
+    version = "3.6.5"
     author = "Antoine Ginies"
     copyright_years = "2025-2026"
 
@@ -671,6 +674,7 @@ Specify the NUMA nodes to use.
     PASSWORD_PLACEHOLDER = _("Password")
     BACKEND_TYPE_PLACEHOLDER = _("emulator or passthrough")
     SELECT_VM = _("Select VM")
+    VM_RESOURCE_INFO = "{cpu} vCPU · {mem}"
     CPU_MODEL_LABEL = _("CPU Model:")
     VIDEO_MODEL_LABEL = _("Video Model:")
     SOUND_MODEL_LABEL = _("Sound Model:")
@@ -1006,8 +1010,12 @@ Specify the NUMA nodes to use.
 class SparklineLabels:  # pylint: disable=too-few-public-methods
     """Constants for sparkline labels"""
 
-    DISK_RW = _("Disk R/W {read:.2f}/{write:.2f} MB/s")
-    NET_RX_TX = _("Net Rx/Tx {rx:.2f}/{tx:.2f} MB/s")
+    # I/O labels must fit the 22-column io label slot (.sparkline-label-io):
+    # first number is read/rx, second is write/tx.
+    DISK_RW = _("Disk {read:.1f}/{write:.1f} MB/s")
+    NET_RX_TX = _("Net {rx:.1f}/{tx:.1f} MB/s")
+    DISK_RW_KB = _("Disk {read:.0f}/{write:.0f} KB/s")
+    NET_RX_TX_KB = _("Net {rx:.0f}/{tx:.0f} KB/s")
     CPU_PERCENT = "CPU {cpu:.0f}%"
     MEM_PERCENT = "Mem {mem:.0f}%"
     IDLE_CPU = "CPU --%"
