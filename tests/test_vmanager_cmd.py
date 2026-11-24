@@ -1815,5 +1815,130 @@ class TestCreatePool(unittest.TestCase):
         mock_create.assert_not_called()
         self.assertIn("already exists", buf.getvalue())
 
+class TestVolumeUpload(unittest.TestCase):
+    """volume_upload, a file into a new volume."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _free_upload_file(self, name="image.qcow2", size=1024):
+        import tempfile
+
+        handle = tempfile.NamedTemporaryFile("wb", suffix="-" + name, delete=False)
+        handle.write(b"x" * size)
+        handle.close()
+        self.addCleanup(os.unlink, handle.name)
+        return handle.name
+
+    def test_volume_upload_streams_the_file(self):
+        """The file goes into a new volume, with no format given."""
+        path = self._free_upload_file()
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_upload(f"sidekick sidekick-image {path}")
+
+        mock_upload.assert_called_once_with(pool, "sidekick-image", path, None)
+        self.assertIn("created in pool 'sidekick'", buf.getvalue())
+
+    def test_volume_upload_takes_the_format(self):
+        """--format is passed through to the helper."""
+        path = self._free_upload_file(name="seed.iso")
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()):
+                    self.cmd.do_volume_upload(f"sidekick seed {path} --format raw")
+
+        mock_upload.assert_called_once_with(pool, "seed", path, "raw")
+
+    def test_volume_upload_refuses_a_missing_file(self):
+        """A file that is not there is named, not streamed."""
+        self.cmd.active_connections["local"] = MagicMock()
+
+        with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_volume_upload("sidekick seed /nowhere/seed.iso")
+
+        mock_upload.assert_not_called()
+        self.assertIn("not found", buf.getvalue())
+
+    def test_volume_upload_reports_a_taken_name(self):
+        """A volume that exists is not overwritten by an upload."""
+        path = self._free_upload_file()
+        conn = MagicMock()
+        conn.storagePoolLookupByName.return_value = MagicMock()
+        self.cmd.active_connections["local"] = conn
+        # list_storage_volumes answers with dicts, not with volume objects.
+        existing = [{"name": "sidekick-image", "type": "file", "capacity": 0}]
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=existing):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_upload(f"sidekick sidekick-image {path}")
+
+        mock_upload.assert_not_called()
+        self.assertIn("already exists", buf.getvalue())
+
+    def test_volume_upload_takes_the_named_options(self):
+        """--pool/--name/--file is the spelling the machine surface asked for."""
+        path = self._free_upload_file(name="seed.iso")
+        conn = MagicMock()
+        pool = MagicMock()
+        conn.storagePoolLookupByName.return_value = pool
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                with redirect_stdout(io.StringIO()) as buf:
+                    self.cmd.do_volume_upload(
+                        f"--pool sidekick --name seed --file {path} --format raw"
+                    )
+
+        mock_upload.assert_called_once_with(pool, "seed", path, "raw")
+        self.assertIn("created in pool 'sidekick'", buf.getvalue())
+
+    def test_volume_upload_refuses_a_half_named_line(self):
+        """A line that mixes the two spellings, or half of one, is a usage error."""
+        path = self._free_upload_file()
+        conn = MagicMock()
+        conn.storagePoolLookupByName.return_value = MagicMock()
+        self.cmd.active_connections["local"] = conn
+
+        lines = [
+            f"sidekick --name seed --file {path}",
+            f"--pool sidekick seed {path}",
+            "--pool sidekick --name seed",
+            "sidekick seed",
+        ]
+        with patch("vmanager.vmanager_cmd.list_storage_volumes", return_value=[]):
+            with patch("vmanager.vmanager_cmd.upload_file_to_volume") as mock_upload:
+                for line in lines:
+                    with redirect_stdout(io.StringIO()) as buf:
+                        self.cmd.do_volume_upload(line)
+                    self.assertIn("Usage: volume_upload", buf.getvalue())
+
+        mock_upload.assert_not_called()
+
 if __name__ == "__main__":
     unittest.main()

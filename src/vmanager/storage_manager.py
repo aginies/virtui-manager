@@ -498,6 +498,131 @@ def create_volume(
         raise Exception(msg) from e
 
 
+def upload_file_to_volume(
+    pool: libvirt.virStoragePool,
+    name: str,
+    path: str,
+    vol_format=None,
+    progress_callback=None,
+) -> libvirt.virStorageVol:
+    """
+    Creates a volume the size of a file and fills it from that file.
+
+    The volume is defined with the file's size, and the bytes are streamed in,
+    so a multi-GB image never has to fit in memory. A raw image's size is its
+    capacity; a qcow2's is only the size it downloads as, so once the header is
+    written the volume takes the virtual size the image records (see
+    _adopt_uploaded_capacity).
+    """
+    if not _ensure_pool_active(pool):
+        msg = f"Pool '{pool.name()}' is not active and could not be activated."
+        logging.error(msg)
+        raise Exception(msg)
+
+    size = os.path.getsize(path)
+    if vol_format is None:
+        vol_format = "qcow2" if path.lower().endswith(".qcow2") else "raw"
+
+    vol_xml = f"""
+    <volume>
+        <name>{name}</name>
+        <capacity unit="bytes">{size}</capacity>
+        <target>
+            <format type='{vol_format}'/>
+        </target>
+    </volume>
+    """
+    try:
+        vol = pool.createXML(vol_xml, 0)
+    except libvirt.libvirtError as e:
+        msg = f"Error creating volume '{name}' in pool '{pool.name()}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+    stream = pool.connect().newStream(0)
+    uploaded = 0
+
+    def read_from_file(_stream, nbytes, fileobj):
+        nonlocal uploaded
+        chunk = fileobj.read(nbytes)
+        uploaded += len(chunk)
+        if progress_callback and size > 0:
+            progress_callback(int(uploaded * 100 / size))
+        return chunk
+
+    try:
+        vol.upload(stream, 0, size)
+        with open(path, "rb") as source:
+            stream.sendAll(read_from_file, source)
+        stream.finish()
+    except Exception as e:
+        stream.abort()
+        # A half-filled volume is of no use to anyone, and leaving it behind
+        # would make the next upload of the same name fail on a taken name.
+        try:
+            vol.delete(0)
+        except libvirt.libvirtError:
+            logging.warning("Could not remove the partially uploaded volume '%s'", name)
+        msg = f"Error uploading '{path}' into volume '{name}': {e}"
+        logging.error(msg)
+        raise Exception(msg) from e
+
+    return _adopt_uploaded_capacity(pool, vol, size)
+
+
+def _adopt_uploaded_capacity(
+    pool: libvirt.virStoragePool, vol: libvirt.virStorageVol, defined_capacity: int
+) -> libvirt.virStorageVol:
+    """Gives an uploaded volume the capacity the image it came from records.
+
+    The volume was defined with the local file's size, which is the capacity of
+    a raw image but only the compressed size of a qcow2 one: its header holds
+    the virtual size. A refresh makes libvirt probe the target and report that
+    virtual size, and the volume is raised to it with resize(), because
+    create_overlay_volume() takes an overlay's capacity from its backing volume
+    -- a 20 GB image left at its download size would give every clone of it a
+    disk of the download's size. resize() is what raises a volume's capacity:
+    the Python binding has no storageVolDefineXML.
+
+    The upload has succeeded by the time this runs, so a pool that cannot probe
+    or cannot resize keeps the volume it has and says so in the log.
+    """
+    try:
+        pool.refresh(0)
+        refreshed = pool.storageVolLookupByName(vol.name())
+        # info() returns (type, capacity, allocation); libvirt.py annotates it
+        # as a str, which is not the tuple it really returns.
+        probed = int(refreshed.info()[1])
+    except (libvirt.libvirtError, AttributeError, TypeError, ValueError) as e:
+        logging.warning(
+            "Could not re-read the capacity of volume '%s' after the upload: %s", vol.name(), e
+        )
+        return vol
+
+    if probed <= defined_capacity:
+        return refreshed
+
+    try:
+        refreshed.resize(probed, 0)
+    except libvirt.libvirtError as e:
+        logging.warning(
+            "Volume '%s' stays at the size of the file uploaded into it (%d bytes); "
+            "the image records %d: %s",
+            vol.name(),
+            defined_capacity,
+            probed,
+            e,
+        )
+        return refreshed
+
+    logging.info(
+        "Volume '%s' takes the capacity of the image uploaded into it: %d bytes",
+        vol.name(),
+        probed,
+    )
+    return refreshed
+
+
 def create_overlay_volume(
     pool: libvirt.virStoragePool,
     name: str,

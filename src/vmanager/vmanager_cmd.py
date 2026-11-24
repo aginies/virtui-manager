@@ -77,6 +77,7 @@ from .storage_manager import (
     list_storage_pools,
     list_storage_volumes,
     list_unused_volumes,
+    upload_file_to_volume,
 )
 from .utils import (
     extract_server_name_from_uri,
@@ -285,6 +286,7 @@ class VManagerCMD(cmd.Cmd):
                 "list_volumes",
                 "list_unused_volumes",
                 "volume_usage",
+                "volume_upload",
                 "delete_volume",
             ],
             "Installation": ["prepare_json", "list_json", "show_json", "list_isos", "list_cached_isos"],
@@ -3091,6 +3093,99 @@ class VManagerCMD(cmd.Cmd):
             print(f"Pool '{pool_name}' created on server '{server_name}' at '{target}'.")
         except Exception as e:
             self._safe_print(f"Error creating pool '{pool_name}': {e}")
+
+    def _upload_arguments(self, arg_list):
+        """The pool, volume, file and format a volume_upload line names.
+
+        Two spellings are accepted: the three positionals, or --pool/--name/
+        --file, which is how the machine surface asks for it. They are not
+        mixed, so a half-written line is a usage error rather than a
+        half-understood one. Returns None when the line does not name a whole
+        upload.
+        """
+        named = {}
+        vol_format = None
+        positional = []
+        index = 0
+        while index < len(arg_list):
+            word = arg_list[index]
+            if word in ("--pool", "--name", "--file", "--format"):
+                if index + 1 >= len(arg_list):
+                    return None
+                if word == "--format":
+                    vol_format = arg_list[index + 1]
+                else:
+                    named[word] = arg_list[index + 1]
+                index += 2
+                continue
+            positional.append(word)
+            index += 1
+
+        pool_name = named.get("--pool")
+        volume_name = named.get("--name")
+        path = named.get("--file")
+        if positional:
+            if len(positional) != 3 or named:
+                return None
+            pool_name, volume_name, path = positional
+        if pool_name is None or volume_name is None or path is None:
+            return None
+        return pool_name, volume_name, path, vol_format
+
+    def do_volume_upload(self, args):
+        """Uploads a local file into a new storage volume.
+        Usage: volume_upload <pool_name> <volume_name> <file> [--format raw|qcow2]
+               volume_upload --pool <pool_name> --name <volume_name> --file <file>
+
+        The volume is created with the file's exact size and filled from it,
+        which is how an image or a cloud-init seed ISO reaches a pool. Without
+        --format, a '.qcow2' file is uploaded as qcow2 and anything else as raw.
+        A qcow2 image's virtual size becomes the volume's capacity once its header
+        is written, so an overlay of the volume is as large as the image was built,
+        not as large as it downloaded."""
+        arg_list = shlex.split(args)
+        usage = (
+            "Usage: volume_upload <pool_name> <volume_name> <file> "
+            "or volume_upload --pool <pool_name> --name <volume_name> --file <file> "
+            "[--format raw|qcow2]"
+        )
+
+        told = self._upload_arguments(arg_list)
+        if told is None:
+            print(usage)
+            return
+        pool_name, volume_name, path, vol_format = told
+
+        if not os.path.isfile(path):
+            print(f"File '{path}' not found.")
+            return
+
+        server_name, conn = self._one_connection("upload a volume")
+        if not conn:
+            return
+
+        try:
+            pool = conn.storagePoolLookupByName(pool_name)
+        except libvirt.libvirtError:
+            print(f"Pool '{pool_name}' not found on server '{server_name}'.")
+            return
+
+        if volume_name in [volume["name"] for volume in list_storage_volumes(pool)]:
+            print(f"Volume '{volume_name}' already exists in pool '{pool_name}'.")
+            return
+
+        try:
+            upload_file_to_volume(pool, volume_name, path, vol_format)
+            print(f"Volume '{volume_name}' created in pool '{pool_name}' from '{path}'.")
+        except Exception as e:
+            self._safe_print(f"Error uploading '{path}': {e}")
+
+    def complete_volume_upload(self, text, line, begidx, endidx):
+        """Auto-completion for volume_upload: the pool name first."""
+        args = line.split()
+        if len(args) <= 1 or (len(args) == 2 and not line.endswith(" ")):
+            return self._complete_pools(text)
+        return []
 
     def do_help(self, arg):
         """List available commands with "help" or detailed help with "help cmd"."""

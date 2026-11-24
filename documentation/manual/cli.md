@@ -313,6 +313,7 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 *   **`list_pool`**: Displays all storage pools, their capacity, and usage.
 *   **`create_pool <pool_name> [target_path]`**: Creates and starts a `dir` storage pool. The directory is created on the host that owns the pool; without a path it is `/var/lib/libvirt/images/<pool_name>`.
 *   **`list_volumes [pool_name]`**: Lists all storage volumes in a pool (name, type, capacity, allocation).
+*   **`volume_upload <pool_name> <volume_name> <file> [--format raw|qcow2]`** (or `volume_upload --pool <pool_name> --name <volume_name> --file <file>`): Creates a volume and streams the file into it, which is how a disk image or a cloud-init seed ISO reaches a pool. Without `--format`, a `.qcow2` file is uploaded as qcow2 and anything else as raw. A taken name is refused rather than overwritten. The volume is defined at the size of the file, and a qcow2 keeps the larger virtual size its own header records once the upload has written it, so an overlay of the volume is as large as the image was built rather than as large as it downloaded.
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
 *   **`delete_volume <pool_name> <volume_name>`**: Deletes a storage volume from a pool.
 *   **`volume_usage <pool_name> <volume_name>`**: Lists the VMs that use a storage volume.
@@ -650,7 +651,7 @@ guess at.
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `network_usage`, `net_autostart` |
-| Storage | `list_pool`, `create_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage` |
+| Storage | `list_pool`, `create_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage`, `volume_upload` |
 | Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json`, `list_isos`, `list_cached_isos` |
 | Pipelines | `pipeline` (with `|` chaining) |
 | Shell/Utils | `bash`, `history`, `!<number>`, `version`, `about`, `quit`, `help` |
