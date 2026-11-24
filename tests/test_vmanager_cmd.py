@@ -1764,5 +1764,56 @@ class TestUnattendedDelete(unittest.TestCase):
         mock_delete.assert_called_once_with(volume)
         self.assertIn("deleted from pool", buf.getvalue())
 
+class TestCreatePool(unittest.TestCase):
+    """create_pool, the pool a base and its volumes live in."""
+
+    @patch("vmanager.vmanager_cmd.load_config")
+    @patch("vmanager.vmanager_cmd.get_log_path")
+    @patch("vmanager.vmanager_cmd.CLILogger")
+    def setUp(self, mock_logger, mock_log_path, mock_load_config):
+        mock_load_config.return_value = {
+            "servers": [
+                {"name": "local", "uri": "qemu:///system", "autoconnect": False},
+            ]
+        }
+        mock_log_path.return_value = "/tmp/vmanager_test.log"
+        self.mock_vm_service = MagicMock()
+        with patch("sys.stdout", MagicMock()):
+            self.cmd = VManagerCMD(vm_service=self.mock_vm_service)
+
+    def _no_domain_error(self):
+        import libvirt
+
+        class NoDomainError(libvirt.libvirtError):
+            def get_error_code(self):
+                return libvirt.VIR_ERR_NO_DOMAIN
+
+        return NoDomainError("no such object")
+
+    def test_create_pool_creates_a_directory_pool(self):
+        """The pool is created as a dir pool at the given path."""
+        conn = MagicMock()
+        conn.storagePoolLookupByName.side_effect = self._no_domain_error()
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_create_pool("sidekick /var/lib/sidekick")
+
+        mock_create.assert_called_once_with(conn, "sidekick", "dir", "/var/lib/sidekick")
+        self.assertIn("created on server 'local'", buf.getvalue())
+
+    def test_create_pool_reports_a_pool_that_exists(self):
+        """An existing name is reported, not created again."""
+        conn = MagicMock()
+        self.cmd.active_connections["local"] = conn
+
+        with patch("vmanager.vmanager_cmd.create_storage_pool") as mock_create:
+            with redirect_stdout(io.StringIO()) as buf:
+                self.cmd.do_create_pool("sidekick")
+
+        mock_create.assert_not_called()
+        self.assertIn("already exists", buf.getvalue())
+
 if __name__ == "__main__":
     unittest.main()

@@ -29,6 +29,9 @@ one — `delete` and `delete_volume` — cancels itself when the command comes f
 `--force-storage-delete` asks for them, because removing the disks is a second,
 more destructive answer with a flag of its own.
 
+A command that creates something it cannot search for has no server to pick:
+with several connected, name the one to use with `-u`/`--uri`.
+
 `-u, --uri <uri>` — connect to this hypervisor and to nothing else, instead of the
 servers marked `autoconnect` in your configuration. Needs `-c` or `--json`.
 With `--json` it replaces the `server` field of the deployment file, which the file
@@ -308,6 +311,7 @@ backup_test_sle16_PRUSA_ryzen7      sle16_PRUSA     ryzen7          snapshot   S
 
 *   **`list_vms`**: Lists all VMs on all connected servers with their current status.
 *   **`list_pool`**: Displays all storage pools, their capacity, and usage.
+*   **`create_pool <pool_name> [target_path]`**: Creates and starts a `dir` storage pool. The directory is created on the host that owns the pool; without a path it is `/var/lib/libvirt/images/<pool_name>`.
 *   **`list_volumes [pool_name]`**: Lists all storage volumes in a pool (name, type, capacity, allocation).
 *   **`list_unused_volumes [pool_name]`**: Finds orphaned disk images that are not attached to any VM.
 *   **`delete_volume <pool_name> <volume_name>`**: Deletes a storage volume from a pool.
@@ -646,7 +650,7 @@ guess at.
 | Snapshots | `snapshot_list`, `snapshot_create`, `snapshot_delete`, `snapshot_revert` |
 | Backups | `backup_create`, `backup_list`, `backup_status`, `backup_restore`, `backup_cleanup` |
 | Networking | `list_networks`, `net_start`, `net_stop`, `net_delete`, `net_info`, `network_usage`, `net_autostart` |
-| Storage | `list_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage` |
+| Storage | `list_pool`, `create_pool`, `list_volumes`, `list_unused_volumes`, `delete_volume`, `volume_usage` |
 | Installation | `prepare_json`, `deploy_vm`, `list_json`, `show_json`, `list_isos`, `list_cached_isos` |
 | Pipelines | `pipeline` (with `|` chaining) |
 | Shell/Utils | `bash`, `history`, `!<number>`, `version`, `about`, `quit`, `help` |

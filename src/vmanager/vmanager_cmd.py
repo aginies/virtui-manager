@@ -69,6 +69,7 @@ from .provisioning.automation_engine import template_supports_serial_console
 from .provisioning.os_provider import OSType
 from .provisioning.templates.auto_template_manager import AutoYaSTTemplateManager
 from .storage_manager import (
+    create_storage_pool,
     delete_volume,
     ensure_default_pool,
     find_volume,
@@ -280,6 +281,7 @@ class VManagerCMD(cmd.Cmd):
             ],
             "Storage": [
                 "list_pool",
+                "create_pool",
                 "list_volumes",
                 "list_unused_volumes",
                 "volume_usage",
@@ -715,6 +717,27 @@ class VManagerCMD(cmd.Cmd):
         if self.confirm_yes:
             return "yes"
         return self._get_input(prompt).lower()
+
+    def _one_connection(self, verb):
+        """The connected server a command that creates something should use.
+
+        A pool or a volume that does not exist yet cannot be searched for, so
+        there is no object to pick the server from the way delete_volume picks
+        it. One server connected is the answer; with several, the caller says
+        which one with -u/--uri.
+        """
+        if not self.active_connections:
+            print("Not connected to any server. Use 'connect <server_name>'.")
+            return None, None
+        if len(self.active_connections) == 1:
+            server_name = next(iter(self.active_connections))
+            return server_name, self.active_connections[server_name]
+        names = ", ".join(sorted(self.active_connections))
+        print(
+            f"Several servers are connected ({names}). "
+            f"Use -u/--uri to say which one to {verb} on."
+        )
+        return None, None
 
     def do_virsh(self, args):
         """Start a virsh shell connected to a server.
@@ -3037,6 +3060,37 @@ class VManagerCMD(cmd.Cmd):
             return self._complete_pools(text)
         # Completing the volume name (pool is the first argument)
         return self._complete_volumes(text, args[1])
+
+    def do_create_pool(self, args):
+        """Creates and starts a directory storage pool.
+        Usage: create_pool <pool_name> [target_path]
+
+        The directory is created on the hypervisor that owns the pool. Without a
+        path, the pool is created under /var/lib/libvirt/images/<pool_name>."""
+        arg_list = shlex.split(args)
+        if not 1 <= len(arg_list) <= 2:
+            print("Usage: create_pool <pool_name> [target_path]")
+            return
+
+        pool_name = arg_list[0]
+        target = arg_list[1] if len(arg_list) == 2 else f"/var/lib/libvirt/images/{pool_name}"
+
+        server_name, conn = self._one_connection("create a pool")
+        if not conn:
+            return
+
+        try:
+            conn.storagePoolLookupByName(pool_name)
+            print(f"Pool '{pool_name}' already exists on server '{server_name}'.")
+            return
+        except libvirt.libvirtError:
+            pass
+
+        try:
+            create_storage_pool(conn, pool_name, "dir", target)
+            print(f"Pool '{pool_name}' created on server '{server_name}' at '{target}'.")
+        except Exception as e:
+            self._safe_print(f"Error creating pool '{pool_name}': {e}")
 
     def do_help(self, arg):
         """List available commands with "help" or detailed help with "help cmd"."""
